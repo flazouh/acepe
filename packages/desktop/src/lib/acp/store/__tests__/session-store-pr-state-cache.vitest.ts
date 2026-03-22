@@ -1,0 +1,127 @@
+import { okAsync, ResultAsync } from "neverthrow";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { AppError } from "../../errors/app-error.js";
+import { AgentError } from "../../errors/app-error.js";
+import type { PrDetails } from "../../../utils/tauri-client/git.js";
+
+const { prDetailsMock } = vi.hoisted(() => ({
+	prDetailsMock: vi.fn<
+		(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>
+	>(),
+}));
+
+vi.mock("../api.js", () => ({
+	api: {
+		getSession: vi.fn(),
+		scanSessions: vi.fn(),
+		sendPrompt: vi.fn(),
+	},
+}));
+
+vi.mock("../../../utils/tauri-client.js", () => ({
+	tauriClient: {
+		git: {
+			prDetails: prDetailsMock,
+		},
+	},
+}));
+
+vi.mock("../agent-model-preferences-store.svelte.js", () => ({
+	clearSessionModelPerMode: vi.fn(),
+}));
+
+import { SessionStore } from "../session-store.svelte.js";
+
+function createPrDetails(overrides: Partial<PrDetails> = {}): PrDetails {
+	return {
+		number: overrides.number ?? 83,
+		title: overrides.title ?? "Test PR",
+		body: overrides.body ?? "Summary",
+		state: overrides.state ?? "OPEN",
+		url: overrides.url ?? "https://github.com/example/repo/pull/83",
+		isDraft: overrides.isDraft ?? false,
+		additions: overrides.additions ?? 10,
+		deletions: overrides.deletions ?? 3,
+		commits: overrides.commits ?? [],
+	};
+}
+
+function addSessionWithPr(store: SessionStore, sessionId: string, prNumber: number): void {
+	store.addSession({
+		id: sessionId,
+		projectPath: "/test/path",
+		agentId: "cursor",
+		title: `Session ${sessionId}`,
+		prNumber,
+		prState: undefined,
+		updatedAt: new Date(),
+		createdAt: new Date(),
+		parentId: null,
+	});
+}
+
+describe("SessionStore PR state refresh caching", () => {
+	let store: SessionStore;
+
+	beforeEach(() => {
+		store = new SessionStore();
+		prDetailsMock.mockReset();
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("reuses cached PR details for repeated refreshes", async () => {
+		addSessionWithPr(store, "session-pr-1", 83);
+		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+
+		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+
+		expect(prDetailsMock).toHaveBeenCalledTimes(1);
+		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
+	});
+
+	it("dedupes in-flight requests for the same PR", async () => {
+		addSessionWithPr(store, "session-pr-1", 83);
+		addSessionWithPr(store, "session-pr-2", 83);
+
+		let resolveDetails:
+			| ((details: PrDetails) => void)
+			| undefined;
+		const detailsPromise = new Promise<PrDetails>((resolve) => {
+			resolveDetails = resolve;
+		});
+
+		prDetailsMock.mockReturnValue(
+			ResultAsync.fromPromise(detailsPromise, () => new AgentError("prDetails"))
+		);
+
+		const firstRequest = store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		const secondRequest = store.refreshSessionPrState("session-pr-2", "/test/path", 83);
+
+		expect(prDetailsMock).toHaveBeenCalledTimes(1);
+
+		resolveDetails?.(createPrDetails());
+
+		await firstRequest;
+		await secondRequest;
+
+		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
+		expect(store.getSessionCold("session-pr-2")?.prState).toBe("OPEN");
+	});
+
+	it("refreshes again after the cache ttl expires", async () => {
+		addSessionWithPr(store, "session-pr-1", 83);
+		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+
+		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		vi.advanceTimersByTime(60_001);
+		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+
+		expect(prDetailsMock).toHaveBeenCalledTimes(2);
+	});
+});

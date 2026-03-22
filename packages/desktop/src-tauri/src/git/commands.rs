@@ -1,0 +1,179 @@
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::git::{operations, text_generation};
+
+/// Result of a successful git clone operation
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct CloneResult {
+    /// The path where the repository was cloned
+    pub path: String,
+    /// The name of the repository (extracted from path)
+    pub name: String,
+}
+
+/// Clone a git repository to a destination folder
+#[tauri::command]
+#[specta::specta]
+pub async fn git_clone(
+    url: String,
+    destination: String,
+    branch: Option<String>,
+) -> Result<CloneResult, String> {
+    tracing::info!(
+        url = %url,
+        destination = %destination,
+        branch = ?branch,
+        "Cloning git repository"
+    );
+
+    // Validate URL format
+    if !url.starts_with("https://") && !url.starts_with("git@") && !url.starts_with("http://") {
+        return Err(
+            "Invalid repository URL format. URL must start with https://, http://, or git@"
+                .to_string(),
+        );
+    }
+
+    // Validate destination path
+    let dest_path = Path::new(&destination);
+    if dest_path.exists() {
+        return Err(format!(
+            "Destination folder already exists: {}",
+            destination
+        ));
+    }
+
+    // Build git clone command
+    let mut cmd = Command::new("git");
+    cmd.arg("clone");
+
+    // Add branch argument if specified
+    if let Some(ref branch_name) = branch {
+        if !branch_name.is_empty() {
+            cmd.arg("--branch").arg(branch_name);
+        }
+    }
+
+    cmd.arg(&url).arg(&destination);
+
+    tracing::debug!(command = ?cmd, "Executing git clone");
+
+    // Execute git clone
+    let output = cmd.output().map_err(|e| {
+        tracing::error!(error = %e, "Failed to execute git command");
+        format!("Failed to execute git: {}. Is git installed?", e)
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(stderr = %stderr, "Git clone failed");
+        return Err(format!("Git clone failed: {}", stderr.trim()));
+    }
+
+    // Extract repository name from destination path
+    let name = dest_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(capitalize_name)
+        .unwrap_or_else(|| "repository".to_string());
+
+    tracing::info!(
+        path = %destination,
+        name = %name,
+        "Repository cloned successfully"
+    );
+
+    Ok(CloneResult {
+        path: destination,
+        name,
+    })
+}
+
+/// Browse for a destination folder using native file dialog
+#[tauri::command]
+#[specta::specta]
+pub async fn browse_clone_destination() -> Result<Option<String>, String> {
+    use rfd::AsyncFileDialog;
+
+    tracing::debug!("Opening folder picker for clone destination");
+
+    let folder = AsyncFileDialog::new()
+        .set_title("Select Destination Folder")
+        .pick_folder()
+        .await;
+
+    match folder {
+        Some(folder_path) => {
+            let path_str = folder_path.path().to_string_lossy().to_string();
+            tracing::info!(path = %path_str, "Destination folder selected");
+            Ok(Some(path_str))
+        }
+        None => {
+            tracing::debug!("Folder selection cancelled");
+            Ok(None)
+        }
+    }
+}
+
+/// Capitalize the first letter of each word in a string.
+fn capitalize_name(name: &str) -> String {
+    name.split(&[' ', '_', '-'][..])
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>()
+                        + chars.as_str().to_lowercase().as_str()
+                }
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+// ─── Ship Context ───────────────────────────────────────────────────────────
+
+/// Context returned to the frontend for AI generation via the ShipCard.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ShipContext {
+    /// The full prompt to send to the ACP agent.
+    pub prompt: String,
+    /// Current git branch name.
+    pub branch: String,
+    /// Summary of staged files (name-status).
+    pub staged_summary: String,
+}
+
+/// Collect staged diff context and build the AI generation prompt.
+/// Returns None if nothing is staged.
+#[tauri::command]
+#[specta::specta]
+pub async fn git_collect_ship_context(project_path: String) -> Result<Option<ShipContext>, String> {
+    let path = PathBuf::from(&project_path);
+    let branch = crate::git::worktree::git_current_branch(project_path).await?;
+    let staged = operations::collect_staged_context(&path).await?;
+    Ok(staged.map(|ctx| {
+        let prompt = text_generation::build_ship_prompt(&branch, &ctx);
+        ShipContext {
+            prompt,
+            branch,
+            staged_summary: ctx.summary,
+        }
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_capitalize_name() {
+        assert_eq!(capitalize_name("my-project"), "My Project");
+        assert_eq!(capitalize_name("my_project"), "My Project");
+        assert_eq!(capitalize_name("myproject"), "Myproject");
+        assert_eq!(capitalize_name("MY-PROJECT"), "My Project");
+    }
+}

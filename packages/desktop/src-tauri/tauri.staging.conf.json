@@ -1,0 +1,24 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Acepe Staging",
+	"identifier": "com.alex.acepe.staging",
+	"app": {
+		"windows": [
+			{
+				"title": "Acepe Staging",
+				"width": 1512,
+				"height": 982,
+				"maximized": true,
+				"decorations": true,
+				"hiddenTitle": true,
+				"titleBarStyle": "Overlay",
+				"dragDropEnabled": true,
+				"devtools": true,
+				"trafficLightPosition": {
+					"x": 16,
+					"y": 24
+				}
+			}
+		]
+	}
+}

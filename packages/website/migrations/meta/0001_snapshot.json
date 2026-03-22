@@ -1,0 +1,284 @@
+{
+	"id": "7520d410-1b4d-59c6-9596-a15133e23b79",
+	"prevId": "6410c309-0a3c-48b5-8495-904022d12a68",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.feature_flags": {
+			"name": "feature_flags",
+			"schema": "",
+			"columns": {
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"enabled": {
+					"name": "enabled",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": false
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.sessions": {
+			"name": "sessions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"session_user_id_idx": {
+					"name": "session_user_id_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"sessions_user_id_users_id_fk": {
+					"name": "sessions_user_id_users_id_fk",
+					"tableFrom": "sessions",
+					"tableTo": "users",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.users": {
+			"name": "users",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"google_id": {
+					"name": "google_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"picture": {
+					"name": "picture",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"is_admin": {
+					"name": "is_admin",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"users_email_unique": {
+					"name": "users_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["email"]
+				},
+				"users_google_id_unique": {
+					"name": "users_google_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["google_id"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.waitlist_entries": {
+			"name": "waitlist_entries",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"locale": {
+					"name": "locale",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'en'"
+				},
+				"confirmation_token": {
+					"name": "confirmation_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"email_confirmed": {
+					"name": "email_confirmed",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"confirmed_at": {
+					"name": "confirmed_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"email_idx": {
+					"name": "email_idx",
+					"columns": [
+						{
+							"expression": "email",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"confirmation_token_idx": {
+					"name": "confirmation_token_idx",
+					"columns": [
+						{
+							"expression": "confirmation_token",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"waitlist_entries_email_unique": {
+					"name": "waitlist_entries_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["email"]
+				},
+				"waitlist_entries_confirmation_token_unique": {
+					"name": "waitlist_entries_confirmation_token_unique",
+					"nullsNotDistinct": false,
+					"columns": ["confirmation_token"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

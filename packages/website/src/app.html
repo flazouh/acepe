@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="%paraglide.lang%">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+		<!-- Primary Meta Tags -->
+		<title>Acepe - The AI Agent Interface</title>
+		<meta name="title" content="Acepe - The AI Agent Interface" />
+		<meta
+			name="description"
+			content="A unified desktop interface for interacting with AI agents. Connect to ACP-compatible agents like Claude Code in a single, modern application."
+		/>
+
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://acepe.dev/" />
+		<meta property="og:title" content="Acepe - The AI Agent Interface" />
+		<meta
+			property="og:description"
+			content="A unified desktop interface for interacting with AI agents. Connect to ACP-compatible agents like Claude Code in a single, modern application."
+		/>
+		<meta property="og:image" content="https://acepe.dev/og-image.jpg" />
+
+		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:url" content="https://acepe.dev/" />
+		<meta property="twitter:title" content="Acepe - The AI Agent Interface" />
+		<meta
+			property="twitter:description"
+			content="A unified desktop interface for interacting with AI agents. Connect to ACP-compatible agents like Claude Code in a single, modern application."
+		/>
+		<meta property="twitter:image" content="https://acepe.dev/og-image.jpg" />
+
+		<!-- Favicon -->
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+		<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+		<link rel="manifest" href="/site.webmanifest" />
+		<meta name="theme-color" content="#F77E2C" />
+		<script>
+			const themeStorageKey = 'acepe-theme';
+			const storedTheme = window.localStorage.getItem(themeStorageKey);
+			const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'dark';
+			document.documentElement.dataset.theme = theme;
+			document.documentElement.style.colorScheme = theme;
+		</script>
+
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

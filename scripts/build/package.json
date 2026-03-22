@@ -1,0 +1,21 @@
+{
+  "name": "acepe-release",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "production": "bun run src/production.ts",
+    "staging": "bun run src/staging.ts",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform": "^0.77.0",
+    "@effect/platform-bun": "^0.47.0",
+    "@inquirer/prompts": "^7.5.0",
+    "effect": "^3.12.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@typescript/native-preview": "7.0.0-dev.20251207.1",
+    "typescript": "^5.7.0"
+  }
+}

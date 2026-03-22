@@ -1,0 +1,1047 @@
+//! Git worktree management for isolated agent sessions.
+//!
+//! This module provides functionality to create, manage, and cleanup git worktrees
+//! that isolate agent work from the main repository. Each worktree gets a fun
+//! adjective-noun branch name like "clever-falcon" or "cosmic-harbor".
+
+use crate::git::worktree_config;use crate::path_safety;
+use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tauri::{AppHandle, Emitter};
+use tokio::process::Command as AsyncCommand;
+
+// Word lists for generating fun branch names (from opencode pattern)
+const ADJECTIVES: &[&str] = &[
+    "brave", "calm", "clever", "cosmic", "crisp", "curious", "eager", "gentle", "golden", "happy",
+    "keen", "lively", "merry", "noble", "proud", "quick", "quiet", "rapid", "sharp", "silent",
+    "smooth", "steady", "swift", "vivid", "warm", "wise", "witty", "zesty", "bold", "bright",
+    "clear", "cool",
+];
+
+const NOUNS: &[&str] = &[
+    "cabin", "canyon", "comet", "eagle", "falcon", "forest", "harbor", "island", "meadow",
+    "mountain", "ocean", "panther", "phoenix", "planet", "river", "shadow", "spark", "stream",
+    "summit", "thunder", "tiger", "valley", "wave", "willow", "breeze", "cloud", "crystal", "dawn",
+    "ember", "frost", "garden", "horizon",
+];
+
+/// Whether a worktree was created by Acepe or externally
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub enum WorktreeOrigin {
+    #[serde(rename = "acepe")]
+    Acepe,
+    #[serde(rename = "external")]
+    External,
+}
+
+/// Information about a git worktree
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct WorktreeInfo {
+    /// The worktree name (e.g., "clever-falcon")
+    pub name: String,
+    /// The git branch name (e.g., "acepe/clever-falcon")
+    pub branch: String,
+    /// The full path to the worktree directory
+    pub directory: String,
+    /// Whether this worktree was created by Acepe or externally
+    pub origin: WorktreeOrigin,
+}
+
+/// Extended worktree information for management UI
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct WorktreeListItem {
+    /// The worktree name (e.g., "clever-falcon")
+    pub name: String,
+    /// The git branch name (e.g., "acepe/clever-falcon")
+    pub branch: String,
+    /// The full path to the worktree directory
+    pub path: String,
+    /// The original project path this worktree was created from
+    pub project_path: String,
+    /// The project name (folder name)
+    pub project_name: String,
+    /// Session ID if this worktree is associated with a session, null if orphaned
+    pub session_id: Option<String>,
+    /// Disk size in bytes
+    pub disk_size: u64,
+}
+
+/// Result of worktree cleanup operation
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct CleanupResult {
+    /// Number of worktrees successfully removed
+    pub removed_count: u32,
+    /// Paths that failed to remove
+    pub failed_paths: Vec<String>,
+}
+
+/// Result of worktree setup commands
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct SetupResult {
+    /// Whether all commands succeeded
+    pub success: bool,
+    /// Output from each command
+    pub outputs: Vec<CommandOutput>,
+    /// Error message if failed
+    pub error: Option<String>,
+}
+
+/// Output from a single setup command
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct CommandOutput {
+    /// The command that was run
+    pub command: String,
+    /// stdout output
+    pub stdout: String,
+    /// stderr output
+    pub stderr: String,
+    /// Exit code
+    pub exit_code: i32,
+}
+
+/// Generate a random worktree name using adjective-noun pattern
+fn generate_name() -> String {
+    let mut rng = rand::thread_rng();
+    let adjective = ADJECTIVES.choose(&mut rng).unwrap_or(&"cosmic");
+    let noun = NOUNS.choose(&mut rng).unwrap_or(&"falcon");
+    format!("{}-{}", adjective, noun)
+}
+
+/// Get the worktrees root directory (~/.acepe/worktrees/)
+fn get_worktrees_root() -> Result<PathBuf, String> {
+    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+    Ok(home.join(".acepe").join("worktrees"))
+}
+
+/// Generate a project ID from the project path (first 12 chars of SHA-256 hash)
+fn project_id_from_path(project_path: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(project_path.as_bytes());
+    let result = hasher.finalize();
+    hex::encode(&result[..6]) // 6 bytes = 12 hex chars
+}
+
+/// Get the worktree directory for a project
+fn get_project_worktrees_dir(project_path: &str) -> Result<PathBuf, String> {
+    let root = get_worktrees_root()?;
+    let project_id = project_id_from_path(project_path);
+    Ok(root.join(project_id))
+}
+
+/// Check if a git branch exists in the repository
+fn branch_exists(repo_path: &Path, branch: &str) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", branch])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to check branch existence: {}", e))?;
+
+    Ok(output.status.success())
+}
+
+/// Check if the path is a git repository (sync version for internal use)
+fn is_git_repo(path: &Path) -> bool {
+    path.join(".git").exists() || {
+        // Check if it's inside a git repo (worktree or submodule case)
+        Command::new("git")
+            .args(["rev-parse", "--is-inside-work-tree"])
+            .current_dir(path)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
+/// Check if the path is a git repository (async version for Tauri commands)
+async fn is_git_repo_async(path: &Path) -> bool {
+    // First check if .git exists (fast path)
+    if path.join(".git").exists() {
+        return true;
+    }
+
+    // Fall back to git command for worktrees/submodules
+    AsyncCommand::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .current_dir(path)
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Check if repository has uncommitted changes
+fn has_uncommitted_changes(repo_path: &Path) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to check git status: {}", e))?;
+
+    if !output.status.success() {
+        return Err("Failed to get git status".to_string());
+    }
+
+    Ok(!output.stdout.is_empty())
+}
+
+/// Get the current branch name
+fn get_current_branch(repo_path: &Path) -> Result<String, String> {
+    let repo = crate::file_index::git::open_repository(repo_path)
+        .map_err(|e| format!("Failed to get current branch: {}", e))?;
+    crate::file_index::git::get_branch_name(&repo)
+        .ok_or_else(|| "Failed to get current branch".to_string())
+}
+
+/// Generate a unique worktree candidate that doesn't conflict with existing worktrees or branches
+fn generate_unique_candidate(
+    project_path: &Path,
+    worktrees_dir: &Path,
+    base_name: Option<&str>,
+) -> Result<WorktreeInfo, String> {
+    for _ in 0..26 {
+        let name = match base_name {
+            Some(base) => format!("{}-{}", base, generate_name()),
+            None => generate_name(),
+        };
+        let branch = format!("acepe/{}", name);
+        let directory = worktrees_dir.join(&name);
+
+        // Check that neither the directory nor branch already exists
+        if !directory.exists() && !branch_exists(project_path, &branch)? {
+            return Ok(WorktreeInfo {
+                name,
+                branch,
+                directory: directory.to_string_lossy().to_string(),
+                origin: WorktreeOrigin::Acepe,
+            });
+        }
+    }
+
+    Err("Failed to generate unique worktree name after 26 attempts".to_string())
+}
+
+/// Create a new git worktree for isolated agent work
+///
+/// # Arguments
+/// * `project_path` - The path to the main git repository
+/// * `name` - Optional user-provided name (will be combined with random suffix if provided)
+///
+/// # Returns
+/// * `WorktreeInfo` with the name, branch, and directory of the created worktree
+#[tauri::command]
+#[specta::specta]
+pub async fn git_worktree_create(
+    _app: AppHandle,
+    project_path: String,
+    name: Option<String>,
+) -> Result<WorktreeInfo, String> {
+    tracing::info!(
+        project_path = %project_path,
+        name = ?name,
+        "Creating git worktree"
+    );
+
+    let project_path_buf = PathBuf::from(&project_path);
+
+    // Validate that this is a git repository
+    if !is_git_repo(&project_path_buf) {
+        return Err("This project is not a git repository".to_string());
+    }
+
+    // Validate optional user-provided name to prevent path traversal (e.g. ".." or "/")
+    if let Some(ref n) = name {
+        path_safety::validate_path_segment(n, "worktree name")
+            .map_err(|e| format!("Invalid worktree name: {}", e))?;
+    }
+
+    // Get the worktrees directory for this project
+    let worktrees_dir = get_project_worktrees_dir(&project_path)?;
+
+    // Create the worktrees directory if it doesn't exist
+    std::fs::create_dir_all(&worktrees_dir)
+        .map_err(|e| format!("Failed to create worktrees directory: {}", e))?;
+
+    // Generate a unique worktree name and branch
+    let info = generate_unique_candidate(&project_path_buf, &worktrees_dir, name.as_deref())?;
+
+    tracing::info!(
+        worktree_name = %info.name,
+        branch = %info.branch,
+        directory = %info.directory,
+        "Creating worktree"
+    );
+
+    // Check if HEAD is valid (repo must have at least one commit)
+    let head_check = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(&project_path)
+        .output()
+        .map_err(|e| format!("Failed to check HEAD: {}", e))?;
+
+    if !head_check.status.success() {
+        return Err(
+            "Cannot create a worktree in a repository with no commits. Please make an initial commit first."
+                .to_string(),
+        );
+    }
+
+    // Create the worktree with a new branch based on HEAD (last committed state)
+    let output = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "-b",
+            &info.branch,
+            &info.directory,
+            "HEAD",
+        ])
+        .current_dir(&project_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git worktree add: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(stderr = %stderr, "Git worktree add failed");
+        return Err(format!("Failed to create worktree: {}", stderr.trim()));
+    }
+
+    tracing::info!(
+        worktree_name = %info.name,
+        directory = %info.directory,
+        "Worktree created successfully"
+    );
+
+    Ok(info)
+}
+
+/// Remove a git worktree and its associated branch
+///
+/// # Arguments
+/// * `worktree_path` - The path to the worktree to remove
+/// * `force` - Whether to force removal even with uncommitted changes
+#[tauri::command]
+#[specta::specta]
+pub async fn git_worktree_remove(worktree_path: String, force: bool) -> Result<(), String> {
+    tracing::info!(
+        worktree_path = %worktree_path,
+        force = force,
+        "Removing git worktree"
+    );
+
+    let worktree_path_buf = PathBuf::from(&worktree_path);
+
+    if !worktree_path_buf.exists() {
+        tracing::warn!(worktree_path = %worktree_path, "Worktree path does not exist");
+        return Ok(());
+    }
+
+    let worktree_path_buf = worktree_config::validate_worktree_path(&worktree_path_buf)
+        .map_err(|e| format!("Invalid worktree path: {}", e))?;
+
+    // Extract the worktree name to determine the branch
+    let worktree_name = worktree_path_buf
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Could not determine worktree name")?;
+    let branch_name = format!("acepe/{}", worktree_name);
+
+    // Find the main repository by going up the directory tree
+    // Worktrees are in ~/.acepe/worktrees/<project-id>/<name>
+    // We need to find the original repo to run git commands
+    let _parent_dir = worktree_path_buf
+        .parent()
+        .ok_or("Could not determine parent directory")?;
+
+    // Read the gitdir file to find the main repo
+    let git_dir = worktree_path_buf.join(".git");
+    let main_repo = if git_dir.is_file() {
+        // .git is a file pointing to the actual git directory
+        let content = std::fs::read_to_string(&git_dir)
+            .map_err(|e| format!("Failed to read .git file: {}", e))?;
+        let gitdir_path = content
+            .strip_prefix("gitdir: ")
+            .ok_or("Invalid .git file format")?
+            .trim();
+        // The gitdir points to .git/worktrees/<name>, we need to go up to find the main repo
+        let gitdir = PathBuf::from(gitdir_path);
+        gitdir
+            .parent() // .git/worktrees
+            .and_then(|p| p.parent()) // .git
+            .and_then(|p| p.parent()) // main repo
+            .ok_or("Could not determine main repository")?
+            .to_path_buf()
+    } else {
+        return Err("Could not determine main repository from worktree".to_string());
+    };
+
+    // Remove the worktree
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(
+        worktree_path_buf
+            .to_str()
+            .ok_or("Invalid worktree path encoding")?,
+    );
+
+    let output = Command::new("git")
+        .args(&args)
+        .current_dir(&main_repo)
+        .output()
+        .map_err(|e| format!("Failed to execute git worktree remove: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(stderr = %stderr, "Git worktree remove failed");
+        return Err(format!("Failed to remove worktree: {}", stderr.trim()));
+    }
+
+    // Delete the branch
+    let output = Command::new("git")
+        .args(["branch", "-D", &branch_name])
+        .current_dir(&main_repo)
+        .output()
+        .map_err(|e| format!("Failed to execute git branch delete: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Branch might already be deleted, just log warning
+        tracing::warn!(stderr = %stderr, "Failed to delete branch (may already be deleted)");
+    }
+
+    tracing::info!(
+        worktree_path = %worktree_path,
+        branch = %branch_name,
+        "Worktree and branch removed successfully"
+    );
+
+    Ok(())
+}
+
+/// Reset a worktree to match the main branch (origin/main or main)
+///
+/// This performs:
+/// 1. git fetch origin main
+/// 2. git reset --hard origin/main (or main if no remote)
+/// 3. git clean -fdx
+/// 4. git submodule update --init --recursive --force
+#[tauri::command]
+#[specta::specta]
+pub async fn git_worktree_reset(worktree_path: String) -> Result<(), String> {
+    tracing::info!(worktree_path = %worktree_path, "Resetting git worktree");
+
+    let worktree_path_buf = worktree_config::validate_worktree_path(Path::new(&worktree_path))
+        .map_err(|e| format!("Invalid worktree path: {}", e))?;
+
+    if !worktree_path_buf.exists() {
+        return Err("Worktree path does not exist".to_string());
+    }
+
+    // Try to fetch from origin
+    let _ = Command::new("git")
+        .args(["fetch", "origin", "main"])
+        .current_dir(&worktree_path)
+        .output();
+
+    // Determine the reset target (origin/main if available, otherwise main)
+    let reset_target = if branch_exists(&worktree_path_buf, "origin/main")? {
+        "origin/main"
+    } else if branch_exists(&worktree_path_buf, "origin/master")? {
+        "origin/master"
+    } else if branch_exists(&worktree_path_buf, "main")? {
+        "main"
+    } else if branch_exists(&worktree_path_buf, "master")? {
+        "master"
+    } else {
+        return Err("Could not find main/master branch to reset to".to_string());
+    };
+
+    tracing::info!(reset_target = %reset_target, "Resetting to target");
+
+    // Hard reset
+    let output = Command::new("git")
+        .args(["reset", "--hard", reset_target])
+        .current_dir(&worktree_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git reset: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Git reset failed: {}", stderr.trim()));
+    }
+
+    // Clean untracked files
+    let output = Command::new("git")
+        .args(["clean", "-fdx"])
+        .current_dir(&worktree_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git clean: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!(stderr = %stderr, "Git clean failed (continuing anyway)");
+    }
+
+    // Update submodules if any
+    let _ = Command::new("git")
+        .args(["submodule", "update", "--init", "--recursive", "--force"])
+        .current_dir(&worktree_path)
+        .output();
+
+    tracing::info!(worktree_path = %worktree_path, "Worktree reset successfully");
+
+    Ok(())
+}
+
+/// Determine the origin of a worktree based on its path and branch name.
+fn determine_worktree_origin(directory: &str, branch: &str) -> WorktreeOrigin {
+    // Acepe-created worktrees live under ~/.acepe/worktrees/ and use acepe/ branch prefix
+    if branch.starts_with("acepe/") {
+        return WorktreeOrigin::Acepe;
+    }
+    if let Ok(root) = get_worktrees_root() {
+        if Path::new(directory).starts_with(&root) {
+            return WorktreeOrigin::Acepe;
+        }
+    }
+    WorktreeOrigin::External
+}
+
+/// Parse `git worktree list --porcelain` output into WorktreeInfo entries.
+fn parse_worktree_list_porcelain(output: &str, project_path: &Path) -> Vec<WorktreeInfo> {
+    let canonical_project =
+        std::fs::canonicalize(project_path).unwrap_or_else(|_| project_path.to_path_buf());
+
+    let mut worktrees = Vec::new();
+    let mut current_path: Option<String> = None;
+    let mut current_branch: Option<String> = None;
+    let mut is_bare = false;
+    let mut is_detached = false;
+
+    let flush = |path: &Option<String>,
+                 branch: &Option<String>,
+                 is_bare: bool,
+                 is_detached: bool,
+                 canonical_project: &Path,
+                 worktrees: &mut Vec<WorktreeInfo>| {
+        if let Some(ref wt_path) = path {
+            // Skip bare worktrees
+            if is_bare {
+                return;
+            }
+
+            // Skip main worktree (compare canonicalized paths)
+            let canonical_wt =
+                std::fs::canonicalize(wt_path).unwrap_or_else(|_| PathBuf::from(wt_path));
+            if canonical_wt == canonical_project {
+                return;
+            }
+
+            let name = PathBuf::from(wt_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let branch_display = if is_detached {
+                "(detached)".to_string()
+            } else {
+                branch
+                    .as_deref()
+                    .map(|b| b.strip_prefix("refs/heads/").unwrap_or(b).to_string())
+                    .unwrap_or_else(|| "(unknown)".to_string())
+            };
+
+            let origin = determine_worktree_origin(wt_path, &branch_display);
+
+            worktrees.push(WorktreeInfo {
+                name,
+                branch: branch_display,
+                directory: wt_path.clone(),
+                origin,
+            });
+        }
+    };
+
+    for line in output.lines() {
+        if line.is_empty() {
+            flush(
+                &current_path,
+                &current_branch,
+                is_bare,
+                is_detached,
+                &canonical_project,
+                &mut worktrees,
+            );
+            current_path = None;
+            current_branch = None;
+            is_bare = false;
+            is_detached = false;
+            continue;
+        }
+
+        if let Some(path) = line.strip_prefix("worktree ") {
+            // If we have a pending entry without a blank line separator, flush it
+            if current_path.is_some() {
+                flush(
+                    &current_path,
+                    &current_branch,
+                    is_bare,
+                    is_detached,
+                    &canonical_project,
+                    &mut worktrees,
+                );
+                current_branch = None;
+                is_bare = false;
+                is_detached = false;
+            }
+            current_path = Some(path.to_string());
+        } else if let Some(branch_ref) = line.strip_prefix("branch ") {
+            current_branch = Some(branch_ref.to_string());
+        } else if line == "detached" {
+            is_detached = true;
+        } else if line == "bare" {
+            is_bare = true;
+        }
+        // Silently skip unknown lines (HEAD, locked, prunable) for forward-compatibility
+    }
+
+    // Flush last entry (output may not end with trailing blank line)
+    flush(
+        &current_path,
+        &current_branch,
+        is_bare,
+        is_detached,
+        &canonical_project,
+        &mut worktrees,
+    );
+
+    worktrees
+}
+
+/// List all worktrees for a project using `git worktree list --porcelain`.
+///
+/// Discovers both Acepe-created and externally-created worktrees.
+#[tauri::command]
+#[specta::specta]
+pub async fn git_worktree_list(project_path: String) -> Result<Vec<WorktreeInfo>, String> {
+    tracing::debug!(project_path = %project_path, "Listing git worktrees");
+
+    let project_path_buf = PathBuf::from(&project_path);
+    if !project_path_buf.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    if !is_git_repo(&project_path_buf) {
+        return Ok(vec![]);
+    }
+
+    let output = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(&project_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git worktree list: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to list worktrees: {}", stderr.trim()));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let worktrees = parse_worktree_list_porcelain(&stdout, &project_path_buf);
+
+    tracing::debug!(count = worktrees.len(), "Found worktrees");
+
+    Ok(worktrees)
+}
+
+/// Get the disk size of a worktree directory in bytes
+#[tauri::command]
+#[specta::specta]
+pub async fn git_worktree_disk_size(path: String) -> Result<u64, String> {
+    let path_buf = PathBuf::from(&path);
+
+    if !path_buf.exists() {
+        return Ok(0);
+    }
+
+    fn dir_size(path: &Path) -> std::io::Result<u64> {
+        let mut size = 0;
+        if path.is_dir() {
+            for entry in std::fs::read_dir(path)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_dir() {
+                    size += dir_size(&path)?;
+                } else {
+                    size += entry.metadata()?.len();
+                }
+            }
+        } else {
+            size = std::fs::metadata(path)?.len();
+        }
+        Ok(size)
+    }
+
+    dir_size(&path_buf).map_err(|e| format!("Failed to calculate disk size: {}", e))
+}
+
+/// Initialize a new git repository in the given directory
+#[tauri::command]
+#[specta::specta]
+pub async fn git_init(project_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    if is_git_repo_async(&path).await {
+        return Err(format!(
+            "Path is already a git repository: {}",
+            project_path
+        ));
+    }
+
+    let output = Command::new("git")
+        .args(["init"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| format!("Failed to initialize git repository: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Failed to initialize git repository: {}",
+            stderr.trim()
+        ));
+    }
+
+    Ok(())
+}
+
+/// Check if a project is a git repository (for UI to show/hide worktree toggle)
+#[tauri::command]
+#[specta::specta]
+pub async fn git_is_repo(project_path: String) -> Result<bool, String> {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    Ok(is_git_repo_async(&path).await)
+}
+
+/// Get the current branch for a repository or worktree path
+#[tauri::command]
+#[specta::specta]
+pub async fn git_current_branch(project_path: String) -> Result<String, String> {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    get_current_branch(&path).map_err(|error| {
+        if error.contains("Failed to get current branch") {
+            format!("Path is not a git repository: {}", project_path)
+        } else {
+            error
+        }
+    })
+}
+
+/// List local branches for a repository or worktree path.
+///
+/// Excludes branches that are checked out in other worktrees, since git
+/// prevents switching to them anyway. The branch checked out in the
+/// current working directory (`project_path`) is always included.
+#[tauri::command]
+#[specta::specta]
+pub async fn git_list_branches(project_path: String) -> Result<Vec<String>, String> {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    if !is_git_repo_async(&path).await {
+        return Err(format!("Path is not a git repository: {}", project_path));
+    }
+
+    // Collect branches checked out in OTHER worktrees so we can exclude them.
+    let worktree_branches = get_other_worktree_branches(&path);
+
+    let output = Command::new("git")
+        .args(["for-each-ref", "--format=%(refname:short)", "refs/heads"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| format!("Failed to list branches: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to list branches: {}", stderr.trim()));
+    }
+
+    let mut branches = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !worktree_branches.contains(*line))
+        .map(ToOwned::to_owned)
+        .collect::<Vec<String>>();
+    branches.sort();
+    Ok(branches)
+}
+
+/// Returns the set of branch names checked out in worktrees OTHER than the
+/// one rooted at `current_dir`. Falls back to an empty set on any error so
+/// callers always get a usable result.
+fn get_other_worktree_branches(current_dir: &Path) -> std::collections::HashSet<String> {
+    use std::collections::HashSet;
+
+    let output = match std::process::Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(current_dir)
+        .output()
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return HashSet::new(),
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let canonical_current = current_dir.canonicalize().ok();
+
+    let mut branches = HashSet::new();
+    let mut current_wt_path: Option<PathBuf> = None;
+    let mut current_branch: Option<String> = None;
+
+    for line in stdout.lines() {
+        if let Some(wt_path) = line.strip_prefix("worktree ") {
+            // Flush previous entry
+            if let (Some(wt), Some(branch)) = (current_wt_path.take(), current_branch.take()) {
+                let is_self = canonical_current
+                    .as_ref()
+                    .map(|c| wt.canonicalize().ok().as_ref() == Some(c))
+                    .unwrap_or(false);
+                if !is_self {
+                    branches.insert(branch);
+                }
+            }
+            current_wt_path = Some(PathBuf::from(wt_path));
+            current_branch = None;
+        } else if let Some(branch_ref) = line.strip_prefix("branch refs/heads/") {
+            current_branch = Some(branch_ref.to_string());
+        } else if line.is_empty() {
+            // Entry separator — flush
+            if let (Some(wt), Some(branch)) = (current_wt_path.take(), current_branch.take()) {
+                let is_self = canonical_current
+                    .as_ref()
+                    .map(|c| wt.canonicalize().ok().as_ref() == Some(c))
+                    .unwrap_or(false);
+                if !is_self {
+                    branches.insert(branch);
+                }
+            }
+        }
+    }
+
+    // Flush last entry (porcelain output may not end with blank line)
+    if let (Some(wt), Some(branch)) = (current_wt_path, current_branch) {
+        let is_self = canonical_current
+            .as_ref()
+            .map(|c| wt.canonicalize().ok().as_ref() == Some(c))
+            .unwrap_or(false);
+        if !is_self {
+            branches.insert(branch);
+        }
+    }
+
+    branches
+}
+
+/// Checkout an existing branch, optionally creating it first
+#[tauri::command]
+#[specta::specta]
+pub async fn git_checkout_branch(
+    app: tauri::AppHandle,
+    project_path: String,
+    branch: String,
+    create: bool,
+) -> Result<String, String> {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", project_path));
+    }
+    if !is_git_repo_async(&path).await {
+        return Err(format!("Path is not a git repository: {}", project_path));
+    }
+
+    let branch_name = branch.trim();
+    if branch_name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+
+    let mut args = vec!["switch"];
+    if create {
+        args.push("-c");
+    }
+    args.push(branch_name);
+
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(&path)
+        .output()
+        .map_err(|e| format!("Failed to switch branch: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to switch branch: {}", stderr.trim()));
+    }
+
+    // Emit head-changed event so all frontend listeners update immediately
+    let new_branch = super::watcher::read_branch_from_repo(&path);
+    let _ = app.emit(
+        "git:head-changed",
+        super::watcher::GitHeadChangedPayload {
+            project_path,
+            branch: new_branch,
+        },
+    );
+
+    Ok(branch_name.to_string())
+}
+
+/// Check if a repository has uncommitted changes
+#[tauri::command]
+#[specta::specta]
+pub async fn git_has_uncommitted_changes(project_path: String) -> Result<bool, String> {
+    has_uncommitted_changes(&PathBuf::from(project_path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_name() {
+        let name = generate_name();
+        assert!(name.contains('-'), "Name should contain a hyphen");
+        let parts: Vec<&str> = name.split('-').collect();
+        assert_eq!(parts.len(), 2, "Name should have exactly two parts");
+        assert!(
+            ADJECTIVES.contains(&parts[0]),
+            "First part should be an adjective"
+        );
+        assert!(NOUNS.contains(&parts[1]), "Second part should be a noun");
+    }
+
+    #[test]
+    fn test_project_id_from_path() {
+        let id1 = project_id_from_path("/Users/alex/Documents/acepe");
+        let id2 = project_id_from_path("/Users/alex/Documents/acepe");
+        let id3 = project_id_from_path("/Users/alex/Documents/other");
+
+        assert_eq!(id1.len(), 12, "Project ID should be 12 characters");
+        assert_eq!(id1, id2, "Same path should produce same ID");
+        assert_ne!(id1, id3, "Different paths should produce different IDs");
+    }
+
+    #[test]
+    fn test_worktrees_root() {
+        let root = get_worktrees_root().unwrap();
+        assert!(
+            root.ends_with(".acepe/worktrees"),
+            "Root should end with .acepe/worktrees"
+        );
+    }
+
+    #[test]
+    fn test_parse_porcelain_basic() {
+        let output = "\
+worktree /nonexistent-acepe-test/main-repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /nonexistent-acepe-test/wt-feature
+HEAD def456
+branch refs/heads/feature/cool
+
+";
+        let result =
+            parse_worktree_list_porcelain(output, Path::new("/nonexistent-acepe-test/main-repo"));
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "wt-feature");
+        assert_eq!(result[0].branch, "feature/cool");
+        assert_eq!(result[0].directory, "/nonexistent-acepe-test/wt-feature");
+    }
+
+    #[test]
+    fn test_parse_porcelain_detached_head() {
+        let output = "\
+worktree /nonexistent-acepe-test/main-repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /nonexistent-acepe-test/wt-detached
+HEAD def456
+detached
+
+";
+        let result =
+            parse_worktree_list_porcelain(output, Path::new("/nonexistent-acepe-test/main-repo"));
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].branch, "(detached)");
+    }
+
+    #[test]
+    fn test_parse_porcelain_bare_filtered() {
+        let output = "\
+worktree /nonexistent-acepe-test/bare-repo
+HEAD abc123
+bare
+
+worktree /nonexistent-acepe-test/wt-normal
+HEAD def456
+branch refs/heads/main
+
+";
+        let result =
+            parse_worktree_list_porcelain(output, Path::new("/nonexistent-acepe-test/nonexistent"));
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "wt-normal");
+    }
+
+    #[test]
+    fn test_parse_porcelain_no_trailing_newline() {
+        let output = "\
+worktree /nonexistent-acepe-test/main-repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /nonexistent-acepe-test/wt-last
+HEAD def456
+branch refs/heads/acepe/clever-falcon";
+        let result =
+            parse_worktree_list_porcelain(output, Path::new("/nonexistent-acepe-test/main-repo"));
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].branch, "acepe/clever-falcon");
+    }
+
+    #[test]
+    fn test_parse_porcelain_empty_input() {
+        let result = parse_worktree_list_porcelain("", Path::new("/nonexistent-acepe-test/repo"));
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_determine_origin_acepe_branch() {
+        assert_eq!(
+            determine_worktree_origin("/some/path", "acepe/cool-name"),
+            WorktreeOrigin::Acepe
+        );
+    }
+
+    #[test]
+    fn test_determine_origin_external() {
+        assert_eq!(
+            determine_worktree_origin("/some/external/path", "feature/login"),
+            WorktreeOrigin::External
+        );
+    }
+}

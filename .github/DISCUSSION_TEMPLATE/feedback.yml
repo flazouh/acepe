@@ -1,0 +1,49 @@
+title: "[Feedback] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We appreciate your feedback! Let us know what's working, what's not, or what could be better.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Feedback type
+      options:
+        - General experience
+        - UI / Design
+        - Performance
+        - Documentation
+        - Onboarding
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Your feedback
+      description: Tell us what's on your mind.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: satisfaction
+    attributes:
+      label: How would you rate your experience so far?
+      options:
+        - Loving it
+        - It's good
+        - It's okay
+        - Needs improvement
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Suggestions, ideas, or anything we should know.
+    validations:
+      required: false

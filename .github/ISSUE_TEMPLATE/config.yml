@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feedback
+    url: https://github.com/flazouh/acepe/discussions/categories/feedback
+    about: Share general feedback about Acepe
+  - name: Questions
+    url: https://github.com/flazouh/acepe/discussions
+    about: Ask questions in Discussions

@@ -1,0 +1,9 @@
+[test]
+# Tell Bun to load this plugin before your tests run
+preload = ["./tabler-icons-mock.ts", "./svelte-loader.ts"]
+# Scope test discovery to src/ to avoid picking up build artifacts in src-tauri/target/
+root = "./src"
+
+# Note: Tests that require Svelte 5 runes preprocessing should use .vitest.ts extension
+# These files are picked up by vitest (npm run test:vitest) but ignored by bun test
+

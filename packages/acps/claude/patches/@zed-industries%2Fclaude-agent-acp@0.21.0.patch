@@ -1,0 +1,47 @@
+diff --git a/dist/acp-agent.js b/dist/acp-agent.js
+index 9acef8c..0e75121 100644
+--- a/dist/acp-agent.js
++++ b/dist/acp-agent.js
+@@ -731,6 +731,20 @@ export class ClaudeAcpAgent {
+             if (signal.aborted || response.outcome?.outcome === "cancelled") {
+                 throw new Error("Tool use aborted");
+             }
++            // Acepe patch: AskUserQuestion flow — the SDK's built-in handler requires a terminal,
++            // so we intercept here and return the user's answers directly as the tool result.
++            // The client (Acepe) shows the question UI and sends answers in response._meta.answers.
++            if (toolName === "AskUserQuestion" && response._meta?.answers) {
++                const answers = response._meta.answers;
++                const parts = Object.entries(answers).map(([question, answer]) => {
++                    const answerText = Array.isArray(answer) ? answer.join(", ") : answer;
++                    return `- "${question}": "${answerText}"`;
++                });
++                return {
++                    behavior: "deny",
++                    message: `The user answered the questions:\n${parts.join("\n")}`,
++                };
++            }
+             if (response.outcome?.outcome === "selected" &&
+                 (response.outcome.optionId === "allow" || response.outcome.optionId === "allow_always")) {
+                 // If Claude Code has suggestions, it will update their settings already
+@@ -849,9 +863,9 @@ export class ClaudeAcpAgent {
+         const maxThinkingTokens = process.env.MAX_THINKING_TOKENS
+             ? parseInt(process.env.MAX_THINKING_TOKENS, 10)
+             : undefined;
+-        // Disable this for now, not a great way to expose this over ACP at the moment (in progress work so we can revisit)
+-        const disallowedTools = ["AskUserQuestion"];
++        // Acepe patch: re-enable AskUserQuestion (upstream disables it pending better ACP integration)
++        const disallowedTools = [];
+         // Resolve which built-in tools to expose.
+         // Explicit tools array from _meta.claudeCode.options takes precedence.
+         // disableBuiltInTools is a legacy shorthand for tools: [] — kept for
+         // backward compatibility but callers should prefer the tools array.
+@@ -878,7 +892,8 @@ export class ClaudeAcpAgent {
+             canUseTool: this.canUseTool(sessionId),
+             // note: although not documented by the types, passing an absolute path
+             // here works to find zed's managed node version.
+-            executable: isStaticBinary() ? undefined : process.execPath,
++            executable: process.execPath,
++            executableArgs: isStaticBinary() ? ["--cli"] : undefined,
+             ...(process.env.CLAUDE_CODE_EXECUTABLE
+                 ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
+                 : isStaticBinary()

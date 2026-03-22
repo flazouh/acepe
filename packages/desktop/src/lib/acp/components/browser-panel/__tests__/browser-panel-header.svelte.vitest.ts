@@ -1,0 +1,62 @@
+import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import * as m from "$lib/paraglide/messages.js";
+
+import BrowserPanelHeader from "../browser-panel-header.svelte";
+
+vi.mock(
+	"svelte",
+	async () =>
+		// @ts-expect-error Test-only client runtime override for Vitest component mounting
+		import("../../../../../../node_modules/svelte/src/index-client.js")
+);
+
+afterEach(() => {
+	cleanup();
+});
+
+describe("BrowserPanelHeader", () => {
+	it("fires navigation and action callbacks", async () => {
+		const onBack = vi.fn();
+		const onForward = vi.fn();
+		const onReload = vi.fn();
+		const onOpenExternal = vi.fn();
+		const onClose = vi.fn();
+
+		const { container } = render(BrowserPanelHeader, {
+			url: "https://example.com/path",
+			onBack,
+			onForward,
+			onReload,
+			onOpenExternal,
+			onClose,
+		});
+
+		const back = container.querySelector(`button[title='${m.link_preview_back()}']`);
+		const forward = container.querySelector(`button[title='${m.link_preview_forward()}']`);
+		const reload = container.querySelector(`button[title='${m.link_preview_refresh()}']`);
+		const openExternal = container.querySelector(
+			`button[title='${m.link_preview_open_browser()}']`
+		);
+		const close = container.querySelector(`button[title='${m.common_close()}']`);
+
+		expect(back).not.toBeNull();
+		expect(forward).not.toBeNull();
+		expect(reload).not.toBeNull();
+		expect(openExternal).not.toBeNull();
+		expect(close).not.toBeNull();
+
+		if (back) await fireEvent.click(back);
+		if (forward) await fireEvent.click(forward);
+		if (reload) await fireEvent.click(reload);
+		if (openExternal) await fireEvent.click(openExternal);
+		if (close) await fireEvent.click(close);
+
+		expect(onBack).toHaveBeenCalledTimes(1);
+		expect(onForward).toHaveBeenCalledTimes(1);
+		expect(onReload).toHaveBeenCalledTimes(1);
+		expect(onOpenExternal).toHaveBeenCalledTimes(1);
+		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+});

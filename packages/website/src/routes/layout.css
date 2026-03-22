@@ -1,0 +1,219 @@
+/* Acepe custom font - font files in static/fonts/ */
+@font-face {
+	font-family: 'Acepe';
+	font-style: normal;
+	font-weight: 400;
+	src: url('/fonts/acepe.woff2') format('woff2');
+	font-display: swap;
+}
+
+@import '@acepe/ui/design-tokens.css';
+@import 'tailwindcss';
+@source '../**/*.{html,js,svelte,ts}';
+@source '../../../ui/src/**/*.{html,js,svelte,ts}';
+@source inline('text-success');
+
+@import 'tw-animate-css';
+
+:root {
+	--radius: 0.625rem;
+
+	/* Dark theme colors — matched to desktop app */
+	--background: #1a1a1a;
+	--foreground: #d8dee9;
+	--card: #232323;
+	--card-foreground: #ffffff;
+	--popover: #272727;
+	--popover-foreground: #ffffff;
+	--primary: #d97757;
+	--primary-foreground: #191c22;
+	--secondary: #565656;
+	--secondary-foreground: #ececec;
+	--muted: #3a3a3a;
+	--muted-foreground: #cccccc;
+	--accent: #303030;
+	--accent-foreground: #ffffff;
+	--destructive: #bf616a;
+	--destructive-foreground: #ffffff;
+	--border: #2a2a2a;
+	--input: #313131;
+	--ring: #30373a;
+	--success: var(--token-success-dark);
+	--success-foreground: #ffffff;
+	--chart-1: #88c0d0;
+	--chart-2: #a3be8c;
+	--chart-3: #ebcb8b;
+	--chart-4: #bf616a;
+	--chart-5: #b48ead;
+	--sidebar: #141414;
+	--sidebar-foreground: #cccccc;
+	--sidebar-primary: #d97757;
+	--sidebar-primary-foreground: #191c22;
+	--sidebar-accent: #2a2a2a;
+	--sidebar-accent-foreground: #ffffff;
+	--sidebar-border: rgba(255, 255, 255, 0.05);
+	--sidebar-ring: #30373a;
+
+	/* Font families */
+	--font-sans: Acepe, system-ui, sans-serif;
+	--font-serif: Merriweather, serif;
+	--font-mono: Fira Code, monospace;
+
+	/* Shadows */
+	--shadow-x: 0px;
+	--shadow-y: 2px;
+	--shadow-blur: 3px;
+	--shadow-spread: 0px;
+	--shadow-opacity: 0.18;
+	--shadow-color: hsl(28 18% 25%);
+	--shadow-2xs: 0px 2px 3px 0px hsl(28 18% 25% / 0.09);
+	--shadow-xs: 0px 2px 3px 0px hsl(28 18% 25% / 0.09);
+	--shadow-sm: 0px 2px 3px 0px hsl(28 18% 25% / 0.18), 0px 1px 2px -1px hsl(28 18% 25% / 0.18);
+	--shadow: 0px 2px 3px 0px hsl(28 18% 25% / 0.18), 0px 1px 2px -1px hsl(28 18% 25% / 0.18);
+	--shadow-md: 0px 2px 3px 0px hsl(28 18% 25% / 0.18), 0px 2px 4px -1px hsl(28 18% 25% / 0.18);
+	--shadow-lg: 0px 2px 3px 0px hsl(28 18% 25% / 0.18), 0px 4px 6px -1px hsl(28 18% 25% / 0.18);
+	--shadow-xl: 0px 2px 3px 0px hsl(28 18% 25% / 0.18), 0px 8px 10px -1px hsl(28 18% 25% / 0.18);
+	--shadow-2xl: 0px 2px 3px 0px hsl(28 18% 25% / 0.45);
+
+	/* Other properties */
+	--tracking-normal: 0em;
+	--spacing: 0.25rem;
+}
+
+:root[data-theme='light'] {
+	--background: #FAFAF8;
+	--foreground: #0A0A09;
+	--card: #F2EFE9;
+	--card-foreground: #0A0A09;
+	--success: var(--token-success-light);
+	--success-foreground: #ffffff;
+	--popover: #FFFFFF;
+	--popover-foreground: #0A0A09;
+	--secondary: #E5E0D5;
+	--secondary-foreground: #1A1A1A;
+	--muted: #E8E3D8;
+	--muted-foreground: #525252;
+	--accent: #DDD8CC;
+	--accent-foreground: #1A1A1A;
+	--border: #BDB6A6;
+	--input: #E0DBD0;
+	--ring: #D97757;
+	--sidebar: #DDD8CC;
+	--sidebar-foreground: #141413;
+	--sidebar-accent: #D0CBC0;
+	--sidebar-accent-foreground: #141413;
+	--sidebar-border: #D0CBC0;
+	--sidebar-ring: #D97757;
+}
+
+@theme inline {
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background font-sans text-foreground;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+}
+
+.theme-invert-btn {
+	background: #ffffff;
+	color: #000000;
+}
+
+.theme-invert-btn:hover {
+	background: #353534;
+	color: #ffffff;
+}
+
+.theme-invert-btn-icon {
+	background: rgba(0, 0, 0, 0.05);
+}
+
+.theme-invert-btn:hover .theme-invert-btn-icon {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-invert-btn-icon-svg {
+	color: #000000;
+}
+
+.theme-invert-btn:hover .theme-invert-btn-icon-svg {
+	color: #ffffff;
+}
+
+:root[data-theme='light'] .theme-invert-btn {
+	background: #2f2f2f;
+	color: #f0eee6;
+}
+
+:root[data-theme='light'] .theme-invert-btn:hover {
+	background: #5a5a5a;
+	color: #f0eee6;
+}
+
+:root[data-theme='light'] .theme-invert-btn-icon {
+	background: rgba(240, 238, 230, 0.12);
+}
+
+:root[data-theme='light'] .theme-invert-btn:hover .theme-invert-btn-icon {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='light'] .theme-invert-btn-icon-svg {
+	color: #f0eee6;
+}
+
+/* Shiki dual-theme: default to dark token colors, switch to light in light mode */
+.shiki,
+.shiki span {
+	color: var(--shiki-dark);
+	background-color: transparent !important;
+}
+
+:root[data-theme='light'] .shiki,
+:root[data-theme='light'] .shiki span {
+	color: var(--shiki-light);
+}

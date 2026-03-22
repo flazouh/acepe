@@ -1,0 +1,219 @@
+/**
+ * Tauri command name constants.
+ *
+ * Uses COMMANDS from specta-generated command-names where available,
+ * and defines additional constants for commands not yet in the generator.
+ * Goal: no magic strings in invoke calls.
+ */
+
+import { COMMANDS } from "../../services/command-names.js";
+
+const { acp, session_history, storage } = COMMANDS;
+
+/** ACP prefix for dynamic RPC command names */
+export const ACP_PREFIX = "acp_" as const;
+
+export const CMD = {
+	acp: {
+		...acp,
+		set_config_option: "acp_set_config_option",
+		reply_permission: "acp_reply_permission",
+		reply_question: "acp_reply_question",
+		respond_inbound_request: "acp_respond_inbound_request",
+		close_session: "acp_close_session",
+		register_custom_agent: "acp_register_custom_agent",
+		get_event_bridge_info: "acp_get_event_bridge_info",
+	} as const,
+
+	history: {
+		get_unified_session: "get_unified_session",
+		audit_session_load_timing: "audit_session_load_timing",
+		get_unified_plan: "get_unified_plan",
+		scan_project_sessions: "scan_project_sessions",
+		discover_all_projects_with_sessions: "discover_all_projects_with_sessions",
+		list_all_project_paths: "list_all_project_paths",
+		count_sessions_for_project: "count_sessions_for_project",
+		get_session_history: session_history.get_session_history,
+		get_session_messages: session_history.get_session_messages,
+		get_full_session: session_history.get_full_session,
+		get_converted_session: session_history.get_converted_session,
+		get_session_plan: "get_session_plan",
+		get_plan_by_slug: "get_plan_by_slug",
+		list_plans: "list_plans",
+		set_session_worktree_path: "set_session_worktree_path",
+		set_session_pr_number: "set_session_pr_number",
+	} as const,
+
+	projects: {
+		get_projects: storage.get_projects,
+		get_recent_projects: storage.get_recent_projects,
+		get_project_count: storage.get_project_count,
+		import_project: storage.import_project,
+		add_project: storage.add_project,
+		remove_project: storage.remove_project,
+		browse_project: storage.browse_project,
+		update_project_color: "update_project_color",
+	} as const,
+
+	storage: {
+		...storage,
+	} as const,
+
+	terminal: {
+		create: "terminal_create",
+		output: "terminal_output",
+		wait_for_exit: "terminal_wait_for_exit",
+		kill: "terminal_kill",
+		release: "terminal_release",
+	} as const,
+
+	shell: {
+		open_in_finder: storage.open_in_finder,
+		open_streaming_log: storage.open_streaming_log,
+		get_streaming_log_path: "get_streaming_log_path",
+		get_session_file_path: "get_session_file_path",
+		delete_session: "delete_session",
+		get_default_shell: "get_default_shell",
+		get_system_locale: "get_system_locale",
+	} as const,
+
+	git: {
+		clone: "git_clone",
+		browse_destination: "browse_clone_destination",
+		init: "git_init",
+		is_repo: "git_is_repo",
+		current_branch: "git_current_branch",
+		list_branches: "git_list_branches",
+		checkout_branch: "git_checkout_branch",
+		has_uncommitted_changes: "git_has_uncommitted_changes",
+		worktree_create: "git_worktree_create",
+		worktree_remove: "git_worktree_remove",
+		worktree_reset: "git_worktree_reset",
+		worktree_list: "git_worktree_list",
+		worktree_disk_size: "git_worktree_disk_size",
+		panel_status: "git_panel_status",
+		diff_stats: "git_diff_stats",
+		stage_files: "git_stage_files",
+		unstage_files: "git_unstage_files",
+		stage_all: "git_stage_all",
+		discard_changes: "git_discard_changes",
+		commit: "git_commit",
+		push: "git_push",
+		pull: "git_pull",
+		fetch: "git_fetch",
+		remote_status: "git_remote_status",
+		stash_list: "git_stash_list",
+		stash_pop: "git_stash_pop",
+		stash_drop: "git_stash_drop",
+		stash_save: "git_stash_save",
+		log: "git_log",
+		create_branch: "git_create_branch",
+		delete_branch: "git_delete_branch",
+		run_stacked_action: "git_run_stacked_action",
+		collect_ship_context: "git_collect_ship_context",
+		pr_details: "git_pr_details",
+		merge_pr: "git_merge_pr",
+		get_open_pr_for_branch: "get_open_pr_for_branch",
+		watch_head: "git_watch_head",
+		load_worktree_config: "load_worktree_config",
+		run_worktree_setup: "run_worktree_setup",
+		save_worktree_config: "save_worktree_config",
+	} as const,
+
+	fs: {
+		read_text_file: "acp_read_text_file",
+		write_text_file: "acp_write_text_file",
+	} as const,
+
+	fileIndex: {
+		get_project_git_status: "get_project_git_status",
+		get_project_git_status_summary: "get_project_git_status_summary",
+		get_project_git_overview_summary: "get_project_git_overview_summary",
+		get_project_files: "get_project_files",
+		invalidate_project_files: "invalidate_project_files",
+		read_file_content: "read_file_content",
+		resolve_file_path: "resolve_file_path",
+		get_file_diff: "get_file_diff",
+		revert_file_content: "revert_file_content",
+		read_image_as_base64: "read_image_as_base64",
+		delete_path: "delete_path",
+		rename_path: "rename_path",
+		copy_file: "copy_file",
+		create_file: "create_file",
+		create_directory: "create_directory",
+	} as const,
+
+	checkpoint: {
+		create: "checkpoint_create",
+		list: "checkpoint_list",
+		get_file_content: "checkpoint_get_file_content",
+		get_file_diff_content: "checkpoint_get_file_diff_content",
+		revert: "checkpoint_revert",
+		revert_file: "checkpoint_revert_file",
+		get_file_snapshots: "checkpoint_get_file_snapshots",
+	} as const,
+
+	sqlStudio: {
+		list_connections: "sql_studio_list_connections",
+		get_connection: "sql_studio_get_connection",
+		save_connection: "sql_studio_save_connection",
+		delete_connection: "sql_studio_delete_connection",
+		pick_sqlite_file: "sql_studio_pick_sqlite_file",
+		test_connection: "sql_studio_test_connection",
+		test_connection_input: "sql_studio_test_connection_input",
+		list_schema: "sql_studio_list_schema",
+		execute_query: "sql_studio_execute_query",
+		explore_table: "sql_studio_explore_table",
+		update_table_cell: "sql_studio_update_table_cell",
+		list_s3_buckets: "sql_studio_list_s3_buckets",
+		list_s3_objects: "sql_studio_list_s3_objects",
+		preview_s3_object: "sql_studio_preview_s3_object",
+		download_s3_object: "sql_studio_download_s3_object",
+	} as const,
+
+	skills: {
+		list_tree: "skills_list_tree",
+		get: "skills_get",
+		create: "skills_create",
+		update: "skills_update",
+		delete: "skills_delete",
+		copy_to: "skills_copy_to",
+		start_watching: "skills_start_watching",
+		stop_watching: "skills_stop_watching",
+		list_plugins: "skills_list_plugins",
+		list_plugin_skills: "skills_list_plugin_skills",
+		get_plugin_skill: "skills_get_plugin_skill",
+		copy_plugin_skill_to_agent: "skills_copy_plugin_skill_to_agent",
+		library_list_skills: "library_skills_list",
+		library_list_skills_with_sync: "library_skills_list_with_sync",
+		library_get_skill: "library_skill_get",
+		library_create_skill: "library_skill_create",
+		library_update_skill: "library_skill_update",
+		library_delete_skill: "library_skill_delete",
+		library_get_sync_targets: "library_skill_get_sync_targets",
+		library_set_sync_target: "library_skill_set_sync_target",
+		library_sync_skill: "library_skill_sync",
+		library_sync_all: "library_sync_all",
+		library_is_empty: "library_is_empty",
+		library_import_existing: "library_import_existing",
+		library_get_skill_folder_path: "library_skill_get_folder_path",
+		library_delete_skill_from_agents: "library_skill_delete_from_agents",
+	} as const,
+
+	window: {
+		activate: "activate_window",
+	} as const,
+
+	settings: {
+		get_user_setting: storage.get_user_setting,
+		save_user_setting: storage.save_user_setting,
+		get_session_review_state: "get_session_review_state",
+		save_session_review_state: "save_session_review_state",
+		delete_session_review_state: "delete_session_review_state",
+		get_custom_keybindings: "get_custom_keybindings",
+		save_custom_keybindings: "save_custom_keybindings",
+		get_thread_list_settings: storage.get_thread_list_settings,
+		save_thread_list_settings: storage.save_thread_list_settings,
+		reset_database: "reset_database",
+	} as const,
+} as const;

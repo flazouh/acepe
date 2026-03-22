@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+		<!-- Primary Meta Tags -->
+		<title>Acepe - Unified Desktop Client for AI Agents</title>
+		<meta name="title" content="Acepe - Unified Desktop Client for AI Agents" />
+		<meta
+			name="description"
+			content="A modern desktop application for interacting with AI agents through the Agent Client Protocol (ACP). Connect with Claude Code, Cursor, and other ACP-compatible agents in one unified interface."
+		/>
+
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://acepe.dev/" />
+		<meta property="og:title" content="Acepe - Unified Desktop Client for AI Agents" />
+		<meta
+			property="og:description"
+			content="A modern desktop application for interacting with AI agents through the Agent Client Protocol (ACP). Connect with Claude Code, Cursor, and other ACP-compatible agents in one unified interface."
+		/>
+		<meta property="og:image" content="https://acepe.dev/og-image.jpg" />
+
+		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:url" content="https://acepe.dev/" />
+		<meta property="twitter:title" content="Acepe - Unified Desktop Client for AI Agents" />
+		<meta
+			property="twitter:description"
+			content="A modern desktop application for interacting with AI agents through the Agent Client Protocol (ACP). Connect with Claude Code, Cursor, and other ACP-compatible agents in one unified interface."
+		/>
+		<meta property="twitter:image" content="https://acepe.dev/og-image.jpg" />
+
+		%sveltekit.head%
+
+		<!-- Suppress benign ResizeObserver loop error -->
+		<script>
+			const resizeObserverErr = window.onerror;
+			window.onerror = function (message) {
+				if (message.includes?.("ResizeObserver loop")) {
+					return true;
+				}
+				// biome-ignore lint/complexity/noArguments: forwarding arguments to original error handler
+			return resizeObserverErr?.apply?.(this, arguments);
+			};
+		</script>
+
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

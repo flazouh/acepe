@@ -1,0 +1,11 @@
+{
+	"sessionUpdate": "tool_call",
+	"toolCallId": "tool_anon_001",
+	"kind": "read",
+	"status": "pending",
+	"title": "Read main.go",
+	"name": "Read",
+	"rawInput": {
+		"path": "/tmp/main.go"
+	}
+}
