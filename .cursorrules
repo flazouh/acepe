@@ -1,0 +1,16 @@
+# Cursor Rules for Acepe
+
+## Type Checking
+- Always run `cargo check` or `cargo clippy` before considering code complete
+- Fix all compilation errors before submitting changes
+- Address warnings when possible, especially unused variables and dead code
+
+## Code Quality
+- Use Rust best practices and follow the existing code style
+- Prefer explicit types when the compiler cannot infer them
+- Add appropriate error handling and logging
+
+## Testing
+- Verify code compiles and runs before marking tasks as complete
+- Check for linter errors using `read_lints` tool when editing files
+

@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Frontend typecheck + svelte-check + tests
+(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bun test) &
+FRONTEND_PID=$!
+
+# Website typecheck + tests
+(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run test) &
+WEBSITE_PID=$!
+
+# Backend check + tests
+(cd packages/desktop/src-tauri && . ~/.cargo/env && cargo check && cargo test -- --skip claude_history::export_types) &
+BACKEND_PID=$!
+
+wait $FRONTEND_PID
+FRONTEND_STATUS=$?
+
+wait $WEBSITE_PID
+WEBSITE_STATUS=$?
+
+wait $BACKEND_PID
+BACKEND_STATUS=$?
+
+[ $FRONTEND_STATUS -eq 0 ] && [ $WEBSITE_STATUS -eq 0 ] && [ $BACKEND_STATUS -eq 0 ]

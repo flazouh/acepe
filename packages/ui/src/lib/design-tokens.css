@@ -1,0 +1,9 @@
+/**
+ * Design tokens - single source of truth for semantic colors.
+ * Apps map these to theme-specific --success via: --success: var(--token-success-light) etc.
+ * Keep colors.ts GREEN in sync with --token-success-light.
+ */
+:root {
+  --token-success-light: #17803D;
+  --token-success-dark: #16db95;
+}

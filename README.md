@@ -1,0 +1,159 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg" width="64" height="64">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg" width="64" height="64">
+  <img alt="Acepe" src="assets/logo.svg" width="64" height="64">
+</picture>
+
+# Acepe
+
+**The Agentic Developer Environment.**
+
+A native desktop app built from the ground up for AI agent workflows,<br/>
+powered by the [Agent Client Protocol](https://agentclientprotocol.com).
+
+<br/>
+
+<a href="https://acepe.dev">Website</a>
+&nbsp;&nbsp;&bull;&nbsp;&nbsp;
+<a href="https://acepe.dev/docs">Docs</a>
+&nbsp;&nbsp;&bull;&nbsp;&nbsp;
+<a href="https://acepe.dev/download">Download</a>
+&nbsp;&nbsp;&bull;&nbsp;&nbsp;
+<a href="https://discord.gg/acepe">Discord</a>
+
+<br/>
+
+[![CI](https://github.com/flazouh/acepe/actions/workflows/ci.yml/badge.svg)](https://github.com/flazouh/acepe/actions)
+[![License](https://img.shields.io/badge/License-FSL--1.1--ALv2-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
+
+</div>
+
+<br/>
+
+<p align="center">
+  <video src="https://raw.githubusercontent.com/flazouh/acepe/main/assets/acepe-preview.mp4" width="720" autoplay loop muted playsinline></video>
+</p>
+
+---
+
+## What is Acepe?
+
+Acepe is an **Agentic Developer Environment (ADE)** — a new kind of IDE where AI agents are first-class citizens, not plugins bolted onto an editor.
+
+Connect to any [ACP-compatible agent](https://agentclientprotocol.com) through a native desktop app that gives you full visibility and control over agent sessions, tool calls, file changes, and conversations.
+
+### Why Acepe?
+
+- **Protocol-native** — Built on ACP from day one. Agents aren't a plugin bolted onto an editor.
+- **Multi-agent** — Run Claude Code, Cursor, Codex, OpenCode, or your own agent side by side.
+- **Full visibility** — See every tool call, file diff, and decision. Approve or deny with granular permissions.
+- **Native performance** — Tauri + Rust backend. Not an Electron wrapper.
+
+## Features
+
+### Agent Management
+- **Multi-agent sessions** — Run multiple agents across multiple projects simultaneously
+- **Agent marketplace** — Install agents (Claude Code, Cursor, Codex, OpenCode) or register custom ones
+- **Model selection** — Switch models and modes per session
+- **Session history** — Full conversation history with search, forking, and resuming
+
+### Code Review & Changes
+- **Diff viewer** — Side-by-side and unified diffs with syntax highlighting
+- **Checkpoints** — Snapshot file state, compare across checkpoints, revert individual files or entire checkpoints
+- **Modified files panel** — Track all agent changes with +/- stats and file tree navigation
+- **Git integration** — Branch management, staging, commits, push/pull — all from the UI
+
+### Tool Call Control
+- **Granular permissions** — Approve, deny, or auto-approve tool calls per type (read, write, terminal, web)
+- **Permission queue** — Batch-review pending tool requests
+- **Execution history** — See every tool call with inputs, outputs, and timing
+
+### GitHub Integration
+- **PR workflow** — Create, view, and merge pull requests
+- **Commit badges** — SHAs and PR references render as interactive badges in conversations
+- **Diff stats** — Inline +X -Y change counts on badges, click to open full diff viewer
+
+### Workspace
+- **Multi-project** — Work across multiple repositories in a single window
+- **Multi-panel layout** — Resizable panels with per-panel agent sessions
+- **Built-in terminal** — Native PTY terminal embedded per agent panel
+- **Built-in browser** — Webview panel with navigation for previewing apps
+- **SQL Studio** — Connect to SQLite, PostgreSQL, MySQL, or browse S3 buckets
+- **@-mentions** — Reference files, code, and images in messages
+
+### More
+- **Worktree support** — Isolated git worktrees for parallel agent work
+- **Keyboard shortcuts** — Customizable keybindings and command palette
+- **Dark / light mode** — System-aware theming
+- **i18n** — Multi-language support via Paraglide
+- **Auto-updates** — Built-in updater for new releases
+- **Notifications** — Native OS notifications for agent activity
+
+## Supported Agents
+
+| Agent | Provider | Protocol | Status |
+|-------|----------|----------|--------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Anthropic | JSON-RPC / stdio | Bundled |
+| [Cursor](https://cursor.com) | Anysphere | JSON-RPC / stdio | Installable |
+| [Codex](https://github.com/zed-industries/codex) | Zed Industries | JSON-RPC / stdio | Bundled |
+| [OpenCode](https://github.com/nichochar/opencode) | Community | HTTP / SSE | Installable |
+| Custom | You | ACP-compatible | Configurable |
+
+## Quick Start
+
+### Download
+
+Grab the latest release from [acepe.dev/download](https://acepe.dev/download) or the [releases page](https://github.com/flazouh/acepe/releases).
+
+### Build from Source
+
+```bash
+git clone https://github.com/flazouh/acepe.git
+cd acepe && bun install
+cd packages/desktop && bun run tauri
+```
+
+**Prerequisites**: [Bun](https://bun.sh/) 1.3+, [Rust](https://www.rust-lang.org/tools/install) stable, [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+
+## Architecture
+
+```
+┌──────────────────────────────────┐
+│  Frontend (SvelteKit + Svelte 5) │
+│  UI, state management, ACP client│
+└───────────────┬──────────────────┘
+                │ Tauri IPC
+┌───────────────▼──────────────────┐
+│  Backend (Tauri + Rust)          │
+│  Process mgmt, DB, file indexing │
+└───────────────┬──────────────────┘
+                │ JSON-RPC / HTTP+SSE
+┌───────────────▼──────────────────┐
+│  ACP Agents                      │
+│  Claude, Cursor, Codex, OpenCode │
+└──────────────────────────────────┘
+```
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+If you're looking for something to work on, check issues tagged [`good first issue`](https://github.com/flazouh/acepe/issues?q=label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/flazouh/acepe/issues?q=label%3A%22help+wanted%22).
+
+## License
+
+[FSL-1.1-ALv2](https://fsl.software) — source-available today, Apache 2.0 after two years. See [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+Built with [Tauri](https://tauri.app/), [Svelte](https://svelte.dev/), [shadcn-svelte](https://www.shadcn-svelte.com/), and the [Agent Client Protocol](https://agentclientprotocol.com).
+
+---
+
+<div align="center">
+<sub>Acepe is in active development. Expect rough edges. We'd love your help smoothing them out.</sub>
+</div>

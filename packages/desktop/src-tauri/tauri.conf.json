@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Acepe",
+  "version": "2026.3.14",
+  "identifier": "com.acepe.app",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "title": "Acepe",
+        "width": 1512,
+        "height": 982,
+        "maximized": true,
+        "decorations": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "dragDropEnabled": true,
+        "devtools": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 24
+        }
+      }
+    ],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../../acps/claude/dist/claude-agent-acp": "acps/claude/claude-agent-acp",
+      "../../acps/claude/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep": "acps/claude/vendor/ripgrep",
+      "../../acps/codex/bin/codex-acp": "acps/codex/codex-acp"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.plist"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDM0E5RDA0QzA2MUJCNjcKUldSbnUySEFCSjA2dkRodTEzNFlURzBtREdDcTdXcmQvS2FTMTRnQ1gzTTBvY0ZTYmV3VFFka2EK",
+      "endpoints": [
+        "https://bucket-proxy-production.up.railway.app/updates/latest.json"
+      ]
+    }
+  }
+}

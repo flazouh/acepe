@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"declaration": true,
+		"declarationMap": true,
+		"outDir": "dist",
+		"rootDir": "src",
+		"paths": {
+			"$lib/*": ["./src/lib/*"],
+			"$components/*": ["./src/components/*"]
+		}
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist"]
+}

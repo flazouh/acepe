@@ -1,0 +1,31 @@
+---
+source: src/acp/parsers/tests/cursor.rs
+assertion_line: 452
+expression: parsed
+---
+ToolCallData {
+    id: "tool_anon_001",
+    name: "Read",
+    arguments: Read {
+        file_path: Some(
+            "/tmp/main.go",
+        ),
+    },
+    status: Pending,
+    result: None,
+    kind: Some(
+        Read,
+    ),
+    title: Some(
+        "Read main.go",
+    ),
+    locations: None,
+    skill_meta: None,
+    normalized_questions: None,
+    normalized_todos: None,
+    parent_tool_use_id: None,
+    task_children: None,
+    question_answer: None,
+    awaiting_plan_approval: false,
+    plan_approval_request_id: None,
+}

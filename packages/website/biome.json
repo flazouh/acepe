@@ -1,0 +1,140 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.7/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineEnding": "lf",
+		"lineWidth": 100,
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/.svelte-kit",
+			"!**/build",
+			"!**/dist",
+			"!src/app.css",
+			"!src/lib/paraglide"
+		]
+	},
+	"css": {
+		"parser": { "tailwindDirectives": true }
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double",
+			"trailingCommas": "es5",
+			"semicolons": "always",
+			"arrowParentheses": "always",
+			"bracketSpacing": true
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": { "noUselessTypeConstraint": "error", "noBannedTypes": "off" },
+			"correctness": { "noUnusedVariables": "error", "noUnusedPrivateClassMembers": "off" },
+			"style": {
+				"noCommonJs": "error",
+				"noNamespace": "error",
+				"noNonNullAssertion": "warn",
+				"useArrayLiterals": "error",
+				"useAsConstAssertion": "error",
+				"useConst": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "error",
+				"noExtraNonNullAssertion": "error",
+				"noMisleadingInstantiator": "error",
+				"noNonNullAssertedOptionalChain": "error",
+				"noUnsafeDeclarationMerging": "error",
+				"noUnusedExpressions": "off",
+				"useIterableCallbackReturn": "off"
+			}
+		},
+		"includes": [
+			"**",
+			"!node_modules/**",
+			"!.svelte-kit/**",
+			"!build/**",
+			"!dist/**",
+			"!src/app.css",
+			"!src/lib/paraglide/**"
+		]
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"],
+			"linter": {
+				"rules": {
+					"correctness": { "noUnusedVariables": "off" },
+					"suspicious": { "noExplicitAny": "off", "noAssignInExpressions": "off" },
+					"style": { "noCommonJs": "off" }
+				}
+			}
+		},
+		{
+			"includes": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noConstAssign": "off",
+						"noGlobalObjectCalls": "off",
+						"noInvalidBuiltinInstantiation": "off",
+						"noInvalidConstructorSuper": "off",
+						"noSetterReturn": "off",
+						"noUndeclaredVariables": "off",
+						"noUnreachable": "off",
+						"noUnreachableSuper": "off"
+					},
+					"suspicious": {
+						"noClassAssign": "off",
+						"noDuplicateClassMembers": "off",
+						"noDuplicateObjectKeys": "off",
+						"noDuplicateParameters": "off",
+						"noFunctionAssign": "off",
+						"noImportAssign": "off",
+						"noRedeclare": "off",
+						"noUnsafeNegation": "off",
+						"noVar": "error",
+						"noWith": "off",
+						"useGetterReturn": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["*.svelte", "**/*.svelte"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noConstAssign": "off",
+						"noInnerDeclarations": "off",
+						"noSelfAssign": "off",
+						"noUnusedVariables": "off",
+						"noUnusedImports": "off"
+					},
+					"style": {
+						"useImportType": "off"
+					},
+					"suspicious": {
+						"noExplicitAny": "off",
+						"noRedeclare": "off"
+					}
+				}
+			},
+			"assist": {
+				"actions": {
+					"source": {
+						"organizeImports": "off"
+					}
+				}
+			}
+		}
+	],
+	"assist": {
+		"enabled": true,
+		"actions": { "source": { "organizeImports": "on" } }
+	}
+}

@@ -1,0 +1,28 @@
+{
+	"extends": "./.svelte-kit/tsconfig.json",
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"moduleResolution": "bundler",
+		"customConditions": ["svelte"],
+		"types": ["bun-types", "vitest/globals", "@testing-library/jest-dom"],
+		"strictNullChecks": true,
+		"allowArbitraryExtensions": true
+	},
+	"exclude": [
+		"node_modules/**",
+		"src/service-worker.js",
+		"src/service-worker/**/*.js",
+		"src/service-worker.ts",
+		"src/service-worker/**/*.ts",
+		"src/service-worker.d.ts",
+		"src/service-worker/**/*.d.ts",
+		"src/paraglide/**"
+	]
+}

@@ -1,0 +1,479 @@
+import { BuildIcon } from "@acepe/ui/icons";
+import {
+	ArrowsClockwise,
+	Brain,
+	ChatTeardropText,
+	FileDashed,
+	FileText,
+	Globe,
+	ListChecks,
+	MagnifyingGlass,
+	Package,
+	PencilRuler,
+	Robot,
+	Terminal,
+	Trash,
+} from "phosphor-svelte";
+import type { Component } from "svelte";
+import * as m from "$lib/paraglide/messages.js";
+import type { IconComponentProps } from "$lib/types/phosphor-icon-types.js";
+import type { TurnState } from "../store/types.js";
+import type { ToolCall } from "../types/tool-call.js";
+import type { ToolKind } from "../types/tool-kind.js";
+import { extractSkillCallInput } from "../utils/extract-skill-call-input.js";
+import {
+	calculateDiffStats,
+	getDisplayPath,
+	getToolStatus,
+	truncateText,
+} from "../utils/tool-state-utils.js";
+
+/** Props for standard Phosphor icons (from phosphor-svelte). */
+export type PhosphorIconProps = IconComponentProps;
+
+/** Icon component type - Phosphor icons or custom (e.g. BuildIcon with size "sm"|"md"|"lg"). */
+export type IconComponent =
+	| Component<IconComponentProps, {}, "">
+	| Component<{ size?: "sm" | "md" | "lg"; class?: string; style?: string }, {}, "">;
+
+/**
+ * Tool UI metadata for a specific tool kind.
+ *
+ * This provides all the information needed to render a tool's UI based on its canonical kind.
+ */
+export interface ToolKindUI {
+	/** Icon component to display - Phosphor icon (optional - some tools don't show an icon) */
+	icon?: IconComponent;
+	/** Dynamic title based on tool state */
+	title: (toolCall: ToolCall, turnState?: TurnState) => string;
+	/** Optional subtitle for additional context */
+	subtitle?: (toolCall: ToolCall) => string;
+	/** Optional tooltip content */
+	tooltipContent?: (toolCall: ToolCall) => string;
+	/** Optional file path getter for file-based tools (enables file icon display) */
+	filePath?: (toolCall: ToolCall) => string | null | undefined;
+}
+
+/**
+ * Extract filename from a path
+ */
+function getFileName(filePath: string | null | undefined): string {
+	if (!filePath) return "";
+	return filePath.split("/").pop() || "";
+}
+
+/**
+ * Format raw tool names into readable titles for "other" tool kind.
+ */
+function formatOtherToolName(name: string): string {
+	// MCP-style names are often "mcp__server__ToolName" - display only final segment.
+	const mcpSegments = name.split("__").filter((segment) => segment.length > 0);
+	const baseName = mcpSegments.length > 0 ? mcpSegments[mcpSegments.length - 1] : name;
+
+	// Split PascalCase boundaries, then normalize snake_case / kebab-case separators.
+	const withWordBoundaries = baseName.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+	const normalizedSeparators = withWordBoundaries.replace(/[_-]+/g, " ");
+
+	return normalizedSeparators
+		.trim()
+		.split(/\s+/)
+		.filter((word) => word.length > 0)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+/**
+ * Tool Kind UI Registry
+ *
+ * Maps canonical ToolKind to UI metadata for rendering.
+ * This is the single source of truth for tool UI behavior.
+ *
+ * TypeScript receives canonical ToolKind from Rust adapters - it never sees agent-specific tool names.
+ * All agent-specific name normalization happens in Rust.
+ */
+export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
+	read: {
+		icon: FileText,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_read_running() : m.tool_read_completed();
+		},
+		subtitle: (toolCall) => {
+			// Use file_path from arguments, fallback to title (from task children summary)
+			const filePath = toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null;
+			return filePath ? truncateText(filePath, 50) : (toolCall.title ?? "");
+		},
+		filePath: (toolCall) =>
+			toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null,
+		tooltipContent: (toolCall) => {
+			const filePath = toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null;
+			return filePath ? getDisplayPath(filePath) : "";
+		},
+	},
+
+	edit: {
+		icon: FileDashed,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			if (status.isPending) return m.tool_edit_running();
+
+			// Show diff stats if completed
+			if (status.isSuccess && toolCall.arguments.kind === "edit") {
+				const oldStr = toolCall.arguments.old_string ?? "";
+				const newStr = toolCall.arguments.new_string ?? "";
+				const { added, removed } = calculateDiffStats(oldStr, newStr);
+				return m.tool_edit_completed_stats({ added, removed });
+			}
+
+			return m.tool_edit_completed();
+		},
+		filePath: (toolCall) =>
+			toolCall.arguments.kind === "edit" ? toolCall.arguments.file_path : null,
+		tooltipContent: (toolCall) => {
+			const filePath = toolCall.arguments.kind === "edit" ? toolCall.arguments.file_path : null;
+			return filePath ? getDisplayPath(filePath) : "";
+		},
+	},
+
+	execute: {
+		icon: Terminal,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_bash_running() : m.tool_bash_completed();
+		},
+		subtitle: (toolCall) => {
+			const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
+			if (command) {
+				// Normalize and truncate
+				const normalized = command.replace(/\\\s*\n\s*/g, " ").trim();
+				return truncateText(normalized, 50);
+			}
+			// Fallback to title (from task children summary)
+			return toolCall.title ?? "";
+		},
+	},
+
+	search: {
+		icon: MagnifyingGlass,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			if (status.isPending) return m.tool_grep_running();
+
+			// Count results from result
+			const result = toolCall.result as Record<string, unknown> | unknown[] | null;
+			// Only show "No matches" if we actually have result data
+			// Task children summaries don't have result data, so just show completed
+			if (!result) {
+				return m.tool_grep_completed();
+			}
+			const numFiles =
+				(typeof result === "object" && "numFiles" in result ? (result.numFiles as number) : null) ??
+				(Array.isArray(result) ? result.length : 0);
+			return numFiles > 0 ? m.tool_grep_results({ count: numFiles }) : m.tool_grep_no_matches();
+		},
+		subtitle: (toolCall) => {
+			const query = toolCall.arguments.kind === "search" ? toolCall.arguments.query : null;
+			// Fallback to title (from task children summary)
+			return query ? truncateText(query, 40) : (toolCall.title ?? "");
+		},
+	},
+
+	glob: {
+		icon: MagnifyingGlass,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			if (status.isPending) return m.tool_glob_running();
+
+			const result = toolCall.result as Record<string, unknown> | unknown[] | null;
+			if (!result) {
+				return m.tool_glob_running();
+			}
+			const totalFiles =
+				(typeof result === "object" && "totalFiles" in result
+					? (result.totalFiles as number)
+					: null) ?? (Array.isArray(result) ? result.length : 0);
+			return totalFiles > 0 ? m.tool_glob_results({ count: totalFiles }) : m.tool_glob_no_results();
+		},
+		subtitle: (toolCall) => {
+			const pattern = toolCall.arguments.kind === "glob" ? toolCall.arguments.pattern : null;
+			return pattern ? truncateText(pattern, 40) : (toolCall.title ?? "");
+		},
+	},
+
+	fetch: {
+		icon: Globe,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_web_fetch_running() : m.tool_web_fetch_completed();
+		},
+		subtitle: (toolCall) => {
+			const url = toolCall.arguments.kind === "fetch" ? toolCall.arguments.url : null;
+			if (!url) return "";
+			// Extract domain from URL
+			const urlObj = URL.parse(url);
+			return urlObj?.hostname?.replace(/^www\./, "") ?? truncateText(url, 30);
+		},
+	},
+
+	web_search: {
+		icon: Globe,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			const query = toolCall.arguments.kind === "webSearch" ? toolCall.arguments.query : null;
+			const displayQuery = query ? truncateText(query, 30) : "...";
+
+			if (status.isPending) {
+				return `Searching for "${displayQuery}"...`;
+			}
+
+			return `Searched for "${displayQuery}"`;
+		},
+		subtitle: (toolCall) => {
+			const query = toolCall.arguments.kind === "webSearch" ? toolCall.arguments.query : null;
+			return query ? truncateText(query, 40) : "";
+		},
+	},
+
+	think: {
+		icon: Brain,
+		title: () => m.tool_thinking(),
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind === "think" && toolCall.arguments.description) {
+				return truncateText(toolCall.arguments.description, 50);
+			}
+			return "";
+		},
+	},
+
+	todo: {
+		icon: ListChecks,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_todo_running() : m.tool_todo_completed();
+		},
+		subtitle: (toolCall) => {
+			const todos = toolCall.normalizedTodos;
+			if (!todos || todos.length === 0) return "";
+			// Find the in-progress task
+			const inProgress = todos.find((t) => t.status === "in_progress");
+			if (inProgress) {
+				return truncateText(inProgress.activeForm || inProgress.content, 50);
+			}
+			// Fallback to last item if no in-progress
+			const lastTodo = todos[todos.length - 1];
+			return truncateText(lastTodo.activeForm || lastTodo.content, 50);
+		},
+	},
+
+	question: {
+		icon: ChatTeardropText,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_ask_running() : m.tool_ask_completed();
+		},
+		subtitle: (toolCall) => {
+			// Show the first question text if available from normalizedQuestions
+			const questions = toolCall.normalizedQuestions;
+			if (questions && questions.length > 0) {
+				return truncateText(questions[0].question, 50);
+			}
+			return "";
+		},
+	},
+
+	task: {
+		icon: Robot,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_task_running() : m.tool_task_completed();
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind === "think" && toolCall.arguments.description) {
+				return truncateText(toolCall.arguments.description, 50);
+			}
+			return "";
+		},
+	},
+
+	skill: {
+		icon: Package,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			const skillName = extractSkillCallInput(toolCall.arguments).skill;
+			const displayName = skillName ?? "skill";
+			return status.isPending
+				? m.tool_skill_running({ name: displayName })
+				: m.tool_skill_completed({ name: displayName });
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.skillMeta?.description) {
+				return toolCall.skillMeta.description;
+			}
+			return "";
+		},
+	},
+
+	move: {
+		icon: ArrowsClockwise,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_move_running() : m.tool_move_completed();
+		},
+		subtitle: (toolCall) => {
+			const from = toolCall.arguments.kind === "move" ? toolCall.arguments.from : null;
+			const to = toolCall.arguments.kind === "move" ? toolCall.arguments.to : null;
+			if (from && to) {
+				const fromName = getFileName(from);
+				const toName = getFileName(to);
+				return `${fromName} → ${toName}`;
+			}
+			return "";
+		},
+	},
+
+	delete: {
+		icon: Trash,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_delete_running() : m.tool_delete_completed();
+		},
+		filePath: (toolCall) =>
+			toolCall.arguments.kind === "delete" ? toolCall.arguments.file_path : null,
+	},
+
+	enter_plan_mode: {
+		icon: ArrowsClockwise,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending
+				? m.tool_enter_plan_mode_running()
+				: m.tool_enter_plan_mode_completed();
+		},
+	},
+
+	exit_plan_mode: {
+		icon: ArrowsClockwise,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_exit_plan_mode_running() : m.tool_exit_plan_mode_completed();
+		},
+	},
+
+	create_plan: {
+		icon: PencilRuler,
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_create_plan_running() : m.tool_create_plan_completed();
+		},
+	},
+
+	other: {
+		icon: BuildIcon,
+		title: (toolCall) => toolCall.title || formatOtherToolName(toolCall.name),
+		subtitle: (toolCall) => {
+			if (!toolCall.title) return "";
+			const formatted = formatOtherToolName(toolCall.name);
+			return formatted === toolCall.title ? "" : formatted;
+		},
+	},
+};
+
+/**
+ * Get tool UI metadata by tool kind.
+ *
+ * @param kind - The canonical tool kind
+ * @returns Tool UI metadata
+ */
+export function getToolKindUI(kind: ToolKind): ToolKindUI {
+	return TOOL_KIND_UI_REGISTRY[kind];
+}
+
+/**
+ * Get dynamic tool title based on kind and current state.
+ *
+ * @param kind - The canonical tool kind
+ * @param toolCall - The tool call
+ * @param turnState - Current turn state
+ * @returns Dynamic title string
+ */
+export function getToolKindTitle(
+	kind: ToolKind,
+	toolCall: ToolCall,
+	turnState?: TurnState
+): string {
+	const ui = getToolKindUI(kind);
+	return ui.title(toolCall, turnState);
+}
+
+/**
+ * Get tool subtitle if available.
+ *
+ * @param kind - The canonical tool kind
+ * @param toolCall - The tool call
+ * @returns Subtitle string or empty string
+ */
+export function getToolKindSubtitle(kind: ToolKind, toolCall: ToolCall): string {
+	const ui = getToolKindUI(kind);
+	return ui.subtitle?.(toolCall) ?? "";
+}
+
+/**
+ * Get tool icon for a given kind.
+ * Each kind has its own icon defined in the registry.
+ *
+ * @param kind - The canonical tool kind
+ * @returns Icon component or undefined
+ */
+export function getToolKindIcon(kind: ToolKind): IconComponent | undefined {
+	const ui = getToolKindUI(kind);
+	return ui.icon;
+}
+
+/**
+ * Get tool tooltip content if available.
+ *
+ * @param kind - The canonical tool kind
+ * @param toolCall - The tool call
+ * @returns Tooltip content or empty string
+ */
+export function getToolKindTooltip(kind: ToolKind, toolCall: ToolCall): string {
+	const ui = getToolKindUI(kind);
+	return ui.tooltipContent?.(toolCall) ?? "";
+}
+
+/**
+ * Get file path from tool call if available.
+ * Used for file-based tools to display file icon + filename.
+ *
+ * @param kind - The canonical tool kind
+ * @param toolCall - The tool call
+ * @returns File path or null
+ */
+export function getToolKindFilePath(kind: ToolKind, toolCall: ToolCall): string | null {
+	const ui = getToolKindUI(kind);
+	return ui.filePath?.(toolCall) ?? null;
+}
+
+/**
+ * Get display text for compact UI (queue item, session list item).
+ * Uses subtitle when available, else title. For file tools, returns basename only
+ * (consumer adds i18n verb: "Reading X", "Editing X").
+ *
+ * @param kind - The canonical tool kind
+ * @param toolCall - The tool call
+ * @param turnState - Current turn state ("streaming" or "completed")
+ * @returns Display string for compact UI
+ */
+export function getToolCompactDisplayText(
+	kind: ToolKind,
+	toolCall: ToolCall,
+	turnState?: TurnState
+): string {
+	if (kind === "read" || kind === "edit" || kind === "delete") {
+		const path = getToolKindFilePath(kind, toolCall);
+		return path ? getFileName(path) : "";
+	}
+	const subtitle = getToolKindSubtitle(kind, toolCall);
+	if (subtitle) return subtitle;
+	return getToolKindTitle(kind, toolCall, turnState);
+}

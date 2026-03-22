@@ -1,0 +1,114 @@
+[package]
+name = "acepe"
+version = "0.1.0"
+description = "Acepe — the agent-first IDE"
+authors = ["Acepe Contributors"]
+license = "FSL-1.1-ALv2"
+repository = "https://github.com/flazouh/acepe"
+edition = "2021"
+default-run = "acepe"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "acepe_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "devtools", "unstable"] }
+tauri-plugin-opener = "2"
+tauri-plugin-locale = "2"
+tauri-plugin-pty = "0.2"
+tauri-plugin-updater = "=2.5.1"
+tauri-plugin-process = "2"
+current_locale = "0.1"
+rfd = "0.15"
+sea-orm = { version = "0.12", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+sea-orm-migration = { version = "0.12", features = ["sqlx-sqlite"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "mysql", "json", "chrono"] }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+# TypeScript type generation (specta v2 for Tauri v2)
+specta = { version = "=2.0.0-rc.22", features = ["export", "function", "serde", "serde_json"] }
+tauri-specta = { version = "=2.0.0-rc.21", features = ["typescript"] }
+specta-typescript = "0.0.9"
+dotenv = "0.15"
+dirs = "5"
+tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros", "sync", "process", "signal", "time"] }
+futures = "0.3"
+axum = { version = "0.7", features = ["http1", "tokio"] }
+# HTTP client for OpenCode REST API
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip"] }
+aws-config = "1"
+aws-sdk-s3 = "1"
+aws-credential-types = "1"
+# SSE stream parsing for OpenCode events
+tokio-util = { version = "0.7", features = ["io"] }
+# Unix signal handling for graceful shutdown
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.28", features = ["signal", "process"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+objc2 = { version = "0.6", features = ["catch-all"] }
+# Regex for parsing OpenCode output
+regex = "1.10"
+# Lazy static for regex compilation
+once_cell = "1.19"
+# URL encoding for SSE parameters
+urlencoding = "2.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
+rand = "0.8"
+sha2 = "0.10"
+notify = "6"
+notify-debouncer-mini = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time", "chrono"] }
+rusqlite = { version = "0.29", features = ["bundled"] }
+hex = "0.4"
+md5 = "0.7"
+base64 = "0.22"
+# File indexing for @ file picker
+ignore = "0.4"
+git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
+rayon = "1.10"
+memchr = "2"
+dashmap = "6"
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
+# Error tracking and crash reporting
+sentry = { version = "0.38", features = ["tracing"] }
+thiserror = "1"
+indexmap = "2"
+tempfile = "3"
+# Archive extraction for agent installer
+tar = "0.4"
+flate2 = "1.0"
+zip = "2"
+# Partial JSON recovery for streaming tool input parsing
+partial-json-fixer = "0.5"
+# MCP plugin for AI agent debugging (disabled — no active bridge client)
+# tauri-plugin-mcp = { path = "packages/tauri-plugin-mcp" }
+tauri-plugin-mcp-bridge = "0.9"
+
+[[bin]]
+name = "scan_unmatched_tools"
+path = "src/bin/scan_unmatched_tools.rs"
+
+[[bin]]
+name = "dump_cursor_tool_use"
+path = "src/bin/dump_cursor_tool_use.rs"
+
+[dev-dependencies]
+tokio-test = "0.4"
+insta = { version = "1", features = ["json"] }

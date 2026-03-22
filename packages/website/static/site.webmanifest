@@ -1,0 +1,26 @@
+{
+	"name": "Acepe - The AI Agent Interface",
+	"short_name": "Acepe",
+	"description": "A unified desktop interface for interacting with AI agents",
+	"icons": [
+		{
+			"src": "/favicon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml"
+		},
+		{
+			"src": "/favicon-192x192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "/favicon-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		}
+	],
+	"theme_color": "#F77E2C",
+	"background_color": "#0a0a0a",
+	"display": "standalone",
+	"start_url": "/"
+}

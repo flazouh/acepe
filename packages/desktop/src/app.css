@@ -1,0 +1,364 @@
+/* Acepe custom font - font files in static/fonts/ */
+@font-face {
+	font-family: "Acepe";
+	font-style: normal;
+	font-weight: 400;
+	src: url("/fonts/acepe.woff2") format("woff2");
+	font-display: swap;
+}
+
+@import "@acepe/ui/design-tokens.css";
+@import "tailwindcss";
+@source "./**/*.{html,js,svelte,ts}";
+@source "../../ui/src/**/*.{html,js,svelte,ts}";
+@source inline("text-success");
+
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--radius: 0.625rem;
+	/* Light mode colors - warm palette with high contrast */
+	--background: #FAFAF8;
+	--foreground: #0A0A09;
+	--card: #F2EFE9;
+	--card-foreground: #0A0A09;
+	--popover: #FFFFFF;
+	--popover-foreground: #0A0A09;
+	--primary: #D97757;
+	--primary-foreground: hsl(0 0% 100%);
+	--secondary: #E5E0D5;
+	--secondary-foreground: #1A1A1A;
+	--muted: #E8E3D8;
+	--muted-foreground: #525252;
+	--accent: #DDD8CC;
+	--accent-foreground: #1A1A1A;
+	--destructive: hsl(0 70% 35.2941%);
+	--destructive-foreground: hsl(0 0% 100%);
+	--success: var(--token-success-light);
+	--success-foreground: hsl(0 0% 100%);
+	--border: #BDB6A6;
+	--input: #E0DBD0;
+	--ring: #D97757;
+	--chart-1: #D97757;
+	--chart-2: #6B6B6B;
+	--chart-3: #D97757;
+	--chart-4: #6B6B6B;
+	--chart-5: #A78BFA;
+	--sidebar: #DDD8CC;
+	--sidebar-foreground: #141413;
+	--sidebar-primary: #D97757;
+	--sidebar-primary-foreground: hsl(0 0% 100%);
+	--sidebar-accent: #D0CBC0;
+	--sidebar-accent-foreground: #141413;
+	--sidebar-border: #D0CBC0;
+	--sidebar-ring: #D97757;
+
+	/* Font families */
+	--font-sans: Acepe, system-ui, sans-serif;
+	--font-serif: Merriweather, serif;
+	--font-mono: Fira Code, monospace;
+
+	/* Shadows */
+	--shadow-x: 0px;
+	--shadow-y: 2px;
+	--shadow-blur: 3px;
+	--shadow-spread: 0px;
+	--shadow-opacity: 0.18;
+	--shadow-color: hsl(240 15% 20%);
+	--shadow-2xs: 0px 2px 3px 0px hsl(240 15% 20% / 0.07);
+	--shadow-xs: 0px 2px 3px 0px hsl(240 15% 20% / 0.07);
+	--shadow-sm: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 1px 2px -1px hsl(240 15% 20% / 0.12);
+	--shadow: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 1px 2px -1px hsl(240 15% 20% / 0.12);
+	--shadow-md: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 2px 4px -1px hsl(240 15% 20% / 0.12);
+	--shadow-lg: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 4px 6px -1px hsl(240 15% 20% / 0.12);
+	--shadow-xl: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 8px 10px -1px hsl(240 15% 20% / 0.12);
+	--shadow-2xl: 0px 2px 3px 0px hsl(240 15% 20% / 0.35);
+
+	/* Z-index: portalled overlays (dropdowns, tooltips, popovers) must appear above full-screen overlays (settings, etc. at 9997) */
+	--overlay-z: 9998;
+
+	/* Other properties */
+	--tracking-normal: 0em;
+	--spacing: 0.25rem;
+}
+
+.dark {
+	/* Cursor Dark theme colors - using hex values directly for better color accuracy */
+	--background: #1a1a1a; /* editor.background */
+	--foreground: #d8dee9; /* editor.foreground */
+	--card: #232323; /* editorWidget.background */
+	--card-foreground: #ffffff; /* editorSuggestWidget.foreground */
+	--popover: #272727; /* dropdown background */
+	--popover-foreground: #ffffff; /* editorSuggestWidget.foreground */
+	--primary: #d97757; /* button.background */
+	--primary-foreground: #191c22; /* button.foreground */
+	--secondary: #565656; /* button.secondaryBackground */
+	--secondary-foreground: #ececec; /* button.secondaryForeground */
+	--muted: #3a3a3a; /* input.border */
+	--muted-foreground: #cccccc; /* foreground with reduced opacity */
+	--accent: #303030; /* hover/selected item background */
+	--accent-foreground: #ffffff; /* list.hoverForeground */
+	--destructive: #bf616a; /* editorError.foreground */
+	--success: var(--token-success-dark);
+	--success-foreground: #ffffff;
+	--border: #2a2a2a; /* input.border, dropdown.border */
+	--input: #313131; /* input.background */
+	--ring: #30373a; /* focusBorder */
+	--chart-1: #88c0d0; /* badge.background */
+	--chart-2: #a3be8c; /* gitDecoration.addedResourceForeground */
+	--chart-3: #ebcb8b; /* editorWarning.foreground */
+	--chart-4: #bf616a; /* editorError.foreground */
+	--chart-5: #b48ead; /* terminal.ansiMagenta */
+	--sidebar: #141414; /* sideBar.background */
+	--sidebar-foreground: #cccccc; /* sideBar.foreground */
+	--sidebar-primary: #ff8558; /* button.background */
+	--sidebar-primary-foreground: #191c22; /* button.foreground */
+	--sidebar-accent: #2a2a2a; /* list.hoverBackground */
+	--sidebar-accent-foreground: #ffffff; /* list.hoverForeground */
+	--sidebar-border: rgba(255, 255, 255, 0.05); /* editorGroupHeader.tabsBorder */
+	--sidebar-ring: #30373a; /* focusBorder */
+}
+
+@theme inline {
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+	html,
+	body {
+		height: 100%;
+		overflow: hidden;
+	}
+
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground font-sans;
+	}
+
+	/* Make collapsed sidebar clickable with col-resize cursor */
+	.group[data-collapsible="icon"] [data-sidebar="sidebar"] {
+		cursor: col-resize;
+	}
+}
+
+/* Global thin scrollbar styling */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--primary) 30%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--primary) 30%, transparent);
+	border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+/* Hide scrollbar for compact containers (e.g. thinking block) */
+.scrollbar-none::-webkit-scrollbar {
+	display: none;
+}
+.scrollbar-none {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+/* Shiki dual-theme: switch between light/dark token colors */
+.shiki,
+.shiki span {
+	color: var(--shiki-light);
+}
+
+.dark .shiki,
+.dark .shiki span {
+	color: var(--shiki-dark);
+}
+
+/* Waiting indicator animations */
+@keyframes blink {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
+}
+
+@layer base {
+	button:not(:disabled) {
+		cursor: pointer;
+	}
+}
+
+/* Color badge for hex color codes in markdown */
+.color-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.125rem 0.25rem;
+	border-radius: 0.25rem;
+	font-size: 0.75rem;
+	background-color: var(--muted);
+	color: var(--muted-foreground);
+}
+
+.color-badge .color-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	flex-shrink: 0;
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.color-badge code {
+	font-size: 0.6875rem;
+	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+	background: none !important;
+	padding: 0 !important;
+}
+
+.color-badge .color-copy-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.125rem;
+	margin-left: 0.125rem;
+	border: none;
+	background: transparent;
+	color: var(--muted-foreground);
+	border-radius: 0.25rem;
+	opacity: 0.6;
+	transition:
+		opacity 0.15s,
+		background-color 0.15s;
+}
+
+.color-badge .color-copy-btn:hover {
+	opacity: 1;
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.color-badge .color-copy-btn:active {
+	opacity: 0.8;
+}
+
+/* Show copy icon by default, hide check icon */
+.color-badge .color-copy-btn .copy-icon {
+	display: block;
+}
+
+.color-badge .color-copy-btn .check-icon {
+	display: none;
+}
+
+/* When copied, show check icon and hide copy icon */
+.color-badge .color-copy-btn.copied .copy-icon {
+	display: none;
+}
+
+.color-badge .color-copy-btn.copied .check-icon {
+	display: block;
+}
+
+.color-badge .color-copy-btn.copied {
+	opacity: 1;
+}
+
+/* Drag-over state for file/image drop zones */
+.drag-over {
+	outline: 2px dashed var(--primary);
+	outline-offset: -2px;
+	background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Shared list item animations */
+@keyframes fadeSlideIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes cardSlideIn {
+	from {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Respect reduced motion preferences for list animations */
+@media (prefers-reduced-motion: reduce) {
+	[style*="fadeSlideIn"],
+	[style*="cardSlideIn"] {
+		animation: none !important;
+	}
+}
+
+/* Sonner toast: non-opaque, remove border */
+[data-sonner-toast] {
+	border: none !important;
+	background: color-mix(in srgb, var(--popover) 80%, transparent) !important;
+	backdrop-filter: blur(12px);
+}
