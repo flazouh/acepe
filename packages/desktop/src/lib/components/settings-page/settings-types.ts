@@ -3,6 +3,7 @@ export type SettingsSectionId =
 	| "chat"
 	| "keybindings"
 	| "agents"
+	| "voice"
 	| "skills"
 	| "worktrees"
 	| "project"

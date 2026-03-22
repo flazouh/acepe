@@ -61,6 +61,12 @@ pub enum UserSettingKey {
     /// Per-category notification preferences (JSON object)
     #[serde(rename = "notification-preferences")]
     NotificationPreferences,
+    /// Selected voice model ID (e.g. "small.en")
+    VoiceModel,
+    /// Preferred voice transcription language code (e.g. "en" or "auto")
+    VoiceLanguage,
+    /// Whether voice dictation is enabled (boolean)
+    VoiceEnabled,
     /// Agent ID used for AI-generated commit messages and PR descriptions
     GitTextGenerationAgent,
     /// Preferred merge strategy for PRs (e.g., "squash", "merge", "rebase")
@@ -103,6 +109,9 @@ impl UserSettingKey {
             }
             UserSettingKey::PlanInlineMode => "plan_inline_mode",
             UserSettingKey::NotificationPreferences => "notification-preferences",
+            UserSettingKey::VoiceModel => "voice_model",
+            UserSettingKey::VoiceLanguage => "voice_language",
+            UserSettingKey::VoiceEnabled => "voice_enabled",
             UserSettingKey::GitTextGenerationAgent => "git_text_generation_agent",
             UserSettingKey::GitMergeStrategyPreference => "git_merge_strategy_preference",
         }
@@ -142,6 +151,9 @@ mod tests {
             "chat_thinking_block_collapsed_by_default",
             "plan_inline_mode",
             "notification-preferences",
+            "voice_model",
+            "voice_language",
+            "voice_enabled",
             "git_text_generation_agent",
         ];
 

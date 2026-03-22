@@ -24,6 +24,7 @@ pub mod skills;
 pub mod sql_studio;
 mod storage;
 pub mod terminal;
+pub mod voice;
 
 use browser_webview::{
     browser_webview_back, browser_webview_forward, close_browser_webview, get_browser_webview_url,
@@ -138,6 +139,11 @@ use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use voice::{
+    voice_cancel_recording, voice_delete_model, voice_download_model, voice_get_model_status,
+    voice_list_languages, voice_list_models, voice_load_model, voice_start_recording,
+    voice_stop_recording, VoiceState,
+};
 
 struct NoSpanEventFormatter;
 
@@ -708,6 +714,13 @@ pub fn run() {
             // Terminal manager for process spawning
             app.manage(Arc::new(terminal::TerminalManager::new()));
 
+            if let Ok(app_data_dir) = app.path().app_data_dir() {
+                app.manage(VoiceState::new(&app_data_dir));
+            } else {
+                tracing::error!("Failed to resolve app data directory for voice state");
+                std::process::exit(1);
+            }
+
             // Initialize file index service
             app.manage(FileIndexService::new());
 
@@ -929,6 +942,15 @@ pub fn run() {
             fetch_commit_diff,
             fetch_pr_diff,
             list_pull_requests,
+            voice_list_models,
+            voice_list_languages,
+            voice_get_model_status,
+            voice_download_model,
+            voice_delete_model,
+            voice_load_model,
+            voice_start_recording,
+            voice_stop_recording,
+            voice_cancel_recording,
             open_browser_webview,
             close_browser_webview,
             resize_browser_webview,

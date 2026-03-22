@@ -15,6 +15,7 @@ import ArchivedSessionsSection from "./sections/archived-sessions-section.svelte
 import ChatSection from "./sections/chat-section.svelte";
 import GeneralSection from "./sections/general-section.svelte";
 import SkillsSection from "./sections/skills-section.svelte";
+import VoiceSection from "./sections/voice-section.svelte";
 import WorktreesSection from "./sections/worktrees-section.svelte";
 import SettingsSidebar from "./settings-sidebar.svelte";
 import type { SettingsSectionId } from "./settings-types.js";
@@ -62,6 +63,8 @@ function handleSectionChange(section: SettingsSectionId) {
 				</div>
 			{:else if activeSection === "agents"}
 				<AgentsModelsSection />
+			{:else if activeSection === "voice"}
+				<VoiceSection />
 			{:else if activeSection === "skills"}
 				<SkillsSection />
 			{:else if activeSection === "worktrees"}

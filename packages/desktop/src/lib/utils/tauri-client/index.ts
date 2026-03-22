@@ -18,6 +18,7 @@ import { shell } from "./shell.js";
 import { skills } from "./skills.js";
 import { sqlStudio } from "./sql-studio.js";
 import { terminal } from "./terminal.js";
+import { voice } from "./voice.js";
 import { workspace } from "./workspace.js";
 
 export const tauriClient = {
@@ -34,6 +35,7 @@ export const tauriClient = {
 	skills,
 	sqlStudio,
 	terminal,
+	voice,
 	workspace,
 } as const;
 

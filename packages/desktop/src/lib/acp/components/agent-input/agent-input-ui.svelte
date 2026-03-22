@@ -10,6 +10,7 @@ import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getMessageQueueStore, getPanelStore, getSessionStore } from "../../store/index.js";
@@ -25,7 +26,10 @@ import InputContainer from "../input-container.svelte";
 import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
 import SlashCommandDropdown from "../slash-command-dropdown/slash-command-dropdown-ui.svelte";
 import { runWorktreeSetup } from "../worktree-toggle/worktree-setup-orchestrator.js";
+import MicButton from "./components/mic-button.svelte";
 import PastedTextOverlay from "./components/pasted-text-overlay.svelte";
+import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
+import { VoiceInputState } from "./state/voice-input-state.svelte.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
 	findInlineArtefactRangeAtPosition,
@@ -69,8 +73,14 @@ const logger = createLogger({ id: "agent-input-send-trace", name: "AgentInputSen
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const messageQueueStore = getMessageQueueStore();
+const voiceSettingsStore = getVoiceSettingsStore();
+
 // Create state instance with reactive project path getter
 const inputState = new AgentInputState(sessionStore, panelStore, () => props.projectPath ?? null);
+
+let voiceState: VoiceInputState | null = $state(null);
+const voiceEnabled = $derived($voiceSettingsStore.enabled);
+
 const panelHotState = $derived(props.panelId ? panelStore.getHotState(props.panelId) : null);
 
 // Resolve capabilities agent from selected agent, then fall back to the session's agent.
@@ -450,8 +460,26 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 }
 
 // Initialize on mount (file preloading is now handled reactively by state class)
-onMount(() => {
+onMount(async () => {
 	inputState.initialize();
+	if (props.sessionId) {
+		const vs = new VoiceInputState({
+			sessionId: props.sessionId,
+			getSelectedLanguage: () => voiceSettingsStore.language,
+			getSelectedModelId: () => voiceSettingsStore.selectedModelId,
+			onTranscriptionReady: (text) => {
+				const sep = inputState.message.length > 0 ? " " : "";
+				inputState.insertPlainTextAtOffsets(
+					sep + text,
+					inputState.message.length,
+					inputState.message.length,
+				);
+				syncEditorFromMessage(inputState.message.length);
+			},
+		});
+		await vs.registerListeners();
+		voiceState = vs;
+	}
 	// Restore initial draft from PanelStore if panelId is provided
 	if (props.panelId) {
 		const draft = panelStore.getMessageDraft(props.panelId);
@@ -499,6 +527,7 @@ onMount(() => {
 
 // Cleanup on destroy — flush any pending draft before teardown
 onDestroy(() => {
+	voiceState?.dispose();
 	logger.info("[first-send-trace] agent input destroy", {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
@@ -1310,6 +1339,9 @@ async function handleCancel() {
 							</Tooltip.Root>
 						</div>
 						<div class="relative flex-1 min-w-0 pr-12">
+						{#if voiceState}
+							<VoiceRecordingOverlay {voiceState} />
+						{/if}
 							<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 							<div
 								bind:this={editorRef}
@@ -1409,6 +1441,12 @@ async function handleCancel() {
 						<div class="h-full w-px bg-border/50"></div>
 					</div>
 					<div class="flex items-center h-7 ml-auto">
+						{#if voiceState && voiceEnabled}
+							<MicButton
+								{voiceState}
+								disabled={isStreaming || isSending}
+							/>
+						{/if}
 						{#if props.sessionId}
 							<ModelSelectorMetricsChip
 								sessionId={props.sessionId}

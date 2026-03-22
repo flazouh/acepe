@@ -44,7 +44,7 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["typescript"] }
 specta-typescript = "0.0.9"
 dotenv = "0.15"
 dirs = "5"
-tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros", "sync", "process", "signal", "time"] }
+tokio = { version = "1", features = ["fs", "io-util", "rt-multi-thread", "macros", "sync", "process", "signal", "time"] }
 futures = "0.3"
 axum = { version = "0.7", features = ["http1", "tokio"] }
 # HTTP client for OpenCode REST API
@@ -71,6 +71,13 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 rand = "0.8"
 sha2 = "0.10"
+# Voice dictation – audio capture and on-device transcription
+cpal = "0.15"
+ringbuf = "0.4"
+zeroize = "1"
+# PINNED exact version: audit whisper-rs-sys/build.rs before any bump;
+# Metal feature enables GPU acceleration with automatic CPU fallback.
+whisper-rs = { version = "=0.16.0", features = ["metal"] }
 notify = "6"
 notify-debouncer-mini = "0.4"
 tracing = "0.1"
@@ -112,3 +119,4 @@ path = "src/bin/dump_cursor_tool_use.rs"
 [dev-dependencies]
 tokio-test = "0.4"
 insta = { version = "1", features = ["json"] }
+hound = "3"

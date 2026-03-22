@@ -173,6 +173,33 @@ pub const GITHUB_COMMANDS: GitHubCommands = GitHubCommands {
     git_working_file_diff: "git_working_file_diff",
 };
 
+/// Voice command names
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
+pub struct VoiceCommands {
+    pub list_models: &'static str,
+    pub get_model_status: &'static str,
+    pub download_model: &'static str,
+    pub delete_model: &'static str,
+    pub start_recording: &'static str,
+    pub stop_recording: &'static str,
+    pub cancel_recording: &'static str,
+    pub load_model: &'static str,
+}
+
+#[allow(dead_code)]
+pub const VOICE_COMMANDS: VoiceCommands = VoiceCommands {
+    list_models: "voice_list_models",
+    get_model_status: "voice_get_model_status",
+    download_model: "voice_download_model",
+    delete_model: "voice_delete_model",
+    start_recording: "voice_start_recording",
+    stop_recording: "voice_stop_recording",
+    cancel_recording: "voice_cancel_recording",
+    load_model: "voice_load_model",
+};
+
 /// All command name constants grouped by category
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -183,6 +210,7 @@ pub struct Commands {
     pub storage: StorageCommands,
     pub cursor_history: CursorHistoryCommands,
     pub github: GitHubCommands,
+    pub voice: VoiceCommands,
 }
 
 #[allow(dead_code)]
@@ -192,6 +220,7 @@ pub const COMMANDS: Commands = Commands {
     storage: STORAGE_COMMANDS,
     cursor_history: CURSOR_HISTORY_COMMANDS,
     github: GITHUB_COMMANDS,
+    voice: VOICE_COMMANDS,
 };
 
 #[cfg(test)]
@@ -243,6 +272,7 @@ mod tests {
         export_type!(StorageCommands);
         export_type!(CursorHistoryCommands);
         export_type!(GitHubCommands);
+        export_type!(VoiceCommands);
         export_type!(Commands);
 
         // Also export the actual command values as a constant
