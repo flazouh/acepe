@@ -88,12 +88,19 @@ function enrichEditArgsFromRawInput(
 	const oldFromChanges = str(change.old_content);
 	const newFromChanges = str(change.new_content);
 
+	const firstEdit = args.edits[0] ?? {};
 	return {
 		...args,
-		file_path: args.file_path ?? pathStr(filePathFromChange),
-		old_string: args.old_string ?? oldFromChanges,
-		new_string: args.new_string ?? newFromChanges,
-		content: args.content ?? newFromChanges,
+		edits: [
+			{
+				...firstEdit,
+				filePath: firstEdit.filePath ?? pathStr(filePathFromChange),
+				oldString: firstEdit.oldString ?? oldFromChanges,
+				newString: firstEdit.newString ?? newFromChanges,
+				content: firstEdit.content ?? newFromChanges,
+			},
+			...args.edits.slice(1),
+		],
 	};
 }
 

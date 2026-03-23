@@ -23,19 +23,13 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		it("should store and retrieve streaming arguments", () => {
 			store.setStreamingArguments("session1", "tool1", {
 				kind: "edit",
-				file_path: "/path/to/file.ts",
-				old_string: null,
-				new_string: "content",
-				content: null,
+				edits: [{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null }],
 			});
 
 			const result = store.getStreamingArguments("tool1");
 			expect(result).toEqual({
 				kind: "edit",
-				file_path: "/path/to/file.ts",
-				old_string: null,
-				new_string: "content",
-				content: null,
+				edits: [{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null }],
 			});
 		});
 
@@ -55,25 +49,16 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		it("should overwrite when setting same tool call again", () => {
 			store.setStreamingArguments("session1", "tool1", {
 				kind: "edit",
-				file_path: "/a",
-				old_string: null,
-				new_string: "v1",
-				content: null,
+				edits: [{ filePath: "/a", oldString: null, newString: "v1", content: null }],
 			});
 			store.setStreamingArguments("session1", "tool1", {
 				kind: "edit",
-				file_path: "/a",
-				old_string: null,
-				new_string: "v2",
-				content: null,
+				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 
 			expect(store.getStreamingArguments("tool1")).toEqual({
 				kind: "edit",
-				file_path: "/a",
-				old_string: null,
-				new_string: "v2",
-				content: null,
+				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 		});
 	});
@@ -88,10 +73,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		it("should clear streaming arguments", () => {
 			store.setStreamingArguments("session1", "tool1", {
 				kind: "edit",
-				file_path: "/x",
-				old_string: null,
-				new_string: "content",
-				content: null,
+				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
 			});
 
 			expect(store.getStreamingArguments("tool1")).toBeDefined();

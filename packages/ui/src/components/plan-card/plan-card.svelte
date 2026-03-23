@@ -13,7 +13,7 @@
     HeaderActionCell,
     HeaderTitleCell,
   } from "../panel-header/index.js";
-  import { PlanIcon, BuildIcon } from "../icons/index.js";
+  import { PlanIcon, BuildIcon, LoadingIcon } from "../icons/index.js";
   import XCircle from "phosphor-svelte/lib/XCircle";
   import ArrowsOut from "phosphor-svelte/lib/ArrowsOut";
   import ArrowSquareOut from "phosphor-svelte/lib/ArrowSquareOut";
@@ -209,7 +209,7 @@
             disabled={isBuilding}
           >
             {#if isBuilding}
-              <span class="plan-spinner"></span>
+              <LoadingIcon class="size-3" />
               Building…
             {:else}
               <BuildIcon size="sm" />
@@ -366,19 +366,4 @@
     }
   }
 
-  .plan-spinner {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border: 1.5px solid var(--muted-foreground);
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
 </style>

@@ -293,7 +293,7 @@ describe("ToolCallManager", () => {
 			const syntheticData = createToolCallData("tc-1", {
 				name: "Edit",
 				kind: "edit",
-				arguments: { kind: "edit", file_path: "/path/to/file.ts" },
+				arguments: { kind: "edit", edits: [{ filePath: "/path/to/file.ts" }] },
 			});
 			const result = manager.createEntry("s1", syntheticData);
 
@@ -559,10 +559,7 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					arguments: {
 						kind: "edit",
-						file_path: null,
-						old_string: null,
-						new_string: null,
-						content: null,
+						edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 					},
 					awaitingPlanApproval: false,
 				},
@@ -581,10 +578,7 @@ describe("ToolCallManager", () => {
 				status: "completed",
 				streamingArguments: {
 					kind: "edit",
-					file_path: "/src/app.ts",
-					old_string: "old",
-					new_string: "new",
-					content: null,
+					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
 				},
 			});
 
@@ -597,10 +591,7 @@ describe("ToolCallManager", () => {
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
 					kind: "edit",
-					file_path: "/src/app.ts",
-					old_string: "old",
-					new_string: "new",
-					content: null,
+					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
 				});
 				expect(updatedEntry.message.status).toBe("completed");
 			}
@@ -683,10 +674,7 @@ describe("ToolCallManager", () => {
 				kind: "edit",
 				arguments: {
 					kind: "edit",
-					file_path: null,
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 			});
 			const parentEntry: SessionEntry = {
@@ -725,10 +713,7 @@ describe("ToolCallManager", () => {
 				status: "completed",
 				arguments: {
 					kind: "edit",
-					file_path: "/src/agent-input-ui.svelte",
-					old_string: "before",
-					new_string: "after",
-					content: null,
+					edits: [{ filePath: "/src/agent-input-ui.svelte", oldString: "before", newString: "after", content: null }],
 				},
 			});
 			const result = manager.updateChildInParent("s1", childUpdate);
@@ -742,10 +727,7 @@ describe("ToolCallManager", () => {
 				expect(updatedChild?.status).toBe("completed");
 				expect(updatedChild?.arguments).toEqual({
 					kind: "edit",
-					file_path: "/src/agent-input-ui.svelte",
-					old_string: "before",
-					new_string: "after",
-					content: null,
+					edits: [{ filePath: "/src/agent-input-ui.svelte", oldString: "before", newString: "after", content: null }],
 				});
 			}
 		});

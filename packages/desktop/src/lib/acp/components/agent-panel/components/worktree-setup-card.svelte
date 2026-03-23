@@ -1,5 +1,5 @@
 <script lang="ts">
-import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
 import WarningCircle from "phosphor-svelte/lib/WarningCircle";
 import * as m from "$lib/paraglide/messages.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
@@ -59,7 +59,7 @@ function toggleExpanded(): void {
 				{#if setupState.status === "failed"}
 					<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
 				{:else}
-					<SpinnerGap size={13} class="shrink-0 animate-spin text-muted-foreground" />
+					<Spinner class="size-[13px]" />
 				{/if}
 
 				<span class="font-medium text-foreground shrink-0">

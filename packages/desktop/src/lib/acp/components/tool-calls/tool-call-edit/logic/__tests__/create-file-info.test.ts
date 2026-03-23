@@ -11,8 +11,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "src/lib/utils.ts",
-				new_string: "export const x = 1;",
+				edits: [{ filePath: "src/lib/utils.ts", newString: "export const x = 1;" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -30,7 +29,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				new_string: "content",
+				edits: [{ newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -48,7 +47,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				new_string: "content",
+				edits: [{ newString: "content" }],
 			},
 			locations: [{ path: "/tmp/location-fallback.md" }],
 			status: "completed",
@@ -67,8 +66,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "/tmp/from-arguments.md",
-				new_string: "content",
+				edits: [{ filePath: "/tmp/from-arguments.md", newString: "content" }],
 			},
 			locations: [{ path: "/tmp/from-location.md" }],
 			status: "completed",
@@ -87,9 +85,13 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "test.ts",
-				old_string: "line1\nline2\nline3",
-				new_string: "line1\nline2\nline3\nline4\nline5",
+				edits: [
+					{
+						filePath: "test.ts",
+						oldString: "line1\nline2\nline3",
+						newString: "line1\nline2\nline3\nline4\nline5",
+					},
+				],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -111,8 +113,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "test.ts",
-				content: "line1\nline2\nline3",
+				edits: [{ filePath: "test.ts", content: "line1\nline2\nline3" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -133,7 +134,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "test.ts",
+				edits: [{ filePath: "test.ts" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -150,8 +151,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "README.md",
-				new_string: "# Title",
+				edits: [{ filePath: "README.md", newString: "# Title" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -168,8 +168,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "script.ts",
-				new_string: "export const x = 1;",
+				edits: [{ filePath: "script.ts", newString: "export const x = 1;" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -186,8 +185,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "readme.MD",
-				new_string: "# Title",
+				edits: [{ filePath: "readme.MD", newString: "# Title" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -204,8 +202,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "src/file.ts",
-				new_string: "content",
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -216,8 +213,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "src/file.ts",
-				new_string: "content",
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -228,8 +224,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				file_path: "src/file.ts",
-				new_string: "content",
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,

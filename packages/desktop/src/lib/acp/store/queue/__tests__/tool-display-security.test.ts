@@ -39,7 +39,7 @@ function makeEditToolCall(filePath: string): ToolCall {
 		id: "tool-1",
 		name: "Edit",
 		kind: "edit",
-		arguments: { kind: "edit", file_path: filePath },
+		arguments: { kind: "edit", edits: [{ filePath }] },
 		status: "pending",
 		awaitingPlanApproval: false,
 	};

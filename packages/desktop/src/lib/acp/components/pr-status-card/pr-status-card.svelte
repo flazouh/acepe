@@ -15,7 +15,7 @@
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import { Result } from "neverthrow";
 	import GitMerge from "phosphor-svelte/lib/GitMerge";
-	import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
+	import { Spinner } from "$lib/components/ui/spinner/index.js";
 	import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
@@ -147,10 +147,10 @@
 						{prDetails.title}
 					</span>
 				{:else if isCreating}
-					<SpinnerGap size={13} class="shrink-0 animate-spin text-muted-foreground" />
+					<Spinner class="size-[13px]" />
 					<span class="text-muted-foreground">{m.pr_card_creating()}</span>
 				{:else if prNumber != null}
-					<SpinnerGap size={13} class="shrink-0 animate-spin text-muted-foreground" />
+					<Spinner class="size-[13px]" />
 					<span class="font-medium tabular-nums text-foreground">
 						#{prNumber}
 					</span>
@@ -190,7 +190,7 @@
 								>
 									{#if merging}
 										<span class="flex items-center gap-1">
-											<SpinnerGap size={11} class="animate-spin" />
+											<Spinner class="size-[11px]" />
 											{m.pr_card_merge()}
 										</span>
 									{:else}

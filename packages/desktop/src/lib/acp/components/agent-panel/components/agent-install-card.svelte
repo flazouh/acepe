@@ -1,5 +1,5 @@
 <script lang="ts">
-import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
 import WarningCircle from "phosphor-svelte/lib/WarningCircle";
 import * as m from "$lib/paraglide/messages.js";
 import AnimatedChevron from "../../animated-chevron.svelte";
@@ -38,7 +38,7 @@ const progressPercent = $derived(Math.round(progress * 100));
 			{#if failed}
 				<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
 			{:else}
-				<SpinnerGap size={13} class="shrink-0 animate-spin text-muted-foreground" />
+				<Spinner class="size-[13px]" />
 			{/if}
 
 			<AgentIcon {agentId} class="size-3 shrink-0" size={12} />

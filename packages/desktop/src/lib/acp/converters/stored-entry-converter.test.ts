@@ -83,7 +83,7 @@ describe("stored-entry-converter", () => {
 						name: "Edit",
 						status: "completed",
 						kind: "edit",
-						arguments: { kind: "edit" },
+						arguments: { kind: "edit", edits: [] },
 						result: "Success",
 						title: null,
 						awaitingPlanApproval: false,
@@ -95,7 +95,7 @@ describe("stored-entry-converter", () => {
 				const result = convertStoredEntryToSessionEntry(stored, timestamp);
 
 				if (result.type === "tool_call") {
-					expect(result.message.arguments).toEqual({ kind: "edit" });
+					expect(result.message.arguments).toEqual({ kind: "edit", edits: [] });
 					expect(result.message.title).toBeNull();
 				}
 			});
@@ -147,7 +147,9 @@ describe("stored-entry-converter", () => {
 							? { kind: "other" as const, raw: {} }
 							: kind === "enter_plan_mode" || kind === "exit_plan_mode"
 								? { kind: "planMode" as const, mode: kind }
-								: { kind };
+								: kind === "edit"
+									? { kind: "edit" as const, edits: [] }
+									: { kind };
 
 					const stored: StoredEntry = {
 						type: "tool_call",

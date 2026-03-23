@@ -56,31 +56,38 @@ const mergedArgs = $derived.by(() => {
 
 	const base = toolCall.arguments;
 	if (base.kind === "edit") {
+		const baseEdit = base.edits[0] ?? {};
+		const streamEdit = streamingArgs.edits[0] ?? {};
 		return {
 			...base,
-			file_path: streamingArgs.file_path ?? base.file_path,
-			old_string: streamingArgs.old_string ?? base.old_string,
-			new_string: streamingArgs.new_string ?? base.new_string,
-			content: streamingArgs.content ?? base.content,
+			edits: [
+				{
+					...baseEdit,
+					filePath: streamEdit.filePath ?? baseEdit.filePath,
+					oldString: streamEdit.oldString ?? baseEdit.oldString,
+					newString: streamEdit.newString ?? baseEdit.newString,
+					content: streamEdit.content ?? baseEdit.content,
+				},
+				...base.edits.slice(1),
+			],
 		};
 	}
 	return base;
 });
 
+const firstEdit = $derived(mergedArgs.kind === "edit" ? (mergedArgs.edits[0] ?? null) : null);
 const filePath = $derived(
-	mergedArgs.kind === "edit"
-		? (normalizeFilePath(mergedArgs.file_path) ??
+	firstEdit
+		? (normalizeFilePath(firstEdit.filePath) ??
 				normalizeFilePath(locationFilePath) ??
 				normalizeFilePath(permissionFilePath))
 		: null
 );
 const fileName = $derived(getFileName(filePath));
-const diffStats = $derived(calculateDiffStats(mergedArgs));
+const diffStats = $derived(firstEdit ? calculateDiffStats(firstEdit) : null);
 
-const oldString = $derived(mergedArgs.kind === "edit" ? (mergedArgs.old_string ?? null) : null);
-const newString = $derived(
-	mergedArgs.kind === "edit" ? (mergedArgs.new_string ?? mergedArgs.content ?? null) : null
-);
+const oldString = $derived(firstEdit?.oldString ?? null);
+const newString = $derived(firstEdit?.newString ?? firstEdit?.content ?? null);
 
 // Streaming detection
 const isStreaming = $derived(

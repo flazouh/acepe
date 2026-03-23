@@ -210,10 +210,7 @@ describe("SessionEventService streaming delta handling", () => {
 				locations: [{ path: "/Users/alex/.claude/plans/test.md" }],
 				streamingArguments: {
 					kind: "edit",
-					file_path: "/Users/alex/.claude/plans/test.md",
-					old_string: null,
-					new_string: null,
-					content: "# Plan",
+					edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
 				},
 			},
 			session_id: "session-123",
@@ -223,10 +220,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		expect(handler.setStreamingArguments).toHaveBeenCalledWith("session-123", "tool-123", {
 			kind: "edit",
-			file_path: "/Users/alex/.claude/plans/test.md",
-			old_string: null,
-			new_string: null,
-			content: "# Plan",
+			edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
 		});
 		expect(handler.updateChildInParent).toHaveBeenCalledWith(
 			"session-123",

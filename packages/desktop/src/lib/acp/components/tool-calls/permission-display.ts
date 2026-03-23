@@ -64,11 +64,16 @@ export function extractPermissionFilePath(permission: PermissionRequest): string
 	if (parsed) {
 		switch (parsed.kind) {
 			case "read":
-			case "edit":
 			case "search":
 			case "delete":
 				{
 					const parsedPath = normalizePath(parsed.file_path ?? null);
+					if (parsedPath) return parsedPath;
+				}
+				break;
+			case "edit":
+				{
+					const parsedPath = normalizePath(parsed.edits[0]?.filePath ?? null);
 					if (parsedPath) return parsedPath;
 				}
 				break;

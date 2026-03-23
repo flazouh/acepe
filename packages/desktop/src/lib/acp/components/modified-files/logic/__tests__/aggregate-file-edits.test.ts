@@ -20,9 +20,7 @@ function createEditEntry(
 			status: "completed",
 			arguments: {
 				kind: "edit",
-				file_path: filePath,
-				old_string: oldString,
-				new_string: newString,
+				edits: [{ filePath, oldString, newString }],
 			},
 		},
 	} as SessionEntry;
@@ -39,8 +37,7 @@ function createWriteEntry(id: string, filePath: string, content: string): Sessio
 			status: "completed",
 			arguments: {
 				kind: "edit",
-				file_path: filePath,
-				content,
+				edits: [{ filePath, content }],
 			},
 		},
 	} as SessionEntry;
@@ -105,8 +102,7 @@ describe("aggregateFileEdits", () => {
 					status: "completed",
 					arguments: {
 						kind: "edit",
-						old_string: "a",
-						new_string: "b",
+						edits: [{ oldString: "a", newString: "b" }],
 					},
 				},
 			} as SessionEntry;
@@ -243,8 +239,7 @@ describe("aggregateFileEdits", () => {
 					status: "completed",
 					arguments: {
 						kind: "edit",
-						old_string: "a",
-						new_string: "b",
+						edits: [{ oldString: "a", newString: "b" }],
 					},
 				},
 			} as SessionEntry;
@@ -290,9 +285,7 @@ describe("aggregateFileEdits", () => {
 							status: "completed",
 							arguments: {
 								kind: "edit",
-								file_path: "/src/agent-input-ui.svelte",
-								old_string: "old",
-								new_string: "new",
+								edits: [{ filePath: "/src/agent-input-ui.svelte", oldString: "old", newString: "new" }],
 							},
 							taskChildren: null,
 						},
@@ -313,9 +306,7 @@ describe("aggregateFileEdits", () => {
 									status: "completed",
 									arguments: {
 										kind: "edit",
-										file_path: "/src/review-panel.svelte",
-										old_string: "before",
-										new_string: "after",
+										edits: [{ filePath: "/src/review-panel.svelte", oldString: "before", newString: "after" }],
 									},
 									taskChildren: null,
 								},

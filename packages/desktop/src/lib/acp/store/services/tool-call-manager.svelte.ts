@@ -62,10 +62,7 @@ function areToolArgumentsEqual(
 		case "edit":
 			return (
 				nextArgs.kind === "edit" &&
-				currentArgs.file_path === nextArgs.file_path &&
-				currentArgs.old_string === nextArgs.old_string &&
-				currentArgs.new_string === nextArgs.new_string &&
-				currentArgs.content === nextArgs.content
+				JSON.stringify(currentArgs.edits) === JSON.stringify(nextArgs.edits)
 			);
 		case "execute":
 			return nextArgs.kind === "execute" && currentArgs.command === nextArgs.command;
@@ -139,9 +136,10 @@ function extractPathFromToolArguments(
 
 	switch (toolArguments.kind) {
 		case "read":
-		case "edit":
 		case "delete":
 			return toolArguments.file_path ?? null;
+		case "edit":
+			return toolArguments.edits[0]?.filePath ?? null;
 		case "search":
 			return toolArguments.file_path ?? null;
 		case "glob":

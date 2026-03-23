@@ -127,10 +127,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					file_path: "/CLAUDE.md",
-					old_string: "## Test",
-					new_string: null,
-					content: null,
+					edits: [{ filePath: "/CLAUDE.md", oldString: "## Test", newString: null, content: null }],
 				},
 				status: "completed",
 				kind: "edit",

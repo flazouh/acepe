@@ -43,10 +43,7 @@ function createToolCallUpdate(
 				: kind === "edit"
 					? {
 							kind: "edit",
-							file_path: filePath ?? null,
-							old_string: null,
-							new_string: null,
-							content: null,
+							edits: [{ filePath: filePath ?? null, oldString: null, newString: null, content: null }],
 						}
 					: { kind: "other", raw: {} },
 		status: "pending",
@@ -174,10 +171,12 @@ describe("Tool Call Event Flow", () => {
 					name: "mcp__acp__Edit",
 					arguments: {
 						kind: "edit",
-						file_path: "/path/to/file.ts",
-						old_string: "export function multiply",
-						new_string: "export function multiply\n\nexport function subtract",
-						content: null,
+						edits: [{
+							filePath: "/path/to/file.ts",
+							oldString: "export function multiply",
+							newString: "export function multiply\n\nexport function subtract",
+							content: null,
+						}],
 					},
 					status: "pending",
 					kind: "edit",
@@ -196,8 +195,8 @@ describe("Tool Call Event Flow", () => {
 				expect(toolCall.kind).toBe("edit");
 
 				if (toolCall.arguments.kind === "edit") {
-					expect(toolCall.arguments.old_string).toContain("multiply");
-					expect(toolCall.arguments.new_string).toContain("subtract");
+					expect(toolCall.arguments.edits[0]?.oldString).toContain("multiply");
+					expect(toolCall.arguments.edits[0]?.newString).toContain("subtract");
 				}
 			}
 		});
@@ -363,12 +362,14 @@ describe("Tool Call Event Flow", () => {
 					name: "mcp__acp__Edit",
 					arguments: {
 						kind: "edit",
-						file_path: "/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts",
-						old_string:
-							"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}",
-						new_string:
-							"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}\n\nexport function subtract(a: number, b: number): number {\n\treturn a - b;\n}",
-						content: null,
+						edits: [{
+							filePath: "/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts",
+							oldString:
+								"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}",
+							newString:
+								"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}\n\nexport function subtract(a: number, b: number): number {\n\treturn a - b;\n}",
+							content: null,
+						}],
 					},
 					status: "pending",
 					kind: "edit",
@@ -390,8 +391,8 @@ describe("Tool Call Event Flow", () => {
 				expect(toolCall.kind).toBe("edit");
 
 				if (toolCall.arguments.kind === "edit") {
-					expect(toolCall.arguments.old_string).toContain("multiply");
-					expect(toolCall.arguments.new_string).toContain("subtract");
+					expect(toolCall.arguments.edits[0]?.oldString).toContain("multiply");
+					expect(toolCall.arguments.edits[0]?.newString).toContain("subtract");
 				}
 			}
 
@@ -480,10 +481,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Write",
 				arguments: {
 					kind: "edit",
-					file_path: null,
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -497,10 +495,7 @@ describe("Tool Call Event Flow", () => {
 			// Step 2: Streaming deltas arrive — streaming args accumulate
 			entryStore.setStreamingArguments(sessionId, toolCallId, {
 				kind: "edit" as const,
-				file_path: "/path/to/plan.md",
-				old_string: null,
-				new_string: null,
-				content: "# The Plan\n\nThis is the full plan content...",
+				edits: [{ filePath: "/path/to/plan.md", oldString: null, newString: null, content: "# The Plan\n\nThis is the full plan content..." }],
 			});
 
 			// Verify streaming args are available
@@ -513,10 +508,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Write",
 				arguments: {
 					kind: "edit",
-					file_path: "/path/to/plan.md",
-					old_string: null,
-					new_string: null,
-					content: "# The Plan\n\nThis is the full plan content...",
+					edits: [{ filePath: "/path/to/plan.md", oldString: null, newString: null, content: "# The Plan\n\nThis is the full plan content..." }],
 				},
 				status: "completed",
 				kind: "edit",
@@ -545,10 +537,10 @@ describe("Tool Call Event Flow", () => {
 			const committedHasContent =
 				committedEntry?.type === "tool_call" &&
 				committedEntry.message.arguments.kind === "edit" &&
-				committedEntry.message.arguments.content !== null;
+				committedEntry.message.arguments.edits[0]?.content != null;
 
 			const hasStreamingFallback =
-				streamingArgsAfter?.kind === "edit" && streamingArgsAfter.content !== null;
+				streamingArgsAfter?.kind === "edit" && streamingArgsAfter.edits[0]?.content != null;
 
 			// At least one reactive source must have content — otherwise blank card.
 			// This is the exact invariant that was violated in session 16c15e5c.
@@ -573,10 +565,7 @@ describe("Tool Call Event Flow", () => {
 						name: "Edit",
 						arguments: {
 							kind: "edit",
-							file_path: null,
-							old_string: null,
-							new_string: null,
-							content: null,
+							edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 						},
 						status: "pending",
 						kind: "edit",
@@ -595,10 +584,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					file_path: "/Users/alex/.claude/plans/test.md",
-					old_string: "old",
-					new_string: "new",
-					content: null,
+					edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: "old", newString: "new", content: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -629,9 +615,9 @@ describe("Tool Call Event Flow", () => {
 			const args = entries[0].message.arguments;
 			expect(args.kind).toBe("edit");
 			if (args.kind !== "edit") return;
-			expect(args.file_path).toBe("/Users/alex/.claude/plans/test.md");
-			expect(args.old_string).toBe("old");
-			expect(args.new_string).toBe("new");
+			expect(args.edits[0]?.filePath).toBe("/Users/alex/.claude/plans/test.md");
+			expect(args.edits[0]?.oldString).toBe("old");
+			expect(args.edits[0]?.newString).toBe("new");
 		});
 
 		it("backfills generic read title when update carries path arguments", () => {
@@ -799,10 +785,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					file_path: null,
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -816,23 +799,17 @@ describe("Tool Call Event Flow", () => {
 			// Log replay step 2: progressive streaming deltas produce parsed arguments.
 			entryStore.setStreamingArguments(sessionId, toolCallId, {
 				kind: "edit",
-				file_path: filePath,
-				old_string: null,
-				new_string: null,
-				content: null,
+				edits: [{ filePath, oldString: null, newString: null, content: null }],
 			});
 			entryStore.setStreamingArguments(sessionId, toolCallId, {
 				kind: "edit",
-				file_path: filePath,
-				old_string: "# Test Plan",
-				new_string: "# Test Plan\n\nThis is a test plan...",
-				content: null,
+				edits: [{ filePath, oldString: "# Test Plan", newString: "# Test Plan\n\nThis is a test plan...", content: null }],
 			});
 
 			const streamingArgs = entryStore.getStreamingArguments(toolCallId);
 			expect(streamingArgs?.kind).toBe("edit");
 			if (streamingArgs?.kind === "edit") {
-				expect(streamingArgs.file_path).toBe(filePath);
+				expect(streamingArgs.edits[0]?.filePath).toBe(filePath);
 			}
 
 			// Log replay step 3: full tool_call arrives with authoritative arguments.
@@ -841,10 +818,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					file_path: filePath,
-					old_string: "# Test Plan",
-					new_string: "# Test Plan\n\nThis is a test plan...",
-					content: null,
+					edits: [{ filePath, oldString: "# Test Plan", newString: "# Test Plan\n\nThis is a test plan...", content: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -876,9 +850,9 @@ describe("Tool Call Event Flow", () => {
 			const args = entries[0].message.arguments;
 			expect(args.kind).toBe("edit");
 			if (args.kind !== "edit") return;
-			expect(args.file_path).toBe(filePath);
-			expect(args.old_string).toBe("# Test Plan");
-			expect(args.new_string).toContain("This is a test plan");
+			expect(args.edits[0]?.filePath).toBe(filePath);
+			expect(args.edits[0]?.oldString).toBe("# Test Plan");
+			expect(args.edits[0]?.newString).toContain("This is a test plan");
 
 			// Terminal status should clear progressive cache.
 			expect(entryStore.getStreamingArguments(toolCallId)).toBeUndefined();
@@ -902,10 +876,7 @@ describe("Tool Call Event Flow", () => {
 				name: "Write",
 				arguments: {
 					kind: "edit",
-					file_path: null,
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -927,10 +898,7 @@ describe("Tool Call Event Flow", () => {
 				locations: [{ path: filePath }],
 				arguments: {
 					kind: "edit",
-					file_path: filePath,
-					old_string: null,
-					new_string: null,
-					content: csvContent,
+					edits: [{ filePath, oldString: null, newString: null, content: csvContent }],
 				},
 			});
 
@@ -942,9 +910,9 @@ describe("Tool Call Event Flow", () => {
 			const args = entries[0].message.arguments;
 			expect(args.kind).toBe("edit");
 			if (args.kind !== "edit") return;
-			expect(args.file_path).toBe(filePath);
-			expect(args.content).toBe(csvContent);
-			expect(args.new_string).toBeNull();
+			expect(args.edits[0]?.filePath).toBe(filePath);
+			expect(args.edits[0]?.content).toBe(csvContent);
+			expect(args.edits[0]?.newString).toBeNull();
 			expect(entries[0].message.locations?.[0]?.path).toBe(filePath);
 		});
 

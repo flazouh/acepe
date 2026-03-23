@@ -42,9 +42,10 @@ function getToolTarget(tool: ToolCallData): string {
 
 	switch (args.kind) {
 		case "read":
-		case "edit":
 		case "delete":
 			return args.file_path ?? "";
+		case "edit":
+			return args.edits[0]?.filePath ?? "";
 		case "execute":
 			return args.command ?? "";
 		case "search":

@@ -14,11 +14,13 @@ import { isMarkdownFile } from "./is-markdown-file.js";
  */
 export function createFileInfo(toolCall: ToolCall): FileInfo {
 	const argumentPath =
-		toolCall.arguments.kind === "edit" ? (toolCall.arguments.file_path ?? null) : null;
+		toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null;
 	const locationPath = toolCall.locations?.[0]?.path ?? null;
 	const filePath = argumentPath ?? locationPath;
 	const fileName = getFileName(filePath);
-	const diffStats = calculateDiffStats(toolCall.arguments);
+	const firstEdit =
+		toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0] ?? null) : null;
+	const diffStats = calculateDiffStats(firstEdit);
 	const isMarkdown = isMarkdownFile(filePath);
 
 	return {

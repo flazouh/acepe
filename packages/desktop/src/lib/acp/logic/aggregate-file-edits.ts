@@ -13,9 +13,10 @@ function extractFilePath(toolCall: ToolCall): string | null {
 	// Check different tool kinds that have file paths
 	switch (toolCall.arguments.kind) {
 		case "read":
-		case "edit":
 		case "delete":
 			return toolCall.arguments.file_path ?? null;
+		case "edit":
+			return toolCall.arguments.edits[0]?.filePath ?? null;
 		case "search":
 			return toolCall.arguments.file_path ?? null; // optional for search
 		case "glob":
@@ -66,47 +67,37 @@ export function aggregateFileEdits(entries: ReadonlyArray<SessionEntry>): Modifi
 	const editToolCalls = allToolCalls.filter((toolCall) => toolCall.kind === TOOL_KINDS.EDIT);
 
 	for (const toolCall of editToolCalls) {
-		const filePath = extractFilePath(toolCall);
+		if (toolCall.arguments.kind !== "edit") continue;
 
-		if (!filePath) continue;
+		for (const edit of toolCall.arguments.edits) {
+			const filePath = edit.filePath;
+			if (!filePath) continue;
 
-		const diffStats = calculateDiffStats(toolCall.arguments);
+			const oldStringValue = edit.oldString ?? null;
+			const newStringValue = edit.newString ?? edit.content ?? null;
 
-		// Safely extract string properties from arguments (which is JsonValue)
-		const args =
-			toolCall.arguments &&
-			typeof toolCall.arguments === "object" &&
-			!Array.isArray(toolCall.arguments)
-				? (toolCall.arguments as Record<string, unknown>)
-				: null;
-		const oldString = args?.old_string;
-		const newString = args?.new_string;
-		const content = args?.content;
+			const diffStats = calculateDiffStats(edit);
+			const linesAdded = diffStats?.added ?? 0;
+			const linesRemoved = diffStats?.removed ?? 0;
 
-		const oldStringValue = typeof oldString === "string" ? oldString : null;
-		const newStringValue =
-			typeof newString === "string" ? newString : typeof content === "string" ? content : null;
+			const existing = fileMap.get(filePath);
 
-		const linesAdded = diffStats?.added ?? 0;
-		const linesRemoved = diffStats?.removed ?? 0;
-
-		const existing = fileMap.get(filePath);
-
-		if (existing) {
-			existing.totalAdded += linesAdded;
-			existing.totalRemoved += linesRemoved;
-			existing.finalContent = newStringValue;
-			existing.editCount += 1;
-		} else {
-			fileMap.set(filePath, {
-				filePath,
-				fileName: getFileName(filePath),
-				totalAdded: linesAdded,
-				totalRemoved: linesRemoved,
-				originalContent: oldStringValue,
-				finalContent: newStringValue,
-				editCount: 1,
-			});
+			if (existing) {
+				existing.totalAdded += linesAdded;
+				existing.totalRemoved += linesRemoved;
+				existing.finalContent = newStringValue;
+				existing.editCount += 1;
+			} else {
+				fileMap.set(filePath, {
+					filePath,
+					fileName: getFileName(filePath),
+					totalAdded: linesAdded,
+					totalRemoved: linesRemoved,
+					originalContent: oldStringValue,
+					finalContent: newStringValue,
+					editCount: 1,
+				});
+			}
 		}
 	}
 

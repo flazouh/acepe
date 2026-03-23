@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
 	import { IconAlertTriangle, IconX } from '@tabler/icons-svelte';
-	import { HandPalm, SpinnerGap } from 'phosphor-svelte';
+	import { HandPalm } from 'phosphor-svelte';
 
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
-	import { BuildIcon, PlanIcon } from '../icons/index.js';
+	import { BuildIcon, LoadingIcon, PlanIcon } from '../icons/index.js';
 	import { Colors } from '../../lib/colors.js';
 	import type { AppTab } from './types.js';
 
@@ -77,7 +77,7 @@
 
 						<!-- 2. Agent icon / spinner -->
 						{#if tab.status === 'running'}
-							<SpinnerGap weight="bold" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+							<LoadingIcon class="size-3.5" />
 						{:else if tab.agentIconSrc}
 							<img
 								src={tab.agentIconSrc}

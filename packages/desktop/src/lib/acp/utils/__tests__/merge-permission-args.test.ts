@@ -21,10 +21,7 @@ describe("mergePermissionArgs", () => {
 	it("ignores whitespace-only file_path values in parsedArguments", () => {
 		const base: ToolArguments = {
 			kind: "edit",
-			file_path: null,
-			old_string: null,
-			new_string: null,
-			content: null,
+			edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 		};
 
 		const merged = mergePermissionArgs(
@@ -32,27 +29,21 @@ describe("mergePermissionArgs", () => {
 			createPermission({
 				parsedArguments: {
 					kind: "edit",
-					file_path: null,
-					old_string: null,
-					new_string: null,
-					content: "new content",
+					edits: [{ filePath: null, oldString: null, newString: null, content: "new content" }],
 				},
 			})
 		);
 
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
-		expect(merged.file_path).toBeNull();
-		expect(merged.content).toBe("new content");
+		expect(merged.edits[0]?.filePath).toBeNull();
+		expect(merged.edits[0]?.content).toBe("new content");
 	});
 
 	it("uses trimmed file_path values from parsedArguments", () => {
 		const base: ToolArguments = {
 			kind: "edit",
-			file_path: null,
-			old_string: null,
-			new_string: null,
-			content: null,
+			edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 		};
 
 		const merged = mergePermissionArgs(
@@ -60,26 +51,20 @@ describe("mergePermissionArgs", () => {
 			createPermission({
 				parsedArguments: {
 					kind: "edit",
-					file_path: "/tmp/example.ts",
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [{ filePath: "/tmp/example.ts", oldString: null, newString: null, content: null }],
 				},
 			})
 		);
 
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
-		expect(merged.file_path).toBe("/tmp/example.ts");
+		expect(merged.edits[0]?.filePath).toBe("/tmp/example.ts");
 	});
 
 	it("preserves content whitespace exactly from parsedArguments", () => {
 		const base: ToolArguments = {
 			kind: "edit",
-			file_path: null,
-			old_string: null,
-			new_string: null,
-			content: null,
+			edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 		};
 
 		const merged = mergePermissionArgs(
@@ -87,26 +72,27 @@ describe("mergePermissionArgs", () => {
 			createPermission({
 				parsedArguments: {
 					kind: "edit",
-					file_path: "/tmp/example.ts",
-					old_string: null,
-					new_string: null,
-					content: "  keep leading and trailing spaces  \n",
+					edits: [
+						{
+							filePath: "/tmp/example.ts",
+							oldString: null,
+							newString: null,
+							content: "  keep leading and trailing spaces  \n",
+						},
+					],
 				},
 			})
 		);
 
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
-		expect(merged.content).toBe("  keep leading and trailing spaces  \n");
+		expect(merged.edits[0]?.content).toBe("  keep leading and trailing spaces  \n");
 	});
 
 	it("prefers parsedArguments for edit preview content", () => {
 		const base: ToolArguments = {
 			kind: "edit",
-			file_path: null,
-			old_string: null,
-			new_string: null,
-			content: null,
+			edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 		};
 
 		const merged = mergePermissionArgs(
@@ -114,10 +100,14 @@ describe("mergePermissionArgs", () => {
 			createPermission({
 				parsedArguments: {
 					kind: "edit",
-					file_path: "/tmp/README.md",
-					old_string: null,
-					new_string: "# Hello",
-					content: "# Hello",
+					edits: [
+						{
+							filePath: "/tmp/README.md",
+							oldString: null,
+							newString: "# Hello",
+							content: "# Hello",
+						},
+					],
 				},
 				rawInput: {
 					file_path: "/tmp/ignored.md",
@@ -128,18 +118,15 @@ describe("mergePermissionArgs", () => {
 
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
-		expect(merged.file_path).toBe("/tmp/README.md");
-		expect(merged.content).toBe("# Hello");
-		expect(merged.new_string).toBe("# Hello");
+		expect(merged.edits[0]?.filePath).toBe("/tmp/README.md");
+		expect(merged.edits[0]?.content).toBe("# Hello");
+		expect(merged.edits[0]?.newString).toBe("# Hello");
 	});
 
 	it("enriches codex edit permissions from rawInput.changes payload", () => {
 		const base: ToolArguments = {
 			kind: "edit",
-			file_path: null,
-			old_string: null,
-			new_string: null,
-			content: null,
+			edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 		};
 
 		const merged = mergePermissionArgs(
@@ -147,10 +134,14 @@ describe("mergePermissionArgs", () => {
 			createPermission({
 				parsedArguments: {
 					kind: "edit",
-					file_path: "/Users/alex/Downloads/hello-world-go/blockchain/block.go",
-					old_string: null,
-					new_string: null,
-					content: null,
+					edits: [
+						{
+							filePath: "/Users/alex/Downloads/hello-world-go/blockchain/block.go",
+							oldString: null,
+							newString: null,
+							content: null,
+						},
+					],
 				},
 				rawInput: {
 					changes: {
@@ -165,9 +156,11 @@ describe("mergePermissionArgs", () => {
 
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
-		expect(merged.file_path).toBe("/Users/alex/Downloads/hello-world-go/blockchain/block.go");
-		expect(merged.old_string).toBe("old block content");
-		expect(merged.new_string).toBe("new block content");
-		expect(merged.content).toBe("new block content");
+		expect(merged.edits[0]?.filePath).toBe(
+			"/Users/alex/Downloads/hello-world-go/blockchain/block.go"
+		);
+		expect(merged.edits[0]?.oldString).toBe("old block content");
+		expect(merged.edits[0]?.newString).toBe("new block content");
+		expect(merged.edits[0]?.content).toBe("new block content");
 	});
 });

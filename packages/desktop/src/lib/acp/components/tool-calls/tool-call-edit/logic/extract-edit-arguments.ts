@@ -25,17 +25,17 @@ export function extractEditArguments(
 		);
 	}
 
-	const { file_path, old_string, new_string, content } = arguments_;
+	const firstEdit = arguments_.edits[0];
 
-	// Extract new_string or content (content is fallback)
-	let newString: string | null = new_string ?? null;
-	if (!newString && content) {
-		newString = content;
+	// Extract newString or content (content is fallback)
+	let newString: string | null = firstEdit?.newString ?? null;
+	if (!newString && firstEdit?.content) {
+		newString = firstEdit.content;
 	}
 
 	return ok({
-		filePath: file_path ?? null,
-		oldString: old_string ?? null,
+		filePath: firstEdit?.filePath ?? null,
+		oldString: firstEdit?.oldString ?? null,
 		newString,
 	});
 }
