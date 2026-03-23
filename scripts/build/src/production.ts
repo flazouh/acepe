@@ -10,14 +10,12 @@ import {
   GitError,
   S3Error,
   VersionError,
-  buildACPs,
   buildTauri,
   execCommand,
   findDMG,
   getRepoRoot,
   loadEnvFile,
   resolveRequiredEnvVar,
-  signVendorBinaries,
   verifyMacBundleSigning,
 } from "./shared.js";
 
@@ -555,13 +553,7 @@ const program = Effect.gen(function* () {
   yield* updateTauriConfig(version, config.repoRoot);
   yield* commitVersionBump(version, config.repoRoot);
 
-  // Build
-  yield* Console.log("\n3. Building ACPs...");
-  yield* buildACPs(config.repoRoot);
-
-  // Sign vendor binaries before Tauri bundles them
-  yield* Console.log("\n3b. Signing vendor binaries...");
-  yield* signVendorBinaries(config.repoRoot, config.appleSigningIdentity);
+  // ACPs are no longer bundled — they are downloaded on demand at runtime.
 
   // Build and upload Apple Silicon
   yield* Console.log("\n4. Building Apple Silicon...");

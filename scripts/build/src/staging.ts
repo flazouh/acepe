@@ -5,13 +5,11 @@ import { execSync } from "node:child_process";
 import {
   BuildError,
   CONFIG,
-  buildACPs,
   execCommandWithOutput,
   findDMG,
   getRepoRoot,
   loadEnvFile,
   resolveRequiredEnvVar,
-  signVendorBinaries,
 } from "./shared.js";
 
 // ============================================================================
@@ -76,13 +74,7 @@ const program = Effect.gen(function* () {
   }).pipe(Effect.orElseSucceed(() => undefined));
   yield* Console.log("   Done");
 
-  // Build ACPs
-  yield* Console.log("\n2. Building ACPs...");
-  yield* buildACPs(repoRoot);
-
-  // Sign vendor binaries before Tauri bundles them
-  yield* Console.log("\n2b. Signing vendor binaries...");
-  yield* signVendorBinaries(repoRoot, appleSigningIdentity);
+  // ACPs are no longer bundled — they are downloaded on demand at runtime.
 
   // Build Tauri with staging config overlay
   yield* Console.log(`\n3. Building Tauri app (${label})...`);

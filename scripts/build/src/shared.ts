@@ -16,8 +16,7 @@ export const CONFIG = {
   TAURI_CONFIG_PATH: "packages/desktop/src-tauri/tauri.conf.json",
   DESKTOP_PACKAGE_PATH: "packages/desktop",
   ACPS: {
-    CLAUDE: "packages/acps/claude",
-    CODEX: "packages/acps/codex"
+    CLAUDE: "packages/acps/claude"
   }
 } as const;
 
@@ -91,8 +90,6 @@ export interface MacSigningVerificationReport {
   readonly appPath: string;
   readonly app: CodesignDisplayInfo;
   readonly mainExecutable: CodesignDisplayInfo;
-  readonly claudeAcpExecutable: CodesignDisplayInfo;
-  readonly codexAcpExecutable: CodesignDisplayInfo;
 }
 
 // ============================================================================
@@ -249,20 +246,15 @@ export const validateMacSigningInfo = (
   report: {
     readonly app: CodesignDisplayInfo;
     readonly mainExecutable: CodesignDisplayInfo;
-    readonly claudeAcpExecutable: CodesignDisplayInfo;
-    readonly codexAcpExecutable: CodesignDisplayInfo;
     readonly expectedTeamId: string;
     readonly expectedAppIdentifier: string;
-    readonly expectedAcpIdentifier: string;
   }
 ): string[] => {
   const errors: string[] = [];
 
   const entries = [
     ["app", report.app],
-    ["main executable", report.mainExecutable],
-    ["claude-agent-acp", report.claudeAcpExecutable],
-    ["codex-acp", report.codexAcpExecutable]
+    ["main executable", report.mainExecutable]
   ] as const;
 
   for (const [label, info] of entries) {
@@ -292,12 +284,6 @@ export const validateMacSigningInfo = (
   if (report.mainExecutable.identifier !== report.expectedAppIdentifier) {
     errors.push(
       `main executable: Identifier '${report.mainExecutable.identifier ?? "<missing>"}' does not match expected '${report.expectedAppIdentifier}'`
-    );
-  }
-
-  if (report.claudeAcpExecutable.identifier !== report.expectedAcpIdentifier) {
-    errors.push(
-      `claude-agent-acp: Identifier '${report.claudeAcpExecutable.identifier ?? "<missing>"}' does not match expected '${report.expectedAcpIdentifier}'`
     );
   }
 
@@ -417,33 +403,6 @@ export const signVendorBinaries = (
       yield* Console.log("  -> Warning: claude-agent-acp binary not found, skipping signing");
     }
 
-    // Sign the codex-acp binary
-    const codexBinaryPath = Path.join(repoRoot, CONFIG.ACPS.CODEX, "bin", "codex-acp");
-    const codexExists = yield* Effect.tryPromise({
-      try: async () => {
-        await Fs.access(codexBinaryPath);
-        return true;
-      },
-      catch: () => false
-    }).pipe(Effect.orElseSucceed(() => false));
-
-    if (codexExists) {
-      yield* Console.log("  -> Signing codex-acp binary...");
-      yield* execCommandWithOutput(
-        "codesign",
-        [
-          "--force",
-          "--options", "runtime",
-          "--sign", appleSigningIdentity,
-          "--timestamp",
-          codexBinaryPath
-        ],
-        { cwd: repoRoot }
-      );
-    } else {
-      yield* Console.log("  -> Warning: codex-acp binary not found, skipping signing");
-    }
-
     yield* Console.log("Vendor binaries signed successfully");
   });
 
@@ -491,20 +450,6 @@ const formatSigningReport = (
     `authorities=${report.mainExecutable.authorities.join(" | ") || "<missing>"}`,
     `notarizationTicketStapled=${report.mainExecutable.notarizationTicketStapled}`,
     `executable=${report.mainExecutable.executable ?? "<missing>"}`,
-    "",
-    `[claude-agent-acp]`,
-    `identifier=${report.claudeAcpExecutable.identifier ?? "<missing>"}`,
-    `teamIdentifier=${report.claudeAcpExecutable.teamIdentifier ?? "<missing>"}`,
-    `authorities=${report.claudeAcpExecutable.authorities.join(" | ") || "<missing>"}`,
-    `notarizationTicketStapled=${report.claudeAcpExecutable.notarizationTicketStapled}`,
-    `executable=${report.claudeAcpExecutable.executable ?? "<missing>"}`,
-    "",
-    `[codex-acp]`,
-    `identifier=${report.codexAcpExecutable.identifier ?? "<missing>"}`,
-    `teamIdentifier=${report.codexAcpExecutable.teamIdentifier ?? "<missing>"}`,
-    `authorities=${report.codexAcpExecutable.authorities.join(" | ") || "<missing>"}`,
-    `notarizationTicketStapled=${report.codexAcpExecutable.notarizationTicketStapled}`,
-    `executable=${report.codexAcpExecutable.executable ?? "<missing>"}`,
     ""
   ];
 
@@ -538,39 +483,18 @@ const collectMacSigningReport = (
     const macosDir = Path.join(bundleRoot, "macos");
     const appPath = yield* findMacAppBundle(macosDir);
     const mainExecutablePath = Path.join(appPath, "Contents", "MacOS", "acepe");
-    const claudeAcpPath = Path.join(
-      appPath,
-      "Contents",
-      "Resources",
-      "acps",
-      "claude",
-      "claude-agent-acp"
-    );
-
-    const codexAcpPath = Path.join(
-      appPath,
-      "Contents",
-      "Resources",
-      "acps",
-      "codex",
-      "codex-acp"
-    );
 
     yield* runCommandCapture("codesign", ["--verify", "--deep", "--strict", appPath]);
 
     const appCodesignOutput = yield* runCommandCapture("codesign", ["-dvv", appPath]);
     const mainExecutableOutput = yield* runCommandCapture("codesign", ["-dvv", mainExecutablePath]);
-    const claudeAcpOutput = yield* runCommandCapture("codesign", ["-dvv", claudeAcpPath]);
-    const codexAcpOutput = yield* runCommandCapture("codesign", ["-dvv", codexAcpPath]);
 
     return {
       arch,
       target,
       appPath,
       app: parseCodesignDisplayOutput(appCodesignOutput),
-      mainExecutable: parseCodesignDisplayOutput(mainExecutableOutput),
-      claudeAcpExecutable: parseCodesignDisplayOutput(claudeAcpOutput),
-      codexAcpExecutable: parseCodesignDisplayOutput(codexAcpOutput)
+      mainExecutable: parseCodesignDisplayOutput(mainExecutableOutput)
     };
   });
 
@@ -583,53 +507,9 @@ const explicitResignMacBundle = (
     const bundleRoot = macBundleRootForArch(repoRoot, arch);
     const macosDir = Path.join(bundleRoot, "macos");
     const appPath = yield* findMacAppBundle(macosDir);
-    const claudeAcpPath = Path.join(
-      appPath,
-      "Contents",
-      "Resources",
-      "acps",
-      "claude",
-      "claude-agent-acp"
-    );
     const appEntitlements = Path.join(repoRoot, "packages/desktop/src-tauri/Entitlements.plist");
-    const acpEntitlements = Path.join(repoRoot, "packages/acps/claude/Entitlements.plist");
 
-    const codexAcpPath = Path.join(
-      appPath,
-      "Contents",
-      "Resources",
-      "acps",
-      "codex",
-      "codex-acp"
-    );
-
-    yield* Console.log("  -> Re-signing bundled claude-agent-acp...");
-    yield* execCommandWithOutput(
-      "codesign",
-      [
-        "--force",
-        "--options", "runtime",
-        "--sign", appleSigningIdentity,
-        "--timestamp",
-        "--entitlements", acpEntitlements,
-        claudeAcpPath
-      ],
-      { cwd: repoRoot }
-    );
-
-    yield* Console.log("  -> Re-signing bundled codex-acp...");
-    yield* execCommandWithOutput(
-      "codesign",
-      [
-        "--force",
-        "--options", "runtime",
-        "--sign", appleSigningIdentity,
-        "--timestamp",
-        codexAcpPath
-      ],
-      { cwd: repoRoot }
-    );
-
+    // ACPs are no longer bundled — only re-sign the app bundle itself.
     yield* Console.log("  -> Re-signing app bundle (final sign)...");
     yield* execCommandWithOutput(
       "codesign",
@@ -653,12 +533,10 @@ export const verifyMacBundleSigning = (
     readonly appleSigningIdentity?: string;
     readonly allowResignRepair?: boolean;
     readonly expectedAppIdentifier?: string;
-    readonly expectedAcpIdentifier?: string;
   }
 ): Effect.Effect<MacSigningVerificationReport, BuildError> =>
   Effect.gen(function* () {
     const expectedAppIdentifier = options?.expectedAppIdentifier ?? "com.alex.acepe";
-    const expectedAcpIdentifier = options?.expectedAcpIdentifier ?? "claude-agent-acp";
     const allowResignRepair = options?.allowResignRepair ?? false;
 
     const evaluateReport = (
@@ -668,11 +546,8 @@ export const verifyMacBundleSigning = (
         const errors = validateMacSigningInfo({
           app: report.app,
           mainExecutable: report.mainExecutable,
-          claudeAcpExecutable: report.claudeAcpExecutable,
-          codexAcpExecutable: report.codexAcpExecutable,
           expectedTeamId,
-          expectedAppIdentifier,
-          expectedAcpIdentifier
+          expectedAppIdentifier
         });
 
         yield* writeSigningReport(repoRoot, report, expectedTeamId);
@@ -683,12 +558,6 @@ export const verifyMacBundleSigning = (
         );
         yield* Console.log(
           `     main=${report.mainExecutable.identifier ?? "<missing>"} team=${report.mainExecutable.teamIdentifier ?? "<missing>"}`
-        );
-        yield* Console.log(
-          `     claude-agent-acp=${report.claudeAcpExecutable.identifier ?? "<missing>"} team=${report.claudeAcpExecutable.teamIdentifier ?? "<missing>"}`
-        );
-        yield* Console.log(
-          `     codex-acp=${report.codexAcpExecutable.identifier ?? "<missing>"} team=${report.codexAcpExecutable.teamIdentifier ?? "<missing>"}`
         );
 
         if (errors.length > 0) {
@@ -728,7 +597,8 @@ export const verifyMacBundleSigning = (
 // Build Operations
 // ============================================================================
 
-export const buildACPs = (repoRoot: string): Effect.Effect<void, BuildError> =>
+/** Build the Claude ACP binary from source. Used by CI release workflow. */
+export const buildClaudeACP = (repoRoot: string): Effect.Effect<void, BuildError> =>
   Effect.gen(function* () {
     yield* Console.log("  -> Building Claude ACP...");
     yield* execCommandWithOutput("bun", ["run", "build"], {
@@ -745,12 +615,7 @@ export const buildACPs = (repoRoot: string): Effect.Effect<void, BuildError> =>
       cwd: Path.join(repoRoot, CONFIG.ACPS.CLAUDE)
     });
 
-    yield* Console.log("  -> Installing Codex ACP binary...");
-    yield* execCommandWithOutput("npm", ["install"], {
-      cwd: Path.join(repoRoot, CONFIG.ACPS.CODEX)
-    });
-
-    yield* Console.log("ACPs built successfully");
+    yield* Console.log("Claude ACP built successfully");
   });
 
 export const buildTauri = (

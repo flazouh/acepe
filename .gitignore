@@ -93,3 +93,5 @@ zed
 
 # Local development artifacts
 packages/desktop/src-tauri/logs/
+todos
+docs/plans
