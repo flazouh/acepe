@@ -77,6 +77,7 @@
 		class="flex items-stretch self-start rounded-lg border overflow-hidden {className}"
 		role="group"
 		aria-label="{projectName} tabs"
+		style="border-color: color-mix(in srgb, {projectColor} 40%, var(--border));"
 	>
 		<div class="shrink-0 flex items-center justify-center px-1.5">
 			<ProjectLetterBadge name={projectName} color={projectColor} size={resolvedBadgeSize} />

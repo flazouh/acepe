@@ -23,12 +23,13 @@
 	async function handleSubmit() {
 		if (!canSubmit) return;
 		submitting = true;
-		try {
-			await onSubmit(body.trim());
-			body = '';
-		} finally {
-			submitting = false;
-		}
+		await onSubmit(body.trim())
+			.then(() => {
+				body = '';
+			})
+			.finally(() => {
+				submitting = false;
+			});
 	}
 </script>
 

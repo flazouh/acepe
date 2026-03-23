@@ -1,16 +1,15 @@
 <script lang="ts">
-	import type { CommentOutput } from './types.js';
+	import type { GitHubComment, GitHubService } from './types.js';
 	import UserReportsComment from './user-reports-comment.svelte';
 	import UserReportsCommentForm from './user-reports-comment-form.svelte';
 
 	interface Props {
-		comments: CommentOutput[];
-		onVote: (commentId: string, value: 'up' | 'down' | null) => void;
-		onReply: (parentId: string, body: string) => Promise<void>;
+		comments: GitHubComment[];
+		service: GitHubService;
 		onNewComment: (body: string) => Promise<void>;
 	}
 
-	let { comments, onVote, onReply, onNewComment }: Props = $props();
+	let { comments, service, onNewComment }: Props = $props();
 </script>
 
 <div class="flex flex-col">
@@ -23,7 +22,7 @@
 	<div class="flex flex-col gap-0 px-5">
 		{#each comments as comment (comment.id)}
 			<div class="py-2.5 border-b border-border/15">
-				<UserReportsComment {comment} {onVote} {onReply} />
+				<UserReportsComment {comment} {service} />
 			</div>
 		{/each}
 	</div>

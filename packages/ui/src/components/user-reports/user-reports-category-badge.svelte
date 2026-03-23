@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { cn } from '../../lib/utils.js';
 	import { CATEGORY_CONFIG } from './types.js';
-	import type { ReportCategory } from './types.js';
+	import type { IssueCategory } from './types.js';
 
 	interface Props {
-		category: ReportCategory;
+		category: IssueCategory;
 		size?: 'xs' | 'sm';
 		class?: string;
 	}

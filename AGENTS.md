@@ -25,6 +25,7 @@ cargo clippy       # Rust lint (in src-tauri/)
 - **ALWAYS invoke Svelte skills** before modifying/creating Svelte code (`svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`)
 - **NEVER use `$effect` in Svelte 5 components** — effects create causal loops when they read and write connected state. Use `$derived` for computed values and event handlers for actions. For async operations, prefer passing callbacks or moving state ownership to the parent. If an effect is unavoidable, guard writes with comparison: `if (newValue !== currentValue)`.
 - **NEVER use spread syntax (`...obj`)** — it obscures data flow, makes refactoring error-prone, and breaks TypeScript's ability to track property provenance. Explicitly enumerate all properties instead.
+- **NEVER use `??` or `||` for defaults** — use explicit ternaries (`x ? x : fallback`) for clarity. Both `??` and `||` hide intent and behave differently with falsy values.
 
 ## Claude Code Philosophy
 

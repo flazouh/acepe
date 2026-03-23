@@ -45,6 +45,11 @@ use acp::event_hub::AcpEventHubState;
 use acp::github_commands::{
     fetch_commit_diff, fetch_pr_diff, get_github_repo_context, list_pull_requests,
 };
+use acp::github_issues::{
+    check_github_auth, create_github_issue, create_issue_comment, get_github_issue,
+    list_github_issues, list_issue_comments, search_github_issues, toggle_comment_reaction,
+    toggle_issue_reaction,
+};
 use acp::opencode::OpenCodeManagerRegistry;
 use acp::provider::CommandAvailabilityCache;
 use acp::providers::CustomAgentConfig;
@@ -948,6 +953,15 @@ pub fn run() {
             voice_start_recording,
             voice_stop_recording,
             voice_cancel_recording,
+            check_github_auth,
+            list_github_issues,
+            search_github_issues,
+            get_github_issue,
+            create_github_issue,
+            list_issue_comments,
+            create_issue_comment,
+            toggle_issue_reaction,
+            toggle_comment_reaction,
             open_browser_webview,
             close_browser_webview,
             resize_browser_webview,

@@ -3,7 +3,7 @@ import { ResultAsync, errAsync } from 'neverthrow';
 export type RoadmapCard = {
 	id: string;
 	title: string;
-	category: 'bug' | 'feature_request' | 'question' | 'discussion';
+	category: 'bug' | 'enhancement' | 'question' | 'discussion';
 	status: 'open' | 'under_review' | 'planned' | 'in_progress' | 'completed' | 'closed' | 'wont_fix';
 	upvoteCount: number;
 	currentUserVote: 'up' | 'down' | null;
