@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
-	import { VisuallyHidden } from 'bits-ui';
 	import * as DropdownMenu from '../dropdown-menu/index.js';
 	import { ArrowLeft, ArrowSquareOut, CaretDown, Check, MagnifyingGlass, Plus } from 'phosphor-svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
@@ -100,10 +99,10 @@
 		<Dialog.Content
 			class="fixed start-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] w-[680px] max-w-[calc(100vw-3rem)] h-[80vh] max-h-[700px] flex flex-col rounded-xl border border-border/40 bg-background shadow-2xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200"
 		>
-			<VisuallyHidden>
+			<span class="sr-only">
 				<Dialog.Title>GitHub Issues</Dialog.Title>
 				<Dialog.Description>Browse, create, and manage GitHub issues for the Acepe repository.</Dialog.Description>
-			</VisuallyHidden>
+			</span>
 			<QueryClientProvider client={queryClient}>
 				<EmbeddedPanelHeader>
 					{#if view.kind !== 'list'}

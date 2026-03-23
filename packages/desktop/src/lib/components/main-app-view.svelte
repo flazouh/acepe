@@ -43,7 +43,6 @@ import { createQuestionSelectionStore } from "$lib/acp/store/question-selection-
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { AnalyticsEvent, capture } from "$lib/analytics.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
@@ -501,7 +500,6 @@ function checkAndInstallUpdate(): void {
 				return okAsync(undefined);
 			}
 
-			capture(AnalyticsEvent.UpdateAvailable, { version: update.version });
 			logger.info("Update available", { version: update.version });
 			appUpdateCurrent = "downloading";
 

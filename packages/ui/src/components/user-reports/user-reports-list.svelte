@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createQuery } from '@tanstack/svelte-query';
-	import type { GitHubService, IssueCategory, IssueState } from './types.js';
+	import type { GitHubService, IssueCategory, IssueListResult, IssueState } from './types.js';
 	import { unwrapResult } from './types.js';
 	import UserReportsListItem from './user-reports-list-item.svelte';
 	import UserReportsSkeleton from './user-reports-skeleton.svelte';
@@ -22,9 +22,9 @@
 
 	const isSearch = $derived(search.length > 0);
 
-	const query = createQuery({
+	const queryOptions = $derived({
 		queryKey: ['issues', { category, state, sort, search, page }],
-		queryFn: () => {
+		queryFn: (): Promise<IssueListResult> => {
 			if (isSearch) {
 				return unwrapResult(
 					service.searchIssues({
@@ -49,6 +49,10 @@
 			);
 		}
 	});
+
+	const query = createQuery(queryOptions);
+
+	const queryResult = $derived($query.data as IssueListResult | undefined);
 </script>
 
 {#if $query.isLoading}
@@ -67,14 +71,14 @@
 			Retry
 		</button>
 	</div>
-{:else if $query.data && $query.data.items.length > 0}
+{:else if queryResult && queryResult.items.length > 0}
 	<div class="flex flex-col">
-		{#each $query.data.items as issue (issue.number)}
+		{#each queryResult.items as issue (issue.number)}
 			<UserReportsListItem {issue} {onSelect} />
 		{/each}
 	</div>
 
-	{#if $query.data.hasNextPage || page > 1}
+	{#if queryResult.hasNextPage || page > 1}
 		<div class="flex items-center justify-center gap-2 py-3 border-t border-border/20">
 			<button
 				type="button"
@@ -90,7 +94,7 @@
 			<button
 				type="button"
 				class="text-[11px] px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-accent/50 text-muted-foreground"
-				disabled={!$query.data.hasNextPage}
+				disabled={!queryResult.hasNextPage}
 				onclick={() => onPageChange(page + 1)}
 			>
 				Next →

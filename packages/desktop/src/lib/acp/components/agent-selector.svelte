@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { AnalyticsEvent, capture } from "$lib/analytics.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as m from "$lib/paraglide/messages.js";
@@ -49,10 +48,6 @@ function handleAgentSelect(agentId: string) {
 
 	if (agentId !== currentAgentId) {
 		logger.info("Changing agent", { from: currentAgentId, to: agentId });
-		capture(AnalyticsEvent.AgentChanged, {
-			from_agent: currentAgentId,
-			to_agent: agentId,
-		});
 		onAgentChange(agentId);
 	}
 	isDropdownOpen = false;

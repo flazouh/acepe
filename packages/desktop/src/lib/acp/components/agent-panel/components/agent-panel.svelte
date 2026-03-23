@@ -449,7 +449,7 @@ $effect(() => {
 	if (!state) return;
 
 	if (worktreeSetupWorktreePaths.length > 0) {
-		if (!worktreeSetupWorktreePaths.includes(state.worktreePath)) {
+		if (!state.worktreePath || !worktreeSetupWorktreePaths.includes(state.worktreePath)) {
 			worktreeSetupState = null;
 			if (panelId) {
 				panelStore.clearPendingWorktreeSetup(panelId);
