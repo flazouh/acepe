@@ -1,84 +1,70 @@
 <script lang="ts">
-	import { ArrowBendUpLeft, Clock } from 'phosphor-svelte';
+	import { ArrowSquareOut, Clock } from 'phosphor-svelte';
 	import { cn } from '../../lib/utils.js';
-	import type { CommentOutput } from './types.js';
-	import { formatTimeAgo } from './types.js';
-	import UserReportsVoteButton from './user-reports-vote-button.svelte';
-	import UserReportsCommentForm from './user-reports-comment-form.svelte';
-	import UserReportsComment from './user-reports-comment.svelte';
+	import type { GitHubComment, GitHubService } from './types.js';
+	import { formatTimeAgo, unwrapResult } from './types.js';
+	import { createMutation, useQueryClient } from '@tanstack/svelte-query';
 
 	interface Props {
-		comment: CommentOutput;
-		depth?: number;
-		onVote: (commentId: string, value: 'up' | 'down' | null) => void;
-		onReply: (parentId: string, body: string) => Promise<void>;
+		comment: GitHubComment;
+		service: GitHubService;
 	}
 
-	let { comment, depth = 0, onVote, onReply }: Props = $props();
+	let { comment, service }: Props = $props();
 
-	let replying = $state(false);
+	const queryClient = useQueryClient();
+
+	const reactionMutation = createMutation({
+		mutationFn: (content: string) => unwrapResult(service.toggleCommentReaction(comment.id, content)),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['comments'] });
+		}
+	});
+
+	const REACTIONS = [
+		{ content: '+1', emoji: '👍', key: 'plus1' as const },
+		{ content: 'heart', emoji: '❤️', key: 'heart' as const },
+		{ content: 'rocket', emoji: '🚀', key: 'rocket' as const },
+		{ content: 'eyes', emoji: '👀', key: 'eyes' as const }
+	];
 </script>
 
-<div class={cn('flex gap-2', depth > 0 && 'ml-5 pl-3 border-l-2 border-border/25')}>
-	<UserReportsVoteButton
-		score={comment.upvoteCount - comment.downvoteCount}
-		userVote={comment.currentUserVote}
-		direction="vertical"
-		size="sm"
-		onVote={(v) => onVote(comment.id, v)}
-		class="pt-1 shrink-0"
-	/>
-
+<div class="flex gap-2">
 	<div class="flex-1 min-w-0 py-1.5">
 		<div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/70 mb-1">
-			{#if comment.author.picture}
-				<img src={comment.author.picture} alt="" class="h-4 w-4 rounded-full" />
-			{:else}
-				<div class="h-4 w-4 rounded-full bg-accent"></div>
-			{/if}
-			<span class="font-medium text-foreground/80">{comment.author.name ?? 'Anonymous'}</span>
+			<img src={comment.author.avatarUrl} alt="" class="h-4 w-4 rounded-full" />
+			<span class="font-medium text-foreground/80">{comment.author.login}</span>
 			<span class="flex items-center gap-0.5">
 				<Clock size={9} />
 				{formatTimeAgo(comment.createdAt)}
 			</span>
+			<button
+				type="button"
+				class="ml-auto flex items-center gap-0.5 text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
+				onclick={() => window.open(comment.htmlUrl, '_blank')}
+			>
+				<ArrowSquareOut size={9} />
+			</button>
 		</div>
 
 		<div class="text-[12px] text-foreground/90 leading-relaxed whitespace-pre-wrap">
 			{comment.body}
 		</div>
 
-		{#if depth === 0}
-			<div class="mt-1.5">
-				<button
-					type="button"
-					class="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground cursor-pointer transition-colors"
-					onclick={() => (replying = !replying)}
-				>
-					<ArrowBendUpLeft size={10} />
-					Reply
-				</button>
-			</div>
-		{/if}
-
-		{#if replying}
-			<div class="mt-2">
-				<UserReportsCommentForm
-					placeholder="Write a reply..."
-					submitLabel="Reply"
-					autofocus
-					onSubmit={async (body) => {
-						await onReply(comment.id, body);
-						replying = false;
-					}}
-					onCancel={() => (replying = false)}
-				/>
-			</div>
-		{/if}
-
-		{#if comment.replies && comment.replies.length > 0}
-			<div class="flex flex-col gap-0 mt-2">
-				{#each comment.replies as reply (reply.id)}
-					<UserReportsComment comment={reply} depth={1} {onVote} {onReply} />
+		{#if comment.reactions.totalCount > 0}
+			<div class="flex items-center gap-1 mt-2">
+				{#each REACTIONS as r}
+					{@const count = comment.reactions[r.key]}
+					{#if count > 0}
+						<button
+							type="button"
+							class="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-accent/30 text-muted-foreground border border-border/20 hover:bg-accent/50 transition-colors cursor-pointer"
+							onclick={() => $reactionMutation.mutate(r.content)}
+						>
+							<span>{r.emoji}</span>
+							<span class="tabular-nums">{count}</span>
+						</button>
+					{/if}
 				{/each}
 			</div>
 		{/if}

@@ -35,7 +35,6 @@
 	},
 	"dependencies": {
 		"@acepe/analytics": "workspace:*",
-		"@acepe/api": "workspace:*",
 		"@acepe/changelog": "workspace:*",
 		"@acepe/ui": "workspace:*",
 		"@codemirror/autocomplete": "^6.20.0",

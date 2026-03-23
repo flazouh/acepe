@@ -1,8 +1,6 @@
 export { default as UserReportsModal } from './user-reports-modal.svelte';
 export { default as UserReportsCategoryBadge } from './user-reports-category-badge.svelte';
 export { default as UserReportsStatusBadge } from './user-reports-status-badge.svelte';
-export { default as UserReportsVoteButton } from './user-reports-vote-button.svelte';
-export { default as UserReportsSidebar } from './user-reports-sidebar.svelte';
 export { default as UserReportsListItem } from './user-reports-list-item.svelte';
 export { default as UserReportsList } from './user-reports-list.svelte';
 export { default as UserReportsDetail } from './user-reports-detail.svelte';

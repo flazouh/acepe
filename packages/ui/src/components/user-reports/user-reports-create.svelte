@@ -2,39 +2,46 @@
 	import { createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { Bug, Lightbulb, Question, ChatCircle } from 'phosphor-svelte';
 	import { cn } from '../../lib/utils.js';
-	import type { ApiClient, ReportOutput } from '@acepe/api';
-	import type { ReportCategory } from './types.js';
+	import type { GitHubService, GitHubIssue, IssueCategory } from './types.js';
+	import { CATEGORY_CONFIG, unwrapResult } from './types.js';
 
 	interface Props {
-		apiClient: ApiClient;
-		onCreated: (report: ReportOutput) => void;
+		service: GitHubService;
+		onCreated: (issue: GitHubIssue) => void;
 		onCancel: () => void;
 	}
 
-	let { apiClient, onCreated, onCancel }: Props = $props();
+	let { service, onCreated, onCancel }: Props = $props();
 
 	const queryClient = useQueryClient();
 
 	let title = $state('');
 	let body = $state('');
-	let category = $state<ReportCategory>('bug');
+	let category = $state<IssueCategory>('bug');
 	let error = $state<string | null>(null);
 
-	const categories = [
-		{ value: 'bug' as const, label: 'Bug', icon: Bug },
-		{ value: 'feature_request' as const, label: 'Feature', icon: Lightbulb },
-		{ value: 'question' as const, label: 'Question', icon: Question },
-		{ value: 'discussion' as const, label: 'Discussion', icon: ChatCircle }
+	const categories: { value: IssueCategory; label: string; icon: typeof Bug }[] = [
+		{ value: 'bug', label: 'Bug', icon: Bug },
+		{ value: 'enhancement', label: 'Feature', icon: Lightbulb },
+		{ value: 'question', label: 'Question', icon: Question },
+		{ value: 'discussion', label: 'Discussion', icon: ChatCircle }
 	];
 
 	const mutation = createMutation({
-		mutationFn: () => apiClient.reports.create({ title, body, category }),
-		onSuccess: (report) => {
-			queryClient.invalidateQueries({ queryKey: ['reports'] });
-			onCreated(report);
+		mutationFn: () =>
+			unwrapResult(
+				service.createIssue({
+					title,
+					body,
+					labels: [CATEGORY_CONFIG[category].githubLabel]
+				})
+			),
+		onSuccess: (issue) => {
+			queryClient.invalidateQueries({ queryKey: ['issues'] });
+			onCreated(issue);
 		},
-		onError: (e) => {
-			error = e instanceof Error ? e.message : 'Failed to create report';
+		onError: (e: Error) => {
+			error = e.message || 'Failed to create issue';
 		}
 	});
 
@@ -49,11 +56,11 @@
 
 <div class="flex flex-col max-w-2xl mx-auto w-full px-5 py-6 gap-5 min-h-full justify-center">
 	<div class="flex flex-col gap-1.5">
-		<label for="report-title" class="text-[10px] font-semibold font-mono text-muted-foreground/60 uppercase tracking-wider"
+		<label for="issue-title" class="text-[10px] font-semibold font-mono text-muted-foreground/60 uppercase tracking-wider"
 			>Title</label
 		>
 		<input
-			id="report-title"
+			id="issue-title"
 			bind:value={title}
 			placeholder="Short, descriptive title"
 			class="h-9 px-3 text-sm rounded-md border border-border/50 bg-input/30 text-foreground placeholder:text-muted-foreground/40 focus:border-ring focus:ring-ring/50 focus:ring-[3px] outline-none transition-shadow"
@@ -82,11 +89,11 @@
 	</div>
 
 	<div class="flex flex-col gap-1.5 flex-1">
-		<label for="report-body" class="text-[10px] font-semibold font-mono text-muted-foreground/60 uppercase tracking-wider"
+		<label for="issue-body" class="text-[10px] font-semibold font-mono text-muted-foreground/60 uppercase tracking-wider"
 			>Description</label
 		>
 		<textarea
-			id="report-body"
+			id="issue-body"
 			bind:value={body}
 			placeholder="Describe the issue, feature, or question in detail..."
 			rows={12}
@@ -118,7 +125,7 @@
 			disabled={!canSubmit}
 			onclick={handleSubmit}
 		>
-			{$mutation.isPending ? 'Posting...' : 'Post Report'}
+			{$mutation.isPending ? 'Posting...' : 'Post Issue'}
 		</button>
 	</div>
 </div>

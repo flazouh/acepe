@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { cn } from '../../lib/utils.js';
 	import { STATUS_CONFIG } from './types.js';
-	import type { ReportStatus } from './types.js';
+	import type { IssueState } from './types.js';
 
 	interface Props {
-		status: ReportStatus;
+		status: IssueState;
 		class?: string;
 	}
 
