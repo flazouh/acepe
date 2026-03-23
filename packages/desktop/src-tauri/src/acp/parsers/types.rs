@@ -778,19 +778,15 @@ mod tests {
                 .expect("typed args should parse");
 
             match parsed {
-                ToolArguments::Edit {
-                    file_path,
-                    old_string,
-                    new_string,
-                    content,
-                } => {
+                ToolArguments::Edit { edits } => {
+                    let e = edits.first().expect("edit entry");
                     assert_eq!(
-                        file_path.as_deref(),
+                        e.file_path.as_deref(),
                         Some("/Users/alex/Downloads/hello-world-go/README.md")
                     );
-                    assert_eq!(old_string, None);
-                    assert_eq!(new_string.as_deref(), Some("# hello-world-go"));
-                    assert_eq!(content.as_deref(), Some("# hello-world-go"));
+                    assert_eq!(e.old_string, None);
+                    assert_eq!(e.new_string.as_deref(), Some("# hello-world-go"));
+                    assert_eq!(e.content.as_deref(), Some("# hello-world-go"));
                 }
                 other => panic!("expected edit arguments, got {:?}", other),
             }
@@ -812,26 +808,22 @@ mod tests {
                 .expect("typed args should parse");
 
             match parsed {
-                ToolArguments::Edit {
-                    file_path,
-                    old_string,
-                    new_string,
-                    content,
-                } => {
+                ToolArguments::Edit { edits } => {
+                    let e = edits.first().expect("edit entry");
                     assert_eq!(
-                        file_path.as_deref(),
+                        e.file_path.as_deref(),
                         Some("/Users/alex/Downloads/hello-world-go/block.go")
                     );
                     assert_eq!(
-                        old_string.as_deref(),
+                        e.old_string.as_deref(),
                         Some("package main\n\nfunc main() {}")
                     );
                     assert_eq!(
-                        new_string.as_deref(),
+                        e.new_string.as_deref(),
                         Some("package main\n\nfunc main() {\n\tprintln(\"hi\")\n}")
                     );
                     assert_eq!(
-                        content.as_deref(),
+                        e.content.as_deref(),
                         Some("package main\n\nfunc main() {\n\tprintln(\"hi\")\n}")
                     );
                 }
@@ -914,16 +906,12 @@ mod tests {
                     .expect("typed args should parse");
 
                 match parsed {
-                    ToolArguments::Edit {
-                        file_path,
-                        old_string: _,
-                        new_string,
-                        content,
-                    } => {
-                        assert_eq!(file_path.as_deref(), Some(expected_path));
+                    ToolArguments::Edit { edits } => {
+                        let e = edits.first().expect("edit entry");
+                        assert_eq!(e.file_path.as_deref(), Some(expected_path));
                         assert!(
-                            content.as_deref() == Some(expected_content)
-                                || new_string.as_deref() == Some(expected_content),
+                            e.content.as_deref() == Some(expected_content)
+                                || e.new_string.as_deref() == Some(expected_content),
                             "expected content/new_string for parser {}",
                             parser.agent_type().as_str()
                         );
@@ -964,16 +952,12 @@ mod tests {
                     .expect("typed args should parse");
 
                 match parsed {
-                    ToolArguments::Edit {
-                        file_path,
-                        old_string,
-                        new_string,
-                        content,
-                    } => {
-                        assert_eq!(file_path.as_deref(), Some(expected_path));
-                        assert_eq!(old_string.as_deref(), Some(expected_old));
-                        assert_eq!(new_string.as_deref(), Some(expected_new));
-                        assert_eq!(content.as_deref(), Some(expected_new));
+                    ToolArguments::Edit { edits } => {
+                        let e = edits.first().expect("edit entry");
+                        assert_eq!(e.file_path.as_deref(), Some(expected_path));
+                        assert_eq!(e.old_string.as_deref(), Some(expected_old));
+                        assert_eq!(e.new_string.as_deref(), Some(expected_new));
+                        assert_eq!(e.content.as_deref(), Some(expected_new));
                     }
                     other => panic!(
                         "expected edit arguments for parser {}, got {:?}",

@@ -113,9 +113,9 @@ mod tests {
                 synthetic_tool_call: Some(ref ctx),
             } => {
                 assert_eq!(args["kind"], "edit");
-                assert_eq!(args["file_path"], "/src/main.rs");
-                assert_eq!(args["old_string"], "foo");
-                assert_eq!(args["new_string"], "bar");
+                assert_eq!(args["edits"][0]["filePath"], "/src/main.rs");
+                assert_eq!(args["edits"][0]["oldString"], "foo");
+                assert_eq!(args["edits"][0]["newString"], "bar");
                 assert_eq!(ctx.tool_call_data.id, "tc-1");
                 assert_eq!(ctx.tool_call_data.name, "Edit");
             }
@@ -154,8 +154,8 @@ mod tests {
                 synthetic_tool_call: Some(_),
             } => {
                 assert_eq!(args["kind"], "edit");
-                assert_eq!(args["file_path"], "/tmp/README.md");
-                assert_eq!(args["content"], "# Hello");
+                assert_eq!(args["edits"][0]["filePath"], "/tmp/README.md");
+                assert_eq!(args["edits"][0]["content"], "# Hello");
             }
             _ => panic!("Expected ForwardToUi with parsed_arguments"),
         }

@@ -1,11 +1,10 @@
 use super::super::provider::{AgentProvider, SpawnConfig};
-use crate::acp::providers::claude_code::get_resource_dir;
+use crate::acp::{agent_installer, types::CanonicalAgentId};
 
 /// Codex ACP Agent Provider
 ///
-/// Uses a bundled native binary from `packages/acps/codex/`.
-/// The binary is extracted from `@zed-industries/codex-acp-{platform}-{arch}` at build time
-/// and bundled into the app resources at `acps/codex/codex-acp`.
+/// Uses a binary downloaded on demand from the ACP registry CDN.
+/// The binary is cached at `{app_data_dir}/agents/codex/`.
 pub struct CodexProvider;
 
 impl AgentProvider for CodexProvider {
@@ -25,7 +24,7 @@ impl AgentProvider for CodexProvider {
 
         SpawnConfig {
             command,
-            args: vec![],
+            args: agent_installer::get_cached_args(&CanonicalAgentId::Codex),
             env,
         }
     }
@@ -35,7 +34,7 @@ impl AgentProvider for CodexProvider {
     }
 
     fn is_available(&self) -> bool {
-        true
+        agent_installer::is_installed(&CanonicalAgentId::Codex)
     }
 
     fn uses_wrapper_plan_streaming(&self) -> bool {
@@ -48,24 +47,21 @@ impl AgentProvider for CodexProvider {
 }
 
 fn resolve_codex_command() -> String {
-    let resource_dir = get_resource_dir().expect("RESOURCE_DIR must be set for Codex ACP");
-    let path = resource_dir.join("acps/codex/codex-acp");
-    assert!(
-        path.exists(),
-        "Bundled codex-acp binary must exist at {}",
-        path.display()
-    );
-    path.to_string_lossy().to_string()
+    if let Some(cached) = agent_installer::get_cached_binary(&CanonicalAgentId::Codex) {
+        return cached.to_string_lossy().to_string();
+    }
+    // Fallback: will fail at spawn time with a clear error
+    "codex-acp".to_string()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::providers::claude_code::ensure_test_resource_dir;
+    use crate::acp::providers::claude_code::ensure_test_cache_dir;
 
     #[test]
     fn spawn_config_never_panics() {
-        ensure_test_resource_dir();
+        ensure_test_cache_dir();
         let provider = CodexProvider;
         let result = std::panic::catch_unwind(|| provider.spawn_config());
 

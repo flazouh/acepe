@@ -2,21 +2,7 @@ use super::super::provider::{
     command_exists, AgentProvider, CommandAvailabilityCache, SpawnConfig,
 };
 use crate::acp::session_update::PlanSource;
-use std::path::PathBuf;
-use std::sync::OnceLock;
-
-/// Global resource directory path, set during app initialization
-static RESOURCE_DIR: OnceLock<PathBuf> = OnceLock::new();
-
-/// Initialize the resource directory path. Call this during app setup.
-pub fn set_resource_dir(path: PathBuf) {
-    let _ = RESOURCE_DIR.set(path);
-}
-
-/// Get the resource directory (for use by other providers)
-pub fn get_resource_dir() -> Option<&'static PathBuf> {
-    RESOURCE_DIR.get()
-}
+use crate::acp::{agent_installer, types::CanonicalAgentId};
 
 /// Claude Code ACP Agent Provider
 pub struct ClaudeCodeProvider;
@@ -46,7 +32,12 @@ impl AgentProvider for ClaudeCodeProvider {
     }
 
     fn is_available(&self) -> bool {
-        true
+        agent_installer::is_installed(&CanonicalAgentId::ClaudeCode)
+            || std::env::var("CLAUDE_CODE_ACP_PATH")
+                .ok()
+                .filter(|p| !p.trim().is_empty())
+                .is_some()
+            || command_exists("claude-code-acp")
     }
 
     fn normalize_mode_id(&self, id: &str) -> String {
@@ -75,6 +66,7 @@ impl AgentProvider for ClaudeCodeProvider {
 fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
 
+    // 1. Env var override (dev use)
     if let Some(override_path) = std::env::var("CLAUDE_CODE_ACP_PATH")
         .ok()
         .filter(|path| !path.trim().is_empty())
@@ -82,26 +74,20 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
         push_unique_spawn_config(&mut configs, spawn_config_from_path(override_path));
     }
 
-    let resource_dir = RESOURCE_DIR
-        .get()
-        .expect("RESOURCE_DIR must be set for Claude ACP");
-    let bundled_path = resource_dir.join("acps/claude/claude-agent-acp");
-    if bundled_path.exists() {
+    // 2. Cached binary (downloaded on demand)
+    if let Some(cached) = agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode) {
+        let args = agent_installer::get_cached_args(&CanonicalAgentId::ClaudeCode);
         push_unique_spawn_config(
             &mut configs,
             SpawnConfig {
-                command: bundled_path.to_string_lossy().to_string(),
-                args: vec![],
+                command: cached.to_string_lossy().to_string(),
+                args,
                 env: claude_env(),
             },
         );
-    } else {
-        tracing::warn!(
-            path = %bundled_path.display(),
-            "Bundled claude-agent-acp binary not found"
-        );
     }
 
+    // 3. System binary in PATH
     if command_exists("claude-code-acp") {
         push_unique_spawn_config(
             &mut configs,
@@ -113,6 +99,7 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
         );
     }
 
+    // 4. bunx fallback
     let command_cache = CommandAvailabilityCache::get();
     if command_cache.bunx {
         push_unique_spawn_config(
@@ -124,6 +111,8 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
             },
         );
     }
+
+    // 5. npx fallback
     if command_cache.npx {
         push_unique_spawn_config(
             &mut configs,
@@ -175,10 +164,10 @@ fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConf
     }
 }
 
-/// Sets RESOURCE_DIR to a temp dir with stub claude-agent-acp and codex-acp binaries.
+/// Sets up a test agent cache directory with stub binaries for Claude and Codex.
 /// Idempotent; safe to call from both Claude and Codex tests.
 #[cfg(test)]
-pub(crate) fn ensure_test_resource_dir() {
+pub(crate) fn ensure_test_cache_dir() {
     use std::fs;
     use std::io::Write;
     use std::sync::Once;
@@ -186,17 +175,50 @@ pub(crate) fn ensure_test_resource_dir() {
     ONCE.call_once(|| {
         let temp = tempfile::tempdir().expect("temp dir");
         let p = temp.path();
-        fs::create_dir_all(p.join("acps/claude")).expect("create acps/claude");
-        fs::create_dir_all(p.join("acps/codex")).expect("create acps/codex");
-        fs::File::create(p.join("acps/claude/claude-agent-acp"))
+
+        // Create claude-code cached agent with meta.json
+        let claude_dir = p.join("claude-code");
+        fs::create_dir_all(&claude_dir).expect("create claude-code");
+        fs::File::create(claude_dir.join("claude-agent-acp"))
             .expect("create stub")
             .write_all(b"stub")
             .expect("write stub");
-        fs::File::create(p.join("acps/codex/codex-acp"))
+        let meta = serde_json::json!({
+            "version": "0.1.0",
+            "archive_url": "https://github.com/flazouh/acepe/releases/test",
+            "sha256": null,
+            "downloaded_at": "2026-01-01T00:00:00Z",
+            "cmd": "./claude-agent-acp",
+            "args": []
+        });
+        fs::write(
+            claude_dir.join("meta.json"),
+            serde_json::to_string_pretty(&meta).unwrap(),
+        )
+        .expect("write meta.json");
+
+        // Create codex cached agent with meta.json
+        let codex_dir = p.join("codex");
+        fs::create_dir_all(&codex_dir).expect("create codex");
+        fs::File::create(codex_dir.join("codex-acp"))
             .expect("create stub")
             .write_all(b"stub")
             .expect("write stub");
-        set_resource_dir(p.to_path_buf());
+        let meta = serde_json::json!({
+            "version": "0.9.5",
+            "archive_url": "https://cdn.agentclientprotocol.com/test",
+            "sha256": null,
+            "downloaded_at": "2026-01-01T00:00:00Z",
+            "cmd": "./codex-acp",
+            "args": []
+        });
+        fs::write(
+            codex_dir.join("meta.json"),
+            serde_json::to_string_pretty(&meta).unwrap(),
+        )
+        .expect("write meta.json");
+
+        agent_installer::set_cache_dir(p.to_path_buf());
         Box::leak(Box::new(temp));
     });
 }
@@ -204,11 +226,10 @@ pub(crate) fn ensure_test_resource_dir() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     #[test]
     fn spawn_config_never_panics() {
-        ensure_test_resource_dir();
+        ensure_test_cache_dir();
         let provider = ClaudeCodeProvider;
         let result = std::panic::catch_unwind(|| provider.spawn_config());
 
@@ -222,7 +243,7 @@ mod tests {
 
     #[test]
     fn spawn_configs_prefer_explicit_override_path() {
-        ensure_test_resource_dir();
+        ensure_test_cache_dir();
         let provider = ClaudeCodeProvider;
         let override_path = "/tmp/custom-claude-agent-acp";
 
@@ -235,16 +256,16 @@ mod tests {
     }
 
     #[test]
-    fn spawn_configs_use_bundled_binary_when_no_override_is_set() {
-        ensure_test_resource_dir();
+    fn spawn_configs_use_cached_binary_when_no_override_is_set() {
+        ensure_test_cache_dir();
         let provider = ClaudeCodeProvider;
 
         std::env::remove_var("CLAUDE_CODE_ACP_PATH");
         let configs = provider.spawn_configs();
 
         assert!(
-            Path::new(&configs[0].command).ends_with("acps/claude/claude-agent-acp"),
-            "expected bundled Claude ACP binary, got {}",
+            configs[0].command.contains("claude-agent-acp"),
+            "expected cached Claude ACP binary, got {}",
             configs[0].command
         );
     }

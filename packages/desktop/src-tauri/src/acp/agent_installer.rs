@@ -1,7 +1,11 @@
-//! Agent binary installer — downloads, caches, and manages Cursor & OpenCode binaries.
+//! Agent binary installer — downloads, caches, and manages ACP agent binaries.
 //!
-//! Follows Zed's pattern: download from the ACP registry CDN, extract to a local cache,
+//! Follows Zed's pattern: download on demand, extract to a local cache,
 //! and resolve from cache (no PATH fallback).
+//!
+//! Supports two download sources:
+//! - **Registry**: ACP registry CDN (Cursor, OpenCode, Codex)
+//! - **GitHub Release**: GitHub Releases (Claude custom fork)
 
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::types::CanonicalAgentId;
@@ -106,6 +110,54 @@ struct BinaryDistribution {
 }
 
 // ============================================
+// AGENT SOURCE (where to download from)
+// ============================================
+
+/// Where an agent binary is downloaded from.
+enum AgentSource {
+    /// From cdn.agentclientprotocol.com (Cursor, OpenCode, Codex)
+    Registry,
+    /// From GitHub Releases (custom fork binaries)
+    GitHubRelease {
+        owner: &'static str,
+        repo: &'static str,
+        tag_prefix: &'static str,
+        asset_pattern: &'static str,
+        cmd: &'static str,
+    },
+}
+
+/// Determine the download source for a given agent.
+fn agent_source(agent_id: &CanonicalAgentId) -> AgentSource {
+    match agent_id {
+        CanonicalAgentId::ClaudeCode => AgentSource::GitHubRelease {
+            owner: "flazouh",
+            repo: "acepe",
+            tag_prefix: "claude-acp/v",
+            asset_pattern: "claude-agent-acp-{platform}.tar.gz",
+            cmd: "./claude-agent-acp",
+        },
+        _ => AgentSource::Registry,
+    }
+}
+
+// ============================================
+// GITHUB RELEASE TYPES
+// ============================================
+
+#[derive(Debug, Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+// ============================================
 // METADATA (written alongside cached binary)
 // ============================================
 
@@ -181,7 +233,7 @@ pub fn is_installed(agent_id: &CanonicalAgentId) -> bool {
     get_cached_binary(agent_id).is_some()
 }
 
-/// Install an agent by downloading from the ACP registry.
+/// Install an agent by downloading from the appropriate source (registry or GitHub Releases).
 pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpResult<PathBuf> {
     let id_str = agent_id_str(&agent_id);
 
@@ -263,11 +315,30 @@ async fn install_agent_inner(agent_id: &CanonicalAgentId, app: &AppHandle) -> Ac
         &id_str,
         "downloading",
         Some(0.0),
-        "Fetching registry...",
+        "Resolving download source...",
     );
 
-    // 1. Fetch registry and find the agent
-    let (archive_url, version, cmd, args) = fetch_download_info(&client, agent_id).await?;
+    // 1. Fetch download info from the appropriate source
+    let (archive_url, version, cmd, args) = match agent_source(agent_id) {
+        AgentSource::Registry => fetch_download_info(&client, agent_id).await?,
+        AgentSource::GitHubRelease {
+            owner,
+            repo,
+            tag_prefix,
+            asset_pattern,
+            cmd,
+        } => {
+            fetch_github_release_download_info(
+                &client,
+                owner,
+                repo,
+                tag_prefix,
+                asset_pattern,
+                cmd,
+            )
+            .await?
+        }
+    };
 
     // 2. Validate URL against allowlist
     validate_url(&archive_url)?;
@@ -406,6 +477,81 @@ async fn fetch_download_info(
     ))
 }
 
+/// Fetch download info from a GitHub Release for a given agent.
+///
+/// Finds the latest release matching `tag_prefix` and resolves the platform-specific asset.
+async fn fetch_github_release_download_info(
+    client: &reqwest::Client,
+    owner: &str,
+    repo: &str,
+    tag_prefix: &str,
+    asset_pattern: &str,
+    cmd: &str,
+) -> AcpResult<(String, String, String, Vec<String>)> {
+    let platform = platform_key()?;
+    let expected_asset = asset_pattern.replace("{platform}", platform);
+
+    // Fetch releases and find the latest one matching our tag prefix
+    let api_url = format!(
+        "https://api.github.com/repos/{}/{}/releases",
+        owner, repo
+    );
+    let releases: Vec<GitHubRelease> = client
+        .get(&api_url)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "acepe-agent-installer")
+        .query(&[("per_page", "5")])
+        .send()
+        .await
+        .map_err(AcpError::HttpError)?
+        .error_for_status()
+        .map_err(AcpError::HttpError)?
+        .json()
+        .await
+        .map_err(AcpError::HttpError)?;
+
+    let release = releases
+        .iter()
+        .find(|r| r.tag_name.starts_with(tag_prefix))
+        .ok_or_else(|| {
+            AcpError::AgentNotFound(format!(
+                "No GitHub release found with tag prefix '{}' in {}/{}",
+                tag_prefix, owner, repo
+            ))
+        })?;
+
+    let version = release
+        .tag_name
+        .strip_prefix(tag_prefix)
+        .unwrap_or(&release.tag_name)
+        .to_string();
+
+    let asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == expected_asset)
+        .ok_or_else(|| {
+            AcpError::InvalidState(format!(
+                "No asset '{}' found in release '{}' (available: {})",
+                expected_asset,
+                release.tag_name,
+                release
+                    .assets
+                    .iter()
+                    .map(|a| a.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })?;
+
+    Ok((
+        asset.browser_download_url.clone(),
+        version,
+        cmd.to_string(),
+        vec![],
+    ))
+}
+
 /// Download archive bytes with streaming progress.
 ///
 /// Validates the final URL after redirects to prevent allowlist bypass.
@@ -532,13 +678,30 @@ fn platform_key() -> AcpResult<&'static str> {
 /// Map CanonicalAgentId to the registry ID string.
 ///
 /// Exhaustive match ensures compile errors when new variants are added.
+/// Registry IDs differ from canonical display IDs because the registry
+/// uses the binary/package name, not the product name:
+/// - ClaudeCode → "claude-code" (cache directory name)
+/// - Codex → "codex-acp" (registry binary name, NOT "codex")
+/// - Cursor → "cursor" (matches canonical)
+/// - OpenCode → "opencode" (matches canonical)
 fn agent_id_str(agent_id: &CanonicalAgentId) -> String {
     match agent_id {
         CanonicalAgentId::Cursor => "cursor".to_string(),
         CanonicalAgentId::OpenCode => "opencode".to_string(),
         CanonicalAgentId::ClaudeCode => "claude-code".to_string(),
-        CanonicalAgentId::Codex => "codex".to_string(),
-        CanonicalAgentId::Custom(id) => id.clone(),
+        CanonicalAgentId::Codex => "codex-acp".to_string(),
+        CanonicalAgentId::Custom(id) => {
+            // Sanitize: reject path separators and traversal to prevent directory escape
+            assert!(
+                !id.contains('/')
+                    && !id.contains('\\')
+                    && !id.contains("..")
+                    && !id.is_empty(),
+                "Custom agent ID contains illegal characters: {}",
+                id
+            );
+            id.clone()
+        }
     }
 }
 
@@ -556,6 +719,16 @@ fn safe_extract_tar_gz(data: &[u8], target_dir: &Path) -> AcpResult<()> {
     {
         let mut entry = entry
             .map_err(|e| AcpError::InvalidState(format!("Failed to read tar entry: {}", e)))?;
+
+        // Reject symlinks — agent archives should never contain them
+        let entry_type = entry.header().entry_type();
+        if entry_type == tar::EntryType::Symlink || entry_type == tar::EntryType::Link {
+            let path = entry.path().unwrap_or_default();
+            return Err(AcpError::InvalidState(format!(
+                "Archive contains forbidden symlink: {}",
+                path.display()
+            )));
+        }
 
         let path = entry
             .path()
@@ -584,6 +757,14 @@ fn safe_extract_zip(data: &[u8], target_dir: &Path) -> AcpResult<()> {
 
         let name = file.name().to_string();
 
+        // Reject symlinks — agent archives should never contain them
+        if file.is_symlink() {
+            return Err(AcpError::InvalidState(format!(
+                "Archive contains forbidden symlink: {}",
+                name
+            )));
+        }
+
         // Zip-slip protection
         validate_archive_path(Path::new(&name))?;
 
@@ -604,12 +785,13 @@ fn safe_extract_zip(data: &[u8], target_dir: &Path) -> AcpResult<()> {
             std::io::copy(&mut file, &mut outfile)
                 .map_err(|e| AcpError::InvalidState(format!("Failed to write file: {}", e)))?;
 
-            // Set executable permissions for binary files
+            // Set executable permissions, stripping setuid/setgid/sticky bits
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 if let Some(mode) = file.unix_mode() {
-                    let perms = std::fs::Permissions::from_mode(mode);
+                    let safe_mode = mode & 0o755;
+                    let perms = std::fs::Permissions::from_mode(safe_mode);
                     let _ = std::fs::set_permissions(&out_path, perms);
                 }
             }

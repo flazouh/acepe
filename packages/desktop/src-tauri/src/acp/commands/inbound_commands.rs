@@ -176,6 +176,18 @@ pub async fn acp_reply_permission(
     }
 }
 
+/// Frontend-format question reply entry.
+///
+/// The frontend sends answers as `Array<{ questionIndex: number; answers: string[] }>`.
+/// This struct deserializes each entry from that format.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestionReplyEntry {
+    #[allow(dead_code)]
+    question_index: usize,
+    answers: Vec<String>,
+}
+
 /// Reply to a question request
 ///
 /// For OpenCode HTTP mode: sends reply to POST /question/{id}/reply endpoint
@@ -195,10 +207,13 @@ pub async fn acp_reply_question(
         "acp_reply_question called"
     );
 
-    let parsed_answers: Vec<Vec<String>> =
+    // Frontend sends Array<{ questionIndex: number; answers: string[] }>.
+    // Extract just the answers arrays in order for the HTTP client.
+    let entries: Vec<QuestionReplyEntry> =
         serde_json::from_value(answers).map_err(|e| SerializableAcpError::SerializationError {
             message: e.to_string(),
         })?;
+    let parsed_answers: Vec<Vec<String>> = entries.into_iter().map(|e| e.answers).collect();
 
     let session_registry = app.state::<SessionRegistry>();
     let client_mutex = session_registry

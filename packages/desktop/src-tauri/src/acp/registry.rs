@@ -13,10 +13,10 @@ use crate::acp::types::CanonicalAgentId;
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind")]
 pub enum AgentAvailabilityKind {
-    /// Bundled with the app (Claude Code, Codex)
+    /// Bundled with the app (custom agents)
     #[serde(rename = "bundled")]
     Bundled,
-    /// Downloadable on demand (Cursor, OpenCode)
+    /// Downloadable on demand (all built-in agents)
     #[serde(rename = "installable")]
     Installable { installed: bool },
 }
@@ -162,9 +162,14 @@ impl AgentRegistry {
     }
 
     /// Determine the availability kind for a built-in agent.
+    ///
+    /// All built-in agents are installable (downloaded on demand).
     fn availability_kind_for(agent_id: &CanonicalAgentId) -> AgentAvailabilityKind {
         match agent_id {
-            CanonicalAgentId::Cursor | CanonicalAgentId::OpenCode => {
+            CanonicalAgentId::ClaudeCode
+            | CanonicalAgentId::Cursor
+            | CanonicalAgentId::OpenCode
+            | CanonicalAgentId::Codex => {
                 let installed = crate::acp::agent_installer::is_installed(agent_id);
                 AgentAvailabilityKind::Installable { installed }
             }

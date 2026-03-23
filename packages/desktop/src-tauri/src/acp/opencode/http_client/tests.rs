@@ -994,6 +994,82 @@ fn test_question_reply_body_format() {
     assert!(body.get("directory").is_none()); // directory should not be in body
 }
 
+/// Test that the frontend's answer format [{questionIndex, answers}] is correctly
+/// deserialized into Vec<Vec<String>> by the Tauri command layer.
+///
+/// Regression test for the type mismatch where Rust expected Vec<Vec<String>>
+/// but the frontend was sending Array<{ questionIndex: number; answers: string[] }>.
+#[test]
+fn test_question_reply_deserializes_frontend_format() {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct QuestionReplyEntry {
+        #[allow(dead_code)]
+        question_index: usize,
+        answers: Vec<String>,
+    }
+
+    // This is the exact format the frontend sends
+    let frontend_payload = serde_json::json!([
+        { "questionIndex": 0, "answers": ["Option A", "Option B"] },
+        { "questionIndex": 1, "answers": ["Yes"] }
+    ]);
+
+    let entries: Vec<QuestionReplyEntry> =
+        serde_json::from_value(frontend_payload).expect("should deserialize frontend format");
+    let parsed: Vec<Vec<String>> = entries.into_iter().map(|e| e.answers).collect();
+
+    assert_eq!(parsed.len(), 2);
+    assert_eq!(parsed[0], vec!["Option A", "Option B"]);
+    assert_eq!(parsed[1], vec!["Yes"]);
+}
+
+/// Test that Vec<Vec<String>> (the old format) is rejected by the new deserializer,
+/// confirming the break from the old contract.
+#[test]
+fn test_question_reply_rejects_old_flat_array_format() {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct QuestionReplyEntry {
+        #[allow(dead_code)]
+        question_index: usize,
+        answers: Vec<String>,
+    }
+
+    // Old format: Vec<Vec<String>> — should fail to deserialize as QuestionReplyEntry
+    let old_format = serde_json::json!([["answer1", "answer2"], ["single"]]);
+    let result: Result<Vec<QuestionReplyEntry>, _> = serde_json::from_value(old_format);
+    assert!(
+        result.is_err(),
+        "old Vec<Vec<String>> format should be rejected"
+    );
+}
+
+/// Test validate_request_id allows safe characters
+#[test]
+fn test_validate_request_id_allows_safe_chars() {
+    assert!(OpenCodeHttpClient::validate_request_id("abc123").is_ok());
+    assert!(OpenCodeHttpClient::validate_request_id("abc-123").is_ok());
+    assert!(OpenCodeHttpClient::validate_request_id("abc_123").is_ok());
+    assert!(OpenCodeHttpClient::validate_request_id("ABC-def-123_XYZ").is_ok());
+    // UUID-style
+    assert!(
+        OpenCodeHttpClient::validate_request_id("550e8400-e29b-41d4-a716-446655440000").is_ok()
+    );
+}
+
+/// Test validate_request_id rejects path injection characters
+#[test]
+fn test_validate_request_id_rejects_path_injection() {
+    assert!(OpenCodeHttpClient::validate_request_id("").is_err()); // empty
+    assert!(OpenCodeHttpClient::validate_request_id("../etc/passwd").is_err()); // path traversal
+    assert!(OpenCodeHttpClient::validate_request_id("id/extra").is_err()); // slash
+    assert!(OpenCodeHttpClient::validate_request_id("id?query=x").is_err()); // query string
+    assert!(OpenCodeHttpClient::validate_request_id("id#fragment").is_err()); // fragment
+    assert!(OpenCodeHttpClient::validate_request_id("id with spaces").is_err());
+    // spaces
+}
+
 #[test]
 fn test_seed_current_model_from_session_state() {
     let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(

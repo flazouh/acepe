@@ -4,7 +4,7 @@
 //! agents (Claude Code, Cursor, Codex, OpenCode) into a unified
 //! `ToolArguments` enum used by the frontend.
 
-use crate::acp::session_update::{ToolArguments, ToolKind};
+use crate::acp::session_update::{EditEntry, ToolArguments, ToolKind};
 
 pub(crate) fn extract_parser_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
@@ -24,10 +24,12 @@ pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) ->
     let content = extract_parser_string(raw_arguments, &["content"]);
 
     ToolArguments::Edit {
-        file_path,
-        old_string,
-        new_string,
-        content,
+        edits: vec![EditEntry {
+            file_path,
+            old_string,
+            new_string,
+            content,
+        }],
     }
 }
 

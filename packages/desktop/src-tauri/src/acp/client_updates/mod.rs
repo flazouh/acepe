@@ -250,15 +250,11 @@ mod tests {
                     assert_eq!(update.locations.as_ref().map(Vec::len), Some(1));
 
                     match update.arguments.as_ref() {
-                        Some(ToolArguments::Edit {
-                            file_path,
-                            old_string,
-                            new_string,
-                            ..
-                        }) => {
-                            assert_eq!(file_path.as_deref(), Some("/tmp/live.rs"));
-                            assert_eq!(old_string.as_deref(), Some("const value = 1;"));
-                            assert_eq!(new_string.as_deref(), Some("const value = 2;"));
+                        Some(ToolArguments::Edit { edits }) => {
+                            let e = edits.first().expect("edit entry");
+                            assert_eq!(e.file_path.as_deref(), Some("/tmp/live.rs"));
+                            assert_eq!(e.old_string.as_deref(), Some("const value = 1;"));
+                            assert_eq!(e.new_string.as_deref(), Some("const value = 2;"));
                         }
                         other => panic!("Expected edit arguments, got {:?}", other),
                     }
@@ -369,15 +365,11 @@ mod tests {
                     assert_eq!(tool_call.locations.as_ref().map(Vec::len), Some(1));
 
                     match &tool_call.arguments {
-                        ToolArguments::Edit {
-                            file_path,
-                            old_string,
-                            new_string,
-                            ..
-                        } => {
-                            assert_eq!(file_path.as_deref(), Some("/tmp/sequence.rs"));
-                            assert_eq!(old_string.as_deref(), Some("let count = 1;"));
-                            assert_eq!(new_string.as_deref(), Some("let count = 2;"));
+                        ToolArguments::Edit { edits } => {
+                            let e = edits.first().expect("edit entry");
+                            assert_eq!(e.file_path.as_deref(), Some("/tmp/sequence.rs"));
+                            assert_eq!(e.old_string.as_deref(), Some("let count = 1;"));
+                            assert_eq!(e.new_string.as_deref(), Some("let count = 2;"));
                         }
                         other => panic!("Expected edit tool call arguments, got {:?}", other),
                     }
@@ -400,15 +392,11 @@ mod tests {
                     ));
 
                     match update.arguments.as_ref() {
-                        Some(ToolArguments::Edit {
-                            file_path,
-                            old_string,
-                            new_string,
-                            ..
-                        }) => {
-                            assert_eq!(file_path.as_deref(), Some("/tmp/sequence.rs"));
-                            assert_eq!(old_string.as_deref(), Some("let count = 1;"));
-                            assert_eq!(new_string.as_deref(), Some("let count = 2;"));
+                        Some(ToolArguments::Edit { edits }) => {
+                            let e = edits.first().expect("edit entry");
+                            assert_eq!(e.file_path.as_deref(), Some("/tmp/sequence.rs"));
+                            assert_eq!(e.old_string.as_deref(), Some("let count = 1;"));
+                            assert_eq!(e.new_string.as_deref(), Some("let count = 2;"));
                         }
                         other => panic!("Expected edit tool update arguments, got {:?}", other),
                     }

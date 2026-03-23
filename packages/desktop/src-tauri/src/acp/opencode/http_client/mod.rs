@@ -74,6 +74,31 @@ impl OpenCodeHttpClient {
             .ok_or(AcpError::OpenCodeServerNotRunning)
     }
 
+    /// Validate that a request ID only contains safe URL path characters.
+    ///
+    /// Prevents URL path injection via externally-supplied request IDs that are
+    /// interpolated directly into HTTP endpoint paths (e.g., `/question/{id}/reply`).
+    /// Accepts alphanumeric characters, hyphens, and underscores — the character
+    /// set used by OpenCode for IDs in practice.
+    fn validate_request_id(request_id: &str) -> AcpResult<()> {
+        if request_id.is_empty() {
+            return Err(AcpError::InvalidState(
+                "Request ID must not be empty".to_string(),
+            ));
+        }
+        if request_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            Ok(())
+        } else {
+            Err(AcpError::InvalidState(format!(
+                "Request ID '{}' contains invalid characters (only alphanumeric, '-', '_' allowed)",
+                request_id
+            )))
+        }
+    }
+
     fn seed_current_model(&mut self, model_id: &str) -> AcpResult<()> {
         if model_id.trim().is_empty() {
             self.current_model = None;

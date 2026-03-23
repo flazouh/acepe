@@ -4,7 +4,7 @@ pub mod cursor;
 pub mod custom;
 pub mod opencode;
 
-pub use claude_code::{get_resource_dir, set_resource_dir, ClaudeCodeProvider};
+pub use claude_code::ClaudeCodeProvider;
 pub use codex::CodexProvider;
 pub use cursor::CursorProvider;
 pub use custom::CustomAgentConfig;

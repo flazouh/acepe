@@ -14,13 +14,7 @@ pub(crate) fn parse_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArg
     }
 
     let generic = parse_generic_edit_arguments(raw_arguments);
-    let ToolArguments::Edit {
-        file_path,
-        old_string,
-        new_string,
-        content,
-    } = generic
-    else {
+    let ToolArguments::Edit { mut edits } = generic else {
         return generic;
     };
 
@@ -29,10 +23,10 @@ pub(crate) fn parse_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArg
         &["edit", "write", "multi_edit", "multiedit", "apply_patch"],
     );
 
-    ToolArguments::Edit {
-        file_path: file_path.or(parsed_cmd_path),
-        old_string,
-        new_string,
-        content,
+    // Apply fallback path to the first (and only) entry from generic parse.
+    if let Some(entry) = edits.first_mut() {
+        entry.file_path = entry.file_path.take().or(parsed_cmd_path);
     }
+
+    ToolArguments::Edit { edits }
 }

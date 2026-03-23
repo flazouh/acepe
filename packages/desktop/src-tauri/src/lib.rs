@@ -180,14 +180,19 @@ where
 /// Kill orphaned ACP subprocesses left by previous crash/force-quit.
 /// Drop on SessionRegistry never fires on crash, so we sweep at startup.
 /// SIGTERM first (graceful), then SIGKILL after 500ms (forceful).
-fn kill_orphaned_acp_processes() {
+/// Uses the agents cache dir path to narrow the match and avoid killing unrelated processes.
+fn kill_orphaned_acp_processes(agents_dir: &std::path::Path) {
     #[cfg(unix)]
     {
         use std::process::Command;
         use std::thread;
         use std::time::Duration;
 
-        let patterns = ["acps/claude/claude-agent-acp"];
+        let agents_dir_str = agents_dir.to_string_lossy();
+        let patterns = [
+            format!("{}/claude-code/claude-agent-acp", agents_dir_str),
+            format!("{}/codex-acp/codex-acp", agents_dir_str),
+        ];
         for pattern in &patterns {
             let _ = Command::new("/usr/bin/pkill")
                 .args(["-f", pattern])
@@ -437,8 +442,6 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            kill_orphaned_acp_processes();
-
             #[cfg(target_os = "macos")]
             {
                 if let Err(error) = run_startup_step("macos-resource-limits", || {
@@ -472,12 +475,6 @@ pub fn run() {
             );
             // Note: Sentry's built-in panic integration captures panics automatically.
 
-            // Initialize resource directory for bundled ACP
-            if let Ok(resource_dir) = app.path().resource_dir() {
-                tracing::info!(path = %resource_dir.display(), "Setting resource directory for bundled ACP");
-                crate::acp::providers::set_resource_dir(resource_dir);
-            }
-
             // Initialize agent installer cache directory and clean up stale temps
             if let Ok(app_data_dir) = app.path().app_data_dir() {
                 let agents_dir = app_data_dir.join("agents");
@@ -485,8 +482,9 @@ pub fn run() {
                     tracing::warn!(error = %e, "Failed to create agents cache directory");
                 } else {
                     tracing::info!(path = %agents_dir.display(), "Setting agent installer cache directory");
-                    crate::acp::agent_installer::set_cache_dir(agents_dir);
+                    crate::acp::agent_installer::set_cache_dir(agents_dir.clone());
                     crate::acp::agent_installer::cleanup_stale_temps();
+                    kill_orphaned_acp_processes(&agents_dir);
                 }
             }
 

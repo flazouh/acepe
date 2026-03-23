@@ -347,15 +347,11 @@ mod session_update_tests {
                 assert_eq!(tool_call.name, "mcp__acp__Edit");
                 assert_eq!(tool_call.kind, Some(ToolKind::Edit));
                 match &tool_call.arguments {
-                    ToolArguments::Edit {
-                        file_path,
-                        old_string,
-                        new_string,
-                        ..
-                    } => {
-                        assert_eq!(file_path.as_deref(), Some("/path/to/file.ts"));
-                        assert!(old_string.as_ref().unwrap().contains("multiply"));
-                        assert!(new_string.as_ref().unwrap().contains("subtract"));
+                    ToolArguments::Edit { edits } => {
+                        let e = edits.first().expect("edit entry");
+                        assert_eq!(e.file_path.as_deref(), Some("/path/to/file.ts"));
+                        assert!(e.old_string.as_ref().unwrap().contains("multiply"));
+                        assert!(e.new_string.as_ref().unwrap().contains("subtract"));
                     }
                     _ => panic!("Expected Edit arguments"),
                 }
@@ -407,16 +403,12 @@ mod session_update_tests {
         });
         let args = ToolArguments::from_raw(ToolKind::Edit, raw);
         match args {
-            ToolArguments::Edit {
-                file_path,
-                old_string,
-                new_string,
-                content,
-            } => {
-                assert_eq!(file_path, Some("/tmp/file.txt".to_string()));
-                assert_eq!(old_string, Some("old content".to_string()));
-                assert_eq!(new_string, Some("new content".to_string()));
-                assert_eq!(content, Some("replacement content".to_string()));
+            ToolArguments::Edit { edits } => {
+                let e = edits.first().expect("edit entry");
+                assert_eq!(e.file_path, Some("/tmp/file.txt".to_string()));
+                assert_eq!(e.old_string, Some("old content".to_string()));
+                assert_eq!(e.new_string, Some("new content".to_string()));
+                assert_eq!(e.content, Some("replacement content".to_string()));
             }
             _ => panic!("Expected Edit variant"),
         }

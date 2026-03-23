@@ -794,8 +794,9 @@ mod tests {
             .expect("second delta should emit");
 
         match second.streaming_arguments.expect("streaming args expected") {
-            ToolArguments::Edit { file_path, .. } => {
-                assert_eq!(file_path.as_deref(), Some("/tmp/test.rs"));
+            ToolArguments::Edit { edits } => {
+                let e = edits.first().expect("edit entry");
+                assert_eq!(e.file_path.as_deref(), Some("/tmp/test.rs"));
             }
             other => panic!("Expected Edit after seed, got {:?}", other),
         }

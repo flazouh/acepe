@@ -235,17 +235,12 @@ fn parse_persisted_tool_arguments(persisted: &PersistedToolUse) -> Option<ToolAr
 fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
     match arguments {
         ToolArguments::Read { file_path } => usize::from(file_path.is_some()),
-        ToolArguments::Edit {
-            file_path,
-            old_string,
-            new_string,
-            content,
-        } => {
-            usize::from(file_path.is_some())
-                + usize::from(old_string.is_some())
-                + usize::from(new_string.is_some())
-                + usize::from(content.is_some())
-        }
+        ToolArguments::Edit { edits } => edits.first().map_or(0, |e| {
+            usize::from(e.file_path.is_some())
+                + usize::from(e.old_string.is_some())
+                + usize::from(e.new_string.is_some())
+                + usize::from(e.content.is_some())
+        }),
         ToolArguments::Execute { command } => usize::from(command.is_some()),
         ToolArguments::Search { query, file_path } => {
             usize::from(query.is_some()) + usize::from(file_path.is_some())
@@ -297,7 +292,7 @@ fn extract_path(arguments: &ToolArguments) -> Option<String> {
         ToolArguments::Read { file_path }
         | ToolArguments::Delete { file_path }
         | ToolArguments::Search { file_path, .. } => file_path.clone(),
-        ToolArguments::Edit { file_path, .. } => file_path.clone(),
+        ToolArguments::Edit { edits, .. } => edits.first().and_then(|e| e.file_path.clone()),
         ToolArguments::Glob { path, .. } => path.clone(),
         _ => None,
     }
@@ -308,9 +303,10 @@ fn synthesize_title(arguments: &ToolArguments) -> Option<String> {
         ToolArguments::Read { file_path } => {
             file_path.as_ref().map(|path| format!("Read {}", path))
         }
-        ToolArguments::Edit { file_path, .. } => {
-            file_path.as_ref().map(|path| format!("Edit {}", path))
-        }
+        ToolArguments::Edit { edits, .. } => edits
+            .first()
+            .and_then(|e| e.file_path.as_ref())
+            .map(|path| format!("Edit {}", path)),
         ToolArguments::Delete { file_path } => {
             file_path.as_ref().map(|path| format!("Delete {}", path))
         }

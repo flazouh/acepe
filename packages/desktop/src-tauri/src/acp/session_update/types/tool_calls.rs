@@ -89,6 +89,27 @@ pub struct SkillMeta {
     pub file_path: Option<String>,
 }
 
+/// A single file edit entry within an Edit tool call.
+///
+/// A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
+/// or Codex's multi-entry `changes` map). Each entry represents one file's change.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EditEntry {
+    /// Path of the file being edited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    /// Text being replaced (None = new file or full-file write).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_string: Option<String>,
+    /// Replacement text (standard edit).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_string: Option<String>,
+    /// Full file content (create/overwrite variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
 /// Tool arguments discriminated by tool kind.
 /// Each variant contains exactly the fields needed for that tool type.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -98,15 +119,12 @@ pub enum ToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         file_path: Option<String>,
     },
+    /// Edit tool arguments.
+    ///
+    /// `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
+    /// multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
     Edit {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        file_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        old_string: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        new_string: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        content: Option<String>,
+        edits: Vec<EditEntry>,
     },
     Execute {
         #[serde(skip_serializing_if = "Option::is_none")]

@@ -149,10 +149,12 @@ mod tests {
                 streaming_arguments: None,
                 streaming_plan: None,
                 arguments: Some(ToolArguments::Edit {
-                    file_path: Some("/tmp/CLAUDE.md".to_string()),
-                    old_string: Some("Look at AGENTS.md".to_string()),
-                    new_string: Some("Look at AGENTS.md.".to_string()),
-                    content: None,
+                    edits: vec![crate::acp::session_update::EditEntry {
+                        file_path: Some("/tmp/CLAUDE.md".to_string()),
+                        old_string: Some("Look at AGENTS.md".to_string()),
+                        new_string: Some("Look at AGENTS.md.".to_string()),
+                        content: None,
+                    }],
                 }),
                 failure_reason: None,
             },
@@ -168,10 +170,12 @@ mod tests {
                     id: "tool-edit-1".to_string(),
                     name: "Edit".to_string(),
                     arguments: ToolArguments::Edit {
-                        file_path: None,
-                        old_string: None,
-                        new_string: None,
-                        content: None,
+                        edits: vec![crate::acp::session_update::EditEntry {
+                            file_path: None,
+                            old_string: None,
+                            new_string: None,
+                            content: None,
+                        }],
                     },
                     status: ToolCallStatus::Pending,
                     result: None,
@@ -202,15 +206,11 @@ mod tests {
 
         assert_eq!(message.status, ToolCallStatus::Completed);
         match &message.arguments {
-            ToolArguments::Edit {
-                file_path,
-                old_string,
-                new_string,
-                ..
-            } => {
-                assert_eq!(file_path.as_deref(), Some("/tmp/CLAUDE.md"));
-                assert_eq!(old_string.as_deref(), Some("Look at AGENTS.md"));
-                assert_eq!(new_string.as_deref(), Some("Look at AGENTS.md."));
+            ToolArguments::Edit { edits } => {
+                let e = edits.first().expect("edit entry");
+                assert_eq!(e.file_path.as_deref(), Some("/tmp/CLAUDE.md"));
+                assert_eq!(e.old_string.as_deref(), Some("Look at AGENTS.md"));
+                assert_eq!(e.new_string.as_deref(), Some("Look at AGENTS.md."));
             }
             other => panic!("expected edit arguments, got {:?}", other),
         }

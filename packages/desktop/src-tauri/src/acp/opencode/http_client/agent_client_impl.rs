@@ -263,6 +263,7 @@ impl AgentClient for OpenCodeHttpClient {
     }
 
     async fn reply_permission(&mut self, request_id: String, reply: String) -> AcpResult<bool> {
+        Self::validate_request_id(&request_id)?;
         let base_url = self.base_url().await?;
         let url = format!("{}/permission/{}/reply", base_url, request_id);
 
@@ -289,6 +290,7 @@ impl AgentClient for OpenCodeHttpClient {
         request_id: String,
         answers: Vec<Vec<String>>,
     ) -> AcpResult<bool> {
+        Self::validate_request_id(&request_id)?;
         let base_url = self.base_url().await?;
         let url = format!("{}/question/{}/reply", base_url, request_id);
 

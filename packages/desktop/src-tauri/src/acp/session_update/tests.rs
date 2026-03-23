@@ -591,15 +591,11 @@ mod parse_tool_call_from_acp {
         assert!(result.is_ok());
         let tool_call = result.unwrap();
         match tool_call.arguments {
-            ToolArguments::Edit {
-                file_path,
-                old_string,
-                new_string,
-                ..
-            } => {
-                assert_eq!(file_path, Some("/path/to/file.ts".to_string()));
-                assert_eq!(old_string, Some("old content".to_string()));
-                assert_eq!(new_string, Some("new content".to_string()));
+            ToolArguments::Edit { edits } => {
+                let e = edits.first().expect("edit entry");
+                assert_eq!(e.file_path, Some("/path/to/file.ts".to_string()));
+                assert_eq!(e.old_string, Some("old content".to_string()));
+                assert_eq!(e.new_string, Some("new content".to_string()));
             }
             _ => panic!("Expected edit tool arguments"),
         }
@@ -809,9 +805,10 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Edit));
             match tool_call.arguments {
-                ToolArguments::Edit { file_path, .. } => {
+                ToolArguments::Edit { edits } => {
+                    let e = edits.first().expect("edit entry");
                     assert_eq!(
-                            file_path,
+                            e.file_path,
                             Some(
                                 "/Users/alex/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
                                     .to_string()
