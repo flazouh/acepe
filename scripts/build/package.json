@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "release": "bun run src/release.ts",
     "production": "bun run src/production.ts",
     "staging": "bun run src/staging.ts",
     "typecheck": "tsgo --noEmit"

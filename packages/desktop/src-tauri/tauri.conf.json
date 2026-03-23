@@ -44,11 +44,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "../../acps/claude/dist/claude-agent-acp": "acps/claude/claude-agent-acp",
-      "../../acps/claude/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep": "acps/claude/vendor/ripgrep",
-      "../../acps/codex/bin/codex-acp": "acps/codex/codex-acp"
-    },
+    "resources": {},
     "macOS": {
       "minimumSystemVersion": "10.15",
       "hardenedRuntime": true,
@@ -59,7 +55,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDM0E5RDA0QzA2MUJCNjcKUldSbnUySEFCSjA2dkRodTEzNFlURzBtREdDcTdXcmQvS2FTMTRnQ1gzTTBvY0ZTYmV3VFFka2EK",
       "endpoints": [
-        "https://bucket-proxy-production.up.railway.app/updates/latest.json"
+        "https://github.com/flazouh/acepe/releases/latest/download/latest.json"
       ]
     }
   }
