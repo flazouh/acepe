@@ -9,15 +9,14 @@ import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 
 const voiceSettingsStore = getVoiceSettingsStore();
-const voiceSettings = $derived($voiceSettingsStore);
 
 const selectedLanguageLabel = $derived.by(() => {
-	if (voiceSettings.language === "auto") {
+	if (voiceSettingsStore.language === "auto") {
 		return m.voice_settings_auto_detect();
 	}
 
 	const selectedLanguage =
-		voiceSettings.languages.find((language) => language.code === voiceSettings.language) ??
+		voiceSettingsStore.languages.find((language) => language.code === voiceSettingsStore.language) ??
 		null;
 
 	return selectedLanguage ? selectedLanguage.name : m.voice_settings_auto_detect();
@@ -38,9 +37,9 @@ function formatBytes(bytes: number): string {
 			label={m.voice_settings_enable_label()}
 			description={m.voice_settings_enable_description()}
 		>
-			<Switch
-				checked={voiceSettings.enabled}
-				onCheckedChange={(checked) => {
+		<Switch
+			checked={voiceSettingsStore.enabled}
+			onCheckedChange={(checked) => {
 					void voiceSettingsStore.setEnabled(checked === true);
 				}}
 			/>
@@ -65,7 +64,7 @@ function formatBytes(bytes: number): string {
 					<DropdownMenu.Item onclick={() => void voiceSettingsStore.setLanguage("auto")}>
 						{m.voice_settings_auto_detect()}
 					</DropdownMenu.Item>
-					{#each voiceSettings.languages as language (language.code)}
+					{#each voiceSettingsStore.languages as language (language.code)}
 						<DropdownMenu.Item onclick={() => void voiceSettingsStore.setLanguage(language.code)}>
 							{language.name}
 						</DropdownMenu.Item>
@@ -76,25 +75,28 @@ function formatBytes(bytes: number): string {
 	</SettingsSection>
 
 	<SettingsSection title={m.voice_settings_models_title()}>
-		{#if voiceSettings.modelsLoading}
+		{#if voiceSettingsStore.modelsLoading}
 			<div class="px-3 py-2 text-sm text-muted-foreground/60">
 				{m.voice_settings_loading_models()}
 			</div>
 		{:else}
-			{#each voiceSettings.models as model (model.id)}
+			<div role="radiogroup" aria-label={m.voice_settings_models_title()}>
+			{#each voiceSettingsStore.models as model (model.id)}
 				<div class="px-3 py-2 border-b border-border/30 last:border-b-0">
 					<div class="flex items-start gap-3">
 						<button
 							type="button"
+							role="radio"
+							aria-checked={voiceSettingsStore.selectedModelId === model.id}
 							class="flex min-w-0 flex-1 items-start gap-3 text-left"
 							onclick={() => void voiceSettingsStore.setSelectedModelId(model.id)}
 						>
 							<div
 								class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
-								class:border-foreground={voiceSettings.selectedModelId === model.id}
-								class:border-border={voiceSettings.selectedModelId !== model.id}
+								class:border-foreground={voiceSettingsStore.selectedModelId === model.id}
+								class:border-border={voiceSettingsStore.selectedModelId !== model.id}
 							>
-								{#if voiceSettings.selectedModelId === model.id}
+								{#if voiceSettingsStore.selectedModelId === model.id}
 									<div class="h-2 w-2 rounded-full bg-foreground"></div>
 								{/if}
 							</div>
@@ -113,20 +115,20 @@ function formatBytes(bytes: number): string {
 							</div>
 						</button>
 						<div class="shrink-0">
-							{#if voiceSettings.downloadProgressModelId === model.id}
+							{#if voiceSettingsStore.downloadProgressModelId === model.id}
 								<div class="min-w-[120px]">
 									<div class="text-[11px] text-muted-foreground/60">
-										{Math.round(voiceSettings.downloadPercent)}%
+										{Math.round(voiceSettingsStore.downloadPercent)}%
 									</div>
 									<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
 										<div
 											class="h-full rounded-full bg-primary transition-all duration-200"
-											style={`width: ${voiceSettings.downloadPercent}%`}
+											style={`width: ${voiceSettingsStore.downloadPercent}%`}
 										></div>
 									</div>
 								</div>
 							{:else if model.is_downloaded}
-								{#if voiceSettings.selectedModelId === model.id}
+								{#if voiceSettingsStore.selectedModelId === model.id}
 									<span class="text-xs font-medium text-foreground/80">
 										{m.voice_settings_selected()}
 									</span>
@@ -152,6 +154,7 @@ function formatBytes(bytes: number): string {
 					</div>
 				</div>
 			{/each}
+			</div>
 		{/if}
 	</SettingsSection>
 </div>

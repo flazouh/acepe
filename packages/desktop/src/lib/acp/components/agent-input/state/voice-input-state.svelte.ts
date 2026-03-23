@@ -16,7 +16,7 @@ import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voic
 import { transition } from "./voice-transitions.js";
 import { WaveformState } from "./waveform-state.svelte.js";
 
-const ERROR_RESET_DELAY_MS = 3000;
+const ERROR_RESET_DELAY_MS = 8000;
 const TRANSCRIBING_WATCHDOG_MS = 30_000;
 
 export class VoiceInputState {
@@ -52,6 +52,7 @@ export class VoiceInputState {
 	private readonly onTranscriptionReady: ((text: string) => void) | null;
 	private readonly getSelectedLanguage: () => string;
 	private readonly getSelectedModelId: () => string;
+	private isDisposed = false;
 
 	constructor(options: {
 		sessionId: string;
@@ -69,36 +70,41 @@ export class VoiceInputState {
 	async registerListeners(): Promise<void> {
 		const [amplitudeUnlisten, recErrUnlisten, transcCompleteUnlisten, transcErrUnlisten, dlProgressUnlisten] =
 			await Promise.all([
-				listen<AmplitudePayload>("voice://amplitude", (event) => {
-					if (event.payload.session_id !== this.sessionId) return;
-					if (this.phase !== "recording") return;
-					this.waveform.pushBatch(event.payload.values);
-				}),
-				listen<RecordingErrorPayload>("voice://recording_error", (event) => {
-					if (event.payload.session_id !== this.sessionId) return;
-					this.setError(event.payload.message);
-				}),
-				listen<TranscriptionCompletePayload>("voice://transcription_complete", (event) => {
-					if (event.payload.session_id !== this.sessionId) return;
-					this.clearWatchdog();
-					const text = event.payload.text.trim();
-					if (text) {
-						this.onTranscriptionReady?.(text);
-					} else {
-						toast.info(m.voice_no_speech_detected());
-					}
-					this.transitionTo("complete");
-					// Auto-advance complete → idle (no timer needed — fire immediately)
-					this.transitionTo("idle");
-				}),
-				listen<TranscriptionErrorPayload>("voice://transcription_error", (event) => {
-					if (event.payload.session_id !== this.sessionId) return;
-					this.clearWatchdog();
-					this.setError(event.payload.message);
-				}),
-				listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
-					this.downloadPercent = event.payload.percent;
-				}),
+			listen<AmplitudePayload>("voice://amplitude", (event) => {
+				if (this.isDisposed) return;
+				if (event.payload.session_id !== this.sessionId) return;
+				if (this.phase !== "recording") return;
+				this.waveform.pushBatch(event.payload.values);
+			}),
+			listen<RecordingErrorPayload>("voice://recording_error", (event) => {
+				if (this.isDisposed) return;
+				if (event.payload.session_id !== this.sessionId) return;
+				this.setError(event.payload.message);
+			}),
+			listen<TranscriptionCompletePayload>("voice://transcription_complete", (event) => {
+				if (this.isDisposed) return;
+				if (event.payload.session_id !== this.sessionId) return;
+				this.clearWatchdog();
+				const text = event.payload.text.trim();
+				if (text) {
+					this.onTranscriptionReady?.(text);
+				} else {
+					toast.info(m.voice_no_speech_detected());
+				}
+				this.transitionTo("complete");
+				// Auto-advance complete → idle (no timer needed — fire immediately)
+				this.transitionTo("idle");
+			}),
+			listen<TranscriptionErrorPayload>("voice://transcription_error", (event) => {
+				if (this.isDisposed) return;
+				if (event.payload.session_id !== this.sessionId) return;
+				this.clearWatchdog();
+				this.setError(event.payload.message);
+			}),
+			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
+				if (this.isDisposed) return;
+				this.downloadPercent = event.payload.percent;
+			}),
 			]);
 
 		this.unlisteners.push(amplitudeUnlisten, recErrUnlisten, transcCompleteUnlisten, transcErrUnlisten, dlProgressUnlisten);
@@ -106,6 +112,7 @@ export class VoiceInputState {
 
 	/** Unregister listeners and cancel any timers. Call from onDestroy. */
 	dispose(): void {
+		this.isDisposed = true;
 		for (const unlisten of this.unlisteners) {
 			unlisten();
 		}
@@ -130,6 +137,7 @@ export class VoiceInputState {
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 		this.clearPressTimer();
 		this.pressTimer = setTimeout(() => {
+			if (this.isDisposed) return;
 			this.pressTimer = null;
 			this.isPressAndHold = true;
 			this.startRecording();
@@ -177,7 +185,7 @@ export class VoiceInputState {
 				this.startWatchdog();
 			},
 			(err: AppError) => {
-				this.setError(err.message ?? "Failed to stop recording");
+				this.setError(err.message ?? m.voice_error_stop_failed());
 			},
 		);
 	}
@@ -216,16 +224,16 @@ export class VoiceInputState {
 						() => {
 							this.loadModelAndRecord(selectedModelId);
 						},
-						(err: AppError) => {
-							this.setError(err.message ?? "Model download failed");
-						},
+					(err: AppError) => {
+						this.setError(err.message ?? m.voice_error_download_failed());
+					},
 					);
 				} else {
 					this.loadModelAndRecord(selectedModelId);
 				}
 			},
 			(err: AppError) => {
-				this.setError(err.message ?? "Failed to check model status");
+				this.setError(err.message ?? m.voice_error_model_status_failed());
 			},
 		);
 	}
@@ -237,13 +245,13 @@ export class VoiceInputState {
 					() => {
 						this.transitionTo("recording");
 					},
-					(err: AppError) => {
-						this.setError(err.message ?? "Failed to start recording");
-					},
+				(err: AppError) => {
+					this.setError(err.message ?? m.voice_error_start_failed());
+				},
 				);
 			},
 			(err: AppError) => {
-				this.setError(err.message ?? "Failed to load model");
+				this.setError(err.message ?? m.voice_error_load_failed());
 			},
 		);
 	}
@@ -260,6 +268,7 @@ export class VoiceInputState {
 		this.transitionTo("error");
 		if (this.errorResetTimer !== null) clearTimeout(this.errorResetTimer);
 		this.errorResetTimer = setTimeout(() => {
+			if (this.isDisposed) return;
 			this.errorResetTimer = null;
 			this.errorMessage = null;
 			this.transitionTo("idle");
@@ -276,9 +285,10 @@ export class VoiceInputState {
 	private startWatchdog(): void {
 		this.clearWatchdog();
 		this.transcribingWatchdogTimer = setTimeout(() => {
+			if (this.isDisposed) return;
 			this.transcribingWatchdogTimer = null;
 			if (this.phase === "transcribing") {
-				this.setError("Transcription timed out");
+				this.setError(m.voice_error_transcription_timeout());
 			}
 		}, TRANSCRIBING_WATCHDOG_MS);
 	}

@@ -179,6 +179,7 @@ pub const GITHUB_COMMANDS: GitHubCommands = GitHubCommands {
 #[allow(dead_code)]
 pub struct VoiceCommands {
     pub list_models: &'static str,
+    pub list_languages: &'static str,
     pub get_model_status: &'static str,
     pub download_model: &'static str,
     pub delete_model: &'static str,
@@ -191,6 +192,7 @@ pub struct VoiceCommands {
 #[allow(dead_code)]
 pub const VOICE_COMMANDS: VoiceCommands = VoiceCommands {
     list_models: "voice_list_models",
+    list_languages: "voice_list_languages",
     get_model_status: "voice_get_model_status",
     download_model: "voice_download_model",
     delete_model: "voice_delete_model",

@@ -2,9 +2,11 @@ use anyhow::Context;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::{fs, io::Read};
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex as TokioMutex;
 
 const MAX_DOWNLOAD_SIZE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MODEL_DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
@@ -117,12 +119,16 @@ const MODEL_CATALOG: &[ModelSpec] = &[
 
 pub struct ModelManager {
     models_dir: PathBuf,
+    downloading: TokioMutex<HashSet<String>>,
 }
 
 impl ModelManager {
     pub fn new(app_data_dir: &Path) -> Self {
         let models_dir = app_data_dir.join("models").join("whisper");
-        Self { models_dir }
+        Self {
+            models_dir,
+            downloading: TokioMutex::new(HashSet::new()),
+        }
     }
 
     pub fn list_models(&self) -> Vec<ModelInfo> {
@@ -139,50 +145,28 @@ impl ModelManager {
         }
     }
 
+    /// Fast check: file exists and has the correct size (no SHA-256).
+    /// Used by `list_models` to avoid blocking the Tokio runtime thread.
+    pub fn is_model_available_fast(&self, model_id: &str) -> bool {
+        match self.model_path(model_id) {
+            Some(path) => Self::find_spec(model_id)
+                .map(|spec| {
+                    path.exists()
+                        && fs::metadata(&path)
+                            .map(|m| m.len() == spec.size_bytes)
+                            .unwrap_or(false)
+                })
+                .unwrap_or(false),
+            None => false,
+        }
+    }
+
     pub fn model_path(&self, model_id: &str) -> Option<PathBuf> {
         Self::find_spec(model_id).map(|spec| self.models_dir.join(format!("ggml-{}.bin", spec.id)))
     }
 
     pub fn validate_model(&self, model_id: &str, path: &Path) -> anyhow::Result<()> {
-        let spec = Self::find_spec(model_id).context("Unknown voice model")?;
-        let metadata = fs::metadata(path)
-            .with_context(|| format!("Failed to read metadata for {}", path.display()))?;
-
-        if metadata.len() != spec.size_bytes {
-            anyhow::bail!(
-                "Model size mismatch for {}: expected {}, got {}",
-                spec.id,
-                spec.size_bytes,
-                metadata.len()
-            );
-        }
-
-        let mut file = fs::File::open(path)
-            .with_context(|| format!("Failed to open model file {}", path.display()))?;
-        let mut hasher = sha2::Sha256::new();
-        let mut buffer = [0_u8; 64 * 1024];
-
-        loop {
-            let read = file
-                .read(&mut buffer)
-                .with_context(|| format!("Failed to read model file {}", path.display()))?;
-            if read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..read]);
-        }
-
-        let digest = format!("{:x}", hasher.finalize());
-        if digest != spec.sha256 {
-            anyhow::bail!(
-                "Model checksum mismatch for {}: expected {}, got {}",
-                spec.id,
-                spec.sha256,
-                digest
-            );
-        }
-
-        Ok(())
+        validate_model_file(model_id, path)
     }
 
     pub fn validate_model_id(model_id: &str) -> anyhow::Result<()> {
@@ -225,6 +209,30 @@ impl ModelManager {
     pub async fn download_model<F>(
         &self,
         model_id: &str,
+        emit_progress: F,
+    ) -> anyhow::Result<PathBuf>
+    where
+        F: FnMut(ModelDownloadProgress),
+    {
+        // Prevent concurrent downloads of the same model
+        {
+            let mut active = self.downloading.lock().await;
+            if !active.insert(model_id.to_string()) {
+                anyhow::bail!("Model '{}' is already being downloaded", model_id);
+            }
+        }
+        let result = self.download_model_inner(model_id, emit_progress).await;
+        // Always remove from active set
+        {
+            let mut active = self.downloading.lock().await;
+            active.remove(model_id);
+        }
+        result
+    }
+
+    async fn download_model_inner<F>(
+        &self,
+        model_id: &str,
         mut emit_progress: F,
     ) -> anyhow::Result<PathBuf>
     where
@@ -263,6 +271,17 @@ impl ModelManager {
 
         let client = reqwest::Client::builder()
             .timeout(MODEL_DOWNLOAD_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if ModelManager::validate_url(attempt.url()) {
+                    attempt.follow()
+                } else {
+                    let url = attempt.url().clone();
+                    attempt.error(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("Blocked redirect to disallowed host: {}", url),
+                    ))
+                }
+            }))
             .build()
             .context("Failed to build HTTP client")?;
 
@@ -273,10 +292,6 @@ impl ModelManager {
             .with_context(|| format!("Failed to start model download for {}", spec.id))?
             .error_for_status()
             .with_context(|| format!("Model download failed for {}", spec.id))?;
-
-        if !Self::validate_url(response.url()) {
-            anyhow::bail!("Blocked redirect host while downloading {}", spec.id);
-        }
 
         let total_bytes = response.content_length().unwrap_or(spec.size_bytes);
         if total_bytes > MAX_DOWNLOAD_SIZE_BYTES {
@@ -335,7 +350,13 @@ impl ModelManager {
             .await
             .with_context(|| format!("Failed to finalize model file {}", final_path.display()))?;
 
-        if let Err(error) = self.validate_model(spec.id, &final_path) {
+        if let Err(error) = {
+            let id = spec.id.to_string();
+            let fp = final_path.clone();
+            tokio::task::spawn_blocking(move || validate_model_file(&id, &fp))
+                .await
+                .map_err(|e| anyhow::anyhow!("Validation task panicked: {e}"))?
+        } {
             let _ = tokio::fs::remove_file(&final_path).await;
             return Err(error);
         }
@@ -349,7 +370,7 @@ impl ModelManager {
             name: spec.name.to_string(),
             size_bytes: spec.size_bytes,
             is_english_only: spec.is_english_only,
-            is_downloaded: self.is_model_available(spec.id),
+            is_downloaded: self.is_model_available_fast(spec.id),
             download_url: spec.url.to_string(),
         }
     }
@@ -359,4 +380,49 @@ impl ModelManager {
             .iter()
             .find(|candidate| candidate.id == model_id)
     }
+}
+
+/// Validate a model file by checking size and SHA-256 hash.
+/// This is a **blocking** operation — call from a blocking context only
+/// (dedicated thread or `spawn_blocking`).
+pub fn validate_model_file(model_id: &str, path: &Path) -> anyhow::Result<()> {
+    let spec = ModelManager::find_spec(model_id).context("Unknown voice model")?;
+    let metadata = fs::metadata(path)
+        .with_context(|| format!("Failed to read metadata for {}", path.display()))?;
+
+    if metadata.len() != spec.size_bytes {
+        anyhow::bail!(
+            "Model size mismatch for {}: expected {}, got {}",
+            spec.id,
+            spec.size_bytes,
+            metadata.len()
+        );
+    }
+
+    let mut file = fs::File::open(path)
+        .with_context(|| format!("Failed to open model file {}", path.display()))?;
+    let mut hasher = sha2::Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .with_context(|| format!("Failed to read model file {}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    let digest = format!("{:x}", hasher.finalize());
+    if digest != spec.sha256 {
+        anyhow::bail!(
+            "Model checksum mismatch for {}: expected {}, got {}",
+            spec.id,
+            spec.sha256,
+            digest
+        );
+    }
+
+    Ok(())
 }

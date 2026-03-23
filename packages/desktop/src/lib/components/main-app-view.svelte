@@ -62,6 +62,7 @@ import {
 import * as m from "$lib/paraglide/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
+import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { ChangelogModal } from "./changelog-modal/index.js";
@@ -146,6 +147,9 @@ const tabBarStore = createTabBarStore(
 	permissionStore,
 	unseenStore
 );
+
+// Create voice settings store (context for voice-section and agent-input-ui)
+const voiceSettingsStore = createVoiceSettingsStore();
 
 // Wire unseen-clear on panel focus
 panelStore.onPanelFocused = (panelId) => {
@@ -577,6 +581,9 @@ onMount(async () => {
 	windowFocusStore.initialize();
 	notificationPrefsStore.initialize();
 
+	// Initialize voice settings (loads persisted prefs + model list from backend)
+	void voiceSettingsStore.initialize();
+
 	if (initResult.isErr()) {
 		logger.error("[Startup] Initialization failed:", initResult.error);
 		viewState.initializationError = initResult.error;
@@ -679,6 +686,8 @@ onDestroy(() => {
 	window.removeEventListener("keydown", handleGlobalKeydown);
 	// Cleanup notification system
 	windowFocusStore.cleanup();
+	// Cleanup voice settings (removes Tauri event listener for download progress)
+	voiceSettingsStore.dispose();
 });
 </script>
 

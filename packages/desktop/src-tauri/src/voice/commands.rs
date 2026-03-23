@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 
-fn resolve_verified_model_path(
+async fn resolve_verified_model_path(
     state: &VoiceState,
     model_id: &str,
 ) -> Result<PathBuf, String> {
@@ -26,10 +26,12 @@ fn resolve_verified_model_path(
         ));
     }
 
-    state
-        .model_manager()
-        .validate_model(model_id, &path)
-        .map_err(|error| error.to_string())?;
+    let id = model_id.to_string();
+    let p = path.clone();
+    tokio::task::spawn_blocking(move || super::models::validate_model_file(&id, &p))
+        .await
+        .map_err(|e| format!("Validation task panicked: {e}"))?
+        .map_err(|e| e.to_string())?;
 
     Ok(path)
 }
@@ -150,7 +152,7 @@ pub async fn voice_load_model(
     state: State<'_, VoiceState>,
     model_id: String,
 ) -> Result<(), String> {
-    let path = resolve_verified_model_path(&state, &model_id)?;
+    let path = resolve_verified_model_path(&state, &model_id).await?;
 
     state
         .runtime()

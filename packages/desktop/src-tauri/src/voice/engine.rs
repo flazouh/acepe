@@ -91,8 +91,7 @@ impl TranscriptionEngine for WhisperEngine {
         // WhisperContextParameters::default() is sufficient — Metal GPU is enabled
         // at compile-time via the `whisper-rs/metal` feature flag.
         let ctx = WhisperContext::new_with_params(
-            path.to_str()
-                .context("Model path is not valid UTF-8")?,
+            path.to_str().context("Model path is not valid UTF-8")?,
             WhisperContextParameters::default(),
         )
         .context("Failed to load whisper model")?;
@@ -107,6 +106,14 @@ impl TranscriptionEngine for WhisperEngine {
         self.model_path = None;
     }
 
+    /// Transcribe audio using the loaded whisper model.
+    ///
+    /// NOTE: `state.full()` is a blocking FFI call that can take 30-60+ seconds
+    /// for large audio buffers with the medium model. The worker thread cannot
+    /// process `CancelRecording` or `Shutdown` messages during transcription.
+    /// A future improvement could chunk the audio and check for cancellation
+    /// between chunks, but whisper.cpp does not currently support incremental
+    /// transcription within a single `full()` call.
     fn transcribe(
         &self,
         audio: &[f32],
@@ -148,8 +155,7 @@ impl TranscriptionEngine for WhisperEngine {
             }
         }
 
-        let language = whisper_rs::get_lang_str(state.full_lang_id_from_state())
-            .map(String::from);
+        let language = whisper_rs::get_lang_str(state.full_lang_id_from_state()).map(String::from);
 
         Ok(TranscriptionResult {
             text,

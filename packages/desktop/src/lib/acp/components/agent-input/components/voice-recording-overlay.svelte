@@ -8,6 +8,10 @@ import * as m from "$lib/paraglide/messages.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";
 
+function autoFocus(node: HTMLElement) {
+	node.focus();
+}
+
 interface Props {
 	voiceState: VoiceInputState;
 }
@@ -61,11 +65,12 @@ const canCancel = $derived(canCancelVoiceInteraction(voiceState.phase));
 				<span class="text-xs text-muted-foreground">{m.voice_transcribing()}</span>
 			</div>
 		{:else if isError}
-			<div class="flex max-w-[260px] flex-col items-center gap-2 text-center">
+			<div class="flex max-w-[260px] flex-col items-center gap-2 text-center" role="alert" aria-live="assertive">
 				<p class="text-sm font-medium text-foreground">
 					{voiceState.errorMessage || m.voice_error_permission_denied()}
 				</p>
 				<button
+					use:autoFocus
 					class="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
 					onclick={() => voiceState.dismissError()}
 				>

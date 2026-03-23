@@ -21,11 +21,11 @@ pub struct VoiceState {
 }
 
 impl VoiceState {
-    pub fn new(app_data_dir: &Path) -> Self {
-        Self {
+    pub fn new(app_data_dir: &Path) -> anyhow::Result<Self> {
+        Ok(Self {
             model_manager: ModelManager::new(app_data_dir),
-            runtime: VoiceRuntimeHandle::spawn(Box::new(WhisperEngine::new())),
-        }
+            runtime: VoiceRuntimeHandle::spawn(Box::new(WhisperEngine::new()))?,
+        })
     }
 
     pub fn model_manager(&self) -> &ModelManager {

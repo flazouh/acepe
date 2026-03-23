@@ -79,7 +79,7 @@ const voiceSettingsStore = getVoiceSettingsStore();
 const inputState = new AgentInputState(sessionStore, panelStore, () => props.projectPath ?? null);
 
 let voiceState: VoiceInputState | null = $state(null);
-const voiceEnabled = $derived($voiceSettingsStore.enabled);
+const voiceEnabled = $derived(voiceSettingsStore.enabled);
 
 const panelHotState = $derived(props.panelId ? panelStore.getHotState(props.panelId) : null);
 
@@ -463,6 +463,9 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 onMount(async () => {
 	inputState.initialize();
 	if (props.sessionId) {
+		// VoiceInputState is created with the current sessionId and lives for the lifetime of this
+		// component instance. If the parent re-keys the component (new sessionId), a fresh
+		// VoiceInputState is created. dispose() in onDestroy handles cleanup.
 		const vs = new VoiceInputState({
 			sessionId: props.sessionId,
 			getSelectedLanguage: () => voiceSettingsStore.language,

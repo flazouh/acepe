@@ -1,6 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getContext, setContext } from "svelte";
-import { get, type Readable, type Subscriber, type Unsubscriber, writable } from "svelte/store";
 import { toast } from "svelte-sonner";
 
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -32,92 +31,36 @@ interface VoiceDownloadErrorPayload {
 	message: string;
 }
 
-interface VoiceSettingsState {
-	readonly enabled: boolean;
-	readonly selectedModelId: string;
-	readonly language: string;
-	readonly models: VoiceModelInfo[];
-	readonly languages: VoiceLanguageOption[];
-	readonly modelsLoading: boolean;
-	readonly downloadProgressModelId: string | null;
-	readonly downloadPercent: number;
-}
+export class VoiceSettingsStore {
+	enabled = $state(true);
+	selectedModelId = $state(DEFAULT_MODEL_ID);
+	language = $state(DEFAULT_LANGUAGE);
+	models = $state<VoiceModelInfo[]>([]);
+	languages = $state<VoiceLanguageOption[]>([]);
+	modelsLoading = $state(true);
+	downloadProgressModelId = $state<string | null>(null);
+	downloadPercent = $state(0);
 
-const INITIAL_STATE: VoiceSettingsState = {
-	enabled: true,
-	selectedModelId: DEFAULT_MODEL_ID,
-	language: DEFAULT_LANGUAGE,
-	models: [],
-	languages: [],
-	modelsLoading: true,
-	downloadProgressModelId: null,
-	downloadPercent: 0,
-};
-
-export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
-	private readonly state = writable<VoiceSettingsState>(INITIAL_STATE);
+	readonly selectedModel = $derived(
+		this.models.find((model) => model.id === this.selectedModelId) ?? null
+	);
 
 	private initialized = false;
 	private listenersRegistered = false;
 	private readonly unlisteners: UnlistenFn[] = [];
-
-	subscribe(run: Subscriber<VoiceSettingsState>): Unsubscriber {
-		return this.state.subscribe(run);
-	}
-
-	get enabled(): boolean {
-		return get(this.state).enabled;
-	}
-
-	get selectedModelId(): string {
-		return get(this.state).selectedModelId;
-	}
-
-	get language(): string {
-		return get(this.state).language;
-	}
-
-	get models(): VoiceModelInfo[] {
-		return get(this.state).models;
-	}
-
-	get languages(): VoiceLanguageOption[] {
-		return get(this.state).languages;
-	}
-
-	get modelsLoading(): boolean {
-		return get(this.state).modelsLoading;
-	}
-
-	get downloadProgressModelId(): string | null {
-		return get(this.state).downloadProgressModelId;
-	}
-
-	get downloadPercent(): number {
-		return get(this.state).downloadPercent;
-	}
-
-	get selectedModel(): VoiceModelInfo | null {
-		return get(this.state).models.find((model) => model.id === this.selectedModelId) ?? null;
-	}
 
 	async initialize(): Promise<void> {
 		if (this.initialized) {
 			return;
 		}
 
-		try {
-			await Promise.all([
-				this.loadPersistedSettings(),
-				this.refreshModels(),
-				this.refreshLanguages(),
-				this.registerListeners(),
-			]);
-			this.initialized = true;
-		} catch (error) {
-			this.dispose();
-			throw error;
-		}
+		await Promise.all([
+			this.loadPersistedSettings(),
+			this.refreshModels(),
+			this.refreshLanguages(),
+			this.registerListeners(),
+		]);
+		this.initialized = true;
 	}
 
 	dispose(): void {
@@ -136,17 +79,7 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 			return;
 		}
 
-		const current = get(this.state);
-		this.state.set({
-			enabled: value,
-			selectedModelId: current.selectedModelId,
-			language: current.language,
-			models: current.models,
-			languages: current.languages,
-			modelsLoading: current.modelsLoading,
-			downloadProgressModelId: current.downloadProgressModelId,
-			downloadPercent: current.downloadPercent,
-		});
+		this.enabled = value;
 	}
 
 	async setLanguage(value: string): Promise<void> {
@@ -157,21 +90,11 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 			return;
 		}
 
-		const current = get(this.state);
-		this.state.set({
-			enabled: current.enabled,
-			selectedModelId: current.selectedModelId,
-			language: value,
-			models: current.models,
-			languages: current.languages,
-			modelsLoading: current.modelsLoading,
-			downloadProgressModelId: current.downloadProgressModelId,
-			downloadPercent: current.downloadPercent,
-		});
+		this.language = value;
 	}
 
 	async setSelectedModelId(modelId: string): Promise<void> {
-		const current = get(this.state);
+		const previousModelId = this.selectedModelId;
 		const saveResult = await tauriClient.settings.set(VOICE_MODEL_KEY, modelId);
 		if (saveResult.isErr()) {
 			logger.error("Failed to persist voice model preference", { error: saveResult.error });
@@ -181,16 +104,7 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 
 		const selectedModel = this.models.find((model) => model.id === modelId) ?? null;
 		if (!selectedModel || !selectedModel.is_downloaded) {
-			this.state.set({
-				enabled: current.enabled,
-				selectedModelId: modelId,
-				language: current.language,
-				models: current.models,
-				languages: current.languages,
-				modelsLoading: current.modelsLoading,
-				downloadProgressModelId: current.downloadProgressModelId,
-				downloadPercent: current.downloadPercent,
-			});
+			this.selectedModelId = modelId;
 			return;
 		}
 
@@ -203,41 +117,23 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 			toast.error(loadResult.error.message);
 			const rollbackResult = await tauriClient.settings.set(
 				VOICE_MODEL_KEY,
-				current.selectedModelId,
+				previousModelId,
 			);
 			if (rollbackResult.isErr()) {
 				logger.error("Failed to roll back voice model preference", {
 					error: rollbackResult.error,
-					modelId: current.selectedModelId,
+					modelId: previousModelId,
 				});
 			}
 			return;
 		}
 
-		this.state.set({
-			enabled: current.enabled,
-			selectedModelId: modelId,
-			language: current.language,
-			models: current.models,
-			languages: current.languages,
-			modelsLoading: current.modelsLoading,
-			downloadProgressModelId: current.downloadProgressModelId,
-			downloadPercent: current.downloadPercent,
-		});
+		this.selectedModelId = modelId;
 	}
 
 	async downloadModel(modelId: string): Promise<void> {
-		const current = get(this.state);
-		this.state.set({
-			enabled: current.enabled,
-			selectedModelId: current.selectedModelId,
-			language: current.language,
-			models: current.models,
-			languages: current.languages,
-			modelsLoading: current.modelsLoading,
-			downloadProgressModelId: modelId,
-			downloadPercent: 0,
-		});
+		this.downloadProgressModelId = modelId;
+		this.downloadPercent = 0;
 
 		const result = await tauriClient.voice.downloadModel(modelId);
 		if (result.isErr()) {
@@ -246,17 +142,8 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 				modelId,
 			});
 			if (this.downloadProgressModelId === modelId) {
-				const failedState = get(this.state);
-				this.state.set({
-					enabled: failedState.enabled,
-					selectedModelId: failedState.selectedModelId,
-					language: failedState.language,
-					models: failedState.models,
-					languages: failedState.languages,
-					modelsLoading: failedState.modelsLoading,
-					downloadProgressModelId: null,
-					downloadPercent: 0,
-				});
+				this.downloadProgressModelId = null;
+				this.downloadPercent = 0;
 			}
 		}
 	}
@@ -281,73 +168,32 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 			tauriClient.settings.get<string>(VOICE_LANGUAGE_KEY),
 		]);
 
-		const current = get(this.state);
-		this.state.set({
-			enabled: enabledResult.isOk() && enabledResult.value !== null ? enabledResult.value : current.enabled,
-			selectedModelId: modelResult.isOk() && modelResult.value ? modelResult.value : current.selectedModelId,
-			language: languageResult.isOk() && languageResult.value ? languageResult.value : current.language,
-			models: current.models,
-			languages: current.languages,
-			modelsLoading: current.modelsLoading,
-			downloadProgressModelId: current.downloadProgressModelId,
-			downloadPercent: current.downloadPercent,
-		});
+		if (enabledResult.isOk() && enabledResult.value !== null) {
+			this.enabled = enabledResult.value;
+		}
+		if (modelResult.isOk() && modelResult.value) {
+			this.selectedModelId = modelResult.value;
+		}
+		if (languageResult.isOk() && languageResult.value) {
+			this.language = languageResult.value;
+		}
 	}
 
 	private async refreshModels(): Promise<void> {
-		const loadingState = get(this.state);
-		this.state.set({
-			enabled: loadingState.enabled,
-			selectedModelId: loadingState.selectedModelId,
-			language: loadingState.language,
-			models: loadingState.models,
-			languages: loadingState.languages,
-			modelsLoading: true,
-			downloadProgressModelId: loadingState.downloadProgressModelId,
-			downloadPercent: loadingState.downloadPercent,
-		});
+		this.modelsLoading = true;
 		const result = await tauriClient.voice.listModels();
-		const current = get(this.state);
 		if (result.isOk()) {
-			this.state.set({
-				enabled: current.enabled,
-				selectedModelId: current.selectedModelId,
-				language: current.language,
-				models: result.value,
-				languages: current.languages,
-				modelsLoading: false,
-				downloadProgressModelId: current.downloadProgressModelId,
-				downloadPercent: current.downloadPercent,
-			});
+			this.models = result.value;
 		} else {
 			logger.error("Failed to load voice models", { error: result.error });
-			this.state.set({
-				enabled: current.enabled,
-				selectedModelId: current.selectedModelId,
-				language: current.language,
-				models: current.models,
-				languages: current.languages,
-				modelsLoading: false,
-				downloadProgressModelId: current.downloadProgressModelId,
-				downloadPercent: current.downloadPercent,
-			});
 		}
+		this.modelsLoading = false;
 	}
 
 	private async refreshLanguages(): Promise<void> {
 		const result = await tauriClient.voice.listLanguages();
 		if (result.isOk()) {
-			const current = get(this.state);
-			this.state.set({
-				enabled: current.enabled,
-				selectedModelId: current.selectedModelId,
-				language: current.language,
-				models: current.models,
-				languages: result.value,
-				modelsLoading: current.modelsLoading,
-				downloadProgressModelId: current.downloadProgressModelId,
-				downloadPercent: current.downloadPercent,
-			});
+			this.languages = result.value;
 		} else {
 			logger.error("Failed to load voice languages", { error: result.error });
 		}
@@ -361,31 +207,13 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 
 		const [progressUnlisten, completeUnlisten, errorUnlisten] = await Promise.all([
 			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
-				const current = get(this.state);
-				this.state.set({
-					enabled: current.enabled,
-					selectedModelId: current.selectedModelId,
-					language: current.language,
-					models: current.models,
-					languages: current.languages,
-					modelsLoading: current.modelsLoading,
-					downloadProgressModelId: event.payload.model_id,
-					downloadPercent: event.payload.percent,
-				});
+				this.downloadProgressModelId = event.payload.model_id;
+				this.downloadPercent = event.payload.percent;
 			}),
 			listen<VoiceDownloadCompletePayload>("voice://model_download_complete", (event) => {
-				const current = get(this.state);
 				if (this.downloadProgressModelId === event.payload.model_id) {
-					this.state.set({
-						enabled: current.enabled,
-						selectedModelId: current.selectedModelId,
-						language: current.language,
-						models: current.models,
-						languages: current.languages,
-						modelsLoading: current.modelsLoading,
-						downloadProgressModelId: null,
-						downloadPercent: 0,
-					});
+					this.downloadProgressModelId = null;
+					this.downloadPercent = 0;
 				}
 				void this.refreshModels();
 			}),
@@ -395,17 +223,8 @@ export class VoiceSettingsStore implements Readable<VoiceSettingsState> {
 					modelId: event.payload.model_id,
 				});
 				if (this.downloadProgressModelId === event.payload.model_id) {
-					const current = get(this.state);
-					this.state.set({
-						enabled: current.enabled,
-						selectedModelId: current.selectedModelId,
-						language: current.language,
-						models: current.models,
-						languages: current.languages,
-						modelsLoading: current.modelsLoading,
-						downloadProgressModelId: null,
-						downloadPercent: 0,
-					});
+					this.downloadProgressModelId = null;
+					this.downloadPercent = 0;
 				}
 			}),
 		]);

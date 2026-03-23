@@ -715,10 +715,17 @@ pub fn run() {
             app.manage(Arc::new(terminal::TerminalManager::new()));
 
             if let Ok(app_data_dir) = app.path().app_data_dir() {
-                app.manage(VoiceState::new(&app_data_dir));
+                match VoiceState::new(&app_data_dir) {
+                    Ok(state) => {
+                        app.manage(state);
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to initialize voice subsystem");
+                        // Voice is non-critical — log but don't crash the app
+                    }
+                }
             } else {
-                tracing::error!("Failed to resolve app data directory for voice state");
-                std::process::exit(1);
+                tracing::warn!("Failed to resolve app data directory; voice disabled");
             }
 
             // Initialize file index service

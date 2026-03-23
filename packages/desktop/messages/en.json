@@ -851,5 +851,11 @@
 	"voice_settings_selected": "Selected",
 	"voice_settings_model_english_only": "English-only",
 	"voice_settings_model_multilingual": "Multilingual",
-	"voice_settings_loading_models": "Loading voice models…"
+	"voice_settings_loading_models": "Loading voice models…",
+	"voice_error_stop_failed": "Failed to stop recording",
+	"voice_error_download_failed": "Model download failed",
+	"voice_error_model_status_failed": "Failed to check model status",
+	"voice_error_start_failed": "Failed to start recording",
+	"voice_error_load_failed": "Failed to load model",
+	"voice_error_transcription_timeout": "Transcription timed out"
 }

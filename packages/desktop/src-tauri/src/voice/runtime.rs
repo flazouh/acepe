@@ -3,6 +3,7 @@ use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
@@ -20,6 +21,10 @@ const WORKER_TICK: Duration = Duration::from_millis(100);
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 const WARN_SECS: u64 = 8 * 60;
 const MAX_SECS: u64 = 10 * 60;
+
+/// Maximum accumulated samples: 10 minutes at 48 kHz mono ~ 28.8 million samples (~115 MB).
+/// This matches the `MAX_SECS` duration limit; the constant documents the implicit cap.
+const _MAX_ACCUMULATED_SAMPLES: usize = 48_000 * MAX_SECS as usize;
 
 // ── Public event payloads ─────────────────────────────────────────────────
 
@@ -124,14 +129,14 @@ pub struct VoiceRuntimeHandle {
 
 impl VoiceRuntimeHandle {
     /// Spawn the dedicated voice worker thread with the given transcription engine.
-    pub fn spawn(engine: Box<dyn TranscriptionEngine>) -> Self {
+    pub fn spawn(engine: Box<dyn TranscriptionEngine>) -> anyhow::Result<Self> {
         let (tx, rx) = mpsc::sync_channel(8);
         let worker_tx = tx.clone();
         thread::Builder::new()
             .name("acepe-voice-worker".to_string())
             .spawn(move || worker_loop(rx, worker_tx, engine))
-            .expect("Failed to spawn voice worker thread");
-        Self { tx }
+            .context("Failed to spawn voice worker thread")?;
+        Ok(Self { tx })
     }
 
     /// Load a whisper model into the engine.  Must be called before the first
@@ -395,9 +400,14 @@ fn start_capture(
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| anyhow::anyhow!("No audio input device available"))?;
+        .ok_or_else(|| anyhow::anyhow!(
+            "No audio input device available. On macOS, check System Settings \u{2192} Privacy & Security \u{2192} Microphone."
+        ))?;
 
-    let supported = device.default_input_config()?;
+    let supported = device.default_input_config()
+        .map_err(|e| anyhow::anyhow!(
+            "Failed to get microphone configuration: {}. On macOS, ensure Acepe has microphone permission in System Settings \u{2192} Privacy & Security \u{2192} Microphone.", e
+        ))?;
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels() as usize;
     let format = supported.sample_format();
