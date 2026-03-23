@@ -16,6 +16,7 @@ import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
 import type { Project } from "../../../logic/project-manager.svelte";
 import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
+import { getAgentStore } from "../../../store/index.js";
 import { getConnectionStore } from "../../../store/connection-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
@@ -69,6 +70,7 @@ import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
+import AgentInstallCard from "./agent-install-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
@@ -112,6 +114,7 @@ let {
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const connectionStore = getConnectionStore();
+const agentStore = getAgentStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 
@@ -544,6 +547,24 @@ let mergePrRunning = $state(false);
 let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
 let prFetchError = $state<string | null>(null);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+let agentInstallFailed = $state(false);
+let pendingInstallSessionProject = $state<Project | null>(null);
+
+/** Derived: is the selected agent currently being installed? */
+const agentInstallState = $derived.by(() => {
+	if (!selectedAgentId) return null;
+	const progress = agentStore.installing[selectedAgentId];
+	if (!progress && !agentInstallFailed) return null;
+	const agent = availableAgents.find((a) => a.id === selectedAgentId);
+	return {
+		agentId: selectedAgentId,
+		agentName: agent?.name ?? selectedAgentId,
+		stage: progress?.stage ?? "",
+		progress: progress?.progress ?? 0,
+		failed: agentInstallFailed,
+	};
+});
+
 // Derived from session store — populated from DB on startup, updated in-session after PR creation
 // Also auto-populated when Claude creates a PR autonomously (handleStreamComplete extracts PR# from messages)
 const createdPr = $derived(sessionMetadata?.prNumber ?? null);
@@ -892,10 +913,37 @@ function handleWorktreeCloseCancel() {
 	worktreeDirtyCheckPending = false;
 }
 
+/**
+ * Check if an agent needs installation; if so, install first then create session.
+ */
+async function installAgentThenCreateSession(project: Project, agentId: string): Promise<void> {
+	const agent = availableAgents.find((a) => a.id === agentId);
+	const needsInstall =
+		agent && !agent.available && agent.availability_kind?.kind === "installable";
+
+	if (!needsInstall) {
+		onCreateSessionForProject?.(project);
+		return;
+	}
+
+	agentInstallFailed = false;
+	pendingInstallSessionProject = project;
+	await agentStore.installAgent(agentId);
+
+	// Check if install succeeded (agent should now be available after store refresh)
+	const refreshed = agentStore.agents.find((a) => a.id === agentId);
+	if (refreshed?.available) {
+		pendingInstallSessionProject = null;
+		onCreateSessionForProject?.(project);
+	} else {
+		agentInstallFailed = true;
+	}
+}
+
 function handleProjectAgentSelected(project: Project, agentId: string) {
 	// Set the agent first, then create session
 	onAgentChange?.(agentId);
-	onCreateSessionForProject?.(project);
+	void installAgentThenCreateSession(project, agentId);
 }
 
 function handleSessionCreated(sessionIdParam: string) {
@@ -1252,7 +1300,7 @@ function handlePanelKeyDown(e: KeyboardEvent) {
 function handleRetryConnection() {
 	// Retry session creation using panel's current project and agent
 	if (project && selectedAgentId) {
-		onCreateSessionForProject?.(project);
+		void installAgentThenCreateSession(project, selectedAgentId);
 	} else {
 		console.warn(`Retry connection failed: Missing project or agent`, {
 			panelId: effectivePanelId,
@@ -1484,6 +1532,24 @@ function handleCheckpointRevertComplete() {
 						<div class={isFullscreen ? "flex justify-center" : ""}>
 							<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
 								<WorktreeSetupCard state={worktreeSetupState} />
+							</div>
+						</div>
+					{/if}
+					{#if agentInstallState}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
+								<AgentInstallCard
+									agentId={agentInstallState.agentId}
+									agentName={agentInstallState.agentName}
+									stage={agentInstallState.stage}
+									progress={agentInstallState.progress}
+									failed={agentInstallState.failed}
+									onRetry={() => {
+										if (pendingInstallSessionProject && selectedAgentId) {
+											void installAgentThenCreateSession(pendingInstallSessionProject, selectedAgentId);
+										}
+									}}
+								/>
 							</div>
 						</div>
 					{/if}

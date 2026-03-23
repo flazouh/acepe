@@ -57,7 +57,6 @@ interface Props {
 	totalCount: number;
 	hasProjects?: boolean;
 	selectedSessionId?: string | null;
-	collapsed?: boolean;
 	canCreateSession?: boolean;
 	shortcutKeys?: string[];
 	scanning?: boolean;
@@ -72,7 +71,6 @@ interface Props {
 	onSelectSession: (item: SessionListItem) => void;
 	onCreateSession?: () => void;
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
-	onExpandSidebar?: () => void;
 	/** Available agents for session creation */
 	availableAgents?: AgentInfo[];
 	/** Current theme for agent icons */
@@ -109,7 +107,6 @@ let {
 	scanningProjectPaths = new Set(),
 	hasProjects: _hasProjects = true,
 	selectedSessionId = null,
-	collapsed = false,
 	canCreateSession: _canCreateSession = false,
 	shortcutKeys: _shortcutKeys = ["⌘", "N"],
 	scanning = false,
@@ -121,7 +118,6 @@ let {
 	onSelectSession,
 	onCreateSession: _onCreateSession,
 	onCreateSessionForProject,
-	onExpandSidebar,
 	availableAgents = [],
 	effectiveTheme = "light",
 	onProjectClick,
@@ -313,11 +309,6 @@ function handleRevealInFinder(fullPath: string) {
 		() => {},
 		() => toast.error(m.file_panel_open_in_finder_error())
 	);
-}
-
-function handleCollapsedProjectClick(projectPath: string) {
-	onProjectClick?.(projectPath);
-	onExpandSidebar?.();
 }
 
 function handleRefreshFileTree(projectPath: string) {
@@ -701,8 +692,8 @@ function openCreateBranchDialog(projectPath: string): void {
 }
 </script>
 
-<div class="flex flex-col h-full {collapsed ? 'gap-0.5' : 'gap-2'}" data-thread-list-scrollable>
-	{#if !collapsed && loading && !scanning && sessionGroups.every((g) => g.sessions.length === 0)}
+<div class="flex h-full flex-col gap-2" data-thread-list-scrollable>
+	{#if loading && !scanning && sessionGroups.every((g) => g.sessions.length === 0)}
 		<!-- Initial loading (no sessions cached yet): real project headers + session list skeleton -->
 		{#if sessionGroups.length > 0}
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
@@ -798,7 +789,7 @@ function openCreateBranchDialog(projectPath: string): void {
 														<Tooltip.Trigger>
 															<button
 																type="button"
-																class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+										class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 																aria-label={m.thread_list_new_session_in_project({
 																	projectName: group.projectName,
 																})}
@@ -855,25 +846,21 @@ function openCreateBranchDialog(projectPath: string): void {
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<div
 					class="shrink-0 flex items-center"
-					role={!collapsed && projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
-					tabindex={!collapsed && projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
-					onclick={!collapsed && projectPathShowingAgentStrip === group.projectPath
+					role={projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
+					tabindex={projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
+					onclick={projectPathShowingAgentStrip === group.projectPath
 						? undefined
-						: () => collapsed ? handleCollapsedProjectClick(group.projectPath) : handleProjectHeaderClick(group.projectPath)}
-					onkeydown={!collapsed && projectPathShowingAgentStrip === group.projectPath
+						: () => handleProjectHeaderClick(group.projectPath)}
+					onkeydown={projectPathShowingAgentStrip === group.projectPath
 						? undefined
 						: (e) => {
 								if (e.key === "Enter" || e.key === " ") {
 									e.preventDefault();
-									if (collapsed) {
-										handleCollapsedProjectClick(group.projectPath);
-									} else {
-										handleProjectHeaderClick(group.projectPath);
-									}
+									handleProjectHeaderClick(group.projectPath);
 								}
 							}}
 				>
-					{#if !collapsed && projectPathShowingAgentStrip === group.projectPath}
+					{#if projectPathShowingAgentStrip === group.projectPath}
 						<!-- Empty header: only agent strip visible (agents left, cancel right) -->
 						<div
 							class="flex flex-1 w-full min-w-0 border-b border-border/50"
@@ -901,87 +888,73 @@ function openCreateBranchDialog(projectPath: string): void {
 							projectColor={group.projectColor}
 							projectName={group.projectName}
 							expanded={isExpanded}
-							{collapsed}
-							class="flex-1 min-w-0 {collapsed ? 'cursor-pointer' : 'group cursor-pointer hover:bg-accent/50 transition-colors'}"
+							class="group flex-1 min-w-0 cursor-pointer hover:bg-accent/50 transition-colors"
 						>
 							{#snippet actions()}
-								<div
-									class="{collapsed ? 'flex flex-col items-center' : 'flex items-center'}"
-									role="presentation"
-									onclick={(e) => e.stopPropagation()}
-									onkeydown={(e) => e.stopPropagation()}
-								>
+							<div
+								class="flex shrink-0 items-center"
+								role="presentation"
+								onclick={(e) => e.stopPropagation()}
+								onkeydown={(e) => e.stopPropagation()}
+							>
 									<ProjectHeaderOverflowMenu
 										projectName={group.projectName}
 										currentColor={group.projectColor}
 										viewMode={viewMode}
 										onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-										onOpenTerminal={onOpenTerminal
-											? () => onOpenTerminal(group.projectPath)
-											: undefined}
-										onOpenBrowser={onOpenBrowser
-											? () => onOpenBrowser(group.projectPath)
-											: undefined}
-										onColorChange={onProjectColorChange
-											? (color) => onProjectColorChange(group.projectPath, color)
-											: undefined}
-										onRemoveProject={onRemoveProject
-											? () => onRemoveProject(group.projectPath)
-											: undefined}
-									/>
-									{#if availableAgents.length > 0}
-										<div
-											class="{collapsed ? 'flex items-center' : 'flex items-center border-l border-border/50'}"
-											role="presentation"
-											onclick={(e) => {
-												e.stopPropagation();
+											onOpenTerminal={onOpenTerminal
+												? () => onOpenTerminal(group.projectPath)
+												: undefined}
+											onOpenBrowser={onOpenBrowser
+												? () => onOpenBrowser(group.projectPath)
+												: undefined}
+											onColorChange={onProjectColorChange
+												? (color) => onProjectColorChange(group.projectPath, color)
+												: undefined}
+											onRemoveProject={onRemoveProject
+												? () => onRemoveProject(group.projectPath)
+												: undefined}
+										/>
+									<div
+										class="flex shrink-0 items-center border-l border-border/50"
+										role="presentation"
+										onclick={(e) => {
+											e.stopPropagation();
+											if (availableAgents.length > 0) {
 												projectPathShowingAgentStrip = group.projectPath;
-											}}
-											onkeydown={(e) => e.stopPropagation()}
-										>
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													<button
-														type="button"
-														class="inline-flex items-center justify-center {collapsed ? 'h-6 w-6' : 'h-7 w-7'} cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-														aria-label={m.thread_list_new_session_in_project({
-															projectName: group.projectName,
-														})}
-													>
-														<IconPlus class="h-3 w-3" />
-													</button>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													{m.thread_list_new_session_in_project({
-														projectName: group.projectName,
-													})}
-												</Tooltip.Content>
-											</Tooltip.Root>
-										</div>
-									{/if}
-								</div>
+											} else {
+												handleCreateClick(e, group.projectPath);
+											}
+										}}
+										onkeydown={(e) => e.stopPropagation()}
+									>
+										<Tooltip.Root>
+											<Tooltip.Trigger>
+											<button
+												type="button"
+												class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+												aria-label={m.thread_list_new_session_in_project({
+													projectName: group.projectName,
+												})}
+											>
+												<IconPlus class="h-3 w-3" />
+											</button>
+											</Tooltip.Trigger>
+											<Tooltip.Content>
+												{m.thread_list_new_session_in_project({
+													projectName: group.projectName,
+												})}
+											</Tooltip.Content>
+										</Tooltip.Root>
+									</div>
+									</div>
 							{/snippet}
 						</ProjectHeader>
 					{/if}
 				</div>
 
 					<!-- Content area: Sessions OR Files (switched, not both) -->
-					{#if collapsed}
-						<!-- Collapsed: same session list, just icon-only rows -->
-						<div class="min-h-0 overflow-auto p-0">
-							<VirtualizedSessionList
-								sessions={group.sessions}
-								{selectedSessionId}
-								{collapsed}
-								onSelectSession={handleSessionSelect}
-								{onOpenPr}
-								onDelete={onDeleteSession}
-								onArchive={onArchiveSession}
-								{onExportMarkdown}
-								{onExportJson}
-							/>
-						</div>
-					{:else if isExpanded}
+					{#if isExpanded}
 						{#if viewMode === "sessions"}
 							<!-- Sessions view - use simple overflow for scrolling -->
 							<div class="min-h-0 overflow-auto p-0">
@@ -1049,8 +1022,8 @@ function openCreateBranchDialog(projectPath: string): void {
 						{/if}
 					{/if}
 
-					<!-- Git footer with branch picker (hidden when sidebar collapsed or project section collapsed) -->
-					{#if isExpanded && !collapsed}
+					<!-- Git footer with branch picker -->
+					{#if isExpanded}
 					{#if gitDataByProject.has(group.projectPath)}
 						{@const gitData = gitDataByProject.get(group.projectPath)!}
 						{@const isFetching = fetchingProjects.has(group.projectPath)}

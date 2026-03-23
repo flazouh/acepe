@@ -705,7 +705,7 @@ onDestroy(() => {
 		</div>
 		{#if !viewState.reviewFullscreenOpen}
 			<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
-				{#if showSidebar}
+				{#if showSidebar && viewState.sidebarOpen}
 					<div class="shrink-0 flex flex-col h-full min-h-0 transition-[transform,opacity] duration-200 ease-out">
 						<AppSidebar {projectManager} state={viewState} />
 					</div>

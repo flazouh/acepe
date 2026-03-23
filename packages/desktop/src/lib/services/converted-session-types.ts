@@ -94,10 +94,41 @@ awaitingPlanApproval: boolean;
 planApprovalRequestId?: number | null }
 
 /**
+ * A single file edit entry within an Edit tool call.
+ * 
+ * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
+ * or Codex's multi-entry `changes` map). Each entry represents one file's change.
+ */
+export type EditEntry = { 
+/**
+ * Path of the file being edited.
+ */
+filePath?: string | null; 
+/**
+ * Text being replaced (None = new file or full-file write).
+ */
+oldString?: string | null; 
+/**
+ * Replacement text (standard edit).
+ */
+newString?: string | null; 
+/**
+ * Full file content (create/overwrite variant).
+ */
+content?: string | null }
+
+/**
  * Tool arguments discriminated by tool kind.
  * Each variant contains exactly the fields needed for that tool type.
  */
-export type ToolArguments = { kind: "read"; file_path?: string | null } | { kind: "edit"; file_path?: string | null; old_string?: string | null; new_string?: string | null; content?: string | null } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null } | { kind: "planMode"; mode?: string | null } | { kind: "other"; raw: JsonValue }
+export type ToolArguments = { kind: "read"; file_path?: string | null } | 
+/**
+ * Edit tool arguments.
+ * 
+ * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
+ * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
+ */
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null } | { kind: "planMode"; mode?: string | null } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool call update data.
@@ -586,6 +617,18 @@ export type UserSettingKey =
  * Per-category notification preferences (JSON object)
  */
 "notification-preferences" | 
+/**
+ * Selected voice model ID (e.g. "small.en")
+ */
+"voice_model" | 
+/**
+ * Preferred voice transcription language code (e.g. "en" or "auto")
+ */
+"voice_language" | 
+/**
+ * Whether voice dictation is enabled (boolean)
+ */
+"voice_enabled" | 
 /**
  * Agent ID used for AI-generated commit messages and PR descriptions
  */

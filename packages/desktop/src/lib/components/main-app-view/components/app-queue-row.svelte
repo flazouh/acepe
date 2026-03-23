@@ -24,10 +24,9 @@ import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 interface Props {
 	projectManager: ProjectManager;
 	state: MainAppViewState;
-	collapsed?: boolean;
 }
 
-let { projectManager, state: appState, collapsed = false }: Props = $props();
+let { projectManager, state: appState }: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -142,12 +141,7 @@ function handleQueueItemSelect(item: QueueItem) {
 		totalCount={queueStore.totalCount}
 		selectedSessionId={panelStore.focusedPanel?.sessionId}
 		onSelectItem={handleQueueItemSelect}
-		{collapsed}
 		expanded={appState.queueExpanded}
 		onExpandedChange={(expanded) => appState.handleQueueExpandedChange(expanded)}
-		onActivateCollapsed={() => {
-			appState.setSidebarOpen(true);
-			appState.handleQueueExpandedChange(true);
-		}}
 	/>
 </div>

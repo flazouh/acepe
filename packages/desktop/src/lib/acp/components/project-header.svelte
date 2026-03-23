@@ -16,8 +16,6 @@ interface Props {
 	projectColor?: string;
 	/** Whether the project card is expanded */
 	expanded?: boolean;
-	/** Whether the sidebar is in collapsed (narrow) mode */
-	collapsed?: boolean;
 	/** Additional CSS classes */
 	class?: string;
 	/** Optional content to render after the project name (e.g. settings menu) */
@@ -31,7 +29,6 @@ let {
 	projectName,
 	projectColor,
 	expanded = false,
-	collapsed = false,
 	class: className = "",
 	trailing,
 	actions,
@@ -42,7 +39,7 @@ let {
  * Priority: project.name -> projectName prop -> "Unknown Project"
  */
 const displayName = $derived.by(() => {
-	const name = project?.name || projectName || "Unknown Project";
+	const name = project?.name ? project.name : projectName ? projectName : "Unknown Project";
 	return capitalizeName(name);
 });
 
@@ -50,60 +47,40 @@ const displayName = $derived.by(() => {
  * Get the resolved color for the project.
  * Priority: project.color -> projectColor prop -> default
  */
-const resolvedColor = $derived(project?.color ?? projectColor ?? TAG_COLORS[0] ?? "#FF5D5A");
+const fallbackColor = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
+const resolvedColor = $derived(project?.color ? project.color : projectColor ? projectColor : fallbackColor);
 </script>
 
-{#if collapsed}
-	<div
-		class="shrink-0 flex flex-col items-center gap-0.5 py-1 {className}"
-	>
-		<!-- Badge centered -->
-		<div class="inline-flex items-center justify-center shrink-0">
-			<ProjectLetterBadge name={displayName} color={resolvedColor} size={16} />
-		</div>
-		<!-- Actions stacked vertically below badge -->
-		{#if actions}
-			<div class="flex flex-col items-center gap-0">
-				{@render actions()}
-			</div>
-		{/if}
+<div
+	class="shrink-0 flex items-center {expanded ? 'border-b border-border/50' : ''} {className}"
+>
+	<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
+		<ProjectLetterBadge name={displayName} color={resolvedColor} size={16} />
 	</div>
-{:else}
 	<div
-		class="shrink-0 flex items-center {expanded ? 'border-b border-border/50' : ''} {className}"
+		class="flex items-center flex-1 min-w-0 h-7 pl-2.5 pr-2 cursor-pointer hover:bg-accent/50 transition-colors"
 	>
-		<!-- Badge cell -->
-		<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
-			<ProjectLetterBadge name={displayName} color={resolvedColor} size={16} />
-		</div>
-		<!-- Name + expand/collapse chevron (fills space) -->
+		<span class="text-[11px] font-medium font-mono text-foreground truncate">{displayName}</span>
+		<CaretDown
+			class="h-3 w-3 shrink-0 text-muted-foreground ml-auto transition-transform duration-200 {expanded
+				? 'rotate-180'
+				: ''}"
+			weight="bold"
+		/>
+	</div>
+	{#if trailing}
 		<div
-			class="flex items-center flex-1 min-w-0 h-7 pl-2.5 pr-2 cursor-pointer hover:bg-accent/50 transition-colors"
+			class="flex items-center border-l border-border/50"
+			role="presentation"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 		>
-			<span class="text-[11px] font-medium font-mono text-foreground truncate">{displayName}</span>
-			<CaretDown
-				class="h-3 w-3 shrink-0 text-muted-foreground ml-auto transition-transform duration-200 {expanded
-					? 'rotate-180'
-					: ''}"
-				weight="bold"
-			/>
+			{@render trailing()}
 		</div>
-		<!-- Trailing (settings) -->
-		{#if trailing}
-			<div
-				class="flex items-center border-l border-border/50"
-				role="presentation"
-				onclick={(e) => e.stopPropagation()}
-				onkeydown={(e) => e.stopPropagation()}
-			>
-				{@render trailing()}
-			</div>
-		{/if}
-		<!-- Right: action buttons separated by border-l -->
-		{#if actions}
-			<div class="flex items-center border-l border-border/50">
-				{@render actions()}
-			</div>
-		{/if}
-	</div>
-{/if}
+	{/if}
+	{#if actions}
+		<div class="flex items-center border-l border-border/50">
+			{@render actions()}
+		</div>
+	{/if}
+</div>

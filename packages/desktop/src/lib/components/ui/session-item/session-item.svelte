@@ -46,11 +46,9 @@ type SessionDisplayItem = BaseSessionDisplayItem & {
 		onToggleExpand?: () => void;
 		onDelete?: (session: SessionDisplayItem) => void | Promise<void>;
 		onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
-		onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-		onExportJson?: (sessionId: string) => void | Promise<void>;
-		onOpenPr?: () => void;
-		/** When true, sidebar is collapsed — show only agent icon, hide all text/actions. */
-		collapsed?: boolean;
+	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
+	onExportJson?: (sessionId: string) => void | Promise<void>;
+	onOpenPr?: () => void;
 	}
 
 let {
@@ -67,7 +65,6 @@ let {
 	onExportMarkdown,
 	onExportJson,
 		onOpenPr,
-		collapsed = false,
 	}: Props = $props();
 
 const themeState = useTheme();
@@ -220,212 +217,11 @@ $effect(() => {
 const highlightCtx = getSessionListHighlightContext();
 </script>
 
-{#if collapsed}
 <Tooltip.Root>
 	<Tooltip.Trigger>
-	<div
-		bind:this={rowElement}
-		class="group relative z-10 flex items-stretch gap-0 py-0"
-		data-session-id={session.id}
-		onpointerenter={(e) => {
-			isRowHovered = true;
-			highlightCtx?.updateHighlight(e.currentTarget as HTMLElement);
-		}}
-		onpointerleave={() => {
-			isRowHovered = false;
-			highlightCtx?.clearHighlight();
-		}}
-	>
-		<div class="flex-1 min-w-0">
-			{#snippet agentBadgeCollapsed()}
-				{#if isStreaming}
-					<Spinner class="{getAgentIconClass()} m-0.5" />
-				{:else}
-					<img
-						src={getThemedAgentIcon(session.agentId)}
-						alt={m.alt_agent_icon()}
-						class="{getAgentIconClass()} shrink-0 m-0.5"
-						width="12"
-						height="12"
-					/>
-				{/if}
-				{#if session.worktreePath}
-					<Tree
-						size={12}
-						weight="fill"
-						class="shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
-						color="currentColor"
-						aria-label={worktreeDeleted ? "Worktree deleted" : "Worktree session"}
-					/>
-				{/if}
-				{#if session.prNumber != null}
-					<button
-						type="button"
-						class="inline-flex items-center gap-0.5 rounded-sm pl-0.5 pr-1 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-						aria-label={`Open PR #${session.prNumber}`}
-						title={`Open PR #${session.prNumber}`}
-						onclick={handleOpenPr}
-					>
-						<PrStateIcon
-							state={session.prState ?? "OPEN"}
-							size={11}
-						/>
-						<span class="text-[10px] font-mono leading-none text-muted-foreground">
-							#{session.prNumber}
-						</span>
-					</button>
-				{/if}
-			{/snippet}
-
-			{#snippet collapsedRowActions()}
-				<div class="flex items-center shrink-0">
-					<DropdownMenu.Root bind:open={isActionsMenuOpen}>
-						<DropdownMenu.Trigger
-							class="shrink-0 h-5 w-4 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
-							onclick={(e) => e.stopPropagation()}
-						>
-							<IconDotsVertical class="h-3.5 w-3.5" aria-hidden="true" />
-							<span class="sr-only">Session actions</span>
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content
-							align="end"
-							class="min-w-[180px]"
-							onclick={(e) => e.stopPropagation()}
-						>
-							<DropdownMenu.Item class="cursor-pointer">
-								<CopyButton
-									text={session.id}
-									variant="menu"
-									label={m.session_menu_copy_id()}
-									hideIcon
-									size={16}
-								/>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item class="cursor-pointer">
-								<CopyButton
-									getText={() => getSessionDisplayName(session)}
-									variant="menu"
-									label={m.session_menu_copy_title()}
-									hideIcon
-									size={16}
-								/>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item onSelect={handleOpenRawFile} class="cursor-pointer">
-								{m.session_menu_open_raw_file()}
-							</DropdownMenu.Item>
-							<DropdownMenu.Item onSelect={handleOpenInAcepe} class="cursor-pointer">
-								{m.session_menu_open_in_acepe()}
-							</DropdownMenu.Item>
-							{#if onDelete}
-								<DropdownMenu.Separator />
-							{/if}
-							{#if onDelete}
-								<DropdownMenu.Item
-									onSelect={handleDelete}
-									class="cursor-pointer text-destructive focus:text-destructive"
-								>
-									{m.session_menu_delete()}
-								</DropdownMenu.Item>
-							{/if}
-							{#if onExportMarkdown || onExportJson}
-								<DropdownMenu.Separator />
-								<DropdownMenu.Sub>
-									<DropdownMenu.SubTrigger class="cursor-pointer">
-										{m.session_menu_export()}
-									</DropdownMenu.SubTrigger>
-									<DropdownMenu.SubContent class="min-w-[160px]">
-										{#if onExportMarkdown}
-											<DropdownMenu.Item onSelect={handleExportMarkdown} class="cursor-pointer">
-												{m.session_menu_export_markdown()}
-											</DropdownMenu.Item>
-										{/if}
-										{#if onExportJson}
-											<DropdownMenu.Item onSelect={handleExportJson} class="cursor-pointer">
-												{m.session_menu_export_json()}
-											</DropdownMenu.Item>
-										{/if}
-									</DropdownMenu.SubContent>
-								</DropdownMenu.Sub>
-							{/if}
-							{#if isDev}
-								<DropdownMenu.Separator />
-								<DropdownMenu.Item onSelect={handleOpenStreamingLog} class="cursor-pointer">
-									{m.thread_export_raw_streaming()}
-								</DropdownMenu.Item>
-							{/if}
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
-				</div>
-			{/snippet}
-
-			<ActivityEntry
-				selected={selected || isOpen}
-				onSelect={handleSelect}
-				slidingHighlight={!!highlightCtx}
-				compactPadding={!!highlightCtx}
-				{collapsed}
-				mode={null}
-				title={getSessionDisplayName(session)}
-				timeAgo={null}
-				insertions={0}
-				deletions={0}
-				agentBadge={agentBadgeCollapsed}
-				{isStreaming}
-				trailingAction={collapsedRowActions}
-				taskDescription={null}
-				taskSubagentSummaries={[]}
-				showTaskSubagentList={false}
-				fileToolDisplayText={null}
-				toolContent={null}
-				showToolShimmer={false}
-				statusText={null}
-				showStatusShimmer={false}
-				todoProgress={null}
-				currentQuestion={null}
-				totalQuestions={0}
-				hasMultipleQuestions={false}
-				currentQuestionIndex={0}
-				questionId=""
-				questionProgress={[]}
-				currentQuestionAnswered={false}
-				currentAnswerDisplay=""
-				currentQuestionOptions={[]}
-				otherText=""
-				otherPlaceholder=""
-				showSubmitButton={false}
-				canSubmit={false}
-				submitLabel=""
-				onOptionSelect={() => {
-					return;
-				}}
-				onOtherInput={() => {
-					return;
-				}}
-				onOtherKeydown={() => {
-					return;
-				}}
-				onSubmitAll={() => {
-					return;
-				}}
-				onPrevQuestion={() => {
-					return;
-				}}
-				onNextQuestion={() => {
-					return;
-				}}
-			/>
-		</div>
-	</div>
-	</Tooltip.Trigger>
-	<Tooltip.Content side="right" sideOffset={8} class="max-w-60">
-		{getSessionDisplayName(session)}
-	</Tooltip.Content>
-</Tooltip.Root>
-{/if}
-{#if !collapsed}
-<Tooltip.Root>
-	<Tooltip.Trigger>
+		{#snippet child({ props })}
 		<div
+			{...props}
 			bind:this={rowElement}
 			class="group relative z-10 flex items-stretch gap-1 py-0"
 			style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
@@ -652,9 +448,9 @@ const highlightCtx = getSessionListHighlightContext();
 				/>
 			</div>
 		</div>
+		{/snippet}
 	</Tooltip.Trigger>
 	<Tooltip.Content side="right" sideOffset={8} class="max-w-60">
 		{getSessionDisplayName(session)}
 	</Tooltip.Content>
 </Tooltip.Root>
-{/if}

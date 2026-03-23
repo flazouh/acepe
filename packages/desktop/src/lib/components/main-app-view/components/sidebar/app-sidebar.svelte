@@ -220,15 +220,14 @@ const visibleSessions = $derived.by(() => {
 });
 </script>
 
-<AppSidebarLayout collapsed={!appState.sidebarOpen}>
+<AppSidebarLayout>
 	{#snippet queueSection()}
-		<AppQueueRow {projectManager} state={appState} collapsed={!appState.sidebarOpen} />
+		<AppQueueRow {projectManager} state={appState} />
 	{/snippet}
 
 	{#snippet sessionList()}
 		<SessionList
 			sessions={visibleSessions}
-			collapsed={!appState.sidebarOpen}
 			loading={sessionStore.loading}
 			scanningProjectPaths={sessionStore.scanningProjectPaths}
 			recentProjects={projectManager.projects}
@@ -239,7 +238,6 @@ const visibleSessions = $derived.by(() => {
 			onSelectSession={handleSelectSession}
 			onCreateSession={handleNewThread}
 			onCreateSessionForProject={handleCreateSession}
-			onExpandSidebar={() => appState.setSidebarOpen(true)}
 			{availableAgents}
 			{effectiveTheme}
 			onProjectColorChange={handleProjectColorChange}
@@ -261,6 +259,6 @@ const visibleSessions = $derived.by(() => {
 	{/snippet}
 
 	{#snippet footer()}
-		<SidebarFooter {projectManager} state={appState} collapsed={!appState.sidebarOpen} />
+		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
 	{/snippet}
 </AppSidebarLayout>

@@ -19,7 +19,6 @@ interface Props {
 	scanningProjectPaths?: ReadonlySet<string>;
 	recentProjects?: readonly Project[];
 	selectedSessionId?: string | null;
-	collapsed?: boolean;
 	canCreateSession?: boolean;
 	isSessionOpen?: (sessionId: string) => boolean;
 	scanning?: boolean;
@@ -32,7 +31,6 @@ interface Props {
 	onSelectSession: (sessionId: string, sessionInfo?: SessionListItem) => void;
 	onCreateSession?: () => void;
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
-	onExpandSidebar?: () => void;
 	/** Available agents for session creation */
 	availableAgents?: AgentInfo[];
 	/** Current theme for agent icons */
@@ -71,7 +69,6 @@ let {
 	scanningProjectPaths = new Set(),
 	recentProjects = [],
 	selectedSessionId = null,
-	collapsed = false,
 	canCreateSession = false,
 	isSessionOpen = () => false,
 	scanning = false,
@@ -81,7 +78,6 @@ let {
 	onSelectSession,
 	onCreateSession,
 	onCreateSessionForProject,
-	onExpandSidebar,
 	availableAgents = [],
 	effectiveTheme = "light",
 	onProjectClick,
@@ -180,7 +176,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{totalCount}
 	{hasProjects}
 	{selectedSessionId}
-	{collapsed}
 	{scanning}
 	{initialFileTreeExpansion}
 	{initialProjectFileViewModes}
@@ -188,7 +183,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	onSelectSession={handleSelectSession}
 	onCreateSession={handleCreateSession}
 	onCreateSessionForProject={handleCreateSessionForProject}
-	{onExpandSidebar}
 	{availableAgents}
 	{effectiveTheme}
 	{onProjectClick}

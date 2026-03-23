@@ -18,12 +18,10 @@ type SessionListItem = BaseSessionListItem & {
 		selectedSessionId: string | null;
 		onSelectSession: (item: SessionListItem) => void;
 		onOpenPr?: (item: SessionListItem) => void;
-		onDelete?: (session: SessionDisplayItem) => void | Promise<void>;
-		onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
-		onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-		onExportJson?: (sessionId: string) => void | Promise<void>;
-		/** When true, sidebar is collapsed — pass through to each SessionItem. */
-		collapsed?: boolean;
+	onDelete?: (session: SessionDisplayItem) => void | Promise<void>;
+	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
+	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
+	onExportJson?: (sessionId: string) => void | Promise<void>;
 	}
 
 let {
@@ -35,7 +33,6 @@ let {
 	onArchive,
 		onExportMarkdown,
 		onExportJson,
-		collapsed = false,
 	}: Props = $props();
 
 // Track which parent sessions are expanded
@@ -175,7 +172,6 @@ setSessionListHighlightContext(highlightContext);
 			{onArchive}
 			{onExportMarkdown}
 			{onExportJson}
-			{collapsed}
 		/>
 	{/each}
 </div>

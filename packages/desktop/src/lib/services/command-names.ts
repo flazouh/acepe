@@ -26,9 +26,14 @@ export type CursorHistoryCommands = { get_cursor_history: string; get_cursor_ses
 export type GitHubCommands = { get_github_repo_context: string; list_pull_requests: string; fetch_commit_diff: string; fetch_pr_diff: string; git_working_file_diff: string }
 
 /**
+ * Voice command names
+ */
+export type VoiceCommands = { list_models: string; list_languages: string; get_model_status: string; download_model: string; delete_model: string; start_recording: string; stop_recording: string; cancel_recording: string; load_model: string }
+
+/**
  * All command name constants grouped by category
  */
-export type Commands = { acp: AcpCommands; session_history: SessionHistoryCommands; storage: StorageCommands; cursor_history: CursorHistoryCommands; github: GitHubCommands }
+export type Commands = { acp: AcpCommands; session_history: SessionHistoryCommands; storage: StorageCommands; cursor_history: CursorHistoryCommands; github: GitHubCommands; voice: VoiceCommands }
 
 export const COMMANDS: Commands = {
   "acp": {
@@ -98,5 +103,16 @@ export const COMMANDS: Commands = {
     "fetch_commit_diff": "fetch_commit_diff",
     "fetch_pr_diff": "fetch_pr_diff",
     "git_working_file_diff": "git_working_file_diff"
+  },
+  "voice": {
+    "list_models": "voice_list_models",
+    "list_languages": "voice_list_languages",
+    "get_model_status": "voice_get_model_status",
+    "download_model": "voice_download_model",
+    "delete_model": "voice_delete_model",
+    "start_recording": "voice_start_recording",
+    "stop_recording": "voice_stop_recording",
+    "cancel_recording": "voice_cancel_recording",
+    "load_model": "voice_load_model"
   }
 } as const;

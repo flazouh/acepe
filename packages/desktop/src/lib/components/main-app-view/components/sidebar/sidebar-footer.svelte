@@ -1,5 +1,5 @@
 <script lang="ts">
-import { EmbeddedIconButton } from "@acepe/ui";
+import GitBranch from "phosphor-svelte/lib/GitBranch";
 import Sparkle from "phosphor-svelte/lib/Sparkle";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -9,10 +9,10 @@ import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js
 interface Props {
 	state: MainAppViewState;
 	projectManager: ProjectManager;
-	collapsed?: boolean;
+	onOpenGitPanel?: (projectPath: string) => void;
 }
 
-let { state: appState, projectManager: _projectManager, collapsed = false }: Props = $props();
+let { state: appState, projectManager, onOpenGitPanel }: Props = $props();
 
 let appVersion = $state<string | null>(null);
 $effect(() => {
@@ -22,28 +22,32 @@ $effect(() => {
 			appVersion = v;
 		});
 });
+
+const firstProjectPath = $derived(projectManager.projects[0]?.path ?? null);
+
+function handleOpenGitPanel() {
+	if (firstProjectPath) {
+		onOpenGitPanel?.(firstProjectPath);
+	}
+}
 </script>
 
-{#if collapsed}
-	<div class="shrink-0 flex items-center justify-center py-1">
+<div class="shrink-0 px-3 py-1.5 flex items-center gap-2">
+	{#if firstProjectPath && onOpenGitPanel}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
-				<EmbeddedIconButton
-					title="What's New"
-					ariaLabel="What's New"
-					class="transition-colors duration-200 hover:bg-accent/50"
-					onclick={() => appState.openChangelog()}
+				<button
+					onclick={handleOpenGitPanel}
+					class="text-muted-foreground/60 hover:text-foreground flex items-center gap-1 transition-colors"
+					title="Source Control"
 				>
-					<Sparkle weight="fill" class="size-3" />
-				</EmbeddedIconButton>
+					<GitBranch weight="fill" class="size-3.5" style="color: var(--color-purple, #9858FF)" />
+				</button>
 			</Tooltip.Trigger>
-			<Tooltip.Content>
-				<span>{appVersion ? `What's New - v${appVersion}` : "What's New"}</span>
-			</Tooltip.Content>
+			<Tooltip.Content>Source Control</Tooltip.Content>
 		</Tooltip.Root>
-	</div>
-{:else}
-	<div class="shrink-0 px-3 py-1.5 flex items-center gap-1">
+	{/if}
+	<div class="flex items-center gap-1 ml-auto">
 		{#if appVersion}
 			<span class="text-[10px] text-muted-foreground/50">v{appVersion}</span>
 		{/if}
@@ -56,4 +60,4 @@ $effect(() => {
 			What's New
 		</button>
 	</div>
-{/if}
+</div>

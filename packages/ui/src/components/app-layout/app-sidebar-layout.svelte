@@ -2,8 +2,7 @@
 	import Sparkle from "phosphor-svelte/lib/Sparkle";
 	import type { Snippet } from "svelte";
 
-	interface Props {
-		collapsed?: boolean;
+interface Props {
 		appVersion?: string | null;
 		whatsNewLabel?: string;
 		onOpenChangelog?: () => void;
@@ -13,7 +12,6 @@
 	}
 
 	let {
-		collapsed = false,
 		appVersion = null,
 		whatsNewLabel = "What's New",
 		onOpenChangelog,
@@ -24,9 +22,7 @@
 </script>
 
 <aside
-	class="shrink-0 flex flex-col h-full overflow-hidden gap-0 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] {collapsed
-		? 'w-16'
-		: 'w-[280px]'}"
+	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0"
 >
 	<!-- Queue Section -->
 	{#if queueSection}

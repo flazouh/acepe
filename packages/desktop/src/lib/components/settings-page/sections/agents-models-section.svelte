@@ -10,8 +10,6 @@ import {
 } from "@acepe/ui/panel-header";
 import CaretDown from "phosphor-svelte/lib/CaretDown";
 import Check from "phosphor-svelte/lib/Check";
-import DownloadSimple from "phosphor-svelte/lib/DownloadSimple";
-import Trash from "phosphor-svelte/lib/Trash";
 import { toast } from "svelte-sonner";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
@@ -146,25 +144,9 @@ function handleClearDefault(agentId: string, mode: ModeType): void {
 							<span class="text-[12px] text-muted-foreground/60">{installProgress.stage}</span>
 						</div>
 					{:else if isInstallable && !agent.available}
-						<button
-							type="button"
-							class="flex h-7 items-center gap-1 px-2 text-[12px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-							data-header-control
-							onclick={() => agentStore.installAgent(agent.id)}
-						>
-							<DownloadSimple class="size-3" weight="bold" />
-							Install
-						</button>
-					{:else if isInstallable && agent.available}
-						<button
-							type="button"
-							class="flex h-7 items-center gap-1 px-2 text-[12px] text-muted-foreground/50 transition-colors hover:bg-accent/50 hover:text-destructive"
-							data-header-control
-							onclick={() => agentStore.uninstallAgent(agent.id)}
-						>
-							<Trash class="size-3" weight="bold" />
-							Uninstall
-						</button>
+						<span class="h-7 flex items-center px-2 text-[12px] text-muted-foreground/30">
+							{m.settings_agents_not_installed()}
+						</span>
 					{/if}
 					<div class="flex items-center h-7 px-1.5" data-header-control>
 						<Switch

@@ -19,10 +19,8 @@ interface Props {
 	totalCount: number;
 	selectedSessionId?: string | null;
 	onSelectItem: (item: QueueItem) => void;
-	collapsed?: boolean;
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
-	onActivateCollapsed?: () => void;
 }
 
 let {
@@ -30,10 +28,8 @@ let {
 	totalCount,
 	selectedSessionId = null,
 	onSelectItem,
-	collapsed = false,
 	expanded: expandedProp,
 	onExpandedChange,
-	onActivateCollapsed,
 }: Props = $props();
 
 const groups = $derived<readonly SectionedFeedGroup<SectionedFeedItemData>[]>(
@@ -57,8 +53,6 @@ const groups = $derived<readonly SectionedFeedGroup<SectionedFeedItemData>[]>(
 	{groups}
 	{totalCount}
 	{itemRenderer}
-	{collapsed}
 	expanded={expandedProp}
 	{onExpandedChange}
-	{onActivateCollapsed}
 />

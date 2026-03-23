@@ -1,5 +1,6 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { mergeProps } from "bits-ui";
 import DotsThreeVertical from "phosphor-svelte/lib/DotsThreeVertical";
 import Globe from "phosphor-svelte/lib/Globe";
 import Palette from "phosphor-svelte/lib/Palette";
@@ -100,23 +101,26 @@ function handleRemoveClick() {
 <DropdownMenu.Root bind:open={menuOpen}>
 	<Tooltip.Root>
 		<Tooltip.Trigger>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<button
-						{...props}
-						bind:this={triggerRef}
-						type="button"
-						class="inline-flex h-7 min-w-0 shrink-0 cursor-pointer items-center justify-center px-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-						aria-label="Project menu"
-					>
-						<DotsThreeVertical class="h-4 w-4" weight="bold" />
-					</button>
-				{/snippet}
-			</DropdownMenu.Trigger>
+			{#snippet child({ props: tooltipProps })}
+				<DropdownMenu.Trigger>
+					{#snippet child({ props: dropdownProps })}
+						{@const props = mergeProps(tooltipProps, dropdownProps)}
+						<button
+							{...props}
+							bind:this={triggerRef}
+							type="button"
+							class="inline-flex h-7 w-7 min-w-0 shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							aria-label="Project menu"
+						>
+							<DotsThreeVertical class="h-4 w-4" weight="bold" />
+						</button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content>Project menu</Tooltip.Content>
+		<Tooltip.Content side="bottom">Project menu</Tooltip.Content>
 	</Tooltip.Root>
-	<DropdownMenu.Content align="end" class="min-w-[200px] p-0 text-[11px]">
+	<DropdownMenu.Content align="end" side="bottom" class="min-w-[200px] p-0 text-[11px]">
 		<DropdownMenu.Group>
 			<div
 				class="flex items-center gap-2 border-b border-border/20 px-2 py-1.5"
