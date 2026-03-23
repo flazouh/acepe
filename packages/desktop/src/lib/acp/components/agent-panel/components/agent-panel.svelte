@@ -1,0 +1,1718 @@
+<script lang="ts">
+import { EmbeddedIconButton } from "@acepe/ui/panel-header";
+import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { okAsync, ResultAsync } from "neverthrow";
+import Clock from "phosphor-svelte/lib/Clock";
+import Tree from "phosphor-svelte/lib/Tree";
+import { tick } from "svelte";
+import { toast } from "svelte-sonner";
+import * as m from "$lib/paraglide/messages.js";
+import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
+import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
+import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
+import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
+import type { Project } from "../../../logic/project-manager.svelte";
+import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
+import { getAgentStore } from "../../../store/index.js";
+import { getConnectionStore } from "../../../store/connection-store.svelte.js";
+import { getPanelStore } from "../../../store/panel-store.svelte.js";
+import { getSessionStore } from "../../../store/session-store.svelte.js";
+import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
+import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import { PanelConnectionState } from "../../../types/panel-connection-state.js";
+import type { WorktreeSetupEvent } from "../../../types/worktree-setup.js";
+import type { WorktreeInfo } from "../../../types/worktree-info.js";
+import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
+import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
+import { createLogger } from "../../../utils/logger.js";
+import { sessionEntriesToMarkdown } from "../../../utils/session-to-markdown.js";
+import AgentInput from "../../agent-input/agent-input-ui.svelte";
+import { CheckpointTimeline } from "../../checkpoint/index.js";
+import { aggregateFileEdits } from "../../modified-files/logic/aggregate-file-edits.js";
+import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
+import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
+import PlanDialog from "../../plan-dialog.svelte";
+import PlanHeader from "../../plan-header.svelte";
+import { PlanSidebar } from "../../plan-sidebar/index.js";
+import QueueCardStrip from "../../queue-card-strip.svelte";
+import TodoHeader from "../../todo-header.svelte";
+import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
+import { usePlanLoader } from "../hooks";
+import {
+	createPendingWorktreeCloseConfirmationState,
+	createResolvedWorktreeCloseConfirmationState,
+	createWorktreeCreationState,
+	copySessionToClipboard,
+	derivePanelErrorInfo,
+	mapSessionStatusToUI,
+	matchesWorktreeSetupContext,
+	removeWorktreeAndMarkSessionWorktreeDeleted,
+	reduceWorktreeSetupEvent,
+	resolveEffectiveProjectPath,
+} from "../logic";
+import { getAgentIcon } from "../../../constants/thread-list-constants.js";
+import { derivePanelViewState } from "../../../logic/panel-visibility.js";
+import { getOpenInFinderTarget } from "../logic/open-in-finder-target";
+import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
+import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
+import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
+import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
+import { AgentPanelState } from "../state/agent-panel-state.svelte";
+import type { AgentPanelProps } from "../types";
+import AgentPanelContent from "./agent-panel-content.svelte";
+import AgentPanelFooter from "./agent-panel-footer.svelte";
+import AgentPanelHeader from "./agent-panel-header.svelte";
+import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
+import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
+import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
+import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
+import AgentInstallCard from "./agent-install-card.svelte";
+import WorktreeSetupCard from "./worktree-setup-card.svelte";
+
+// ✅ Destructure props - this is idiomatic Svelte 5
+let {
+	panelId,
+	sessionId = null,
+	width,
+	pendingProjectSelection,
+	isWaitingForSession = false,
+	projectCount,
+	allProjects,
+	project,
+	selectedAgentId,
+	availableAgents,
+	onAgentChange,
+	effectiveTheme,
+	onClose,
+	onCreateSessionForProject,
+	onSessionCreated,
+	onResizePanel,
+	onToggleFullscreen,
+	isFullscreen = false,
+	isFocused = false,
+	hideProjectBadge = false,
+	onFocus,
+	reviewMode = false,
+	reviewFilesState = null,
+	reviewFileIndex = 0,
+	onEnterReviewMode,
+	onExitReviewMode,
+	onReviewFileIndexChange,
+	onOpenFullscreenReview,
+	attachedFilePanels = [],
+	activeAttachedFilePanelId = null,
+	onSelectAttachedFilePanel,
+	onCloseAttachedFilePanel,
+	onResizeAttachedFilePanel,
+}: AgentPanelProps = $props();
+
+// ✅ State managers (must be before derived values that use them)
+const sessionStore = getSessionStore();
+const panelStore = getPanelStore();
+const connectionStore = getConnectionStore();
+const agentStore = getAgentStore();
+const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
+let lastPanelTraceSignature = $state<string | null>(null);
+
+// Global worktree default (loaded once at app root in main-app-view, read reactively here)
+const worktreeDefaultStore = getWorktreeDefaultStore();
+const globalWorktreeDefault = $derived(worktreeDefaultStore.globalDefault);
+
+// ============================================================
+// GRANULAR SESSION DATA - Fine-grained reactivity
+// Each accessor only triggers re-renders when ITS data changes
+// ============================================================
+
+// Identity: id, projectPath, agentId, worktreePath (immutable - never changes)
+const sessionIdentity = $derived(sessionId ? sessionStore.getSessionIdentity(sessionId) : null);
+
+// Metadata: title, createdAt, updatedAt (rarely changes)
+const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(sessionId) : null);
+
+// Entries: conversation content (changes frequently during streaming)
+// Merges any optimistic pending entry (shown before session creation) with real entries.
+// Fast path: when no pending entry (99% of renders), returns the exact array reference — zero allocation.
+// Note: getHotState(panelId) subscribes to ALL hot state changes for this panel (messageDraft,
+// reviewMode, etc.), not just pendingUserEntry. This causes extra recomputations during typing,
+// but the fast path returns the same array reference so Svelte skips DOM updates. Acceptable trade-off.
+const sessionEntries = $derived.by(() => {
+	const pending = panelId ? panelStore.getHotState(panelId)?.pendingUserEntry : null;
+	const real = sessionId ? sessionStore.getEntries(sessionId) : [];
+	if (!pending) return real;
+	if (real.length > 0 && real[0]?.type === "user") return real;
+	return [pending, ...real];
+});
+
+// Hot state: status, isStreaming (changes during activity)
+const sessionHotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
+
+// Computed from granular data
+const FILE_MODIFYING_KINDS = new Set(["edit", "delete", "move"]);
+const hasEdits = $derived(
+	sessionEntries.some(
+		(e) => e.type === "tool_call" && e.message.kind && FILE_MODIFYING_KINDS.has(e.message.kind)
+	)
+);
+const hasMessages = $derived(sessionEntries.length > 0);
+const sessionProjectPath = $derived(sessionIdentity?.projectPath ?? null);
+const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
+const sessionWorktreePath = $derived(sessionIdentity?.worktreePath ?? null);
+const sessionTitle = $derived(sessionMetadata?.title ?? null);
+
+// ✅ State manager for local UI state only (drag, dialog)
+const panelState = new AgentPanelState();
+const panelBranchLookup = createPanelBranchLookupController();
+
+// Plan sidebar state from store (centralized, auto-persisted)
+const showPlanSidebar = $derived(panelId ? panelStore.isPlanSidebarExpanded(panelId) : false);
+
+// ✅ Hooks at component level (they need prop reactivity)
+// Pass granular identity data instead of full session object
+const planState = usePlanLoader(() =>
+	sessionId && sessionProjectPath && sessionAgentId
+		? { id: sessionId, projectPath: sessionProjectPath, agentId: sessionAgentId }
+		: null
+);
+
+// Simple scroll container binding (updated via bind:)
+let scrollContainer: HTMLDivElement | null = $state(null);
+
+// Reference to content component for scroll control
+let contentRef: AgentPanelContent | null = $state(null);
+
+// Scroll viewport reference for scroll-to-bottom button (bindable from child)
+let contentScrollViewport: HTMLElement | null = $state(null);
+let contentIsAtBottom = $state(true);
+let contentIsAtTop = $state(true);
+let contentIsStreaming = $state(false);
+let panelConnectionState = $state<PanelConnectionState | null>(null);
+let panelConnectionError = $state<string | null>(null);
+
+// Checkpoint timeline state
+let showCheckpointTimeline = $state(false);
+let isLoadingCheckpoints = $state(false);
+
+// Worktree state - tracks the active worktree directory for checkpoint path conversion
+let activeWorktreePath = $state<string | null>(null);
+let activeWorktreeOwnerProjectPath = $state<string | null>(null);
+let worktreePending = $state(false);
+let _panelBranch = $state<string | null>(null);
+let branchRequestVersion = 0;
+
+// Get checkpoints reactively (loads when needed)
+const checkpoints = $derived(sessionId ? checkpointStore.getCheckpoints(sessionId) : []);
+
+function scrollToTop() {
+	contentRef?.scrollToTop();
+}
+
+function scrollToBottom() {
+	// Force: true when user clicks the button - clears anchor
+	contentRef?.scrollToBottom({ force: true });
+}
+
+function prepareForNextUserReveal() {
+	logger.info("prepareForNextUserReveal: panel", {
+		panelId: effectivePanelId,
+		sessionId,
+		entryCount: sessionEntries.length,
+		latestEntryId: sessionEntries.at(-1)?.id ?? null,
+		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+	});
+	contentRef?.prepareForNextUserReveal({ force: true });
+}
+
+function scrollToBottomOnTabSwitch() {
+	// Don't force - preserves anchor if streaming
+	contentRef?.scrollToBottom();
+}
+
+// Effective panel ID (use prop or generate one)
+const effectivePanelId = $derived(panelId ?? "default-panel");
+
+// Derived UI conditions based on projectCount + panel/session state
+const showProjectSelection = $derived(
+	projectCount !== null && projectCount > 1 && (pendingProjectSelection || project === null)
+);
+const worktreeToggleProjectPath = $derived(
+	resolveWorktreeToggleProjectPath({
+		hasSession: sessionId !== null,
+		sessionProjectPath,
+		selectedProjectPath: project?.path ?? null,
+		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
+	})
+);
+const scopedActiveWorktreePath = $derived.by(() => {
+	if (!activeWorktreePath) return null;
+	if (!worktreeToggleProjectPath) return null;
+	return activeWorktreeOwnerProjectPath === worktreeToggleProjectPath ? activeWorktreePath : null;
+});
+const effectiveActiveWorktreePath = $derived(sessionWorktreePath ?? scopedActiveWorktreePath);
+/** True when the session's worktree directory no longer exists on disk. */
+let worktreeDeleted = $state(false);
+/** Effective git path for runStackedAction: worktree path if in worktree, else project path.
+ *  Falls back to the project path when the worktree has been deleted to avoid
+ *  repeated failures from git commands targeting a non-existent directory. */
+const effectivePathForGit = $derived.by(() => {
+	const wt = worktreeDeleted ? null : effectiveActiveWorktreePath;
+	return wt ?? worktreeToggleProjectPath ?? null;
+});
+
+/** Embedded terminal drawer state. */
+const isTerminalDrawerOpen = $derived(
+	panelId ? panelStore.isEmbeddedTerminalDrawerOpen(panelId) : false
+);
+
+// Canonical runtime state from session machine.
+const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
+const entriesCount = $derived(sessionEntries.length);
+const hasSession = $derived(sessionId !== null);
+// Prefer active worktree path, then session worktree, then project paths.
+// NOTE: Must be defined before panelVisibility which uses effectiveProjectPath
+// When the worktree has been deleted, skip worktree paths so git commands
+// target the original project root instead of a non-existent directory.
+const effectiveProjectPath = $derived(
+	resolveEffectiveProjectPath({
+		activeWorktreePath: worktreeDeleted ? null : scopedActiveWorktreePath,
+		sessionWorktreePath: worktreeDeleted ? null : sessionWorktreePath,
+		sessionProjectPath,
+		selectedProjectPath: project?.path,
+		singleProjectPath: projectCount === 1 ? allProjects[0].path : undefined,
+	})
+);
+const effectiveProjectName = $derived(
+	sessionProjectPath
+		? project?.name
+		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
+);
+
+// ✅ Derived values from granular session data
+const agentName = $derived(sessionAgentId ?? selectedAgentId);
+const sessionStatus = $derived.by(() => {
+	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry) return "connecting";
+	const connectionPhase = runtimeState?.connectionPhase;
+	const activityPhase = runtimeState?.activityPhase;
+	if (!connectionPhase) return null;
+	if (connectionPhase === "failed") return "error";
+	if (connectionPhase === "connecting") return "connecting";
+	if (connectionPhase === "disconnected") return "idle";
+	if (activityPhase === "running") return "streaming";
+	return "ready";
+});
+const mappedSessionStatus = $derived(mapSessionStatusToUI(sessionStatus));
+const sessionIsStreaming = $derived(runtimeState?.activityPhase === "running");
+const sessionCanSubmit = $derived(runtimeState?.canSubmit ?? false);
+const sessionShowStop = $derived(runtimeState?.showStop ?? false);
+const sessionConnectionError = $derived(sessionHotState?.connectionError ?? null);
+const errorInfo = $derived.by(() =>
+	derivePanelErrorInfo({
+		panelConnectionState,
+		panelConnectionError,
+		sessionConnectionError,
+	})
+);
+
+// Panel view state: single discriminated union from all inputs
+const viewStateInput = $derived({
+	runtimeState,
+	entriesCount,
+	hasSession,
+	showProjectSelection,
+	hasEffectiveProjectPath: !!effectiveProjectPath,
+	hasSelectedAgentId: !!selectedAgentId,
+	hasAvailableAgents: availableAgents.length > 0,
+	errorInfo,
+});
+const viewState = $derived(derivePanelViewState(viewStateInput));
+const panelViewKind = $derived(viewState.kind);
+
+$effect(() => {
+	if (!import.meta.env.DEV) return;
+	logger.info("[first-send-trace] panel render gate", {
+		panelId: effectivePanelId,
+		sessionId: sessionId ?? null,
+		viewState: viewState.kind,
+		pendingUserEntry: panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false,
+		entriesCount: sessionEntries.length,
+		hasSession: sessionId !== null,
+		t_ms: Math.round(performance.now()),
+	});
+});
+
+$effect(() => {
+	if (!import.meta.env.DEV) return;
+	const signature = JSON.stringify({
+		panelId,
+		sessionId,
+		viewState: viewState.kind,
+		entryCount: sessionEntries.length,
+		latestEntryId: sessionEntries.at(-1)?.id ?? null,
+		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+	});
+	if (signature === lastPanelTraceSignature) {
+		return;
+	}
+	lastPanelTraceSignature = signature;
+	logger.info("agent panel state changed", JSON.parse(signature) as object);
+});
+
+$effect(() => {
+	if (!import.meta.env.DEV) return;
+	logger.info("[worktree-flow] viewState changed", {
+		kind: viewState.kind,
+		showProjectSelection,
+		projectPath: project?.path ?? null,
+		projectCount,
+		pendingProjectSelection,
+		projectIsNull: project === null,
+	});
+});
+
+$effect(() => {
+	if (!import.meta.env.DEV) return;
+	logger.info("[worktree-flow] worktree path chain", {
+		activeWorktreePath,
+		worktreeToggleProjectPath,
+		activeWorktreeOwnerProjectPath,
+		scopedActiveWorktreePath,
+		sessionWorktreePath,
+		effectiveActiveWorktreePath,
+		footerVisible: !!worktreeToggleProjectPath,
+	});
+});
+
+$effect(() => {
+	const pendingSetup = panelId ? panelStore.getHotState(panelId).pendingWorktreeSetup : null;
+	if (!pendingSetup) {
+		return;
+	}
+
+	worktreeSetupState =
+		pendingSetup.phase === "creating-worktree"
+			? createWorktreeCreationState({
+					projectPath: pendingSetup.projectPath,
+					worktreePath: pendingSetup.worktreePath,
+				})
+			: {
+				projectPath: pendingSetup.projectPath,
+				worktreePath: pendingSetup.worktreePath,
+				isVisible: true,
+				status: "running",
+				commandCount: 0,
+				activeCommandIndex: null,
+				activeCommand: null,
+				outputText: "",
+				error: null,
+			};
+});
+
+$effect(() => {
+	const projectPaths = worktreeSetupProjectPaths;
+	const worktreePaths = worktreeSetupWorktreePaths;
+	if (projectPaths.length === 0 && worktreePaths.length === 0) {
+		return;
+	}
+
+	let unlisten: (() => void) | null = null;
+	const unlistenPromise = listen<WorktreeSetupEvent>("git:worktree-setup", (event) => {
+		if (
+			!matchesWorktreeSetupContext(event.payload, {
+				projectPaths,
+				worktreePaths,
+			})
+		) {
+			return;
+		}
+
+		if (panelId) {
+			panelStore.clearPendingWorktreeSetup(panelId);
+		}
+		worktreeSetupState = reduceWorktreeSetupEvent(worktreeSetupState, event.payload);
+	});
+
+	unlistenPromise
+		.then((callback) => {
+			unlisten = callback;
+		})
+		.catch((error) => {
+			logger.warn("Failed to subscribe to worktree setup events", { error });
+		});
+
+	return () => {
+		unlisten?.();
+	};
+});
+
+$effect(() => {
+	const state = worktreeSetupState;
+	if (!state) return;
+
+	if (worktreeSetupWorktreePaths.length > 0) {
+		if (!state.worktreePath || !worktreeSetupWorktreePaths.includes(state.worktreePath)) {
+			worktreeSetupState = null;
+			if (panelId) {
+				panelStore.clearPendingWorktreeSetup(panelId);
+			}
+		}
+		return;
+	}
+
+	if (!worktreeSetupProjectPaths.includes(state.projectPath)) {
+		worktreeSetupState = null;
+		if (panelId) {
+			panelStore.clearPendingWorktreeSetup(panelId);
+		}
+	}
+});
+
+const projectColor = $derived.by(() => {
+	return project ? getProjectColor(project) : (TAG_COLORS[0] ?? "#FF5D5A");
+});
+
+const displayProjectName = $derived.by(() => {
+	return effectiveProjectName ?? "Project";
+});
+
+// Session menu: display title (cleaned, with fallback) and stats for header dropdown
+function capitalizeTitle(text: string): string {
+	return text
+		.split(/\s+/)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+const displayTitle = $derived.by(() => {
+	if (!sessionTitle && !displayProjectName) return null;
+	const rawTitle = sessionTitle ?? "";
+	const cleanedTitle = normalizeTitleForDisplay(rawTitle);
+	if (cleanedTitle !== "") return capitalizeTitle(cleanedTitle);
+	if (displayProjectName && displayProjectName !== "Project" && displayProjectName !== "Unknown") {
+		return capitalizeTitle(`Conversation in ${displayProjectName}`);
+	}
+	return "Untitled conversation";
+});
+const sessionDiffStats = $derived.by(() => {
+	if (!sessionId) return { insertions: 0, deletions: 0 };
+	const checkpoints = checkpointStore.getCheckpoints(sessionId);
+	const stats = computeStatsFromCheckpoints(checkpoints);
+	return stats ?? { insertions: 0, deletions: 0 };
+});
+const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
+const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
+
+const agentIconSrc = $derived(getAgentIcon(agentName, effectiveTheme));
+const isConnecting = $derived(
+	panelConnectionState === PanelConnectionState.CONNECTING ||
+		(!sessionId && panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false)
+);
+const branchLookupPath = $derived(
+	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
+);
+const worktreeSetupProjectPaths = $derived.by(() => {
+	const candidates = [
+		sessionProjectPath,
+		worktreeToggleProjectPath,
+		project?.path ?? null,
+		projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
+	];
+
+	return [...new Set(candidates.filter((value): value is string => Boolean(value)))];
+});
+const worktreeSetupWorktreePaths = $derived.by(() => {
+	const candidates = [effectiveActiveWorktreePath, sessionWorktreePath];
+	return [...new Set(candidates.filter((value): value is string => Boolean(value)))];
+});
+const _activeWorktreeName = $derived.by(() => {
+	const worktreePath = effectiveActiveWorktreePath;
+	if (!worktreePath) return null;
+	const segments = worktreePath.split("/").filter((segment) => segment.length > 0);
+	return segments.length > 0 ? (segments[segments.length - 1] ?? null) : null;
+});
+
+const hasPlan = $derived(planState.plan !== null);
+const ATTACHED_COLUMN_WIDTH = 450;
+const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
+const REVIEW_COLUMN_WIDTH = 450;
+const ATTACHED_COLUMN_GAP_WIDTH = 2;
+
+// Dynamic minimum width reported by the toolbar's intrinsic content measurement.
+// The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
+let toolbarMinWidth = $state(0);
+let createPrRunning = $state(false);
+let createPrLabel = $state<string | null>(null);
+let mergePrRunning = $state(false);
+let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
+let prFetchError = $state<string | null>(null);
+let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+let agentInstallFailed = $state(false);
+let pendingInstallSessionProject = $state<Project | null>(null);
+
+/** Derived: is the selected agent currently being installed? */
+const agentInstallState = $derived.by(() => {
+	if (!selectedAgentId) return null;
+	const progress = agentStore.installing[selectedAgentId];
+	if (!progress && !agentInstallFailed) return null;
+	const agent = availableAgents.find((a) => a.id === selectedAgentId);
+	return {
+		agentId: selectedAgentId,
+		agentName: agent?.name ?? selectedAgentId,
+		stage: progress?.stage ?? "",
+		progress: progress?.progress ?? 0,
+		failed: agentInstallFailed,
+	};
+});
+
+// Derived from session store — populated from DB on startup, updated in-session after PR creation
+// Also auto-populated when Claude creates a PR autonomously (handleStreamComplete extracts PR# from messages)
+const createdPr = $derived(sessionMetadata?.prNumber ?? null);
+const prFetchTarget = $derived.by(() => {
+	if (!sessionId || !sessionProjectPath || createdPr == null) {
+		return null;
+	}
+
+	return {
+		sessionId,
+		projectPath: sessionProjectPath,
+		prNumber: createdPr,
+	};
+});
+
+void mergeStrategyStore.initialize();
+
+/**
+ * Fetch PR details from GitHub. Called imperatively:
+ * - When the current session exposes a PR number
+ * - After PR creation succeeds
+ * - After PR merge (to refresh state)
+ * The store's prState update is handled by sessionStore.refreshSessionPrState.
+ */
+function fetchPrDetails(target: { sessionId: string; projectPath: string; prNumber: number }): void {
+	prDetails = null;
+	prFetchError = null;
+	void sessionStore.refreshSessionPrState(
+		target.sessionId,
+		target.projectPath,
+		target.prNumber
+	).match(
+		(details) => {
+			prDetails = details;
+		},
+		() => {
+			// refreshSessionPrState never errors (orElse swallows), but match requires both branches
+		},
+	);
+}
+
+let lastFetchedPrTargetKey = $state<string | null>(null);
+$effect(() => {
+	if (!prFetchTarget) {
+		prDetails = null;
+		prFetchError = null;
+		lastFetchedPrTargetKey = null;
+		return;
+	}
+
+	const targetKey =
+		`${prFetchTarget.sessionId}:${prFetchTarget.projectPath}:${prFetchTarget.prNumber}`;
+	if (targetKey === lastFetchedPrTargetKey) {
+		return;
+	}
+
+	lastFetchedPrTargetKey = targetKey;
+	fetchPrDetails(prFetchTarget);
+});
+
+const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
+const hasAttachedPane = $derived(Boolean(panelId) && attachedFilePanels.length > 0);
+const requiredSplitWidth = $derived(
+	hasAttachedPane ? ATTACHED_COLUMN_WIDTH * 2 + ATTACHED_COLUMN_GAP_WIDTH : 0
+);
+const panelRenderWidth = $derived(hasAttachedPane ? requiredSplitWidth : width);
+const agentContentColumnStyle = $derived(
+	hasAttachedPane
+		? `min-width: ${ATTACHED_COLUMN_WIDTH}px; width: ${ATTACHED_COLUMN_WIDTH}px; max-width: ${ATTACHED_COLUMN_WIDTH}px; flex: 0 0 ${ATTACHED_COLUMN_WIDTH}px;`
+		: ""
+);
+
+// Ensure panel is never narrower than the toolbar's natural content width
+const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding));
+
+// Add embedded pane widths (plan sidebar, review) when expanded
+const effectiveWidth = $derived.by(() => {
+	let w = baseWidth;
+	if (showPlanSidebar && hasPlan) w += PLAN_SIDEBAR_COLUMN_WIDTH;
+	if (reviewMode && reviewFilesState) w += REVIEW_COLUMN_WIDTH;
+	return w;
+});
+
+// In fullscreen mode, always use 100% width (sidebar shares space within the panel)
+// In non-fullscreen mode, double the width when sidebar is open so both halves fit
+const widthStyle = $derived(
+	isFullscreen
+		? "width: 100%; min-width: 100%; max-width: 100%;"
+		: `min-width: ${effectiveWidth}px; width: ${effectiveWidth}px; max-width: ${effectiveWidth}px;`
+);
+
+// Debug state for panel debugging (inert in production — deps behind early return are not tracked)
+const debugPanelState = $derived.by(() => {
+	if (!import.meta.env.DEV) return null;
+	return {
+		// Panel identification
+		panelId: effectivePanelId,
+		// Panel state
+		isFullscreen,
+		isFocused,
+		// Session state
+		hasSession: sessionId !== null,
+		sessionId,
+		sessionTitle,
+		sessionStatus: mappedSessionStatus,
+		sessionProjectPath,
+		sessionAgentId,
+		selectedAgentId,
+		// Loading states
+		isWaitingForSession,
+		pendingProjectSelection,
+		// Project info
+		projectCount,
+		projectName: project?.name,
+		projectPath: project?.path,
+		// UI conditions
+		viewStateKind: viewState.kind,
+		// Available agents
+		availableAgentsCount: availableAgents.length,
+		availableAgentIds: availableAgents.map((a) => a.id),
+		// Plan state
+		hasPlan,
+		planTitle: planState.plan?.title,
+		// Dimensions
+		width,
+		widthStyle,
+		// Theme
+		effectiveTheme,
+	};
+});
+
+// Compute aggregateFileEdits off the main thread to avoid blocking the reactive cascade.
+// Uses $effect + setTimeout(0) so it runs after the current reactive cascade settles.
+// (requestIdleCallback is unavailable in Tauri's WebKit webview on macOS)
+let modifiedFilesState = $state<ModifiedFilesState | null>(null);
+$effect(() => {
+	if (viewState.kind !== "conversation" || sessionEntries.length === 0) {
+		modifiedFilesState = null;
+		return;
+	}
+	// Capture reactive dependencies synchronously, then defer the heavy work
+	const entries = sessionEntries;
+	const id = setTimeout(() => {
+		const state = aggregateFileEdits(entries);
+		modifiedFilesState = state.fileCount > 0 ? state : null;
+	});
+	return () => clearTimeout(id);
+});
+
+// Track panelId changes for tab switching detection
+let lastPanelId = $state<string | undefined>(undefined);
+
+// Restore review mode when session loads (deferred from workspace restore)
+$effect(() => {
+	if (!panelId || !sessionId || sessionEntries.length === 0 || reviewMode) return;
+
+	const pendingFileIndex = panelStore.consumePendingReviewRestore(panelId);
+	if (pendingFileIndex === null) return;
+
+	if (!modifiedFilesState) return;
+
+	onEnterReviewMode?.(modifiedFilesState, pendingFileIndex);
+});
+
+$effect(() => {
+	if (!panelId) {
+		panelConnectionState = null;
+		panelConnectionError = null;
+		return;
+	}
+
+	const existingState = connectionStore.getState(panelId);
+	const existingContext = connectionStore.getContext(panelId);
+	panelConnectionState = existingState;
+	panelConnectionError = existingContext?.error ?? null;
+
+	const unsubscribe = connectionStore.onChange((id, state, context) => {
+		if (id !== panelId) return;
+		panelConnectionState = state;
+		panelConnectionError = context.error ?? null;
+	});
+
+	return () => {
+		unsubscribe();
+	};
+});
+
+// ✅ Effects for side effects - handle tab switching
+$effect(() => {
+	if (!contentRef || viewState.kind !== "conversation") return;
+
+	const isTabSwitch = shouldAutoScrollOnPanelActivation({
+		currentPanelId: panelId,
+		previousPanelId: lastPanelId,
+	});
+	lastPanelId = panelId;
+
+	// On tab switch, scroll to bottom (but don't force - preserves anchor if streaming)
+	if (isTabSwitch) {
+		tick().then(() => {
+			scrollToBottomOnTabSwitch();
+		});
+	}
+	// Auto-scroll is now handled by ResizeObserver in the scroll manager
+	// No need to call autoScrollIfEnabled here - it would override viewport anchoring
+});
+
+$effect(() => {
+	const decision = panelBranchLookup.next({
+		lookupPath: branchLookupPath,
+		viewKind: panelViewKind,
+	});
+
+	if (decision.kind === "noop") {
+		return;
+	}
+
+	branchRequestVersion += 1;
+	const currentVersion = branchRequestVersion;
+
+	if (decision.kind === "clear") {
+		_panelBranch = null;
+		return;
+	}
+
+	_panelBranch = null;
+
+	void tauriClient.git.currentBranch(decision.path).match(
+		(branch) => {
+			if (currentVersion === branchRequestVersion) {
+				_panelBranch = branch;
+			}
+		},
+		() => {
+			if (currentVersion === branchRequestVersion) {
+				_panelBranch = null;
+			}
+		}
+	);
+});
+
+// ✅ Worktree close confirmation (inline header strip)
+let worktreeCloseConfirming = $state(false);
+let worktreeHasDirtyChanges = $state(false);
+let worktreeDirtyCheckPending = $state(false);
+
+// Check if the session's worktree still exists on disk.
+// If deleted, disconnect the session (agent can't work in a missing directory).
+$effect(() => {
+	const worktreePath = sessionWorktreePath;
+	const projectPath = sessionProjectPath;
+	const currentSessionId = sessionId;
+	if (!worktreePath || !projectPath) {
+		worktreeDeleted = false;
+		return;
+	}
+	let disposed = false;
+	void tauriClient.git.worktreeList(projectPath).match(
+		(worktrees) => {
+			if (disposed) return;
+			const found = worktrees.some((wt) => wt.directory === worktreePath);
+			if (!found) {
+				worktreeDeleted = true;
+				if (currentSessionId) {
+					sessionStore.disconnectSession(currentSessionId);
+				}
+			} else {
+				worktreeDeleted = false;
+			}
+		},
+		() => {
+			if (disposed) return;
+			worktreeDeleted = true;
+			if (currentSessionId) {
+				sessionStore.disconnectSession(currentSessionId);
+			}
+		}
+	);
+	return () => {
+		disposed = true;
+	};
+});
+
+// ✅ Event handlers - can access current props directly
+async function handleClose() {
+	if (effectiveActiveWorktreePath && !worktreeDeleted) {
+		const confirmationState = createPendingWorktreeCloseConfirmationState();
+		worktreeCloseConfirming = confirmationState.confirming;
+		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
+		worktreeDirtyCheckPending = confirmationState.dirtyCheckPending;
+		const hasDirtyChanges = await tauriClient.git
+			.hasUncommittedChanges(effectiveActiveWorktreePath)
+			.match(
+				(dirty) => dirty,
+				() => false // safe default on error — show normal confirmation
+			);
+		const resolvedState = createResolvedWorktreeCloseConfirmationState(hasDirtyChanges);
+		worktreeCloseConfirming = resolvedState.confirming;
+		worktreeHasDirtyChanges = resolvedState.hasDirtyChanges;
+		worktreeDirtyCheckPending = resolvedState.dirtyCheckPending;
+		return;
+	}
+	onClose?.();
+}
+
+function handleWorktreeCloseOnly() {
+	worktreeCloseConfirming = false;
+	worktreeDirtyCheckPending = false;
+	onClose?.();
+}
+
+function handleWorktreeRemoveAndClose() {
+	const worktreePath = effectiveActiveWorktreePath;
+	const currentSessionId = sessionId;
+	const force = worktreeHasDirtyChanges;
+	worktreeCloseConfirming = false;
+	worktreeDirtyCheckPending = false;
+	onClose?.();
+	void removeWorktreeAndMarkSessionWorktreeDeleted(
+		{
+			force,
+			sessionId: currentSessionId,
+			worktreePath,
+		},
+			{
+				removeWorktree: (path, shouldForce) => tauriClient.git.worktreeRemove(path, shouldForce),
+				markSessionWorktreeDeleted: (id) => {
+					sessionStore.updateSession(id, { worktreeDeleted: true });
+				},
+				clearSessionWorktreeDeleted: (id) => {
+					sessionStore.updateSession(id, { worktreeDeleted: false });
+				},
+				disconnectSession: (id) => {
+					sessionStore.disconnectSession(id);
+				},
+			}
+	).mapErr((error) => {
+		console.error("[AgentPanel] Failed to remove worktree", { error });
+		toast.error(`Failed to remove worktree: ${error.message}`);
+	});
+}
+
+function handleWorktreeCloseCancel() {
+	worktreeCloseConfirming = false;
+	worktreeHasDirtyChanges = false;
+	worktreeDirtyCheckPending = false;
+}
+
+/**
+ * Check if an agent needs installation; if so, install first then create session.
+ */
+async function installAgentThenCreateSession(project: Project, agentId: string): Promise<void> {
+	const agent = availableAgents.find((a) => a.id === agentId);
+	const needsInstall =
+		agent && !agent.available && agent.availability_kind?.kind === "installable";
+
+	if (!needsInstall) {
+		onCreateSessionForProject?.(project);
+		return;
+	}
+
+	agentInstallFailed = false;
+	pendingInstallSessionProject = project;
+	await agentStore.installAgent(agentId);
+
+	// Check if install succeeded (agent should now be available after store refresh)
+	const refreshed = agentStore.agents.find((a) => a.id === agentId);
+	if (refreshed?.available) {
+		pendingInstallSessionProject = null;
+		onCreateSessionForProject?.(project);
+	} else {
+		agentInstallFailed = true;
+	}
+}
+
+function handleProjectAgentSelected(project: Project, agentId: string) {
+	// Set the agent first, then create session
+	onAgentChange?.(agentId);
+	void installAgentThenCreateSession(project, agentId);
+}
+
+function handleSessionCreated(sessionIdParam: string) {
+	onSessionCreated?.(sessionIdParam);
+}
+
+function handleWorktreeCreated(info: WorktreeInfo) {
+	activeWorktreePath = info.directory;
+	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
+
+	const projectPath = sessionProjectPath ?? worktreeToggleProjectPath ?? "";
+	logger.info("[worktree-flow] handleWorktreeCreated: entry", {
+		sessionId: sessionId ?? null,
+		sessionProjectPath,
+		worktreeToggleProjectPath,
+		projectPath: projectPath || null,
+		infoDirectory: info.directory,
+	});
+	if (!projectPath) {
+		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
+		return;
+	}
+	logger.info("[worktree-flow] handleWorktreeCreated: set activeWorktreePath", {
+		activeWorktreePath: info.directory,
+		projectPath,
+	});
+
+	if (sessionId) {
+		sessionStore.updateSession(sessionId, {
+			worktreeDeleted: false,
+			worktreePath: info.directory,
+		});
+	}
+}
+
+async function handleCreatePr() {
+	const path = effectivePathForGit;
+	logger.info("handleCreatePr called", { path, sessionId, panelId });
+	if (!path) {
+		logger.warn("handleCreatePr: no effectivePathForGit, aborting");
+		return;
+	}
+	createPrRunning = true;
+	createPrLabel = m.agent_panel_pr_staging();
+
+	// Stage agent-modified files before commit+push+PR
+	if (modifiedFilesState) {
+		const prefix = path.endsWith("/") ? path : `${path}/`;
+		const filePaths = modifiedFilesState.files.map((f) =>
+			f.filePath.startsWith(prefix) ? f.filePath.slice(prefix.length) : f.filePath
+		);
+		logger.info("handleCreatePr: staging modified files", { count: filePaths.length, filePaths });
+		const stageResult = await tauriClient.git.stageFiles(path, filePaths);
+		if (stageResult.isErr()) {
+			createPrRunning = false;
+			createPrLabel = null;
+			const details = getErrorCauseDetails(stageResult._unsafeUnwrapErr());
+			logger.error("handleCreatePr: staging failed", {
+				rootCause: details.rootCause,
+				formatted: details.formatted,
+			});
+			toast.error(details.rootCause ?? stageResult._unsafeUnwrapErr().message);
+			return;
+		}
+	}
+
+	// Generate commit message + PR content via AI (falls back to default if generation fails)
+	createPrLabel = m.git_generating();
+	let commitMsg = m.agent_panel_default_commit_message();
+	let prTitle: string | undefined;
+	let prBody: string | undefined;
+
+	const shipCtxResult = await tauriClient.git.collectShipContext(path);
+	if (shipCtxResult.isOk() && shipCtxResult.value) {
+		const ctx = shipCtxResult.value;
+		logger.info("handleCreatePr: generating commit/PR content via AI", { branch: ctx.branch });
+
+		// Use the ephemeral text generation service to get AI-generated content
+		const { generateShipContent } = await import("../../ship-card/ship-card-generation.js");
+		const genResult = await generateShipContent(
+			ctx.prompt,
+			path,
+			sessionAgentId || selectedAgentId || undefined,
+		);
+		if (genResult.isOk()) {
+			const gen = genResult.value;
+			if (gen.commitMessage) commitMsg = gen.commitMessage as typeof commitMsg;
+			if (gen.prTitle) prTitle = gen.prTitle;
+			if (gen.prDescription) prBody = gen.prDescription;
+			logger.info("handleCreatePr: AI generation complete", { prTitle, hasBody: !!prBody });
+		} else {
+			logger.warn("handleCreatePr: AI generation failed, using defaults", {
+				error: genResult.error.message,
+			});
+		}
+	}
+
+	createPrLabel = m.agent_panel_pr_pushing();
+	logger.info("handleCreatePr: calling runStackedAction", {
+		path,
+		action: "commit_push_pr",
+		commitMsg,
+		prTitle,
+	});
+	const result = await tauriClient.git.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody);
+	await result.match(
+		(ok) => {
+			createPrRunning = false;
+			createPrLabel = null;
+			logger.info("handleCreatePr: success", {
+				action: ok.action,
+				commitStatus: ok.commit.status,
+				pushStatus: ok.push.status,
+				prStatus: ok.pr.status,
+				prUrl: ok.pr.url,
+			});
+			switch (ok.pr.status) {
+				case "created":
+					toast.success(`Created PR #${ok.pr.number ?? ""}`);
+					break;
+				case "opened_existing":
+					toast.success(`Opened PR #${ok.pr.number ?? ""}`);
+					break;
+				case "skipped_not_requested":
+					toast.success("Pushed to branch");
+					break;
+				default: {
+					const _: never = ok.pr.status;
+					toast.success("Pushed to branch");
+				}
+			}
+			if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
+				if (ok.pr.number != null && sessionId) {
+					sessionStore.updateSession(sessionId, { prNumber: ok.pr.number });
+					void tauriClient.history.setSessionPrNumber(sessionId, ok.pr.number);
+				}
+				if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
+			}
+		},
+		(err) => {
+			createPrRunning = false;
+			createPrLabel = null;
+			const details = getErrorCauseDetails(err);
+			logger.error("handleCreatePr: failed", {
+				message: err.message,
+				rootCause: details.rootCause,
+				chain: details.chain,
+				formatted: details.formatted,
+			});
+			toast.error(details.rootCause ?? err.message);
+		}
+	);
+}
+
+async function handleMergePr(strategy: MergeStrategy) {
+	const path = effectivePathForGit;
+	const prNum = createdPr;
+	if (!path || prNum == null || !sessionId) return;
+	mergePrRunning = true;
+	try {
+		await tauriClient.git.mergePr(path, prNum, strategy).match(
+			() => {
+				toast.success(m.agent_panel_pr_merged());
+				if (sessionId) {
+					sessionStore.updateSession(sessionId, { prState: "MERGED" });
+				}
+				// Refresh PR details so the card reflects the merged state
+				fetchPrDetails({
+					sessionId,
+					projectPath: path,
+					prNumber: prNum,
+				});
+			},
+			(err) => {
+				const details = getErrorCauseDetails(err);
+				toast.error(details.rootCause ?? err.message);
+			}
+		);
+	} finally {
+		mergePrRunning = false;
+	}
+}
+
+async function handleCopyContent() {
+	if (!sessionId) {
+		toast.error(m.thread_copy_content_error_no_thread());
+		return;
+	}
+
+	// Assemble cold data + entries for clipboard copy
+	const cold = sessionStore.getSessionCold(sessionId);
+	if (!cold) {
+		toast.error(m.thread_copy_content_error_no_thread());
+		return;
+	}
+	const entries = sessionStore.getEntries(sessionId);
+
+	await copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
+		() => toast.success(m.thread_copy_content_success()),
+		() => toast.error(m.thread_copy_content_error())
+	);
+}
+
+async function handleOpenInFinder() {
+	const target = getOpenInFinderTarget({
+		sessionId,
+		projectPath: sessionProjectPath,
+		agentId: sessionAgentId,
+		sourcePath: sessionMetadata?.sourcePath ?? null,
+	});
+
+	if (!target) {
+		toast.error(m.thread_open_in_finder_error_no_thread());
+		return;
+	}
+
+	if (target.kind === "reveal") {
+		await revealInFinder(target.path).mapErr(() => toast.error(m.thread_open_in_finder_error()));
+		return;
+	}
+
+	const { invoke } = await import("@tauri-apps/api/core");
+
+	await ResultAsync.fromPromise(
+		invoke("open_in_finder", {
+			sessionId: target.sessionId,
+			projectPath: target.projectPath,
+		}),
+		(error) => new Error(`Failed to open: ${String(error)}`)
+	).mapErr(() => toast.error(m.thread_open_in_finder_error()));
+}
+
+async function handleExportRawStreaming() {
+	if (!sessionId) {
+		toast.error(m.thread_export_raw_error_no_thread());
+		return;
+	}
+
+	// Get the streaming log path and open it as a file panel
+	await tauriClient.shell.getStreamingLogPath(sessionId).match(
+		(logPath) => {
+			// Open the log file in a file panel
+			// The log files are in src-tauri/logs/streaming/, use that as the "project"
+			const logsDir = logPath.substring(0, logPath.lastIndexOf("/"));
+			const fileName = logPath.substring(logPath.lastIndexOf("/") + 1);
+			panelStore.openFilePanel(fileName, logsDir, { ownerPanelId: effectivePanelId });
+		},
+		(error) => toast.error(m.thread_export_raw_error({ error: error.message }))
+	);
+}
+
+async function handleOpenRawFile() {
+	if (!sessionId || !sessionProjectPath) return;
+	await tauriClient.shell
+		.getSessionFilePath(sessionId, sessionProjectPath)
+		.andThen((path) => openFileInEditor(path))
+		.match(
+			() => toast.success(m.thread_export_raw_success()),
+			(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
+		);
+}
+
+async function handleOpenInAcepe() {
+	if (!sessionId || !sessionProjectPath) return;
+	await tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).match(
+		(fullPath) => {
+			const parts = fullPath.split(/[/\\]/);
+			const fileName = parts.pop() ?? fullPath;
+			const dirPath = parts.join("/") || "/";
+			panelStore.openFilePanel(fileName, dirPath, { ownerPanelId: effectivePanelId });
+		},
+		(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
+	);
+}
+
+async function handleDeleteSession() {
+	if (!sessionId || !sessionProjectPath) return;
+	if (!confirm(m.session_menu_delete_confirm())) return;
+	await tauriClient.shell
+		.deleteSession(sessionId, sessionProjectPath)
+		.mapErr((e) => new Error(String(e)))
+		.match(
+			() => {
+				panelStore.closePanelBySessionId(sessionId!);
+				sessionStore.removeSession(sessionId!);
+				toast.success(m.session_menu_delete_success());
+			},
+			(err) => toast.error(m.session_menu_delete_error({ error: err.message }))
+		);
+}
+
+async function handleExportMarkdown(): Promise<void> {
+	if (!sessionId) return;
+	const entries = sessionStore.getEntries(sessionId);
+	const markdown = sessionEntriesToMarkdown(entries);
+	await ResultAsync.fromPromise(
+		navigator.clipboard.writeText(markdown),
+		(e) => new Error(String(e))
+	).match(
+		() => toast.success(m.session_menu_export_success()),
+		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
+	);
+}
+
+async function handleExportJson() {
+	if (!sessionId) return;
+	const cold = sessionStore.getSessionCold(sessionId);
+	if (!cold) {
+		toast.error(m.session_menu_export_error({ error: "Session not found" }));
+		return;
+	}
+	const entries = sessionStore.getEntries(sessionId);
+	copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
+		() => toast.success(m.session_menu_export_success()),
+		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
+	);
+}
+
+function handlePanelClick(e: MouseEvent) {
+	const target = e.target as HTMLElement;
+
+	// Don't focus panel if clicking on input area or form elements
+	// Check data-input-area first (most common case) to avoid unnecessary DOM traversal
+	const isInputArea =
+		target.hasAttribute("data-input-area") || target.closest("[data-input-area]") !== null;
+	const isTextarea = target.tagName === "TEXTAREA" || target.closest("textarea") !== null;
+	const isInput = target.tagName === "INPUT" || target.closest("input") !== null;
+	// Only check for actual <button> and <a> elements, not role="button" which is used
+	// for accessibility on collapsible containers
+	const isButton = target.closest("button") !== null;
+	const isLink = target.closest("a") !== null;
+
+	if (isInputArea || isTextarea || isInput || isButton || isLink) {
+		// Don't focus the panel when clicking on form elements or buttons
+		return;
+	}
+
+	// Focus the panel when clicking anywhere else
+	if (!isFocused) {
+		onFocus?.();
+	}
+}
+
+function handlePanelKeyDown(e: KeyboardEvent) {
+	if (e.key === "Enter" || e.key === " ") {
+		// For keyboard events, we don't need to check the target
+		// since the panel itself has focus (not an input element)
+		if (!isFocused) {
+			onFocus?.();
+		}
+	}
+}
+
+function handleRetryConnection() {
+	// Retry session creation using panel's current project and agent
+	if (project && selectedAgentId) {
+		void installAgentThenCreateSession(project, selectedAgentId);
+	} else {
+		console.warn(`Retry connection failed: Missing project or agent`, {
+			panelId: effectivePanelId,
+			projectPath: project?.path,
+			agentId: selectedAgentId,
+		});
+		toast.error("Cannot retry connection: Project or agent not available.");
+	}
+}
+
+function handleCancelConnection() {
+	// For now, just show a message that cancellation is not implemented
+	// In the future, this could cancel any pending session creation
+	toast.info("Connection cancellation not yet implemented.");
+}
+
+async function handleToggleCheckpointTimeline() {
+	if (!sessionId) return;
+
+	if (!showCheckpointTimeline) {
+		// Load checkpoints when opening
+		isLoadingCheckpoints = true;
+		await checkpointStore.loadCheckpoints(sessionId);
+		isLoadingCheckpoints = false;
+	}
+	showCheckpointTimeline = !showCheckpointTimeline;
+}
+
+function handleCloseCheckpointTimeline() {
+	showCheckpointTimeline = false;
+}
+
+function handleCheckpointRevertComplete() {
+	// Reload checkpoints after a revert (new safety checkpoint may have been created)
+	if (sessionId) {
+		checkpointStore.loadCheckpoints(sessionId);
+	}
+}
+</script>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="flex h-full shrink-0 grow-0 min-h-0 bg-card/50 rounded-lg overflow-hidden relative border border-border {isFullscreen
+		? ''
+		: 'border-r-0'} {panelState.isDraggingEdge ? 'select-none' : ''}"
+	style={widthStyle}
+	ondragstart={panelState.handleDragStart.bind(panelState)}
+	onclick={handlePanelClick}
+	onkeydown={handlePanelKeyDown}
+>
+	<!-- Main Panel Content -->
+	<div class="flex flex-col flex-1 min-w-0 min-h-0">
+		<!-- Header includes fullscreen toggle, so it must remain visible in fullscreen mode -->
+		<AgentPanelHeader
+			{pendingProjectSelection}
+			{isConnecting}
+			{sessionId}
+			{sessionTitle}
+			{sessionAgentId}
+			{agentIconSrc}
+			{agentName}
+			{isFullscreen}
+			{hideProjectBadge}
+			sessionStatus={mappedSessionStatus}
+			projectName={displayProjectName}
+			{projectColor}
+			{debugPanelState}
+			onClose={handleClose}
+			{onToggleFullscreen}
+			onScrollToTop={scrollToTop}
+			{worktreeCloseConfirming}
+			worktreeName={_activeWorktreeName}
+			{worktreeHasDirtyChanges}
+			{worktreeDirtyCheckPending}
+			onWorktreeCloseOnly={handleWorktreeCloseOnly}
+			onWorktreeRemoveAndClose={handleWorktreeRemoveAndClose}
+			onWorktreeCloseCancel={handleWorktreeCloseCancel}
+			onCopyContent={handleCopyContent}
+			onOpenInFinder={handleOpenInFinder}
+			onExportRawStreaming={handleExportRawStreaming}
+			{displayTitle}
+			{entriesCount}
+			insertions={sessionDiffStats.insertions}
+			deletions={sessionDiffStats.deletions}
+			createdAt={sessionCreatedAt}
+			updatedAt={sessionUpdatedAt}
+			onOpenRawFile={sessionId && sessionProjectPath ? handleOpenRawFile : undefined}
+			onOpenInAcepe={sessionId && sessionProjectPath ? handleOpenInAcepe : undefined}
+			onDeleteSession={sessionId && sessionProjectPath ? handleDeleteSession : undefined}
+			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
+			onExportJson={sessionId ? handleExportJson : undefined}
+		/>
+
+		<!-- Content Row -->
+		<div class="flex flex-row flex-1 min-h-0 min-w-0 gap-0 overflow-hidden">
+			{#if panelId && attachedFilePanels.length > 0}
+				<AgentAttachedFilePane
+					ownerPanelId={panelId}
+					filePanels={attachedFilePanels}
+					activeFilePanelId={activeAttachedFilePanelId}
+					projects={allProjects}
+					columnWidth={ATTACHED_COLUMN_WIDTH}
+					isFullscreenEmbedded={isFullscreen}
+					onSelectFilePanel={(ownerPanelId, filePanelId) =>
+						onSelectAttachedFilePanel?.(ownerPanelId, filePanelId)}
+					onCloseFilePanel={(filePanelId) => onCloseAttachedFilePanel?.(filePanelId)}
+					onResizeFilePanel={(filePanelId, delta) =>
+						onResizeAttachedFilePanel?.(filePanelId, delta)}
+				/>
+			{/if}
+
+			<!-- Review Pane (embedded, left of conversation) -->
+			{#if reviewFilesState}
+				<div
+					class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
+					style="min-width: {REVIEW_COLUMN_WIDTH}px; width: {REVIEW_COLUMN_WIDTH}px; max-width: {REVIEW_COLUMN_WIDTH}px; flex-basis: {REVIEW_COLUMN_WIDTH}px;"
+					style:display={reviewMode ? undefined : "none"}
+				>
+					<AgentPanelReviewContent
+						modifiedFilesState={reviewFilesState}
+						selectedFileIndex={reviewFileIndex}
+						{sessionId}
+						projectPath={sessionProjectPath}
+						isActive={reviewMode}
+						onClose={() => onExitReviewMode?.()}
+						onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
+						onExpandToFullscreen={sessionId && onOpenFullscreenReview
+							? () => onOpenFullscreenReview(sessionId, reviewFileIndex)
+							: undefined}
+					/>
+				</div>
+			{/if}
+
+			<div
+				class="flex h-full flex-col min-h-0 min-w-0 overflow-hidden flex-1"
+				style={agentContentColumnStyle}
+			>
+				<!-- Plan Header (single-line bar that toggles sidebar — hidden when sidebar is open) -->
+				{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
+					<PlanHeader
+						plan={planState.plan}
+						isExpanded={showPlanSidebar}
+						onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
+					/>
+				{/if}
+
+				<!-- Plan Dialog (for fullscreen viewing) -->
+				{#if planState.plan}
+					<PlanDialog
+						plan={planState.plan}
+						open={panelState.showPlanDialog}
+						onOpenChange={(open) => (panelState.showPlanDialog = open)}
+						projectPath={sessionProjectPath ?? undefined}
+					/>
+				{/if}
+
+				<!-- Content Area -->
+				<div class="relative flex-1 min-h-0 overflow-hidden flex flex-col">
+					{#if showCheckpointTimeline && sessionProjectPath && sessionId}
+						<!-- Checkpoint Timeline (full panel view) -->
+						<CheckpointTimeline
+							{sessionId}
+							projectPath={sessionProjectPath}
+							{checkpoints}
+							isLoading={isLoadingCheckpoints}
+							onClose={handleCloseCheckpointTimeline}
+							onRevertComplete={handleCheckpointRevertComplete}
+						/>
+					{:else}
+						<!-- Normal conversation content -->
+						<div class="flex-1 min-h-0 mb-2">
+							<AgentPanelContent
+								bind:this={contentRef}
+								panelId={effectivePanelId}
+								{viewState}
+								{sessionId}
+								{sessionEntries}
+								sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
+								{allProjects}
+								bind:scrollContainer
+								bind:scrollViewport={contentScrollViewport}
+								bind:isAtBottom={contentIsAtBottom}
+								bind:isAtTop={contentIsAtTop}
+								bind:isStreaming={contentIsStreaming}
+								onProjectAgentSelected={handleProjectAgentSelected}
+								onRetryConnection={handleRetryConnection}
+								onCancelConnection={handleCancelConnection}
+								{agentIconSrc}
+								{isFullscreen}
+								{availableAgents}
+								{effectiveTheme}
+								{modifiedFilesState}
+							/>
+						</div>
+						{#if viewState.kind === "conversation" && !contentIsAtTop}
+							<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+								<button
+									class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
+									onclick={scrollToTop}
+									aria-label={m.agent_panel_scroll_top()}
+								>
+									<ArrowUp class="h-4 w-4" />
+								</button>
+							</div>
+						{/if}
+						{#if viewState.kind === "conversation" && !contentIsAtBottom}
+							<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+								<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
+							</div>
+						{/if}
+					{/if}
+				</div>
+
+				<!-- Input Area - show when session exists or ready to assist -->
+				{#if viewState.kind === "conversation" || viewState.kind === "ready"}
+					{#if worktreeDeleted}
+						<div class="{isFullscreen ? 'flex justify-center' : ''} px-5 mb-2">
+							<div class="flex justify-center {isFullscreen ? 'w-full max-w-4xl' : ''}">
+								<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
+									<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+									<span class="text-[0.6875rem] text-muted-foreground">
+										{m.worktree_deleted_banner()}
+									</span>
+								</div>
+							</div>
+						</div>
+					{/if}
+					{#if worktreeSetupState?.isVisible}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
+								<WorktreeSetupCard state={worktreeSetupState} />
+							</div>
+						</div>
+					{/if}
+					{#if agentInstallState}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
+								<AgentInstallCard
+									agentId={agentInstallState.agentId}
+									agentName={agentInstallState.agentName}
+									stage={agentInstallState.stage}
+									progress={agentInstallState.progress}
+									failed={agentInstallState.failed}
+									onRetry={() => {
+										if (pendingInstallSessionProject && selectedAgentId) {
+											void installAgentThenCreateSession(pendingInstallSessionProject, selectedAgentId);
+										}
+									}}
+								/>
+							</div>
+						</div>
+					{/if}
+					{#if effectivePathForGit && (createdPr || createPrRunning)}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+								<PrStatusCard
+									projectPath={effectivePathForGit}
+									prNumber={createdPr}
+									isCreating={createPrRunning}
+									prDetails={prDetails}
+									fetchError={prFetchError}
+									onMerge={(strategy) => void handleMergePr(strategy)}
+									merging={mergePrRunning}
+								/>
+							</div>
+						</div>
+					{/if}
+					{#if modifiedFilesState}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+								<ModifiedFilesHeader
+									{modifiedFilesState}
+									{sessionId}
+									{onEnterReviewMode}
+									onOpenFullscreenReview={onOpenFullscreenReview && sessionId
+										? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
+										: undefined}
+									onCreatePr={createdPr || createPrRunning ? undefined : () => void handleCreatePr()}
+									createPrLoading={createPrRunning}
+									{createPrLabel}
+								/>
+							</div>
+						</div>
+					{/if}
+					<div class={isFullscreen ? "flex justify-center" : ""}>
+						<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+							<TodoHeader
+								{sessionId}
+								entries={sessionEntries}
+								isConnected={sessionHotState?.isConnected ?? false}
+								status={sessionStatus ?? "idle"}
+								isStreaming={sessionIsStreaming}
+							/>
+						</div>
+					</div>
+					{#if sessionId}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+								<QueueCardStrip {sessionId} />
+							</div>
+						</div>
+					{/if}
+					<div
+						class="shrink-0 px-2 pt-0.5 pb-0.5 {isFullscreen ? 'flex justify-center' : ''}"
+						data-input-area
+					>
+						<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+							{#key panelId}
+								<AgentInput
+									sessionId={sessionId ?? undefined}
+									{sessionStatus}
+									sessionIsConnected={sessionHotState?.isConnected ?? false}
+									{sessionIsStreaming}
+									{sessionCanSubmit}
+									{sessionShowStop}
+									{panelId}
+									projectPath={worktreeToggleProjectPath ?? undefined}
+									projectName={effectiveProjectName ?? undefined}
+									worktreePath={effectiveActiveWorktreePath ?? undefined}
+									{worktreePending}
+									onWorktreeCreating={() => {
+										worktreeSetupState = createWorktreeCreationState({
+											projectPath:
+												worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
+										});
+									}}
+									onWorktreeCreated={(path) => {
+										activeWorktreePath = path;
+										activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
+									}}
+									{selectedAgentId}
+									{availableAgents}
+									{onAgentChange}
+									pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
+									onSessionCreated={handleSessionCreated}
+									onWillSend={prepareForNextUserReveal}
+									onToolbarWidthChange={(w) => {
+										toolbarMinWidth = w;
+									}}
+								>
+									{#snippet checkpointButton()}
+										{#if sessionProjectPath && checkpoints.length > 0}
+											<EmbeddedIconButton
+												active={showCheckpointTimeline}
+												title={m.checkpoint_toggle_tooltip()}
+												ariaLabel={m.checkpoint_toggle_tooltip()}
+												onclick={handleToggleCheckpointTimeline}
+											>
+												<Clock class="h-3.5 w-3.5" weight="fill" />
+											</EmbeddedIconButton>
+										{/if}
+									{/snippet}
+								</AgentInput>
+							{/key}
+						</div>
+					</div>
+					<!-- Footer bar: worktree picker (left) + terminal toggle (right) -->
+					{#if worktreeToggleProjectPath && panelId}
+						<AgentPanelFooter
+							{panelId}
+							projectPath={worktreeToggleProjectPath}
+							activeWorktreePath={effectiveActiveWorktreePath}
+							effectiveCwd={effectivePathForGit}
+							{globalWorktreeDefault}
+							{worktreeDeleted}
+							{hasEdits}
+							{hasMessages}
+							hideWorktreeButton={hasMessages && !effectiveActiveWorktreePath}
+							{isTerminalDrawerOpen}
+							onToggleTerminal={() => {
+								if (panelId && effectivePathForGit) {
+									panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+								}
+							}}
+							onWorktreeCreated={handleWorktreeCreated}
+							onPendingChange={(pending) => { worktreePending = pending; }}
+						/>
+					{/if}
+
+					<!-- Embedded terminal drawer (below footer) -->
+					{#if isTerminalDrawerOpen && panelId && effectivePathForGit}
+						<AgentPanelTerminalDrawer
+							{panelId}
+							effectiveCwd={effectivePathForGit}
+							embeddedTerminals={panelStore.embeddedTerminals}
+							onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
+						/>
+					{/if}
+				{/if}
+			</div>
+
+			<!-- Plan Sidebar (embedded, right side of content row) -->
+			{#if hasPlan && planState.plan && showPlanSidebar && panelId}
+				<PlanSidebar
+					plan={planState.plan}
+					projectPath={sessionProjectPath ?? undefined}
+					sessionId={sessionId ?? undefined}
+					columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
+					onOpenFullscreen={() => panelState.openPlanDialog()}
+					onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
+				/>
+			{/if}
+		</div>
+
+		<!-- Resize Edge -->
+		{#if !isFullscreen}
+			<AgentPanelResizeEdge
+				isDragging={panelState.isDraggingEdge}
+				onPointerDown={(e) => panelState.handlePointerDownEdge(e, panelId)}
+				onPointerMove={(e) => panelState.handlePointerMoveEdge(e, panelId, onResizePanel)}
+				onPointerUp={() => panelState.handlePointerUpEdge()}
+			/>
+		{/if}
+	</div>
+</div>

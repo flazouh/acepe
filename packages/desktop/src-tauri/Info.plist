@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Acepe needs to run external CLI tools to provide AI coding assistance.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Acepe needs access to work with your projects.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Acepe needs access to work with your projects.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Acepe needs access to work with your projects.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Acepe needs local network access to communicate with AI coding agents.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Acepe uses the microphone for on-device voice dictation. Audio is processed locally and never sent to any server.</string>
+</dict>
+</plist>

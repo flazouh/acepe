@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTFLAGS: -D warnings
+  RUST_BACKTRACE: short
+
+jobs:
+  # ── JS: lint + typecheck + test (all parallel inside one job) ───────
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # All three run in parallel via background processes
+      - name: Lint + Typecheck + Test
+        run: |
+          # Lint (desktop + website in parallel)
+          (cd packages/desktop && bunx @biomejs/biome check .) &
+          LINT_DESKTOP=$!
+          (cd packages/website && bunx @biomejs/biome check .) &
+          LINT_WEBSITE=$!
+
+          # Typecheck desktop (tsgo)
+          (cd packages/desktop && bun run check) &
+          CHECK_DESKTOP=$!
+
+          # Typecheck website (svelte-check)
+          (cd packages/website && bun run check) &
+          CHECK_WEBSITE=$!
+
+          # Tests
+          (cd packages/desktop && AGENT=1 bun test $(find src -type f \( -name '*.test.ts' -o -name '*.vitest.ts' \))) &
+          TEST_DESKTOP=$!
+          (cd packages/website && bun run test) &
+          TEST_WEBSITE=$!
+
+          # Wait and collect exit codes
+          FAIL=0
+          for PID in $LINT_DESKTOP $LINT_WEBSITE $CHECK_DESKTOP $CHECK_WEBSITE $TEST_DESKTOP $TEST_WEBSITE; do
+            wait $PID || FAIL=1
+          done
+          exit $FAIL
+
+  # ── Rust: check + clippy + test ─────────────────────────────────────
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop/src-tauri -> target
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libgtk-3-dev libayatana-appindicator3-dev patchelf
+
+      - name: Check + Clippy + Test
+        working-directory: packages/desktop/src-tauri
+        run: |
+          # All three in parallel
+          cargo check --all-targets 2>&1 | tail -5 &
+          CHECK=$!
+          cargo clippy --all-targets -- -D warnings 2>&1 | tail -20 &
+          CLIPPY=$!
+          cargo test -- --skip claude_history::export_types 2>&1 &
+          TEST=$!
+
+          FAIL=0
+          wait $CHECK || FAIL=1
+          wait $CLIPPY || FAIL=1
+          wait $TEST || FAIL=1
+          exit $FAIL

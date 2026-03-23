@@ -1,0 +1,699 @@
+use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::session_update::SessionUpdate;
+use serde_json::Value;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Manager};
+use tokio::sync::mpsc;
+
+const TELEMETRY_INTERVAL: Duration = Duration::from_secs(5);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcpUiEventPriority {
+    Normal,
+    High,
+}
+
+impl AcpUiEventPriority {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::High => "high",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum AcpUiEventPayload {
+    SessionUpdate(Box<SessionUpdate>),
+    Json(Value),
+}
+
+#[derive(Debug, Clone)]
+pub struct AcpUiEvent {
+    pub session_id: Option<String>,
+    pub event_name: &'static str,
+    pub payload: AcpUiEventPayload,
+    pub priority: AcpUiEventPriority,
+    pub droppable: bool,
+    pub created_at: Instant,
+}
+
+impl AcpUiEvent {
+    #[must_use]
+    pub fn session_update(update: SessionUpdate) -> Self {
+        let session_id = update.session_id().map(ToString::to_string);
+        let priority = match &update {
+            SessionUpdate::PermissionRequest { .. } | SessionUpdate::QuestionRequest { .. } => {
+                AcpUiEventPriority::High
+            }
+            _ => AcpUiEventPriority::Normal,
+        };
+
+        let droppable = match &update {
+            SessionUpdate::AgentMessageChunk { .. }
+            | SessionUpdate::AgentThoughtChunk { .. }
+            | SessionUpdate::UserMessageChunk { .. } => true,
+            SessionUpdate::ToolCallUpdate { update, .. } => update.streaming_input_delta.is_some(),
+            _ => false,
+        };
+
+        Self {
+            session_id,
+            event_name: "acp-session-update",
+            payload: AcpUiEventPayload::SessionUpdate(Box::new(update)),
+            priority,
+            droppable,
+            created_at: Instant::now(),
+        }
+    }
+
+    #[must_use]
+    pub fn inbound_request(request: Value) -> Self {
+        let session_id = request
+            .get("params")
+            .and_then(|params| params.get("sessionId"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+
+        Self {
+            session_id,
+            event_name: "acp-inbound-request",
+            payload: AcpUiEventPayload::Json(request),
+            priority: AcpUiEventPriority::High,
+            droppable: false,
+            created_at: Instant::now(),
+        }
+    }
+
+    #[must_use]
+    pub fn json_event(
+        event_name: &'static str,
+        payload: Value,
+        session_id: Option<String>,
+        priority: AcpUiEventPriority,
+        droppable: bool,
+    ) -> Self {
+        Self {
+            session_id,
+            event_name,
+            payload: AcpUiEventPayload::Json(payload),
+            priority,
+            droppable,
+            created_at: Instant::now(),
+        }
+    }
+
+    fn to_json_payload(&self) -> Result<Value, serde_json::Error> {
+        match &self.payload {
+            AcpUiEventPayload::SessionUpdate(update) => serde_json::to_value(update.as_ref()),
+            AcpUiEventPayload::Json(value) => Ok(value.clone()),
+        }
+    }
+
+    fn publish(&self, hub: &AcpEventHubState) -> Result<(), serde_json::Error> {
+        let payload = self.to_json_payload()?;
+        hub.publish(
+            self.event_name,
+            self.session_id.clone(),
+            payload,
+            self.priority.as_str(),
+            self.droppable,
+        );
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DispatchPolicy {
+    pub tokens_per_sec: f64,
+    pub burst: f64,
+    pub max_global_backlog: usize,
+    pub max_session_backlog: usize,
+    pub high_backlog_threshold: usize,
+    pub base_batch_size: usize,
+    pub high_backlog_batch_size: usize,
+    pub min_spacing_ms: u64,
+    pub high_backlog_spacing_ms: u64,
+}
+
+impl Default for DispatchPolicy {
+    fn default() -> Self {
+        Self {
+            tokens_per_sec: 300.0,
+            burst: 30.0,
+            max_global_backlog: 5000,
+            max_session_backlog: 500,
+            high_backlog_threshold: 1000,
+            base_batch_size: 32,
+            high_backlog_batch_size: 8,
+            min_spacing_ms: 0,
+            high_backlog_spacing_ms: 5,
+        }
+    }
+}
+
+struct DispatcherTelemetry {
+    enqueued: u64,
+    emitted: u64,
+    dropped: u64,
+    max_backlog: usize,
+    max_wait_ms: u128,
+    last_report: Instant,
+}
+
+impl DispatcherTelemetry {
+    fn new() -> Self {
+        Self {
+            enqueued: 0,
+            emitted: 0,
+            dropped: 0,
+            max_backlog: 0,
+            max_wait_ms: 0,
+            last_report: Instant::now(),
+        }
+    }
+
+    fn maybe_report(&mut self, backlog: usize) {
+        self.max_backlog = self.max_backlog.max(backlog);
+
+        if self.last_report.elapsed() < TELEMETRY_INTERVAL {
+            return;
+        }
+
+        tracing::debug!(
+            enqueued = self.enqueued,
+            emitted = self.emitted,
+            dropped = self.dropped,
+            max_backlog = self.max_backlog,
+            max_wait_ms = self.max_wait_ms,
+            "ACP UI dispatcher telemetry"
+        );
+
+        if self.dropped > 0 {
+            tracing::warn!(
+                dropped = self.dropped,
+                max_backlog = self.max_backlog,
+                "ACP UI dispatcher dropped events"
+            );
+        }
+
+        self.enqueued = 0;
+        self.emitted = 0;
+        self.dropped = 0;
+        self.max_backlog = 0;
+        self.max_wait_ms = 0;
+        self.last_report = Instant::now();
+    }
+}
+
+#[derive(Clone)]
+pub struct AcpUiEventDispatcher {
+    tx: Option<mpsc::UnboundedSender<AcpUiEvent>>,
+    #[cfg(test)]
+    test_sink: Option<Arc<std::sync::Mutex<Vec<AcpUiEvent>>>>,
+}
+
+impl AcpUiEventDispatcher {
+    #[must_use]
+    pub fn new(app_handle: Option<AppHandle>, policy: DispatchPolicy) -> Self {
+        let Some(handle) = app_handle else {
+            return Self {
+                tx: None,
+                #[cfg(test)]
+                test_sink: None,
+            };
+        };
+        let Some(hub_state) = handle.try_state::<Arc<AcpEventHubState>>() else {
+            tracing::warn!("ACP event hub state unavailable; UI event dispatcher disabled");
+            return Self {
+                tx: None,
+                #[cfg(test)]
+                test_sink: None,
+            };
+        };
+        let hub = hub_state.inner().clone();
+
+        let (tx, rx) = mpsc::unbounded_channel();
+        tokio::spawn(run_dispatch_loop(hub, policy, rx));
+
+        Self {
+            tx: Some(tx),
+            #[cfg(test)]
+            test_sink: None,
+        }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn test_sink() -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
+        let sink = Arc::new(std::sync::Mutex::new(Vec::new()));
+        (
+            Self {
+                tx: None,
+                test_sink: Some(Arc::clone(&sink)),
+            },
+            sink,
+        )
+    }
+
+    pub fn enqueue(&self, event: AcpUiEvent) {
+        #[cfg(test)]
+        if let Some(sink) = &self.test_sink {
+            if let Ok(mut captured) = sink.lock() {
+                captured.push(event.clone());
+            }
+            return;
+        }
+
+        let Some(tx) = &self.tx else {
+            return;
+        };
+
+        if let Err(error) = tx.send(event) {
+            tracing::error!(error = %error, "Failed to enqueue ACP UI event");
+        }
+    }
+}
+
+async fn run_dispatch_loop(
+    hub: Arc<AcpEventHubState>,
+    policy: DispatchPolicy,
+    mut rx: mpsc::UnboundedReceiver<AcpUiEvent>,
+) {
+    let mut state = DispatcherState::new(policy);
+
+    while let Some(event) = rx.recv().await {
+        state.enqueue(event);
+
+        while let Ok(next) = rx.try_recv() {
+            state.enqueue(next);
+        }
+
+        state.drain(&hub).await;
+    }
+
+    state.drain(&hub).await;
+}
+
+struct DispatcherState {
+    policy: DispatchPolicy,
+    per_session: HashMap<String, VecDeque<AcpUiEvent>>,
+    session_order: VecDeque<String>,
+    non_session: VecDeque<AcpUiEvent>,
+    global_backlog: usize,
+    round_robin_cursor: usize,
+    tokens: f64,
+    last_refill: Instant,
+    telemetry: DispatcherTelemetry,
+}
+
+impl DispatcherState {
+    fn new(policy: DispatchPolicy) -> Self {
+        Self {
+            tokens: policy.burst,
+            policy,
+            per_session: HashMap::new(),
+            session_order: VecDeque::new(),
+            non_session: VecDeque::new(),
+            global_backlog: 0,
+            round_robin_cursor: 0,
+            last_refill: Instant::now(),
+            telemetry: DispatcherTelemetry::new(),
+        }
+    }
+
+    fn enqueue(&mut self, event: AcpUiEvent) {
+        if self.global_backlog >= self.policy.max_global_backlog && event.droppable {
+            self.telemetry.dropped += 1;
+            return;
+        }
+
+        if let Some(session_id) = &event.session_id {
+            let queue = self
+                .per_session
+                .entry(session_id.clone())
+                .or_insert_with(|| {
+                    self.session_order.push_back(session_id.clone());
+                    VecDeque::new()
+                });
+
+            if queue.len() >= self.policy.max_session_backlog && event.droppable {
+                self.telemetry.dropped += 1;
+                return;
+            }
+
+            queue.push_back(event);
+        } else {
+            self.non_session.push_back(event);
+        }
+
+        self.global_backlog += 1;
+        self.telemetry.enqueued += 1;
+    }
+
+    async fn drain(&mut self, hub: &AcpEventHubState) {
+        while self.global_backlog > 0 {
+            self.refill_tokens();
+            if self.tokens < 1.0 {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+                continue;
+            }
+
+            let batch_limit = if self.global_backlog >= self.policy.high_backlog_threshold {
+                self.policy.high_backlog_batch_size
+            } else {
+                self.policy.base_batch_size
+            };
+
+            for _ in 0..batch_limit {
+                if self.tokens < 1.0 || self.global_backlog == 0 {
+                    break;
+                }
+
+                let Some(event) = self.next_event() else {
+                    break;
+                };
+
+                self.tokens -= 1.0;
+                self.global_backlog = self.global_backlog.saturating_sub(1);
+
+                if let Err(error) = event.publish(hub) {
+                    tracing::error!(
+                        error = %error,
+                        event_name = event.event_name,
+                        session_id = ?event.session_id,
+                        "Failed to emit ACP UI event"
+                    );
+                }
+
+                self.telemetry.emitted += 1;
+                self.telemetry.max_wait_ms = self
+                    .telemetry
+                    .max_wait_ms
+                    .max(event.created_at.elapsed().as_millis());
+            }
+
+            let spacing_ms = if self.global_backlog >= self.policy.high_backlog_threshold {
+                self.policy.high_backlog_spacing_ms
+            } else {
+                self.policy.min_spacing_ms
+            };
+            if spacing_ms > 0 && self.global_backlog > 0 {
+                tokio::time::sleep(Duration::from_millis(spacing_ms)).await;
+            }
+
+            self.telemetry.maybe_report(self.global_backlog);
+        }
+
+        self.telemetry.maybe_report(self.global_backlog);
+    }
+
+    fn refill_tokens(&mut self) {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_refill).as_secs_f64();
+        self.last_refill = now;
+        self.tokens = (self.tokens + elapsed * self.policy.tokens_per_sec).min(self.policy.burst);
+    }
+
+    fn next_event(&mut self) -> Option<AcpUiEvent> {
+        let non_session_is_high = self
+            .non_session
+            .iter()
+            .any(|event| event.priority == AcpUiEventPriority::High);
+
+        let session_has_high = self.any_session_has_high();
+
+        if non_session_is_high || session_has_high {
+            return self.next_high_priority_event();
+        }
+
+        self.next_round_robin_event()
+    }
+
+    fn any_session_has_high(&self) -> bool {
+        self.session_order.iter().any(|session_id| {
+            self.per_session.get(session_id).is_some_and(|queue| {
+                queue
+                    .iter()
+                    .any(|event| event.priority == AcpUiEventPriority::High)
+            })
+        })
+    }
+
+    fn next_high_priority_event(&mut self) -> Option<AcpUiEvent> {
+        if let Some(index) = self
+            .non_session
+            .iter()
+            .position(|event| event.priority == AcpUiEventPriority::High)
+        {
+            return self.non_session.remove(index);
+        }
+
+        let session_ids: Vec<String> = self.session_order.iter().cloned().collect();
+        for session_id in session_ids {
+            if let Some(queue) = self.per_session.get_mut(&session_id) {
+                if let Some(index) = queue
+                    .iter()
+                    .position(|event| event.priority == AcpUiEventPriority::High)
+                {
+                    if index == 0 {
+                        // High-priority event is at the front — emit it directly.
+                        let event = queue.pop_front();
+                        self.cleanup_session_queue(&session_id);
+                        return event;
+                    }
+                    // Causal ordering: emit the preceding Normal event first.
+                    // The High-priority event stays in the queue and will be
+                    // picked up on the next call once all predecessors are drained.
+                    let event = queue.pop_front();
+                    self.cleanup_session_queue(&session_id);
+                    return event;
+                }
+            }
+        }
+
+        self.next_round_robin_event()
+    }
+
+    fn next_round_robin_event(&mut self) -> Option<AcpUiEvent> {
+        let session_count = self.session_order.len();
+        let include_non_session = !self.non_session.is_empty();
+
+        if session_count == 0 {
+            return self.non_session.pop_front();
+        }
+
+        let span = session_count + usize::from(include_non_session);
+        let start = self.round_robin_cursor % span;
+
+        for offset in 0..span {
+            let index = (start + offset) % span;
+            if include_non_session && index == session_count {
+                self.round_robin_cursor = index + 1;
+                if let Some(event) = self.non_session.pop_front() {
+                    return Some(event);
+                }
+                continue;
+            }
+
+            let Some(session_id) = self.session_order.get(index).cloned() else {
+                continue;
+            };
+
+            if let Some(queue) = self.per_session.get_mut(&session_id) {
+                if let Some(event) = queue.pop_front() {
+                    self.round_robin_cursor = index + 1;
+                    self.cleanup_session_queue(&session_id);
+                    return Some(event);
+                }
+            }
+
+            self.cleanup_session_queue(&session_id);
+        }
+
+        self.non_session.pop_front()
+    }
+
+    fn cleanup_session_queue(&mut self, session_id: &str) {
+        let remove = self
+            .per_session
+            .get(session_id)
+            .is_some_and(VecDeque::is_empty);
+        if !remove {
+            return;
+        }
+
+        self.per_session.remove(session_id);
+        self.session_order.retain(|id| id != session_id);
+        if self.round_robin_cursor > 0 {
+            self.round_robin_cursor -= 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::session_update::{ContentChunk, SessionUpdate};
+    use crate::acp::types::ContentBlock;
+    use serde_json::json;
+
+    fn chunk_update(session_id: &str, text: &str) -> SessionUpdate {
+        SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: text.to_string(),
+                },
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    #[test]
+    fn per_session_fifo_order_is_preserved() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "b")));
+
+        let first = state.next_event().expect("first event");
+        let second = state.next_event().expect("second event");
+
+        let first_text = match &first.payload {
+            AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                SessionUpdate::AgentMessageChunk { chunk, .. } => match &chunk.content {
+                    ContentBlock::Text { text } => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        let second_text = match &second.payload {
+            AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                SessionUpdate::AgentMessageChunk { chunk, .. } => match &chunk.content {
+                    ContentBlock::Text { text } => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+
+        assert_eq!(first_text, "a");
+        assert_eq!(second_text, "b");
+    }
+
+    #[test]
+    fn high_priority_beats_non_session_normal() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::json_event(
+            "acp-session-created",
+            Value::Null,
+            None,
+            AcpUiEventPriority::Normal,
+            false,
+        ));
+        state.enqueue(AcpUiEvent::inbound_request(Value::Object(
+            Default::default(),
+        )));
+
+        let first = state.next_event().expect("first event");
+        assert_eq!(first.event_name, "acp-inbound-request");
+    }
+
+    #[test]
+    fn high_priority_preserves_causal_ordering_in_session() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "b")));
+        state.enqueue(AcpUiEvent::inbound_request(json!({
+            "params": { "sessionId": "s1" }
+        })));
+
+        // Preceding Normal events in the same session must be emitted
+        // before the High-priority event to preserve causal ordering.
+        let first = state.next_event().expect("first event");
+        assert_eq!(first.event_name, "acp-session-update");
+
+        let second = state.next_event().expect("second event");
+        assert_eq!(second.event_name, "acp-session-update");
+
+        let third = state.next_event().expect("third event");
+        assert_eq!(third.event_name, "acp-inbound-request");
+    }
+
+    #[test]
+    fn high_priority_still_beats_other_sessions() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s2", "other")));
+        state.enqueue(AcpUiEvent::inbound_request(json!({
+            "params": { "sessionId": "s1" }
+        })));
+
+        // High-priority event from s1 should still beat Normal from s2
+        // (no causal relationship across sessions).
+        let first = state.next_event().expect("first event");
+        assert_eq!(first.event_name, "acp-inbound-request");
+    }
+
+    #[test]
+    fn drops_droppable_when_global_backlog_exceeded() {
+        let mut policy = DispatchPolicy::default();
+        policy.max_global_backlog = 1;
+
+        let mut state = DispatcherState::new(policy);
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "b")));
+
+        assert_eq!(state.global_backlog, 1);
+        assert_eq!(state.telemetry.dropped, 1);
+    }
+
+    #[test]
+    fn keeps_non_droppable_when_global_backlog_exceeded() {
+        let mut policy = DispatchPolicy::default();
+        policy.max_global_backlog = 1;
+
+        let mut state = DispatcherState::new(policy);
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));
+        state.enqueue(AcpUiEvent::inbound_request(Value::Object(
+            Default::default(),
+        )));
+
+        assert_eq!(state.global_backlog, 2);
+        assert_eq!(state.telemetry.dropped, 0);
+    }
+
+    #[test]
+    fn round_robin_interleaves_sessions() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a1")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a2")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s2", "b1")));
+        state.enqueue(AcpUiEvent::session_update(chunk_update("s2", "b2")));
+
+        let mut order = Vec::new();
+        while let Some(event) = state.next_event() {
+            let text = match &event.payload {
+                AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                    SessionUpdate::AgentMessageChunk {
+                        chunk:
+                            ContentChunk {
+                                content: ContentBlock::Text { text },
+                            },
+                        ..
+                    } => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            };
+            order.push(text);
+        }
+
+        assert_eq!(order, vec!["a1", "b1", "a2", "b2"]);
+    }
+}

@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1769122700388,
+      "tag": "0000_cheerful_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769122800000,
+      "tag": "0001_convert_feature_flag_enum_to_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772841654490,
+      "tag": "0002_outstanding_daredevil",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773410871980,
+      "tag": "0003_real_naoko",
+      "breakpoints": true
+    }
+  ]
+}

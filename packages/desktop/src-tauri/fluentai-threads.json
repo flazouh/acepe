@@ -1,0 +1,102 @@
+[
+	{
+		"id": "",
+		"session_id": "5d15f464-62ef-4b19-95fc-8196ea971363",
+		"title": "We are getting  *  Executing task: yarn run build:extension:prod \n\nyarn run v1.22.22\n$ NODE_ENV=prod...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T17:38:59.760+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "f5abf3d2-725e-49c4-ae3e-43c626784cb1",
+		"title": "hi",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T05:09:16.159+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "3a4bee58-ee2a-44bb-a269-0f5d9f7f6068",
+		"title": "The user reports that the video unloads and shows a black screen when navigating from the media play...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T05:02:10.301+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "940c62c8-28e5-454d-9316-3afc22856811",
+		"title": "Find all files related to the subtitle list panel in the extension codebase. Look for:\n1. Files with...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T04:16:48.375+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "940c62c8-28e5-454d-9316-3afc22856811",
+		"title": "We have a bug when the subtitle list panel is open, the seeking is like super slow, as if there was ...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T04:16:37.126+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "3a4bee58-ee2a-44bb-a269-0f5d9f7f6068",
+		"title": "The user reports that video player event logic is NOT working in the extension, but IS working on th...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T02:37:12.979+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "3a4bee58-ee2a-44bb-a269-0f5d9f7f6068",
+		"title": "Play-pause animation fix: state detection issue",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T02:36:57.241+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "d249627e-d3b9-4bdc-bb0e-5d0f7f9510f1",
+		"title": "Explore how Jotai is used in the FluentAI extension codebase, specifically:\n\n1. Find all Jotai atom ...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T02:33:25.995+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "d249627e-d3b9-4bdc-bb0e-5d0f7f9510f1",
+		"title": "Explore the bookmark-related hooks and components to understand the re-rendering issue. Focus on:\n\n1...",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T02:23:34.997+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	},
+	{
+		"id": "",
+		"session_id": "d249627e-d3b9-4bdc-bb0e-5d0f7f9510f1",
+		"title": "Play-pause animation revamp with orchestrator pattern",
+		"project_path": "/Users/alex/Documents/fluentai",
+		"created_at": "2025-12-23T02:23:12.762+00:00",
+		"updated_at": "",
+		"archived": false,
+		"session_type": "acp"
+	}
+]

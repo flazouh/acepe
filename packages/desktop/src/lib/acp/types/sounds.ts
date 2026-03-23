@@ -1,0 +1,16 @@
+export enum SoundEffect {
+	AnthonyHopkins = "AnthonyHopkins.wav",
+	BradPitt = "BradPitt.wav",
+	CateBlanchett = "CateBlanchett.wav",
+	DanielDayLewis = "DanielDayLewis.wav",
+	DenzelWashington = "DenzelWashington.wav",
+	EmmaStone = "EmmaStone.mp3",
+	GeorgeClooney = "GeorgeClooney.mp3",
+	JuliaRoberts = "JuliaRoberts.mp3",
+	LeonardoDiCaprio = "LeonardoDiCaprio.mp3",
+	MerylStreep = "MerylStreep.mp3",
+	MorganFreeman = "MorganFreeman.mp3",
+	NicoleKidman = "NicoleKidman.mp3",
+	ScarlettJohansson = "ScarlettJohansson.wav",
+	TomHanks = "TomHanks.wav",
+}

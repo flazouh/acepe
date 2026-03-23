@@ -1,0 +1,244 @@
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getContext, setContext } from "svelte";
+import { toast } from "svelte-sonner";
+
+import { createLogger } from "$lib/acp/utils/logger.js";
+import type {
+	VoiceLanguageOption,
+	VoiceModelDownloadProgress,
+	VoiceModelInfo,
+} from "$lib/acp/types/voice-input.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
+
+const STORE_KEY = Symbol("voice-settings");
+const DEFAULT_MODEL_ID = "small.en";
+const DEFAULT_LANGUAGE = "auto";
+const logger = createLogger({
+	id: "voice-settings",
+	name: "VoiceSettingsStore",
+});
+
+const VOICE_ENABLED_KEY = "voice_enabled";
+const VOICE_LANGUAGE_KEY = "voice_language";
+const VOICE_MODEL_KEY = "voice_model";
+
+interface VoiceDownloadCompletePayload {
+	model_id: string;
+}
+
+interface VoiceDownloadErrorPayload {
+	model_id: string;
+	message: string;
+}
+
+export class VoiceSettingsStore {
+	enabled = $state(true);
+	selectedModelId = $state(DEFAULT_MODEL_ID);
+	language = $state(DEFAULT_LANGUAGE);
+	models = $state<VoiceModelInfo[]>([]);
+	languages = $state<VoiceLanguageOption[]>([]);
+	modelsLoading = $state(true);
+	downloadProgressModelId = $state<string | null>(null);
+	downloadPercent = $state(0);
+
+	readonly selectedModel = $derived(
+		this.models.find((model) => model.id === this.selectedModelId) ?? null
+	);
+
+	private initialized = false;
+	private listenersRegistered = false;
+	private readonly unlisteners: UnlistenFn[] = [];
+
+	async initialize(): Promise<void> {
+		if (this.initialized) {
+			return;
+		}
+
+		await Promise.all([
+			this.loadPersistedSettings(),
+			this.refreshModels(),
+			this.refreshLanguages(),
+			this.registerListeners(),
+		]);
+		this.initialized = true;
+	}
+
+	dispose(): void {
+		for (const unlisten of this.unlisteners.splice(0)) {
+			unlisten();
+		}
+		this.initialized = false;
+		this.listenersRegistered = false;
+	}
+
+	async setEnabled(value: boolean): Promise<void> {
+		const result = await tauriClient.settings.set(VOICE_ENABLED_KEY, value);
+		if (result.isErr()) {
+			logger.error("Failed to persist voice enabled preference", { error: result.error });
+			toast.error(result.error.message);
+			return;
+		}
+
+		this.enabled = value;
+	}
+
+	async setLanguage(value: string): Promise<void> {
+		const result = await tauriClient.settings.set(VOICE_LANGUAGE_KEY, value);
+		if (result.isErr()) {
+			logger.error("Failed to persist voice language preference", { error: result.error });
+			toast.error(result.error.message);
+			return;
+		}
+
+		this.language = value;
+	}
+
+	async setSelectedModelId(modelId: string): Promise<void> {
+		const previousModelId = this.selectedModelId;
+		const saveResult = await tauriClient.settings.set(VOICE_MODEL_KEY, modelId);
+		if (saveResult.isErr()) {
+			logger.error("Failed to persist voice model preference", { error: saveResult.error });
+			toast.error(saveResult.error.message);
+			return;
+		}
+
+		const selectedModel = this.models.find((model) => model.id === modelId) ?? null;
+		if (!selectedModel || !selectedModel.is_downloaded) {
+			this.selectedModelId = modelId;
+			return;
+		}
+
+		const loadResult = await tauriClient.voice.loadModel(modelId);
+		if (loadResult.isErr()) {
+			logger.error("Failed to load selected voice model", {
+				error: loadResult.error,
+				modelId,
+			});
+			toast.error(loadResult.error.message);
+			const rollbackResult = await tauriClient.settings.set(
+				VOICE_MODEL_KEY,
+				previousModelId,
+			);
+			if (rollbackResult.isErr()) {
+				logger.error("Failed to roll back voice model preference", {
+					error: rollbackResult.error,
+					modelId: previousModelId,
+				});
+			}
+			return;
+		}
+
+		this.selectedModelId = modelId;
+	}
+
+	async downloadModel(modelId: string): Promise<void> {
+		this.downloadProgressModelId = modelId;
+		this.downloadPercent = 0;
+
+		const result = await tauriClient.voice.downloadModel(modelId);
+		if (result.isErr()) {
+			logger.error("Failed to download voice model", {
+				error: result.error,
+				modelId,
+			});
+			if (this.downloadProgressModelId === modelId) {
+				this.downloadProgressModelId = null;
+				this.downloadPercent = 0;
+			}
+		}
+	}
+
+	async deleteModel(modelId: string): Promise<void> {
+		const result = await tauriClient.voice.deleteModel(modelId);
+		if (result.isErr()) {
+			logger.error("Failed to delete voice model", {
+				error: result.error,
+				modelId,
+			});
+			return;
+		}
+
+		await this.refreshModels();
+	}
+
+	private async loadPersistedSettings(): Promise<void> {
+		const [enabledResult, modelResult, languageResult] = await Promise.all([
+			tauriClient.settings.get<boolean>(VOICE_ENABLED_KEY),
+			tauriClient.settings.get<string>(VOICE_MODEL_KEY),
+			tauriClient.settings.get<string>(VOICE_LANGUAGE_KEY),
+		]);
+
+		if (enabledResult.isOk() && enabledResult.value !== null) {
+			this.enabled = enabledResult.value;
+		}
+		if (modelResult.isOk() && modelResult.value) {
+			this.selectedModelId = modelResult.value;
+		}
+		if (languageResult.isOk() && languageResult.value) {
+			this.language = languageResult.value;
+		}
+	}
+
+	private async refreshModels(): Promise<void> {
+		this.modelsLoading = true;
+		const result = await tauriClient.voice.listModels();
+		if (result.isOk()) {
+			this.models = result.value;
+		} else {
+			logger.error("Failed to load voice models", { error: result.error });
+		}
+		this.modelsLoading = false;
+	}
+
+	private async refreshLanguages(): Promise<void> {
+		const result = await tauriClient.voice.listLanguages();
+		if (result.isOk()) {
+			this.languages = result.value;
+		} else {
+			logger.error("Failed to load voice languages", { error: result.error });
+		}
+	}
+
+	private async registerListeners(): Promise<void> {
+		if (this.listenersRegistered) {
+			return;
+		}
+		this.listenersRegistered = true;
+
+		const [progressUnlisten, completeUnlisten, errorUnlisten] = await Promise.all([
+			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
+				this.downloadProgressModelId = event.payload.model_id;
+				this.downloadPercent = event.payload.percent;
+			}),
+			listen<VoiceDownloadCompletePayload>("voice://model_download_complete", (event) => {
+				if (this.downloadProgressModelId === event.payload.model_id) {
+					this.downloadProgressModelId = null;
+					this.downloadPercent = 0;
+				}
+				void this.refreshModels();
+			}),
+			listen<VoiceDownloadErrorPayload>("voice://model_download_error", (event) => {
+				logger.error("Voice model download failed", {
+					message: event.payload.message,
+					modelId: event.payload.model_id,
+				});
+				if (this.downloadProgressModelId === event.payload.model_id) {
+					this.downloadProgressModelId = null;
+					this.downloadPercent = 0;
+				}
+			}),
+		]);
+
+		this.unlisteners.push(progressUnlisten, completeUnlisten, errorUnlisten);
+	}
+}
+
+export function createVoiceSettingsStore(): VoiceSettingsStore {
+	const store = new VoiceSettingsStore();
+	setContext(STORE_KEY, store);
+	return store;
+}
+
+export function getVoiceSettingsStore(): VoiceSettingsStore {
+	return getContext<VoiceSettingsStore>(STORE_KEY);
+}

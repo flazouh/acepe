@@ -1,0 +1,6 @@
+export {
+	DEFAULT_LANGUAGE,
+	DIFF_VIEW_MAX_HEIGHT,
+	EXTENSION_TO_LANGUAGE,
+	SUPPORTED_LANGUAGES,
+} from "./edit-tool-constants.js";

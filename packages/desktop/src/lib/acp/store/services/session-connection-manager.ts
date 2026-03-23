@@ -1,0 +1,818 @@
+/**
+ * Session Connection Manager - Handles session connection lifecycle.
+ *
+ * Responsibilities:
+ * - Session creation (new sessions)
+ * - Session connection (resume existing sessions)
+ * - Session disconnection
+ * - Model/mode switching with optimistic updates
+ *
+ * This service is extracted from SessionStore to separate concerns
+ * and reduce the God class anti-pattern.
+ */
+
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { clearSentryAgentContext, setSentryAgentContext } from "../../../analytics.js";
+import { tauriClient } from "../../../utils/tauri-client.js";
+import type { AppError } from "../../errors/app-error.js";
+import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
+import type { ModeType } from "../../types/agent-model-preferences.js";
+import { CanonicalModeId } from "../../types/canonical-mode-id.js";
+import { createLogger } from "../../utils/logger.js";
+import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
+import { api } from "../api.js";
+import type { SessionEventHandler } from "../session-event-handler.js";
+import type { SessionEventService } from "../session-event-service.svelte.js";
+import type { Mode, Model, SessionCold } from "../types.js";
+import type {
+	ICapabilitiesManager,
+	IConnectionManager,
+	IEntryManager,
+	IHotStateManager,
+	ISessionStateReader,
+	ISessionStateWriter,
+} from "./interfaces/index.js";
+
+const logger = createLogger({ id: "session-connection-manager", name: "SessionConnectionManager" });
+
+/**
+ * Frontend connection timeout (ms).
+ * Defense-in-depth: the Rust side has SESSION_CLIENT_OPERATION_TIMEOUT (30s),
+ * but if that fails to fire, this ensures the UI doesn't hang forever.
+ */
+const CONNECTION_TIMEOUT_MS = 15_000;
+
+/**
+ * Wrap a ResultAsync with a timeout. If the timeout fires first, the
+ * returned ResultAsync resolves to the given timeoutError.
+ */
+function withTimeout<T, E>(ra: ResultAsync<T, E>, ms: number, timeoutError: E): ResultAsync<T, E> {
+	return ResultAsync.fromPromise(
+		Promise.race([
+			ra.match(
+				(value) => ({ ok: true as const, value }),
+				(error) => ({ ok: false as const, error })
+			),
+			new Promise<{ ok: false; error: E }>((resolve) =>
+				setTimeout(() => resolve({ ok: false, error: timeoutError }), ms)
+			),
+		]).then((result) => {
+			if (result.ok) return result.value;
+			throw result.error;
+		}),
+		(error) => error as E
+	);
+}
+
+/**
+ * Manager for session connection lifecycle operations.
+ */
+export class SessionConnectionManager {
+	// Cache in-flight connection ResultAsync per session.
+	// Concurrent callers get the same Promise — no duplicate API calls.
+	private pendingConnections = new Map<string, ResultAsync<SessionCold, AppError>>();
+
+	// Sequence counter for config option changes — newest call wins on concurrent mutations.
+	private configOptionSeq = new Map<string, number>();
+
+	constructor(
+		private readonly stateReader: ISessionStateReader,
+		private readonly stateWriter: ISessionStateWriter,
+		private readonly hotStateManager: IHotStateManager,
+		private readonly capabilitiesManager: ICapabilitiesManager,
+		private readonly entryManager: IEntryManager,
+		private readonly connectionManager: IConnectionManager,
+		private readonly eventService: SessionEventService
+	) {}
+
+	// ============================================
+	// HELPER METHODS
+	// ============================================
+
+	/**
+	 * Convert ACP mode ID to user-friendly mode type for preferences.
+	 * "plan" mode → plan, all others (e.g., "acceptEdits") → build
+	 */
+	private getModeType(modeId: string | undefined): ModeType {
+		return modeId === CanonicalModeId.PLAN ? CanonicalModeId.PLAN : CanonicalModeId.BUILD;
+	}
+
+	/**
+	 * Resolve the current model from ACP response, handling mismatches gracefully.
+	 * Some agents return a base model ID while available models include variant suffixes.
+	 */
+	private resolveCurrentModel(
+		availableModels: readonly Model[],
+		currentModelId: string | null | undefined
+	): Model | null {
+		if (availableModels.length === 0) {
+			return null;
+		}
+
+		if (currentModelId) {
+			const exact = availableModels.find((model) => model.id === currentModelId);
+			if (exact) {
+				return exact;
+			}
+
+			const prefix = `${currentModelId}/`;
+			const prefixed = availableModels.find((model) => model.id.startsWith(prefix));
+			if (prefixed) {
+				return prefixed;
+			}
+		}
+
+		return availableModels[0] ?? null;
+	}
+
+	// ============================================
+	// SESSION CONNECTION LIFECYCLE
+	// ============================================
+
+	/**
+	 * Create a new session and connect to ACP.
+	 */
+	createSession(
+		options: {
+			projectPath: string;
+			agentId: string;
+			title?: string;
+			worktreePath?: string;
+		},
+		eventHandler: SessionEventHandler
+	): ResultAsync<SessionCold, AppError> {
+		const sessionCwd = options.worktreePath ?? options.projectPath;
+		logger.info("[first-send-trace] connection manager createSession", {
+			projectPath: options.projectPath,
+			worktreePath: options.worktreePath ?? null,
+			sessionCwd,
+			agentId: options.agentId,
+		});
+		return api
+			.newSession(sessionCwd, options.agentId)
+			.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
+			.map((result) => {
+				const sessionId = result.sessionId;
+				const now = new Date();
+				const {
+					availableModels: rawModels = [],
+					currentModelId,
+					modelsDisplay,
+				} = result.models ?? {};
+
+				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
+					id: m.id,
+					name: m.name,
+					description: m.description ?? undefined,
+				}));
+
+				const availableModels: Model[] = rawModels.map((m) => ({
+					id: m.modelId,
+					name: m.name,
+					description: m.description ?? undefined,
+				}));
+				const availableCommands = result.availableCommands ?? [];
+				const configOptions = result.configOptions ?? [];
+
+				const currentMode =
+					availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
+				let currentModel = this.resolveCurrentModel(availableModels, currentModelId);
+
+				// Apply default model for initial mode if available
+				const modeType = this.getModeType(currentMode?.id);
+				const defaultModelId = preferencesStore.getDefaultModel(options.agentId, modeType);
+				if (defaultModelId) {
+					const defaultModel = availableModels.find((m) => m.id === defaultModelId);
+					if (defaultModel) {
+						currentModel = defaultModel;
+						logger.debug("Applied default model on session creation", {
+							sessionId,
+							agentId: options.agentId,
+							modeType,
+							modelId: defaultModelId,
+						});
+						// Inform ACP of the model choice (fire and forget)
+						api.setModel(sessionId, defaultModelId).mapErr((err) => {
+							logger.warn("Failed to set default model on ACP", {
+								sessionId,
+								modelId: defaultModelId,
+								error: err,
+							});
+						});
+					}
+				}
+
+				// Cache available models and modes for settings/optimistic display
+				preferencesStore.updateModelsCache(options.agentId, availableModels);
+				preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+				preferencesStore.updateModesCache(options.agentId, availableModes);
+
+				// Initialize per-mode model memory with current mode choice
+				if (currentMode) {
+					preferencesStore.setSessionModelForMode(
+						sessionId,
+						currentMode.id,
+						currentModel?.id ?? ""
+					);
+				}
+
+				// Store only cold data (identity + metadata) in the sessions array
+				const sessionCold: SessionCold = {
+					id: sessionId,
+					projectPath: options.projectPath,
+					agentId: options.agentId,
+					worktreePath: options.worktreePath,
+					title: options.title || "New Thread",
+					updatedAt: now,
+					createdAt: now,
+					parentId: null,
+				};
+
+				// Initialize hot state BEFORE adding the session to the store.
+				// initializeHotState writes synchronously (bypasses RAF batch),
+				// so the event service will see isConnected: true immediately
+				// when it receives streaming events for this session.
+				this.hotStateManager.initializeHotState(sessionId, {
+					status: "ready",
+					isConnected: true,
+					turnState: "idle",
+					connectionError: null,
+					currentMode,
+					currentModel,
+					availableCommands,
+					configOptions,
+					modelPerMode: currentMode ? { [currentMode.id]: currentModel?.id ?? "" } : {},
+				});
+
+				this.stateWriter.addSession(sessionCold);
+
+				// Persist worktree path to DB for restore across app restarts
+				if (options.worktreePath) {
+					tauriClient.history
+						.setSessionWorktreePath(
+							sessionId,
+							options.worktreePath,
+							options.projectPath,
+							options.agentId
+						)
+						.mapErr((error) => {
+							logger.error("Failed to persist worktree path to DB", {
+								sessionId,
+								worktreePath: options.worktreePath,
+								error,
+							});
+						});
+				}
+
+				// Store capabilities separately from cold data
+				this.capabilitiesManager.updateCapabilities(sessionId, {
+					availableModes,
+					availableModels,
+					availableCommands,
+					modelsDisplay,
+				});
+
+				// Mark as preloaded since it's a new session with no entries
+				this.entryManager.markPreloaded(sessionId);
+
+				// Initialize session machine with correct initial states:
+				// - Content: LOADED (new session has no entries to load)
+				// - Connection: READY (already connected via newSession API)
+				this.connectionManager.initializeConnectedSession(sessionId);
+
+				// Flush any pending events that arrived before session was added
+				this.eventService.flushPendingEvents(sessionId, eventHandler);
+
+				logger.debug("Session created and connected", {
+					sessionId,
+				});
+
+				return this.stateReader.getSessionCold(sessionId)!;
+			})
+			.mapErr((error) => {
+				logger.error("Failed to create session", { error });
+				const message = error instanceof Error ? error.message : String(error);
+				return new ConnectionError(
+					`Failed to create session: ${message}`,
+					error instanceof Error ? error : undefined
+				);
+			});
+	}
+
+	/**
+	 * Connect to a session (resume or create ACP connection).
+	 */
+	connectSession(
+		sessionId: string,
+		eventHandler: SessionEventHandler
+	): ResultAsync<SessionCold, AppError> {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+
+		const hotState = this.stateReader.getHotState(sessionId);
+		if (hotState.isConnected) {
+			logger.debug("Session already connected, skipping", {
+				sessionId,
+				status: hotState.status,
+				isConnected: hotState.isConnected,
+			});
+			return okAsync(session);
+		}
+		// Defensive guard: if we already have a bound ACP session ID for this thread,
+		// treat it as connected instead of issuing another resume call (which can replay history).
+		if (hotState.acpSessionId === sessionId && hotState.status !== "error") {
+			logger.warn(
+				"Session has bound ACP session ID while disconnected; skipping duplicate resume",
+				{
+					sessionId,
+					status: hotState.status,
+				}
+			);
+			this.hotStateManager.updateHotState(sessionId, {
+				isConnected: true,
+				status: hotState.status === "idle" ? "ready" : hotState.status,
+				connectionError: null,
+			});
+			return okAsync(session);
+		}
+
+		const pending = this.pendingConnections.get(sessionId);
+		if (pending) {
+			logger.debug("Connection already in flight, returning pending", { sessionId });
+			return pending;
+		}
+
+		this.connectionManager.setConnecting(sessionId, true);
+		const shouldSuppressReplay = this.stateReader.isPreloaded(sessionId);
+		if (shouldSuppressReplay) {
+			this.eventService.suppressReplayForSession(sessionId);
+		} else {
+			this.eventService.clearReplaySuppressionForSession(sessionId);
+		}
+
+		// Start connection in state machine
+		this.connectionManager.sendConnectionConnect(sessionId);
+
+		this.hotStateManager.updateHotState(sessionId, {
+			status: "connecting",
+			connectionError: null,
+		});
+
+		// Always send projectPath as the base CWD. The backend will override it
+		// with the DB's worktree_path when it still exists on disk, avoiding the
+		// case where the frontend sends a stale worktree path that has been deleted.
+		const resumeCwd = session.projectPath;
+		const connection = withTimeout(
+			api.resumeSession(sessionId, resumeCwd, session.agentId),
+			CONNECTION_TIMEOUT_MS,
+			new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
+		)
+			.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
+			.andThen((result) => {
+				this.connectionManager.setConnecting(sessionId, false);
+				const {
+					availableModels: rawModels = [],
+					currentModelId,
+					modelsDisplay,
+				} = result.models ?? {};
+
+				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
+					id: m.id,
+					name: m.name,
+					description: m.description ?? undefined,
+				}));
+
+				const availableModels: Model[] = rawModels.map((m) => ({
+					id: m.modelId,
+					name: m.name,
+					description: m.description ?? undefined,
+				}));
+				const availableCommands = result.availableCommands ?? [];
+				const configOptions = result.configOptions ?? [];
+
+				const currentMode =
+					availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
+				const initialModel = this.resolveCurrentModel(availableModels, currentModelId);
+
+				const storedModelId = currentMode?.id
+					? preferencesStore.getSessionModelForMode(sessionId, currentMode.id)
+					: undefined;
+				const hasStoredModel = typeof storedModelId === "string" && storedModelId.length > 0;
+				const storedModelValid =
+					hasStoredModel && availableModels.some((m) => m.id === storedModelId);
+				const canSeedSessionModel = preferencesStore.isSessionModelLoaded();
+
+				if (storedModelValid && storedModelId && storedModelId !== initialModel?.id) {
+					const storedModel = availableModels.find((m) => m.id === storedModelId) ?? null;
+					logger.debug("Restoring stored session model for mode", {
+						sessionId,
+						modeId: currentMode?.id,
+						modelId: storedModelId,
+					});
+					return withTimeout(
+						api.setModel(sessionId, storedModelId),
+						CONNECTION_TIMEOUT_MS,
+						new ConnectionError(`setModel timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
+					)
+						.map(() => ({
+							availableModes,
+							availableModels,
+							availableCommands,
+							configOptions,
+							modelsDisplay: modelsDisplay,
+							currentMode,
+							currentModel: storedModel ?? initialModel,
+						}))
+						.mapErr((err) => {
+							logger.warn("Failed to restore session model", {
+								sessionId,
+								modelId: storedModelId,
+								error: err,
+							});
+							return err;
+						})
+						.orElse(() =>
+							okAsync({
+								availableModes,
+								availableModels,
+								availableCommands,
+								configOptions,
+								modelsDisplay: modelsDisplay,
+								currentMode,
+								currentModel: initialModel,
+							})
+						);
+				}
+
+				if (!hasStoredModel && canSeedSessionModel && currentMode && initialModel?.id) {
+					preferencesStore.setSessionModelForMode(sessionId, currentMode.id, initialModel.id);
+				}
+
+				return okAsync({
+					availableModes,
+					availableModels,
+					availableCommands,
+					configOptions,
+					modelsDisplay: modelsDisplay,
+					currentMode,
+					currentModel: initialModel,
+				});
+			})
+			.map(
+				({
+					availableModes,
+					availableModels,
+					availableCommands,
+					configOptions,
+					modelsDisplay,
+					currentMode,
+					currentModel,
+				}) => {
+					// Cache available models and modes for settings/optimistic display
+					preferencesStore.updateModelsCache(session.agentId, availableModels);
+					preferencesStore.updateModelsDisplayCache(session.agentId, modelsDisplay);
+					preferencesStore.updateModesCache(session.agentId, availableModes);
+
+					// Store capabilities separately from cold data
+					this.capabilitiesManager.updateCapabilities(sessionId, {
+						availableModes,
+						availableModels,
+						availableCommands,
+						modelsDisplay,
+					});
+
+					this.pendingConnections.delete(sessionId);
+
+				// Update state machine: connecting → success → warming up → capabilities loaded
+				this.connectionManager.sendConnectionSuccess(sessionId);
+				this.connectionManager.sendCapabilitiesLoaded(sessionId);
+
+				// Tag Sentry scope so frontend errors carry agent context
+				setSentryAgentContext(session.agentId, sessionId);
+
+					// Transition content state to LOADED so the UI shows the conversation.
+					// For Codex, content arrives via ACP streaming; for disk-based agents,
+					// content may already be LOADED from preloadSessions (idempotent).
+					this.connectionManager.sendContentLoad(sessionId);
+					this.connectionManager.sendContentLoaded(sessionId);
+
+					this.hotStateManager.updateHotState(sessionId, {
+						status: "ready",
+						turnState: "idle",
+						isConnected: true,
+						acpSessionId: sessionId,
+						currentMode,
+						currentModel,
+						availableCommands,
+						configOptions,
+						connectionError: null,
+					});
+
+					// Resume can emit events before connect finishes. Flush buffered events now.
+					this.eventService.flushPendingEvents(sessionId, eventHandler);
+
+					return this.stateReader.getSessionCold(sessionId)!;
+				}
+			)
+			.mapErr((error) => {
+				this.pendingConnections.delete(sessionId);
+				this.connectionManager.setConnecting(sessionId, false);
+				this.eventService.clearReplaySuppressionForSession(sessionId);
+
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				const isMethodNotFound =
+					errorMessage.includes("Method not found") || errorMessage.includes("-32601");
+
+				// Connection failed in state machine
+				this.connectionManager.sendConnectionError(sessionId);
+
+				if (isMethodNotFound) {
+					logger.debug("Agent does not support session resume, session is read-only", {
+						sessionId,
+						agentId: session.agentId,
+					});
+					this.hotStateManager.updateHotState(sessionId, {
+						status: "idle",
+						isConnected: false,
+						connectionError: "Session is read-only (agent does not support resume)",
+					});
+					return new ConnectionError(
+						`Session is read-only (agent does not support resume)`,
+						error instanceof Error ? error : undefined
+					);
+				}
+
+				this.hotStateManager.updateHotState(sessionId, {
+					status: "error",
+					isConnected: false,
+					connectionError: errorMessage,
+				});
+				logger.error("Failed to connect session", { sessionId, error });
+				return new ConnectionError(sessionId, error instanceof Error ? error : undefined);
+			});
+
+		this.pendingConnections.set(sessionId, connection);
+		return connection;
+	}
+
+	/**
+	 * Disconnect a session and clean up its subprocess.
+	 *
+	 * This method:
+	 * 1. Updates local state (state machine, capabilities, hot state)
+	 * 2. Calls the backend to close the session and kill the subprocess
+	 *
+	 * The subprocess cleanup is fire-and-forget to avoid blocking the UI.
+	 */
+	disconnectSession(sessionId: string): void {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) return;
+		this.pendingConnections.delete(sessionId);
+		this.eventService.clearReplaySuppressionForSession(sessionId);
+
+		// Disconnect in state machine
+		this.connectionManager.sendDisconnect(sessionId);
+
+		// Clear agent context from Sentry scope
+		clearSentryAgentContext();
+
+		// Clear ACP capabilities on disconnect
+		this.capabilitiesManager.removeCapabilities(sessionId);
+
+		// Read acpSessionId from hot state before clearing it
+		const acpSessionId = this.stateReader.getHotState(sessionId).acpSessionId;
+
+		this.hotStateManager.updateHotState(sessionId, {
+			status: "idle",
+			isConnected: false,
+			turnState: "idle",
+			acpSessionId: null,
+			connectionError: null,
+			modelPerMode: {},
+		});
+
+		// Close the session on the backend to kill the subprocess
+		// Fire-and-forget: don't block UI on subprocess cleanup
+		if (acpSessionId) {
+			api.closeSession(acpSessionId).mapErr((error) => {
+				logger.warn("Failed to close session subprocess", { sessionId, acpSessionId, error });
+			});
+		}
+
+		logger.debug("Session disconnected", { sessionId });
+	}
+
+	// ============================================
+	// MODEL/MODE MANAGEMENT
+	// ============================================
+
+	/**
+	 * Set model for a session (optimistic update with rollback).
+	 * Also tracks the model choice per mode for this session.
+	 */
+	setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+		const hotState = this.stateReader.getHotState(sessionId);
+		if (!hotState.isConnected) {
+			return errAsync(new ConnectionError(sessionId));
+		}
+
+		const capabilities = this.capabilitiesManager.getCapabilities(sessionId);
+		const newModel = capabilities.availableModels.find((m) => m.id === modelId);
+		const oldModel = hotState.currentModel;
+
+		this.hotStateManager.updateHotState(sessionId, { currentModel: newModel || null });
+		logger.debug("Setting model (optimistic)", { sessionId, modelId });
+
+		// Track model choice per mode for this session
+		if (hotState.currentMode) {
+			preferencesStore.setSessionModelForMode(sessionId, hotState.currentMode.id, modelId);
+		}
+
+		return api
+			.setModel(session.id, modelId)
+			.map(() => {
+				logger.debug("Model set successfully", { sessionId, modelId });
+				return undefined;
+			})
+			.mapErr((error) => {
+				this.hotStateManager.updateHotState(sessionId, { currentModel: oldModel });
+				logger.error("Failed to set model, rolling back", {
+					sessionId,
+					modelId,
+					error,
+				});
+				return new AgentError("setModel", error instanceof Error ? error : undefined);
+			});
+	}
+
+	/**
+	 * Set mode for a session (optimistic update with rollback).
+	 * Also applies model defaults or restores previous model choice for new mode.
+	 *
+	 * Flow:
+	 * 1. Switch to new mode (optimistic)
+	 * 2. Check if user previously selected a model for this mode in this session
+	 *    - If yes, restore that model
+	 *    - If no, apply default model for this mode (if configured)
+	 * 3. Update per-mode model memory
+	 */
+	setMode(sessionId: string, modeId: string): ResultAsync<void, AppError> {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+		const hotState = this.stateReader.getHotState(sessionId);
+		if (!hotState.isConnected) {
+			return errAsync(new ConnectionError(sessionId));
+		}
+
+		const capabilities = this.capabilitiesManager.getCapabilities(sessionId);
+		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
+		const oldMode = hotState.currentMode;
+
+		this.hotStateManager.updateHotState(sessionId, { currentMode: newMode || null });
+		logger.debug("Setting mode (optimistic)", { sessionId, modeId });
+
+		return api
+			.setMode(session.id, modeId)
+			.andThen(() => {
+				logger.debug("Mode set successfully", { sessionId, modeId });
+
+				// After mode switch succeeds, handle model for new mode
+				if (!newMode) {
+					return okAsync(undefined);
+				}
+
+				// Check if user previously selected a model for this mode in this session
+				const previousModelForMode = preferencesStore.getSessionModelForMode(sessionId, modeId);
+				if (
+					previousModelForMode &&
+					capabilities.availableModels.some((m) => m.id === previousModelForMode)
+				) {
+					// Restore user's previous choice for this mode
+					logger.debug("Restoring previous model choice for mode", {
+						sessionId,
+						modeId,
+						modelId: previousModelForMode,
+					});
+					return this.setModel(sessionId, previousModelForMode);
+				}
+
+				// No previous choice, check for default model for this mode
+				const modeType = this.getModeType(modeId);
+				const defaultModelId = preferencesStore.getDefaultModel(session.agentId, modeType);
+				if (defaultModelId && capabilities.availableModels.some((m) => m.id === defaultModelId)) {
+					logger.debug("Applying default model for mode", {
+						sessionId,
+						modeId,
+						modeType,
+						modelId: defaultModelId,
+					});
+					return this.setModel(sessionId, defaultModelId);
+				}
+
+				return okAsync(undefined);
+			})
+			.mapErr((error) => {
+				this.hotStateManager.updateHotState(sessionId, { currentMode: oldMode });
+				logger.error("Failed to set mode, rolling back", {
+					sessionId,
+					modeId,
+					error,
+				});
+				return new AgentError("setMode", error instanceof Error ? error : undefined);
+			});
+	}
+
+	/**
+	 * Set a configuration option for a session (optimistic update with response override).
+	 */
+	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+		const hotState = this.stateReader.getHotState(sessionId);
+		if (!hotState.isConnected) {
+			return errAsync(new ConnectionError(sessionId));
+		}
+
+		// Bump sequence — newest call wins on concurrent mutations
+		const seq = (this.configOptionSeq.get(sessionId) ?? 0) + 1;
+		this.configOptionSeq.set(sessionId, seq);
+
+		// Optimistic: update just the changed option's currentValue
+		const optimisticOptions = (hotState.configOptions ?? []).map((opt) =>
+			opt.id === configId ? { ...opt, currentValue: value } : opt
+		);
+		this.hotStateManager.updateHotState(sessionId, { configOptions: optimisticOptions });
+		logger.debug("Setting config option (optimistic)", { sessionId, configId, value });
+
+		return api
+			.setConfigOption(session.id, configId, value)
+			.map((response) => {
+				// Only apply if we are still the latest call
+				if (this.configOptionSeq.get(sessionId) !== seq) return;
+
+				// Replace with full state from response (other options may have changed)
+				if (response?.configOptions && Array.isArray(response.configOptions)) {
+					this.hotStateManager.updateHotState(sessionId, {
+						configOptions: response.configOptions,
+					});
+				}
+				logger.debug("Config option set successfully", { sessionId, configId });
+			})
+			.mapErr((error) => {
+				// Only rollback if we are still the latest call
+				if (this.configOptionSeq.get(sessionId) === seq) {
+					this.hotStateManager.updateHotState(sessionId, {
+						configOptions: hotState.configOptions ?? [],
+					});
+				}
+				logger.error("Failed to set config option", {
+					sessionId,
+					configId,
+					error,
+				});
+				return new AgentError("setConfigOption", error instanceof Error ? error : undefined);
+			});
+	}
+
+	/**
+	 * Cancel streaming for a session.
+	 */
+	cancelStreaming(sessionId: string): ResultAsync<void, AppError> {
+		const session = this.stateReader.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+		const hotState = this.stateReader.getHotState(sessionId);
+		if (!hotState.isConnected) {
+			return errAsync(new ConnectionError(sessionId));
+		}
+
+		return api
+			.stopStreaming(session.id)
+			.map(() => {
+				// Transition machine STREAMING → READY so deriveSessionRuntimeState()
+				// sees the updated connection state after the reactive anchor fires.
+				this.connectionManager.sendResponseComplete(sessionId);
+				this.hotStateManager.updateHotState(sessionId, {
+					status: "ready",
+					turnState: "interrupted",
+				});
+				logger.debug("Streaming cancelled", { sessionId });
+				return undefined;
+			})
+			.mapErr((error) => {
+				logger.error("Failed to cancel streaming", { sessionId, error });
+				return new AgentError("cancelStreaming", error instanceof Error ? error : undefined);
+			});
+	}
+}
