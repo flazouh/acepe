@@ -41,7 +41,7 @@
 			<button
 				type="button"
 				class="ml-auto flex items-center gap-0.5 text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
-				onclick={() => window.open(comment.htmlUrl, '_blank')}
+				onclick={() => window.open(comment.htmlUrl, '_blank', 'noopener,noreferrer')}
 			>
 				<ArrowSquareOut size={9} />
 			</button>
@@ -59,6 +59,7 @@
 						<button
 							type="button"
 							class="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-accent/30 text-muted-foreground border border-border/20 hover:bg-accent/50 transition-colors cursor-pointer"
+							disabled={$reactionMutation.isPending}
 							onclick={() => $reactionMutation.mutate(r.content)}
 						>
 							<span>{r.emoji}</span>

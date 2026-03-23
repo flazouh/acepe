@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
+	import { VisuallyHidden } from 'bits-ui';
 	import * as DropdownMenu from '../dropdown-menu/index.js';
 	import { ArrowLeft, ArrowSquareOut, CaretDown, Check, MagnifyingGlass, Plus } from 'phosphor-svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
@@ -71,13 +72,14 @@
 		{ value: 'comments', label: 'Most discussed' }
 	];
 
-	const activeCategoryLabel = $derived(
-		categories.find((c) => c.value === activeCategory)?.label ?? 'All Types'
-	);
+	function findLabel<T extends { value: unknown; label: string }>(items: T[], value: unknown, fallback: string): string {
+		const found = items.find((item) => item.value === value);
+		return found ? found.label : fallback;
+	}
+
+	const activeCategoryLabel = $derived(findLabel(categories, activeCategory, 'All Types'));
 	const activeStateLabel = $derived(activeState === 'closed' ? 'Closed' : 'Open');
-	const activeSortLabel = $derived(
-		sorts.find((s) => s.value === sortOrder)?.label ?? 'Newest'
-	);
+	const activeSortLabel = $derived(findLabel(sorts, sortOrder, 'Newest'));
 
 	function handleBack() {
 		view = { kind: 'list' };
@@ -98,6 +100,10 @@
 		<Dialog.Content
 			class="fixed start-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] w-[680px] max-w-[calc(100vw-3rem)] h-[80vh] max-h-[700px] flex flex-col rounded-xl border border-border/40 bg-background shadow-2xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200"
 		>
+			<VisuallyHidden>
+				<Dialog.Title>GitHub Issues</Dialog.Title>
+				<Dialog.Description>Browse, create, and manage GitHub issues for the Acepe repository.</Dialog.Description>
+			</VisuallyHidden>
 			<QueryClientProvider client={queryClient}>
 				<EmbeddedPanelHeader>
 					{#if view.kind !== 'list'}
@@ -147,7 +153,7 @@
 								<EmbeddedIconButton
 									title="Open on GitHub"
 									ariaLabel="Open issues on GitHub"
-									onclick={() => window.open(`${repoUrl}/issues`, '_blank')}
+									onclick={() => window.open(`${repoUrl}/issues`, '_blank', 'noopener,noreferrer')}
 								>
 									{#snippet children()}
 										<ArrowSquareOut size={14} weight="bold" />
@@ -167,8 +173,10 @@
 				{#if searchOpen && view.kind === 'list'}
 					<div class="flex items-center h-8 px-3 border-b border-border/30 bg-accent/10">
 						<MagnifyingGlass size={12} class="text-muted-foreground/50 shrink-0 mr-2" />
+						<label for="issue-search" class="sr-only">Search issues</label>
 						<!-- svelte-ignore a11y_autofocus -->
 						<input
+							id="issue-search"
 							type="text"
 							placeholder="Search issues..."
 							bind:value={searchQuery}
@@ -182,7 +190,10 @@
 				{#if view.kind === 'list'}
 					<div class="flex items-center gap-2 h-9 px-3 border-b border-border/20 bg-background">
 						<DropdownMenu.Root>
-							<DropdownMenu.Trigger class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer">
+							<DropdownMenu.Trigger
+								aria-label="Filter by category"
+								class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer"
+							>
 								{activeCategoryLabel}
 								<CaretDown size={10} />
 							</DropdownMenu.Trigger>
@@ -192,7 +203,8 @@
 									<DropdownMenu.Item class="flex items-center gap-2 cursor-pointer" onSelect={() => { activeCategory = cat.value; resetPage(); }}>
 										{#if config}
 											{@const Icon = config.icon}
-											<Icon size={12} weight="fill" class={config.classes.split(' ').find((c) => c.startsWith('text-')) ?? ''} />
+											{@const textClass = config.classes.split(' ').find((c) => c.startsWith('text-'))}
+											<Icon size={12} weight="fill" class={textClass ? textClass : ''} />
 										{/if}
 										<span class="flex-1">{cat.label}</span>
 										{#if activeCategory === cat.value}
@@ -204,7 +216,10 @@
 						</DropdownMenu.Root>
 
 						<DropdownMenu.Root>
-							<DropdownMenu.Trigger class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer">
+							<DropdownMenu.Trigger
+								aria-label="Filter by status"
+								class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer"
+							>
 								{activeStateLabel}
 								<CaretDown size={10} />
 							</DropdownMenu.Trigger>
@@ -228,7 +243,10 @@
 						<div class="flex-1"></div>
 
 						<DropdownMenu.Root>
-							<DropdownMenu.Trigger class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer">
+							<DropdownMenu.Trigger
+								aria-label="Sort order"
+								class="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer"
+							>
 								{activeSortLabel}
 								<CaretDown size={10} />
 							</DropdownMenu.Trigger>
@@ -251,7 +269,7 @@
 						<UserReportsList
 							{service}
 							category={activeCategory}
-							state={activeState ?? 'open'}
+							state={activeState ? activeState : 'open'}
 							sort={sortOrder}
 							search={searchQuery}
 							page={listPage}

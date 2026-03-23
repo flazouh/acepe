@@ -29,7 +29,7 @@
 				return unwrapResult(
 					service.searchIssues({
 						query: search,
-						state: state ?? undefined,
+						state: state ? state : undefined,
 						labels: category ? category : undefined,
 						sort: sort === 'comments' ? 'comments' : undefined,
 						page,
@@ -39,7 +39,7 @@
 			}
 			return unwrapResult(
 				service.listIssues({
-					state: state ?? 'open',
+					state: state ? state : 'open',
 					labels: category ? category : undefined,
 					sort,
 					direction: sort === 'created' ? 'desc' : undefined,
@@ -53,6 +53,20 @@
 
 {#if $query.isLoading}
 	<UserReportsSkeleton />
+{:else if $query.isError}
+	<div class="flex flex-col items-center justify-center py-16 px-4 gap-2">
+		<span class="text-[11px] font-mono text-destructive/80">Failed to load issues</span>
+		<span class="text-[10px] text-muted-foreground/50 text-center max-w-xs">
+			{$query.error instanceof Error ? $query.error.message : 'An unexpected error occurred'}
+		</span>
+		<button
+			type="button"
+			class="mt-2 text-[10px] font-mono text-primary hover:text-primary/80 transition-colors cursor-pointer"
+			onclick={() => $query.refetch()}
+		>
+			Retry
+		</button>
+	</div>
 {:else if $query.data && $query.data.items.length > 0}
 	<div class="flex flex-col">
 		{#each $query.data.items as issue (issue.number)}

@@ -75,7 +75,7 @@
 				<button
 					type="button"
 					class="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
-					onclick={() => window.open(issue.htmlUrl, '_blank')}
+					onclick={() => window.open(issue.htmlUrl, '_blank', 'noopener,noreferrer')}
 				>
 					<ArrowSquareOut size={10} />
 					GitHub
@@ -100,6 +100,7 @@
 								? 'bg-accent/40 text-foreground border-border/30'
 								: 'bg-transparent text-muted-foreground/40 border-transparent hover:bg-accent/20 hover:text-muted-foreground'
 						)}
+						disabled={$reactionMutation.isPending}
 						onclick={() => $reactionMutation.mutate(r.content)}
 					>
 						<span>{r.emoji}</span>
@@ -125,5 +126,28 @@
 {:else if $issueQuery.isLoading}
 	<div class="flex items-center justify-center py-16">
 		<span class="text-[11px] text-muted-foreground/50">Loading...</span>
+	</div>
+{:else if $issueQuery.isError}
+	<div class="flex flex-col items-center justify-center py-16 px-4 gap-2">
+		<span class="text-[11px] font-mono text-destructive/80">Failed to load issue</span>
+		<span class="text-[10px] text-muted-foreground/50 text-center max-w-xs">
+			{$issueQuery.error instanceof Error ? $issueQuery.error.message : 'An unexpected error occurred'}
+		</span>
+		<div class="flex items-center gap-3 mt-2">
+			<button
+				type="button"
+				class="text-[10px] font-mono text-primary hover:text-primary/80 transition-colors cursor-pointer"
+				onclick={() => $issueQuery.refetch()}
+			>
+				Retry
+			</button>
+			<button
+				type="button"
+				class="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+				onclick={onBack}
+			>
+				Back to list
+			</button>
+		</div>
 	</div>
 {/if}

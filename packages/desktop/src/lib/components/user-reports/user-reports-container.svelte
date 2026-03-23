@@ -5,6 +5,7 @@ import { UserReportsModal } from "@acepe/ui/user-reports";
 import type {
 	GitHubService,
 	GitHubError,
+	GitHubErrorKind,
 	AuthStatus,
 	IssueListResult,
 	GitHubIssue,
@@ -18,27 +19,32 @@ interface Props {
 
 let { open, onClose }: Props = $props();
 
+const ERROR_CODE_KINDS: GitHubErrorKind[] = [
+	"auth_required",
+	"rate_limited",
+	"not_found",
+	"gh_not_installed",
+	"network",
+];
+
+function parseErrorKind(message: string): GitHubErrorKind {
+	// Rust returns "ERROR_CODE: human-readable message" format
+	const colonIndex = message.indexOf(": ");
+	if (colonIndex > 0) {
+		const prefix = message.slice(0, colonIndex);
+		const matched = ERROR_CODE_KINDS.find((k) => k === prefix);
+		if (matched) return matched;
+	}
+	return "unknown";
+}
+
 function wrapInvoke<T>(command: string, args?: Record<string, unknown>): ResultAsync<T, GitHubError> {
 	return ResultAsync.fromPromise(
 		invoke<T>(command, args),
 		(error): GitHubError => {
 			const message = error instanceof Error ? error.message : String(error);
-			if (message.includes("auth_required") || message.includes("401")) {
-				return { kind: "auth_required", message };
-			}
-			if (message.includes("rate_limited") || message.includes("403")) {
-				return { kind: "rate_limited", message };
-			}
-			if (message.includes("not_found") || message.includes("404")) {
-				return { kind: "not_found", message };
-			}
-			if (message.includes("gh_not_installed") || message.includes("not found")) {
-				return { kind: "gh_not_installed", message };
-			}
-			if (message.includes("network") || message.includes("ConnectionRefused")) {
-				return { kind: "network", message };
-			}
-			return { kind: "unknown", message };
+			const kind = parseErrorKind(message);
+			return { kind, message };
 		}
 	);
 }
@@ -76,13 +82,13 @@ const service: GitHubService = {
 		}),
 
 	listComments: (issueNumber, page) =>
-		wrapInvoke<GitHubComment[]>("list_issue_comments", { issueNumber, page }),
+		wrapInvoke<GitHubComment[]>("list_issue_comments", { number: issueNumber, page }),
 
 	createComment: (issueNumber, body) =>
-		wrapInvoke<GitHubComment>("create_issue_comment", { issueNumber, body }),
+		wrapInvoke<GitHubComment>("create_issue_comment", { number: issueNumber, body }),
 
 	toggleIssueReaction: (issueNumber, content) =>
-		wrapInvoke<boolean>("toggle_issue_reaction", { issueNumber, content }),
+		wrapInvoke<boolean>("toggle_issue_reaction", { number: issueNumber, content }),
 
 	toggleCommentReaction: (commentId, content) =>
 		wrapInvoke<boolean>("toggle_comment_reaction", { commentId, content }),

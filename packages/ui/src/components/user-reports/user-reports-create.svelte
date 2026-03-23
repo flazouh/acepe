@@ -2,7 +2,7 @@
 	import { createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { Bug, Lightbulb, Question, ChatCircle } from 'phosphor-svelte';
 	import { cn } from '../../lib/utils.js';
-	import type { GitHubService, GitHubIssue, IssueCategory } from './types.js';
+	import type { GitHubService, GitHubIssue, GitHubError, IssueCategory } from './types.js';
 	import { CATEGORY_CONFIG, unwrapResult } from './types.js';
 
 	interface Props {
@@ -40,8 +40,8 @@
 			queryClient.invalidateQueries({ queryKey: ['issues'] });
 			onCreated(issue);
 		},
-		onError: (e: Error) => {
-			error = e.message || 'Failed to create issue';
+		onError: (e: GitHubError) => {
+			error = e.message ? e.message : 'Failed to create issue';
 		}
 	});
 
