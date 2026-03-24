@@ -4,45 +4,37 @@ import type { VoiceInputPhase } from "../../../../types/voice-input.js";
 
 describe("voice-ui-state", () => {
 	const ALL_PHASES: VoiceInputPhase[] = [
-		"idle", "checking_permission", "downloading_model",
+		"idle", "checking_permission", "downloading_model", "loading_model",
 		"recording", "transcribing", "complete", "cancelled", "error",
 	];
 
-	describe("canCancelVoiceInteraction", () => {
-		it("returns true for recording", () => {
-			expect(canCancelVoiceInteraction("recording")).toBe(true);
-		});
+	const CANCELLABLE_PHASES: VoiceInputPhase[] = [
+		"checking_permission", "downloading_model", "loading_model", "recording", "transcribing",
+	];
 
-		it("returns true for transcribing", () => {
-			expect(canCancelVoiceInteraction("transcribing")).toBe(true);
+	const OVERLAY_PHASES: VoiceInputPhase[] = [
+		"transcribing", "error",
+	];
+
+	describe("canCancelVoiceInteraction", () => {
+		it.each(CANCELLABLE_PHASES)("returns true for %s", (phase) => {
+			expect(canCancelVoiceInteraction(phase)).toBe(true);
 		});
 
 		it.each(
-			ALL_PHASES.filter((p) => p !== "recording" && p !== "transcribing"),
+			ALL_PHASES.filter((p) => !CANCELLABLE_PHASES.includes(p)),
 		)("returns false for %s", (phase) => {
 			expect(canCancelVoiceInteraction(phase)).toBe(false);
 		});
 	});
 
 	describe("shouldShowVoiceOverlay", () => {
-		it("returns true for recording", () => {
-			expect(shouldShowVoiceOverlay("recording")).toBe(true);
-		});
-
-		it("returns true for transcribing", () => {
-			expect(shouldShowVoiceOverlay("transcribing")).toBe(true);
-		});
-
-		it("returns true for downloading_model", () => {
-			expect(shouldShowVoiceOverlay("downloading_model")).toBe(true);
-		});
-
-		it("returns true for error", () => {
-			expect(shouldShowVoiceOverlay("error")).toBe(true);
+		it.each(OVERLAY_PHASES)("returns true for %s", (phase) => {
+			expect(shouldShowVoiceOverlay(phase)).toBe(true);
 		});
 
 		it.each(
-			ALL_PHASES.filter((p) => !["recording", "transcribing", "downloading_model", "error"].includes(p)),
+			ALL_PHASES.filter((p) => !OVERLAY_PHASES.includes(p)),
 		)("returns false for %s", (phase) => {
 			expect(shouldShowVoiceOverlay(phase)).toBe(false);
 		});

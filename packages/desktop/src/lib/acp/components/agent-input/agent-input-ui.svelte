@@ -30,6 +30,7 @@ import MicButton from "./components/mic-button.svelte";
 import PastedTextOverlay from "./components/pasted-text-overlay.svelte";
 import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
+import { shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
 	findInlineArtefactRangeAtPosition,
@@ -74,12 +75,16 @@ const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const messageQueueStore = getMessageQueueStore();
 const voiceSettingsStore = getVoiceSettingsStore();
+const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 
 // Create state instance with reactive project path getter
 const inputState = new AgentInputState(sessionStore, panelStore, () => props.projectPath ?? null);
 
 let voiceState: VoiceInputState | null = $state(null);
 const voiceEnabled = $derived(voiceSettingsStore.enabled);
+const voiceOverlayActive = $derived(
+	voiceState ? shouldShowVoiceOverlay(voiceState.phase) : false
+);
 
 const panelHotState = $derived(props.panelId ? panelStore.getHotState(props.panelId) : null);
 
@@ -172,7 +177,11 @@ const inputReady = $derived(!!props.sessionId || !!props.projectPath);
 
 // Submit is controlled by canonical runtime state when a session exists.
 const isSubmitDisabled = $derived(
-	props.sessionId ? !(props.sessionCanSubmit ?? sessionRuntimeState?.canSubmit ?? false) : false
+	props.disableSend
+		? true
+		: props.sessionId
+			? !(props.sessionCanSubmit ?? sessionRuntimeState?.canSubmit ?? false)
+			: false
 );
 
 const isSessionConnecting = $derived(sessionRuntimeState?.connectionPhase === "connecting");
@@ -462,12 +471,12 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 // Initialize on mount (file preloading is now handled reactively by state class)
 onMount(async () => {
 	inputState.initialize();
-	if (props.sessionId) {
+	if (effectiveVoiceSessionId && voiceEnabled) {
 		// VoiceInputState is created with the current sessionId and lives for the lifetime of this
 		// component instance. If the parent re-keys the component (new sessionId), a fresh
 		// VoiceInputState is created. dispose() in onDestroy handles cleanup.
 		const vs = new VoiceInputState({
-			sessionId: props.sessionId,
+			sessionId: effectiveVoiceSessionId,
 			getSelectedLanguage: () => voiceSettingsStore.language,
 			getSelectedModelId: () => voiceSettingsStore.selectedModelId,
 			onTranscriptionReady: (text) => {
@@ -1273,9 +1282,11 @@ async function handleCancel() {
 			</div>
 		</div>
 	{:else}
-		<InputContainer class="flex-shrink-0 border border-border">
+		<InputContainer class="flex-shrink-0 border border-border" contentClass={voiceOverlayActive ? "relative" : "p-2"}>
 			{#snippet content()}
-				{#if inputReady}
+				{#if voiceState && voiceOverlayActive}
+					<VoiceRecordingOverlay {voiceState} />
+				{:else if inputReady}
 					{#if inputState.attachments.length > 0}
 						<div class="flex flex-wrap gap-1.5">
 							{#each inputState.attachments as attachment (attachment.id)}
@@ -1342,9 +1353,6 @@ async function handleCancel() {
 							</Tooltip.Root>
 						</div>
 						<div class="relative flex-1 min-w-0 pr-12">
-						{#if voiceState}
-							<VoiceRecordingOverlay {voiceState} />
-						{/if}
 							<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 							<div
 								bind:this={editorRef}
@@ -1443,8 +1451,22 @@ async function handleCancel() {
 						{/if}
 						<div class="h-full w-px bg-border/50"></div>
 					</div>
-					<div class="flex items-center h-7 ml-auto">
+					<div class="flex items-center h-7 ml-auto gap-1">
 						{#if voiceState && voiceEnabled}
+							{#if voiceState.phase === "recording"}
+								<!-- Compact waveform bars centered vertically -->
+								<div class="flex items-center h-5 motion-reduce:hidden" aria-hidden="true">
+									<div class="flex items-center gap-[1.5px]">
+										{#each voiceState.waveform.barHeights as height, _i}
+											{@const h = 2 + ((height - 3) / 45) * 14}
+											<div
+												class="w-[2px] rounded-[1px] bg-primary transition-none"
+												style:height="{h}px"
+											></div>
+										{/each}
+									</div>
+								</div>
+							{/if}
 							<MicButton
 								{voiceState}
 								disabled={isStreaming || isSending}

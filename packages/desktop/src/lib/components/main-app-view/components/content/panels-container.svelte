@@ -385,19 +385,8 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 			<!-- Project/Multi mode: panels grouped by project; hide inactive in focused view so they stay mounted -->
 		{#each allGroups as group (group.projectPath)}
 			{@const hasAgentPanels = group.agentPanels.length > 0}
-			<ProjectCard
-				class="{panelStore.fullscreenAuxOnly || !hasAgentPanels
-					? 'flex-1 min-w-0 min-h-0'
-					: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
-					projectName={group.projectName}
-					projectColor={group.projectColor}
-					variant="corner"
-					allProjects={viewModeState.focusedModeAllProjects
-						? [...viewModeState.focusedModeAllProjects]
-						: undefined}
-					activeProjectPath={viewModeState.activeProjectPath}
-					onSelectProject={(path) => panelStore.setFocusedViewProjectPath(path)}
-				>
+			{@const isSingleProject = allGroups.length === 1}
+			{#snippet groupPanels()}
 					{#if !panelStore.fullscreenAuxOnly}
 						<!-- File panels -->
 						{#each group.filePanels as filePanel (filePanel.id)}
@@ -527,7 +516,27 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 							/>
 						{/each}
 					{/if}
+			{/snippet}
+
+			{#if isSingleProject}
+				{@render groupPanels()}
+			{:else}
+			<ProjectCard
+				class="{panelStore.fullscreenAuxOnly || !hasAgentPanels
+					? 'flex-1 min-w-0 min-h-0'
+					: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
+					projectName={group.projectName}
+					projectColor={group.projectColor}
+					variant="corner"
+					allProjects={viewModeState.focusedModeAllProjects
+						? [...viewModeState.focusedModeAllProjects]
+						: undefined}
+					activeProjectPath={viewModeState.activeProjectPath}
+					onSelectProject={(path) => panelStore.setFocusedViewProjectPath(path)}
+				>
+					{@render groupPanels()}
 				</ProjectCard>
+			{/if}
 			{/each}
 		{/if}
 	</div>
