@@ -217,6 +217,78 @@ async fn resume_or_create_builds_client_when_missing() {
 }
 
 #[tokio::test]
+async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
+    let session_registry = SessionRegistry::new();
+    let session_id = "missing-session".to_string();
+    let cwd = "/workspace/a".to_string();
+    let agent_id = CanonicalAgentId::Cursor;
+
+    let created_state = MockClientState::new(true);
+    let factory_calls = Arc::new(AtomicUsize::new(0));
+
+    let result =
+        resume_or_create_session_client(&session_registry, session_id.clone(), cwd, agent_id, {
+            let created_state = created_state.clone();
+            let factory_calls = Arc::clone(&factory_calls);
+            move || {
+                let created_state = created_state.clone();
+                let factory_calls = Arc::clone(&factory_calls);
+                async move {
+                    factory_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(Box::new(MockAgentClient::new(created_state))
+                        as Box<dyn AgentClient + Send + Sync + 'static>)
+                }
+            }
+        })
+        .await;
+
+    assert!(result.is_err(), "resume should fail");
+    assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(created_state.resume_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(created_state.stop_calls.load(Ordering::SeqCst), 0);
+    assert!(
+        !session_registry.contains(&session_id),
+        "failed resume should not store a client"
+    );
+}
+
+#[test]
+fn session_metadata_placeholder_rows_are_detected_as_non_resumable() {
+    let row = crate::db::repository::SessionMetadataRow {
+        id: "session-placeholder".to_string(),
+        display: "New Thread".to_string(),
+        timestamp: 0,
+        project_path: "/project".to_string(),
+        agent_id: "claude-code".to_string(),
+        file_path: "__worktree__/session-placeholder".to_string(),
+        file_mtime: 0,
+        file_size: 0,
+        worktree_path: None,
+        pr_number: None,
+    };
+
+    assert!(row.is_placeholder());
+}
+
+#[test]
+fn session_metadata_real_rows_are_resumable() {
+    let row = crate::db::repository::SessionMetadataRow {
+        id: "session-real".to_string(),
+        display: "Real Session".to_string(),
+        timestamp: 1704067200000,
+        project_path: "/project".to_string(),
+        agent_id: "claude-code".to_string(),
+        file_path: "/project/session-real.jsonl".to_string(),
+        file_mtime: 1704067200,
+        file_size: 1024,
+        worktree_path: None,
+        pr_number: None,
+    };
+
+    assert!(!row.is_placeholder());
+}
+
+#[tokio::test]
 async fn resume_or_create_replaces_client_when_existing_resume_fails() {
     let session_registry = SessionRegistry::new();
     let session_id = "fallback-session".to_string();

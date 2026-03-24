@@ -132,8 +132,27 @@ pub async fn acp_resume_session(
     // session has a stored worktree_path, but only if the directory still exists on disk.
     // Deleted worktrees (e.g. cleaned up after merge) should fall back to the original cwd.
     let db = app.state::<DbConn>();
-    let effective_cwd = match SessionMetadataRepository::get_by_id(db.inner(), &session_id).await {
-        Ok(Some(row)) if row.worktree_path.is_some() => {
+    let metadata = SessionMetadataRepository::get_by_id(db.inner(), &session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!("Failed to load session metadata for resume: {error}"),
+        })?;
+
+    if let Some(row) = metadata.as_ref() {
+        if row.is_placeholder() {
+            tracing::warn!(
+                session_id = %session_id,
+                project_path = %row.project_path,
+                "Rejecting resume for placeholder session metadata without persisted history"
+            );
+            return Err(SerializableAcpError::SessionNotFound {
+                session_id: session_id.clone(),
+            });
+        }
+    }
+
+    let effective_cwd = match metadata {
+        Some(row) if row.worktree_path.is_some() => {
             let wt_path = row.worktree_path.unwrap();
             let wt_exists = std::path::Path::new(&wt_path).is_dir();
             if wt_exists {

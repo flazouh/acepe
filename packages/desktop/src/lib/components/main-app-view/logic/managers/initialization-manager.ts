@@ -15,12 +15,10 @@
  * Phase 2 (Sequential - needs projects):
  *   └── restoreWorkspace()
  *
- * Phase 2.5 (Fire & Forget - parallel with Phase 3):
- *   └── earlyPreloadPanelSessions() [preload restored panels; auto-connect focused panel]
- *
- * Phase 3 (Fire & Forget - non-blocking):
- *   └── loadSessionHistory() [sidebar populates progressively]
- *       └── validateRestoredSessions() [after scan completes]
+ * Phase 3 (Sequential):
+ *   ├── loadSessionHistory()
+ *   ├── validateRestoredSessions() [clear orphaned restored session ids]
+ *   └── earlyPreloadPanelSessions() [preload restored panels after validation]
  *
  * Phase 4 (Fire & Forget):
  *   └── createSessionsForAgentOnlyPanels()
@@ -28,9 +26,9 @@
  *
  * ## Session Loading Strategy
  *
- * Restored panels preload sessions immediately after workspace restore (Phase 2.5),
- * running in parallel with the sidebar session scan (Phase 3). Only the focused panel
- * auto-connects at startup; other panels connect lazily when focused.
+ * Restored panels only preload after session history is loaded and validated, so
+ * startup never attempts to resume placeholder session ids that have no persisted
+ * history on disk.
  *
  * earlyPreloadPanelSessions clears panel session references on load failure,
  * preventing ghost panels. validateRestoredSessions handles remaining edge cases.
@@ -136,24 +134,18 @@ export class InitializationManager {
 				.map(() => undefined)
 				.andThen(() => this.initializeAgentPreferences())
 				// Phase 2: Restore workspace (needs projects from Phase 1)
-				.andThen(() => this.restoreWorkspace())
-				.map(() => {
-					// Fire-and-forget: preload panel sessions in parallel with Phase 3.
-					// Panels have sessionId + projectPath + agentId from workspace persistence.
-					this.earlyPreloadPanelSessions();
-					return undefined;
-				})
-				// Phase 3: Load session history (non-blocking — sidebar populates progressively)
-				// The scan can take 1-7s depending on index state; don't block init.
-				// validateRestoredSessions runs after the scan completes.
-				.map(() => {
-					this.loadSessionHistory()
-						.andThen(() => this.validateRestoredSessions())
-						.mapErr((error) => {
-							logger.warn("Background session history load failed", { error });
-						});
-					return undefined;
-				})
+			.andThen(() => this.restoreWorkspace())
+			// Phase 3: Load session history before early preload so orphaned restored
+			// session ids are cleared before any resume attempt can spawn a client.
+			.andThen(() =>
+				this.loadSessionHistory().andThen(() => this.validateRestoredSessions())
+			)
+			.map(() => {
+				// Fire-and-forget after validation: preload panel sessions using the
+				// restored session ids that still have persisted history.
+				this.earlyPreloadPanelSessions();
+				return undefined;
+			})
 				// Phase 4: Create sessions for panels with agent but no session (fire and forget)
 				.andThen(() => this.createSessionsForAgentOnlyPanels())
 				.map(() => {

@@ -26,6 +26,19 @@ import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 
 import { InitializationManager } from "../logic/managers/initialization-manager.js";
 
+type TestPanel = {
+	id: string;
+	kind: "agent";
+	ownerPanelId: null;
+	sessionId: string | null;
+	width: number;
+	pendingProjectSelection: boolean;
+	selectedAgentId: string;
+	projectPath: string;
+	agentId: string;
+	sessionTitle: string;
+};
+
 describe("InitializationManager", () => {
 	let mockState: MainAppViewState;
 	let mockSessionStore: SessionStore;
@@ -59,9 +72,12 @@ describe("InitializationManager", () => {
 			loadSessions: mock(() => okAsync([])),
 			loadStartupSessions: mock(() => okAsync({ missing: [] })),
 			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
+			loadSessionById: mock(() => okAsync({ id: "session-1" })),
+			isPreloaded: mock(() => false),
 			connectSession: mock(() => okAsync({})),
 			scanSessions: mock(() => okAsync(undefined)),
 			createSession: mock(() => okAsync({ id: "session-1" })),
+			getSessionCold: mock(() => undefined),
 		} as unknown as SessionStore;
 
 		mockAgentStore = {
@@ -177,6 +193,41 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
+		it("clears orphaned restored session ids before attempting startup reconnect", async () => {
+			mockProjectManager.projects = [
+				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
+			];
+			let currentPanels: TestPanel[] = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "missing-session",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Old Session",
+				},
+			];
+			Object.defineProperty(mockPanelStore, "panels", {
+				configurable: true,
+				get: () => currentPanels,
+			});
+			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
+				currentPanels = currentPanels.map((panel) =>
+					panel.id === panelId ? { ...panel, sessionId } : panel
+				);
+			});
+			await manager.initialize();
+
+			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith(["/project1"]);
+			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
+			expect(mockSessionStore.loadSessionById).not.toHaveBeenCalled();
+			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+		});
+
 		it("should handle initialization errors", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
@@ -193,6 +244,8 @@ describe("InitializationManager", () => {
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
 					sessionId: null,
 					width: 600,
 					pendingProjectSelection: false,
@@ -216,6 +269,8 @@ describe("InitializationManager", () => {
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
 					sessionId: null,
 					width: 600,
 					pendingProjectSelection: false,

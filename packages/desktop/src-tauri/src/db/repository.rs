@@ -580,6 +580,14 @@ pub struct SessionMetadataRow {
     pub pr_number: Option<i32>,
 }
 
+impl SessionMetadataRow {
+    pub fn is_placeholder(&self) -> bool {
+        self.file_mtime == 0
+            && self.file_size == 0
+            && self.file_path.starts_with("__worktree__/")
+    }
+}
+
 /// A batch record for session metadata upsert:
 /// (session_id, display, timestamp, project_path, agent_id, file_path, file_mtime, file_size)
 pub type SessionMetadataRecord = (String, String, i64, String, String, String, i64, i64);
