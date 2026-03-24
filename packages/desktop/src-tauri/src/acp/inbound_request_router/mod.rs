@@ -59,9 +59,7 @@ pub(crate) async fn route_backend_inbound_request(
 #[cfg(test)]
 mod tests {
     use super::{route_backend_inbound_request, InboundRoutingDecision};
-    use crate::acp::inbound_request_router::helpers::{
-        build_permission_request_log_payload, should_auto_deny_tcc_permission,
-    };
+    use crate::acp::inbound_request_router::helpers::build_permission_request_log_payload;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_update::ToolKind;
     use serde_json::{json, Value};
@@ -322,68 +320,6 @@ mod tests {
             }
             _ => panic!("Expected ForwardToUi with synthetic_tool_call carrying title"),
         }
-    }
-
-    #[test]
-    fn blocks_known_tcc_sensitive_tools_on_macos_by_default() {
-        assert!(should_auto_deny_tcc_permission(
-            "mcp__acepe-mcp__take_screenshot",
-            "macos",
-            None
-        ));
-        assert!(should_auto_deny_tcc_permission(
-            "simulate_text_input",
-            "macos",
-            None
-        ));
-    }
-
-    #[test]
-    fn allows_tcc_sensitive_tools_when_explicitly_opted_in() {
-        assert!(!should_auto_deny_tcc_permission(
-            "take_screenshot",
-            "macos",
-            Some("1")
-        ));
-    }
-
-    #[tokio::test]
-    async fn auto_denies_tcc_sensitive_permission_when_only_kind_is_present() {
-        let decision = route_backend_inbound_request(
-            None,
-            "session/request_permission",
-            &json!({
-                "sessionId": "session-1",
-                "toolCall": {
-                    "toolCallId": "tc-tcc-1",
-                    "kind": "simulate_text_input",
-                    "rawInput": { "text": "hello" }
-                },
-                "options": [
-                    { "kind": "allow_once", "optionId": "approved" },
-                    { "kind": "reject_once", "optionId": "abort" }
-                ]
-            }),
-            AgentType::ClaudeCode,
-        )
-        .await;
-
-        match decision {
-            InboundRoutingDecision::Handle(value) => {
-                assert_eq!(value["outcome"]["outcome"], "cancelled");
-                assert_eq!(value["outcome"]["optionId"], "abort");
-            }
-            _ => panic!("Expected auto-deny handler response"),
-        }
-    }
-
-    #[test]
-    fn does_not_block_tcc_tools_on_non_macos_platforms() {
-        assert!(!should_auto_deny_tcc_permission(
-            "take_screenshot",
-            "linux",
-            None
-        ));
     }
 
     #[tokio::test]

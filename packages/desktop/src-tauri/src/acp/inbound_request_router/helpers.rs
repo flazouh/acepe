@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
-use super::types::{PermissionOptionRaw, TerminalRequestParamsRaw};
+use super::types::TerminalRequestParamsRaw;
 use super::InboundRoutingDecision;
 
 pub(super) fn invalid_params(message: &str) -> InboundRoutingDecision {
@@ -30,46 +30,7 @@ pub(super) fn parse_params<T: for<'de> Deserialize<'de>>(
     serde_json::from_value(params.clone())
 }
 
-fn normalize_tool_name(tool_name: &str) -> String {
-    tool_name
-        .rsplit("__")
-        .next()
-        .unwrap_or(tool_name)
-        .to_lowercase()
-}
 
-fn is_tcc_sensitive_tool_name(tool_name: &str) -> bool {
-    matches!(
-        normalize_tool_name(tool_name).as_str(),
-        "take_screenshot"
-            | "simulate_mouse_movement"
-            | "simulate_text_input"
-            | "send_text_to_element"
-    )
-}
-
-pub(super) fn should_auto_deny_tcc_permission(
-    tool_name: &str,
-    platform: &str,
-    allow_automation_tools_env: Option<&str>,
-) -> bool {
-    platform == "macos"
-        && allow_automation_tools_env != Some("1")
-        && is_tcc_sensitive_tool_name(tool_name)
-}
-
-pub(super) fn resolve_reject_option_id(options: &[PermissionOptionRaw]) -> String {
-    options
-        .iter()
-        .find(|option| {
-            option
-                .kind
-                .as_deref()
-                .is_some_and(|kind| kind.starts_with("reject"))
-        })
-        .and_then(|option| option.option_id.clone())
-        .unwrap_or_else(|| "reject".to_string())
-}
 
 pub(super) fn build_permission_request_log_payload(
     method: &str,

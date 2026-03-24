@@ -46,8 +46,6 @@ pub(super) struct TerminalCreateParamsRaw {
 pub(super) struct SessionRequestPermissionParamsRaw {
     pub session_id: Option<String>,
     pub tool_call: Option<PermissionToolCallRaw>,
-    #[serde(default)]
-    pub options: Vec<PermissionOptionRaw>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,11 +57,4 @@ pub(super) struct PermissionToolCallRaw {
     pub kind: Option<String>,
     #[serde(default)]
     pub raw_input: Value,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct PermissionOptionRaw {
-    pub kind: Option<String>,
-    pub option_id: Option<String>,
 }

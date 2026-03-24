@@ -1,6 +1,6 @@
 use serde_json::Value;
 use tauri::{AppHandle, Runtime};
-use log::{info, warn};
+use log::info;
 
 use crate::shared::commands;
 use crate::socket_server::SocketResponse;
@@ -25,53 +25,12 @@ pub use text_input::handle_simulate_text_input;
 pub use webview::{handle_get_dom, handle_get_element_position, handle_send_text_to_element};
 pub use window_manager::handle_manage_window;
 
-fn is_tcc_sensitive_command(command: &str) -> bool {
-    matches!(
-        command,
-        commands::TAKE_SCREENSHOT
-            | commands::SIMULATE_MOUSE_MOVEMENT
-            | commands::SIMULATE_TEXT_INPUT
-            | commands::SEND_TEXT_TO_ELEMENT
-    )
-}
-
-fn should_block_macos_tcc_command(
-    command: &str,
-    platform: &str,
-    allow_automation_tools_env: Option<&str>,
-) -> bool {
-    platform == "macos"
-        && allow_automation_tools_env != Some("1")
-        && is_tcc_sensitive_command(command)
-}
-
 /// Handle command routing for socket requests
 pub async fn handle_command<R: Runtime>(
     app: &AppHandle<R>,
     command: &str,
     payload: Value,
 ) -> crate::Result<SocketResponse> {
-    if should_block_macos_tcc_command(
-        command,
-        std::env::consts::OS,
-        std::env::var("ACEPE_ALLOW_TCC_AUTOMATION_TOOLS")
-            .ok()
-            .as_deref(),
-    ) {
-        warn!(
-            "[TAURI_MCP] Blocked TCC-sensitive command on macOS to prevent permission prompt spam: {}",
-            command
-        );
-        return Ok(SocketResponse {
-            success: false,
-            data: None,
-            error: Some(
-                "Blocked to prevent macOS TCC prompt spam. Set ACEPE_ALLOW_TCC_AUTOMATION_TOOLS=1 to re-enable automation tools."
-                    .to_string(),
-            ),
-        });
-    }
-
     // Log the full request payload
     info!(
         "[TAURI_MCP] Received command: {} with payload: {}",
@@ -141,61 +100,3 @@ pub async fn handle_command<R: Runtime>(
     result
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{
-        should_block_macos_tcc_command, commands,
-    };
-
-    #[test]
-    fn blocks_tcc_sensitive_commands_on_macos_by_default() {
-        assert!(should_block_macos_tcc_command(
-            commands::TAKE_SCREENSHOT,
-            "macos",
-            None
-        ));
-        assert!(should_block_macos_tcc_command(
-            commands::SIMULATE_MOUSE_MOVEMENT,
-            "macos",
-            None
-        ));
-        assert!(should_block_macos_tcc_command(
-            commands::SIMULATE_TEXT_INPUT,
-            "macos",
-            None
-        ));
-        assert!(should_block_macos_tcc_command(
-            commands::SEND_TEXT_TO_ELEMENT,
-            "macos",
-            None
-        ));
-    }
-
-    #[test]
-    fn allows_tcc_sensitive_commands_on_macos_when_opted_in() {
-        assert!(!should_block_macos_tcc_command(
-            commands::TAKE_SCREENSHOT,
-            "macos",
-            Some("1")
-        ));
-    }
-
-    #[test]
-    fn does_not_block_on_non_macos_platforms() {
-        assert!(!should_block_macos_tcc_command(
-            commands::TAKE_SCREENSHOT,
-            "linux",
-            None
-        ));
-        assert!(!should_block_macos_tcc_command(
-            commands::TAKE_SCREENSHOT,
-            "windows",
-            None
-        ));
-    }
-
-    #[test]
-    fn does_not_block_non_tcc_commands() {
-        assert!(!should_block_macos_tcc_command(commands::PING, "macos", None));
-    }
-}
