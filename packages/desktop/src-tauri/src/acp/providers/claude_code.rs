@@ -53,7 +53,6 @@ impl AgentProvider for ClaudeCodeProvider {
         vec![SpawnConfig {
             command: "claude".to_string(),
             args: vec![
-                "--bare".to_string(),
                 "--no-session-persistence".to_string(),
                 "-p".to_string(),
                 "Return only the exact current model id. Output the raw model id only, with no markdown or explanation."
@@ -300,8 +299,24 @@ mod tests {
 
         assert_eq!(attempts.len(), 1);
         assert_eq!(attempts[0].command, "claude");
-        assert_eq!(attempts[0].args[0], "--bare");
-        assert_eq!(attempts[0].args[1], "--no-session-persistence");
-        assert_eq!(attempts[0].args[2], "-p");
+        assert_eq!(attempts[0].args[0], "--no-session-persistence");
+        assert_eq!(attempts[0].args[1], "-p");
+    }
+
+    #[test]
+    fn claude_provider_exposes_multiple_model_candidates() {
+        let provider = ClaudeCodeProvider;
+        let models = provider.default_model_candidates();
+
+        assert!(models.len() >= 3);
+        assert!(models
+            .iter()
+            .any(|model| model.model_id == "claude-opus-4-6"));
+        assert!(models
+            .iter()
+            .any(|model| model.model_id == "claude-sonnet-4-5-20250929"));
+        assert!(models
+            .iter()
+            .any(|model| model.model_id == "claude-haiku-4-5-20251001"));
     }
 }

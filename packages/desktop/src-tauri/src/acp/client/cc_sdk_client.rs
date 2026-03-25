@@ -266,6 +266,17 @@ impl CcSdkClaudeClient {
         let agent_type = self.provider.parser_agent_type();
         model_state.models_display = get_transformer(agent_type).transform(&model_state.available_models);
 
+        tracing::info!(
+            provider = %self.provider.id(),
+            current_model_id = %model_state.current_model_id,
+            available_model_ids = ?model_state
+                .available_models
+                .iter()
+                .map(|model| model.model_id.clone())
+                .collect::<Vec<_>>(),
+            "cc-sdk hydrated session model state"
+        );
+
         model_state
     }
 
@@ -276,6 +287,13 @@ impl CcSdkClaudeClient {
         }
 
         for attempt in attempts {
+            tracing::info!(
+                provider = %self.provider.id(),
+                command = %attempt.command,
+                args = ?attempt.args,
+                "cc-sdk running provider model discovery command"
+            );
+
             let mut command = tokio::process::Command::new(&attempt.command);
             command.args(&attempt.args);
             command.stdin(std::process::Stdio::null());
@@ -314,7 +332,18 @@ impl CcSdkClaudeClient {
             };
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
             let mut models = crate::acp::client::parse_model_discovery_output(&stdout);
+
+            tracing::info!(
+                provider = %self.provider.id(),
+                status = ?output.status.code(),
+                stdout = %crate::acp::client_transport::truncate_for_log(&stdout, 512),
+                stderr = %crate::acp::client_transport::truncate_for_log(&stderr, 512),
+                parsed_model_ids = ?models.iter().map(|model| model.model_id.clone()).collect::<Vec<_>>(),
+                "cc-sdk provider model discovery result"
+            );
+
             if !models.is_empty() {
                 models.sort_by(|a, b| a.model_id.cmp(&b.model_id));
                 return models;
@@ -462,6 +491,16 @@ impl AgentClient for CcSdkClaudeClient {
         self.pending_options = Some(options);
         self.session_id = Some(session_id.clone());
         let models = self.hydrated_session_model_state().await;
+        tracing::info!(
+            session_id = %session_id,
+            provider = %self.provider.id(),
+            available_model_ids = ?models
+                .available_models
+                .iter()
+                .map(|model| model.model_id.clone())
+                .collect::<Vec<_>>(),
+            "cc-sdk new_session returning models"
+        );
         Ok(NewSessionResponse {
             session_id,
             models,
@@ -479,6 +518,16 @@ impl AgentClient for CcSdkClaudeClient {
         self.pending_options = Some(self.build_options(&cwd, &session_id, Some(session_id.clone()), false));
         let models = self.hydrated_session_model_state().await;
         self.pending_options = None;
+        tracing::info!(
+            session_id = %session_id,
+            provider = %self.provider.id(),
+            available_model_ids = ?models
+                .available_models
+                .iter()
+                .map(|model| model.model_id.clone())
+                .collect::<Vec<_>>(),
+            "cc-sdk resume_session returning models"
+        );
         let options = self.build_options(&cwd, &session_id, Some(session_id.clone()), false);
         self.connect_and_start_bridge(options, session_id, None).await?;
         Ok(ResumeSessionResponse {
@@ -498,6 +547,16 @@ impl AgentClient for CcSdkClaudeClient {
         self.pending_options = Some(self.build_options(&cwd, &new_session_id, Some(session_id.clone()), true));
         let models = self.hydrated_session_model_state().await;
         self.pending_options = None;
+        tracing::info!(
+            session_id = %new_session_id,
+            provider = %self.provider.id(),
+            available_model_ids = ?models
+                .available_models
+                .iter()
+                .map(|model| model.model_id.clone())
+                .collect::<Vec<_>>(),
+            "cc-sdk fork_session returning models"
+        );
         let options = self.build_options(&cwd, &new_session_id, Some(session_id), true);
         self.connect_and_start_bridge(options, new_session_id.clone(), None)
             .await?;
@@ -621,6 +680,18 @@ impl AgentClient for CcSdkClaudeClient {
 mod tests {
     use super::*;
 
+    fn make_test_client() -> CcSdkClaudeClient {
+        CcSdkClaudeClient {
+            provider: Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider),
+            sdk_client: None,
+            session_id: None,
+            permission_bridge: Arc::new(PermissionBridge::new()),
+            bridge_task: None,
+            dispatcher: AcpUiEventDispatcher::new(None, DispatchPolicy::default()),
+            pending_options: None,
+        }
+    }
+
     #[test]
     fn cc_sdk_sessions_request_partial_messages() {
         let options = cc_sdk::ClaudeCodeOptions::builder()
@@ -629,5 +700,26 @@ mod tests {
             .build();
 
         assert!(options.include_partial_messages);
+    }
+
+    #[test]
+    fn build_options_applies_pending_mode_and_model() {
+        let client = make_test_client();
+
+        let options = client.build_options("/tmp", "session-1", None, false);
+
+        assert!(options.include_partial_messages);
+        assert!(options.model.is_none());
+        assert_eq!(options.permission_mode, cc_sdk::PermissionMode::Default);
+    }
+
+    #[test]
+    fn build_options_applies_resume_and_fork_flags() {
+        let client = make_test_client();
+
+        let options = client.build_options("/tmp", "session-1", Some("resume-1".to_string()), true);
+
+        assert_eq!(options.resume.as_deref(), Some("resume-1"));
+        assert!(options.fork_session);
     }
 }

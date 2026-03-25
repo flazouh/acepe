@@ -617,6 +617,14 @@ fn parse_model_discovery_output_strips_claude_formatting_suffix() {
 }
 
 #[test]
+fn parse_model_discovery_output_ignores_claude_login_prompt() {
+    let output = "Not logged in · Please run /login";
+    let models = parse_model_discovery_output(output);
+
+    assert!(models.is_empty());
+}
+
+#[test]
 fn map_outbound_mode_id_maps_claude_build_to_default() {
     let provider = TestProvider { id: "claude-code" };
     let mapped = provider.map_outbound_mode_id("build");

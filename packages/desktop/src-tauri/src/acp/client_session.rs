@@ -226,10 +226,22 @@ fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
 }
 
 fn parse_models_from_plaintext(stdout: &str) -> Vec<AvailableModel> {
+    let normalized_stdout = stdout.trim();
+    let lower_stdout = normalized_stdout.to_ascii_lowercase();
+    if lower_stdout.contains("not logged in")
+        || lower_stdout.contains("please run /login")
+        || lower_stdout.contains("please login")
+        || lower_stdout.contains("authentication")
+        || lower_stdout.contains("unauthorized")
+        || lower_stdout.contains("forbidden")
+    {
+        return Vec::new();
+    }
+
     let mut seen = HashSet::new();
     let mut models = Vec::new();
 
-    for line in stdout.lines() {
+    for line in normalized_stdout.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;

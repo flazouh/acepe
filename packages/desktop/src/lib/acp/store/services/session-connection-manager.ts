@@ -206,6 +206,15 @@ export class SessionConnectionManager {
 				preferencesStore.updateModelsCache(options.agentId, availableModels);
 				preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
 				preferencesStore.updateModesCache(options.agentId, availableModes);
+				logger.info("Claude model capabilities on session creation", {
+					sessionId,
+					agentId: options.agentId,
+					responseCurrentModelId: currentModelId ?? null,
+					availableModelIds: availableModels.map((model) => model.id),
+					cachedModelIds: preferencesStore
+						.getCachedModels(options.agentId)
+						.map((model) => model.id),
+				});
 
 				// Initialize per-mode model memory with current mode choice
 				if (currentMode) {
@@ -474,6 +483,15 @@ export class SessionConnectionManager {
 					preferencesStore.updateModelsCache(session.agentId, availableModels);
 					preferencesStore.updateModelsDisplayCache(session.agentId, modelsDisplay);
 					preferencesStore.updateModesCache(session.agentId, availableModes);
+					logger.info("Claude model capabilities on session resume", {
+						sessionId,
+						agentId: session.agentId,
+						availableModelIds: availableModels.map((model) => model.id),
+						currentModelId: currentModel?.id ?? null,
+						cachedModelIds: preferencesStore
+							.getCachedModels(session.agentId)
+							.map((model) => model.id),
+					});
 
 					// Store capabilities separately from cold data
 					this.capabilitiesManager.updateCapabilities(sessionId, {
@@ -485,12 +503,12 @@ export class SessionConnectionManager {
 
 					this.pendingConnections.delete(sessionId);
 
-				// Update state machine: connecting → success → warming up → capabilities loaded
-				this.connectionManager.sendConnectionSuccess(sessionId);
-				this.connectionManager.sendCapabilitiesLoaded(sessionId);
+					// Update state machine: connecting → success → warming up → capabilities loaded
+					this.connectionManager.sendConnectionSuccess(sessionId);
+					this.connectionManager.sendCapabilitiesLoaded(sessionId);
 
-				// Tag Sentry scope so frontend errors carry agent context
-				setSentryAgentContext(session.agentId, sessionId);
+					// Tag Sentry scope so frontend errors carry agent context
+					setSentryAgentContext(session.agentId, sessionId);
 
 					// Transition content state to LOADED so the UI shows the conversation.
 					// For Codex, content arrives via ACP streaming; for disk-based agents,

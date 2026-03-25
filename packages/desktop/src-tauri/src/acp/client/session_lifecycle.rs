@@ -4,6 +4,9 @@ fn should_retry_initialize_with_fallback(error: &AcpError) -> bool {
     match error {
         AcpError::JsonRpcError(message) => message.contains("Agent process exited unexpectedly"),
         AcpError::ChannelClosed => true,
+        AcpError::InvalidState(message) => {
+            message.contains("Failed to write to stdin") || message.contains("Broken pipe")
+        }
         _ => false,
     }
 }
