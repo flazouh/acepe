@@ -38,3 +38,32 @@ export function formatTokenUsageCompact(
 
 	return `${formatTokenCountCompact(totalTokens)}/${formatTokenCountCompact(contextWindowSize)}`;
 }
+
+export function getContextUsagePercent(
+	totalTokens: number | null,
+	contextWindowSize: number | null
+): number | null {
+	if (
+		totalTokens == null ||
+		contextWindowSize == null ||
+		contextWindowSize <= 0 ||
+		totalTokens < 0
+	) {
+		return null;
+	}
+
+	return Math.min(100, Math.max(0, (totalTokens / contextWindowSize) * 100));
+}
+
+export function createContextUsageSegments(
+	percent: number | null,
+	segmentCount: number
+): boolean[] {
+	if (!Number.isFinite(segmentCount) || segmentCount <= 0) {
+		return [];
+	}
+
+	const normalizedPercent = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+	const filledCount = Math.round((normalizedPercent / 100) * segmentCount);
+	return Array.from({ length: segmentCount }, (_, index) => index < filledCount);
+}
