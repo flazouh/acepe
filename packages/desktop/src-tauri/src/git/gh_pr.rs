@@ -635,7 +635,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn merge_pull_request_treats_worktree_cleanup_failure_as_success_when_pr_is_merged() {
-        let _env_guard = env_lock().lock().expect("env lock");
+        let env_guard = env_lock().lock().expect("env lock");
         let (repo_dir, bin_dir) = setup_fake_binaries(
             r#"#!/bin/sh
 if [ "$1" = "pr" ] && [ "$2" = "merge" ]; then
@@ -654,6 +654,7 @@ echo "$@" >> "$TEST_LOG_DIR/git.log"
 exit 0
 "#,
         );
+        drop(env_guard);
 
         let _path_guard = PathGuard::prepend(bin_dir.path());
         let _test_log_guard = EnvVarGuard::set_path_like("TEST_LOG_DIR", repo_dir.path());

@@ -6,7 +6,6 @@ const source = readFileSync(resolve(__dirname, "./file-explorer-preview-pane.sve
 
 describe("file explorer preview pane performance integration", () => {
 	it("memoizes theme registration instead of awaiting it on every render", () => {
-		expect(source).toContain("themeRegistrationPromise");
 		expect(source).toContain("ensurePierreThemeRegistered()");
 		expect(source).not.toContain("await registerCursorThemeForPierreDiffs();");
 	});

@@ -15,6 +15,8 @@ const storage = new Map<string, string>();
 describe("analytics", () => {
 	beforeEach(async () => {
 		storage.clear();
+		process.env.VITE_SENTRY_DSN = "https://examplePublicKey@o0.ingest.sentry.io/0";
+		delete process.env.VITE_FORCE_ANALYTICS;
 
 		mock.module("@sentry/svelte", () => ({
 			browserTracingIntegration: () => ({ name: "browser-tracing" }),
@@ -65,6 +67,8 @@ describe("analytics", () => {
 		sentrySetUser.mockClear();
 		invokeMock.mockClear();
 		storage.clear();
+		delete process.env.VITE_SENTRY_DSN;
+		delete process.env.VITE_FORCE_ANALYTICS;
 	});
 
 	it("initializes Sentry when DSN is present", () => {

@@ -299,6 +299,33 @@ describe("FileExplorerModalState", () => {
 			expect(state.preview).toBeNull();
 			await promise;
 		});
+
+		it("loads preview for the first result after search completes", async () => {
+			const rows = [makeRow("src/index.ts"), makeRow("src/app.ts")];
+			const previewFn = vi.fn<PreviewFn>(async (_projectPath, filePath) => ({
+				kind: "text",
+				file_path: filePath,
+				file_name: filePath,
+				content: `preview:${filePath}`,
+				language_hint: "ts",
+			}));
+
+			const state = makeState({
+				searchFn: async () => makeSearchResponse(rows),
+				previewFn,
+			});
+
+			await state.searchNow();
+
+			expect(previewFn).toHaveBeenCalledWith("/project", "src/index.ts");
+			expect(state.preview).toEqual({
+				kind: "text",
+				file_path: "src/index.ts",
+				file_name: "src/index.ts",
+				content: "preview:src/index.ts",
+				language_hint: "ts",
+			});
+		});
 	});
 
 		describe("loadPreview", () => {
@@ -344,7 +371,7 @@ describe("FileExplorerModalState", () => {
 			});
 		});
 
-		it("clears preview when selected file is no longer in search results", async () => {
+		it("loads preview for the new first result when search results change", async () => {
 				let currentRows = [makeRow("a.ts")];
 				const state = makeState({
 					searchFn: async () => makeSearchResponse(currentRows),
@@ -365,7 +392,13 @@ describe("FileExplorerModalState", () => {
 			currentRows = [makeRow("b.ts")];
 			await state.searchNow();
 
-			expect(state.preview).toBeNull();
+			expect(state.preview).toEqual({
+				kind: "text",
+				file_path: "b.ts",
+				file_name: "b.ts",
+				content: "preview",
+				language_hint: "ts",
+			});
 		});
 
 		it("uses the selected row project path when loading preview", async () => {

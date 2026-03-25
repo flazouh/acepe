@@ -9,9 +9,9 @@ import { ResultAsync } from "neverthrow";
 import { mount, unmount } from "svelte";
 
 import {
-	pierreDiffsUnsafeCSS,
-	registerCursorThemeForPierreDiffs,
-} from "../../../utils/pierre-diffs-theme.js";
+	buildPierreDiffOptions,
+	ensurePierreThemeRegistered,
+} from "../../../utils/pierre-rendering.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import { computeRevertedFileContent } from "../logic/compute-reverted-file-content.js";
 import DiffHunkActionButtons from "./diff-hunk-action-buttons.svelte";
@@ -108,8 +108,6 @@ export class ReviewDiffViewState {
 	/**
 	 * Promise that tracks theme registration to prevent race conditions.
 	 */
-	private static themeRegistrationPromise: Promise<void> | null = null;
-
 	/**
 	 * Callback for hunk accept/reject actions.
 	 */
@@ -155,13 +153,8 @@ export class ReviewDiffViewState {
 	): Promise<void> {
 		this.onHunkAction = onHunkAction ?? null;
 		// Ensure theme is registered and AWAIT completion before rendering
-		if (!ReviewDiffViewState.themeRegistrationPromise) {
-			ReviewDiffViewState.themeRegistrationPromise = registerCursorThemeForPierreDiffs();
-		}
-
-		// Await theme registration to ensure consistent rendering
 		const themeResult = await ResultAsync.fromPromise(
-			ReviewDiffViewState.themeRegistrationPromise,
+			ensurePierreThemeRegistered(),
 			(e) => e as Error
 		);
 
@@ -170,7 +163,6 @@ export class ReviewDiffViewState {
 				"Theme registration failed, proceeding without custom theme:",
 				themeResult.error
 			);
-			ReviewDiffViewState.themeRegistrationPromise = null;
 		}
 
 		// Clean up existing instances
@@ -200,26 +192,19 @@ export class ReviewDiffViewState {
 
 		// Create FileDiff instance with full file rendering options
 		this.fileDiffInstance = new FileDiff<AnnotationMetadata>(
-			{
-				theme: { dark: "Cursor Dark", light: "pierre-light" },
-				themeType: this.themeType,
-				diffStyle: this.diffStyle,
-				overflow: "wrap",
-				unsafeCSS: pierreDiffsUnsafeCSS,
-				disableFileHeader: true,
+			Object.assign(buildPierreDiffOptions<AnnotationMetadata>(this.themeType, this.diffStyle, "wrap", false), {
 				// Use native line-info separator (no custom buttons)
-				hunkSeparators: "line-info",
 				// Don't expand all unchanged by default - let user click to expand
-				expandUnchanged: false,
 				// Lines revealed per click when expanding collapsed regions
 				expansionLineCount: 100,
 				enableLineSelection: false,
 				enableHoverUtility: false,
 				// Render accept/reject buttons via annotations
 				renderAnnotation: this.onHunkAction
-					? (annotation) => this.createAnnotationElement(annotation)
+					? (annotation: DiffLineAnnotation<AnnotationMetadata>) =>
+						this.createAnnotationElement(annotation)
 					: undefined,
-			},
+			}),
 			getWorkerPool()
 		);
 

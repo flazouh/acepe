@@ -171,103 +171,6 @@ fn translate_assistant(
     updates
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState};
-    use crate::acp::session_update::SessionUpdate;
-    use crate::acp::types::ContentBlock;
-    use cc_sdk::{
-        AssistantMessage, ContentBlock as CcContentBlock, Message, TextContent, ThinkingContent,
-    };
-
-    #[test]
-    fn translates_assistant_text_when_no_stream_delta_arrived() {
-        let updates = translate_cc_sdk_message_with_turn_state(
-            Message::Assistant {
-                message: AssistantMessage {
-                    content: vec![CcContentBlock::Text(TextContent {
-                        text: "Hello from assistant".to_string(),
-                    })],
-                    model: None,
-                    usage: None,
-                    error: None,
-                    parent_tool_use_id: None,
-                },
-            },
-            Some("session-1".to_string()),
-            CcSdkTurnStreamState::default(),
-        );
-
-        assert!(matches!(
-            updates.as_slice(),
-            [SessionUpdate::AgentMessageChunk {
-                chunk,
-                session_id: Some(session_id),
-                ..
-            }] if matches!(
-                &chunk.content,
-                ContentBlock::Text { text } if text == "Hello from assistant"
-            ) && session_id == "session-1"
-        ));
-    }
-
-    #[test]
-    fn skips_assistant_text_when_stream_delta_already_arrived() {
-        let updates = translate_cc_sdk_message_with_turn_state(
-            Message::Assistant {
-                message: AssistantMessage {
-                    content: vec![CcContentBlock::Text(TextContent {
-                        text: "Hello from assistant".to_string(),
-                    })],
-                    model: None,
-                    usage: None,
-                    error: None,
-                    parent_tool_use_id: None,
-                },
-            },
-            Some("session-1".to_string()),
-            CcSdkTurnStreamState {
-                saw_text_delta: true,
-                saw_thinking_delta: false,
-            },
-        );
-
-        assert!(updates.is_empty());
-    }
-
-    #[test]
-    fn translates_assistant_thinking_when_no_stream_delta_arrived() {
-        let updates = translate_cc_sdk_message_with_turn_state(
-            Message::Assistant {
-                message: AssistantMessage {
-                    content: vec![CcContentBlock::Thinking(ThinkingContent {
-                        thinking: "Need to inspect files".to_string(),
-                        signature: "sig".to_string(),
-                    })],
-                    model: None,
-                    usage: None,
-                    error: None,
-                    parent_tool_use_id: None,
-                },
-            },
-            Some("session-1".to_string()),
-            CcSdkTurnStreamState::default(),
-        );
-
-        assert!(matches!(
-            updates.as_slice(),
-            [SessionUpdate::AgentThoughtChunk {
-                chunk,
-                session_id: Some(session_id),
-                ..
-            }] if matches!(
-                &chunk.content,
-                ContentBlock::Text { text } if text == "Need to inspect files"
-            ) && session_id == "session-1"
-        ));
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Stream event translation
 // ---------------------------------------------------------------------------
@@ -507,5 +410,102 @@ fn build_result_telemetry(
         source_model_id: None,
         timestamp_ms: None,
         context_window_size: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState};
+    use crate::acp::session_update::SessionUpdate;
+    use crate::acp::types::ContentBlock;
+    use cc_sdk::{
+        AssistantMessage, ContentBlock as CcContentBlock, Message, TextContent, ThinkingContent,
+    };
+
+    #[test]
+    fn translates_assistant_text_when_no_stream_delta_arrived() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            Message::Assistant {
+                message: AssistantMessage {
+                    content: vec![CcContentBlock::Text(TextContent {
+                        text: "Hello from assistant".to_string(),
+                    })],
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("session-1".to_string()),
+            CcSdkTurnStreamState::default(),
+        );
+
+        assert!(matches!(
+            updates.as_slice(),
+            [SessionUpdate::AgentMessageChunk {
+                chunk,
+                session_id: Some(session_id),
+                ..
+            }] if matches!(
+                &chunk.content,
+                ContentBlock::Text { text } if text == "Hello from assistant"
+            ) && session_id == "session-1"
+        ));
+    }
+
+    #[test]
+    fn skips_assistant_text_when_stream_delta_already_arrived() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            Message::Assistant {
+                message: AssistantMessage {
+                    content: vec![CcContentBlock::Text(TextContent {
+                        text: "Hello from assistant".to_string(),
+                    })],
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("session-1".to_string()),
+            CcSdkTurnStreamState {
+                saw_text_delta: true,
+                saw_thinking_delta: false,
+            },
+        );
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn translates_assistant_thinking_when_no_stream_delta_arrived() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            Message::Assistant {
+                message: AssistantMessage {
+                    content: vec![CcContentBlock::Thinking(ThinkingContent {
+                        thinking: "Need to inspect files".to_string(),
+                        signature: "sig".to_string(),
+                    })],
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("session-1".to_string()),
+            CcSdkTurnStreamState::default(),
+        );
+
+        assert!(matches!(
+            updates.as_slice(),
+            [SessionUpdate::AgentThoughtChunk {
+                chunk,
+                session_id: Some(session_id),
+                ..
+            }] if matches!(
+                &chunk.content,
+                ContentBlock::Text { text } if text == "Need to inspect files"
+            ) && session_id == "session-1"
+        ));
     }
 }

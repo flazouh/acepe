@@ -7,7 +7,11 @@ import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
 import type { FilePickerEntry } from "../../types/file-picker-entry.js";
-import { pierreDiffsUnsafeCSS } from "../../utils/pierre-diffs-theme.js";
+import {
+	buildPierreDiffOptions,
+	buildPierreFileOptions,
+	ensurePierreThemeRegistered,
+} from "../../utils/pierre-rendering.js";
 
 interface Props {
 	file: FilePickerEntry | null;
@@ -34,13 +38,8 @@ const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 
 // Shared options for @pierre/diffs
-const sharedOptions = $derived({
-	theme: { dark: "Cursor Dark", light: "pierre-light" },
-	themeType: effectiveTheme,
-	overflow: "wrap" as const,
-	unsafeCSS: pierreDiffsUnsafeCSS,
-	disableFileHeader: true,
-});
+const fileOptions = $derived(buildPierreFileOptions(effectiveTheme, "wrap", false));
+const diffOptions = $derived(buildPierreDiffOptions(effectiveTheme, "unified", "wrap", false));
 
 /**
  * Cleanup existing instances before rendering new content.
@@ -62,15 +61,18 @@ function cleanup(): void {
 function renderFileContent(content: string, fileName: string): void {
 	if (!containerRef) return;
 
-	cleanup();
+	if (fileInstance === null) {
+		fileInstance = new PierreFile(fileOptions, workerPool);
+	} else {
+		fileInstance.setOptions(fileOptions);
+	}
+	fileInstance.setThemeType(effectiveTheme);
 
-	fileInstance = new PierreFile(
-		{
-			...sharedOptions,
-			disableLineNumbers: false,
-		},
-		workerPool
-	);
+	const currentDiffInstance = diffInstance;
+	if (currentDiffInstance) {
+		currentDiffInstance.cleanUp();
+		diffInstance = null;
+	}
 
 	fileInstance.render({
 		file: {
@@ -88,17 +90,18 @@ function renderFileContent(content: string, fileName: string): void {
 function renderFileDiff(oldContent: string | null, newContent: string, fileName: string): void {
 	if (!containerRef) return;
 
-	cleanup();
+	if (diffInstance === null) {
+		diffInstance = new FileDiff(diffOptions, workerPool);
+	} else {
+		diffInstance.setOptions(diffOptions);
+	}
+	diffInstance.setThemeType(effectiveTheme);
 
-	diffInstance = new FileDiff(
-		{
-			...sharedOptions,
-			diffStyle: "unified",
-			disableLineNumbers: false,
-			hunkSeparators: "line-info",
-		},
-		workerPool
-	);
+	const currentFileInstance = fileInstance;
+	if (currentFileInstance) {
+		currentFileInstance.cleanUp();
+		fileInstance = null;
+	}
 
 	const oldFile = oldContent
 		? {
@@ -133,6 +136,8 @@ async function loadAndRender(): Promise<void> {
 		cleanup();
 		return;
 	}
+
+	await ensurePierreThemeRegistered();
 
 	isLoading = true;
 	errorMessage = null;

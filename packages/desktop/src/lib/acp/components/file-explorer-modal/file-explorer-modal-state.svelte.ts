@@ -91,6 +91,7 @@ export class FileExplorerModalState {
 		this.preview = null;
 		this.isLoading = false;
 		this.searchSeq = this.searchSeq + 1; // invalidate any in-flight request
+		this.previewSeq = this.previewSeq + 1;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -104,6 +105,7 @@ export class FileExplorerModalState {
 	async searchNow(): Promise<void> {
 		const seq = this.searchSeq + 1;
 		this.searchSeq = seq;
+		this.previewSeq = this.previewSeq + 1;
 		this.isLoading = true;
 		this.preview = null;
 
@@ -118,6 +120,11 @@ export class FileExplorerModalState {
 		this.selectedIndex = 0;
 		this.preview = null;
 		this.isLoading = false;
+
+		const firstRow = this.selectedRow;
+		if (firstRow !== null) {
+			await this.loadPreview(firstRow.path);
+		}
 	}
 
 	// ---------------------------------------------------------------------------

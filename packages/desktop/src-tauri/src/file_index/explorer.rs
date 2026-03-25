@@ -611,7 +611,9 @@ mod tests {
         }
     }
 
-    fn make_index_with_stats(files: Vec<(&str, &str, Option<(&str, u64, u64)>)>) -> ProjectIndex {
+    type FileSpec<'a> = (&'a str, &'a str, Option<(&'a str, u64, u64)>);
+
+    fn make_index_with_stats(files: Vec<FileSpec<'_>>) -> ProjectIndex {
         let git_status: Vec<FileGitStatus> = files
             .iter()
             .filter_map(|(path, _, status)| {

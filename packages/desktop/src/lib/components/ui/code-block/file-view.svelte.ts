@@ -1,7 +1,7 @@
 import { File, type FileContents } from "@pierre/diffs";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { createCacheKey } from "../../../acp/utils/memoization.js";
-import { registerCursorThemeForPierreDiffs } from "../../../acp/utils/pierre-diffs-theme.js";
+import { buildPierreFileOptions, ensurePierreThemeRegistered } from "../../../acp/utils/pierre-rendering.js";
 import { getWorkerPool } from "../../../acp/utils/worker-pool-singleton.js";
 
 /**
@@ -14,7 +14,7 @@ export class FileViewState {
 	/**
 	 * The File instance for rendering code.
 	 */
-	private fileInstance: File | null = $state(null);
+	private fileInstance: File<undefined> | null = $state(null);
 
 	/**
 	 * The container element where the file is rendered.
@@ -25,7 +25,9 @@ export class FileViewState {
 	 * ResultAsync that tracks theme registration to prevent race conditions.
 	 * If set, registration is either in progress or complete.
 	 */
-	private static themeRegistrationResultAsync: ResultAsync<void, Error> | null = null;
+	private currentOverflow: "scroll" | "wrap" = $state("scroll");
+	private currentDisableLineNumbers = $state(false);
+	private currentThemeType: "dark" | "light" = $state("dark");
 
 	/**
 	 * Initializes and renders the file using @pierre/diffs.
@@ -41,52 +43,25 @@ export class FileViewState {
 		options?: {
 			disableLineNumbers?: boolean;
 			overflow?: "scroll" | "wrap";
+			themeType?: "dark" | "light";
 		}
 	): ResultAsync<void, Error> {
+		this.currentDisableLineNumbers = options?.disableLineNumbers ? options.disableLineNumbers : false;
+		this.currentOverflow = options?.overflow ? options.overflow : "scroll";
+		this.currentThemeType = options?.themeType ? options.themeType : "dark";
+
 		return this.ensureThemeRegistered()
-			.andThen(() => this.cleanupExistingInstance())
 			.andThen(() => this.createFileInstance(container, options))
 			.andThen(() => this.renderFile(fileContents, container));
 	}
 
 	private ensureThemeRegistered(): ResultAsync<void, Error> {
-		if (!FileViewState.themeRegistrationResultAsync) {
-			FileViewState.themeRegistrationResultAsync = ResultAsync.fromPromise(
-				registerCursorThemeForPierreDiffs(),
-				(e) => {
-					if (e instanceof Error) {
-						return new Error(`Failed to register theme for file view: ${e.message}`, { cause: e });
-					}
-					return new Error(`Failed to register theme for file view: ${String(e)}`);
-				}
-			).mapErr((err) => {
-				// Reset on error to allow retry
-				FileViewState.themeRegistrationResultAsync = null;
-				return err;
-			});
-		}
-		return FileViewState.themeRegistrationResultAsync;
-	}
-
-	private cleanupExistingInstance(): ResultAsync<void, Error> {
-		if (this.fileInstance) {
-			ResultAsync.fromPromise(
-				new Promise<void>((resolve) => {
-					const instance = this.fileInstance!;
-					this.fileInstance = null;
-					instance.cleanUp();
-					resolve();
-				}),
-				(e) => {
-					// Log cleanup errors but don't fail initialization
-					console.warn("Error cleaning up existing file instance:", e);
-					return new Error("Cleanup warning (non-fatal)");
-				}
-			).mapErr(() => {
-				// Ignore cleanup errors - they're non-fatal
-			});
-		}
-		return okAsync(undefined);
+		return ResultAsync.fromPromise(ensurePierreThemeRegistered(), (e) => {
+			if (e instanceof Error) {
+				return new Error(`Failed to register theme for file view: ${e.message}`, { cause: e });
+			}
+			return new Error(`Failed to register theme for file view: ${String(e)}`);
+		});
 	}
 
 	private createFileInstance(
@@ -94,23 +69,24 @@ export class FileViewState {
 		options?: {
 			disableLineNumbers?: boolean;
 			overflow?: "scroll" | "wrap";
+			themeType?: "dark" | "light";
 		}
 	): ResultAsync<void, Error> {
 		this.containerElement = container;
 
+		const nextOptions = buildPierreFileOptions(
+			options?.themeType ? options.themeType : "dark",
+			options?.overflow ? options.overflow : "scroll",
+			options?.disableLineNumbers ? options.disableLineNumbers : false
+		);
+
 		return ResultAsync.fromPromise(
 			new Promise<void>((resolve) => {
-				// Create File instance with theme and worker pool for non-blocking highlighting
-				// Using "Cursor Dark" theme (registered via registerCursorThemeForPierreDiffs)
-				// For light mode, fall back to pierre-light if needed
-				this.fileInstance = new File(
-					{
-						theme: { dark: "Cursor Dark", light: "pierre-light" },
-						disableLineNumbers: options?.disableLineNumbers ?? false,
-						overflow: options?.overflow ?? "scroll",
-					},
-					getWorkerPool()
-				);
+				if (this.fileInstance === null) {
+					this.fileInstance = new File<undefined>(nextOptions, getWorkerPool());
+				} else {
+					this.fileInstance.setOptions(nextOptions);
+				}
 				resolve();
 			}),
 			(e) => {
@@ -149,6 +125,19 @@ export class FileViewState {
 		);
 	}
 
+	setThemeType(themeType: "dark" | "light"): void {
+		if (this.fileInstance === null) {
+			this.currentThemeType = themeType;
+			return;
+		}
+
+		this.currentThemeType = themeType;
+		this.fileInstance.setOptions(
+			buildPierreFileOptions(themeType, this.currentOverflow, this.currentDisableLineNumbers)
+		);
+		this.fileInstance.setThemeType(themeType);
+	}
+
 	/**
 	 * Ensures the file contents has a cache key for Pierre's render cache.
 	 * Generates one based on content hash if not present.
@@ -157,10 +146,9 @@ export class FileViewState {
 		if (fileContents.cacheKey) {
 			return fileContents;
 		}
-		return {
-			...fileContents,
+		return Object.assign({}, fileContents, {
 			cacheKey: `file-view-${createCacheKey(fileContents.contents, fileContents.name)}`,
-		};
+		});
 	}
 
 	/**
@@ -196,8 +184,9 @@ export class FileViewState {
 	 * Cleans up the File instance and removes event listeners.
 	 */
 	cleanup(): void {
-		if (this.fileInstance) {
-			this.fileInstance.cleanUp();
+		const currentFileInstance = this.fileInstance;
+		if (currentFileInstance) {
+			currentFileInstance.cleanUp();
 			this.fileInstance = null;
 		}
 		this.containerElement = null;

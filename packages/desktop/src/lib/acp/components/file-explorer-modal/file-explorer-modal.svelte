@@ -209,9 +209,9 @@ function handleSelect(row: FileExplorerRow) {
 		class="h-[min(600px,calc(100vh-2rem))] w-full max-w-[900px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex flex-col"
 	>
 		<!-- Search input row -->
-		<div class="flex items-center gap-1.5 px-3 py-2 border-b shrink-0">
+		<div class="flex items-center gap-1 px-2.5 py-1.5 border-b shrink-0">
 			<svg
-				class="h-3.5 w-3.5 text-muted-foreground shrink-0"
+				class="h-3 w-3 text-muted-foreground shrink-0"
 				xmlns="http://www.w3.org/2000/svg"
 				viewBox="0 0 24 24"
 				fill="none"
@@ -228,7 +228,7 @@ function handleSelect(row: FileExplorerRow) {
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck={false}
-				class="flex-1 bg-transparent border-none outline-none text-[13px] placeholder:text-muted-foreground"
+				class="flex-1 bg-transparent border-none outline-none text-[12px] placeholder:text-muted-foreground"
 				value={explorerState.query}
 				oninput={handleInput}
 				onkeydown={handleKeyDown}
@@ -239,7 +239,7 @@ function handleSelect(row: FileExplorerRow) {
 					: undefined}
 			/>
 			<kbd
-				class="px-1 py-0.5 text-[9px] font-medium bg-muted rounded border text-muted-foreground"
+				class="px-1 py-0 text-[8px] font-medium bg-muted rounded border text-muted-foreground leading-[1.1]"
 			>
 				Esc
 			</kbd>

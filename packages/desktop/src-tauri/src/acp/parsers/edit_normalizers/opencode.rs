@@ -112,18 +112,16 @@ fn parse_file_diff_section(file_path: &str, diff_lines: &str) -> EditEntry {
     let mut new_lines: Vec<&str> = Vec::new();
 
     for line in diff_lines.lines() {
-        if line.starts_with("@@ ") {
+        if let Some(ctx) = line.strip_prefix("@@ ") {
             // Context header line — the content after "@@ " appears in both old and new
-            let ctx = &line[3..];
             old_lines.push(ctx);
             new_lines.push(ctx);
         } else if let Some(stripped) = line.strip_prefix('-') {
             old_lines.push(stripped);
         } else if let Some(stripped) = line.strip_prefix('+') {
             new_lines.push(stripped);
-        } else if line.starts_with(' ') {
+        } else if let Some(ctx) = line.strip_prefix(' ') {
             // Context line (space prefix) — appears in both
-            let ctx = &line[1..];
             old_lines.push(ctx);
             new_lines.push(ctx);
         }

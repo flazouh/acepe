@@ -507,7 +507,7 @@ mod tests {
             parent_tool_use_id: None,
             task_children: None,
         };
-        build_tool_call_from_raw(&*parser, raw)
+        build_tool_call_from_raw(parser, raw)
     }
 
     // -------------------------------------------------------------------------

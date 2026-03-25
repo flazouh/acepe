@@ -1033,6 +1033,7 @@ fn test_question_reply_rejects_old_flat_array_format() {
     struct QuestionReplyEntry {
         #[allow(dead_code)]
         question_index: usize,
+        #[allow(dead_code)]
         answers: Vec<String>,
     }
 

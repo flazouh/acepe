@@ -251,21 +251,6 @@ impl CcSdkClaudeClient {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cc_sdk_sessions_request_partial_messages() {
-        let options = cc_sdk::ClaudeCodeOptions::builder()
-            .cwd(PathBuf::from("/tmp"))
-            .include_partial_messages(true)
-            .build();
-
-        assert!(options.include_partial_messages);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Streaming bridge
 // ---------------------------------------------------------------------------
@@ -548,5 +533,20 @@ impl AgentClient for CcSdkClaudeClient {
         // Drop the Arc — once no other holders remain the client cleans up the subprocess.
         self.sdk_client = None;
         self.session_id = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cc_sdk_sessions_request_partial_messages() {
+        let options = cc_sdk::ClaudeCodeOptions::builder()
+            .cwd(PathBuf::from("/tmp"))
+            .include_partial_messages(true)
+            .build();
+
+        assert!(options.include_partial_messages);
     }
 }

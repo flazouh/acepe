@@ -58,6 +58,11 @@ import {
 } from "./logic/input-parser.js";
 import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 import {
+	type SubmitIntent,
+	resolveEnterKeyIntent,
+	resolvePrimaryButtonIntent,
+} from "./logic/submit-intent.js";
+import {
 	resolvePendingToolbarSelections,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
@@ -282,6 +287,7 @@ const isStreaming = $derived(
 
 // Agent is busy when actively streaming/thinking — queue messages instead of sending
 const isAgentBusy = $derived(sessionRuntimeState?.activityPhase === "running");
+const hasDraftInput = $derived(inputState.message.trim().length > 0 || inputState.attachments.length > 0);
 
 // Track previous message for draft change detection
 let lastDraftValue = "";
@@ -294,6 +300,7 @@ let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  */
 let editorJustSynced = false;
 let isSending = $state(false);
+let isShiftPressed = $state(false);
 let isApplyingProvisionalToolbarSelections = $state(false);
 let provisionalModeId = $state<string | null>(null);
 let provisionalModelId = $state<string | null>(null);
@@ -301,6 +308,14 @@ let editorRef: HTMLDivElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
+const primaryButtonIntent = $derived.by(() =>
+	resolvePrimaryButtonIntent({
+		hasDraftInput,
+		isAgentBusy,
+		isStreaming,
+		isShiftPressed,
+	})
+);
 const HOVER_PREVIEW_MAX_CHARS = 500;
 
 function truncateHoverContent(value: string): string {
@@ -475,6 +490,19 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 
 // Initialize on mount (file preloading is now handled reactively by state class)
 onMount(async () => {
+	const handleWindowKeyDown = (event: KeyboardEvent) => {
+		if (event.key === "Shift") {
+			isShiftPressed = true;
+		}
+	};
+	const handleWindowKeyUp = (event: KeyboardEvent) => {
+		if (event.key === "Shift") {
+			isShiftPressed = false;
+		}
+	};
+	window.addEventListener("keydown", handleWindowKeyDown);
+	window.addEventListener("keyup", handleWindowKeyUp);
+
 	inputState.initialize();
 	if (effectiveVoiceSessionId && voiceEnabled) {
 		// VoiceInputState is created with the current sessionId and lives for the lifetime of this
@@ -544,6 +572,11 @@ onMount(async () => {
 		messageLength: inputState.message.length,
 		domLength: editorRef ? serializeInlineComposerMessage(editorRef).length : null,
 	});
+
+	return () => {
+		window.removeEventListener("keydown", handleWindowKeyDown);
+		window.removeEventListener("keyup", handleWindowKeyUp);
+	};
 });
 
 // Cleanup on destroy — flush any pending draft before teardown
@@ -865,6 +898,20 @@ function handleSteer() {
 		});
 }
 
+function handlePrimaryButtonClick(): void {
+	if (primaryButtonIntent === "steer") {
+		handleSteer();
+		return;
+	}
+	if (primaryButtonIntent === "send") {
+		void handleSend();
+		return;
+	}
+	if (isStreaming) {
+		void handleCancel();
+	}
+}
+
 // Handle mode change
 async function handleModeChange(modeId: string) {
 	if (props.sessionId) {
@@ -951,16 +998,23 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 		return;
 	}
 
-	// ⌘Enter — steer (cancel + send immediately)
-	if (event.key === "Enter" && event.metaKey && !event.shiftKey) {
+	const submitIntent: SubmitIntent = resolveEnterKeyIntent({
+		hasDraftInput,
+		isAgentBusy,
+		shiftKey: event.shiftKey,
+		metaKey: event.metaKey,
+		ctrlKey: event.ctrlKey,
+	});
+
+	if (event.key === "Enter" && submitIntent === "steer") {
 		event.preventDefault();
 		handleSteer();
 		return;
 	}
 
-	if (event.key === "Enter" && !event.shiftKey) {
+	if (event.key === "Enter" && submitIntent === "send") {
 		event.preventDefault();
-		handleSend();
+		void handleSend();
 		return;
 	}
 
@@ -1411,26 +1465,26 @@ async function handleCancel() {
 							<Tooltip.Root>
 								<Tooltip.Trigger>
 									{#snippet child({ props: triggerProps })}
-										<Button
-											{...triggerProps}
-											type="button"
-											size="icon"
-											onclick={isStreaming ? handleCancel : handleSend}
-											disabled={isSending ||
-												(!isStreaming &&
-													(isSubmitDisabled ||
-														(!inputState.message.trim() && inputState.attachments.length === 0)))}
-											class="h-7 w-7 cursor-pointer shrink-0 rounded-md"
-											style="background-color: {buttonColor};"
-										>
-											{#if isStreaming}
-												<Stop weight="fill" class="h-3.5 w-3.5" />
-												<span class="sr-only">{m.agent_input_stop_streaming()}</span>
-											{:else}
-												<IconArrowUp class="h-3.5 w-3.5" />
-												<span class="sr-only">{m.agent_input_send_message()}</span>
-											{/if}
-										</Button>
+									<Button
+										{...triggerProps}
+										type="button"
+										size="icon"
+										onclick={handlePrimaryButtonClick}
+										disabled={isSending ||
+											(primaryButtonIntent !== "steer" &&
+												(isSubmitDisabled ||
+													(!inputState.message.trim() && inputState.attachments.length === 0)))}
+										class="h-7 w-7 cursor-pointer shrink-0 rounded-md"
+										style="background-color: {buttonColor};"
+									>
+										{#if primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
+											<Stop weight="fill" class="h-3.5 w-3.5" />
+											<span class="sr-only">{m.agent_input_interrupt()}</span>
+										{:else}
+											<IconArrowUp class="h-3.5 w-3.5" />
+											<span class="sr-only">{isAgentBusy ? m.agent_input_queue_message() : m.agent_input_send_message()}</span>
+										{/if}
+									</Button>
 									{/snippet}
 								</Tooltip.Trigger>
 								<Tooltip.Content>
@@ -1440,10 +1494,10 @@ async function handleCancel() {
 												<span>{m.agent_input_queue_message()}</span>
 												<KbdGroup><Kbd>Enter</Kbd></KbdGroup>
 											</div>
-											<div class="flex items-center gap-1.5">
-												<span>{m.agent_input_interrupt()}</span>
-												<KbdGroup><Kbd>⌘</Kbd><Kbd>Enter</Kbd></KbdGroup>
-											</div>
+										<div class="flex items-center gap-1.5">
+											<span>{m.agent_input_interrupt()}</span>
+											<KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup>
+										</div>
 										</div>
 									{:else}
 										<div class="flex items-center gap-2">

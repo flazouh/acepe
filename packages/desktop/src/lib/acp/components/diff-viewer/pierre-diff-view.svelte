@@ -11,9 +11,9 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import type { FileDiff as FileDiffType } from "../../types/github-integration.js";
 import { parsePatchToBeforeAfter } from "../../utils/diff-patch-parser.js";
 import {
-	pierreDiffsUnsafeCSS,
-	registerCursorThemeForPierreDiffs,
-} from "../../utils/pierre-diffs-theme.js";
+	buildPierreDiffOptions,
+	ensurePierreThemeRegistered,
+} from "../../utils/pierre-rendering.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 
 interface Props {
@@ -86,30 +86,23 @@ async function renderDiff(
 	if (isDisposed) return;
 	renderError = null;
 
-	await registerCursorThemeForPierreDiffs();
+	await ensurePierreThemeRegistered();
 
 	if (isDisposed) return;
 
-	if (fileDiffInstance) {
-		fileDiffInstance.cleanUp();
-		fileDiffInstance = null;
-	}
-
-	fileDiffInstance = new FileDiff<never>(
-		{
-			theme: { dark: "Cursor Dark", light: "pierre-light" },
-			themeType: theme,
-			diffStyle: mode === "side-by-side" ? "split" : "unified",
-			disableFileHeader: true,
-			hunkSeparators: "line-info",
-			overflow: "wrap",
-			unsafeCSS: pierreDiffsUnsafeCSS,
-			expandUnchanged: false,
-			diffIndicators: "bars",
-			lineDiffType: "word-alt",
-		},
-		getWorkerPool()
+	const nextOptions = buildPierreDiffOptions<never>(
+		theme,
+		mode === "side-by-side" ? "split" : "unified",
+		"wrap",
+		false
 	);
+
+	if (fileDiffInstance === null) {
+		fileDiffInstance = new FileDiff<never>(nextOptions, getWorkerPool());
+	} else {
+		fileDiffInstance.setOptions(nextOptions);
+	}
+	fileDiffInstance.setThemeType(theme);
 
 	try {
 		fileDiffInstance.render({
@@ -124,8 +117,9 @@ async function renderDiff(
 
 onDestroy(() => {
 	isDisposed = true;
-	if (fileDiffInstance) {
-		fileDiffInstance.cleanUp();
+	const currentFileDiffInstance = fileDiffInstance;
+	if (currentFileDiffInstance) {
+		currentFileDiffInstance.cleanUp();
 		fileDiffInstance = null;
 	}
 });

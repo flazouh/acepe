@@ -15,9 +15,9 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import type { FileExplorerPreviewResponse } from "$lib/services/converted-session-types.js";
 import { isMarkdownInitialized, renderMarkdownSync } from "$lib/acp/utils/markdown-renderer.js";
 import {
-	pierreDiffsUnsafeCSS,
-	registerCursorThemeForPierreDiffs,
-} from "../../utils/pierre-diffs-theme.js";
+	buildPierreDiffOptions,
+	ensurePierreThemeRegistered,
+} from "../../utils/pierre-rendering.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 
 interface Props {
@@ -30,8 +30,6 @@ let containerRef: HTMLDivElement | null = $state(null);
 let fileDiffInstance: FileDiff<never> | null = $state(null);
 let isDisposed = $state(false);
 let renderError = $state<string | null>(null);
-let themeRegistrationPromise: Promise<void> | null = null;
-
 const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 
@@ -46,19 +44,9 @@ type DiffInput = {
 };
 
 function buildFileDiffOptions(theme: "light" | "dark") {
-	return {
-		theme: { dark: "Cursor Dark", light: "pierre-light" },
-		themeType: theme,
-		diffStyle: "unified" as const,
-		disableFileHeader: true,
-		hunkSeparators: "line-info" as const,
-		overflow: "wrap" as const,
-		unsafeCSS: pierreDiffsUnsafeCSS,
-		expandUnchanged: false,
-		diffIndicators: "bars" as const,
-		lineDiffType: "word-alt" as const,
+	return Object.assign(buildPierreDiffOptions<never>(theme, "unified", "wrap", false), {
 		disableErrorHandling: true,
-	};
+	});
 }
 
 const isMarkdownPreview = $derived.by(() => {
@@ -168,12 +156,6 @@ async function renderDiff(
 	} catch (_error) {
 		renderError = "Failed to render preview";
 	}
-}
-
-function ensurePierreThemeRegistered(): Promise<void> {
-	if (themeRegistrationPromise !== null) return themeRegistrationPromise;
-	themeRegistrationPromise = registerCursorThemeForPierreDiffs();
-	return themeRegistrationPromise;
 }
 
 onDestroy(() => {

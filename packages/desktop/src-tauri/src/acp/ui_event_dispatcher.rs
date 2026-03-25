@@ -642,8 +642,10 @@ mod tests {
 
     #[test]
     fn drops_droppable_when_global_backlog_exceeded() {
-        let mut policy = DispatchPolicy::default();
-        policy.max_global_backlog = 1;
+        let policy = DispatchPolicy {
+            max_global_backlog: 1,
+            ..DispatchPolicy::default()
+        };
 
         let mut state = DispatcherState::new(policy);
         state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));
@@ -655,8 +657,10 @@ mod tests {
 
     #[test]
     fn keeps_non_droppable_when_global_backlog_exceeded() {
-        let mut policy = DispatchPolicy::default();
-        policy.max_global_backlog = 1;
+        let policy = DispatchPolicy {
+            max_global_backlog: 1,
+            ..DispatchPolicy::default()
+        };
 
         let mut state = DispatcherState::new(policy);
         state.enqueue(AcpUiEvent::session_update(chunk_update("s1", "a")));

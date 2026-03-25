@@ -1,7 +1,9 @@
 <script lang="ts">
 import type { FileContents, SupportedLanguages } from "@pierre/diffs";
 
-import { onDestroy } from "svelte";
+import { onDestroy, untrack } from "svelte";
+
+import { useTheme } from "$lib/components/theme/context.svelte.js";
 
 import { FileViewState } from "./file-view.svelte.js";
 
@@ -51,7 +53,7 @@ let {
 const fileContents = $derived.by((): FileContents => {
 	if (typeof file === "string") {
 		const result: FileContents = {
-			name: filename || "output.txt",
+			name: filename ? filename : "output.txt",
 			contents: file,
 		};
 		// Only include lang if it's defined (FileContents["lang"] is optional)
@@ -67,6 +69,8 @@ let containerElement: HTMLDivElement | null = $state(null);
 const fileViewState = new FileViewState();
 let isInitialized = $state(false);
 let initializationError = $state<Error | null>(null);
+const themeState = useTheme();
+const effectiveTheme = $derived(themeState.effectiveTheme);
 
 // Track previous option values to detect changes
 // Initialize as undefined to trigger first render as "options changed"
@@ -81,6 +85,7 @@ $effect(() => {
 	let isValid = true;
 
 	if (containerElement && fileContents) {
+		const theme = effectiveTheme;
 		const optionsChanged =
 			previousDisableLineNumbers !== disableLineNumbers || previousOverflow !== overflow;
 
@@ -92,6 +97,7 @@ $effect(() => {
 				.initializeFile(fileContents, containerElement, {
 					disableLineNumbers,
 					overflow,
+					themeType: theme,
 				})
 				.match(
 					() => {
@@ -130,6 +136,13 @@ $effect(() => {
 	return () => {
 		isValid = false;
 	};
+});
+
+$effect(() => {
+	const theme = effectiveTheme;
+	untrack(() => {
+		fileViewState.setThemeType(theme);
+	});
 });
 
 onDestroy(() => {

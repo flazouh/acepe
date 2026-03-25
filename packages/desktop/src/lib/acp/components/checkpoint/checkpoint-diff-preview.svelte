@@ -5,7 +5,7 @@ import { onDestroy, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 
 import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
-import { pierreDiffsUnsafeCSS } from "../../utils/pierre-diffs-theme.js";
+import { buildPierreDiffOptions, ensurePierreThemeRegistered } from "../../utils/pierre-rendering.js";
 
 interface Props {
 	diff: CheckpointFileDiff;
@@ -21,13 +21,7 @@ const workerPool = getHighlighterPool();
 const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 
-const sharedOptions = $derived({
-	theme: { dark: "Cursor Dark", light: "pierre-light" },
-	themeType: effectiveTheme,
-	overflow: "wrap" as const,
-	unsafeCSS: pierreDiffsUnsafeCSS,
-	disableFileHeader: true,
-});
+const diffOptions = $derived(buildPierreDiffOptions(effectiveTheme, "unified", "wrap", false));
 
 function cleanup(): void {
 	if (diffInstance) {
@@ -39,17 +33,12 @@ function cleanup(): void {
 function renderDiff(container: HTMLDivElement): void {
 	if (!diff.content) return;
 
-	cleanup();
-
-	const instance = new FileDiff(
-		{
-			...sharedOptions,
-			diffStyle: "unified",
-			disableLineNumbers: false,
-			hunkSeparators: "line-info",
-		},
-		workerPool
-	);
+	if (diffInstance === null) {
+		diffInstance = new FileDiff(diffOptions, workerPool);
+	} else {
+		diffInstance.setOptions(diffOptions);
+	}
+	diffInstance.setThemeType(effectiveTheme);
 
 	const fileName = diff.filePath.split("/").pop() ?? diff.filePath;
 	const cacheKey = `checkpoint-${diff.filePath}`;
@@ -66,13 +55,11 @@ function renderDiff(container: HTMLDivElement): void {
 		cacheKey: `${cacheKey}-new`,
 	};
 
-	instance.render({
+	diffInstance.render({
 		oldFile,
 		newFile,
 		containerWrapper: container,
 	});
-
-	diffInstance = instance;
 }
 
 $effect(() => {
@@ -81,7 +68,9 @@ $effect(() => {
 
 	if (container && d?.content) {
 		untrack(() => {
-			renderDiff(container);
+			void ensurePierreThemeRegistered().then(() => {
+				renderDiff(container);
+			});
 		});
 	}
 });

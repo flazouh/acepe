@@ -60,6 +60,10 @@ describe("VoiceInputState", () => {
 
 		mock.module("@tauri-apps/api/event", () => ({
 			listen: listenMock,
+			once: listenMock,
+			emit: vi.fn(),
+			emitTo: vi.fn(),
+			TauriEvent: {},
 		}));
 		mock.module("svelte-sonner", () => ({
 			toast: {

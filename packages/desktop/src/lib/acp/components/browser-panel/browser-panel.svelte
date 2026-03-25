@@ -25,8 +25,6 @@ interface Props {
 const props: Props = $props();
 
 let webviewAreaRef: HTMLDivElement | undefined = $state(undefined);
-let headerContainerRef: HTMLDivElement | undefined = $state(undefined);
-let rootContainerRef: HTMLDivElement | undefined = $state(undefined);
 let webviewCreated = $state(false);
 /** True while browserWebview.open() is in-flight (not yet resolved). */
 let openPending = false;
@@ -52,32 +50,16 @@ const zoomLevel = $derived(zoomService.zoomLevel);
 
 function openInSystemBrowser() {
 	openUrl(currentUrl).catch((error) => {
-		logger.error("[browser-debug] open external FAILED", { panelId: props.panelId, currentUrl, error });
+		logger.error("open external failed", { panelId: props.panelId, error });
 	});
 }
 
-function syncWebviewZoom() {
-	if (!webviewCreated) {
-		return;
-	}
-
-	browserWebview.setZoom(webviewLabel, zoomLevel).match(
-		() => {
-			logger.info("[browser-debug] syncWebviewZoom", {
-				panelId: props.panelId,
-				label: webviewLabel,
-				zoomLevel,
-			});
-		},
-		(error) =>
-			logger.error("[browser-debug] syncWebviewZoom FAILED", {
-				panelId: props.panelId,
-				label: webviewLabel,
-				zoomLevel,
-				error,
-			})
-	);
-}
+/**
+ * Sync the child webview zoom is intentionally NOT done here.
+ * The child webview renders external content at its natural zoom (1.0).
+ * Alignment with the app zoom is handled entirely through bounds correction
+ * in resolveBrowserPanelBounds (CSS pixels × zoom → logical window pixels).
+ */
 
 function handleClose() {
 	closeRequested = true;
@@ -85,7 +67,7 @@ function handleClose() {
 		() => {
 			webviewCreated = false;
 		},
-		(error) => logger.error("[browser-debug] header close FAILED", { panelId: props.panelId, error })
+		(error) => logger.error("close failed", { panelId: props.panelId, error })
 	);
 	props.onClose();
 }
@@ -99,8 +81,6 @@ function resolveNativeBounds() {
 	}
 
 	const rect = webviewAreaRef.getBoundingClientRect();
-	const rootRect = rootContainerRef ? rootContainerRef.getBoundingClientRect() : null;
-	const headerRect = headerContainerRef ? headerContainerRef.getBoundingClientRect() : null;
 
 	return ResultAsync.fromPromise(
 		resolveBrowserPanelBounds(rect, {
@@ -110,50 +90,7 @@ function resolveNativeBounds() {
 			getZoomLevel: () => zoomService.zoomLevel,
 		}),
 		(error) => new Error(`Failed to resolve browser panel bounds: ${String(error)}`)
-	).map((bounds) => {
-		logger.info("[browser-debug] resolveNativeBounds", {
-			panelId: props.panelId,
-			rawRect: {
-				x: rect.x,
-				y: rect.y,
-				width: rect.width,
-				height: rect.height,
-			},
-			rootRect: rootRect
-				? {
-					x: rootRect.x,
-					y: rootRect.y,
-					width: rootRect.width,
-					height: rootRect.height,
-				}
-				: null,
-			headerRect: headerRect
-				? {
-					x: headerRect.x,
-					y: headerRect.y,
-					width: headerRect.width,
-					height: headerRect.height,
-				}
-				: null,
-			zoomLevel: zoomService.zoomLevel,
-			devicePixelRatio: window.devicePixelRatio,
-			visualViewport: window.visualViewport
-				? {
-					scale: window.visualViewport.scale,
-					width: window.visualViewport.width,
-					height: window.visualViewport.height,
-					offsetLeft: window.visualViewport.offsetLeft,
-					offsetTop: window.visualViewport.offsetTop,
-				}
-				: null,
-			windowInnerPosition: { x: 0, y: 0 },
-			webviewPosition: { x: 0, y: 0 },
-			scaleFactor: 1,
-			resolvedBounds: bounds,
-		});
-
-		return bounds;
-	});
+	);
 }
 
 function navigateToUrl(nextUrl: string) {
@@ -163,20 +100,13 @@ function navigateToUrl(nextUrl: string) {
 		browserWebview.navigate(webviewLabel, nextUrl).match(
 			() => undefined,
 			(error) =>
-				logger.error("[browser-debug] navigate FAILED", { panelId: props.panelId, nextUrl, error })
+				logger.error("navigate failed", { panelId: props.panelId, nextUrl, error })
 		);
 	}
 }
 
 function createWebview() {
 	if (!webviewAreaRef || webviewCreated || openPending || isDestroyed) {
-		logger.info("[browser-debug] createWebview skipped", {
-			panelId: props.panelId,
-			hasRef: !!webviewAreaRef,
-			webviewCreated,
-			openPending,
-			isDestroyed,
-		});
 		return;
 	}
 
@@ -184,15 +114,6 @@ function createWebview() {
 	const requestedUrl = currentUrl;
 	openPending = true;
 	resolveNativeBounds().andThen((bounds) => {
-		logger.info("[browser-debug] createWebview calling open", {
-			label,
-			url: requestedUrl,
-			x: bounds.x,
-			y: bounds.y,
-			w: bounds.width,
-			h: bounds.height,
-		});
-
 		return browserWebview.open(
 			label,
 			requestedUrl,
@@ -205,20 +126,13 @@ function createWebview() {
 		() => {
 			openPending = false;
 			if (isDestroyed || closeRequested) {
-				logger.info("[browser-debug] createWebview: already destroyed, closing", { label });
 				browserWebview.close(label);
 				webviewCreated = false;
 				return;
 			}
 			webviewCreated = true;
-			syncWebviewZoom();
-			logger.info("[browser-debug] createWebview success, scheduling re-sync", {
-				label,
-				url: currentUrl,
-			});
 			// Re-sync bounds after creation in case a ResizeObserver event
 			// fired while webviewCreated was still false (race with async open).
-			// Use two frames: first lets flex layout settle, second reads final rect.
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => syncWebviewBounds());
 			});
@@ -226,10 +140,8 @@ function createWebview() {
 				browserWebview.navigate(label, currentUrl).match(
 					() => undefined,
 					(error) =>
-						logger.error("[browser-debug] post-open navigate FAILED", {
+						logger.error("post-open navigate failed", {
 							panelId: props.panelId,
-							requestedUrl,
-							currentUrl,
 							error,
 						})
 				);
@@ -237,7 +149,7 @@ function createWebview() {
 		},
 		(error) => {
 			openPending = false;
-			logger.error("[browser-debug] createWebview FAILED", { label, error });
+			logger.error("createWebview failed", { label, error });
 		}
 	);
 }
@@ -255,16 +167,6 @@ function syncWebviewBounds() {
 			);
 		}
 
-		logger.info("[browser-debug] syncWebviewBounds resizing", {
-			panelId: props.panelId,
-			label: webviewLabel,
-			x: bounds.x,
-			y: bounds.y,
-			w: bounds.width,
-			h: bounds.height,
-			zoomLevel,
-		});
-
 		return browserWebview.resize(
 			webviewLabel,
 			bounds.x,
@@ -274,57 +176,36 @@ function syncWebviewBounds() {
 		);
 	}).match(
 		() => undefined,
-		(error) => logger.error("[browser-debug] syncWebviewBounds FAILED", { panelId: props.panelId, error })
+		(error) => logger.error("syncWebviewBounds failed", { panelId: props.panelId, error })
 	);
 }
 
 function destroyWebview() {
-	logger.info("[browser-debug] destroyWebview called", {
-		panelId: props.panelId,
-		webviewCreated,
-		openPending,
-		label: webviewLabel,
-	});
-
 	const label = webviewLabel;
- 	closeRequested = true;
+	closeRequested = true;
 
 	if (webviewCreated) {
-		// Webview is confirmed open — close it immediately.
 		browserWebview.close(label).match(
-			() => logger.info("[browser-debug] destroyWebview: close success", { label }),
-			(error) => logger.error("[browser-debug] destroyWebview: close FAILED", { label, error })
+			() => undefined,
+			(error) => logger.error("destroyWebview close failed", { label, error })
 		);
 		webviewCreated = false;
 	} else if (openPending) {
-		// open() is still in-flight.  isDestroyed=true will cause the
-		// .match() success handler above to close it once it resolves.
-		// As an extra safety net, schedule a deferred close so the
-		// native webview is removed even if a subtle timing issue occurs.
-		logger.info("[browser-debug] destroyWebview: open pending, scheduling deferred close", {
-			label,
-		});
+		// open() is still in-flight. isDestroyed=true will cause the
+		// success handler to close it once it resolves. Schedule a
+		// deferred close as a safety net.
 		setTimeout(() => {
 			browserWebview.close(label).match(
-				() => logger.info("[browser-debug] destroyWebview: deferred close success", { label }),
-				(error) =>
-					logger.info(
-						"[browser-debug] destroyWebview: deferred close (expected if already closed)",
-						{ label, error: String(error) }
-					)
+				() => undefined,
+				() => undefined
 			);
 		}, 500);
 	} else if (closeRequested) {
 		browserWebview.close(label).match(
-			() => logger.info("[browser-debug] destroyWebview: best-effort close success", { label }),
-			(error) =>
-				logger.info("[browser-debug] destroyWebview: best-effort close failed", {
-					label,
-					error: String(error),
-				})
+			() => undefined,
+			() => undefined
 		);
 	}
-	// If neither webviewCreated nor openPending, nothing was ever opened.
 }
 
 function goBack() {
@@ -404,8 +285,9 @@ $effect(() => {
 });
 
 $effect(() => {
+	// When app zoom changes, re-sync bounds because the CSS-to-logical
+	// coordinate mapping changes (resolveBrowserPanelBounds scales by zoom).
 	zoomLevel;
-	syncWebviewZoom();
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
 			syncWebviewBounds();
@@ -415,13 +297,12 @@ $effect(() => {
 </script>
 
 <div
-	bind:this={rootContainerRef}
 	class="flex flex-col h-full min-h-0 bg-background border border-border overflow-hidden relative {isDragging
 		? 'select-none'
 		: ''} {props.isFillContainer ? 'flex-1 min-w-0' : 'shrink-0 grow-0'}"
 	style={widthStyle}
 >
-	<div bind:this={headerContainerRef} class="shrink-0">
+	<div class="shrink-0">
 		<BrowserPanelHeader
 			url={currentUrl}
 			onBack={goBack}

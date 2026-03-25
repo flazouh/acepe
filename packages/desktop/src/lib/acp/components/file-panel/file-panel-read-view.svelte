@@ -5,7 +5,11 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import type { GitGutterInput } from "$lib/components/ui/codemirror-editor/git-gutter.js";
 
 import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
-import { pierreDiffsUnsafeCSS } from "../../utils/pierre-diffs-theme.js";
+import {
+	buildPierreDiffOptions,
+	buildPierreFileOptions,
+	ensurePierreThemeRegistered,
+} from "../../utils/pierre-rendering.js";
 
 interface Props {
 	filePath: string;
@@ -25,14 +29,8 @@ const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 const fileName = $derived(filePath.split("/").pop() ?? filePath);
 
-const sharedOptions = $derived({
-	theme: { dark: "Cursor Dark", light: "pierre-light" },
-	themeType: effectiveTheme,
-	overflow: "scroll" as const,
-	unsafeCSS: pierreDiffsUnsafeCSS,
-	disableFileHeader: true,
-	disableLineNumbers: false,
-});
+const fileOptions = $derived(buildPierreFileOptions(effectiveTheme, "scroll", false));
+const diffOptions = $derived(buildPierreDiffOptions(effectiveTheme, "unified", "scroll", false));
 
 function cleanup(): void {
 	if (fileInstance) {
@@ -48,17 +46,20 @@ function cleanup(): void {
 function render(): void {
 	if (!containerRef) return;
 
-	cleanup();
-
 	if (gitGutterInput?.kind === "modified") {
-		diffInstance = new FileDiff(
-			{
-				...sharedOptions,
-				diffStyle: "unified",
-				hunkSeparators: "line-info",
-			},
-			workerPool
-		);
+		if (diffInstance === null) {
+			diffInstance = new FileDiff(diffOptions, workerPool);
+		} else {
+			diffInstance.setOptions(diffOptions);
+		}
+		diffInstance.setThemeType(effectiveTheme);
+
+		const currentFileInstance = fileInstance;
+		if (currentFileInstance) {
+			currentFileInstance.cleanUp();
+			fileInstance = null;
+		}
+
 		diffInstance.render({
 			oldFile: {
 				name: fileName,
@@ -76,14 +77,19 @@ function render(): void {
 	}
 
 	if (gitGutterInput?.kind === "new-file") {
-		diffInstance = new FileDiff(
-			{
-				...sharedOptions,
-				diffStyle: "unified",
-				hunkSeparators: "line-info",
-			},
-			workerPool
-		);
+		if (diffInstance === null) {
+			diffInstance = new FileDiff(diffOptions, workerPool);
+		} else {
+			diffInstance.setOptions(diffOptions);
+		}
+		diffInstance.setThemeType(effectiveTheme);
+
+		const currentFileInstance = fileInstance;
+		if (currentFileInstance) {
+			currentFileInstance.cleanUp();
+			fileInstance = null;
+		}
+
 		diffInstance.render({
 			oldFile: {
 				name: fileName,
@@ -100,7 +106,19 @@ function render(): void {
 		return;
 	}
 
-	fileInstance = new PierreFile(sharedOptions, workerPool);
+	if (fileInstance === null) {
+		fileInstance = new PierreFile(fileOptions, workerPool);
+	} else {
+		fileInstance.setOptions(fileOptions);
+	}
+	fileInstance.setThemeType(effectiveTheme);
+
+	const currentDiffInstance = diffInstance;
+	if (currentDiffInstance) {
+		currentDiffInstance.cleanUp();
+		diffInstance = null;
+	}
+
 	fileInstance.render({
 		file: {
 			name: fileName,
@@ -117,7 +135,9 @@ $effect(() => {
 	void gitGutterInput;
 	void filePath;
 	void projectPath;
-	render();
+	void ensurePierreThemeRegistered().then(() => {
+		render();
+	});
 });
 
 onDestroy(() => {

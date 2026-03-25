@@ -19,16 +19,26 @@ export interface BrowserPanelNativeBounds {
 	height: number;
 }
 
+/**
+ * Converts a CSS-pixel viewport rect into native logical-pixel bounds
+ * for a Tauri child webview.
+ *
+ * When the main webview has a zoom level applied (via `webview.setZoom()`),
+ * `getBoundingClientRect()` returns CSS pixels which are smaller than the
+ * actual logical window coordinates. Multiplying by the zoom level converts
+ * CSS pixels → logical window pixels so the native child webview aligns
+ * with the DOM slot at every zoom level.
+ */
 export async function resolveBrowserPanelBounds(
 	rect: BrowserPanelViewportRect,
 	dependencies: BrowserPanelBoundsDependencies
 ): Promise<BrowserPanelNativeBounds> {
-	void dependencies;
+	const zoom = dependencies.getZoomLevel();
 
 	return {
-		x: rect.x,
-		y: rect.y,
-		width: rect.width,
-		height: rect.height,
+		x: rect.x * zoom,
+		y: rect.y * zoom,
+		width: rect.width * zoom,
+		height: rect.height * zoom,
 	};
 }

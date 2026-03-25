@@ -59,6 +59,7 @@ export interface MessageQueueStore {
 	getQueue(sessionId: string): readonly QueuedMessage[];
 	/** Enqueue a message. Returns false if the queue is full. */
 	enqueue(sessionId: string, content: string, attachments: readonly Attachment[]): boolean;
+	updateMessage(sessionId: string, messageId: string, content: string): boolean;
 	removeMessage(sessionId: string, messageId: string): void;
 	clearQueue(sessionId: string): void;
 	drainNext(sessionId: string): void;
@@ -108,6 +109,29 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			messageId: message.id,
 			queueSize: queue.length + 1,
 		});
+		return true;
+	}
+
+	function updateMessage(sessionId: string, messageId: string, content: string): boolean {
+		const queue = queues.get(sessionId);
+		if (!queue) return false;
+
+		const index = queue.findIndex((message) => message.id === messageId);
+		if (index === -1) return false;
+
+		const nextQueue = queue.map((message, messageIndex) => {
+			if (messageIndex !== index) {
+				return message;
+			}
+			return {
+				id: message.id,
+				content,
+				attachments: message.attachments,
+				queuedAt: message.queuedAt,
+			};
+		});
+
+		queues.set(sessionId, nextQueue);
 		return true;
 	}
 
@@ -194,6 +218,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 	const store: MessageQueueStore = {
 		getQueue,
 		enqueue,
+		updateMessage,
 		removeMessage,
 		clearQueue,
 		drainNext,

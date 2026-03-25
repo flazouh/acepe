@@ -187,6 +187,29 @@ describe("MessageQueueStore", () => {
 		});
 	});
 
+	describe("updateMessage", () => {
+		it("should update a specific queued message content", () => {
+			const store = createMessageQueueStore(sender);
+			store.enqueue("s1", "first", []);
+			store.enqueue("s1", "second", []);
+
+			const messageId = store.getQueue("s1")[0].id;
+			expect(store.updateMessage("s1", messageId, "updated")).toBe(true);
+
+			const queue = store.getQueue("s1");
+			expect(queue[0].content).toBe("updated");
+			expect(queue[1].content).toBe("second");
+		});
+
+		it("should return false when queued message does not exist", () => {
+			const store = createMessageQueueStore(sender);
+			store.enqueue("s1", "first", []);
+
+			expect(store.updateMessage("s1", "missing", "updated")).toBe(false);
+			expect(store.getQueue("s1")[0].content).toBe("first");
+		});
+	});
+
 	describe("clearQueue", () => {
 		it("should remove all messages for a session", () => {
 			const store = createMessageQueueStore(sender);
