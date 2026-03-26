@@ -55,6 +55,7 @@ aws-credential-types = "1"
 # SSE stream parsing for OpenCode events
 tokio-util = { version = "0.7", features = ["io"] }
 tauri-plugin-notification = "2.3.3"
+tempfile = "3"
 # Unix signal handling for graceful shutdown
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28", features = ["signal", "process"] }
@@ -98,7 +99,6 @@ fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 sentry = { version = "0.38", features = ["tracing"] }
 thiserror = "1"
 indexmap = "2"
-tempfile = "3"
 # Archive extraction for agent installer
 tar = "0.4"
 flate2 = "1.0"
