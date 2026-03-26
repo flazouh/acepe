@@ -11,6 +11,9 @@ export default defineConfig({
 	build: {
 		sourcemap: "hidden",
 	},
+	worker: {
+		format: "es",
+	},
 	plugins: [
 		sveltekit(),
 		tailwindcss(),
