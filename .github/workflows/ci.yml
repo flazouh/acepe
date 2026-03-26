@@ -76,6 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/desktop/src-tauri -> target
+          prefix-key: v1
 
       - name: Install system deps
         run: |
