@@ -137,8 +137,8 @@ export class SessionMessagingService {
 		logger.debug("Sending message (optimistic)", { sessionId });
 
 		// Build content blocks: image blocks first, then text block
-		// @[text:BASE64] tokens pass through to the ACP provider which decodes
-		// and wraps them in <pasted-content> tags
+		// @[text:BASE64] tokens are expanded to <pasted-content> blocks by the Rust
+		// Tauri layer (attachment_token_expander) before reaching any agent backend.
 		const contentBlocks: Array<{ type: string; text?: string; data?: string; mimeType?: string }> =
 			[
 				...imageBlocks.map((b) => ({ type: b.type, data: b.data, mimeType: b.mimeType })),

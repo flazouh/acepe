@@ -140,7 +140,7 @@ pub async fn acp_send_prompt(
 
     // Deserialize the request Value to a typed PromptRequest
     // Enable streaming to get incremental message updates via session/update notifications
-    let prompt_request: PromptRequest = serde_json::from_value(json!({
+    let mut prompt_request: PromptRequest = serde_json::from_value(json!({
         "sessionId": session_id,
         "prompt": request,
         "stream": true
@@ -148,6 +148,11 @@ pub async fn acp_send_prompt(
     .map_err(|e| SerializableAcpError::SerializationError {
         message: e.to_string(),
     })?;
+
+    // Expand @[text:BASE64] tokens into <pasted-content> blocks before any backend
+    // sees the prompt. This is the common chokepoint for all agent clients
+    // (ACP subprocess, cc_sdk, OpenCode HTTP).
+    crate::acp::attachment_token_expander::expand_text_tokens(&mut prompt_request);
 
     let session_registry = app.state::<SessionRegistry>();
 

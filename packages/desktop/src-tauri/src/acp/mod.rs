@@ -1,4 +1,5 @@
 pub mod active_agent;
+pub mod attachment_token_expander;
 pub mod agent_context;
 pub mod agent_installer;
 pub mod client;

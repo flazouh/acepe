@@ -4,8 +4,11 @@
  * Acepe adapter for @zed-industries/claude-agent-acp
  *
  * Extends the upstream ClaudeAcpAgent with Acepe-specific behavior:
- * 1. Attachment token expansion (@[text:BASE64] → decoded content)
- * 2. acceptEdits mode auto-approval for edit tools
+ * 1. acceptEdits mode auto-approval for edit tools
+ *
+ * Note: Attachment token expansion (@[text:BASE64] → <pasted-content>) is handled
+ * in the Rust Tauri layer (attachment_token_expander.rs) before prompts reach any
+ * backend. Tokens arrive here already expanded.
  */
 
 import {
@@ -37,7 +40,10 @@ const EDIT_TOOL_NAMES = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
 class AcepeAcpAgent extends ClaudeAcpAgent {
 	/**
 	 * Override prompt() to expand attachment tokens before sending to Claude.
-	 * Tokens like @[text:BASE64] are decoded into <pasted-content> blocks.
+	 * Note: @[text:BASE64] tokens are already expanded to <pasted-content> blocks
+	 * by the Rust Tauri layer. This handles remaining token types (@[file:], @[image:],
+	 * @[command:], @[skill:]) and serves as a safety net for @[text:] if Rust expansion
+	 * is bypassed.
 	 */
 	async prompt(params: PromptRequest): Promise<PromptResponse> {
 		for (const chunk of params.prompt) {
