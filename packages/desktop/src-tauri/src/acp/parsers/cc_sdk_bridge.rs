@@ -225,7 +225,6 @@ fn translate_stream_event(
                 .unwrap_or("unknown")
                 .to_string();
 
-
             let detected_kind = get_parser(current_agent()).detect_tool_kind(&name);
             let kind = if detected_kind != ToolKind::Other { Some(detected_kind) } else { None };
             let tool_call = ToolCallData {
