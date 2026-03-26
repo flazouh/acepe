@@ -47,6 +47,44 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
 	{
+		version: "2026.3.26",
+		date: "2026-03-26",
+		highlights:
+			"Claude Code sessions now stream richer live tool details, permission prompts map correctly to tool calls, and debug streaming logs open reliably.",
+		changes: [
+			{
+				type: "fix",
+				description:
+					"Claude Code permission prompts now target the correct live tool call row instead of synthetic IDs, preventing invisible inline approvals for cc-sdk sessions.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Claude Code Bash tool calls now stream their actual command arguments live instead of showing a generic Bash placeholder while input JSON arrives.",
+			},
+			{
+				type: "fix",
+				description:
+					"Streaming debug logs are now written for Claude Code sessions and the Open Streaming Log action opens them reliably from session menus and the agent panel.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Voice press-and-hold now uses the dedicated keyboard hold flow and warms the audio context earlier so start sounds play with less delay.",
+			},
+			{
+				type: "improvement",
+				description:
+					"The shared input container is now exported from @acepe/ui and reused by desktop input surfaces for a cleaner shared component path.",
+			},
+			{
+				type: "fix",
+				description:
+					"Worktree toggle state and empty-state worktree flows now log and reflect active worktrees more consistently, including the auto-worktree switch state.",
+			},
+		],
+	},
+	{
 		version: "2026.3.14",
 		date: "2026-03-20",
 		highlights: "Rich Cursor tool call details in live sessions and history, settings shortcut in agent panel, and skills page redesign",
