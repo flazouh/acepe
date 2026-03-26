@@ -95,3 +95,6 @@ zed
 packages/desktop/src-tauri/logs/
 todos
 docs/plans
+
+# Large voice model binaries (download locally, never commit)
+*.bin
