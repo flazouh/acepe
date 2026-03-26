@@ -49,9 +49,9 @@ function handleKeyDown(event: KeyboardEvent) {
 	if (event.key === " " || event.key === "Enter") {
 		event.preventDefault();
 		if (voiceState.phase === "idle") {
-			voiceState.onMicPointerDown(new PointerEvent("pointerdown"));
+			voiceState.onKeyboardHoldStart();
 		} else if (voiceState.phase === "recording") {
-			voiceState.stopRecording();
+			voiceState.onKeyboardHoldEnd();
 		}
 	}
 	if (event.key === "Escape" && canCancelVoiceInteraction(voiceState.phase)) {

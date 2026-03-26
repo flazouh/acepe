@@ -152,6 +152,10 @@
     "./dropdown-menu": {
       "svelte": "./src/components/dropdown-menu/index.ts",
       "default": "./src/components/dropdown-menu/index.ts"
+    },
+    "./input-container": {
+      "svelte": "./src/components/input-container/index.ts",
+      "default": "./src/components/input-container/index.ts"
     }
   },
   "peerDependencies": {

@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import InputContainer from "./input-container.svelte";
+import { InputContainer } from "@acepe/ui/input-container";
 import CopyButton from "./messages/copy-button.svelte";
 
 let { class: className = "", children }: { class?: string; children: Snippet } = $props();

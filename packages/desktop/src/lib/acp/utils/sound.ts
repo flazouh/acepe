@@ -9,10 +9,22 @@ import type { SoundEffect } from "../types/sounds.js";
 const bufferCache = new Map<SoundEffect, AudioBuffer>();
 let audioContext: AudioContext | null = null;
 
+function warmAudioContext(ctx: AudioContext): void {
+	if (ctx.state !== "suspended") {
+		return;
+	}
+
+	ResultAsync.fromPromise(ctx.resume(), (e) => e as Error).match(
+		() => undefined,
+		() => undefined,
+	);
+}
+
 function getAudioContext(): AudioContext {
 	if (audioContext === null) {
 		audioContext = new AudioContext();
 	}
+	warmAudioContext(audioContext);
 	return audioContext;
 }
 
@@ -50,10 +62,6 @@ export function playSound(sound: SoundEffect): void {
 	const cached = bufferCache.get(sound);
 	if (cached) {
 		const ctx = getAudioContext();
-		// Resume context if suspended (browser autoplay policy)
-		if (ctx.state === "suspended") {
-			ctx.resume();
-		}
 		const source = ctx.createBufferSource();
 		source.buffer = cached;
 		source.connect(ctx.destination);

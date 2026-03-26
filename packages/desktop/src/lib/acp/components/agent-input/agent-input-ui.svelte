@@ -23,7 +23,7 @@ import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { ArtefactBadge } from "../artefact/index.js";
 import FilePickerDropdown from "../file-picker/file-picker-dropdown.svelte";
 import { ModelSelector, ModeSelector } from "../index.js";
-import InputContainer from "../input-container.svelte";
+import { InputContainer } from "@acepe/ui/input-container";
 import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
 import SlashCommandDropdown from "../slash-command-dropdown/slash-command-dropdown-ui.svelte";
 import { runWorktreeSetup } from "../worktree-toggle/worktree-setup-orchestrator.js";
@@ -848,6 +848,16 @@ async function handleSend() {
 			? panelStore.getHotState(props.panelId).pendingUserEntry !== null
 			: false,
 		elapsed_ms: Math.round(performance.now() - t0),
+	});
+	logger.info("[worktree-debug] handleSend payload", {
+		panelId: props.panelId ?? null,
+		sessionId: props.sessionId ?? null,
+		projectPath: props.projectPath ?? null,
+		projectName: props.projectName ?? null,
+		selectedAgentId: props.selectedAgentId ?? null,
+		propsWorktreePath: props.worktreePath ?? null,
+		worktreePending: props.worktreePending ?? false,
+		worktreePathForSend: worktreePathForSend ?? null,
 	});
 	inputState
 		.sendPreparedMessage({

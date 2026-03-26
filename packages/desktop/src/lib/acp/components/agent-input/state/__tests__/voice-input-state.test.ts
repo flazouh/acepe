@@ -225,6 +225,19 @@ describe("VoiceInputState", () => {
 		expect(state.phase).toBe("transcribing");
 	});
 
+	it("plays the start sound before voice startup work begins for keyboard hold", () => {
+		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+
+		const state = new VoiceInputState({ sessionId: "session-sound-order" });
+		state.onKeyboardHoldStart();
+
+		expect(playSoundMock).toHaveBeenCalledTimes(1);
+		expect(getModelStatusMock).toHaveBeenCalledTimes(1);
+		expect(playSoundMock.mock.invocationCallOrder[0]).toBeLessThan(
+			getModelStatusMock.mock.invocationCallOrder[0]
+		);
+	});
+
 	it("shows a tenths timer while recording and clears it after stop", async () => {
 		vi.useFakeTimers();
 		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));

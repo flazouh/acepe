@@ -512,11 +512,20 @@ export class AgentInputState {
 			worktreePath: worktreePath ?? undefined,
 		})
 			.andThen((newSessionId) => {
+				const createdSession = this.store.getSessionCold(newSessionId);
 				this.logger.info("[first-send-trace] createSession resolved", {
 					panelId: panelId ?? null,
 					newSessionId,
 					projectPath: effectiveProjectPath,
 					worktreePath: worktreePath ?? null,
+				});
+				this.logger.info("[worktree-debug] createSession resolved session data", {
+					panelId: panelId ?? null,
+					newSessionId,
+					requestedProjectPath: effectiveProjectPath,
+					requestedWorktreePath: worktreePath ?? null,
+					storedProjectPath: createdSession?.projectPath ?? null,
+					storedWorktreePath: createdSession?.worktreePath ?? null,
 				});
 				this.logger.info(
 					"[PERF] sendMessage: slow-path session created, calling onSessionCreated",
