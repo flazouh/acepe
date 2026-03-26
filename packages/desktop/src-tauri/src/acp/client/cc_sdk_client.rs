@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -39,17 +40,21 @@ use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, Dispatch
 /// Routes pending permission requests to their awaiting CanUseTool callbacks.
 struct PermissionBridge {
     pending: Mutex<HashMap<u64, oneshot::Sender<bool>>>,
+    /// Sequential counter kept within JS safe-integer range (< 2^53).
+    counter: AtomicU64,
 }
 
 impl PermissionBridge {
     fn new() -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
+            counter: AtomicU64::new(1),
         }
     }
 
+    /// Returns a new unique request ID that is safe to represent as a JS number.
     fn next_id(&self) -> u64 {
-        rand::random::<u64>()
+        self.counter.fetch_add(1, Ordering::Relaxed)
     }
 
     async fn register(&self, id: u64) -> oneshot::Receiver<bool> {
@@ -73,6 +78,53 @@ impl PermissionBridge {
 }
 
 // ---------------------------------------------------------------------------
+// ToolCallIdTracker
+// ---------------------------------------------------------------------------
+
+/// Shared state between the streaming bridge and the permission handler.
+///
+/// The bridge records `(tool_name, tool_use_id)` when it sees a
+/// `content_block_start` with `type: "tool_use"`. The permission handler
+/// then looks up the real `toolu_...` ID by tool name so the frontend can
+/// match permissions to the correct tool-call row.
+///
+/// Uses a `VecDeque` per tool name to handle parallel tool calls where
+/// Claude may invoke the same tool multiple times in a single response.
+struct ToolCallIdTracker {
+    /// Maps tool_name → queue of tool_use_ids in arrival order.
+    map: Mutex<HashMap<String, std::collections::VecDeque<String>>>,
+}
+
+impl ToolCallIdTracker {
+    fn new() -> Self {
+        Self {
+            map: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Record a tool_name → tool_use_id mapping from a stream event.
+    async fn record(&self, tool_name: String, tool_use_id: String) {
+        self.map
+            .lock()
+            .await
+            .entry(tool_name)
+            .or_default()
+            .push_back(tool_use_id);
+    }
+
+    /// Pop the oldest tool_use_id for a given tool name (FIFO).
+    async fn take(&self, tool_name: &str) -> Option<String> {
+        let mut map = self.map.lock().await;
+        let queue = map.get_mut(tool_name)?;
+        let id = queue.pop_front();
+        if queue.is_empty() {
+            map.remove(tool_name);
+        }
+        id
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AcepePermissionHandler
 // ---------------------------------------------------------------------------
 
@@ -81,6 +133,7 @@ struct AcepePermissionHandler {
     session_id: String,
     bridge: Arc<PermissionBridge>,
     dispatcher: AcpUiEventDispatcher,
+    tool_call_tracker: Arc<ToolCallIdTracker>,
 }
 
 #[async_trait]
@@ -94,18 +147,31 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
         let request_id: u64 = self.bridge.next_id();
         let rx = self.bridge.register(request_id).await;
 
-        // Emit a permission request event to the frontend.
-        // The `id` field is a numeric u64 so that `respond(u64, result)` can
-        // look it up directly in the bridge without a string→u64 conversion.
+        // Look up the real tool_use_id (toolu_...) from the stream tracker.
+        // The streaming bridge records it on content_block_start before the
+        // CLI's control channel fires can_use_tool.  Fall back to a synthetic
+        // ID if the tracker somehow missed it.
+        let tool_call_id = self
+            .tool_call_tracker
+            .take(tool_name)
+            .await
+            .unwrap_or_else(|| format!("cc-sdk-{}", request_id));
         let permission_json = serde_json::json!({
-            "method": "client/requestPermission",
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "session/request_permission",
             "params": {
-                "id": request_id,
                 "sessionId": self.session_id,
-                "permission": tool_name,
-                "patterns": [],
-                "metadata": input,
-                "always": [],
+                "options": [
+                    { "kind": "allow", "name": "Allow once", "optionId": "allow" },
+                    { "kind": "reject", "name": "Reject", "optionId": "reject" }
+                ],
+                "toolCall": {
+                    "toolCallId": tool_call_id,
+                    "name": tool_name,
+                    "title": tool_name,
+                    "rawInput": input,
+                }
             }
         });
         self.dispatcher
@@ -137,6 +203,8 @@ pub struct CcSdkClaudeClient {
     session_id: Option<String>,
     /// Permission bridge shared with AcepePermissionHandler.
     permission_bridge: Arc<PermissionBridge>,
+    /// Tracks tool_name → tool_use_id from stream events for the permission handler.
+    tool_call_tracker: Arc<ToolCallIdTracker>,
     /// Handle for the streaming bridge task. Calling `.abort()` cancels it.
     bridge_task: Option<tauri::async_runtime::JoinHandle<()>>,
     /// Dispatcher for UI events.
@@ -161,6 +229,7 @@ impl CcSdkClaudeClient {
             sdk_client: None,
             session_id: None,
             permission_bridge: Arc::new(PermissionBridge::new()),
+            tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
             bridge_task: None,
             dispatcher,
             pending_options: None,
@@ -185,6 +254,7 @@ impl CcSdkClaudeClient {
             session_id: session_id.to_string(),
             bridge: self.permission_bridge.clone(),
             dispatcher: self.dispatcher.clone(),
+            tool_call_tracker: self.tool_call_tracker.clone(),
         };
 
         let mut builder = cc_sdk::ClaudeCodeOptions::builder().cwd(PathBuf::from(cwd));
@@ -250,10 +320,11 @@ impl CcSdkClaudeClient {
         // Spawn the bridge task that forwards cc-sdk messages to the UI dispatcher.
         let dispatcher = self.dispatcher.clone();
         let bridge = self.permission_bridge.clone();
+        let tracker = self.tool_call_tracker.clone();
         let sid = session_id.clone();
 
         let handle = tauri::async_runtime::spawn(async move {
-            run_streaming_bridge(stream, sid, dispatcher, bridge).await;
+            run_streaming_bridge(stream, sid, dispatcher, bridge, tracker).await;
         });
 
         self.bridge_task = Some(handle);
@@ -446,6 +517,7 @@ async fn run_streaming_bridge(
     session_id: String,
     dispatcher: AcpUiEventDispatcher,
     bridge: Arc<PermissionBridge>,
+    tool_call_tracker: Arc<ToolCallIdTracker>,
 ) {
     tracing::info!(session_id = %session_id, "cc-sdk bridge: started, waiting for messages...");
     let mut message_count: u64 = 0;
@@ -479,6 +551,22 @@ async fn run_streaming_bridge(
                                 .and_then(|v| v.as_str())
                             {
                                 turn_stream_state.model_id = Some(model.to_string());
+                            }
+                        }
+                        // Track tool_name → tool_use_id for the permission handler.
+                        // content_block_start with type "tool_use" arrives on the
+                        // stream BEFORE the CLI control channel fires can_use_tool.
+                        if event_type == "content_block_start" {
+                            if let Some(block) = event.get("content_block") {
+                                let is_tool_use = block.get("type").and_then(|v| v.as_str()) == Some("tool_use");
+                                if is_tool_use {
+                                    if let (Some(id), Some(name)) = (
+                                        block.get("id").and_then(|v| v.as_str()),
+                                        block.get("name").and_then(|v| v.as_str()),
+                                    ) {
+                                        tool_call_tracker.record(name.to_string(), id.to_string()).await;
+                                    }
+                                }
                             }
                         }
                     }
@@ -784,9 +872,13 @@ impl AgentClient for CcSdkClaudeClient {
     }
 
     async fn respond(&self, request_id: u64, result: Value) -> AcpResult<()> {
+        // The frontend sends: { outcome: { outcome: "selected"|"cancelled", optionId } }
+        // "selected" with optionId "allow" means the user approved.
         let allow = result
-            .get("allow")
-            .and_then(Value::as_bool)
+            .get("outcome")
+            .and_then(|o| o.get("outcome"))
+            .and_then(Value::as_str)
+            .map(|s| s == "selected")
             .unwrap_or(false);
         self.permission_bridge.resolve(request_id, allow).await;
         Ok(())
@@ -850,4 +942,125 @@ mod tests {
         assert_eq!(options.resume.as_deref(), Some("resume-1"));
         assert!(options.fork_session);
     }
+
+    // --- PermissionBridge tests ---
+
+    #[test]
+    fn permission_bridge_next_id_is_sequential() {
+        let bridge = PermissionBridge::new();
+        let id1 = bridge.next_id();
+        let id2 = bridge.next_id();
+        let id3 = bridge.next_id();
+        assert_eq!(id1, 1);
+        assert_eq!(id2, 2);
+        assert_eq!(id3, 3);
+    }
+
+    #[test]
+    fn permission_bridge_ids_stay_in_js_safe_range() {
+        let bridge = PermissionBridge::new();
+        // JS safe integer max is 2^53 - 1.  Sequential IDs starting at 1 will
+        // never overflow in practice, but verify the first few are in range.
+        for _ in 0..100 {
+            let id = bridge.next_id();
+            assert!(id < (1u64 << 53), "ID {id} exceeds JS safe integer range");
+        }
+    }
+
+    // --- respond() outcome-shape parsing tests ---
+
+    #[tokio::test]
+    async fn respond_selected_resolves_true() {
+        let client = make_test_client();
+        let id = client.permission_bridge.next_id();
+        let rx = client.permission_bridge.register(id).await;
+
+        let result = serde_json::json!({
+            "outcome": { "outcome": "selected", "optionId": "allow" }
+        });
+        client.respond(id, result).await.expect("respond failed");
+
+        let allow = rx.await.expect("channel closed");
+        assert!(allow, "expected allow=true for outcome=selected");
+    }
+
+    #[tokio::test]
+    async fn respond_cancelled_resolves_false() {
+        let client = make_test_client();
+        let id = client.permission_bridge.next_id();
+        let rx = client.permission_bridge.register(id).await;
+
+        let result = serde_json::json!({
+            "outcome": { "outcome": "cancelled", "optionId": "reject" }
+        });
+        client.respond(id, result).await.expect("respond failed");
+
+        let allow = rx.await.expect("channel closed");
+        assert!(!allow, "expected allow=false for outcome=cancelled");
+    }
+
+    #[tokio::test]
+    async fn respond_missing_outcome_resolves_false() {
+        let client = make_test_client();
+        let id = client.permission_bridge.next_id();
+        let rx = client.permission_bridge.register(id).await;
+
+        // Old shape (bare "allow" field) must now yield false, not panic.
+        let result = serde_json::json!({ "allow": true });
+        client.respond(id, result).await.expect("respond failed");
+
+        let allow = rx.await.expect("channel closed");
+        assert!(!allow, "expected allow=false when outcome field is absent");
+    }
+
+    // --- permission_json shape test ---
+
+    /// Verify that the JSON emitted by can_use_tool matches the JsonRpcRequestSchema
+    /// expected by the TypeScript frontend.
+    #[test]
+    fn permission_json_shape_matches_frontend_schema() {
+        let request_id: u64 = 42;
+        let tool_name = "Bash";
+        let input = serde_json::json!({ "command": "ls" });
+        let session_id = "test-session";
+
+        let tool_call_id = format!("cc-sdk-{}", request_id);
+        let permission_json = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "session/request_permission",
+            "params": {
+                "sessionId": session_id,
+                "options": [
+                    { "kind": "allow", "name": "Allow once", "optionId": "allow" },
+                    { "kind": "reject", "name": "Reject", "optionId": "reject" }
+                ],
+                "toolCall": {
+                    "toolCallId": tool_call_id,
+                    "name": tool_name,
+                    "title": tool_name,
+                    "rawInput": input,
+                }
+            }
+        });
+
+        // Top-level JSON-RPC envelope fields
+        assert_eq!(permission_json["jsonrpc"], "2.0");
+        assert_eq!(permission_json["id"], 42u64);
+        assert_eq!(permission_json["method"], "session/request_permission");
+
+        // params fields
+        let params = &permission_json["params"];
+        assert_eq!(params["sessionId"], "test-session");
+        assert!(params["options"].is_array());
+        assert_eq!(params["options"].as_array().unwrap().len(), 2);
+
+        // toolCall fields
+        let tool_call = &params["toolCall"];
+        assert_eq!(tool_call["toolCallId"], "cc-sdk-42");
+        assert_eq!(tool_call["name"], "Bash");
+        assert_eq!(tool_call["title"], "Bash");
+        assert_eq!(tool_call["rawInput"]["command"], "ls");
+    }
+
 }
