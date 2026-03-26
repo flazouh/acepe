@@ -195,6 +195,58 @@ fn get_current_branch(repo_path: &Path) -> Result<String, String> {
         .ok_or_else(|| "Failed to get current branch".to_string())
 }
 
+fn has_valid_head(repo_path: &Path) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to check HEAD: {}", e))?;
+
+    Ok(output.status.success())
+}
+
+fn ensure_initial_commit_for_unborn_repo(repo_path: &Path) -> Result<bool, String> {
+    if has_valid_head(repo_path)? {
+        return Ok(false);
+    }
+
+    tracing::info!(repo_path = %repo_path.display(), "Repository has unborn HEAD; creating initial empty commit");
+
+    let add_output = Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to stage files for initial commit: {}", e))?;
+
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        return Err(format!("Failed to stage files for initial commit: {}", stderr.trim()));
+    }
+
+    let commit_output = Command::new("git")
+        .args([
+            "commit",
+            "--allow-empty",
+            "-m",
+            "Initial commit created by Acepe for worktree support",
+        ])
+        .current_dir(repo_path)
+        .env("GIT_AUTHOR_NAME", "Acepe")
+        .env("GIT_AUTHOR_EMAIL", "acepe@local")
+        .env("GIT_COMMITTER_NAME", "Acepe")
+        .env("GIT_COMMITTER_EMAIL", "acepe@local")
+        .output()
+        .map_err(|e| format!("Failed to create initial commit: {}", e))?;
+
+    if !commit_output.status.success() {
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        return Err(format!("Failed to create initial commit: {}", stderr.trim()));
+    }
+
+    tracing::info!(repo_path = %repo_path.display(), "Initial commit created for unborn repository");
+    Ok(true)
+}
+
 /// Generate a unique worktree candidate that doesn't conflict with existing worktrees or branches
 fn generate_unique_candidate(
     project_path: &Path,
@@ -312,19 +364,12 @@ pub async fn git_worktree_create(
         "Creating worktree"
     );
 
-    // Check if HEAD is valid (repo must have at least one commit)
-    let head_check = Command::new("git")
-        .args(["rev-parse", "--verify", "HEAD"])
-        .current_dir(&project_path)
-        .output()
-        .map_err(|e| format!("Failed to check HEAD: {}", e))?;
-
-    if !head_check.status.success() {
-        return Err(
-            "Cannot create a worktree in a repository with no commits. Please make an initial commit first."
-                .to_string(),
-        );
-    }
+    let bootstrapped_initial_commit = ensure_initial_commit_for_unborn_repo(&project_path_buf)?;
+    tracing::info!(
+        project_path = %project_path,
+        bootstrapped_initial_commit,
+        "Checked unborn HEAD status before worktree creation"
+    );
 
     // Create the worktree with a new branch based on HEAD (last committed state)
     let output = Command::new("git")
@@ -1027,6 +1072,22 @@ pub async fn git_has_uncommitted_changes(project_path: String) -> Result<bool, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
+
+    fn run_git(repo_path: &Path, args: &[&str]) -> std::process::Output {
+        Command::new("git")
+            .args(args)
+            .current_dir(repo_path)
+            .output()
+            .expect("git command should run")
+    }
+
+    fn init_repo() -> TempDir {
+        let temp_dir = TempDir::new().expect("temp dir should create");
+        let init_output = run_git(temp_dir.path(), &["init"]);
+        assert!(init_output.status.success(), "git init should succeed");
+        temp_dir
+    }
 
     #[test]
     fn test_generate_name() {
@@ -1173,5 +1234,28 @@ branch refs/heads/acepe/clever-falcon";
             renamed,
             PathBuf::from("/Users/alex/.acepe/worktrees/123abc/brave-river")
         );
+    }
+
+    #[test]
+    fn ensure_initial_commit_bootstraps_unborn_repo() {
+        let repo_dir = init_repo();
+
+        let changed = ensure_initial_commit_for_unborn_repo(repo_dir.path())
+            .expect("initial commit bootstrap should succeed");
+
+        assert!(changed, "unborn repo should be bootstrapped");
+        assert!(has_valid_head(repo_dir.path()).expect("head check should work"));
+    }
+
+    #[test]
+    fn ensure_initial_commit_is_noop_when_head_exists() {
+        let repo_dir = init_repo();
+        ensure_initial_commit_for_unborn_repo(repo_dir.path())
+            .expect("initial bootstrap should succeed");
+
+        let changed = ensure_initial_commit_for_unborn_repo(repo_dir.path())
+            .expect("second bootstrap should succeed");
+
+        assert!(!changed, "existing head should not create another initial commit");
     }
 }
