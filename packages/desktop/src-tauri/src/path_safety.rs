@@ -77,7 +77,7 @@ pub fn classify_legacy_unsafe_project_root_lexical(_path: &Path) -> Option<Proje
     None
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(target_os = "macos")]
 fn trim_trailing_separators(path: &Path) -> PathBuf {
     let raw = path.as_os_str().to_string_lossy();
 
