@@ -21,6 +21,22 @@ use tokio::time::{timeout, Duration};
 use tracing::{info, warn};
 
 const GH_TIMEOUT: Duration = Duration::from_secs(30);
+const GH_BINARY_OVERRIDE_ENV: &str = "ACEPE_GH_BIN";
+const GIT_BINARY_OVERRIDE_ENV: &str = "ACEPE_GIT_BIN";
+
+fn gh_program() -> String {
+    match std::env::var(GH_BINARY_OVERRIDE_ENV) {
+        Ok(path) if !path.trim().is_empty() => path,
+        _ => "gh".to_string(),
+    }
+}
+
+fn git_program() -> String {
+    match std::env::var(GIT_BINARY_OVERRIDE_ENV) {
+        Ok(path) if !path.trim().is_empty() => path,
+        _ => "git".to_string(),
+    }
+}
 
 /// Open PR summary for a branch (from `gh pr list` or after create).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -33,6 +49,7 @@ pub struct OpenPrInfo {
 
 /// Run `gh` with args in project_path; return stdout on success, stderr on failure.
 pub async fn run_gh_command(project_path: &Path, args: &[&str]) -> Result<String, String> {
+    let program = gh_program();
     info!(
         "Running gh command: gh {} in {}",
         args.join(" "),
@@ -40,7 +57,7 @@ pub async fn run_gh_command(project_path: &Path, args: &[&str]) -> Result<String
     );
     let output = timeout(
         GH_TIMEOUT,
-        Command::new("gh")
+        Command::new(&program)
             .args(args)
             .current_dir(project_path)
             .output(),
@@ -92,9 +109,10 @@ fn map_gh_stderr(stderr: &str) -> String {
 
 /// Run `git` with args in project_path; return stdout on success, stderr on failure.
 async fn run_git_command(project_path: &Path, args: &[&str]) -> Result<String, String> {
+    let program = git_program();
     let output = timeout(
         GH_TIMEOUT,
-        Command::new("git")
+        Command::new(&program)
             .args(args)
             .current_dir(project_path)
             .output(),
@@ -517,25 +535,6 @@ mod tests {
     }
 
     #[cfg(unix)]
-    struct PathGuard {
-        original_path: Option<std::ffi::OsString>,
-    }
-
-    #[cfg(unix)]
-    impl PathGuard {
-        fn prepend(bin_dir: &std::path::Path) -> Self {
-            let original_path = std::env::var_os("PATH");
-            let mut paths = vec![bin_dir.to_path_buf()];
-            if let Some(existing) = original_path.as_ref() {
-                paths.extend(std::env::split_paths(existing));
-            }
-            let joined = std::env::join_paths(paths).expect("join PATH");
-            std::env::set_var("PATH", joined);
-            Self { original_path }
-        }
-    }
-
-    #[cfg(unix)]
     struct EnvVarGuard {
         key: &'static str,
         original_value: Option<std::ffi::OsString>,
@@ -559,16 +558,6 @@ mod tests {
             match &self.original_value {
                 Some(value) => std::env::set_var(self.key, value),
                 None => std::env::remove_var(self.key),
-            }
-        }
-    }
-
-    #[cfg(unix)]
-    impl Drop for PathGuard {
-        fn drop(&mut self) {
-            match &self.original_path {
-                Some(path) => std::env::set_var("PATH", path),
-                None => std::env::remove_var("PATH"),
             }
         }
     }
@@ -655,7 +644,8 @@ exit 0
 "#,
         );
 
-        let _path_guard = PathGuard::prepend(bin_dir.path());
+        let _gh_bin_guard = EnvVarGuard::set_path_like("ACEPE_GH_BIN", &bin_dir.path().join("gh"));
+        let _git_bin_guard = EnvVarGuard::set_path_like("ACEPE_GIT_BIN", &bin_dir.path().join("git"));
         let _test_log_guard = EnvVarGuard::set_path_like("TEST_LOG_DIR", repo_dir.path());
 
         let result = merge_pull_request(repo_dir.path(), 90, MergeStrategy::Squash).await;
