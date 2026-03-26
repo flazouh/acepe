@@ -266,13 +266,13 @@ pub async fn open_streaming_log(session_id: String) -> Result<(), String> {
 
         #[cfg(target_os = "linux")]
         {
-            let path = if path_to_open.is_file() {
+            let directory_to_open = if path_to_open.is_file() {
                 path_to_open.parent().unwrap_or(&path_to_open).to_path_buf()
             } else {
-                path_to_open
+                path_to_open.clone()
             };
             std::process::Command::new("xdg-open")
-                .arg(&path)
+                .arg(&directory_to_open)
                 .spawn()
                 .map_err(|e| format!("Failed to open in file manager: {}", e))?;
         }

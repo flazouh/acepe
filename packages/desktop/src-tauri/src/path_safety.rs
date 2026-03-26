@@ -56,9 +56,10 @@ fn canonicalize_or_original(path: &Path) -> PathBuf {
 ///
 /// This intentionally avoids any filesystem access (`is_dir`, `canonicalize`, `metadata`)
 /// so it can be used during startup without triggering macOS TCC prompts.
-pub fn classify_legacy_unsafe_project_root_lexical(path: &Path) -> Option<ProjectPathSafetyError> {
+pub fn classify_legacy_unsafe_project_root_lexical(_path: &Path) -> Option<ProjectPathSafetyError> {
     #[cfg(target_os = "macos")]
     {
+        let path = _path;
         let normalized = trim_trailing_separators(path);
 
         if normalized == Path::new("/") {
