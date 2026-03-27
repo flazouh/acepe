@@ -983,6 +983,8 @@ mod tests {
 
             assert_eq!(updates.len(), 1);
             if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.id, "toolu_child_001");
+                assert_eq!(tool_call.name, "Read");
                 assert_eq!(
                     tool_call.parent_tool_use_id.as_deref(),
                     Some("toolu_task_parent")
