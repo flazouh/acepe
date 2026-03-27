@@ -34,13 +34,12 @@ jobs:
       # Website svelte-check needs env vars declared in .env for $env/static/public types
       - run: cp packages/website/.env.example packages/website/.env
 
-      - name: Prepare generated frontend artifacts
+      - name: Generate frontend artifacts
         run: |
           cd packages/desktop
-          bunx paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
-          bunx svelte-kit sync
+          bun run i18n:generate
           cd ../website
-          NODE_OPTIONS='--max-old-space-size=8192' bun run build
+          bun run i18n:generate
 
       # All three run in parallel via background processes
       - name: Lint + Typecheck + Test
