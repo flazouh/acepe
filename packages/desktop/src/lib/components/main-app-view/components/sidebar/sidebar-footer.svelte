@@ -23,10 +23,7 @@ $effect(() => {
 </script>
 
 <div class="shrink-0 px-3 py-1.5 flex items-center gap-2">
-	<div class="flex items-center gap-1 ml-auto">
-		{#if appVersion}
-			<span class="text-[10px] text-muted-foreground/50">v{appVersion}</span>
-		{/if}
+	<div class="flex items-center gap-1">
 		<button
 			onclick={() => appState.openChangelog()}
 			class="text-[10px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-1 transition-colors"
@@ -35,5 +32,8 @@ $effect(() => {
 			<Sparkle weight="fill" class="size-3" />
 			What's New
 		</button>
+		{#if appVersion}
+			<span class="text-[10px] text-muted-foreground/50">v{appVersion}</span>
+		{/if}
 	</div>
 </div>
