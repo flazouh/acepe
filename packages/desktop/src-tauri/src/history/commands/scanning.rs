@@ -1,6 +1,14 @@
 use super::*;
 use std::path::Path;
 
+fn indexed_source_path(file_path: String) -> Option<String> {
+    if file_path.is_empty() || file_path.starts_with("__worktree__/") {
+        None
+    } else {
+        Some(file_path)
+    }
+}
+
 fn derive_title_from_converted_session(
     session: &crate::session_jsonl::types::ConvertedSession,
 ) -> Option<String> {
@@ -140,11 +148,7 @@ async fn scan_project_sessions_inner(
                 pasted_contents: serde_json::json!({}),
                 agent_id: CanonicalAgentId::parse(&s.agent_id),
                 updated_at: s.timestamp,
-                source_path: if s.file_path.is_empty() {
-                    None
-                } else {
-                    Some(s.file_path)
-                },
+                source_path: indexed_source_path(s.file_path),
                 parent_id: None,
                 worktree_path: s.worktree_path,
                 worktree_deleted,
@@ -238,6 +242,16 @@ async fn scan_project_sessions_inner(
     entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::indexed_source_path;
+
+    #[test]
+    fn test_indexed_source_path_hides_worktree_sentinel() {
+        assert_eq!(indexed_source_path("__worktree__/ses_legacy".to_string()), None);
+    }
 }
 
 /// Discover all projects with sessions from all agents.

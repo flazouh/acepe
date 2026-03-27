@@ -524,6 +524,45 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_normalized_source_path_hides_worktree_sentinel() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "ses_legacy".to_string(),
+            "Legacy Session".to_string(),
+            1704067200000,
+            "/project".to_string(),
+            "opencode".to_string(),
+            "__worktree__/ses_legacy".to_string(),
+            0,
+            0,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "ses_legacy",
+            "/tmp/real-worktree",
+            Some("/project"),
+            Some("opencode"),
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "ses_legacy")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            SessionMetadataRepository::normalized_source_path(session.file_path.as_str()),
+            None
+        );
+    }
+
+    #[tokio::test]
     async fn test_ensure_exists_inserts_placeholder_when_session_missing() {
         let db = setup_test_db().await;
 
@@ -546,6 +585,33 @@ mod session_metadata_tests {
         assert_eq!(session.project_path, "/project");
         assert_eq!(session.agent_id, "claude-code");
         assert_eq!(session.worktree_path, None);
+    }
+
+    #[tokio::test]
+    async fn test_ensure_exists_for_worktree_session_does_not_write_sentinel_file_path() {
+        let db = setup_test_db().await;
+
+        let created = SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-worktree-placeholder",
+            "/project",
+            "opencode",
+            Some("/tmp/real-worktree"),
+        )
+        .await
+        .unwrap();
+
+        assert!(created);
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-worktree-placeholder")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.worktree_path.as_deref(), Some("/tmp/real-worktree"));
+        assert!(session.file_path.is_empty());
+        assert_eq!(session.file_mtime, 0);
+        assert_eq!(session.file_size, 0);
     }
 
     #[tokio::test]

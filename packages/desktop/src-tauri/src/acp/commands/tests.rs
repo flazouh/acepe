@@ -288,6 +288,27 @@ fn session_metadata_real_rows_are_resumable() {
     assert!(!row.is_placeholder());
 }
 
+#[test]
+fn session_metadata_placeholder_rows_with_worktree_context_are_resumable() {
+    let temp = tempdir().expect("temp dir");
+    let worktree_path = temp.path().to_string_lossy().to_string();
+
+    let row = crate::db::repository::SessionMetadataRow {
+        id: "session-worktree-placeholder".to_string(),
+        display: "Worktree Session".to_string(),
+        timestamp: 0,
+        project_path: "/project".to_string(),
+        agent_id: "opencode".to_string(),
+        file_path: String::new(),
+        file_mtime: 0,
+        file_size: 0,
+        worktree_path: Some(worktree_path),
+        pr_number: None,
+    };
+
+    assert!(!row.is_placeholder());
+}
+
 #[tokio::test]
 async fn resume_or_create_replaces_client_when_existing_resume_fails() {
     let session_registry = SessionRegistry::new();

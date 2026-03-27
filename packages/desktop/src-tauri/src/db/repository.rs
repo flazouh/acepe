@@ -584,7 +584,8 @@ impl SessionMetadataRow {
     pub fn is_placeholder(&self) -> bool {
         self.file_mtime == 0
             && self.file_size == 0
-            && self.file_path.starts_with("__worktree__/")
+            && self.worktree_path.is_none()
+            && SessionMetadataRepository::normalized_source_path(&self.file_path).is_none()
     }
 }
 
@@ -599,6 +600,14 @@ pub type SessionMetadataRecord = (String, String, i64, String, String, String, i
 pub struct SessionMetadataRepository;
 
 impl SessionMetadataRepository {
+    pub(crate) fn normalized_source_path(file_path: &str) -> Option<String> {
+        if file_path.is_empty() || file_path.starts_with("__worktree__/") {
+            None
+        } else {
+            Some(file_path.to_string())
+        }
+    }
+
     async fn insert_placeholder(
         db: &DbConn,
         session_id: &str,
@@ -609,7 +618,6 @@ impl SessionMetadataRepository {
         let now = Utc::now();
         let preview_len = 8usize.min(session_id.len());
         let display = format!("Session {}", &session_id[..preview_len]);
-        let placeholder_file_path = format!("__worktree__/{}", session_id);
 
         let model = session_metadata::ActiveModel {
             id: Set(session_id.to_string()),
@@ -617,7 +625,7 @@ impl SessionMetadataRepository {
             timestamp: Set(now.timestamp_millis()),
             project_path: Set(project_path.to_string()),
             agent_id: Set(agent_id.to_string()),
-            file_path: Set(placeholder_file_path),
+            file_path: Set(String::new()),
             file_mtime: Set(0),
             file_size: Set(0),
             worktree_path: Set(worktree_path.map(|path| path.to_string())),
