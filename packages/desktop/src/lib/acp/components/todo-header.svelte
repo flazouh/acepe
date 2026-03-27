@@ -164,7 +164,13 @@ function toggleExpanded() {
 			</div>
 
 			<div class="flex items-center gap-1.5 shrink-0">
-				<SegmentedProgress current={todoState.completedCount} total={todoState.totalCount} />
+				<SegmentedProgress
+					current={todoState.completedCount}
+					total={todoState.totalCount}
+					segmentClass="todo-step-bar"
+					filledClass="todo-step-bar-filled"
+					emptyClass="todo-step-bar-empty"
+				/>
 
 				<CopyButton getText={getMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
 
@@ -174,3 +180,23 @@ function toggleExpanded() {
 		</div>
 	</div>
 {/if}
+
+<style>
+	:global(.todo-step-bar) {
+		width: 3px;
+		height: 9px;
+		border-radius: 999px;
+		transition: background-color 160ms ease-out, opacity 160ms ease-out, transform 160ms ease-out;
+		opacity: 0.55;
+	}
+
+	:global(.todo-step-bar-filled) {
+		background: #f9c396;
+		opacity: 1;
+	}
+
+	:global(.todo-step-bar-empty) {
+		background: color-mix(in srgb, var(--border) 55%, transparent);
+		height: 5px;
+	}
+</style>
