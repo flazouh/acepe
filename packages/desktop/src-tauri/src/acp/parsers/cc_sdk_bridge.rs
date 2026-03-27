@@ -3,14 +3,14 @@
 //! This module provides a single entry point, [`translate_cc_sdk_message`], that converts
 //! a single cc-sdk protocol message into zero or more Acepe session update events.
 
+use super::get_parser;
+use crate::acp::agent_context::current_agent;
 use crate::acp::session_update::{
     ContentChunk, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData,
     ToolKind, TurnErrorData, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use cc_sdk::Message;
-use crate::acp::agent_context::current_agent;
-use super::get_parser;
 
 #[derive(Debug, Clone, Default)]
 pub struct CcSdkTurnStreamState {
@@ -39,10 +39,11 @@ pub fn translate_cc_sdk_message_with_turn_state(
         Message::StreamEvent {
             session_id: sdk_sid,
             event,
+            parent_tool_use_id,
             ..
         } => {
             let effective_sid = session_id.or(Some(sdk_sid));
-            translate_stream_event(event, effective_sid)
+            translate_stream_event(event, effective_sid, parent_tool_use_id)
         }
 
         Message::Result {
@@ -193,6 +194,7 @@ fn translate_assistant(
 fn translate_stream_event(
     event: serde_json::Value,
     session_id: Option<String>,
+    parent_tool_use_id: Option<String>,
 ) -> Vec<SessionUpdate> {
     let event_type = match event.get("type").and_then(|v| v.as_str()) {
         Some(t) => t,
@@ -226,7 +228,11 @@ fn translate_stream_event(
                 .to_string();
 
             let detected_kind = get_parser(current_agent()).detect_tool_kind(&name);
-            let kind = if detected_kind != ToolKind::Other { Some(detected_kind) } else { None };
+            let kind = if detected_kind != ToolKind::Other {
+                Some(detected_kind)
+            } else {
+                None
+            };
             let tool_call = ToolCallData {
                 id,
                 name,
@@ -241,7 +247,7 @@ fn translate_stream_event(
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
-                parent_tool_use_id: None,
+                parent_tool_use_id,
                 task_children: None,
                 question_answer: None,
                 awaiting_plan_approval: false,
@@ -556,11 +562,14 @@ fn build_result_telemetry(
 
 #[cfg(test)]
 mod tests {
-    use super::{translate_cc_sdk_message, translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState};
+    use super::{
+        translate_cc_sdk_message, translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState,
+    };
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_update::{
-        build_tool_call_update_from_raw, RawToolCallUpdateInput, SessionUpdate, ToolArguments, ToolKind,
+        build_tool_call_update_from_raw, RawToolCallUpdateInput, SessionUpdate, ToolArguments,
+        ToolKind,
     };
     use crate::acp::types::ContentBlock;
     use cc_sdk::{
@@ -943,6 +952,40 @@ mod tests {
                     Some(ToolKind::Execute),
                     "content_block_start for Bash should set kind=Execute, got {:?}",
                     tool_call.kind,
+                );
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn content_block_start_preserves_parent_tool_use_id_for_subagent_tools() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::StreamEvent {
+                    uuid: "msg-003".to_string(),
+                    session_id: "ses-test".to_string(),
+                    event: serde_json::json!({
+                        "type": "content_block_start",
+                        "index": 0,
+                        "content_block": {
+                            "type": "tool_use",
+                            "id": "toolu_child_001",
+                            "name": "Read",
+                            "input": {}
+                        }
+                    }),
+                    parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(
+                    tool_call.parent_tool_use_id.as_deref(),
+                    Some("toolu_task_parent")
                 );
             } else {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
