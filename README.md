@@ -1,5 +1,5 @@
 <p align="center">
-  <video src="https://raw.githubusercontent.com/flazouh/acepe/main/assets/acepe-preview.mp4" width="720" autoplay loop muted playsinline></video>
+  <video src="https://github.com/flazouh/acepe/raw/main/assets/acepe-preview.mp4" width="720" autoplay loop muted playsinline controls></video>
 </p>
 
 <div align="center">
