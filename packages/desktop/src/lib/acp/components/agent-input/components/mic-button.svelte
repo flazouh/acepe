@@ -148,7 +148,7 @@ const STOP_RED = "#FF5D5A";
 		<div class="flex items-center gap-2">
 			<span>{hoverTitle}</span>
 			{#if visualState === "mic"}
-				<KbdGroup><Kbd>Space</Kbd></KbdGroup>
+				<KbdGroup><Kbd>Right ⌥</Kbd></KbdGroup>
 			{/if}
 		</div>
 	</Tooltip.Content>
