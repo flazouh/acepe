@@ -5,7 +5,7 @@
 	import { page } from '$app/stores';
 	import { Download, Menu, Moon, Sun } from '@lucide/svelte';
 	import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger, TextShimmer } from '@acepe/ui';
-	import { DiscordLogo, GithubLogo } from 'phosphor-svelte';
+	import { DiscordLogo, GithubLogo, Star } from 'phosphor-svelte';
 	import {
 		THEME_STORAGE_KEY,
 		applyThemeToDocument,
@@ -23,6 +23,14 @@
 	let drawerOpen = $state(false);
 
 	const showRoadmap = $derived($page.data.featureFlags?.roadmapEnabled === true);
+	const githubStars = $derived($page.data.githubStars as number | null);
+
+	function formatStars(count: number): string {
+		if (count >= 1000) {
+			return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+		}
+		return count.toString();
+	}
 	const theme = $derived($websiteThemeStore);
 
 	const toggleThemeLabel = $derived(
@@ -79,11 +87,15 @@
 				href="https://github.com/flazouh/acepe"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+				class="inline-flex h-8 items-center gap-1.5 rounded-full bg-card/70 text-foreground transition-colors hover:bg-card {githubStars ? 'px-3' : 'w-8 justify-center'}"
 				aria-label="GitHub"
 				title="GitHub"
 			>
-				<GithubLogo class="h-4 w-4" weight="fill" />
+				<GithubLogo class="h-4 w-4 shrink-0" weight="fill" />
+				{#if githubStars}
+					<Star class="h-3 w-3 shrink-0 text-amber-400" weight="fill" />
+					<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
+				{/if}
 			</a>
 			<a
 				href="https://discord.gg/acepe"
@@ -159,11 +171,15 @@
 								href="https://github.com/flazouh/acepe"
 								target="_blank"
 								rel="noopener noreferrer"
-								class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+								class="inline-flex h-11 min-h-11 items-center gap-1.5 rounded-full bg-card/70 text-foreground transition-colors hover:bg-card {githubStars ? 'px-3' : 'w-11 min-w-11 justify-center'}"
 								aria-label="GitHub"
 								title="GitHub"
 							>
-								<GithubLogo class="h-4 w-4" weight="fill" />
+								<GithubLogo class="h-4 w-4 shrink-0" weight="fill" />
+								{#if githubStars}
+									<Star class="h-3 w-3 shrink-0 text-amber-400" weight="fill" />
+									<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
+								{/if}
 							</a>
 							<a
 								href="https://discord.gg/acepe"
