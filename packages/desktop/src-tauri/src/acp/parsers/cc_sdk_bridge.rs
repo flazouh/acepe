@@ -6,8 +6,9 @@
 use super::get_parser;
 use crate::acp::agent_context::current_agent;
 use crate::acp::session_update::{
-    ContentChunk, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData,
-    ToolKind, TurnErrorData, UsageTelemetryData, UsageTelemetryTokens,
+    build_tool_call_from_raw, ContentChunk, RawToolCallInput, SessionUpdate, ToolArguments,
+    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
+    UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use cc_sdk::Message;
@@ -124,24 +125,18 @@ fn translate_assistant(
             }
 
             cc_sdk::ContentBlock::ToolUse(tu) => {
-                let tool_call = ToolCallData {
+                let parser = get_parser(current_agent());
+                let raw = RawToolCallInput {
                     id: tu.id,
                     name: tu.name,
-                    arguments: ToolArguments::Other { raw: tu.input },
+                    arguments: tu.input,
                     status: ToolCallStatus::InProgress,
-                    result: None,
                     kind: None,
                     title: None,
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
                     parent_tool_use_id: parent_tool_use_id.clone(),
                     task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
                 };
+                let tool_call = build_tool_call_from_raw(&*parser, raw);
                 updates.push(SessionUpdate::ToolCall {
                     tool_call,
                     session_id: session_id.clone(),
@@ -918,6 +913,108 @@ mod tests {
                 );
             } else {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn assistant_tool_use_read_has_typed_arguments_and_kind() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_read_001".to_string(),
+                            name: "Read".to_string(),
+                            input: serde_json::json!({"file_path": "/src/main.rs"}),
+                        })],
+                        model: Some("claude-opus-4-6".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.name, "Read");
+                assert_eq!(tool_call.kind, Some(ToolKind::Read));
+                match &tool_call.arguments {
+                    ToolArguments::Read { file_path } => {
+                        assert_eq!(file_path.as_deref(), Some("/src/main.rs"));
+                    }
+                    other => panic!("expected Read arguments, got {:?}", other),
+                }
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn assistant_tool_use_bash_has_typed_arguments_and_kind() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_bash_002".to_string(),
+                            name: "Bash".to_string(),
+                            input: serde_json::json!({"command": "ls -la"}),
+                        })],
+                        model: Some("claude-opus-4-6".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.name, "Bash");
+                assert_eq!(tool_call.kind, Some(ToolKind::Execute));
+                match &tool_call.arguments {
+                    ToolArguments::Execute { command } => {
+                        assert_eq!(command.as_deref(), Some("ls -la"));
+                    }
+                    other => panic!("expected Execute arguments, got {:?}", other),
+                }
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn assistant_tool_use_with_null_input_does_not_panic() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_read_003".to_string(),
+                            name: "Read".to_string(),
+                            input: serde_json::Value::Null,
+                        })],
+                        model: Some("claude-opus-4-6".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.name, "Read");
+                assert_eq!(tool_call.kind, Some(ToolKind::Read));
+            } else {
+                panic!("expected SessionUpdate::ToolCall");
             }
         });
     }
