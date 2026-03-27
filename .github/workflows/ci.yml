@@ -87,6 +87,7 @@ jobs:
         with:
           workspaces: packages/desktop/src-tauri -> target
           prefix-key: v2
+          cache-on-failure: "true"
 
       - name: Install system deps
         run: |
@@ -98,6 +99,7 @@ jobs:
       - name: Check + Clippy + Test
         working-directory: packages/desktop/src-tauri
         run: |
+          set -o pipefail
           # All three in parallel
           cargo check --all-targets 2>&1 | tail -5 &
           CHECK=$!

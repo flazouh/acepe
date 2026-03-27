@@ -228,13 +228,15 @@ impl AcpClient {
             self.death_monitor_cancel = cancel.clone();
             spawn_death_monitor(
                 child_shared.clone(),
-                process_generation,
-                self.pending_requests.clone(),
-                self.permission_tracker.clone(),
-                self.web_search_dedup.clone(),
-                dispatcher.clone(),
-                stderr_buffer,
-                cancel,
+                DeathMonitorContext {
+                    process_generation,
+                    pending_requests: self.pending_requests.clone(),
+                    permission_tracker: self.permission_tracker.clone(),
+                    web_search_dedup: self.web_search_dedup.clone(),
+                    dispatcher: dispatcher.clone(),
+                    stderr_buffer,
+                    cancel,
+                },
             );
 
             self.child = Some(child_shared);
