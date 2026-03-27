@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
+import type { Panel } from "../types.js";
+
 type TerminalPanelGroupStub = {
 	id: string;
 	projectPath: string;
@@ -37,7 +39,7 @@ import { WorkspaceStore } from "../workspace-store.svelte.js";
 function createPanelStoreStub() {
 	const store = {
 		workspacePanels: [],
-		panels: [],
+		panels: [] as Panel[],
 		filePanels: [],
 		terminalPanelGroups: [] as TerminalPanelGroupStub[],
 		terminalTabs: [] as TerminalTabStub[],
@@ -185,5 +187,82 @@ describe("workspace sidebar state persistence", () => {
 			{ id: "tab-1", groupId: "group-1", projectPath: "/workspace/app", createdAt: 1 },
 			{ id: "tab-2", groupId: "group-1", projectPath: "/workspace/app", createdAt: 2 },
 		]);
+	});
+
+	it("persists and restores worktree session context", () => {
+		const panelStore = createPanelStoreStub();
+		panelStore.panels = [
+			{
+				id: "panel-1",
+				sessionId: "session-1",
+				width: 640,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				sessionTitle: "Feature thread",
+				kind: "agent",
+				ownerPanelId: null,
+				sourcePath: null,
+				worktreePath: null,
+			},
+		] as Panel[];
+
+		const sessionStore = {
+			getSessionIdentity: mock(() => ({
+				id: "session-1",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				worktreePath: "/workspace/app/.git/worktrees/feature-a",
+			})),
+			getSessionMetadata: mock(() => ({
+				title: "Feature thread",
+				createdAt: new Date("2026-03-27T00:00:00.000Z"),
+				updatedAt: new Date("2026-03-27T00:00:00.000Z"),
+				sourcePath: "/workspace/app/.cursor/sessions/session-1.json",
+				parentId: null,
+			})),
+		} as const;
+
+		const store = new WorkspaceStore(panelStore as never, sessionStore as never);
+
+		store.persist(true);
+
+		expect(saveWorkspaceStateMock).toHaveBeenCalledTimes(1);
+		const calls = saveWorkspaceStateMock.mock.calls as Array<ReadonlyArray<unknown>>;
+		const savedState = calls[0]?.[0] as { panels?: Array<Record<string, unknown>> } | undefined;
+		const savedPanel = savedState?.panels?.[0];
+		expect(savedPanel).toMatchObject({
+			sourcePath: "/workspace/app/.cursor/sessions/session-1.json",
+			worktreePath: "/workspace/app/.git/worktrees/feature-a",
+		});
+
+		const restoredPanels = store.restore({
+			version: 11,
+			panels: [
+				{
+					id: "persisted-panel-1",
+					sessionId: "session-1",
+					width: 640,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/workspace/app",
+					agentId: "claude-code",
+					sessionTitle: "Feature thread",
+					sourcePath: "/workspace/app/.cursor/sessions/session-1.json",
+					worktreePath: "/workspace/app/.git/worktrees/feature-a",
+				},
+			],
+			focusedPanelIndex: 0,
+			panelContainerScrollX: 0,
+			savedAt: new Date().toISOString(),
+		});
+
+		expect(restoredPanels).toEqual(["session-1"]);
+		expect(panelStore.panels).toHaveLength(1);
+		expect(panelStore.panels[0]).toMatchObject({
+			sourcePath: "/workspace/app/.cursor/sessions/session-1.json",
+			worktreePath: "/workspace/app/.git/worktrees/feature-a",
+		});
 	});
 });

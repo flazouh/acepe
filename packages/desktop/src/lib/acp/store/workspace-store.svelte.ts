@@ -223,6 +223,8 @@ export function serializeWorkspacePanels(
 				pendingProjectSelection: panel.pendingProjectSelection,
 				selectedAgentId: panel.selectedAgentId,
 				agentId: panel.agentId,
+				sourcePath: panel.sourcePath ? panel.sourcePath : undefined,
+				worktreePath: panel.worktreePath ? panel.worktreePath : undefined,
 				sessionTitle: panel.sessionTitle ?? undefined,
 			};
 			return persisted;
@@ -283,6 +285,8 @@ export function hydratePersistedWorkspacePanels(
 				pendingProjectSelection: panel.pendingProjectSelection,
 				selectedAgentId: panel.selectedAgentId,
 				agentId: panel.agentId,
+				sourcePath: panel.sourcePath ? panel.sourcePath : null,
+				worktreePath: panel.worktreePath ? panel.worktreePath : null,
 				sessionTitle: panel.sessionTitle ? panel.sessionTitle : null,
 			};
 			return hydrated;
@@ -418,6 +422,8 @@ export class WorkspaceStore {
 						selectedAgentId: p.selectedAgentId,
 						projectPath: sessionIdentity?.projectPath ?? p.projectPath ?? null,
 						agentId: sessionIdentity?.agentId ?? p.agentId ?? null,
+						sourcePath: sessionMetadata?.sourcePath ? sessionMetadata.sourcePath : undefined,
+						worktreePath: sessionIdentity?.worktreePath ? sessionIdentity.worktreePath : undefined,
 						sessionTitle: sessionMetadata?.title || undefined,
 						scrollTop: this.providers.getPanelScrollTop?.(p.id) ?? 0,
 						planSidebarExpanded: hotState.planSidebarExpanded,
@@ -571,6 +577,8 @@ export class WorkspaceStore {
 				selectedAgentId: p.sessionId ? (p.selectedAgentId ?? null) : null,
 				projectPath: p.projectPath ?? null,
 				agentId: p.agentId ?? null,
+				sourcePath: p.sourcePath ?? null,
+				worktreePath: p.worktreePath ?? null,
 				sessionTitle: p.sessionTitle ?? null,
 			};
 		});

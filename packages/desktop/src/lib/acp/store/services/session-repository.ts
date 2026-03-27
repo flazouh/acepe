@@ -364,6 +364,7 @@ export class SessionRepository {
 		projectPath: string,
 		agentId: string,
 		sourcePath?: string,
+		worktreePath?: string,
 		setSessionLoading?: (sessionId: string) => void,
 		setSessionLoaded?: (sessionId: string) => void,
 		placeholderTitle?: string
@@ -385,6 +386,7 @@ export class SessionRepository {
 				id: sessionId,
 				projectPath,
 				agentId,
+				worktreePath,
 				title: placeholderTitle ?? "Loading...",
 				updatedAt: now,
 				createdAt: now,
