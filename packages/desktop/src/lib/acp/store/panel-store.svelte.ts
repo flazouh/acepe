@@ -298,6 +298,8 @@ export class PanelStore {
 			selectedAgentId,
 			projectPath: session?.projectPath ?? null,
 			agentId: session?.agentId ?? null,
+			sourcePath: session?.sourcePath ?? null,
+			worktreePath: session?.worktreePath ?? null,
 			sessionTitle: session?.title ?? null,
 		};
 
@@ -344,6 +346,8 @@ export class PanelStore {
 			selectedAgentId: options.selectedAgentId ?? null,
 			projectPath: options.projectPath ?? null,
 			agentId: null,
+			sourcePath: null,
+			worktreePath: null,
 			sessionTitle: null,
 		};
 
@@ -532,6 +536,8 @@ export class PanelStore {
 					pendingProjectSelection: false,
 					projectPath: session?.projectPath ?? p.projectPath,
 					agentId: session?.agentId ?? p.agentId,
+					sourcePath: session?.sourcePath ?? p.sourcePath,
+					worktreePath: session?.worktreePath ?? p.worktreePath,
 					sessionTitle: session?.title ?? p.sessionTitle,
 				}
 				: p

@@ -509,6 +509,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		projectPath: string,
 		agentId: string,
 		sourcePath?: string,
+		worktreePath?: string,
 		placeholderTitle?: string
 	): ResultAsync<SessionCold, AppError> {
 		return this.repository
@@ -517,6 +518,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				projectPath,
 				agentId,
 				sourcePath,
+				worktreePath,
 				(id) => this.setSessionLoading(id),
 				(id) => this.setSessionLoaded(id),
 				placeholderTitle

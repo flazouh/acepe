@@ -267,7 +267,42 @@ describe("InitializationManager", () => {
 				"/project1",
 				"cursor",
 				undefined,
+				undefined,
 				"Recovered session"
+			);
+			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
+		});
+
+		it("preloads restored sessions with persisted worktree context", async () => {
+			mockProjectManager.projects = [
+				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
+			];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Feature thread",
+					sourcePath: "/project1/.cursor/sessions/session-1.json",
+					worktreePath: "/project1/.git/worktrees/feature-a",
+				},
+			];
+
+			await manager.initialize();
+
+			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
+				"session-1",
+				"/project1",
+				"claude-code",
+				"/project1/.cursor/sessions/session-1.json",
+				"/project1/.git/worktrees/feature-a",
+				"Feature thread"
 			);
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
 		});

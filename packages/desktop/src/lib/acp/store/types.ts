@@ -193,6 +193,8 @@ export interface Panel {
 	/** Session loading context (enables direct loading without history lookup) */
 	readonly projectPath: string | null;
 	readonly agentId: string | null;
+	readonly sourcePath?: string | null;
+	readonly worktreePath?: string | null;
 	/** Persisted session title for instant display before IPC load completes */
 	readonly sessionTitle: string | null;
 }
@@ -214,6 +216,8 @@ export interface AgentWorkspacePanel extends WorkspacePanelBase {
 	readonly pendingProjectSelection: boolean;
 	readonly selectedAgentId: string | null;
 	readonly agentId: string | null;
+	readonly sourcePath?: string | null;
+	readonly worktreePath?: string | null;
 	readonly sessionTitle: string | null;
 }
 
@@ -278,6 +282,8 @@ export interface PersistedAgentWorkspacePanelState extends PersistedWorkspacePan
 	readonly pendingProjectSelection: boolean;
 	readonly selectedAgentId: string | null;
 	readonly agentId: string | null;
+	readonly sourcePath?: string;
+	readonly worktreePath?: string;
 	readonly sessionTitle?: string;
 	readonly scrollTop?: number;
 	readonly planSidebarExpanded?: boolean;
@@ -475,6 +481,8 @@ export interface PersistedPanelState {
 	readonly selectedAgentId: string | null;
 	readonly projectPath: string | null;
 	readonly agentId: string | null;
+	readonly sourcePath?: string;
+	readonly worktreePath?: string;
 	/** Scroll position within the panel (pixels from top) */
 	readonly scrollTop?: number;
 	/** Whether the plan sidebar is expanded for this panel */

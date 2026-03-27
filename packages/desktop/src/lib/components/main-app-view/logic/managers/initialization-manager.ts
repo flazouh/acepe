@@ -485,6 +485,8 @@ export class InitializationManager {
 			const session = this.sessionStore.getSessionCold(panel.sessionId);
 			const projectPath = panel.projectPath ?? session?.projectPath;
 			const agentId = panel.agentId ?? session?.agentId;
+			const sourcePath = panel.sourcePath ?? session?.sourcePath;
+			const worktreePath = panel.worktreePath ?? session?.worktreePath;
 			const sessionTitle = panel.sessionTitle ?? session?.title;
 
 			if (!projectPath || !agentId) continue;
@@ -496,7 +498,8 @@ export class InitializationManager {
 					sessionId,
 					projectPath,
 					agentId,
-					undefined,
+					sourcePath ?? undefined,
+					worktreePath ?? undefined,
 					sessionTitle ?? undefined
 				)
 				.andThen(() => {
