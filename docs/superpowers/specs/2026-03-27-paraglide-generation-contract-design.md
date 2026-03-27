@@ -44,6 +44,7 @@ Behavior:
 - `i18n:generate`
   - materializes the Paraglide runtime/messages output required by that package
   - is the only script responsible for Paraglide generation
+  - may also perform package-specific framework prep required before tests or checks, such as `svelte-kit sync`
 - `check`
   - performs framework sync and validation only
   - assumes generated Paraglide files already exist
@@ -76,6 +77,7 @@ The design requires:
 - add an explicit `i18n:generate` script for desktop
 - move the existing generation responsibility out of CI YAML and into package scripts
 - preserve any package-specific generation implementation needed for compatibility
+- keep desktop-specific `svelte-kit sync` inside `i18n:generate`, because desktop frontend tests depend on synced framework artifacts even before `check` runs
 
 Again, the internal command may differ from website. The external contract is the same.
 

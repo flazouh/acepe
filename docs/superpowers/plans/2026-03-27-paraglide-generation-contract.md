@@ -37,7 +37,7 @@ Update `packages/desktop/package.json` so the `scripts` block contains:
 {
   "scripts": {
     "dev": "vite dev",
-    "i18n:generate": "bunx paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide && bunx svelte-kit sync",
+    "i18n:generate": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide && bunx svelte-kit sync",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && tsgo --noEmit -p ./tsconfig.fast.json"
@@ -86,7 +86,7 @@ Update `packages/website/package.json` so the `scripts` block contains:
 {
   "scripts": {
     "dev": "vite dev --open",
-    "i18n:generate": "vite build",
+    "i18n:generate": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
@@ -95,7 +95,7 @@ Update `packages/website/package.json` so the `scripts` block contains:
 }
 ```
 
-This step only introduces the explicit generation contract. The later CI task removes workflow-specific build-as-generation coupling.
+This step introduces the explicit generation contract for website. Unlike desktop, website does not need `svelte-kit sync` inside `i18n:generate` for its tests and checks to resolve generated imports.
 
 - [ ] **Step 2: Verify website generation from a clean state**
 
