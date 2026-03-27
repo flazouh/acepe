@@ -25,7 +25,9 @@ interface Props {
 	worktreeName: string | null;
 	pending: boolean;
 	deleted: boolean;
+	autoWorktree?: boolean;
 	onCreate: () => void;
+	onAutoWorktreeChange?: (enabled: boolean) => void;
 	onRename?: (name: string) => void | Promise<void>;
 	onOpenSettings?: () => void;
 	/** "minimal" = compact pill; "default" = standard footer look. */
@@ -39,7 +41,9 @@ let {
 	worktreeName,
 	pending,
 	deleted,
+	autoWorktree = false,
 	onCreate,
+	onAutoWorktreeChange,
 	onRename,
 	onOpenSettings,
 	variant = "default",
@@ -139,7 +143,7 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 							'minimal' && !active
 							? 'rounded-md hover:rounded-full'
 							: ''}"
-						disabled={disabled || loading}
+						disabled={disabled || loading || autoWorktree}
 						onclick={onCreate}
 					>
 						{#if loading}
@@ -197,9 +201,7 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 									class="rounded-none border-t border-border/20 px-2 py-1.5 text-[11px]"
 									onclick={(event) => {
 										event.preventDefault();
-										if (!disabled && !loading) {
-											onCreate();
-										}
+										onAutoWorktreeChange?.(!autoWorktree);
 									}}
 									disabled={disabled || loading}
 								>
@@ -209,13 +211,11 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 											<span class="truncate">Auto worktree</span>
 										</div>
 									<Switch
-										checked={active}
+										checked={autoWorktree}
 										disabled={disabled || loading}
-										onCheckedChange={() => {
-											if (!disabled && !loading) {
-												onCreate();
-												}
-											}}
+										onCheckedChange={(checked) => {
+											onAutoWorktreeChange?.(checked);
+										}}
 										/>
 									</div>
 								</DropdownMenu.Item>

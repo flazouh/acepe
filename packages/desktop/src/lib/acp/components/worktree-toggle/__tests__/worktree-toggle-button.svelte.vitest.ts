@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe("WorktreeToggleButton", () => {
-	it("shows the auto worktree switch as enabled when a worktree already exists", async () => {
+	it("shows the auto worktree switch as enabled when autoWorktree is true", async () => {
 		render(WorktreeToggleButton, {
 			disabled: false,
 			loading: false,
@@ -25,12 +25,47 @@ describe("WorktreeToggleButton", () => {
 			worktreeName: "proud-harbor",
 			pending: false,
 			deleted: false,
+			autoWorktree: true,
 			onCreate: vi.fn(),
 		});
 
 		const switchRoot = document.querySelector('[data-slot="switch"]');
 		expect(switchRoot).toBeTruthy();
 		expect(switchRoot?.getAttribute("data-state")).toBe("checked");
+	});
+
+	it("shows the auto worktree switch as unchecked when autoWorktree is false", async () => {
+		render(WorktreeToggleButton, {
+			disabled: false,
+			loading: false,
+			tooltipText: "Worktree active",
+			worktreeName: "proud-harbor",
+			pending: false,
+			deleted: false,
+			autoWorktree: false,
+			onCreate: vi.fn(),
+		});
+
+		const switchRoot = document.querySelector('[data-slot="switch"]');
+		expect(switchRoot).toBeTruthy();
+		expect(switchRoot?.getAttribute("data-state")).toBe("unchecked");
+	});
+
+	it("disables the main button when autoWorktree is true", async () => {
+		render(WorktreeToggleButton, {
+			disabled: false,
+			loading: false,
+			tooltipText: "Auto worktree enabled",
+			worktreeName: null,
+			pending: true,
+			deleted: false,
+			autoWorktree: true,
+			onCreate: vi.fn(),
+		});
+
+		const button = screen.getByRole("button", { name: /worktree/i });
+		expect(button).toBeTruthy();
+		expect(button.hasAttribute("disabled")).toBe(true);
 	});
 
 	it("shows inline rename input from the pencil icon and submits on Enter", async () => {

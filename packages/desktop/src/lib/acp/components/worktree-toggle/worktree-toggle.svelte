@@ -22,6 +22,7 @@ import {
 	computeIsPending,
 	computeTooltipText,
 } from "./worktree-toggle-logic.js";
+import { getWorktreeDefaultStore } from "./worktree-default-store.svelte.js";
 import { WorktreeToggleState } from "./worktree-toggle-state.svelte.js";
 
 interface Props {
@@ -41,6 +42,12 @@ interface Props {
 }
 
 const props: Props = $props();
+
+const worktreeDefaultStore = getWorktreeDefaultStore();
+
+function handleAutoWorktreeChange(enabled: boolean): void {
+	void worktreeDefaultStore.set(enabled);
+}
 
 // Create state instance - panelId is stable for the component lifetime
 const toggleState = new WorktreeToggleState({
@@ -217,7 +224,9 @@ const showDividers = $derived(props.variant !== "minimal");
 			worktreeName={effectiveWorktreeName}
 			pending={isPending}
 			deleted={props.worktreeDeleted ? props.worktreeDeleted : false}
+			autoWorktree={props.globalWorktreeDefault ? props.globalWorktreeDefault : false}
 			onCreate={handleCreate}
+			onAutoWorktreeChange={handleAutoWorktreeChange}
 			onRename={handleRename}
 			onOpenSettings={props.onOpenSettings}
 			variant={props.variant}
