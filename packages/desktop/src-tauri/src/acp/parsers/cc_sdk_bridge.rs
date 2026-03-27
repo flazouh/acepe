@@ -7,8 +7,8 @@ use super::get_parser;
 use crate::acp::agent_context::current_agent;
 use crate::acp::session_update::{
     build_tool_call_from_raw, ContentChunk, RawToolCallInput, SessionUpdate, ToolArguments,
-    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
-    UsageTelemetryData, UsageTelemetryTokens,
+    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData, UsageTelemetryData,
+    UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use cc_sdk::Message;
@@ -136,7 +136,7 @@ fn translate_assistant(
                     parent_tool_use_id: parent_tool_use_id.clone(),
                     task_children: None,
                 };
-                let tool_call = build_tool_call_from_raw(&*parser, raw);
+                let tool_call = build_tool_call_from_raw(parser, raw);
                 updates.push(SessionUpdate::ToolCall {
                     tool_call,
                     session_id: session_id.clone(),

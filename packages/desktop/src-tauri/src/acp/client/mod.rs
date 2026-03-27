@@ -1,6 +1,7 @@
 use crate::acp::client_errors::{is_method_not_found_error, is_session_not_found_error};
 use crate::acp::client_loop::{
-    spawn_death_monitor, spawn_stderr_reader, spawn_stdout_reader, StdoutLoopContext,
+    spawn_death_monitor, spawn_stderr_reader, spawn_stdout_reader, DeathMonitorContext,
+    StdoutLoopContext,
 };
 use crate::acp::client_rpc;
 use crate::acp::client_session::{apply_provider_model_fallback, parse_model_discovery_output};

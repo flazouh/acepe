@@ -229,6 +229,16 @@ pub(crate) struct StdoutLoopContext {
     pub cancel: tokio_util::sync::CancellationToken,
 }
 
+pub(crate) struct DeathMonitorContext {
+    pub process_generation: u64,
+    pub pending_requests: StdArc<Mutex<HashMap<u64, PendingRequestEntry>>>,
+    pub permission_tracker: StdArc<std::sync::Mutex<PermissionTracker>>,
+    pub web_search_dedup: StdArc<std::sync::Mutex<WebSearchDedup>>,
+    pub dispatcher: AcpUiEventDispatcher,
+    pub stderr_buffer: StderrBuffer,
+    pub cancel: tokio_util::sync::CancellationToken,
+}
+
 pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
     tokio::spawn(async move {
         // Set Sentry scope so all tracing::error!() in this task carry agent context
@@ -647,20 +657,15 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_death_monitor(
     child_monitor: StdArc<std::sync::Mutex<Option<Child>>>,
-    process_generation: u64,
-    pending_requests: StdArc<Mutex<HashMap<u64, PendingRequestEntry>>>,
-    permission_tracker: StdArc<std::sync::Mutex<PermissionTracker>>,
-    web_search_dedup: StdArc<std::sync::Mutex<WebSearchDedup>>,
-    dispatcher: AcpUiEventDispatcher,
-    stderr_buffer: StderrBuffer,
-    cancel: tokio_util::sync::CancellationToken,
+    ctx: DeathMonitorContext,
 ) {
     tokio::spawn(async move {
         loop {
             tokio::select! {
-                _ = cancel.cancelled() => {
+                _ = ctx.cancel.cancelled() => {
                     tracing::debug!("Death monitor cancelled by stop()");
                     break;
                 }
@@ -688,17 +693,17 @@ pub(crate) fn spawn_death_monitor(
                 // Re-check cancellation before draining pending requests.
                 // If stop() was called between our try_wait and here, skip the drain
                 // so we don't corrupt newly-inserted entries from a subsequent start().
-                if cancel.is_cancelled() {
+                if ctx.cancel.is_cancelled() {
                     tracing::debug!("Death monitor skipping drain — cancelled by stop()");
                     break;
                 }
-                let reason = match read_stderr_buffer(&stderr_buffer) {
+                let reason = match read_stderr_buffer(&ctx.stderr_buffer) {
                     Some(stderr) => format!("Agent process exited unexpectedly:\n{stderr}"),
                     None => base_reason.clone(),
                 };
-                fail_pending_requests(&pending_requests, process_generation, &reason).await;
-                drain_permissions_as_failed(&permission_tracker, &dispatcher);
-                if let Ok(mut dedup) = web_search_dedup.lock() {
+                fail_pending_requests(&ctx.pending_requests, ctx.process_generation, &reason).await;
+                drain_permissions_as_failed(&ctx.permission_tracker, &ctx.dispatcher);
+                if let Ok(mut dedup) = ctx.web_search_dedup.lock() {
                     dedup.drain_all();
                 }
                 if let Ok(mut g) = child_monitor.lock() {
@@ -706,7 +711,7 @@ pub(crate) fn spawn_death_monitor(
                 }
                 tracing::error!(
                     %base_reason,
-                    stderr = read_stderr_buffer(&stderr_buffer),
+                    stderr = read_stderr_buffer(&ctx.stderr_buffer),
                     "Child process death monitor detected exit"
                 );
                 break;
