@@ -24,7 +24,7 @@ use plan::{
     enrich_plan_data, enrich_plan_update, extract_codex_wrapper_plan, extract_streaming_plan,
     finalize_codex_wrapper_on_turn_end,
 };
-use reconciler::process_through_reconciler;
+pub(crate) use reconciler::process_through_reconciler;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn handle_session_update_notification(
