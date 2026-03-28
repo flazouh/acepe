@@ -114,6 +114,6 @@ tokio-test = "0.4"
 insta = { version = "1", features = ["json"] }
 hound = "3"
 
-# TODO: switch back to crates.io once ZhangHanDong/claude-code-api-rs#14 is merged and released
+# TODO(ZhangHanDong/claude-code-api-rs#14): switch back to crates.io once upstream PR is merged and released
 [patch.crates-io]
-cc-sdk = { git = "https://github.com/flazouh/claude-code-api-rs.git", branch = "feature/explicit-session-id" }
+cc-sdk = { git = "https://github.com/flazouh/claude-code-api-rs.git", rev = "dc6ac1027a96c0700adf1ac2851ee86bf423ca8b" }
