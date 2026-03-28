@@ -3,6 +3,78 @@ use crate::db::repository::SessionMetadataRepository;
 use crate::acp::session_registry::redact_session_id;
 use sea_orm::DbConn;
 
+fn git_main_repo_from_worktree_path(
+    worktree_path: &std::path::Path,
+) -> Option<std::path::PathBuf> {
+    let git_file_path = worktree_path.join(".git");
+    let git_file_content = std::fs::read_to_string(&git_file_path).ok()?;
+    let git_dir_path = git_file_content.strip_prefix("gitdir: ")?.trim();
+    let git_dir = std::path::Path::new(git_dir_path);
+    let resolved_git_dir = if git_dir.is_absolute() {
+        git_dir.to_path_buf()
+    } else {
+        worktree_path.join(git_dir)
+    };
+
+    resolved_git_dir
+        .parent()
+        .and_then(|path| path.parent())
+        .and_then(|path| path.parent())
+        .map(std::path::Path::to_path_buf)
+}
+
+pub(crate) fn session_metadata_context_from_cwd(
+    cwd: &std::path::Path,
+) -> (String, Option<String>) {
+    let canonical_cwd = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
+
+    if canonical_cwd.join(".git").is_file() {
+        if let Some(base_project_path) = git_main_repo_from_worktree_path(&canonical_cwd) {
+            return (
+                base_project_path.to_string_lossy().into_owned(),
+                Some(canonical_cwd.to_string_lossy().into_owned()),
+            );
+        }
+    }
+
+    (canonical_cwd.to_string_lossy().into_owned(), None)
+}
+
+pub(crate) async fn persist_session_metadata_for_cwd(
+    db: &DbConn,
+    session_id: &str,
+    agent_id: &CanonicalAgentId,
+    cwd: &std::path::Path,
+) -> Result<(), SerializableAcpError> {
+    let (project_path, worktree_path) = session_metadata_context_from_cwd(cwd);
+
+    if let Some(worktree_path) = worktree_path {
+        SessionMetadataRepository::set_worktree_path(
+            db,
+            session_id,
+            &worktree_path,
+            Some(&project_path),
+            Some(agent_id.as_str()),
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to persist session metadata for worktree session {session_id}: {error}"
+            ),
+        })?;
+    } else {
+        SessionMetadataRepository::ensure_exists(db, session_id, &project_path, agent_id.as_str(), None)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to persist session metadata for session {session_id}: {error}"
+                ),
+            })?;
+    }
+
+    Ok(())
+}
+
 /// Initialize the ACP connection.
 ///
 /// With per-session clients, this is now a lightweight check.
@@ -52,6 +124,7 @@ pub async fn acp_new_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let db = app.state::<DbConn>();
 
     // Determine which agent to use
     let agent_id_enum = agent_id
@@ -107,6 +180,8 @@ pub async fn acp_new_session(
         session_id = %result.session_id,
         "New session created with dedicated client"
     );
+
+    persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?;
 
     Ok(result)
 }
@@ -181,6 +256,7 @@ pub async fn acp_resume_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let db = app.state::<DbConn>();
 
     // Determine which agent to use
     let agent_id_enum = agent_id
@@ -219,6 +295,8 @@ pub async fn acp_resume_session(
     )
     .await?;
 
+    persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
+
     Ok(result)
 }
 
@@ -240,6 +318,7 @@ pub async fn acp_fork_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let db = app.state::<DbConn>();
 
     // Determine which agent to use
     let agent_id_enum = agent_id
@@ -296,6 +375,7 @@ pub async fn acp_fork_session(
         new_session_id = %result.session_id,
         "Session forked with dedicated client"
     );
+    persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?;
     Ok(result)
 }
 

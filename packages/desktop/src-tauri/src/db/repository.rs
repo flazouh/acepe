@@ -600,19 +600,33 @@ pub type SessionMetadataRecord = (String, String, i64, String, String, String, i
 pub struct SessionMetadataRepository;
 
 impl SessionMetadataRepository {
-    fn base_project_path_from_worktree_path(worktree_path: &str) -> Option<String> {
-        let canonical_worktree_path =
-            crate::git::worktree_config::validate_worktree_path(std::path::Path::new(worktree_path))
-                .ok()?;
-        let git_file_path = canonical_worktree_path.join(".git");
+    fn git_main_repo_from_worktree_path(
+        worktree_path: &std::path::Path,
+    ) -> Option<std::path::PathBuf> {
+        let git_file_path = worktree_path.join(".git");
         let git_file_content = std::fs::read_to_string(&git_file_path).ok()?;
         let git_dir_path = git_file_content.strip_prefix("gitdir: ")?.trim();
-        let git_dir = std::path::PathBuf::from(git_dir_path);
+        let git_dir = std::path::Path::new(git_dir_path);
+        let resolved_git_dir = if git_dir.is_absolute() {
+            git_dir.to_path_buf()
+        } else {
+            worktree_path.join(git_dir)
+        };
 
-        git_dir
+        resolved_git_dir
             .parent()
             .and_then(|path| path.parent())
             .and_then(|path| path.parent())
+            .map(std::path::Path::to_path_buf)
+    }
+
+    fn base_project_path_from_worktree_path(worktree_path: &str) -> Option<String> {
+        let canonical_worktree_path = std::path::Path::new(worktree_path)
+            .canonicalize()
+            .ok()
+            .filter(|path| path.is_dir())?;
+
+        Self::git_main_repo_from_worktree_path(&canonical_worktree_path)
             .map(|path| path.to_string_lossy().into_owned())
     }
 
@@ -850,8 +864,7 @@ impl SessionMetadataRepository {
         ) in records
         {
             if let Some(existing_model) = existing_map.get(&session_id) {
-                let project_path =
-                    Self::project_path_for_update(existing_model, project_path);
+                let project_path = Self::project_path_for_update(existing_model, project_path);
 
                 // Check if file has changed (skip if mtime+size match).
                 // Non-Claude agents use mtime=0/size=0 sentinel — always refresh those.
