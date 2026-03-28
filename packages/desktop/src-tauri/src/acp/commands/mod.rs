@@ -48,6 +48,8 @@ pub use session_commands::{
     acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_initialize,
     acp_new_session, acp_resume_session,
 };
+#[cfg(test)]
+pub(crate) use session_commands::persist_session_metadata_for_cwd;
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;
 type SessionClientArc = Arc<SessionClientMutex>;
