@@ -10,7 +10,7 @@
  * Phase 1 (Parallel):
  *   ├── initializeKeybindings()
  *   ├── initializeSessionUpdates()
- *   └── loadBasicMetadata() [keybindings, agents, projects in parallel]
+ *   └── loadBasicMetadata() [keybindings, agents, projects, preconnection skills in parallel]
  *
  * Phase 2 (Sequential - needs projects):
  *   └── restoreWorkspace()
@@ -51,6 +51,7 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
+import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 
@@ -79,6 +80,7 @@ export class InitializationManager {
 	 * @param projectManager - The project manager
 	 * @param agentPreferencesStore - The agent preferences store
 	 * @param keybindingsService - The keybindings service
+	 * @param preconnectionAgentSkillsStore - Startup-loaded agent skills for pre-connect slash commands
 	 */
 	constructor(
 		private readonly state: MainAppViewState,
@@ -88,7 +90,8 @@ export class InitializationManager {
 		private readonly workspaceStore: WorkspaceStore,
 		private readonly projectManager: ProjectManager,
 		private readonly agentPreferencesStore: AgentPreferencesStore,
-		private readonly keybindingsService: KeybindingsService
+		private readonly keybindingsService: KeybindingsService,
+		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore
 	) {}
 
 	/**
@@ -309,6 +312,12 @@ export class InitializationManager {
 					(error) =>
 						new InitializationError("initializeZoom", error instanceof Error ? error : undefined)
 				),
+			this.preconnectionAgentSkillsStore.initialize().orElse((error) => {
+				logger.warn("Failed to warm preconnection agent skills; continuing startup", {
+					error,
+				});
+				return okAsync(undefined);
+			}),
 		]).map(() => undefined);
 	}
 

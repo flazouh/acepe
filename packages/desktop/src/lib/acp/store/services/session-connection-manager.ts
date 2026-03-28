@@ -554,6 +554,7 @@ export class SessionConnectionManager {
 					this.hotStateManager.updateHotState(sessionId, {
 						status: "idle",
 						isConnected: false,
+						availableCommands: [],
 						connectionError: "Session is read-only (agent does not support resume)",
 					});
 					return new ConnectionError(
@@ -565,6 +566,7 @@ export class SessionConnectionManager {
 				this.hotStateManager.updateHotState(sessionId, {
 					status: "error",
 					isConnected: false,
+					availableCommands: [],
 					connectionError: errorMessage,
 				});
 				logger.error("Failed to connect session", { sessionId, error });
@@ -608,6 +610,7 @@ export class SessionConnectionManager {
 			turnState: "idle",
 			acpSessionId: null,
 			connectionError: null,
+			availableCommands: [],
 			modelPerMode: {},
 		});
 

@@ -11,6 +11,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
@@ -56,6 +57,7 @@ import {
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
 } from "./logic/input-parser.js";
+import { resolveSlashCommandSource } from "./logic/slash-command-source.js";
 import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 import {
 	type SubmitIntent,
@@ -85,6 +87,7 @@ const kb = getKeybindingsService();
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const messageQueueStore = getMessageQueueStore();
+const preconnectionAgentSkillsStore = getPreconnectionAgentSkillsStore();
 const voiceSettingsStore = getVoiceSettingsStore();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 
@@ -186,7 +189,32 @@ const effectiveCurrentModelId = $derived.by(() =>
 	})
 );
 
-const effectiveAvailableCommands = $derived(sessionHotState?.availableCommands ?? []);
+const liveAvailableCommands = $derived.by(() => {
+	if (sessionHotState && sessionHotState.availableCommands) {
+		return sessionHotState.availableCommands;
+	}
+
+	return [];
+});
+const preconnectionAvailableCommands = $derived.by(() => {
+	if (!capabilitiesAgentId) {
+		return [];
+	}
+
+	return preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId);
+});
+const slashCommandSource = $derived.by(() => {
+	return resolveSlashCommandSource({
+		liveCommands: liveAvailableCommands,
+		hasConnectedSession: sessionRuntimeState?.connectionPhase === "connected",
+		selectedAgentId: capabilitiesAgentId,
+		preconnectionCommands: preconnectionAvailableCommands,
+	});
+});
+const effectiveAvailableCommands = $derived(slashCommandSource.commands);
+const isSlashDropdownVisible = $derived(
+	inputState.showSlashDropdown && slashCommandSource.source !== "none"
+);
 
 // Input is ready when we have a session or project path (loading state no longer blocks input)
 const inputReady = $derived(!!props.sessionId || !!props.projectPath);
@@ -467,6 +495,15 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
+
+			if (
+				capabilitiesAgentId &&
+				sessionRuntimeState?.connectionPhase !== "connected" &&
+				!preconnectionAgentSkillsStore.loaded &&
+				!preconnectionAgentSkillsStore.loading
+			) {
+				preconnectionAgentSkillsStore.ensureLoaded().mapErr(() => undefined);
+			}
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
@@ -1146,7 +1183,7 @@ function handleCommandSelect(command: AvailableCommand): void {
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, inputState.slashStartIndex);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText("command", `/${command.name}`);
+	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
 	inputState.message = `${before}${tokenText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
@@ -1399,7 +1436,7 @@ async function handleCancel() {
 	ondragover={(e) => inputState.handleDragOver(e)}
 	ondragleave={(e) => {
 		// Only trigger leave if we're leaving the container entirely
-		const relatedTarget = e.relatedTarget as Node | null;
+		const relatedTarget = e.relatedTarget;
 		if (!e.currentTarget.contains(relatedTarget)) {
 			inputState.handleDragLeave();
 		}
@@ -1559,7 +1596,7 @@ async function handleCancel() {
 				<SlashCommandDropdown
 					bind:this={inputState.slashDropdownRef}
 					commands={effectiveAvailableCommands}
-					isOpen={inputState.showSlashDropdown}
+					isOpen={isSlashDropdownVisible}
 					query={inputState.slashQuery}
 					position={inputState.slashPosition}
 					onSelect={(cmd: AvailableCommand) => handleCommandSelect(cmd)}

@@ -8,8 +8,8 @@ import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
+import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
-// Mock the zoom service module to avoid $state runtime issues
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		initialize: () => okAsync(undefined),
@@ -23,7 +23,6 @@ mock.module("$lib/services/zoom.svelte.js", () => ({
 }));
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
-
 import { InitializationManager } from "../logic/managers/initialization-manager.js";
 
 type TestPanel = {
@@ -34,10 +33,24 @@ type TestPanel = {
 	width: number;
 	pendingProjectSelection: boolean;
 	selectedAgentId: string;
-	projectPath: string;
-	agentId: string;
-	sessionTitle: string;
+	projectPath: string | null;
+	agentId: string | null;
+	sessionTitle: string | null;
+	sourcePath?: string | null;
+	worktreePath?: string | null;
 };
+
+function buildSession(id: string, agentId: string, projectPath: string, title: string) {
+	return {
+		id,
+		projectPath,
+		agentId,
+		title,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		parentId: null,
+	};
+}
 
 describe("InitializationManager", () => {
 	let mockState: MainAppViewState;
@@ -48,16 +61,15 @@ describe("InitializationManager", () => {
 	let mockProjectManager: ProjectManager;
 	let mockAgentPreferencesStore: AgentPreferencesStore;
 	let mockKeybindingsService: KeybindingsService;
+	let mockPreconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
 	let manager: InitializationManager;
 
 	beforeEach(() => {
-		// Mock window for keybindings service
-		global.window = {
+		globalThis.window = {
 			addEventListener: mock(() => {}),
 			removeEventListener: mock(() => {}),
 		} as unknown as Window & typeof globalThis;
 
-		// Create mocks
 		mockState = {
 			debugPanelOpen: false,
 			settingsModalOpen: false,
@@ -72,11 +84,24 @@ describe("InitializationManager", () => {
 			loadSessions: mock(() => okAsync([])),
 			loadStartupSessions: mock(() => okAsync({ missing: [] })),
 			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
-			loadSessionById: mock(() => okAsync({ id: "session-1" })),
+			loadSessionById: mock(() =>
+				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
+			),
 			isPreloaded: mock(() => false),
-			connectSession: mock(() => okAsync({})),
+			connectSession: mock(() =>
+				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
+			),
 			scanSessions: mock(() => okAsync(undefined)),
-			createSession: mock(() => okAsync({ id: "session-1" })),
+			createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
+				okAsync(
+					buildSession(
+						"session-1",
+						options.agentId,
+						options.projectPath,
+						options.title ? options.title : "New Thread"
+					)
+				)
+			),
 			getSessionCold: mock(() => undefined),
 		} as unknown as SessionStore;
 
@@ -124,6 +149,12 @@ describe("InitializationManager", () => {
 			uninstall: mock(() => {}),
 		} as unknown as KeybindingsService;
 
+		mockPreconnectionAgentSkillsStore = {
+			initialize: mock(() => okAsync(undefined)),
+			ensureLoaded: mock(() => okAsync(undefined)),
+			refresh: mock(() => okAsync(undefined)),
+		} as unknown as PreconnectionAgentSkillsStore;
+
 		manager = new InitializationManager(
 			mockState,
 			mockSessionStore,
@@ -132,7 +163,8 @@ describe("InitializationManager", () => {
 			mockWorkspaceStore,
 			mockProjectManager,
 			mockAgentPreferencesStore,
-			mockKeybindingsService
+			mockKeybindingsService,
+			mockPreconnectionAgentSkillsStore
 		);
 	});
 
@@ -155,9 +187,6 @@ describe("InitializationManager", () => {
 			expect(mockKeybindingsService.initialize).toHaveBeenCalled();
 		});
 
-		// Note: Keybinding actions are registered by KeybindingManager, not InitializationManager
-		// This is tested in keybinding-manager.test.ts
-
 		it("should install keybindings on window", async () => {
 			await manager.initialize();
 			expect(mockKeybindingsService.install).toHaveBeenCalledWith(window);
@@ -168,16 +197,40 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
 		});
 
-		it("should load keybindings, agents, and projects in parallel", async () => {
+		it("should load keybindings, agents, projects, and preconnection skills in parallel", async () => {
 			await manager.initialize();
 			expect(mockKeybindingsService.loadUserKeybindings).toHaveBeenCalled();
 			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
 			expect(mockProjectManager.loadProjects).toHaveBeenCalled();
+			expect(mockPreconnectionAgentSkillsStore.initialize).toHaveBeenCalled();
 		});
 
 		it("should initialize agent preferences after loading metadata", async () => {
 			await manager.initialize();
 			expect(mockAgentPreferencesStore.initialize).toHaveBeenCalled();
+		});
+
+		it("continues startup when preconnection skills warming fails", async () => {
+			mockPreconnectionAgentSkillsStore.initialize = mock(() =>
+				errAsync(new AgentError("skills_list_agent_skills", new Error("Failed")))
+			) as PreconnectionAgentSkillsStore["initialize"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockPreconnectionAgentSkillsStore
+			);
+
+			const result = await manager.initialize();
+
+			expect(result.isOk()).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
 		});
 
 		it("should restore workspace state", async () => {
@@ -217,7 +270,22 @@ describe("InitializationManager", () => {
 			});
 			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
 				currentPanels = currentPanels.map((panel) =>
-					panel.id === panelId ? { ...panel, sessionId } : panel
+					panel.id === panelId
+						? {
+							id: panel.id,
+							kind: panel.kind,
+							ownerPanelId: panel.ownerPanelId,
+							sessionId,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sessionTitle: panel.sessionTitle,
+							sourcePath: panel.sourcePath,
+							worktreePath: panel.worktreePath,
+						}
+						: panel
 				);
 			});
 			await manager.initialize();
@@ -310,7 +378,20 @@ describe("InitializationManager", () => {
 		it("should handle initialization errors", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
+			) as AgentStore["loadAvailableAgents"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockPreconnectionAgentSkillsStore
 			);
+
 			const result = await manager.initialize();
 			expect(result.isErr()).toBe(true);
 			expect(mockState.initializationComplete).toBe(false);
