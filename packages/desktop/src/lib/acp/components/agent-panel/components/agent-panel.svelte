@@ -40,6 +40,7 @@ import PlanDialog from "../../plan-dialog.svelte";
 import PlanHeader from "../../plan-header.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import QueueCardStrip from "../../queue-card-strip.svelte";
+import PermissionHeader from "../../permission-header.svelte";
 import TodoHeader from "../../todo-header.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { usePlanLoader } from "../hooks";
@@ -1602,6 +1603,13 @@ function handleCheckpointRevertComplete() {
 							/>
 						</div>
 					</div>
+					{#if sessionId}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+								<PermissionHeader {sessionId} />
+							</div>
+						</div>
+					{/if}
 					{#if sessionId}
 						<div class={isFullscreen ? "flex justify-center" : ""}>
 							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>

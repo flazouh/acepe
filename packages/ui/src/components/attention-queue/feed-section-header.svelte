@@ -40,25 +40,28 @@ import Bulldozer from "phosphor-svelte/lib/Bulldozer";
 
 <style>
 	@keyframes bulldozer-motion {
-		0%, 100% {
+		0% {
 			transform: translateX(0) translateY(0);
 		}
-		20% {
-			transform: translateX(0.5px) translateY(-0.5px);
+		30% {
+			transform: translateX(1px) translateY(0);
 		}
-		40% {
-			transform: translateX(-0.5px) translateY(0.5px);
+		45% {
+			transform: translateX(1px) translateY(-0.3px);
 		}
 		60% {
-			transform: translateX(0.5px) translateY(0);
+			transform: translateX(1px) translateY(0);
 		}
-		80% {
-			transform: translateX(-0.5px) translateY(0.5px);
+		75% {
+			transform: translateX(0.5px) translateY(-0.3px);
+		}
+		100% {
+			transform: translateX(0) translateY(0);
 		}
 	}
 
 	.bulldozing {
 		display: inline-flex;
-		animation: bulldozer-motion 0.85s linear infinite;
+		animation: bulldozer-motion 1s ease-in-out infinite;
 	}
 </style>
