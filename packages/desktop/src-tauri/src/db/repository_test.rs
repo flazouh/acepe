@@ -222,6 +222,118 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_preserves_base_project_for_existing_worktree_session() {
+        let db = setup_test_db().await;
+
+        let base_project = "/Users/alex/Documents/acepe";
+        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Original title".to_string(),
+            1704067200000,
+            base_project.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", base_project),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-1",
+            worktree,
+            Some(base_project),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Updated title".to_string(),
+            1704067300000,
+            worktree.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", worktree),
+            1704067300,
+            200,
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-1")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.project_path, base_project);
+        assert_eq!(session.worktree_path.as_deref(), Some(worktree));
+        assert_eq!(session.display, "Updated title");
+        assert_eq!(session.file_path, format!("{}/session-1.jsonl", worktree));
+    }
+
+    #[tokio::test]
+    async fn test_get_for_projects_includes_worktree_session_via_base_project() {
+        let db = setup_test_db().await;
+
+        let base_project = "/Users/alex/Documents/acepe";
+        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Feature thread".to_string(),
+            1704067200000,
+            base_project.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", base_project),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-1",
+            worktree,
+            Some(base_project),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Feature thread".to_string(),
+            1704067300000,
+            worktree.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", worktree),
+            1704067300,
+            200,
+        )
+        .await
+        .unwrap();
+
+        let sessions =
+            SessionMetadataRepository::get_for_projects(&db, &[base_project.to_string()])
+                .await
+                .unwrap();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "session-1");
+        assert_eq!(sessions[0].project_path, base_project);
+        assert_eq!(sessions[0].worktree_path.as_deref(), Some(worktree));
+    }
+
+    #[tokio::test]
     async fn test_get_all_returns_sorted_by_timestamp_desc() {
         let db = setup_test_db().await;
 

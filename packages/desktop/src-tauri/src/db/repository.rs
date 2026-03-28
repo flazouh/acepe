@@ -600,6 +600,17 @@ pub type SessionMetadataRecord = (String, String, i64, String, String, String, i
 pub struct SessionMetadataRepository;
 
 impl SessionMetadataRepository {
+    fn project_path_for_update(
+        existing_model: &session_metadata::Model,
+        incoming_project_path: String,
+    ) -> String {
+        if existing_model.worktree_path.is_some() {
+            existing_model.project_path.clone()
+        } else {
+            incoming_project_path
+        }
+    }
+
     pub(crate) fn normalized_source_path(file_path: &str) -> Option<String> {
         if file_path.is_empty() || file_path.starts_with("__worktree__/") {
             None
@@ -720,6 +731,8 @@ impl SessionMetadataRepository {
                 return Ok(false); // No change
             }
 
+            let project_path = Self::project_path_for_update(&existing_model, project_path);
+
             // Update existing record
             let mut active: session_metadata::ActiveModel = existing_model.into();
             active.display = Set(display);
@@ -809,6 +822,9 @@ impl SessionMetadataRepository {
                 {
                     continue; // No change
                 }
+
+                let project_path =
+                    Self::project_path_for_update(existing_model, project_path);
 
                 // Update existing
                 let mut active: session_metadata::ActiveModel = existing_model.clone().into();
