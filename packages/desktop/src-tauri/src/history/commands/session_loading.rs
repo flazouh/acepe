@@ -1,5 +1,21 @@
 use super::*;
 
+fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
+    let canonical = std::path::Path::new(worktree_path)
+        .canonicalize()
+        .map_err(|e| format!("Failed to canonicalize worktree path: {}", e))?;
+
+    if !canonical.is_dir() {
+        return Err("Worktree path is not a directory".to_string());
+    }
+
+    if !canonical.join(".git").is_file() {
+        return Err("Worktree path does not contain a git worktree .git file".to_string());
+    }
+
+    Ok(canonical)
+}
+
 fn fallback_project_path_for_history_load(
     agent: &CanonicalAgentId,
     project_path: &str,
@@ -517,7 +533,7 @@ pub async fn audit_session_load_timing(
 
 /// Set the worktree path for a session in the metadata index.
 /// Called by the frontend when a session is created within a worktree.
-/// Validates that the path is under the worktrees root before storing.
+/// Accepts any existing git worktree path, not just Acepe-managed worktrees.
 #[tauri::command]
 #[specta::specta]
 pub async fn set_session_worktree_path(
@@ -533,9 +549,7 @@ pub async fn set_session_worktree_path(
         "Persisting worktree path for session"
     );
 
-    let canonical =
-        crate::git::worktree_config::validate_worktree_path(std::path::Path::new(&worktree_path))
-            .map_err(|e| {
+    let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
             tracing::error!(
                 session_id = %session_id,
                 worktree_path = %worktree_path,
