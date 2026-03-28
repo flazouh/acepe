@@ -102,6 +102,7 @@ describe("InitializationManager", () => {
 					)
 				)
 			),
+			setSessions: mock(() => {}),
 			getSessionCold: mock(() => undefined),
 		} as unknown as SessionStore;
 
@@ -380,6 +381,25 @@ describe("InitializationManager", () => {
 				{ path: "/Users/alex/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
 			];
 
+			let storedSessions = [
+				buildSession(
+					"session-1",
+					"claude-code",
+					"/Users/alex/Documents/acepe",
+					"Feature thread"
+				),
+			];
+			storedSessions[0] = {
+				id: storedSessions[0].id,
+				projectPath: storedSessions[0].projectPath,
+				agentId: storedSessions[0].agentId,
+				title: storedSessions[0].title,
+				createdAt: storedSessions[0].createdAt,
+				updatedAt: storedSessions[0].updatedAt,
+				parentId: storedSessions[0].parentId,
+				worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+			};
+
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -424,40 +444,24 @@ describe("InitializationManager", () => {
 				});
 			});
 
-			mockSessionStore.loadSessions = mock(() =>
-				okAsync([
-					{
-						id: "session-1",
-						projectPath: "/Users/alex/Documents/acepe",
-						agentId: "claude-code",
-						title: "Feature thread",
-						createdAt: new Date(),
-						updatedAt: new Date(),
-						parentId: null,
-						worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
-					},
-				])
-			);
+			mockSessionStore.setSessions = mock((sessions) => {
+				storedSessions = sessions;
+			});
+
+			mockSessionStore.loadSessions = mock(() => {
+				mockSessionStore.setSessions(storedSessions);
+				return okAsync(storedSessions);
+			});
 
 			mockSessionStore.getSessionCold = mock((sessionId: string) => {
-				if (sessionId === "session-1") {
-					return {
-						id: "session-1",
-						projectPath: "/Users/alex/Documents/acepe",
-						agentId: "claude-code",
-						title: "Feature thread",
-						createdAt: new Date(),
-						updatedAt: new Date(),
-						parentId: null,
-						worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
-					};
-				}
-
-				return undefined;
+				return storedSessions.find((session) => session.id === sessionId);
 			});
 
 			await manager.initialize();
 
+			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith([
+				"/Users/alex/Documents/acepe",
+			]);
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
 				"session-1",

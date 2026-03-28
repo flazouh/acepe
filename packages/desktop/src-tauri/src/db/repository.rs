@@ -600,11 +600,44 @@ pub type SessionMetadataRecord = (String, String, i64, String, String, String, i
 pub struct SessionMetadataRepository;
 
 impl SessionMetadataRepository {
+    fn base_project_path_from_worktree_path(worktree_path: &str) -> Option<String> {
+        let canonical_worktree_path =
+            crate::git::worktree_config::validate_worktree_path(std::path::Path::new(worktree_path))
+                .ok()?;
+        let git_file_path = canonical_worktree_path.join(".git");
+        let git_file_content = std::fs::read_to_string(&git_file_path).ok()?;
+        let git_dir_path = git_file_content.strip_prefix("gitdir: ")?.trim();
+        let git_dir = std::path::PathBuf::from(git_dir_path);
+
+        git_dir
+            .parent()
+            .and_then(|path| path.parent())
+            .and_then(|path| path.parent())
+            .map(|path| path.to_string_lossy().into_owned())
+    }
+
     fn project_path_for_update(
         existing_model: &session_metadata::Model,
         incoming_project_path: String,
     ) -> String {
-        if existing_model.worktree_path.is_some() {
+        if let Some(worktree_path) = existing_model.worktree_path.as_deref() {
+            let resolved_base_project_path =
+                Self::base_project_path_from_worktree_path(worktree_path);
+
+            if let Some(base_project_path) = resolved_base_project_path {
+                if incoming_project_path == base_project_path {
+                    return incoming_project_path;
+                }
+
+                if existing_model.project_path == base_project_path {
+                    return existing_model.project_path.clone();
+                }
+            }
+
+            if existing_model.project_path == worktree_path {
+                return incoming_project_path;
+            }
+
             existing_model.project_path.clone()
         } else {
             incoming_project_path
@@ -726,12 +759,15 @@ impl SessionMetadataRepository {
         let existing = SessionMetadata::find_by_id(&session_id).one(db).await?;
 
         if let Some(existing_model) = existing {
+            let project_path = Self::project_path_for_update(&existing_model, project_path);
+
             // Check if file has changed (mtime + size comparison)
-            if existing_model.file_mtime == file_mtime && existing_model.file_size == file_size {
+            if existing_model.file_mtime == file_mtime
+                && existing_model.file_size == file_size
+                && existing_model.project_path == project_path
+            {
                 return Ok(false); // No change
             }
-
-            let project_path = Self::project_path_for_update(&existing_model, project_path);
 
             // Update existing record
             let mut active: session_metadata::ActiveModel = existing_model.into();
@@ -814,17 +850,18 @@ impl SessionMetadataRepository {
         ) in records
         {
             if let Some(existing_model) = existing_map.get(&session_id) {
+                let project_path =
+                    Self::project_path_for_update(existing_model, project_path);
+
                 // Check if file has changed (skip if mtime+size match).
                 // Non-Claude agents use mtime=0/size=0 sentinel — always refresh those.
                 if file_mtime != 0
                     && existing_model.file_mtime == file_mtime
                     && existing_model.file_size == file_size
+                    && existing_model.project_path == project_path
                 {
                     continue; // No change
                 }
-
-                let project_path =
-                    Self::project_path_for_update(existing_model, project_path);
 
                 // Update existing
                 let mut active: session_metadata::ActiveModel = existing_model.clone().into();

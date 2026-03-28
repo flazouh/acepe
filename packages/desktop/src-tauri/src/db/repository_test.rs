@@ -334,6 +334,175 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_repairs_worktree_session_when_project_path_was_overwritten() {
+        let db = setup_test_db().await;
+
+        let base_project = "/Users/alex/Documents/acepe";
+        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Broken worktree session".to_string(),
+            1704067200000,
+            worktree.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", worktree),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-1",
+            worktree,
+            Some(base_project),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Repaired worktree session".to_string(),
+            1704067300000,
+            base_project.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", worktree),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-1")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.project_path, base_project);
+        assert_eq!(session.worktree_path.as_deref(), Some(worktree));
+        assert_eq!(session.display, "Repaired worktree session");
+    }
+
+    #[tokio::test]
+    async fn test_batch_upsert_preserves_base_project_for_existing_worktree_session() {
+        let db = setup_test_db().await;
+
+        let base_project = "/Users/alex/Documents/acepe";
+        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Feature thread".to_string(),
+            1704067200000,
+            base_project.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", base_project),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-1",
+            worktree,
+            Some(base_project),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::batch_upsert(
+            &db,
+            vec![(
+                "session-1".to_string(),
+                "Batch updated title".to_string(),
+                1704067300000,
+                worktree.to_string(),
+                "claude-code".to_string(),
+                format!("{}/session-1.jsonl", worktree),
+                1704067300,
+                200,
+            )],
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-1")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.project_path, base_project);
+        assert_eq!(session.worktree_path.as_deref(), Some(worktree));
+        assert_eq!(session.display, "Batch updated title");
+    }
+
+    #[tokio::test]
+    async fn test_batch_upsert_repairs_worktree_session_when_project_path_was_overwritten() {
+        let db = setup_test_db().await;
+
+        let base_project = "/Users/alex/Documents/acepe";
+        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Broken worktree session".to_string(),
+            1704067200000,
+            worktree.to_string(),
+            "claude-code".to_string(),
+            format!("{}/session-1.jsonl", worktree),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-1",
+            worktree,
+            Some(base_project),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::batch_upsert(
+            &db,
+            vec![(
+                "session-1".to_string(),
+                "Repaired by batch".to_string(),
+                1704067300000,
+                base_project.to_string(),
+                "claude-code".to_string(),
+                format!("{}/session-1.jsonl", worktree),
+                1704067200,
+                100,
+            )],
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-1")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.project_path, base_project);
+        assert_eq!(session.worktree_path.as_deref(), Some(worktree));
+        assert_eq!(session.display, "Repaired by batch");
+    }
+
+    #[tokio::test]
     async fn test_get_all_returns_sorted_by_timestamp_desc() {
         let db = setup_test_db().await;
 
