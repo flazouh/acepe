@@ -6,6 +6,14 @@ inputs:
     description: Install the clippy component with the Rust toolchain.
     required: false
     default: "false"
+  cache-shared-key:
+    description: Shared rust-cache key used across backend jobs.
+    required: false
+    default: "backend-linux-src-tauri"
+  save-cache:
+    description: Whether this job should persist the shared Rust cache.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -22,7 +30,9 @@ runs:
       with:
         workspaces: packages/desktop/src-tauri -> target
         prefix-key: v2
+        shared-key: ${{ inputs.cache-shared-key }}
         cache-on-failure: "true"
+        save-if: ${{ inputs.save-cache == 'true' }}
 
     - name: Install system deps
       shell: bash

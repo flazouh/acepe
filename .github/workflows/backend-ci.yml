@@ -25,6 +25,8 @@ jobs:
       - uses: ./.github/actions/setup-backend-ci
         with:
           install-clippy: "false"
+          cache-shared-key: "backend-linux-src-tauri"
+          save-cache: "false"
 
       - name: Run cargo check
         working-directory: packages/desktop/src-tauri
@@ -40,6 +42,8 @@ jobs:
       - uses: ./.github/actions/setup-backend-ci
         with:
           install-clippy: "true"
+          cache-shared-key: "backend-linux-src-tauri"
+          save-cache: "false"
 
       - name: Run cargo clippy
         working-directory: packages/desktop/src-tauri
@@ -55,6 +59,8 @@ jobs:
       - uses: ./.github/actions/setup-backend-ci
         with:
           install-clippy: "false"
+          cache-shared-key: "backend-linux-src-tauri"
+          save-cache: "true"
 
       - name: Run cargo test
         working-directory: packages/desktop/src-tauri
