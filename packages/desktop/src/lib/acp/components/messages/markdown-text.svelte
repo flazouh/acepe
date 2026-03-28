@@ -103,7 +103,6 @@ $effect(() => {
 	if (result.needsAsync && !result.html && currentText !== lastAsyncText) {
 		lastAsyncText = currentText;
 		asyncPending = true;
-		asyncHtml = null;
 		asyncError = null;
 
 		renderMarkdown(currentText, currentRepoContext ?? undefined).match(
