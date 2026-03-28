@@ -26,10 +26,6 @@ jobs:
         with:
           install-clippy: "true"
 
-      - name: Run cargo check
-        working-directory: packages/desktop/src-tauri
-        run: cargo check --all-targets
-
       - name: Run cargo clippy
         working-directory: packages/desktop/src-tauri
         run: cargo clippy --all-targets -- -D warnings
