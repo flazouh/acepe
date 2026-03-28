@@ -19,6 +19,7 @@ cargo clippy       # Rust lint (in src-tauri/)
 - Use the compound engineering and test driven development skills.
 - **NEVER run `bun dev`** - user manages dev server
 - **NEVER run `git stash`** without explicit user consent - stashing can hide in-progress work
+- **When debugging, separate facts from inference** — do not present an inferred root cause as fact. Label hypotheses clearly and prefer instrumentation or observed state transitions before claiming causality.
 - **NEVER use try/catch** - use neverthrow `ResultAsync`
 - **NEVER use `any` or `unknown`** - use proper types or Zod for validation
 - **Make sure you run `bun run check`** if you make typescript changes.
