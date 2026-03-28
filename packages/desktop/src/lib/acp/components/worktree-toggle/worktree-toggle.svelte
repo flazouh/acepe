@@ -214,7 +214,7 @@ const tooltipText = $derived(
 const showDividers = $derived(props.variant !== "minimal");
 </script>
 
-<div class="flex items-center justify-between w-full h-full">
+<div class="flex items-center justify-between w-full h-full min-w-0">
 	<!-- Left: Worktree picker -->
 	<div class={cn("flex items-center h-full", showDividers && "border-r border-border/50")}>
 		<WorktreeToggleButton

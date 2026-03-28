@@ -205,7 +205,7 @@ function openCreateBranchDialog(): void {
 	>
 		{#snippet renderButton()}
 			<GitBranch class="size-3 shrink-0" weight="fill" style="color: {Colors.purple}" />
-			<span class="text-xs font-mono max-w-[9rem] truncate" title={currentBranch || "branch"}>
+			<span class="text-xs font-mono truncate" title={currentBranch || "branch"}>
 				{currentBranch || "branch"}
 			</span>
 			{#if diffStats}
