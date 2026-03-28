@@ -107,7 +107,7 @@ jobs:
           CHECK=$!
           cargo clippy --all-targets -- -D warnings 2>&1 | tail -20 &
           CLIPPY=$!
-          CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_CODEGEN_UNITS=256 cargo test --lib -- --skip claude_history::export_types 2>&1 &
+          CARGO_PROFILE_TEST_DEBUG=0 cargo test --lib -- --skip claude_history::export_types 2>&1 &
           TEST=$!
 
           FAIL=0
