@@ -5,6 +5,7 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
@@ -381,7 +382,7 @@ describe("InitializationManager", () => {
 				{ path: "/Users/alex/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
 			];
 
-			let storedSessions = [
+			let storedSessions: SessionCold[] = [
 				buildSession(
 					"session-1",
 					"claude-code",
