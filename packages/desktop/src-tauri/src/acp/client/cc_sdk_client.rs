@@ -24,6 +24,7 @@ use crate::acp::client_session::{
     apply_provider_model_fallback, AvailableModel, default_modes, default_session_model_state,
     SessionModelState,
 };
+use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::client_trait::AgentClient;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::model_display::get_transformer;
@@ -34,6 +35,7 @@ use crate::acp::session_update::{
     build_tool_call_update_from_raw, RawToolCallUpdateInput,
 };
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
+use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 
@@ -225,6 +227,8 @@ pub struct CcSdkClaudeClient {
     permission_bridge: Arc<PermissionBridge>,
     /// Tracks tool_name → tool_use_id from stream events for the permission handler.
     tool_call_tracker: Arc<ToolCallIdTracker>,
+    /// Reconciles task/sub-agent parent-child tool relationships for cc-sdk updates.
+    task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
     /// Handle for the streaming bridge task. Calling `.abort()` cancels it.
     bridge_task: Option<tauri::async_runtime::JoinHandle<()>>,
     /// Dispatcher for UI events.
@@ -250,6 +254,7 @@ impl CcSdkClaudeClient {
             session_id: None,
             permission_bridge: Arc::new(PermissionBridge::new()),
             tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             bridge_task: None,
             dispatcher,
             pending_options: None,
@@ -341,10 +346,13 @@ impl CcSdkClaudeClient {
         let dispatcher = self.dispatcher.clone();
         let bridge = self.permission_bridge.clone();
         let tracker = self.tool_call_tracker.clone();
+        let task_reconciler = self.task_reconciler.clone();
+        let provider = self.provider.clone();
         let sid = session_id.clone();
 
         let handle = tauri::async_runtime::spawn(async move {
-            run_streaming_bridge(stream, sid, dispatcher, bridge, tracker).await;
+            run_streaming_bridge(stream, sid, dispatcher, bridge, tracker, task_reconciler, provider)
+                .await;
         });
 
         self.bridge_task = Some(handle);
@@ -538,6 +546,8 @@ async fn run_streaming_bridge(
     dispatcher: AcpUiEventDispatcher,
     bridge: Arc<PermissionBridge>,
     tool_call_tracker: Arc<ToolCallIdTracker>,
+    task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
+    provider: Arc<dyn AgentProvider>,
 ) {
     tracing::info!(session_id = %session_id, "cc-sdk bridge: started, waiting for messages...");
     let mut message_count: u64 = 0;
@@ -613,12 +623,15 @@ async fn run_streaming_bridge(
                                                     session_id: Some(session_id.clone()),
                                                 },
                                             );
-                                            dispatcher.enqueue(AcpUiEvent::session_update(
+                                            dispatch_cc_sdk_update(
+                                                &dispatcher,
+                                                &task_reconciler,
+                                                provider.as_ref(),
                                                 SessionUpdate::ToolCallUpdate {
                                                     update,
                                                     session_id: Some(session_id.clone()),
                                                 },
-                                            ));
+                                            );
                                         }
                                     }
                                 }
@@ -711,14 +724,18 @@ async fn run_streaming_bridge(
                     "cc-sdk bridge: translated to session updates"
                 );
                 for update in updates {
-                    log_emitted_event(&session_id, &update);
                     if matches!(update, SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }) {
                         // Reset per-turn stream state but preserve model_id across turns
                         let preserved_model = turn_stream_state.model_id.clone();
                         turn_stream_state = crate::acp::parsers::cc_sdk_bridge::CcSdkTurnStreamState::default();
                         turn_stream_state.model_id = preserved_model;
                     }
-                    dispatcher.enqueue(AcpUiEvent::session_update(update));
+                    dispatch_cc_sdk_update(
+                        &dispatcher,
+                        &task_reconciler,
+                        provider.as_ref(),
+                        update,
+                    );
                 }
             }
             Err(e) => {
@@ -751,6 +768,35 @@ async fn run_streaming_bridge(
 
     // Deny any pending permission requests so callers are not left waiting.
     bridge.drain_all_as_denied().await;
+}
+
+fn collect_cc_sdk_updates_for_dispatch(
+    update: &SessionUpdate,
+    task_reconciler: &Arc<std::sync::Mutex<TaskReconciler>>,
+    agent_type: AgentType,
+    provider: Option<&dyn AgentProvider>,
+) -> Vec<SessionUpdate> {
+    process_through_reconciler(update, task_reconciler, agent_type, provider)
+}
+
+fn dispatch_cc_sdk_update(
+    dispatcher: &AcpUiEventDispatcher,
+    task_reconciler: &Arc<std::sync::Mutex<TaskReconciler>>,
+    provider: &dyn AgentProvider,
+    update: SessionUpdate,
+) {
+    let updates_to_emit = collect_cc_sdk_updates_for_dispatch(
+        &update,
+        task_reconciler,
+        provider.parser_agent_type(),
+        Some(provider),
+    );
+
+    for emitted_update in updates_to_emit {
+        let sid = emitted_update.session_id().unwrap_or("unknown").to_string();
+        log_emitted_event(&sid, &emitted_update);
+        dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -978,6 +1024,106 @@ impl AgentClient for CcSdkClaudeClient {
 mod tests {
     use super::*;
     use cc_sdk::CanUseTool;
+    use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
+
+    fn make_task_tool_call(id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: id.to_string(),
+                name: "Agent".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: serde_json::Value::Null,
+                },
+                status: ToolCallStatus::InProgress,
+                result: None,
+                kind: Some(ToolKind::Task),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn make_enriched_task_tool_call(id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: id.to_string(),
+                name: "Agent".to_string(),
+                arguments: ToolArguments::Think {
+                    description: Some("Find all tool call components".to_string()),
+                    prompt: Some("Inventory tool call cards in the codebase".to_string()),
+                    subagent_type: Some("Explore".to_string()),
+                    skill: None,
+                    skill_args: None,
+                    raw: Some(serde_json::json!({
+                        "description": "Find all tool call components",
+                        "prompt": "Inventory tool call cards in the codebase",
+                        "subagent_type": "Explore"
+                    })),
+                },
+                status: ToolCallStatus::InProgress,
+                result: None,
+                kind: Some(ToolKind::Task),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn make_child_tool_call(id: &str, name: &str, kind: ToolKind) -> SessionUpdate {
+        let arguments = match kind {
+            ToolKind::Execute => ToolArguments::Execute {
+                command: Some("ls -1".to_string()),
+            },
+            ToolKind::Glob => ToolArguments::Glob {
+                pattern: Some("**/*.svelte".to_string()),
+                path: Some("/tmp/project".to_string()),
+            },
+            ToolKind::Read => ToolArguments::Read {
+                file_path: Some("/tmp/project/file.svelte".to_string()),
+            },
+            _ => panic!("unsupported child kind in test"),
+        };
+
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: id.to_string(),
+                name: name.to_string(),
+                arguments,
+                status: ToolCallStatus::InProgress,
+                result: None,
+                kind: Some(kind),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
 
     fn make_test_client() -> CcSdkClaudeClient {
         CcSdkClaudeClient {
@@ -986,6 +1132,9 @@ mod tests {
             session_id: None,
             permission_bridge: Arc::new(PermissionBridge::new()),
             tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(
+                crate::acp::task_reconciler::TaskReconciler::new(),
+            )),
             bridge_task: None,
             dispatcher: AcpUiEventDispatcher::new(None, DispatchPolicy::default()),
             pending_options: None,
@@ -1246,6 +1395,307 @@ mod tests {
             other => panic!("expected json payload, got {:?}", other),
         };
         assert_eq!(payload["params"]["toolCall"]["toolCallId"], "cc-sdk-1");
+    }
+
+    #[test]
+    fn reconciles_cc_sdk_subagent_children_under_parent_task() {
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+
+        let parent_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_task_tool_call("toolu_task_parent"),
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+        let enriched_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_enriched_task_tool_call("toolu_task_parent"),
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+        let bash_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_child_tool_call("toolu_child_bash", "Bash", ToolKind::Execute),
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+        let glob_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_child_tool_call("toolu_child_glob", "Glob", ToolKind::Glob),
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+        let read_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_child_tool_call("toolu_child_read", "Read", ToolKind::Read),
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+
+        assert_eq!(parent_outputs.len(), 1);
+        assert_eq!(enriched_outputs.len(), 1);
+        assert_eq!(bash_outputs.len(), 1);
+        assert_eq!(glob_outputs.len(), 1);
+        assert_eq!(read_outputs.len(), 1);
+
+        let final_parent = read_outputs
+            .iter()
+            .find_map(|update| match update {
+                SessionUpdate::ToolCall { tool_call, .. } => Some(tool_call),
+                _ => None,
+            })
+            .expect("expected reconciled parent tool call");
+
+        let task_children = final_parent
+            .task_children
+            .as_ref()
+            .expect("expected task children on parent task");
+        assert_eq!(task_children.len(), 3);
+        assert_eq!(task_children[0].id, "toolu_child_bash");
+        assert_eq!(task_children[1].id, "toolu_child_glob");
+        assert_eq!(task_children[2].id, "toolu_child_read");
+
+        match &final_parent.arguments {
+            ToolArguments::Think {
+                description,
+                prompt,
+                subagent_type,
+                ..
+            } => {
+                assert_eq!(description.as_deref(), Some("Find all tool call components"));
+                assert_eq!(prompt.as_deref(), Some("Inventory tool call cards in the codebase"));
+                assert_eq!(subagent_type.as_deref(), Some("Explore"));
+            }
+            other => panic!("expected think arguments, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn passes_through_non_task_cc_sdk_tool_calls_without_task_children() {
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+
+        let outputs = collect_cc_sdk_updates_for_dispatch(
+            &SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "toolu_standalone_read".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file.rs".to_string()),
+                    },
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+            &task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+
+        assert_eq!(outputs.len(), 1);
+        let tool_call = match &outputs[0] {
+            SessionUpdate::ToolCall { tool_call, .. } => tool_call,
+            other => panic!("expected tool call output, got {:?}", other),
+        };
+        assert!(tool_call.task_children.is_none());
+        assert_eq!(tool_call.kind, Some(ToolKind::Read));
+    }
+
+    #[test]
+    fn dispatch_cc_sdk_update_emits_single_passthrough_event_for_non_task_tools() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+
+        dispatch_cc_sdk_update(
+            &dispatcher,
+            &task_reconciler,
+            &provider,
+            SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "toolu_single_emit".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file.rs".to_string()),
+                    },
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let captured = sink.lock().expect("sink lock");
+        assert_eq!(captured.len(), 1);
+        let event = &captured[0];
+        let update = match &event.payload {
+            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => update,
+            other => panic!("expected session update payload, got {:?}", other),
+        };
+        match update.as_ref() {
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                assert_eq!(tool_call.id, "toolu_single_emit");
+                assert!(tool_call.task_children.is_none());
+            }
+            other => panic!("expected tool call update, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn translated_cc_sdk_stream_sequence_emits_parent_with_task_children() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+        let mut turn_state = crate::acp::parsers::cc_sdk_bridge::CcSdkTurnStreamState::default();
+
+        let messages = vec![
+            cc_sdk::Message::StreamEvent {
+                uuid: "msg-parent-start".to_string(),
+                session_id: "session-1".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_task_parent",
+                        "name": "Agent",
+                        "input": {}
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            cc_sdk::Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                        id: "toolu_task_parent".to_string(),
+                        name: "Agent".to_string(),
+                        input: serde_json::json!({
+                            "description": "Find all tool call components",
+                            "prompt": "Inventory tool call cards in the codebase",
+                            "subagent_type": "Explore"
+                        }),
+                    })],
+                    model: Some("claude-opus-4-6".to_string()),
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            cc_sdk::Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                        id: "toolu_child_bash".to_string(),
+                        name: "Bash".to_string(),
+                        input: serde_json::json!({"command": "ls -1"}),
+                    })],
+                    model: Some("claude-haiku-4-5-20251001".to_string()),
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                },
+            },
+            cc_sdk::Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                        id: "toolu_child_read".to_string(),
+                        name: "Read".to_string(),
+                        input: serde_json::json!({"file_path": "/tmp/project/file.svelte"}),
+                    })],
+                    model: Some("claude-haiku-4-5-20251001".to_string()),
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                },
+            },
+        ];
+
+        for message in messages {
+            let updates = crate::acp::parsers::cc_sdk_bridge::translate_cc_sdk_message_with_turn_state(
+                message,
+                Some("session-1".to_string()),
+                turn_state.clone(),
+            );
+
+            for update in updates {
+                if matches!(update, SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }) {
+                    let preserved_model = turn_state.model_id.clone();
+                    turn_state = crate::acp::parsers::cc_sdk_bridge::CcSdkTurnStreamState::default();
+                    turn_state.model_id = preserved_model;
+                }
+                dispatch_cc_sdk_update(&dispatcher, &task_reconciler, &provider, update);
+            }
+        }
+
+        let captured = sink.lock().expect("sink lock");
+        let final_parent = captured
+            .iter()
+            .rev()
+            .find_map(|event| match &event.payload {
+                crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
+                    match update.as_ref() {
+                        SessionUpdate::ToolCall { tool_call, .. } if tool_call.id == "toolu_task_parent" => {
+                            Some(tool_call)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .expect("expected parent task in captured session updates");
+
+        let task_children = final_parent
+            .task_children
+            .as_ref()
+            .expect("expected task children on final parent task");
+        assert_eq!(task_children.len(), 2);
+        assert_eq!(task_children[0].id, "toolu_child_bash");
+        assert_eq!(task_children[1].id, "toolu_child_read");
+
+        match &final_parent.arguments {
+            ToolArguments::Think {
+                description,
+                prompt,
+                subagent_type,
+                ..
+            } => {
+                assert_eq!(description.as_deref(), Some("Find all tool call components"));
+                assert_eq!(prompt.as_deref(), Some("Inventory tool call cards in the codebase"));
+                assert_eq!(subagent_type.as_deref(), Some("Explore"));
+            }
+            other => panic!("expected think arguments, got {:?}", other),
+        }
     }
 
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn process_through_reconciler(
+pub(crate) fn process_through_reconciler(
     update: &SessionUpdate,
     reconciler: &StdArc<std::sync::Mutex<TaskReconciler>>,
     agent_type: AgentType,
