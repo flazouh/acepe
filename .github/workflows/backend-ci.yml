@@ -15,25 +15,8 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  check:
-    name: Backend Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: ./.github/actions/setup-backend-ci
-        with:
-          install-clippy: "false"
-          cache-shared-key: "backend-linux-src-tauri"
-          save-cache: "false"
-
-      - name: Run cargo check
-        working-directory: packages/desktop/src-tauri
-        run: cargo check --all-targets
-
-  clippy:
-    name: Backend Clippy
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,25 +25,14 @@ jobs:
       - uses: ./.github/actions/setup-backend-ci
         with:
           install-clippy: "true"
-          cache-shared-key: "backend-linux-src-tauri"
-          save-cache: "false"
+
+      - name: Run cargo check
+        working-directory: packages/desktop/src-tauri
+        run: cargo check --all-targets
 
       - name: Run cargo clippy
         working-directory: packages/desktop/src-tauri
         run: cargo clippy --all-targets -- -D warnings
-
-  test:
-    name: Backend Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: ./.github/actions/setup-backend-ci
-        with:
-          install-clippy: "false"
-          cache-shared-key: "backend-linux-src-tauri"
-          save-cache: "true"
 
       - name: Run cargo test
         working-directory: packages/desktop/src-tauri
