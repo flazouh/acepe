@@ -375,6 +375,101 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
 		});
 
+		it("does not clear a restored worktree session when history contains it", async () => {
+			mockProjectManager.projects = [
+				{ path: "/Users/alex/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
+			];
+
+			let currentPanels: TestPanel[] = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/Users/alex/Documents/acepe",
+					agentId: "claude-code",
+					sessionTitle: "Feature thread",
+					worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+				},
+			];
+
+			Object.defineProperty(mockPanelStore, "panels", {
+				configurable: true,
+				get: () => currentPanels,
+			});
+
+			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
+				currentPanels = currentPanels.map((panel) => {
+					if (panel.id === panelId) {
+						return {
+							id: panel.id,
+							kind: panel.kind,
+							ownerPanelId: panel.ownerPanelId,
+							sessionId,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sessionTitle: panel.sessionTitle,
+							sourcePath: panel.sourcePath,
+							worktreePath: panel.worktreePath,
+						};
+					}
+
+					return panel;
+				});
+			});
+
+			mockSessionStore.loadSessions = mock(() =>
+				okAsync([
+					{
+						id: "session-1",
+						projectPath: "/Users/alex/Documents/acepe",
+						agentId: "claude-code",
+						title: "Feature thread",
+						createdAt: new Date(),
+						updatedAt: new Date(),
+						parentId: null,
+						worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+					},
+				])
+			);
+
+			mockSessionStore.getSessionCold = mock((sessionId: string) => {
+				if (sessionId === "session-1") {
+					return {
+						id: "session-1",
+						projectPath: "/Users/alex/Documents/acepe",
+						agentId: "claude-code",
+						title: "Feature thread",
+						createdAt: new Date(),
+						updatedAt: new Date(),
+						parentId: null,
+						worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+					};
+				}
+
+				return undefined;
+			});
+
+			await manager.initialize();
+
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
+			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
+				"session-1",
+				"/Users/alex/Documents/acepe",
+				"claude-code",
+				undefined,
+				"/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+				"Feature thread"
+			);
+			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
+		});
+
 		it("should handle initialization errors", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
