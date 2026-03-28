@@ -49,6 +49,22 @@ export class PreconnectionAgentSkillsStore {
 			return okAsync(undefined);
 		}
 
+		return this.refresh();
+	}
+
+	ensureLoaded(): ResultAsync<void, AppError> {
+		if (this.loading || this.loaded) {
+			return okAsync(undefined);
+		}
+
+		return this.refresh();
+	}
+
+	refresh(): ResultAsync<void, AppError> {
+		if (this.loading) {
+			return okAsync(undefined);
+		}
+
 		this.loading = true;
 		this.error = null;
 

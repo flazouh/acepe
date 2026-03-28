@@ -14,11 +14,13 @@ let SessionConnectionManager: typeof import("./session-connection-manager.js").S
 
 const resumeSession = vi.fn();
 const newSession = vi.fn();
+const closeSession = vi.fn();
 const setModel = vi.fn();
 const stopStreaming = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
+		closeSession,
 		newSession,
 		resumeSession,
 		setModel,
@@ -813,5 +815,124 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 
 		expect(connectionManager.sendResponseComplete).not.toHaveBeenCalled();
 		expect(hotState.updateHotState).not.toHaveBeenCalled();
+	});
+});
+
+describe("SessionConnectionManager.disconnectSession", () => {
+	it("clears available commands when disconnecting a session", async () => {
+		const sessionId = "session-disconnect";
+		const stateReader: ISessionStateReader = {
+			getHotState: vi.fn(() => ({
+				isConnected: true,
+				status: "ready" as const,
+				turnState: "idle" as const,
+				acpSessionId: "acp-1",
+				connectionError: null,
+				currentModel: null,
+				currentMode: null,
+				availableCommands: [{ name: "open", description: "Open file" }],
+				modelPerMode: {},
+				statusChangedAt: Date.now(),
+			})),
+			getEntries: vi.fn(() => []),
+			isPreloaded: vi.fn(() => false),
+			getSessionsForProject: vi.fn(() => []),
+			getSessionCold: vi.fn(() => ({
+				id: sessionId,
+				projectPath: "/tmp/project",
+				agentId: "opencode",
+				title: "Test",
+				updatedAt: new Date(),
+				createdAt: new Date(),
+				parentId: null,
+			})),
+			getAllSessions: vi.fn(() => []),
+		};
+
+		const stateWriter: ISessionStateWriter = {
+			addSession: vi.fn(),
+			updateSession: vi.fn(),
+			removeSession: vi.fn(),
+			setSessions: vi.fn(),
+			setLoading: vi.fn(),
+			addScanningProjects: vi.fn(),
+			removeScanningProjects: vi.fn(),
+		};
+
+		const hotState: IHotStateManager = {
+			getHotState: vi.fn(),
+			hasHotState: vi.fn(),
+			updateHotState: vi.fn(),
+			removeHotState: vi.fn(),
+			initializeHotState: vi.fn(),
+		};
+
+		const capabilities: ICapabilitiesManager = {
+			getCapabilities: vi.fn(),
+			hasCapabilities: vi.fn(),
+			updateCapabilities: vi.fn(),
+			removeCapabilities: vi.fn(),
+		};
+
+		const entryManager: IEntryManager = {
+			getEntries: vi.fn(),
+			hasEntries: vi.fn(),
+			isPreloaded: vi.fn(),
+			markPreloaded: vi.fn(),
+			unmarkPreloaded: vi.fn(),
+			storeEntriesAndBuildIndex: vi.fn(),
+			addEntry: vi.fn(),
+			removeEntry: vi.fn(),
+			updateEntry: vi.fn(),
+			clearEntries: vi.fn(),
+			createToolCallEntry: vi.fn(),
+			updateToolCallEntry: vi.fn(),
+			updateChildInParent: vi.fn(),
+			aggregateAssistantChunk: vi.fn(),
+			clearStreamingAssistantEntry: vi.fn(),
+		};
+
+		const connectionManager: IConnectionManager = {
+			createOrGetMachine: vi.fn(),
+			getMachine: vi.fn(),
+			getState: vi.fn(),
+			removeMachine: vi.fn(),
+			isConnecting: vi.fn(),
+			setConnecting: vi.fn(),
+			sendContentLoad: vi.fn(),
+			sendContentLoaded: vi.fn(),
+			sendContentLoadError: vi.fn(),
+			sendConnectionConnect: vi.fn(),
+			sendConnectionSuccess: vi.fn(),
+			sendCapabilitiesLoaded: vi.fn(),
+			sendConnectionError: vi.fn(),
+			sendTurnFailed: vi.fn(),
+			sendDisconnect: vi.fn(),
+			sendMessageSent: vi.fn(),
+			sendResponseStarted: vi.fn(),
+			sendResponseComplete: vi.fn(),
+			initializeConnectedSession: vi.fn(),
+		};
+
+		closeSession.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		manager.disconnectSession(sessionId);
+
+		expect(hotState.updateHotState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				availableCommands: [],
+				isConnected: false,
+			})
+		);
 	});
 });

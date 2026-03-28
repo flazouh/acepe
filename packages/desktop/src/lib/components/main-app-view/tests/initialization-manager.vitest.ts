@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { errAsync, okAsync } from "neverthrow";
+import { errAsync, ok, okAsync } from "neverthrow";
 import { AgentError } from "../../../acp/errors/app-error";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -39,6 +39,18 @@ type TestPanel = {
 	sessionTitle: string;
 };
 
+function buildSession(id: string, agentId: string, projectPath: string, title: string) {
+	return {
+		id,
+		projectPath,
+		agentId,
+		title,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		parentId: null,
+	};
+}
+
 describe("InitializationManager", () => {
 	let mockState: MainAppViewState;
 	let mockSessionStore: SessionStore;
@@ -53,10 +65,13 @@ describe("InitializationManager", () => {
 
 	beforeEach(() => {
 		// Mock window for keybindings service
-		global.window = {
-			addEventListener: vi.fn(() => {}),
-			removeEventListener: vi.fn(() => {}),
-		} as unknown as Window & typeof globalThis;
+		Object.defineProperty(globalThis, "window", {
+			configurable: true,
+			value: {
+				addEventListener: vi.fn(() => {}),
+				removeEventListener: vi.fn(() => {}),
+			},
+		});
 
 		// Create mocks
 		mockState = {
@@ -66,33 +81,49 @@ describe("InitializationManager", () => {
 			initializationInProgress: false,
 			initializationComplete: false,
 			initializationError: null,
-		} as unknown as MainAppViewState;
+		} as MainAppViewState;
 
-		mockSessionStore = {
+		const sessionStoreMock: Partial<SessionStore> = {
 			initializeSessionUpdates: vi.fn(() => okAsync(undefined)),
 			loadSessions: vi.fn(() => okAsync([])),
 			loadStartupSessions: vi.fn(() => okAsync({ missing: [] })),
 			preloadSessions: vi.fn(() => okAsync({ loaded: [], missing: [] })),
-			loadSessionById: vi.fn(() => okAsync({ id: "session-1" })),
+			loadSessionById: vi.fn(() =>
+				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
+			),
 			isPreloaded: vi.fn(() => false),
-			connectSession: vi.fn(() => okAsync({})),
+			connectSession: vi.fn(() =>
+				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
+			),
 			scanSessions: vi.fn(() => okAsync(undefined)),
-			createSession: vi.fn(() => okAsync({ id: "session-1" })),
+			createSession: vi.fn((options) =>
+				okAsync(
+					buildSession(
+						"session-1",
+						options.agentId,
+						options.projectPath,
+						options.title ? options.title : "New Thread"
+					)
+				)
+			),
 			getSessionCold: vi.fn(() => undefined),
-		} as unknown as SessionStore;
+		};
+		mockSessionStore = sessionStoreMock as SessionStore;
 
-		mockAgentStore = {
+		const agentStoreMock: Partial<AgentStore> = {
 			loadAvailableAgents: vi.fn(() => okAsync([])),
-		} as unknown as AgentStore;
+		};
+		mockAgentStore = agentStoreMock as AgentStore;
 
-		mockPanelStore = {
+		const panelStoreMock: Partial<PanelStore> = {
 			panels: [],
 			updatePanelSession: vi.fn(() => {}),
 			closePanelBySessionId: vi.fn(() => {}),
 			clearPanels: vi.fn(() => {}),
-		} as unknown as PanelStore;
+		};
+		mockPanelStore = panelStoreMock as PanelStore;
 
-		mockWorkspaceStore = {
+		const workspaceStoreMock: Partial<WorkspaceStore> = {
 			load: vi.fn(() =>
 				okAsync({
 					version: 1,
@@ -103,31 +134,38 @@ describe("InitializationManager", () => {
 				})
 			),
 			restore: vi.fn(() => []),
-		} as unknown as WorkspaceStore;
+		};
+		mockWorkspaceStore = workspaceStoreMock as WorkspaceStore;
 
-		mockProjectManager = {
-			recentProjects: [],
+		const projectManagerMock: Partial<ProjectManager> = {
 			projects: [],
 			projectCount: 0,
 			loadProjects: vi.fn(() => okAsync(undefined)),
-		} as unknown as ProjectManager;
+		};
+		mockProjectManager = projectManagerMock as ProjectManager;
 
-		mockAgentPreferencesStore = {
+		const agentPreferencesStoreMock: Partial<AgentPreferencesStore> = {
 			initialize: vi.fn(() => okAsync(undefined)),
-		} as unknown as AgentPreferencesStore;
+		};
+		mockAgentPreferencesStore = agentPreferencesStoreMock as AgentPreferencesStore;
 
-		mockKeybindingsService = {
-			initialize: vi.fn(() => ({ isOk: () => true, isErr: () => false })),
+		const keybindingsServiceMock: Partial<KeybindingsService> = {
+			initialize: vi.fn(() => ok(undefined)),
 			upsertAction: vi.fn(() => {}),
-			install: vi.fn(() => {}),
+			install: vi.fn(() => ok(undefined)),
 			loadUserKeybindings: vi.fn(() => okAsync(undefined)),
-			reinstall: vi.fn(() => {}),
-			uninstall: vi.fn(() => {}),
-		} as unknown as KeybindingsService;
+			reinstall: vi.fn(() => ok(undefined)),
+			uninstall: vi.fn(() => ok(undefined)),
+		};
+		mockKeybindingsService = keybindingsServiceMock as KeybindingsService;
 
-		mockPreconnectionAgentSkillsStore = {
+		const preconnectionAgentSkillsStoreMock: Partial<PreconnectionAgentSkillsStore> = {
 			initialize: vi.fn(() => okAsync(undefined)),
-		} as unknown as PreconnectionAgentSkillsStore;
+			ensureLoaded: vi.fn(() => okAsync(undefined)),
+			refresh: vi.fn(() => okAsync(undefined)),
+		};
+		mockPreconnectionAgentSkillsStore =
+			preconnectionAgentSkillsStoreMock as PreconnectionAgentSkillsStore;
 
 		manager = new InitializationManager(
 			mockState,
@@ -190,7 +228,7 @@ describe("InitializationManager", () => {
 		it("continues startup when preconnection skills warming fails", async () => {
 			mockPreconnectionAgentSkillsStore.initialize = vi.fn(() =>
 				errAsync(new AgentError("skills_list_agent_skills", new Error("Failed")))
-			) as unknown as PreconnectionAgentSkillsStore["initialize"];
+			) as PreconnectionAgentSkillsStore["initialize"];
 
 			const result = await manager.initialize();
 
@@ -235,7 +273,20 @@ describe("InitializationManager", () => {
 			});
 			mockPanelStore.updatePanelSession = vi.fn((panelId: string, sessionId: string | null) => {
 				currentPanels = currentPanels.map((panel) =>
-					panel.id === panelId ? { ...panel, sessionId } : panel
+					panel.id === panelId
+						? {
+							id: panel.id,
+							kind: panel.kind,
+							ownerPanelId: panel.ownerPanelId,
+							sessionId,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sessionTitle: panel.sessionTitle,
+						}
+						: panel
 				);
 			});
 			await manager.initialize();

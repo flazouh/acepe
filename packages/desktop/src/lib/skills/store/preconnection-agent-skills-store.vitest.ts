@@ -140,4 +140,42 @@ describe("PreconnectionAgentSkillsStore", () => {
 			},
 		]);
 	});
+
+	it("ensureLoaded retries after a failed startup warmup", async () => {
+		const mockedListAgentSkills = vi.mocked(skillsApi.listAgentSkills);
+		mockedListAgentSkills
+			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
+			.mockReturnValueOnce(
+				okAsync([
+					{
+						agentId: "claude-code",
+						skills: [
+							{
+								id: "claude-code::ce-review",
+								agentId: "claude-code",
+								folderName: "ce-review",
+								path: "/tmp/ce-review/SKILL.md",
+								name: "ce:review",
+								description: "Review changes",
+								content: "",
+								modifiedAt: 1,
+							},
+						],
+					},
+				])
+			);
+
+		const store = new PreconnectionAgentSkillsStore();
+		const firstResult = await store.initialize();
+		const secondResult = await store.ensureLoaded();
+
+		expect(firstResult.isErr()).toBe(true);
+		expect(secondResult.isOk()).toBe(true);
+		expect(store.getCommandsForAgent("claude-code")).toEqual([
+			{
+				name: "ce:review",
+				description: "Review changes",
+			},
+		]);
+	});
 });

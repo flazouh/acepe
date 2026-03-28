@@ -31,11 +31,11 @@ function createState(options?: {
 	const workspaceStore = {
 		registerProviders: vi.fn(),
 		persist: vi.fn(),
-	} as unknown as WorkspaceStore;
+	} as Partial<WorkspaceStore>;
 
 	const keybindingsService = {
 		upsertAction: vi.fn(),
-	} as unknown as KeybindingsService;
+	} as Partial<KeybindingsService>;
 
 	const panelStore = {
 		fullscreenPanelId: null,
@@ -46,28 +46,36 @@ function createState(options?: {
 		focusedViewProjectPath: options?.focusedViewProjectPath ? options.focusedViewProjectPath : null,
 		focusedPanelId: null,
 		viewMode: "project",
-	} as unknown as PanelStore;
+	} as Partial<PanelStore>;
 
 	const projectManager = {
 		projects: options?.projects ? options.projects : [],
 		projectCount: options?.projects ? options.projects.length : 0,
-	} as unknown as ProjectManager;
+	} as Partial<ProjectManager>;
+
+	const selectorRegistry = {
+		toggleFocused: vi.fn(),
+		cycleFocused: vi.fn(),
+	} as Partial<SelectorRegistry>;
+
+	const preconnectionAgentSkillsStore = {
+		initialize: vi.fn(),
+		ensureLoaded: vi.fn(),
+		refresh: vi.fn(),
+	} as Partial<PreconnectionAgentSkillsStore>;
 
 	const state = new MainAppViewState(
 		{} as SessionStore,
-		panelStore,
+		panelStore as PanelStore,
 		{} as AgentStore,
 		{} as ConnectionStore,
-		workspaceStore,
-		projectManager,
+		workspaceStore as WorkspaceStore,
+		projectManager as ProjectManager,
 		{} as AgentPreferencesStore,
-		keybindingsService,
-		{
-			toggleFocused: vi.fn(),
-			cycleFocused: vi.fn(),
-		} as unknown as SelectorRegistry,
+		keybindingsService as KeybindingsService,
+		selectorRegistry as SelectorRegistry,
 		{} as WorktreeDefaultStore,
-		{} as PreconnectionAgentSkillsStore
+		preconnectionAgentSkillsStore as PreconnectionAgentSkillsStore
 	);
 
 	return { state, workspaceStore, panelStore, projectManager };

@@ -12,7 +12,7 @@ export function resolveSlashCommandSource(input: {
 	selectedAgentId: string | null;
 	preconnectionCommands: ReadonlyArray<AvailableCommand>;
 }): SlashCommandSource {
-	if (input.liveCommands.length > 0) {
+	if (input.hasConnectedSession && input.liveCommands.length > 0) {
 		return {
 			source: "live",
 			commands: Array.from(input.liveCommands),

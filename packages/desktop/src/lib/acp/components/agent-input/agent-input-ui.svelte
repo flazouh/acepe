@@ -496,6 +496,15 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
 
+			if (
+				capabilitiesAgentId &&
+				sessionRuntimeState?.connectionPhase !== "connected" &&
+				!preconnectionAgentSkillsStore.loaded &&
+				!preconnectionAgentSkillsStore.loading
+			) {
+				preconnectionAgentSkillsStore.ensureLoaded().mapErr(() => undefined);
+			}
+
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
 				const currentSlashCommandSource = slashCommandSource;
@@ -1428,7 +1437,7 @@ async function handleCancel() {
 	ondragover={(e) => inputState.handleDragOver(e)}
 	ondragleave={(e) => {
 		// Only trigger leave if we're leaving the container entirely
-		const relatedTarget = e.relatedTarget as Node | null;
+		const relatedTarget = e.relatedTarget;
 		if (!e.currentTarget.contains(relatedTarget)) {
 			inputState.handleDragLeave();
 		}

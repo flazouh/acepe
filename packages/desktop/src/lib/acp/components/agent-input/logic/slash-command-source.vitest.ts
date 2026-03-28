@@ -17,6 +17,21 @@ describe("resolveSlashCommandSource", () => {
 		});
 	});
 
+	it("ignores stale live commands before connection and uses preconnection skills", () => {
+		const source = resolveSlashCommandSource({
+			liveCommands: [{ name: "review", description: "Review code" }],
+			hasConnectedSession: false,
+			selectedAgentId: "claude-code",
+			preconnectionCommands: [{ name: "ce:brainstorm", description: "Brainstorm" }],
+		});
+
+		expect(source).toEqual({
+			source: "preconnection",
+			commands: [{ name: "ce:brainstorm", description: "Brainstorm" }],
+			tokenType: "skill",
+		});
+	});
+
 	it("uses preconnection commands when live commands are absent", () => {
 		const source = resolveSlashCommandSource({
 			liveCommands: [],
