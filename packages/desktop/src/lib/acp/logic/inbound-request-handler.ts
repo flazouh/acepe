@@ -37,6 +37,10 @@ const logger = createLogger({
 	name: "Inbound Request Handler",
 });
 
+function buildPermissionRequestId(toolCallId: string, jsonRpcRequestId: number): string {
+	return `${toolCallId}::${jsonRpcRequestId}`;
+}
+
 /**
  * Callback type for permission request events.
  */
@@ -70,12 +74,12 @@ export class InboundRequestHandler {
 		if (this.unlistenFn !== null) {
 			logger.debug("Inbound request handler already running, skipping duplicate start");
 			this.onPermissionRequest = onPermissionRequest;
-			this.onQuestionRequest = onQuestionRequest ?? null;
+			this.onQuestionRequest = onQuestionRequest !== undefined ? onQuestionRequest : null;
 			return okAsync(undefined);
 		}
 
 		this.onPermissionRequest = onPermissionRequest;
-		this.onQuestionRequest = onQuestionRequest ?? null;
+		this.onQuestionRequest = onQuestionRequest !== undefined ? onQuestionRequest : null;
 
 		return openAcpEventSource((envelope) => {
 			if (envelope.eventName !== "acp-inbound-request") {
@@ -166,7 +170,7 @@ export class InboundRequestHandler {
 
 		// Upstream v0.18+: AskUserQuestion goes through canUseTool → requestPermission
 		// without _meta.askUserQuestion. Detect by tool name and extract questions from rawInput.
-		const toolName = params.toolCall.name ?? params.toolCall.title;
+		const toolName = params.toolCall.name !== undefined ? params.toolCall.name : params.toolCall.title;
 		const rawInputResult = RawInputWithQuestionsSchema.safeParse(params.toolCall.rawInput);
 		if (toolName === "AskUserQuestion" && rawInputResult.success && this.onQuestionRequest) {
 			this.handleQuestionRequest(request, params, {
@@ -175,12 +179,16 @@ export class InboundRequestHandler {
 			return;
 		}
 
-		// Create a permission request with the JSON-RPC request ID
+		// Create a permission request with a stable request identity.
 		const permission: PermissionRequest = {
-			id: params.toolCall.toolCallId,
+			id: buildPermissionRequestId(params.toolCall.toolCallId, request.id),
 			sessionId: params.sessionId,
 			jsonRpcRequestId: request.id,
-			permission: params.toolCall.title || params.toolCall.name || "Execute tool",
+			permission: params.toolCall.title
+				? params.toolCall.title
+				: params.toolCall.name
+					? params.toolCall.name
+					: "Execute tool",
 			patterns: [],
 			metadata: {
 				rawInput: params.toolCall.rawInput,
@@ -223,12 +231,14 @@ export class InboundRequestHandler {
 			jsonRpcRequestId: request.id,
 			questions: questionData.questions.map((q) => ({
 				question: q.question,
-				header: q.header ?? "",
-				options: (q.options ?? []).map((opt) => ({
-					label: opt.label,
-					description: opt.description ?? "",
-				})),
-				multiSelect: q.multiSelect ?? false,
+				header: q.header !== undefined ? q.header : "",
+				options: q.options !== undefined
+					? q.options.map((opt) => ({
+						label: opt.label,
+						description: opt.description !== undefined ? opt.description : "",
+					}))
+					: [],
+				multiSelect: q.multiSelect !== undefined ? q.multiSelect : false,
 			})),
 			tool: {
 				messageID: "",

@@ -79,7 +79,7 @@ describe("PermissionStore", () => {
 
 		it("should add permission with jsonRpcRequestId", () => {
 			const permission: PermissionRequest = {
-				id: "perm-2",
+				id: "perm-2::123",
 				sessionId: "session-2",
 				jsonRpcRequestId: 123,
 				permission: "Bash",
@@ -95,7 +95,7 @@ describe("PermissionStore", () => {
 
 		it("should keep multiple ACP permissions for the same tool call", () => {
 			store.add({
-				id: "tool-1",
+				id: "tool-1::100",
 				sessionId: "session-1",
 				jsonRpcRequestId: 100,
 				permission: "Execute",
@@ -105,7 +105,7 @@ describe("PermissionStore", () => {
 				tool: { messageID: "", callID: "tool-1" },
 			});
 			store.add({
-				id: "tool-1",
+				id: "tool-1::101",
 				sessionId: "session-1",
 				jsonRpcRequestId: 101,
 				permission: "Execute",
@@ -122,7 +122,7 @@ describe("PermissionStore", () => {
 
 		it("should resolve permission by tool call id", () => {
 			store.add({
-				id: "tool-1",
+				id: "tool-1::100",
 				sessionId: "session-1",
 				jsonRpcRequestId: 100,
 				permission: "Execute",
@@ -132,7 +132,7 @@ describe("PermissionStore", () => {
 				tool: { messageID: "", callID: "tool-1" },
 			});
 			store.add({
-				id: "tool-1",
+				id: "tool-1::101",
 				sessionId: "session-1",
 				jsonRpcRequestId: 101,
 				permission: "Execute",
@@ -145,6 +145,7 @@ describe("PermissionStore", () => {
 			const permission = store.getForToolCall("tool-1");
 
 			expect(permission?.jsonRpcRequestId).toBe(101);
+			expect(permission?.id).toBe("tool-1::101");
 		});
 	});
 
@@ -243,7 +244,7 @@ describe("PermissionStore", () => {
 			store.setAutoAccept((p) => p.sessionId === "child-session");
 
 			const permission: PermissionRequest = {
-				id: "perm-child",
+				id: "perm-child::200",
 				sessionId: "child-session",
 				jsonRpcRequestId: 200,
 				permission: "Bash",
@@ -282,7 +283,7 @@ describe("PermissionStore", () => {
 			store.setAutoAccept(() => true);
 
 			const permission: PermissionRequest = {
-				id: "perm-opts",
+				id: "perm-opts::300",
 				sessionId: "child-session",
 				jsonRpcRequestId: 300,
 				permission: "Bash",
@@ -344,7 +345,7 @@ describe("PermissionStore", () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
 			const permission: PermissionRequest = {
-				id: "perm-jsonrpc",
+				id: "perm-jsonrpc::456",
 				sessionId: "session-jsonrpc",
 				jsonRpcRequestId: 456,
 				permission: "Bash",
@@ -365,7 +366,7 @@ describe("PermissionStore", () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
 			const permission: PermissionRequest = {
-				id: "perm-always",
+				id: "perm-always::789",
 				sessionId: "session-always",
 				jsonRpcRequestId: 789,
 				permission: "Bash",
@@ -384,7 +385,7 @@ describe("PermissionStore", () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
 			const permission: PermissionRequest = {
-				id: "perm-reject",
+				id: "perm-reject::101",
 				sessionId: "session-reject",
 				jsonRpcRequestId: 101,
 				permission: "Bash",

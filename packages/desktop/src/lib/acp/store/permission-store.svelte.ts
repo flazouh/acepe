@@ -39,13 +39,6 @@ export class PermissionStore {
 		};
 	}
 
-	private buildStorageKey(permission: PermissionRequest): string {
-		if (permission.jsonRpcRequestId !== undefined) {
-			return `${permission.id}::${permission.jsonRpcRequestId}`;
-		}
-		return permission.id;
-	}
-
 	/**
 	 * Add a pending permission request.
 	 *
@@ -53,19 +46,15 @@ export class PermissionStore {
 	 * when an `isChildSession` check is configured via `setChildSessionCheck()`.
 	 */
 	add(permission: PermissionRequest): void {
-		const storageKey = this.buildStorageKey(permission);
-		const normalized: PermissionRequest =
-			storageKey === permission.id ? permission : { ...permission, id: storageKey };
-
-		this.pending.set(storageKey, normalized);
+		this.pending.set(permission.id, permission);
 
 		if (this.shouldAutoAccept?.(permission)) {
 			logger.info("Auto-accepting permission", {
-				permissionId: normalized.id,
+				permissionId: permission.id,
 				sessionId: permission.sessionId,
 				tool: permission.permission,
 			});
-			void this.reply(storageKey, "once").match(
+			void this.reply(permission.id, "once").match(
 				() => {},
 				(err) => logger.error("Failed to auto-accept permission", { error: err })
 			);
@@ -73,9 +62,9 @@ export class PermissionStore {
 		}
 
 		logger.debug("Permission request added", {
-			permissionId: normalized.id,
-			toolCallId: normalized.tool?.callID,
-			jsonRpcRequestId: normalized.jsonRpcRequestId,
+			permissionId: permission.id,
+			toolCallId: permission.tool?.callID,
+			jsonRpcRequestId: permission.jsonRpcRequestId,
 		});
 	}
 
@@ -85,7 +74,7 @@ export class PermissionStore {
 	getForToolCall(toolCallId: string): PermissionRequest | undefined {
 		let latest: PermissionRequest | undefined;
 		for (const permission of this.pending.values()) {
-			const permissionToolCallId = permission.tool?.callID ?? permission.id;
+			const permissionToolCallId = permission.tool ? permission.tool.callID : permission.id;
 			if (permissionToolCallId === toolCallId) {
 				latest = permission;
 			}

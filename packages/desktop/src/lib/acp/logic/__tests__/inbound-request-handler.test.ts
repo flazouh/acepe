@@ -111,11 +111,15 @@ describe("InboundRequestHandler", () => {
 
 			expect(permissionCallback).toHaveBeenCalledTimes(1);
 			const permission: PermissionRequest = permissionCallback.mock.calls[0][0];
-			expect(permission.id).toBe("tool-123");
+			expect(permission.id).toBe("tool-123::123");
 			expect(permission.sessionId).toBe("test-session");
 			expect(permission.jsonRpcRequestId).toBe(123);
 			expect(permission.permission).toBe("Run tests");
 			expect(permission.always).toEqual(["allow_always"]);
+			expect(permission.tool).toEqual({
+				messageID: "",
+				callID: "tool-123",
+			});
 		});
 
 		it("should reject request without id", async () => {
@@ -330,6 +334,52 @@ describe("InboundRequestHandler", () => {
 			expect(question.questions).toHaveLength(1);
 			expect(question.questions[0].question).toBe("Which framework do you prefer?");
 			expect(question.questions[0].header).toBe("Framework");
+			expect(question.questions[0].options).toHaveLength(2);
+			expect(question.questions[0].multiSelect).toBe(false);
+		});
+
+		it("should route upstream AskUserQuestion requests without _meta to question callback", async () => {
+			await handler.start(permissionCallback, questionCallback);
+
+			const request = {
+				id: 7,
+				jsonrpc: "2.0",
+				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
+				params: {
+					sessionId: "session-7",
+					options: [{ kind: "allow", name: "Continue", optionId: "continue" }],
+					toolCall: {
+						toolCallId: "tc-question-7",
+						name: "AskUserQuestion",
+						rawInput: {
+							questions: [
+								{
+									question: "Which runtime should we use?",
+									header: "Runtime",
+									options: [
+										{ label: "Bun", description: "Fast runtime" },
+										{ label: "Node", description: "Broad compatibility" },
+									],
+									multiSelect: false,
+								},
+							],
+						},
+					},
+				},
+			};
+
+			eventCallback?.({ payload: request });
+
+			expect(questionCallback).toHaveBeenCalledTimes(1);
+			expect(permissionCallback).not.toHaveBeenCalled();
+
+			const question: QuestionRequest = questionCallback.mock.calls[0][0];
+			expect(question.id).toBe("tc-question-7");
+			expect(question.sessionId).toBe("session-7");
+			expect(question.jsonRpcRequestId).toBe(7);
+			expect(question.questions).toHaveLength(1);
+			expect(question.questions[0].question).toBe("Which runtime should we use?");
+			expect(question.questions[0].header).toBe("Runtime");
 			expect(question.questions[0].options).toHaveLength(2);
 			expect(question.questions[0].multiSelect).toBe(false);
 		});

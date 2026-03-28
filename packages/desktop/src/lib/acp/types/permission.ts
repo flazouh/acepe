@@ -5,7 +5,11 @@
  */
 export interface PermissionRequest {
 	/**
-	 * Unique identifier for this permission request.
+	 * Unique identifier for this pending permission request.
+	 *
+	 * This is the canonical request identity used by the UI and stores.
+	 * For ACP requests it is distinct from both the tool-call anchor and the
+	 * JSON-RPC transport request ID.
 	 */
 	id: string;
 
@@ -16,7 +20,7 @@ export interface PermissionRequest {
 
 	/**
 	 * The JSON-RPC request ID for this permission request.
-	 * Used to send the response back to the ACP subprocess.
+	 * Used only to route the response back to the ACP subprocess.
 	 * Only present for ACP mode (not OpenCode HTTP mode).
 	 */
 	jsonRpcRequestId?: number;
@@ -43,6 +47,9 @@ export interface PermissionRequest {
 
 	/**
 	 * Optional reference to the tool call that triggered this permission.
+	 *
+	 * `callID` is the stable tool-row anchor used to attach this permission to
+	 * the originating tool call in the UI.
 	 */
 	tool?: {
 		messageID: string;
