@@ -63,6 +63,10 @@ function unwrapResultAsync<T>(result: ResultAsync<T, Error>): Promise<T> {
 	);
 }
 
+function toAgentResult<T>(operation: string, result: ResultAsync<T, Error>): ResultAsync<T, Error> {
+	return result.mapErr(() => new Error(`Agent operation failed: ${operation}`));
+}
+
 async function flushAsync(times = 20): Promise<void> {
 	for (let index = 0; index < times; index += 1) {
 		await Promise.resolve();
@@ -113,6 +117,24 @@ describe("VoiceInputState", () => {
 		mock.module("runed", () => ({}));
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,
+		}));
+		mock.module("$lib/utils/tauri-client.js", () => ({
+			tauriClient: {
+				voice: {
+					cancelRecording: (sessionId: string) =>
+						toAgentResult("voice_cancel_recording", cancelRecordingMock(sessionId)),
+					getModelStatus: (modelId: string) =>
+						toAgentResult("voice_get_model_status", getModelStatusMock(modelId)),
+					startRecording: (sessionId: string) =>
+						toAgentResult("voice_start_recording", startRecordingMock(sessionId)),
+					loadModel: (modelId: string) =>
+						toAgentResult("voice_load_model", loadModelMock(modelId)),
+					downloadModel: (modelId: string) =>
+						toAgentResult("voice_download_model", downloadModelMock(modelId)),
+					stopRecording: (sessionId: string, language: string | null) =>
+						toAgentResult("voice_stop_recording", stopRecordingMock(sessionId, language)),
+				},
+			},
 		}));
 
 		const invokeMock = vi.fn((cmd: string, args?: Record<string, unknown>) => {
