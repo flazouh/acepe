@@ -9,7 +9,7 @@ describe("voice-ui-state", () => {
 	];
 
 	const CANCELLABLE_PHASES: VoiceInputPhase[] = [
-		"checking_permission", "downloading_model", "loading_model", "recording", "transcribing",
+		"checking_permission", "downloading_model", "loading_model", "recording",
 	];
 
 	const OVERLAY_PHASES: VoiceInputPhase[] = [

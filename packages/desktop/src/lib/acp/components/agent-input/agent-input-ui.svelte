@@ -76,6 +76,7 @@ import {
 } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 import { shouldStartVoiceHold, shouldStopVoiceHold } from "./logic/voice-keyboard.js";
+import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
 
@@ -95,6 +96,9 @@ const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId
 const inputState = new AgentInputState(sessionStore, panelStore, () => props.projectPath ?? null);
 
 let voiceState: VoiceInputState | null = $state(null);
+let voiceStateSessionId: string | null = $state(null);
+let voiceStatePendingSessionId: string | null = $state(null);
+let voiceStateInitGeneration = 0;
 const voiceEnabled = $derived(voiceSettingsStore.enabled);
 const voiceOverlayActive = $derived.by(() => {
 	const currentVoiceState = voiceState;
@@ -536,8 +540,12 @@ async function initializeVoiceState(): Promise<void> {
 		return;
 	}
 
+	const targetSessionId = effectiveVoiceSessionId;
+	const generation = ++voiceStateInitGeneration;
+	voiceStatePendingSessionId = targetSessionId;
+
 	const nextVoiceState = new VoiceInputState({
-		sessionId: effectiveVoiceSessionId,
+		sessionId: targetSessionId,
 		getSelectedLanguage: () => voiceSettingsStore.language,
 		getSelectedModelId: () => voiceSettingsStore.selectedModelId,
 		onTranscriptionReady: (text) => {
@@ -556,10 +564,53 @@ async function initializeVoiceState(): Promise<void> {
 	});
 
 	await nextVoiceState.registerListeners();
+	if (
+		generation !== voiceStateInitGeneration ||
+		!voiceEnabled ||
+		effectiveVoiceSessionId !== targetSessionId
+	) {
+		nextVoiceState.dispose();
+		if (generation === voiceStateInitGeneration) {
+			voiceStatePendingSessionId = null;
+		}
+		return;
+	}
+
 	voiceState = nextVoiceState;
+	voiceStateSessionId = targetSessionId;
+	voiceStatePendingSessionId = null;
 }
 
-// Initialize on mount (file preloading is now handled reactively by state class)
+function disposeVoiceState(): void {
+	voiceStateInitGeneration += 1;
+	voiceStatePendingSessionId = null;
+	voiceStateSessionId = null;
+	voiceState?.dispose();
+	voiceState = null;
+}
+
+$effect(() => {
+	const currentManagedSessionId =
+		voiceStatePendingSessionId !== null ? voiceStatePendingSessionId : voiceStateSessionId;
+	const lifecycle = resolveVoiceStateLifecycle(
+		currentManagedSessionId,
+		effectiveVoiceSessionId,
+		voiceEnabled,
+	);
+
+	if (lifecycle === "noop") {
+		return;
+	}
+
+	if (lifecycle === "dispose" || lifecycle === "replace") {
+		disposeVoiceState();
+	}
+
+	if ((lifecycle === "init" || lifecycle === "replace") && effectiveVoiceSessionId) {
+		void initializeVoiceState();
+	}
+});
+
 onMount(() => {
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
@@ -580,7 +631,6 @@ onMount(() => {
 	window.addEventListener("keyup", handleWindowKeyUp);
 
 	inputState.initialize();
-	void initializeVoiceState();
 	// Restore initial draft from PanelStore if panelId is provided
 	if (props.panelId) {
 		const draft = panelStore.getMessageDraft(props.panelId);
@@ -633,7 +683,7 @@ onMount(() => {
 
 // Cleanup on destroy — flush any pending draft before teardown
 onDestroy(() => {
-	voiceState?.dispose();
+	disposeVoiceState();
 	kb.setContext("inputFocused", false);
 	logger.info("[first-send-trace] agent input destroy", {
 		panelId: props.panelId ?? null,

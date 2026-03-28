@@ -5,8 +5,7 @@ export function canCancelVoiceInteraction(phase: VoiceInputPhase): boolean {
 		phase === "checking_permission" ||
 		phase === "downloading_model" ||
 		phase === "loading_model" ||
-		phase === "recording" ||
-		phase === "transcribing"
+		phase === "recording"
 	);
 }
 

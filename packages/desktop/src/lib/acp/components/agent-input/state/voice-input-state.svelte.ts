@@ -81,6 +81,7 @@ export class VoiceInputState {
 	private errorResetTimer: ReturnType<typeof setTimeout> | null = null;
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | null = null;
 	private transcribingWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+	private activeDownloadModelId: string | null = null;
 
 	private readonly sessionId: string;
 	private readonly onTranscriptionReady: ((text: string) => void) | null;
@@ -158,6 +159,15 @@ export class VoiceInputState {
 			}),
 			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
 				if (this.isDisposed) return;
+				if (this.phase !== "downloading_model") return;
+				if (this.activeDownloadModelId === null) return;
+				if (event.payload.model_id !== this.activeDownloadModelId) {
+					log("download_progress: ignored (model_id mismatch)", {
+						expected: this.activeDownloadModelId,
+						got: event.payload.model_id,
+					});
+					return;
+				}
 				const prevPercent = this.downloadPercent;
 				this.downloadPercent = event.payload.percent;
 				// Log at 0%, 25%, 50%, 75%, 100% to avoid spam
@@ -194,6 +204,7 @@ export class VoiceInputState {
 			clearTimeout(this.errorResetTimer);
 			this.errorResetTimer = null;
 		}
+		this.activeDownloadModelId = null;
 		// Best-effort cancel if in-flight
 		if (canCancelVoiceInteraction(this.phase)) {
 			log("dispose: cancelling in-flight recording");
@@ -240,10 +251,19 @@ export class VoiceInputState {
 			this.isPressAndHold = false;
 			return;
 		}
-		if (this.isPressAndHold && this.phase === "recording") {
+		if (!this.isPressAndHold) {
+			return;
+		}
+		this.isPressAndHold = false;
+		if (this.phase === "recording") {
 			log("keyboard press-and-hold release: stopping recording");
 			playSound(SoundEffect.SoundDown);
 			this.stopRecording();
+			return;
+		}
+		if (canCancelVoiceInteraction(this.phase)) {
+			log("keyboard press-and-hold release: cancelling startup");
+			this.cancelRecording();
 		}
 	}
 
@@ -276,9 +296,14 @@ export class VoiceInputState {
 			}
 		} else if (this.isPressAndHold && this.phase === "recording") {
 			// Released after threshold → end hold
+			this.isPressAndHold = false;
 			log("press-and-hold release: stopping recording");
 			playSound(SoundEffect.SoundDown);
 			this.stopRecording();
+		} else if (this.isPressAndHold && canCancelVoiceInteraction(this.phase)) {
+			this.isPressAndHold = false;
+			log("press-and-hold release: cancelling startup");
+			this.cancelRecording();
 		} else if (this.phase === "recording") {
 			// Click-to-toggle stop: pointerdown was ignored while recording, so stop on release.
 			log("click-to-toggle: stopping recording");
@@ -291,11 +316,9 @@ export class VoiceInputState {
 	onMicPointerCancel(): void {
 		log("onMicPointerCancel", { phase: this.phase });
 		this.clearPressTimer();
-		if (this.phase === "recording") {
-			tauriClient.voice.cancelRecording(this.sessionId);
-			this.waveform.reset();
-			this.transitionTo("cancelled");
-			this.transitionTo("idle");
+		this.isPressAndHold = false;
+		if (canCancelVoiceInteraction(this.phase)) {
+			this.cancelRecording();
 		}
 	}
 
@@ -340,6 +363,9 @@ export class VoiceInputState {
 		tauriClient.voice.cancelRecording(this.sessionId);
 		this.waveform.reset();
 		this.isLoadingModel = false;
+		this.isPressAndHold = false;
+		this.activeDownloadModelId = null;
+		this.downloadPercent = 0;
 		this.transitionTo("cancelled");
 		this.transitionTo("idle");
 	}
@@ -373,11 +399,14 @@ export class VoiceInputState {
 				}
 				if (!modelInfo.is_downloaded) {
 					this.transitionTo("downloading_model");
+					this.activeDownloadModelId = selectedModelId;
 					this.downloadPercent = 0;
 					log("calling tauriClient.voice.downloadModel", { modelId: selectedModelId });
 					tauriClient.voice.downloadModel(selectedModelId).match(
 						() => {
 							log("downloadModel: success");
+							this.activeDownloadModelId = null;
+							this.downloadPercent = 100;
 							if (!this.shouldContinueFromPhase("downloading_model", "downloadModel")) {
 								return;
 							}
@@ -385,6 +414,7 @@ export class VoiceInputState {
 						},
 					(err: AppError) => {
 						log("downloadModel: FAILED", { error: err.message });
+						this.activeDownloadModelId = null;
 						this.setError(err.message ?? m.voice_error_download_failed());
 					},
 					);
