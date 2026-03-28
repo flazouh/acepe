@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errAsync, okAsync } from "neverthrow";
-import { AgentError } from "$lib/acp/errors/app-error.js";
+import { AgentError } from "../../../acp/errors/app-error";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
@@ -8,9 +8,9 @@ import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
+import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
-// Mock the zoom service module to avoid $state runtime issues
-mock.module("$lib/services/zoom.svelte.js", () => ({
+vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		initialize: () => okAsync(undefined),
 		zoomIn: () => okAsync(undefined),
@@ -48,13 +48,14 @@ describe("InitializationManager", () => {
 	let mockProjectManager: ProjectManager;
 	let mockAgentPreferencesStore: AgentPreferencesStore;
 	let mockKeybindingsService: KeybindingsService;
+	let mockPreconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
 	let manager: InitializationManager;
 
 	beforeEach(() => {
 		// Mock window for keybindings service
 		global.window = {
-			addEventListener: mock(() => {}),
-			removeEventListener: mock(() => {}),
+			addEventListener: vi.fn(() => {}),
+			removeEventListener: vi.fn(() => {}),
 		} as unknown as Window & typeof globalThis;
 
 		// Create mocks
@@ -68,31 +69,31 @@ describe("InitializationManager", () => {
 		} as unknown as MainAppViewState;
 
 		mockSessionStore = {
-			initializeSessionUpdates: mock(() => okAsync(undefined)),
-			loadSessions: mock(() => okAsync([])),
-			loadStartupSessions: mock(() => okAsync({ missing: [] })),
-			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
-			loadSessionById: mock(() => okAsync({ id: "session-1" })),
-			isPreloaded: mock(() => false),
-			connectSession: mock(() => okAsync({})),
-			scanSessions: mock(() => okAsync(undefined)),
-			createSession: mock(() => okAsync({ id: "session-1" })),
-			getSessionCold: mock(() => undefined),
+			initializeSessionUpdates: vi.fn(() => okAsync(undefined)),
+			loadSessions: vi.fn(() => okAsync([])),
+			loadStartupSessions: vi.fn(() => okAsync({ missing: [] })),
+			preloadSessions: vi.fn(() => okAsync({ loaded: [], missing: [] })),
+			loadSessionById: vi.fn(() => okAsync({ id: "session-1" })),
+			isPreloaded: vi.fn(() => false),
+			connectSession: vi.fn(() => okAsync({})),
+			scanSessions: vi.fn(() => okAsync(undefined)),
+			createSession: vi.fn(() => okAsync({ id: "session-1" })),
+			getSessionCold: vi.fn(() => undefined),
 		} as unknown as SessionStore;
 
 		mockAgentStore = {
-			loadAvailableAgents: mock(() => okAsync([])),
+			loadAvailableAgents: vi.fn(() => okAsync([])),
 		} as unknown as AgentStore;
 
 		mockPanelStore = {
 			panels: [],
-			updatePanelSession: mock(() => {}),
-			closePanelBySessionId: mock(() => {}),
-			clearPanels: mock(() => {}),
+			updatePanelSession: vi.fn(() => {}),
+			closePanelBySessionId: vi.fn(() => {}),
+			clearPanels: vi.fn(() => {}),
 		} as unknown as PanelStore;
 
 		mockWorkspaceStore = {
-			load: mock(() =>
+			load: vi.fn(() =>
 				okAsync({
 					version: 1,
 					panels: [],
@@ -101,28 +102,32 @@ describe("InitializationManager", () => {
 					savedAt: new Date().toISOString(),
 				})
 			),
-			restore: mock(() => []),
+			restore: vi.fn(() => []),
 		} as unknown as WorkspaceStore;
 
 		mockProjectManager = {
 			recentProjects: [],
 			projects: [],
 			projectCount: 0,
-			loadProjects: mock(() => okAsync(undefined)),
+			loadProjects: vi.fn(() => okAsync(undefined)),
 		} as unknown as ProjectManager;
 
 		mockAgentPreferencesStore = {
-			initialize: mock(() => okAsync(undefined)),
+			initialize: vi.fn(() => okAsync(undefined)),
 		} as unknown as AgentPreferencesStore;
 
 		mockKeybindingsService = {
-			initialize: mock(() => ({ isOk: () => true, isErr: () => false })),
-			upsertAction: mock(() => {}),
-			install: mock(() => {}),
-			loadUserKeybindings: mock(() => okAsync(undefined)),
-			reinstall: mock(() => {}),
-			uninstall: mock(() => {}),
+			initialize: vi.fn(() => ({ isOk: () => true, isErr: () => false })),
+			upsertAction: vi.fn(() => {}),
+			install: vi.fn(() => {}),
+			loadUserKeybindings: vi.fn(() => okAsync(undefined)),
+			reinstall: vi.fn(() => {}),
+			uninstall: vi.fn(() => {}),
 		} as unknown as KeybindingsService;
+
+		mockPreconnectionAgentSkillsStore = {
+			initialize: vi.fn(() => okAsync(undefined)),
+		} as unknown as PreconnectionAgentSkillsStore;
 
 		manager = new InitializationManager(
 			mockState,
@@ -132,7 +137,8 @@ describe("InitializationManager", () => {
 			mockWorkspaceStore,
 			mockProjectManager,
 			mockAgentPreferencesStore,
-			mockKeybindingsService
+			mockKeybindingsService,
+			mockPreconnectionAgentSkillsStore
 		);
 	});
 
@@ -168,16 +174,28 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
 		});
 
-		it("should load keybindings, agents, and projects in parallel", async () => {
+		it("should load keybindings, agents, projects, and preconnection skills in parallel", async () => {
 			await manager.initialize();
 			expect(mockKeybindingsService.loadUserKeybindings).toHaveBeenCalled();
 			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
 			expect(mockProjectManager.loadProjects).toHaveBeenCalled();
+			expect(mockPreconnectionAgentSkillsStore.initialize).toHaveBeenCalled();
 		});
 
 		it("should initialize agent preferences after loading metadata", async () => {
 			await manager.initialize();
 			expect(mockAgentPreferencesStore.initialize).toHaveBeenCalled();
+		});
+
+		it("continues startup when preconnection skills warming fails", async () => {
+			mockPreconnectionAgentSkillsStore.initialize = vi.fn(() =>
+				errAsync(new AgentError("skills_list_agent_skills", new Error("Failed")))
+			) as unknown as PreconnectionAgentSkillsStore["initialize"];
+
+			const result = await manager.initialize();
+
+			expect(result.isOk()).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
 		});
 
 		it("should restore workspace state", async () => {
@@ -215,7 +233,7 @@ describe("InitializationManager", () => {
 				configurable: true,
 				get: () => currentPanels,
 			});
-			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
+			mockPanelStore.updatePanelSession = vi.fn((panelId: string, sessionId: string | null) => {
 				currentPanels = currentPanels.map((panel) =>
 					panel.id === panelId ? { ...panel, sessionId } : panel
 				);
@@ -246,7 +264,7 @@ describe("InitializationManager", () => {
 					sessionTitle: null,
 				},
 			];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			mockSessionStore.getSessionCold = vi.fn((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 						id: "session-1",
@@ -308,7 +326,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("should handle initialization errors", async () => {
-			mockAgentStore.loadAvailableAgents = mock(() =>
+			mockAgentStore.loadAvailableAgents = vi.fn(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
 			);
 			const result = await manager.initialize();

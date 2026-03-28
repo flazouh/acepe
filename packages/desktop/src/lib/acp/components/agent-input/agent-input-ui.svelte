@@ -34,6 +34,7 @@ import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
 import { shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
+import { resolveSlashCommandSource } from "./logic/slash-command-source.js";
 import {
 	findInlineArtefactRangeAtPosition,
 	INLINE_TOKEN_PREFIX,
@@ -76,6 +77,7 @@ import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 import { shouldStartVoiceHold, shouldStopVoiceHold } from "./logic/voice-keyboard.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
+import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -85,6 +87,7 @@ const kb = getKeybindingsService();
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const messageQueueStore = getMessageQueueStore();
+const preconnectionAgentSkillsStore = getPreconnectionAgentSkillsStore();
 const voiceSettingsStore = getVoiceSettingsStore();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 
@@ -186,7 +189,32 @@ const effectiveCurrentModelId = $derived.by(() =>
 	})
 );
 
-const effectiveAvailableCommands = $derived(sessionHotState?.availableCommands ?? []);
+const liveAvailableCommands = $derived.by(() => {
+	if (sessionHotState && sessionHotState.availableCommands) {
+		return sessionHotState.availableCommands;
+	}
+
+	return [];
+});
+const preconnectionAvailableCommands = $derived.by(() => {
+	if (!capabilitiesAgentId) {
+		return [];
+	}
+
+	return preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId);
+});
+const slashCommandSource = $derived.by(() => {
+	return resolveSlashCommandSource({
+		liveCommands: liveAvailableCommands,
+		hasConnectedSession: sessionRuntimeState?.connectionPhase === "connected",
+		selectedAgentId: capabilitiesAgentId,
+		preconnectionCommands: preconnectionAvailableCommands,
+	});
+});
+const effectiveAvailableCommands = $derived(slashCommandSource.commands);
+const isSlashDropdownVisible = $derived(
+	inputState.showSlashDropdown && slashCommandSource.source !== "none"
+);
 
 // Input is ready when we have a session or project path (loading state no longer blocks input)
 const inputReady = $derived(!!props.sessionId || !!props.projectPath);
@@ -470,8 +498,9 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
+				const currentSlashCommandSource = slashCommandSource;
 				const dropdownPosition = getCaretDropdownPosition();
-				if (!dropdownPosition) {
+				if (!dropdownPosition || currentSlashCommandSource.source === "none") {
 					inputState.showSlashDropdown = false;
 					inputState.slashQuery = "";
 				} else {
@@ -986,7 +1015,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	if (inputState.showFileDropdown && inputState.fileDropdownRef?.handleKeyDown(event)) {
 		return;
 	}
-	if (inputState.showSlashDropdown && inputState.slashDropdownRef?.handleKeyDown(event)) {
+	if (isSlashDropdownVisible && inputState.slashDropdownRef?.handleKeyDown(event)) {
 		return;
 	}
 
@@ -1146,7 +1175,7 @@ function handleCommandSelect(command: AvailableCommand): void {
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, inputState.slashStartIndex);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText("command", `/${command.name}`);
+	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
 	inputState.message = `${before}${tokenText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
@@ -1559,7 +1588,7 @@ async function handleCancel() {
 				<SlashCommandDropdown
 					bind:this={inputState.slashDropdownRef}
 					commands={effectiveAvailableCommands}
-					isOpen={inputState.showSlashDropdown}
+					isOpen={isSlashDropdownVisible}
 					query={inputState.slashQuery}
 					position={inputState.slashPosition}
 					onSelect={(cmd: AvailableCommand) => handleCommandSelect(cmd)}

@@ -58,6 +58,7 @@ import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
+import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
@@ -154,6 +155,7 @@ const tabBarStore = createTabBarStore(
 
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
+const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
 
 // Wire unseen-clear on panel focus
 panelStore.onPanelFocused = (panelId) => {
@@ -382,7 +384,8 @@ const viewState = new MainAppViewState(
 	agentPreferencesStore,
 	kb,
 	selectorRegistry,
-	worktreeDefaultStore
+	worktreeDefaultStore,
+	preconnectionAgentSkillsStore
 );
 
 // Add repository dialog (unified import/clone/browse modal)

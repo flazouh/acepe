@@ -111,6 +111,7 @@ use skills::commands::{
     skills_delete,
     skills_get,
     skills_get_plugin_skill,
+    skills_list_agent_skills,
     skills_list_plugin_skills,
     // Plugin skills commands
     skills_list_plugins,
@@ -921,6 +922,7 @@ pub fn run() {
             checkpoint_revert_file,
             checkpoint_get_file_snapshots,
             // Skills commands
+            skills_list_agent_skills,
             skills_list_tree,
             skills_get,
             skills_create,
