@@ -1436,7 +1436,7 @@ async function handleCancel() {
 	ondragover={(e) => inputState.handleDragOver(e)}
 	ondragleave={(e) => {
 		// Only trigger leave if we're leaving the container entirely
-		const relatedTarget = e.relatedTarget;
+		const relatedTarget = e.relatedTarget instanceof Node ? e.relatedTarget : null;
 		if (!e.currentTarget.contains(relatedTarget)) {
 			inputState.handleDragLeave();
 		}
