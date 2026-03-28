@@ -129,9 +129,6 @@ impl ToolCallIdTracker {
         id
     }
 
-    async fn is_empty(&self) -> bool {
-        self.map.lock().await.is_empty()
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1607,7 +1604,7 @@ mod tests {
 
         client.reset_stream_runtime_state();
 
-        assert!(client.tool_call_tracker.is_empty().await);
+        assert!(client.tool_call_tracker.take("Bash").await.is_none());
 
         let outputs_after_reset = collect_cc_sdk_updates_for_dispatch(
             &SessionUpdate::ToolCallUpdate {
