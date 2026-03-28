@@ -7,6 +7,7 @@ mod session_metadata_tests {
     use crate::db::repository::SessionMetadataRepository;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
+    use tempfile::tempdir;
 
     /// Create an in-memory SQLite database with migrations applied.
     async fn setup_test_db() -> DbConn {
@@ -561,11 +562,10 @@ mod session_metadata_tests {
                 .is_some()
         );
 
-        // Delete
-        let result = SessionMetadataRepository::delete(&db, "session-to-delete").await;
-        assert!(result.is_ok());
+        SessionMetadataRepository::delete(&db, "session-to-delete")
+            .await
+            .unwrap();
 
-        // Verify it's gone
         assert!(
             SessionMetadataRepository::get_by_id(&db, "session-to-delete")
                 .await
@@ -729,7 +729,6 @@ mod session_metadata_tests {
             "Should only insert/update 1 record (the new one)"
         );
 
-        // Verify existing wasn't modified
         let existing = SessionMetadataRepository::get_by_id(&db, "existing")
             .await
             .unwrap()
@@ -738,6 +737,74 @@ mod session_metadata_tests {
             existing.display, "Original",
             "Existing record should not be modified"
         );
+    }
+
+    #[tokio::test]
+    async fn test_upsert_preserves_base_project_for_generic_git_worktree_session() {
+        let db = setup_test_db().await;
+
+        let temp = tempdir().expect("temp dir");
+        let base_project = temp.path().join("repo");
+        let worktree = temp.path().join("feature-a");
+        std::fs::create_dir_all(base_project.join(".git/worktrees/feature-a")).unwrap();
+        std::fs::create_dir_all(&worktree).unwrap();
+        std::fs::write(
+            worktree.join(".git"),
+            format!(
+                "gitdir: {}\n",
+                base_project.join(".git/worktrees/feature-a").display()
+            ),
+        )
+        .unwrap();
+
+        let base_project_str = base_project.to_string_lossy().to_string();
+        let worktree_str = worktree.to_string_lossy().to_string();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-generic".to_string(),
+            "Original title".to_string(),
+            1704067200000,
+            base_project_str.clone(),
+            "claude-code".to_string(),
+            format!("{}/session-generic.jsonl", base_project_str),
+            1704067200,
+            100,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "session-generic",
+            &worktree_str,
+            Some(&base_project_str),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-generic".to_string(),
+            "Updated title".to_string(),
+            1704067300000,
+            worktree_str.clone(),
+            "claude-code".to_string(),
+            format!("{}/session-generic.jsonl", worktree_str),
+            1704067300,
+            200,
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-generic")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.project_path, base_project_str);
+        assert_eq!(session.worktree_path.as_deref(), Some(worktree_str.as_str()));
     }
 
     #[tokio::test]
