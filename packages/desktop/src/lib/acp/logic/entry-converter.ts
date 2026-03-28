@@ -16,6 +16,23 @@
 
 import type { StoredEntry } from "../infrastructure/storage/ThreadStorage.js";
 
+const LEGACY_TOOL_NAME_LABELS: Record<string, string> = {
+	Bash: "Run",
+	Execute: "Run",
+	Glob: "Find",
+	Grep: "Search",
+	WebSearch: "Web Search",
+	TaskOutput: "Task Output",
+	EnterPlanMode: "Plan",
+	ExitPlanMode: "Plan",
+	CreatePlan: "Create Plan",
+	read_file: "Read",
+	ReadFile: "Read",
+	edit_file: "Edit",
+	EditFile: "Edit",
+	apply_patch: "Edit",
+};
+
 /**
  * User message from Rust backend.
  */
@@ -100,6 +117,11 @@ function parseTimestamp(timestamp: string | undefined): Date {
 	return new Date();
 }
 
+function canonicalToolName(name: string): string {
+	const label = LEGACY_TOOL_NAME_LABELS[name];
+	return label ? label : name;
+}
+
 /**
  * Convert Rust tool call to frontend format.
  * Renames `input` to `arguments` for ToolCallSchema compatibility.
@@ -114,7 +136,7 @@ function convertToolCall(rustToolCall: RustStoredToolCall): ConvertedToolCall {
 
 	return {
 		id: rustToolCall.id,
-		name: rustToolCall.name,
+		name: canonicalToolName(rustToolCall.name),
 		title: rustToolCall.title,
 		status: rustToolCall.status,
 		result: rustToolCall.result,

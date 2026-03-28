@@ -61,7 +61,7 @@
 				<!-- Body -->
 				<div class="p-4">
 					<a
-						href="/api/download?arch=aarch64"
+						href={data.downloadUrl}
 						onclick={handleDownload}
 						class="theme-invert-btn flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
 					>

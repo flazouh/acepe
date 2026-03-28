@@ -197,7 +197,7 @@ fn record_unmatched(
     payload_kind: &str,
     source: &'static str,
 ) {
-    let kind = ToolKind::from(CursorAdapter::normalize(effective_name));
+    let kind = CursorAdapter::normalize(effective_name);
     if kind != ToolKind::Other {
         return;
     }

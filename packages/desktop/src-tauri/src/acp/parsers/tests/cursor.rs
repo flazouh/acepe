@@ -153,8 +153,8 @@ mod cursor_parse_tool_call {
 
         let result = parser().parse_tool_call(&data).unwrap();
         assert_eq!(result.id, "tool_abc");
-        // Name is canonicalized from _toolName "createPlan" → "CreatePlan"
-        assert_eq!(result.name, "CreatePlan");
+        // Name is canonicalized from _toolName "createPlan" → human display name
+        assert_eq!(result.name, "Create Plan");
         assert_eq!(result.title.as_deref(), Some("Create Plan"));
         assert_eq!(result.kind, Some(ToolKind::CreatePlan));
     }

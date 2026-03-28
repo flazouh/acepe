@@ -10,7 +10,7 @@
  * Phase 1 (Parallel):
  *   ├── initializeKeybindings()
  *   ├── initializeSessionUpdates()
- *   └── loadBasicMetadata() [keybindings, agents, projects in parallel]
+ *   └── loadBasicMetadata() [keybindings, agents, projects, preconnection skills in parallel]
  *
  * Phase 2 (Sequential - needs projects):
  *   └── restoreWorkspace()
@@ -80,6 +80,7 @@ export class InitializationManager {
 	 * @param projectManager - The project manager
 	 * @param agentPreferencesStore - The agent preferences store
 	 * @param keybindingsService - The keybindings service
+	 * @param preconnectionAgentSkillsStore - Startup-loaded agent skills for pre-connect slash commands
 	 */
 	constructor(
 		private readonly state: MainAppViewState,

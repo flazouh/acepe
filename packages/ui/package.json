@@ -145,10 +145,6 @@
       "svelte": "./src/components/panel-header/index.ts",
       "default": "./src/components/panel-header/index.ts"
     },
-    "./user-reports": {
-      "svelte": "./src/components/user-reports/index.ts",
-      "default": "./src/components/user-reports/index.ts"
-    },
     "./dropdown-menu": {
       "svelte": "./src/components/dropdown-menu/index.ts",
       "default": "./src/components/dropdown-menu/index.ts"

@@ -796,4 +796,72 @@ mod tests {
 
         assert_eq!(normalized, audio);
     }
+
+    #[test]
+    fn stub_engine_returns_empty_transcription() {
+        let engine = super::super::engine::StubEngine;
+        let result = engine
+            .transcribe(&[0.1, -0.1, 0.2], 16_000, None)
+            .expect("stub transcription should succeed");
+        assert_eq!(result.text, "");
+        assert!(result.language.is_none());
+    }
+
+    #[test]
+    fn resample_noop_when_rates_match() {
+        let input = vec![1.0_f32, 2.0, 3.0];
+        let output = resample(&input, 16_000, 16_000);
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn resample_empty_input_returns_empty() {
+        let output = resample(&[], 48_000, 16_000);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn resample_down_sample_ratio_is_approximately_correct() {
+        let input: Vec<f32> = (0..48_000).map(|index| (index as f32 * 0.001).sin()).collect();
+        let output = resample(&input, 48_000, 16_000);
+        let difference = (output.len() as i64 - 16_000_i64).abs();
+        assert!(
+            difference <= 2,
+            "Expected ~16000 samples, got {}",
+            output.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn runtime_can_be_spawned_and_dropped() {
+        let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
+            .expect("spawn runtime");
+        drop(handle);
+    }
+
+    #[tokio::test]
+    async fn stop_when_not_recording_returns_error() {
+        let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
+            .expect("spawn runtime");
+        let result = handle.stop_recording("session-99".to_string(), None).await;
+        assert!(result.is_err(), "stop when idle should return Err");
+    }
+
+    #[tokio::test]
+    async fn cancel_when_not_recording_is_idempotent() {
+        let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
+            .expect("spawn runtime");
+        let result = handle.cancel_recording("session-99".to_string()).await;
+        assert!(result.is_ok(), "cancel when idle should return Ok");
+    }
+
+    #[tokio::test]
+    async fn multiple_cancel_calls_are_idempotent() {
+        let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
+            .expect("spawn runtime");
+        for _ in 0..3 {
+            let result = handle.cancel_recording("session-99".to_string()).await;
+            assert!(result.is_ok());
+        }
+    }
 }

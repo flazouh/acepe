@@ -8,8 +8,8 @@ use crate::db::repository::SkillsRepository;
 use crate::skills::service::SkillsService;
 use crate::skills::sync::SyncEngine;
 use crate::skills::types::{
-    AgentSkillsGroup, LibrarySkill, LibrarySkillWithSync, PluginInfo, PluginSkill, Skill,
-    SkillTreeNode, SyncResult, SyncTarget,
+    LibrarySkill, LibrarySkillWithSync, PluginInfo, PluginSkill, Skill, SkillTreeNode, SyncResult,
+    SyncTarget,
 };
 
 /// List all agents and their skills as a tree structure.
@@ -19,15 +19,6 @@ pub async fn skills_list_tree(
     service: State<'_, Arc<SkillsService>>,
 ) -> Result<Vec<SkillTreeNode>, String> {
     service.get_skills_tree().await
-}
-
-/// List parsed skills for all configured agents.
-#[tauri::command]
-#[specta::specta]
-pub async fn skills_list_agent_skills(
-    service: State<'_, Arc<SkillsService>>,
-) -> Result<Vec<AgentSkillsGroup>, String> {
-    service.list_agent_skills().await
 }
 
 /// Get a specific skill by ID.

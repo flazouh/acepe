@@ -3,7 +3,7 @@ use crate::acp::session_update::{
     parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, SkillMeta,
     ToolCallData,
 };
-use crate::session_jsonl::display_names::{format_model_display_name, format_tool_display_name};
+use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
     ContentBlock, ConvertedSession, FullSession, OrderedMessage, QuestionAnswer,
     StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
@@ -415,8 +415,8 @@ fn convert_assistant_message(
                     id: id.clone(),
                     message: ToolCallData {
                         id: id.clone(),
-                        name: display_name,
-                        title: Some(format_tool_display_name(name)),
+                        name: display_name.clone(),
+                        title: Some(display_name.clone()),
                         status: tool_call_status_from_str(status),
                         result: result.map(serde_json::Value::String),
                         kind: Some(kind),

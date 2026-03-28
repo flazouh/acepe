@@ -4,7 +4,7 @@
 //! Tool names follow camelCase convention.
 
 use super::any_eq;
-use crate::acp::parsers::canonical_tool::CanonicalTool;
+use crate::acp::session_update::ToolKind;
 
 /// Adapter for normalizing OpenCode tool names.
 pub struct OpenCodeAdapter;
@@ -15,7 +15,7 @@ impl OpenCodeAdapter {
     /// OpenCode uses camelCase tool names like:
     /// - "readFile", "writeFile", "bash", "glob"
     /// - May also use alternative names like "cat", "curl"
-    pub fn normalize(name: &str) -> CanonicalTool {
+    pub fn normalize(name: &str) -> ToolKind {
         if any_eq(
             name,
             &[
@@ -28,7 +28,7 @@ impl OpenCodeAdapter {
                 "view_file",
             ],
         ) {
-            return CanonicalTool::Read;
+            return ToolKind::Read;
         }
         if any_eq(
             name,
@@ -41,7 +41,7 @@ impl OpenCodeAdapter {
                 "modify_file",
             ],
         ) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(
             name,
@@ -54,7 +54,7 @@ impl OpenCodeAdapter {
                 "create_file",
             ],
         ) {
-            return CanonicalTool::Write;
+            return ToolKind::Edit;
         }
         if any_eq(
             name,
@@ -62,12 +62,14 @@ impl OpenCodeAdapter {
                 "replace",
                 "str_replace",
                 "str_replace_editor",
+                "apply_patch",
+                "apply patch",
                 "patch",
                 "patchfile",
                 "patch_file",
             ],
         ) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(
             name,
@@ -82,10 +84,10 @@ impl OpenCodeAdapter {
                 "run_command",
             ],
         ) {
-            return CanonicalTool::Bash;
+            return ToolKind::Execute;
         }
         if any_eq(name, &["kill", "killshell", "kill_shell", "terminate"]) {
-            return CanonicalTool::KillShell;
+            return ToolKind::Execute;
         }
         if any_eq(
             name,
@@ -99,7 +101,7 @@ impl OpenCodeAdapter {
                 "list_dir",
             ],
         ) {
-            return CanonicalTool::Glob;
+            return ToolKind::Glob;
         }
         if any_eq(
             name,
@@ -112,7 +114,7 @@ impl OpenCodeAdapter {
                 "rg",
             ],
         ) {
-            return CanonicalTool::Grep;
+            return ToolKind::Search;
         }
         if any_eq(
             name,
@@ -125,7 +127,7 @@ impl OpenCodeAdapter {
                 "locate",
             ],
         ) {
-            return CanonicalTool::Find;
+            return ToolKind::Glob;
         }
         if any_eq(
             name,
@@ -142,7 +144,7 @@ impl OpenCodeAdapter {
                 "web_fetch",
             ],
         ) {
-            return CanonicalTool::WebFetch;
+            return ToolKind::Fetch;
         }
         if any_eq(
             name,
@@ -154,7 +156,7 @@ impl OpenCodeAdapter {
                 "google_search",
             ],
         ) {
-            return CanonicalTool::WebSearch;
+            return ToolKind::WebSearch;
         }
         if any_eq(
             name,
@@ -170,13 +172,10 @@ impl OpenCodeAdapter {
                 "spawn_task",
             ],
         ) {
-            return CanonicalTool::Task;
+            return ToolKind::Task;
         }
-        if any_eq(
-            name,
-            &["taskoutput", "task_output", "get_task_output"],
-        ) {
-            return CanonicalTool::TaskOutput;
+        if any_eq(name, &["taskoutput", "task_output", "get_task_output"]) {
+            return ToolKind::TaskOutput;
         }
         if any_eq(
             name,
@@ -189,7 +188,7 @@ impl OpenCodeAdapter {
                 "task_list",
             ],
         ) {
-            return CanonicalTool::TodoWrite;
+            return ToolKind::Todo;
         }
         if any_eq(
             name,
@@ -203,10 +202,10 @@ impl OpenCodeAdapter {
                 "ask_user_question",
             ],
         ) {
-            return CanonicalTool::AskUserQuestion;
+            return ToolKind::Question;
         }
         if any_eq(name, &["skill", "capability", "useskill", "use_skill"]) {
-            return CanonicalTool::Skill;
+            return ToolKind::Skill;
         }
         if any_eq(
             name,
@@ -220,7 +219,7 @@ impl OpenCodeAdapter {
                 "enter_plan_mode",
             ],
         ) {
-            return CanonicalTool::EnterPlanMode;
+            return ToolKind::EnterPlanMode;
         }
         if any_eq(
             name,
@@ -233,10 +232,10 @@ impl OpenCodeAdapter {
                 "exit_plan_mode",
             ],
         ) {
-            return CanonicalTool::ExitPlanMode;
+            return ToolKind::ExitPlanMode;
         }
         if any_eq(name, &["createplan", "create_plan"]) {
-            return CanonicalTool::CreatePlan;
+            return ToolKind::CreatePlan;
         }
         if any_eq(
             name,
@@ -250,7 +249,7 @@ impl OpenCodeAdapter {
                 "rename_file",
             ],
         ) {
-            return CanonicalTool::Move;
+            return ToolKind::Move;
         }
         if any_eq(
             name,
@@ -265,7 +264,7 @@ impl OpenCodeAdapter {
                 "remove_file",
             ],
         ) {
-            return CanonicalTool::Delete;
+            return ToolKind::Delete;
         }
         if any_eq(
             name,
@@ -276,7 +275,7 @@ impl OpenCodeAdapter {
                 "read_notebook",
             ],
         ) {
-            return CanonicalTool::NotebookRead;
+            return ToolKind::Read;
         }
         if any_eq(
             name,
@@ -287,10 +286,10 @@ impl OpenCodeAdapter {
                 "edit_notebook",
             ],
         ) {
-            return CanonicalTool::NotebookEdit;
+            return ToolKind::Edit;
         }
 
-        CanonicalTool::Unknown(name.to_string())
+        ToolKind::Other
     }
 }
 
@@ -301,194 +300,143 @@ mod tests {
 
     #[test]
     fn normalizes_read_variants() {
-        assert_eq!(OpenCodeAdapter::normalize("read"), CanonicalTool::Read);
-        assert_eq!(OpenCodeAdapter::normalize("readFile"), CanonicalTool::Read);
-        assert_eq!(OpenCodeAdapter::normalize("read_file"), CanonicalTool::Read);
-        assert_eq!(OpenCodeAdapter::normalize("cat"), CanonicalTool::Read);
-        assert_eq!(OpenCodeAdapter::normalize("view"), CanonicalTool::Read);
+        assert_eq!(OpenCodeAdapter::normalize("read"), ToolKind::Read);
+        assert_eq!(OpenCodeAdapter::normalize("readFile"), ToolKind::Read);
+        assert_eq!(OpenCodeAdapter::normalize("read_file"), ToolKind::Read);
+        assert_eq!(OpenCodeAdapter::normalize("cat"), ToolKind::Read);
+        assert_eq!(OpenCodeAdapter::normalize("view"), ToolKind::Read);
     }
 
     #[test]
     fn normalizes_edit_variants() {
-        assert_eq!(OpenCodeAdapter::normalize("edit"), CanonicalTool::Edit);
-        assert_eq!(OpenCodeAdapter::normalize("editFile"), CanonicalTool::Edit);
-        assert_eq!(OpenCodeAdapter::normalize("modify"), CanonicalTool::Edit);
-        assert_eq!(OpenCodeAdapter::normalize("replace"), CanonicalTool::Edit);
-        assert_eq!(OpenCodeAdapter::normalize("patch"), CanonicalTool::Edit);
-        assert_eq!(
-            OpenCodeAdapter::normalize("str_replace"),
-            CanonicalTool::Edit
-        );
+        assert_eq!(OpenCodeAdapter::normalize("edit"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("editFile"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("modify"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("replace"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("apply_patch"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("Apply Patch"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("patch"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("str_replace"), ToolKind::Edit);
         assert_eq!(
             OpenCodeAdapter::normalize("str_replace_editor"),
-            CanonicalTool::Edit
+            ToolKind::Edit
         );
     }
 
     #[test]
     fn normalizes_write_variants() {
-        assert_eq!(OpenCodeAdapter::normalize("write"), CanonicalTool::Write);
-        assert_eq!(
-            OpenCodeAdapter::normalize("writeFile"),
-            CanonicalTool::Write
-        );
-        assert_eq!(OpenCodeAdapter::normalize("create"), CanonicalTool::Write);
+        assert_eq!(OpenCodeAdapter::normalize("write"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("writeFile"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("create"), ToolKind::Edit);
     }
 
     #[test]
     fn normalizes_bash_variants() {
-        assert_eq!(OpenCodeAdapter::normalize("bash"), CanonicalTool::Bash);
-        assert_eq!(OpenCodeAdapter::normalize("shell"), CanonicalTool::Bash);
-        assert_eq!(OpenCodeAdapter::normalize("exec"), CanonicalTool::Bash);
-        assert_eq!(OpenCodeAdapter::normalize("execute"), CanonicalTool::Bash);
-        assert_eq!(OpenCodeAdapter::normalize("run"), CanonicalTool::Bash);
-        assert_eq!(OpenCodeAdapter::normalize("command"), CanonicalTool::Bash);
+        assert_eq!(OpenCodeAdapter::normalize("bash"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("shell"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("exec"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("execute"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("run"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("command"), ToolKind::Execute);
     }
 
     #[test]
     fn normalizes_kill_shell() {
-        assert_eq!(OpenCodeAdapter::normalize("kill"), CanonicalTool::KillShell);
-        assert_eq!(
-            OpenCodeAdapter::normalize("killShell"),
-            CanonicalTool::KillShell
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("terminate"),
-            CanonicalTool::KillShell
-        );
+        assert_eq!(OpenCodeAdapter::normalize("kill"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("killShell"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("terminate"), ToolKind::Execute);
     }
 
     #[test]
     fn normalizes_search_tools() {
-        assert_eq!(OpenCodeAdapter::normalize("glob"), CanonicalTool::Glob);
-        assert_eq!(OpenCodeAdapter::normalize("ls"), CanonicalTool::Glob);
-        assert_eq!(OpenCodeAdapter::normalize("list"), CanonicalTool::Glob);
-        assert_eq!(OpenCodeAdapter::normalize("listFiles"), CanonicalTool::Glob);
-        assert_eq!(OpenCodeAdapter::normalize("grep"), CanonicalTool::Grep);
-        assert_eq!(OpenCodeAdapter::normalize("search"), CanonicalTool::Grep);
-        assert_eq!(OpenCodeAdapter::normalize("ripgrep"), CanonicalTool::Grep);
-        assert_eq!(OpenCodeAdapter::normalize("find"), CanonicalTool::Find);
-        assert_eq!(OpenCodeAdapter::normalize("locate"), CanonicalTool::Find);
+        assert_eq!(OpenCodeAdapter::normalize("glob"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("ls"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("list"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("listFiles"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("grep"), ToolKind::Search);
+        assert_eq!(OpenCodeAdapter::normalize("search"), ToolKind::Search);
+        assert_eq!(OpenCodeAdapter::normalize("ripgrep"), ToolKind::Search);
+        assert_eq!(OpenCodeAdapter::normalize("find"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("locate"), ToolKind::Glob);
     }
 
     #[test]
     fn normalizes_web_tools() {
-        assert_eq!(OpenCodeAdapter::normalize("fetch"), CanonicalTool::WebFetch);
-        assert_eq!(OpenCodeAdapter::normalize("http"), CanonicalTool::WebFetch);
-        assert_eq!(OpenCodeAdapter::normalize("curl"), CanonicalTool::WebFetch);
-        assert_eq!(
-            OpenCodeAdapter::normalize("request"),
-            CanonicalTool::WebFetch
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("webSearch"),
-            CanonicalTool::WebSearch
-        );
+        assert_eq!(OpenCodeAdapter::normalize("fetch"), ToolKind::Fetch);
+        assert_eq!(OpenCodeAdapter::normalize("http"), ToolKind::Fetch);
+        assert_eq!(OpenCodeAdapter::normalize("curl"), ToolKind::Fetch);
+        assert_eq!(OpenCodeAdapter::normalize("request"), ToolKind::Fetch);
+        assert_eq!(OpenCodeAdapter::normalize("webSearch"), ToolKind::WebSearch);
         assert_eq!(
             OpenCodeAdapter::normalize("search_web"),
-            CanonicalTool::WebSearch
+            ToolKind::WebSearch
         );
     }
 
     #[test]
     fn normalizes_think_tools() {
-        assert_eq!(OpenCodeAdapter::normalize("task"), CanonicalTool::Task);
-        assert_eq!(OpenCodeAdapter::normalize("spawn"), CanonicalTool::Task);
-        assert_eq!(OpenCodeAdapter::normalize("delegate"), CanonicalTool::Task);
-        assert_eq!(OpenCodeAdapter::normalize("todo"), CanonicalTool::TodoWrite);
-        assert_eq!(
-            OpenCodeAdapter::normalize("todoWrite"),
-            CanonicalTool::TodoWrite
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("ask"),
-            CanonicalTool::AskUserQuestion
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("askUser"),
-            CanonicalTool::AskUserQuestion
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("question"),
-            CanonicalTool::AskUserQuestion
-        );
-        assert_eq!(OpenCodeAdapter::normalize("skill"), CanonicalTool::Skill);
+        assert_eq!(OpenCodeAdapter::normalize("task"), ToolKind::Task);
+        assert_eq!(OpenCodeAdapter::normalize("spawn"), ToolKind::Task);
+        assert_eq!(OpenCodeAdapter::normalize("delegate"), ToolKind::Task);
+        assert_eq!(OpenCodeAdapter::normalize("todo"), ToolKind::Todo);
+        assert_eq!(OpenCodeAdapter::normalize("todoWrite"), ToolKind::Todo);
+        assert_eq!(OpenCodeAdapter::normalize("ask"), ToolKind::Question);
+        assert_eq!(OpenCodeAdapter::normalize("askUser"), ToolKind::Question);
+        assert_eq!(OpenCodeAdapter::normalize("question"), ToolKind::Question);
+        assert_eq!(OpenCodeAdapter::normalize("skill"), ToolKind::Skill);
     }
 
     #[test]
     fn normalizes_mode_tools() {
         assert_eq!(
             OpenCodeAdapter::normalize("planMode"),
-            CanonicalTool::EnterPlanMode
+            ToolKind::EnterPlanMode
         );
-        assert_eq!(
-            OpenCodeAdapter::normalize("plan"),
-            CanonicalTool::EnterPlanMode
-        );
+        assert_eq!(OpenCodeAdapter::normalize("plan"), ToolKind::EnterPlanMode);
         assert_eq!(
             OpenCodeAdapter::normalize("enterPlan"),
-            CanonicalTool::EnterPlanMode
+            ToolKind::EnterPlanMode
         );
         assert_eq!(
             OpenCodeAdapter::normalize("exitPlan"),
-            CanonicalTool::ExitPlanMode
+            ToolKind::ExitPlanMode
         );
         assert_eq!(
             OpenCodeAdapter::normalize("execute_plan"),
-            CanonicalTool::ExitPlanMode
+            ToolKind::ExitPlanMode
         );
     }
 
     #[test]
     fn normalizes_file_operations() {
-        assert_eq!(OpenCodeAdapter::normalize("move"), CanonicalTool::Move);
-        assert_eq!(OpenCodeAdapter::normalize("mv"), CanonicalTool::Move);
-        assert_eq!(OpenCodeAdapter::normalize("rename"), CanonicalTool::Move);
-        assert_eq!(OpenCodeAdapter::normalize("delete"), CanonicalTool::Delete);
-        assert_eq!(OpenCodeAdapter::normalize("rm"), CanonicalTool::Delete);
-        assert_eq!(OpenCodeAdapter::normalize("remove"), CanonicalTool::Delete);
-        assert_eq!(OpenCodeAdapter::normalize("unlink"), CanonicalTool::Delete);
+        assert_eq!(OpenCodeAdapter::normalize("move"), ToolKind::Move);
+        assert_eq!(OpenCodeAdapter::normalize("mv"), ToolKind::Move);
+        assert_eq!(OpenCodeAdapter::normalize("rename"), ToolKind::Move);
+        assert_eq!(OpenCodeAdapter::normalize("delete"), ToolKind::Delete);
+        assert_eq!(OpenCodeAdapter::normalize("rm"), ToolKind::Delete);
+        assert_eq!(OpenCodeAdapter::normalize("remove"), ToolKind::Delete);
+        assert_eq!(OpenCodeAdapter::normalize("unlink"), ToolKind::Delete);
     }
 
     #[test]
     fn returns_unknown_for_unrecognized_tools() {
-        assert_eq!(
-            OpenCodeAdapter::normalize("customTool"),
-            CanonicalTool::Unknown("customTool".to_string())
-        );
-        assert_eq!(
-            OpenCodeAdapter::normalize("mySpecialTool"),
-            CanonicalTool::Unknown("mySpecialTool".to_string())
-        );
+        assert_eq!(OpenCodeAdapter::normalize("customTool"), ToolKind::Other);
+        assert_eq!(OpenCodeAdapter::normalize("mySpecialTool"), ToolKind::Other);
     }
 
     #[test]
     fn maps_to_correct_tool_kind() {
-        let tool = OpenCodeAdapter::normalize("readFile");
-        assert_eq!(ToolKind::from(tool), ToolKind::Read);
-
-        let tool = OpenCodeAdapter::normalize("editFile");
-        assert_eq!(ToolKind::from(tool), ToolKind::Edit);
-
-        let tool = OpenCodeAdapter::normalize("bash");
-        assert_eq!(ToolKind::from(tool), ToolKind::Execute);
-
-        let tool = OpenCodeAdapter::normalize("glob");
-        assert_eq!(ToolKind::from(tool), ToolKind::Glob);
-
-        let tool = OpenCodeAdapter::normalize("fetch");
-        assert_eq!(ToolKind::from(tool), ToolKind::Fetch);
-
-        let tool = OpenCodeAdapter::normalize("task");
-        assert_eq!(ToolKind::from(tool), ToolKind::Task);
-
-        let tool = OpenCodeAdapter::normalize("planMode");
-        assert_eq!(ToolKind::from(tool), ToolKind::EnterPlanMode);
-
-        let tool = OpenCodeAdapter::normalize("move");
-        assert_eq!(ToolKind::from(tool), ToolKind::Move);
-
-        let tool = OpenCodeAdapter::normalize("delete");
-        assert_eq!(ToolKind::from(tool), ToolKind::Delete);
+        assert_eq!(OpenCodeAdapter::normalize("readFile"), ToolKind::Read);
+        assert_eq!(OpenCodeAdapter::normalize("editFile"), ToolKind::Edit);
+        assert_eq!(OpenCodeAdapter::normalize("bash"), ToolKind::Execute);
+        assert_eq!(OpenCodeAdapter::normalize("glob"), ToolKind::Glob);
+        assert_eq!(OpenCodeAdapter::normalize("fetch"), ToolKind::Fetch);
+        assert_eq!(OpenCodeAdapter::normalize("task"), ToolKind::Task);
+        assert_eq!(
+            OpenCodeAdapter::normalize("planMode"),
+            ToolKind::EnterPlanMode
+        );
+        assert_eq!(OpenCodeAdapter::normalize("move"), ToolKind::Move);
+        assert_eq!(OpenCodeAdapter::normalize("delete"), ToolKind::Delete);
     }
 }

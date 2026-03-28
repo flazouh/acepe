@@ -387,6 +387,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 							onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 							onResizeAttachedFilePanel={(panelId, delta) =>
 								panelStore.resizeFilePanel(panelId, delta)}
+							onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 						/>
 					</div>
 				</div>
@@ -537,6 +538,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 								onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 								onResizeAttachedFilePanel={(panelId, delta) =>
 									panelStore.resizeFilePanel(panelId, delta)}
+								onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 							/>
 						{/each}
 					{/if}

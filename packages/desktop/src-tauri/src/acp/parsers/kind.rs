@@ -98,11 +98,11 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
     match kind {
         ToolKind::Read => "Read",
         ToolKind::Edit => "Edit",
-        ToolKind::Execute => "Execute",
+        ToolKind::Execute => "Run",
         ToolKind::Search => "Search",
-        ToolKind::Glob => "Glob",
+        ToolKind::Glob => "Find",
         ToolKind::Fetch => "Fetch",
-        ToolKind::WebSearch => "WebSearch",
+        ToolKind::WebSearch => "Web Search",
         ToolKind::Think => "Think",
         ToolKind::Todo => "Todo",
         ToolKind::Question => "Question",
@@ -110,10 +110,10 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
         ToolKind::Skill => "Skill",
         ToolKind::Move => "Move",
         ToolKind::Delete => "Delete",
-        ToolKind::EnterPlanMode => "EnterPlanMode",
-        ToolKind::ExitPlanMode => "ExitPlanMode",
-        ToolKind::CreatePlan => "CreatePlan",
-        ToolKind::TaskOutput => "TaskOutput",
+        ToolKind::EnterPlanMode => "Plan",
+        ToolKind::ExitPlanMode => "Plan",
+        ToolKind::CreatePlan => "Create Plan",
+        ToolKind::TaskOutput => "Task Output",
         ToolKind::Other => "Tool",
     }
 }
@@ -270,6 +270,11 @@ mod tests {
     #[test]
     fn canonical_names_round_trip() {
         assert_eq!(canonical_name_for_kind(ToolKind::Read), "Read");
+        assert_eq!(canonical_name_for_kind(ToolKind::Execute), "Run");
+        assert_eq!(canonical_name_for_kind(ToolKind::Glob), "Find");
+        assert_eq!(canonical_name_for_kind(ToolKind::WebSearch), "Web Search");
+        assert_eq!(canonical_name_for_kind(ToolKind::CreatePlan), "Create Plan");
+        assert_eq!(canonical_name_for_kind(ToolKind::TaskOutput), "Task Output");
         assert_eq!(canonical_name_for_kind(ToolKind::Other), "Tool");
     }
 }

@@ -5,7 +5,7 @@
  * All functions use neverthrow Result types for error handling.
  */
 
-export { copySessionToClipboard } from "./clipboard-manager";
+export { copySessionToClipboard, copyTextToClipboard } from "./clipboard-manager";
 export { derivePanelErrorInfo } from "./connection-ui";
 export { createAutoScroll } from "./create-auto-scroll.svelte.js";
 export { resolveEffectiveProjectPath } from "./effective-project-path";

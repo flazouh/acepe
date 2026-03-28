@@ -176,7 +176,6 @@ export const CMD = {
 	} as const,
 
 	skills: {
-		list_agent_skills: "skills_list_agent_skills",
 		list_tree: "skills_list_tree",
 		get: "skills_get",
 		create: "skills_create",

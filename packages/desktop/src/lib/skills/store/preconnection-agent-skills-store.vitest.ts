@@ -1,17 +1,45 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errAsync, okAsync } from "neverthrow";
 import { AgentError } from "../../acp/errors/app-error";
-import { skillsApi } from "../api/skills-api.js";
+import { libraryApi } from "../api/skills-api.js";
+import type { LibrarySkillWithSync } from "../types/index.js";
 import {
 	normalizeAgentSkillsToCommands,
 	PreconnectionAgentSkillsStore,
 } from "./preconnection-agent-skills-store.svelte.js";
 
 vi.mock("../api/skills-api.js", () => ({
-	skillsApi: {
-		listAgentSkills: vi.fn(),
+	libraryApi: {
+		listSkillsWithSync: vi.fn(),
 	},
 }));
+
+function buildLibrarySkillWithSync(options: {
+	id: string;
+	name: string;
+	description: string | null;
+	targets: Array<{ agentId: string; enabled: boolean }>;
+}): LibrarySkillWithSync {
+	return {
+		skill: {
+			id: options.id,
+			name: options.name,
+			description: options.description,
+			content: "",
+			category: null,
+			createdAt: 1,
+			updatedAt: 1,
+		},
+		syncTargets: options.targets.map((target) => ({
+			agentId: target.agentId,
+			agentName: target.agentId,
+			enabled: target.enabled,
+			status: target.enabled ? "synced" : "never",
+			syncedAt: target.enabled ? 1 : null,
+		})),
+		hasPendingChanges: false,
+	};
+}
 
 describe("PreconnectionAgentSkillsStore", () => {
 	beforeEach(() => {
@@ -19,27 +47,14 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("normalizes skills by agent using frontmatter name and description", async () => {
-		vi.mocked(skillsApi.listAgentSkills).mockReturnValue(
+		vi.mocked(libraryApi.listSkillsWithSync).mockReturnValue(
 			okAsync([
-				{
-					agentId: "claude-code",
-					skills: [
-						{
-							id: "claude-code::ce-brainstorm",
-							agentId: "claude-code",
-							folderName: "ce-brainstorm",
-							path: "/tmp/ce-brainstorm/SKILL.md",
-							name: "ce:brainstorm",
-							description: "Brainstorm a feature",
-							content: "",
-							modifiedAt: 1,
-						},
-					],
-				},
-				{
-					agentId: "cursor",
-					skills: [],
-				},
+				buildLibrarySkillWithSync({
+					id: "skill-1",
+					name: "ce:brainstorm",
+					description: "Brainstorm a feature",
+					targets: [{ agentId: "claude-code", enabled: true }],
+				}),
 			])
 		);
 
@@ -59,27 +74,19 @@ describe("PreconnectionAgentSkillsStore", () => {
 
 	it("drops later duplicate names within one agent deterministically", () => {
 		const commands = normalizeAgentSkillsToCommands([
-			{
-				id: "claude-code::ce-brainstorm",
-				agentId: "claude-code",
-				folderName: "ce-brainstorm",
-				path: "/tmp/one/SKILL.md",
+			buildLibrarySkillWithSync({
+				id: "skill-1",
 				name: "ce:brainstorm",
 				description: "First description",
-				content: "",
-				modifiedAt: 1,
-			},
-			{
-				id: "claude-code::brainstorm-duplicate",
-				agentId: "claude-code",
-				folderName: "brainstorm-duplicate",
-				path: "/tmp/two/SKILL.md",
+				targets: [{ agentId: "claude-code", enabled: true }],
+			}),
+			buildLibrarySkillWithSync({
+				id: "skill-2",
 				name: "ce:brainstorm",
 				description: "Second description",
-				content: "",
-				modifiedAt: 2,
-			},
-		]);
+				targets: [{ agentId: "claude-code", enabled: true }],
+			}),
+		], "claude-code");
 
 		expect(commands).toEqual([
 			{
@@ -90,7 +97,7 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("keeps the store retryable when initialization fails", async () => {
-		vi.mocked(skillsApi.listAgentSkills).mockReturnValue(
+		vi.mocked(libraryApi.listSkillsWithSync).mockReturnValue(
 			errAsync(new AgentError("skills_list_agent_skills", new Error("boom")))
 		);
 
@@ -104,26 +111,17 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("can retry successfully after an initialization failure", async () => {
-		const mockedListAgentSkills = vi.mocked(skillsApi.listAgentSkills);
-		mockedListAgentSkills
+		const mockedListSkillsWithSync = vi.mocked(libraryApi.listSkillsWithSync);
+		mockedListSkillsWithSync
 			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
 			.mockReturnValueOnce(
 				okAsync([
-					{
-						agentId: "claude-code",
-						skills: [
-							{
-								id: "claude-code::ce-plan",
-								agentId: "claude-code",
-								folderName: "ce-plan",
-								path: "/tmp/ce-plan/SKILL.md",
-								name: "ce:plan",
-								description: "Plan implementation",
-								content: "",
-								modifiedAt: 1,
-							},
-						],
-					},
+					buildLibrarySkillWithSync({
+						id: "skill-1",
+						name: "ce:plan",
+						description: "Plan implementation",
+						targets: [{ agentId: "claude-code", enabled: true }],
+					}),
 				])
 			);
 
@@ -142,26 +140,17 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("ensureLoaded retries after a failed startup warmup", async () => {
-		const mockedListAgentSkills = vi.mocked(skillsApi.listAgentSkills);
-		mockedListAgentSkills
+		const mockedListSkillsWithSync = vi.mocked(libraryApi.listSkillsWithSync);
+		mockedListSkillsWithSync
 			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
 			.mockReturnValueOnce(
 				okAsync([
-					{
-						agentId: "claude-code",
-						skills: [
-							{
-								id: "claude-code::ce-review",
-								agentId: "claude-code",
-								folderName: "ce-review",
-								path: "/tmp/ce-review/SKILL.md",
-								name: "ce:review",
-								description: "Review changes",
-								content: "",
-								modifiedAt: 1,
-							},
-						],
-					},
+					buildLibrarySkillWithSync({
+						id: "skill-1",
+						name: "ce:review",
+						description: "Review changes",
+						targets: [{ agentId: "claude-code", enabled: true }],
+					}),
 				])
 			);
 

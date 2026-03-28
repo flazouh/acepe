@@ -11,6 +11,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
@@ -34,7 +35,6 @@ import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
 import { shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
-import { resolveSlashCommandSource } from "./logic/slash-command-source.js";
 import {
 	findInlineArtefactRangeAtPosition,
 	INLINE_TOKEN_PREFIX,
@@ -57,6 +57,7 @@ import {
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
 } from "./logic/input-parser.js";
+import { resolveSlashCommandSource } from "./logic/slash-command-source.js";
 import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 import {
 	type SubmitIntent,
@@ -77,7 +78,6 @@ import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 import { shouldStartVoiceHold, shouldStopVoiceHold } from "./logic/voice-keyboard.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
-import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -507,9 +507,8 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
-				const currentSlashCommandSource = slashCommandSource;
 				const dropdownPosition = getCaretDropdownPosition();
-				if (!dropdownPosition || currentSlashCommandSource.source === "none") {
+				if (!dropdownPosition) {
 					inputState.showSlashDropdown = false;
 					inputState.slashQuery = "";
 				} else {
@@ -1024,7 +1023,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	if (inputState.showFileDropdown && inputState.fileDropdownRef?.handleKeyDown(event)) {
 		return;
 	}
-	if (isSlashDropdownVisible && inputState.slashDropdownRef?.handleKeyDown(event)) {
+	if (inputState.showSlashDropdown && inputState.slashDropdownRef?.handleKeyDown(event)) {
 		return;
 	}
 

@@ -198,8 +198,8 @@ pub enum ToolArguments {
 impl ToolArguments {
     /// Construct typed arguments from a raw JSON value and a known tool kind.
     pub fn from_raw(kind: ToolKind, raw: serde_json::Value) -> Self {
-        use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
-        parse_canonical_tool_arguments(kind, &raw)
+        use crate::acp::parsers::arguments::parse_tool_kind_arguments;
+        parse_tool_kind_arguments(kind, &raw)
     }
 
     /// Return canonical tool kind represented by this typed argument payload.

@@ -2,14 +2,16 @@
 //!
 //! Converts raw identifiers to user-friendly display names.
 
+use crate::acp::parsers::kind::{canonical_name_for_kind, infer_kind_from_payload};
+
 /// Format a tool name into a user-friendly display title.
 ///
 /// # Examples
 /// ```
 /// use acepe_lib::session_jsonl::display_names::format_tool_display_name;
 /// assert_eq!(format_tool_display_name("TodoWrite"), "Todo");
-/// assert_eq!(format_tool_display_name("WebSearch"), "Search");
-/// assert_eq!(format_tool_display_name("Bash"), "Bash");
+/// assert_eq!(format_tool_display_name("WebSearch"), "Web Search");
+/// assert_eq!(format_tool_display_name("Bash"), "Run");
 /// ```
 pub fn format_tool_display_name(name: &str) -> String {
     // Strip MCP prefix if present (e.g., "mcp__acp__Read" -> "Read")
@@ -19,23 +21,45 @@ pub fn format_tool_display_name(name: &str) -> String {
         name
     };
 
-    // Known tool name mappings
     match clean_name {
-        "TodoWrite" => "Todo".to_string(),
-        "WebSearch" => "Search".to_string(),
-        "WebFetch" => "Fetch".to_string(),
-        "AskUserQuestion" => "Question".to_string(),
-        "Task" => "Agent".to_string(),
-        "TaskOutput" => "Agent Output".to_string(),
-        "KillShell" => "Kill Shell".to_string(),
-        "NotebookEdit" => "Notebook".to_string(),
-        "ExitPlanMode" => "Exit Plan".to_string(),
-        "CreatePlan" => "Create Plan".to_string(),
-        "EnterPlanMode" => "Enter Plan".to_string(),
-        // Keep these as-is (already clean)
-        "Read" | "Edit" | "Write" | "Bash" | "Glob" | "Grep" | "Skill" => clean_name.to_string(),
-        // For unknown tools, split camelCase/PascalCase
-        _ => split_pascal_case(clean_name),
+        "Read" | "read_file" | "ReadFile" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Read).to_string()
+        }
+        "Edit" | "Write" | "edit_file" | "EditFile" | "apply_patch" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Edit).to_string()
+        }
+        "Bash" | "Execute" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Execute).to_string()
+        }
+        "Glob" => canonical_name_for_kind(crate::acp::session_update::ToolKind::Glob).to_string(),
+        "Grep" => canonical_name_for_kind(crate::acp::session_update::ToolKind::Search).to_string(),
+        "Skill" => canonical_name_for_kind(crate::acp::session_update::ToolKind::Skill).to_string(),
+        "TodoWrite" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Todo).to_string()
+        }
+        "WebSearch" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::WebSearch).to_string()
+        }
+        "WebFetch" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Fetch).to_string()
+        }
+        "AskUserQuestion" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::Question).to_string()
+        }
+        "Task" => canonical_name_for_kind(crate::acp::session_update::ToolKind::Task).to_string(),
+        "TaskOutput" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::TaskOutput).to_string()
+        }
+        "CreatePlan" => {
+            canonical_name_for_kind(crate::acp::session_update::ToolKind::CreatePlan).to_string()
+        }
+        "KillShell" => "Run".to_string(),
+        "NotebookEdit" => "Edit".to_string(),
+        "NotebookRead" => "Read".to_string(),
+        _ => match infer_kind_from_payload("", Some(clean_name), Some(clean_name)) {
+            Some(kind) => canonical_name_for_kind(kind).to_string(),
+            None => split_pascal_case(clean_name),
+        },
     }
 }
 
@@ -180,22 +204,23 @@ mod tests {
     fn test_format_tool_display_name() {
         // Known mappings
         assert_eq!(format_tool_display_name("TodoWrite"), "Todo");
-        assert_eq!(format_tool_display_name("WebSearch"), "Search");
+        assert_eq!(format_tool_display_name("WebSearch"), "Web Search");
         assert_eq!(format_tool_display_name("WebFetch"), "Fetch");
         assert_eq!(format_tool_display_name("AskUserQuestion"), "Question");
-        assert_eq!(format_tool_display_name("Task"), "Agent");
-        assert_eq!(format_tool_display_name("TaskOutput"), "Agent Output");
-        assert_eq!(format_tool_display_name("KillShell"), "Kill Shell");
-        assert_eq!(format_tool_display_name("NotebookEdit"), "Notebook");
-        assert_eq!(format_tool_display_name("ExitPlanMode"), "Exit Plan");
-        assert_eq!(format_tool_display_name("EnterPlanMode"), "Enter Plan");
+        assert_eq!(format_tool_display_name("Task"), "Task");
+        assert_eq!(format_tool_display_name("TaskOutput"), "Task Output");
+        assert_eq!(format_tool_display_name("KillShell"), "Run");
+        assert_eq!(format_tool_display_name("NotebookEdit"), "Edit");
+        assert_eq!(format_tool_display_name("NotebookRead"), "Read");
+        assert_eq!(format_tool_display_name("ExitPlanMode"), "Plan");
+        assert_eq!(format_tool_display_name("EnterPlanMode"), "Plan");
 
         // Pass-through names
         assert_eq!(format_tool_display_name("Read"), "Read");
         assert_eq!(format_tool_display_name("Edit"), "Edit");
-        assert_eq!(format_tool_display_name("Bash"), "Bash");
-        assert_eq!(format_tool_display_name("Glob"), "Glob");
-        assert_eq!(format_tool_display_name("Grep"), "Grep");
+        assert_eq!(format_tool_display_name("Bash"), "Run");
+        assert_eq!(format_tool_display_name("Glob"), "Find");
+        assert_eq!(format_tool_display_name("Grep"), "Search");
 
         // MCP prefix stripping
         assert_eq!(format_tool_display_name("mcp__acp__Read"), "Read");

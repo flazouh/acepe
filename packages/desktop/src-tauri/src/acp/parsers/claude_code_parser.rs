@@ -1,7 +1,7 @@
 //! Parser for Claude Code agent.
 
 use crate::acp::parsers::adapters::ClaudeCodeAdapter;
-use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::claude_code::parse_edit_arguments;
 use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_ask_user_question, parse_common_update_type_name,
@@ -58,7 +58,7 @@ impl AgentParser for ClaudeCodeParser {
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {
-        ToolKind::from(ClaudeCodeAdapter::normalize(name))
+        ClaudeCodeAdapter::normalize(name)
     }
 
     fn parse_typed_tool_arguments(
@@ -80,7 +80,7 @@ impl AgentParser for ClaudeCodeParser {
         if kind == ToolKind::Edit {
             return Some(parse_edit_arguments(raw_arguments));
         }
-        Some(parse_canonical_tool_arguments(kind, raw_arguments))
+        Some(parse_tool_kind_arguments(kind, raw_arguments))
     }
 
     fn parse_usage_telemetry(
@@ -210,7 +210,7 @@ impl ClaudeCodeParser {
                 .unwrap_or("pending"),
         );
 
-        let kind = Some(ToolKind::from(ClaudeCodeAdapter::normalize(&name)));
+        let kind = Some(ClaudeCodeAdapter::normalize(&name));
 
         let title = data
             .get("title")
@@ -303,7 +303,7 @@ impl ClaudeCodeParser {
         let kind = data
             .get("kind")
             .and_then(|v| v.as_str())
-            .map(|s| ToolKind::from(ClaudeCodeAdapter::normalize(s)));
+            .map(ClaudeCodeAdapter::normalize);
 
         Ok(RawToolCallUpdateInput {
             id,

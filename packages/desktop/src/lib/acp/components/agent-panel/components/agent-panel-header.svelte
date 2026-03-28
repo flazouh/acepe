@@ -38,6 +38,7 @@ let {
 	onClose,
 	onToggleFullscreen,
 	onOpenInFinder,
+	onCopyStreamingLogPath,
 	onExportRawStreaming,
 	displayTitle = null,
 	onOpenRawFile,
@@ -188,6 +189,9 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 					{/if}
 					{#if isDev}
 						<DropdownMenu.Separator />
+						<DropdownMenu.Item onSelect={() => onCopyStreamingLogPath?.()} class="cursor-pointer">
+							Copy Streaming Log Path
+						</DropdownMenu.Item>
 						<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
 							{m.thread_export_raw_streaming()}
 						</DropdownMenu.Item>

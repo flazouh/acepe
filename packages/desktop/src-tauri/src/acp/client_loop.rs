@@ -10,7 +10,7 @@ use crate::acp::inbound_request_router::{
     extract_query_from_synthetic_permission, route_backend_inbound_request, InboundRoutingDecision,
 };
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
-use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::kind::is_web_search_id;
 use crate::acp::parsers::AgentType;
 use crate::acp::permission_tracker::{PermissionContext, PermissionTracker, WebSearchDedup};
@@ -565,7 +565,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 if let Some(tool_call_id) = json.pointer("/params/data/toolCallId").and_then(|v| v.as_str()) {
                                     if is_web_search_id(tool_call_id) {
                                         if let Some(raw_input) = json.pointer("/params/data/rawInput") {
-                                            let args = parse_canonical_tool_arguments(ToolKind::WebSearch, raw_input);
+                                            let args = parse_tool_kind_arguments(ToolKind::WebSearch, raw_input);
                                             if let ToolArguments::WebSearch { query: Some(query) } = args {
                                                 if let (Ok(mut dedup), Some(sid)) = (
                                                     ctx.web_search_dedup.lock(),

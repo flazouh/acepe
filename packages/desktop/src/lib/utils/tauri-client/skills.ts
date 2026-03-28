@@ -1,7 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
-	AgentSkillsGroup,
 	LibrarySkill,
 	LibrarySkillWithSync,
 	PluginInfo,
@@ -16,10 +15,6 @@ import { CMD } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 
 export const skills = {
-	listAgentSkills: (): ResultAsync<AgentSkillsGroup[], AppError> => {
-		return invokeAsync(CMD.skills.list_agent_skills);
-	},
-
 	listTree: (): ResultAsync<SkillTreeNode[], AppError> => {
 		return invokeAsync(CMD.skills.list_tree);
 	},

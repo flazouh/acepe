@@ -61,25 +61,23 @@ const worktreeProjectPath = $derived(projectPath || "");
 
 <div class="shrink-0 flex items-center h-7 border-t border-border/50">
 	{#if hasProjectPath}
-		<div class="min-w-0 flex-1">
-			<WorktreeToggleControl
-				{panelId}
-				projectPath={worktreeProjectPath}
-				projectName={null}
-				{activeWorktreePath}
-				{hasEdits}
-				{hasMessages}
-				{globalWorktreeDefault}
-				{worktreeDeleted}
-				{onWorktreeCreated}
-				{onWorktreeRenamed}
-				{onPendingChange}
-				/>
-		</div>
+		<WorktreeToggleControl
+			{panelId}
+			projectPath={worktreeProjectPath}
+			projectName={null}
+			{activeWorktreePath}
+			{hasEdits}
+			{hasMessages}
+			{globalWorktreeDefault}
+			{worktreeDeleted}
+			{onWorktreeCreated}
+			{onWorktreeRenamed}
+			{onPendingChange}
+		/>
 	{/if}
 
 	{#if onSettings && hasProjectPath}
-		<div class="shrink-0 flex items-center border-l border-border/50">
+		<div class="flex items-center border-l border-border/50">
 			<EmbeddedIconButton
 				title={m.project_settings()}
 				ariaLabel={m.project_settings()}
@@ -90,7 +88,7 @@ const worktreeProjectPath = $derived(projectPath || "");
 		</div>
 	{/if}
 
-	<div class="shrink-0 flex items-center border-l border-border/50">
+	<div class="ml-auto flex items-center border-l border-border/50">
 		<EmbeddedIconButton
 			active={isBrowserSidebarOpen}
 			title="Toggle browser"

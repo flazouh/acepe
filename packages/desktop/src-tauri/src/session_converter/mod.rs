@@ -532,8 +532,7 @@ mod tests {
         match tool_entry {
             StoredEntry::ToolCall { id, message, .. } => {
                 assert_eq!(id, "tool-1");
-                // OpenCode converter uses its own path, not fullsession canonical normalization
-                assert_eq!(message.name, "read_file");
+                assert_eq!(message.name, "Read");
                 assert_eq!(message.status, ToolCallStatus::Completed);
                 assert_eq!(
                     message.result,

@@ -221,7 +221,7 @@ mod tests {
             } => {
                 assert_eq!(args["kind"], "execute");
                 assert_eq!(args["command"], "echo hello");
-                assert_eq!(ctx.tool_call_data.name, "Execute");
+                assert_eq!(ctx.tool_call_data.name, "Run");
                 assert_eq!(ctx.tool_call_data.kind, Some(ToolKind::Execute));
             }
             _ => panic!("Expected ForwardToUi with parsed execute args and synthetic tool call"),

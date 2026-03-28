@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallStatus, ToolKind, TurnErrorData, TurnErrorKind,
@@ -669,6 +668,10 @@ fn test_detect_tool_kind() {
     assert_eq!(OpenCodeParser.detect_tool_kind("ReadFile"), ToolKind::Read);
     assert_eq!(OpenCodeParser.detect_tool_kind("EditFile"), ToolKind::Edit);
     assert_eq!(
+        OpenCodeParser.detect_tool_kind("apply_patch"),
+        ToolKind::Edit
+    );
+    assert_eq!(
         OpenCodeParser.detect_tool_kind("find_files"),
         ToolKind::Glob
     );
@@ -715,6 +718,50 @@ fn test_convert_tool_part_with_opencode_format() {
             assert_eq!(tool_call.id, "call_webfetch_1");
             assert_eq!(tool_call.name, "webfetch");
             assert_eq!(session_id, Some("ses_abc".to_string()));
+        }
+        _ => panic!("Expected ToolCall"),
+    }
+}
+
+#[test]
+fn test_convert_apply_patch_tool_part_to_edit_tool_call() {
+    let properties = json!({
+        "part": {
+            "id": "prt_apply_patch_1",
+            "sessionID": "ses_abc",
+            "messageID": "msg_456",
+            "type": "tool",
+            "callID": "call_apply_patch_1",
+            "tool": "apply_patch",
+            "state": {
+                "status": "pending",
+                "input": {
+                    "patch_text": "*** Begin Patch\n*** Update File: CLAUDE.md\n@@\n-Look at AGENTS.md\n+Read `AGENTS.md` first and follow its project-specific rules.\n*** End Patch"
+                }
+            }
+        }
+    });
+
+    let result = convert_message_part_to_session_update(&properties);
+    assert!(result.is_some());
+
+    match result.unwrap() {
+        SessionUpdate::ToolCall {
+            tool_call,
+            session_id,
+        } => {
+            assert_eq!(tool_call.id, "call_apply_patch_1");
+            assert_eq!(tool_call.name, "apply_patch");
+            assert_eq!(tool_call.kind, Some(ToolKind::Edit));
+            assert_eq!(session_id, Some("ses_abc".to_string()));
+
+            match tool_call.arguments {
+                ToolArguments::Edit { edits } => {
+                    assert_eq!(edits.len(), 1);
+                    assert_eq!(edits[0].file_path.as_deref(), Some("CLAUDE.md"));
+                }
+                other => panic!("Expected Edit arguments, got {other:?}"),
+            }
         }
         _ => panic!("Expected ToolCall"),
     }

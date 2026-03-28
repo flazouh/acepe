@@ -6,7 +6,7 @@
 
 use super::any_eq;
 use super::claude_code::ClaudeCodeAdapter;
-use crate::acp::parsers::canonical_tool::CanonicalTool;
+use crate::acp::session_update::ToolKind;
 
 /// Adapter for normalizing Cursor tool names.
 pub struct CursorAdapter;
@@ -19,7 +19,7 @@ impl CursorAdapter {
     /// - "file_editor" for editing files
     ///
     /// For standard tools, delegates to ClaudeCodeAdapter.
-    pub fn normalize(name: &str) -> CanonicalTool {
+    pub fn normalize(name: &str) -> ToolKind {
         if any_eq(
             name,
             &[
@@ -31,43 +31,43 @@ impl CursorAdapter {
                 "grepped",
             ],
         ) {
-            return CanonicalTool::Grep;
+            return ToolKind::Search;
         }
         if any_eq(
             name,
             &["ls_dir", "list_dir", "listdir", "ls dir", "list directory"],
         ) {
-            return CanonicalTool::Glob;
+            return ToolKind::Glob;
         }
         if any_eq(
             name,
             &["file_editor", "fileeditor", "code_editor", "codeeditor"],
         ) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(name, &["str replace", "strreplace"]) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(name, &["edit file", "editfile"]) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(name, &["read file", "readfile"]) {
-            return CanonicalTool::Read;
+            return ToolKind::Read;
         }
         if any_eq(name, &["delete file", "deletefile"]) {
-            return CanonicalTool::Delete;
+            return ToolKind::Delete;
         }
         if any_eq(name, &["apply_patch", "applypatch", "apply patch"]) {
-            return CanonicalTool::Edit;
+            return ToolKind::Edit;
         }
         if any_eq(
             name,
             &["file_reader", "filereader", "code_reader", "codereader"],
         ) {
-            return CanonicalTool::Read;
+            return ToolKind::Read;
         }
         if any_eq(name, &["view_image", "viewimage"]) {
-            return CanonicalTool::Read;
+            return ToolKind::Read;
         }
         if any_eq(
             name,
@@ -82,7 +82,7 @@ impl CursorAdapter {
                 "writestdin",
             ],
         ) {
-            return CanonicalTool::Bash;
+            return ToolKind::Execute;
         }
         if any_eq(
             name,
@@ -93,7 +93,7 @@ impl CursorAdapter {
                 "createplan",
             ],
         ) {
-            return CanonicalTool::CreatePlan;
+            return ToolKind::CreatePlan;
         }
         if any_eq(
             name,
@@ -104,7 +104,7 @@ impl CursorAdapter {
                 "updatetodos",
             ],
         ) {
-            return CanonicalTool::TodoWrite;
+            return ToolKind::Todo;
         }
 
         ClaudeCodeAdapter::normalize(name)
@@ -120,152 +120,112 @@ mod tests {
     fn normalizes_cursor_specific_tools() {
         assert_eq!(
             CursorAdapter::normalize("codebase_search"),
-            CanonicalTool::Grep
+            ToolKind::Search
         );
-        assert_eq!(CursorAdapter::normalize("file_editor"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("file_reader"), CanonicalTool::Read);
+        assert_eq!(CursorAdapter::normalize("file_editor"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("file_reader"), ToolKind::Read);
         assert_eq!(
             CursorAdapter::normalize("run_terminal_cmd"),
-            CanonicalTool::Bash
+            ToolKind::Execute
         );
     }
 
     #[test]
     fn normalizes_cursor_update_todos_to_todo_write() {
         // Cursor sends _toolName "updateTodos" inside rawInput for todo management
-        assert_eq!(
-            CursorAdapter::normalize("updateTodos"),
-            CanonicalTool::TodoWrite
-        );
-        assert_eq!(
-            CursorAdapter::normalize("update_todos"),
-            CanonicalTool::TodoWrite
-        );
+        assert_eq!(CursorAdapter::normalize("updateTodos"), ToolKind::Todo);
+        assert_eq!(CursorAdapter::normalize("update_todos"), ToolKind::Todo);
         assert_eq!(
             CursorAdapter::normalize("cursor/update_todos"),
-            CanonicalTool::TodoWrite
-        );
-        assert_eq!(
-            ToolKind::from(CursorAdapter::normalize("updateTodos")),
             ToolKind::Todo
         );
+        assert_eq!(CursorAdapter::normalize("updateTodos"), ToolKind::Todo);
     }
 
     #[test]
     fn delegates_standard_tools_to_claude_code() {
-        assert_eq!(CursorAdapter::normalize("Read"), CanonicalTool::Read);
-        assert_eq!(CursorAdapter::normalize("Edit"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("Bash"), CanonicalTool::Bash);
-        assert_eq!(CursorAdapter::normalize("Glob"), CanonicalTool::Glob);
-        assert_eq!(
-            CursorAdapter::normalize("WebFetch"),
-            CanonicalTool::WebFetch
-        );
+        assert_eq!(CursorAdapter::normalize("Read"), ToolKind::Read);
+        assert_eq!(CursorAdapter::normalize("Edit"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("Bash"), ToolKind::Execute);
+        assert_eq!(CursorAdapter::normalize("Glob"), ToolKind::Glob);
+        assert_eq!(CursorAdapter::normalize("WebFetch"), ToolKind::Fetch);
     }
 
     #[test]
     fn handles_mcp_prefixed_tools_via_delegation() {
-        assert_eq!(
-            CursorAdapter::normalize("mcp__acp__Read"),
-            CanonicalTool::Read
-        );
+        assert_eq!(CursorAdapter::normalize("mcp__acp__Read"), ToolKind::Read);
         assert_eq!(
             CursorAdapter::normalize("mcp__acp__Bash"),
-            CanonicalTool::Bash
+            ToolKind::Execute
         );
     }
 
     #[test]
     fn maps_to_correct_tool_kind() {
-        let tool = CursorAdapter::normalize("codebase_search");
-        assert_eq!(ToolKind::from(tool), ToolKind::Search);
-
-        let tool = CursorAdapter::normalize("file_editor");
-        assert_eq!(ToolKind::from(tool), ToolKind::Edit);
-
-        let tool = CursorAdapter::normalize("Read");
-        assert_eq!(ToolKind::from(tool), ToolKind::Read);
+        assert_eq!(
+            CursorAdapter::normalize("codebase_search"),
+            ToolKind::Search
+        );
+        assert_eq!(CursorAdapter::normalize("file_editor"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("Read"), ToolKind::Read);
     }
 
     #[test]
     fn returns_unknown_for_unrecognized_tools() {
         assert_eq!(
             CursorAdapter::normalize("custom_cursor_tool"),
-            CanonicalTool::Unknown("custom_cursor_tool".to_string())
+            ToolKind::Other
         );
     }
 
     #[test]
     fn normalizes_apply_patch_to_edit() {
-        assert_eq!(CursorAdapter::normalize("apply_patch"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("Apply Patch"), CanonicalTool::Edit);
-        assert_eq!(
-            ToolKind::from(CursorAdapter::normalize("apply_patch")),
-            ToolKind::Edit
-        );
+        assert_eq!(CursorAdapter::normalize("apply_patch"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("Apply Patch"), ToolKind::Edit);
     }
 
     #[test]
     fn normalizes_str_replace_to_edit() {
-        assert_eq!(CursorAdapter::normalize("Str Replace"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("str replace"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("StrReplace"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("strreplace"), CanonicalTool::Edit);
-        assert_eq!(
-            ToolKind::from(CursorAdapter::normalize("Str Replace")),
-            ToolKind::Edit
-        );
+        assert_eq!(CursorAdapter::normalize("Str Replace"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("str replace"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("StrReplace"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("strreplace"), ToolKind::Edit);
     }
 
     #[test]
     fn normalizes_live_and_historical_tool_names() {
         // Read
-        assert_eq!(CursorAdapter::normalize("Read File"), CanonicalTool::Read);
-        assert_eq!(CursorAdapter::normalize("read file"), CanonicalTool::Read);
-        assert_eq!(CursorAdapter::normalize("readfile"), CanonicalTool::Read);
-        assert_eq!(CursorAdapter::normalize("view_image"), CanonicalTool::Read);
-        assert_eq!(CursorAdapter::normalize("viewimage"), CanonicalTool::Read);
+        assert_eq!(CursorAdapter::normalize("Read File"), ToolKind::Read);
+        assert_eq!(CursorAdapter::normalize("read file"), ToolKind::Read);
+        assert_eq!(CursorAdapter::normalize("readfile"), ToolKind::Read);
+        assert_eq!(CursorAdapter::normalize("view_image"), ToolKind::Read);
+        assert_eq!(CursorAdapter::normalize("viewimage"), ToolKind::Read);
 
         // Edit
-        assert_eq!(CursorAdapter::normalize("Edit File"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("edit file"), CanonicalTool::Edit);
-        assert_eq!(CursorAdapter::normalize("editfile"), CanonicalTool::Edit);
+        assert_eq!(CursorAdapter::normalize("Edit File"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("edit file"), ToolKind::Edit);
+        assert_eq!(CursorAdapter::normalize("editfile"), ToolKind::Edit);
 
         // Delete
-        assert_eq!(
-            CursorAdapter::normalize("Delete File"),
-            CanonicalTool::Delete
-        );
-        assert_eq!(
-            CursorAdapter::normalize("delete file"),
-            CanonicalTool::Delete
-        );
-        assert_eq!(
-            CursorAdapter::normalize("deletefile"),
-            CanonicalTool::Delete
-        );
+        assert_eq!(CursorAdapter::normalize("Delete File"), ToolKind::Delete);
+        assert_eq!(CursorAdapter::normalize("delete file"), ToolKind::Delete);
+        assert_eq!(CursorAdapter::normalize("deletefile"), ToolKind::Delete);
 
         // Execute / Bash
-        assert_eq!(
-            CursorAdapter::normalize("exec_command"),
-            CanonicalTool::Bash
-        );
-        assert_eq!(CursorAdapter::normalize("execcommand"), CanonicalTool::Bash);
-        assert_eq!(CursorAdapter::normalize("write_stdin"), CanonicalTool::Bash);
-        assert_eq!(CursorAdapter::normalize("writestdin"), CanonicalTool::Bash);
+        assert_eq!(CursorAdapter::normalize("exec_command"), ToolKind::Execute);
+        assert_eq!(CursorAdapter::normalize("execcommand"), ToolKind::Execute);
+        assert_eq!(CursorAdapter::normalize("write_stdin"), ToolKind::Execute);
+        assert_eq!(CursorAdapter::normalize("writestdin"), ToolKind::Execute);
 
         // Search
         assert_eq!(
             CursorAdapter::normalize("Codebase Search"),
-            CanonicalTool::Grep
+            ToolKind::Search
         );
         assert_eq!(
             CursorAdapter::normalize("codebase search"),
-            CanonicalTool::Grep
+            ToolKind::Search
         );
-        assert_eq!(
-            CursorAdapter::normalize("codebasesearch"),
-            CanonicalTool::Grep
-        );
+        assert_eq!(CursorAdapter::normalize("codebasesearch"), ToolKind::Search);
     }
 }

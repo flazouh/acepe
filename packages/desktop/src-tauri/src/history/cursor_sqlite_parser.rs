@@ -1293,6 +1293,31 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn cursor_store_fixture_parses_without_integration_target() {
+        let fixture_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/cursor_sessions/f441a0b8-plan-session.db");
+        assert!(
+            fixture_path.exists(),
+            "Fixture not found: {}",
+            fixture_path.display()
+        );
+
+        let session = parse_cursor_store_db(
+            &fixture_path,
+            "f441a0b8-ed9d-4dd2-8318-70cee2f29fa2",
+            Some("/Users/alex/Downloads/hello-world-go"),
+        )
+        .await
+        .expect("fixture should parse successfully");
+
+        assert!(!session.messages.is_empty(), "fixture should include messages");
+        assert!(
+            session.stats.user_messages >= 1,
+            "fixture should include at least one user message"
+        );
+    }
+
     // Helper for dedup assertion
     fn extract_all_text(blocks: &[ContentBlock]) -> String {
         blocks

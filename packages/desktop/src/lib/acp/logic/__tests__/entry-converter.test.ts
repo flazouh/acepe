@@ -242,7 +242,7 @@ describe("entry-converter", () => {
 				const result = convertRustEntryToStoredEntry(rustEntry);
 				const toolCall = result.message as Record<string, unknown>;
 
-				expect(toolCall.name).toBe("Bash");
+				expect(toolCall.name).toBe("Run");
 				expect(toolCall.arguments).toEqual({
 					command: "npm test",
 					description: "Run tests",

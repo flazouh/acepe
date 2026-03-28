@@ -47,7 +47,7 @@ function createToolCallEntry(): SessionEntry {
 		type: "tool_call",
 		message: {
 			id: "tool-1",
-			name: "read_file",
+			name: "Read",
 			arguments: { kind: "read" as const, file_path: "/test.txt" },
 			status: "pending" as const,
 			awaitingPlanApproval: false,

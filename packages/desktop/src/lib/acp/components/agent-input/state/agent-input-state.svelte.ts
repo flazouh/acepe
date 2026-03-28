@@ -7,6 +7,7 @@ import type { ProjectIndex } from "../../../../services/converted-session-types.
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
+import type { AvailableCommand } from "../../../types/available-command.js";
 import type { FilePickerEntry } from "../../../types/file-picker-entry.js";
 import { createLogger } from "../../../utils/logger.js";
 
@@ -872,6 +873,24 @@ export class AgentInputState {
 	// ============================================
 
 	/**
+	 * Handles selection of a slash command.
+	 *
+	 * @param command - The selected command
+	 */
+	handleCommandSelect(command: AvailableCommand): void {
+		// Replace "/partial" with an inline command token.
+		const before = this.message.substring(0, this.slashStartIndex);
+		const cursorPos = this.textareaRef?.selectionStart ?? this.message.length;
+		const after = this.message.substring(cursorPos);
+		const tokenType = this.isSkillCommand(command) ? "skill" : "command";
+		this.message = `${before}@[${tokenType}:/${command.name}] ${after}`;
+		this.showSlashDropdown = false;
+		this.slashQuery = "";
+
+		this.focusInput();
+	}
+
+	/**
 	 * Closes the slash command dropdown.
 	 */
 	handleDropdownClose(): void {
@@ -1026,4 +1045,8 @@ export class AgentInputState {
 		}
 	}
 
+	private isSkillCommand(command: AvailableCommand): boolean {
+		const desc = command.description.toLowerCase();
+		return desc.includes("skill") || command.name.includes("_");
+	}
 }

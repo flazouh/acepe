@@ -1,1 +1,1 @@
-Look at AGENTS.md
+Read `AGENTS.md` first and follow its project-specific rules.

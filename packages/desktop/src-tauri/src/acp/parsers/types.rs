@@ -666,7 +666,7 @@ mod tests {
                 .parse_tool_call(&payload)
                 .expect("parse should succeed");
 
-            assert_eq!(parsed.name, "Execute");
+            assert_eq!(parsed.name, "Run");
             assert_eq!(parsed.kind, Some(ToolKind::Execute));
         }
 
@@ -849,7 +849,7 @@ mod tests {
             });
 
             let name = CodexParser.infer_tool_display_name(Some("   "), &raw, Some("execute"));
-            assert_eq!(name, "Execute");
+            assert_eq!(name, "Run");
         }
 
         #[test]

@@ -1,7 +1,7 @@
 //! Parser for Cursor agent.
 
 use crate::acp::parsers::adapters::CursorAdapter;
-use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::cursor::parse_edit_arguments;
 use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_common_update_type_name,
@@ -59,7 +59,7 @@ impl AgentParser for CursorParser {
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {
-        ToolKind::from(CursorAdapter::normalize(name))
+        CursorAdapter::normalize(name)
     }
 
     fn parse_typed_tool_arguments(
@@ -81,7 +81,7 @@ impl AgentParser for CursorParser {
         if kind == ToolKind::Edit {
             return Some(parse_edit_arguments(raw_arguments));
         }
-        Some(parse_canonical_tool_arguments(kind, raw_arguments))
+        Some(parse_tool_kind_arguments(kind, raw_arguments))
     }
 
     fn parse_usage_telemetry(
@@ -152,9 +152,9 @@ impl CursorParser {
             candidates.push(format!("{}{}{}", words[0], words[1], words[2]));
         }
 
-        candidates.into_iter().find(|candidate| {
-            ToolKind::from(CursorAdapter::normalize(candidate)) != ToolKind::Other
-        })
+        candidates
+            .into_iter()
+            .find(|candidate| CursorAdapter::normalize(candidate) != ToolKind::Other)
     }
 
     fn extract_first_location_path(data: &serde_json::Value) -> Option<String> {
@@ -260,7 +260,7 @@ impl CursorParser {
             .get(acp_fields::INPUT)
             .cloned()
             .unwrap_or(serde_json::json!({}));
-        let kind = ToolKind::from(CursorAdapter::normalize(&name));
+        let kind = CursorAdapter::normalize(&name);
 
         Ok(RawToolCallInput {
             id,
@@ -300,7 +300,7 @@ impl CursorParser {
         let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
 
         // Name-derived kind is specific; payload kind is a coarse fallback.
-        let name_kind = ToolKind::from(CursorAdapter::normalize(&effective_name));
+        let name_kind = CursorAdapter::normalize(&effective_name);
         let kind = if name_kind != ToolKind::Other {
             name_kind
         } else {
@@ -421,7 +421,7 @@ impl CursorParser {
         let kind = if synthesized_edit {
             ToolKind::Edit
         } else {
-            ToolKind::from(CursorAdapter::normalize(&effective_name))
+            CursorAdapter::normalize(&effective_name)
         };
 
         let tool_name = kind_utils::display_name_for_tool(kind, &effective_name);

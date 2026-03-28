@@ -98,9 +98,16 @@ export class MainAppViewState {
 	skillsManagerOpen = $state(false);
 
 	/**
-	 * Whether the user reports modal is open.
+	 * Open a GitHub issue with a prefilled draft.
 	 */
-	userReportsOpen = $state(false);
+	openUserReportsWithDraft(draft: { title: string; body: string; category: string }): void {
+		const params = new URLSearchParams();
+		if (draft.title) params.set("title", draft.title);
+		if (draft.body) params.set("body", draft.body);
+		if (draft.category) params.set("labels", draft.category);
+		const url = `https://github.com/flazouh/acepe/issues/new?${params.toString()}`;
+		window.open(url, "_blank", "noopener,noreferrer");
+	}
 
 	/**
 	 * Whether the sidebar is open.

@@ -87,7 +87,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		// Tool call creates a boundary
 		store.createToolCallEntry("session1", {
 			id: "tool-1",
-			name: "Bash",
+			name: "Run",
 			arguments: { kind: "execute", command: "ls" },
 			status: "completed",
 			kind: "execute",

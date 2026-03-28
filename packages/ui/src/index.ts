@@ -209,8 +209,6 @@ export { SegmentedProgress } from "./components/segmented-progress/index.js";
 // Selector
 export { Selector } from "./components/selector/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
-// User Reports
-export { UserReportsModal } from "./components/user-reports/index.js";
 export {
 	COLOR_NAMES,
 	Colors,

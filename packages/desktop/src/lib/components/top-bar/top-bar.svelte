@@ -168,7 +168,7 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 					<EmbeddedIconButton
 						title="Feedback"
 						ariaLabel="Feedback"
-						onclick={() => (viewState.userReportsOpen = !viewState.userReportsOpen)}
+						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						<Bug weight="fill" class="size-4" style="color: #FF5D5A" />
 					</EmbeddedIconButton>

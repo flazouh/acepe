@@ -32,6 +32,20 @@ cargo test --lib
 - **Scoped** (default): When changes are in 1-3 modules. Run tests for those modules only.
 - **Full suite**: Before committing, after cross-cutting refactors, or when unsure about blast radius.
 
+For the common local loop in this repo, prefer `bun run test:rust:fast` from `packages/desktop` before reaching for broader Rust runs. It now maps to `cargo test --lib -- --skip claude_history::export_types`, so you get full lib coverage without compiling the opt-in manual benchmark and live integration targets.
+
+Manual benchmark and live integration targets now require the `manual-test-targets` feature. Run them explicitly when needed:
+
+```bash
+cd packages/desktop/src-tauri
+
+cargo test --features manual-test-targets --test startup_scan_benchmark
+cargo test --features manual-test-targets --test indexer_benchmark
+cargo test --features manual-test-targets --test codex_scanner_benchmark
+cargo test --features manual-test-targets --test codex_scanner_test
+cargo test --features manual-test-targets --test voice_transcription
+```
+
 ## Code Quality
 
 - Run `cargo check` or `cargo clippy` before considering code complete

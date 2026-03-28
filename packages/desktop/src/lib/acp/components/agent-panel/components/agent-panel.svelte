@@ -40,7 +40,6 @@ import PlanDialog from "../../plan-dialog.svelte";
 import PlanHeader from "../../plan-header.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import QueueCardStrip from "../../queue-card-strip.svelte";
-import PermissionHeader from "../../permission-header.svelte";
 import TodoHeader from "../../todo-header.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { usePlanLoader } from "../hooks";
@@ -49,6 +48,7 @@ import {
 	createResolvedWorktreeCloseConfirmationState,
 	createWorktreeCreationState,
 	copySessionToClipboard,
+	copyTextToClipboard,
 	derivePanelErrorInfo,
 	mapSessionStatusToUI,
 	matchesWorktreeSetupContext,
@@ -75,6 +75,8 @@ import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
+import AgentErrorCard from "./agent-error-card.svelte";
+import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -111,6 +113,7 @@ let {
 	onSelectAttachedFilePanel,
 	onCloseAttachedFilePanel,
 	onResizeAttachedFilePanel,
+	onCreateIssueReport,
 }: AgentPanelProps = $props();
 
 // ✅ State managers (must be before derived values that use them)
@@ -205,6 +208,7 @@ let contentIsAtTop = $state(true);
 let contentIsStreaming = $state(false);
 let panelConnectionState = $state<PanelConnectionState | null>(null);
 let panelConnectionError = $state<string | null>(null);
+let errorDismissed = $state(false);
 
 // Checkpoint timeline state
 let showCheckpointTimeline = $state(false);
@@ -333,6 +337,16 @@ const errorInfo = $derived.by(() =>
 		sessionConnectionError,
 	})
 );
+
+// Reset dismiss state when error content changes so a new error is always visible
+$effect(() => {
+	const _details = errorInfo.details;
+	if (!errorInfo.showError) {
+		errorDismissed = false;
+	}
+});
+
+const showInlineErrorCard = $derived(errorInfo.showError && !errorDismissed);
 
 // Panel view state: single discriminated union from all inputs
 const viewStateInput = $derived({
@@ -1203,6 +1217,40 @@ async function handleExportRawStreaming() {
 		);
 }
 
+async function handleCopyStreamingLogPath() {
+	if (!sessionId) {
+		logger.warn("handleCopyStreamingLogPath: no session id");
+		toast.error(m.thread_export_raw_error_no_thread());
+		return;
+	}
+
+	logger.info("handleCopyStreamingLogPath: requesting streaming log path", { sessionId });
+
+	await tauriClient.shell
+		.getStreamingLogPath(sessionId)
+		.andThen((path) => {
+			logger.info("handleCopyStreamingLogPath: received streaming log path", {
+				sessionId,
+				path,
+			});
+
+			return copyTextToClipboard(path);
+		})
+		.match(
+			() => {
+				logger.info("handleCopyStreamingLogPath: copy succeeded", { sessionId });
+				toast.success(m.file_list_copy_path_toast());
+			},
+			(error) => {
+				logger.error("handleCopyStreamingLogPath: copy failed", {
+					sessionId,
+					error: error.message,
+				});
+				toast.error(m.file_list_copy_path_error());
+			}
+		);
+}
+
 async function handleOpenRawFile() {
 	if (!sessionId || !sessionProjectPath) return;
 	await tauriClient.shell
@@ -1325,6 +1373,31 @@ function handleCancelConnection() {
 	toast.info("Connection cancellation not yet implemented.");
 }
 
+function handleDismissError() {
+	errorDismissed = true;
+}
+
+function handleCreateIssueFromError() {
+	const errorDetails = errorInfo.details ?? panelConnectionError ?? sessionConnectionError ?? "Unknown error";
+	const errorSummary = errorDetails.split("\n")[0]?.slice(0, 120) ?? "Agent connection error";
+	const cold = sessionId ? sessionStore.getSessionCold(sessionId) : null;
+	const draft = buildAgentErrorIssueDraft({
+		agentId: sessionAgentId ?? selectedAgentId ?? "unknown",
+		sessionId,
+		projectPath: sessionProjectPath,
+		worktreePath: sessionWorktreePath,
+		errorSummary,
+		errorDetails,
+		sessionTitle: cold?.title ?? null,
+		sessionCreatedAt: cold?.createdAt ?? null,
+		sessionUpdatedAt: cold?.updatedAt ?? null,
+		currentModelId: sessionCurrentModelId,
+		entryCount: sessionEntries.length,
+		panelConnectionState: panelConnectionState?.toString() ?? null,
+	});
+	onCreateIssueReport?.(draft);
+}
+
 async function handleToggleCheckpointTimeline() {
 	if (!sessionId) return;
 
@@ -1388,6 +1461,7 @@ function handleCheckpointRevertComplete() {
 			onWorktreeCloseCancel={handleWorktreeCloseCancel}
 			onCopyContent={handleCopyContent}
 			onOpenInFinder={handleOpenInFinder}
+			onCopyStreamingLogPath={handleCopyStreamingLogPath}
 			onExportRawStreaming={handleExportRawStreaming}
 			{displayTitle}
 			{entriesCount}
@@ -1522,8 +1596,8 @@ function handleCheckpointRevertComplete() {
 					{/if}
 				</div>
 
-				<!-- Input Area - show when session exists or ready to assist -->
-				{#if viewState.kind === "conversation" || viewState.kind === "ready"}
+				<!-- Input Area - show for conversation, ready, or error (inline error card replaces full-panel takeover) -->
+				{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
 					{#if worktreeDeleted}
 						<div class="{isFullscreen ? 'flex justify-center' : ''} px-5 mb-2">
 							<div class="flex justify-center {isFullscreen ? 'w-full max-w-4xl' : ''}">
@@ -1533,6 +1607,20 @@ function handleCheckpointRevertComplete() {
 										{m.worktree_deleted_banner()}
 									</span>
 								</div>
+							</div>
+						</div>
+					{/if}
+					{#if showInlineErrorCard}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
+								<AgentErrorCard
+									title="Connection error"
+									summary={errorInfo.details?.split("\n")[0]?.slice(0, 80) ?? "Failed to connect to agent"}
+									details={errorInfo.details ?? "Unknown error"}
+									onRetry={handleRetryConnection}
+									onDismiss={handleDismissError}
+									onCreateIssue={handleCreateIssueFromError}
+								/>
 							</div>
 						</div>
 					{/if}
@@ -1603,13 +1691,6 @@ function handleCheckpointRevertComplete() {
 							/>
 						</div>
 					</div>
-					{#if sessionId}
-						<div class={isFullscreen ? "flex justify-center" : ""}>
-							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
-								<PermissionHeader {sessionId} />
-							</div>
-						</div>
-					{/if}
 					{#if sessionId}
 						<div class={isFullscreen ? "flex justify-center" : ""}>
 							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>

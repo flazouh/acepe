@@ -6,7 +6,7 @@ use crate::acp::session_update::{
     parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
     ToolCallData,
 };
-use crate::session_jsonl::display_names::{format_model_display_name, format_tool_display_name};
+use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
     ContentBlock, ConvertedSession, FullSession, OrderedMessage, StoredAssistantChunk,
     StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
@@ -158,6 +158,7 @@ fn convert_assistant_message(
                 };
 
                 let kind = ClaudeCodeParser.detect_tool_kind(name);
+                let display_name = crate::acp::parsers::kind::display_name_for_tool(kind, name);
                 let normalized_questions =
                     parse_normalized_questions(name, input, AgentType::ClaudeCode);
                 let normalized_todos = parse_normalized_todos(name, input, AgentType::ClaudeCode);
@@ -165,8 +166,8 @@ fn convert_assistant_message(
                     id: id.clone(),
                     message: ToolCallData {
                         id: id.clone(),
-                        name: name.clone(),
-                        title: Some(format_tool_display_name(name)),
+                        name: display_name.clone(),
+                        title: Some(display_name),
                         status: tool_call_status_from_str(status),
                         result: result.map(serde_json::Value::String),
                         kind: Some(kind),

@@ -10,7 +10,6 @@ import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type {
-	AgentSkillsGroup,
 	LibrarySkill,
 	LibrarySkillWithSync,
 	PluginInfo,
@@ -21,13 +20,6 @@ import type {
 	SyncResult,
 	SyncTarget,
 } from "../types/index.js";
-
-/**
- * List parsed skills for all configured agents.
- */
-export function listAgentSkills(): ResultAsync<AgentSkillsGroup[], AppError> {
-	return tauriClient.skills.listAgentSkills();
-}
 
 /**
  * List all agents and their skills as a tree structure.
@@ -110,7 +102,6 @@ export function onSkillsChanged(
  * Skills API object for convenient access.
  */
 export const skillsApi = {
-	listAgentSkills,
 	listTree,
 	getSkill,
 	createSkill,

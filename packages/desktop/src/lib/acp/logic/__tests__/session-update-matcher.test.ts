@@ -145,7 +145,7 @@ describe("SessionUpdateMatcher", () => {
 				type: "toolCall",
 				tool_call: {
 					id: "tool-123",
-					name: "read_file",
+					name: "Read",
 					kind: "read",
 					arguments: { kind: "read", file_path: "/test.txt" },
 					status: "pending",
@@ -171,7 +171,7 @@ describe("SessionUpdateMatcher", () => {
 			};
 
 			const result = matchSessionUpdate(update, handlers);
-			expect(result).toBe("tool:read_file");
+			expect(result).toBe("tool:Read");
 		});
 
 		// Type-level test: This test will fail to compile if we add a new SessionUpdate variant

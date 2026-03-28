@@ -36,7 +36,7 @@ describe("stored-entry-converter", () => {
 
 				if (result.type === "tool_call") {
 					expect(result.message.id).toBe("toolu_123");
-					expect(result.message.name).toBe("Bash");
+					expect(result.message.name).toBe("Run");
 					expect(result.message.status).toBe("completed");
 					expect(result.message.kind).toBe("execute");
 					expect(result.message.arguments).toEqual({

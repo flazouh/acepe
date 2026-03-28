@@ -48,6 +48,7 @@ export interface AgentPanelHeaderProps {
 	readonly onToggleFullscreen?: () => void;
 	readonly onCopyContent?: () => Promise<void>;
 	readonly onOpenInFinder?: () => Promise<void>;
+	readonly onCopyStreamingLogPath?: () => Promise<void>;
 	readonly onExportRawStreaming?: () => Promise<void>;
 	// Session menu (same as session-item dropdown)
 	readonly displayTitle?: string | null;

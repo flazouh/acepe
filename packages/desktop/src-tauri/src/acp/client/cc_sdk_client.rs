@@ -277,9 +277,7 @@ impl CcSdkClaudeClient {
             tool_call_tracker: self.tool_call_tracker.clone(),
         };
 
-        let mut builder = cc_sdk::ClaudeCodeOptions::builder()
-            .cwd(PathBuf::from(cwd))
-            .session_id(session_id);
+        let mut builder = cc_sdk::ClaudeCodeOptions::builder().cwd(PathBuf::from(cwd));
         builder = builder.include_partial_messages(true);
 
         if let Some(mode_id) = &self.pending_mode_id {

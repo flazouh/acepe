@@ -30,7 +30,7 @@ import { SessionEntryStore } from "../session-entry-store.svelte.js";
 function toolCall(id: string): ToolCallData {
 	return {
 		id,
-		name: "Bash",
+		name: "Run",
 		arguments: { kind: "execute", command: "ls" },
 		status: "completed",
 		kind: "execute",

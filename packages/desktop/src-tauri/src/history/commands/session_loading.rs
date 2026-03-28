@@ -1,5 +1,18 @@
 use super::*;
 
+fn fallback_project_path_for_history_load(
+    agent: &CanonicalAgentId,
+    project_path: &str,
+    effective_project_path: &str,
+) -> String {
+    match agent {
+        CanonicalAgentId::ClaudeCode | CanonicalAgentId::OpenCode | CanonicalAgentId::Codex => {
+            effective_project_path.to_string()
+        }
+        _ => project_path.to_string(),
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_unified_session(
@@ -15,28 +28,25 @@ pub async fn get_unified_session(
         "Loading unified session"
     );
 
-    let canonical_agent = CanonicalAgentId::parse(&agent_id);
+    let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+    let context = crate::history::session_context::resolve_session_context(
+        db.as_ref(),
+        &session_id,
+        &project_path,
+        &agent_id,
+        source_path.as_deref(),
+    )
+    .await;
+
+    let canonical_agent = CanonicalAgentId::parse(&context.agent_id);
 
     let result = match canonical_agent {
         CanonicalAgentId::ClaudeCode => {
-            // Worktree sessions store their JSONL under the worktree slug, not the
-            // project slug. Check the DB for a worktree_path and use it directly
-            // when available, falling back to project_path for regular sessions.
-            let effective_path =
-                if let Some(db) = app.try_state::<DbConn>().map(|s| s.inner().clone()) {
-                    SessionMetadataRepository::get_by_id(&db, &session_id)
-                        .await
-                        .ok()
-                        .flatten()
-                        .and_then(|row| row.worktree_path)
-                        .unwrap_or_else(|| project_path.clone())
-                } else {
-                    project_path.clone()
-                };
-
-            match crate::session_jsonl::parser::parse_full_session(&session_id, &effective_path)
-                .await
-            {
+            match crate::session_jsonl::parser::parse_full_session(
+                &session_id,
+                &context.effective_project_path,
+            )
+            .await {
                 Ok(full_session) => {
                     let converted =
                         crate::session_converter::convert_claude_full_session_to_entries(
@@ -45,10 +55,10 @@ pub async fn get_unified_session(
                     Some(converted)
                 }
                 // Worktree slug failed — try the project slug before giving up
-                Err(_) if effective_path != project_path => {
+                Err(_) if context.effective_project_path != context.project_path => {
                     match crate::session_jsonl::parser::parse_full_session(
                         &session_id,
-                        &project_path,
+                        &context.project_path,
                     )
                     .await
                     {
@@ -81,7 +91,7 @@ pub async fn get_unified_session(
         }
         CanonicalAgentId::Cursor => {
             // Try direct O(1) lookup first if source_path provided
-            if let Some(ref sp) = source_path {
+            if let Some(ref sp) = context.source_path {
                 match crate::cursor_history::parser::load_session_from_source(&session_id, sp).await
                 {
                     Ok(Some(fs)) => {
@@ -121,8 +131,11 @@ pub async fn get_unified_session(
         }
         CanonicalAgentId::OpenCode => {
             // Try disk-based loading first (no HTTP server needed)
-            let disk_result =
-                opencode_parser::load_session_from_disk(&session_id, source_path.as_deref()).await;
+            let disk_result = opencode_parser::load_session_from_disk(
+                &session_id,
+                context.source_path.as_deref(),
+            )
+            .await;
 
             if let Ok(Some(converted)) = disk_result {
                 tracing::info!(
@@ -147,7 +160,11 @@ pub async fn get_unified_session(
                 match crate::opencode_history::commands::get_opencode_session(
                     app,
                     session_id.clone(),
-                    project_path,
+                    fallback_project_path_for_history_load(
+                        &CanonicalAgentId::OpenCode,
+                        &context.project_path,
+                        &context.effective_project_path,
+                    ),
                 )
                 .await
                 {
@@ -164,9 +181,16 @@ pub async fn get_unified_session(
             }
         }
         CanonicalAgentId::Codex => {
-            match codex_parser::load_session(&session_id, &project_path, source_path.as_deref())
-                .await
-            {
+            match codex_parser::load_session(
+                &session_id,
+                &fallback_project_path_for_history_load(
+                    &CanonicalAgentId::Codex,
+                    &context.project_path,
+                    &context.effective_project_path,
+                ),
+                context.source_path.as_deref(),
+            )
+            .await {
                 Ok(session) => session,
                 Err(e) => {
                     tracing::warn!(
@@ -195,6 +219,24 @@ pub async fn get_unified_session(
         "Unified session loaded"
     );
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fallback_project_path_for_history_load;
+    use crate::acp::types::CanonicalAgentId;
+
+    #[test]
+    fn opencode_uses_effective_project_path_for_history_fallback() {
+        assert_eq!(
+            fallback_project_path_for_history_load(
+                &CanonicalAgentId::OpenCode,
+                "/repo",
+                "/repo/.worktrees/feature-a"
+            ),
+            "/repo/.worktrees/feature-a"
+        );
+    }
 }
 
 /// Audit session load timing for performance bottleneck identification.

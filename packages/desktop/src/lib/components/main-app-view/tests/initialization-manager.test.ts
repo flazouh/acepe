@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { errAsync, ok, okAsync } from "neverthrow";
-import { AgentError } from "../../../acp/errors/app-error";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { errAsync, okAsync } from "neverthrow";
+import { AgentError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
@@ -10,7 +10,7 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
-vi.mock("$lib/services/zoom.svelte.js", () => ({
+mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		initialize: () => okAsync(undefined),
 		zoomIn: () => okAsync(undefined),
@@ -23,7 +23,6 @@ vi.mock("$lib/services/zoom.svelte.js", () => ({
 }));
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
-
 import { InitializationManager } from "../logic/managers/initialization-manager.js";
 
 type TestPanel = {
@@ -34,9 +33,11 @@ type TestPanel = {
 	width: number;
 	pendingProjectSelection: boolean;
 	selectedAgentId: string;
-	projectPath: string;
-	agentId: string;
-	sessionTitle: string;
+	projectPath: string | null;
+	agentId: string | null;
+	sessionTitle: string | null;
+	sourcePath?: string | null;
+	worktreePath?: string | null;
 };
 
 function buildSession(id: string, agentId: string, projectPath: string, title: string) {
@@ -64,16 +65,11 @@ describe("InitializationManager", () => {
 	let manager: InitializationManager;
 
 	beforeEach(() => {
-		// Mock window for keybindings service
-		Object.defineProperty(globalThis, "window", {
-			configurable: true,
-			value: {
-				addEventListener: vi.fn(() => {}),
-				removeEventListener: vi.fn(() => {}),
-			},
-		});
+		globalThis.window = {
+			addEventListener: mock(() => {}),
+			removeEventListener: mock(() => {}),
+		} as unknown as Window & typeof globalThis;
 
-		// Create mocks
 		mockState = {
 			debugPanelOpen: false,
 			settingsModalOpen: false,
@@ -81,22 +77,22 @@ describe("InitializationManager", () => {
 			initializationInProgress: false,
 			initializationComplete: false,
 			initializationError: null,
-		} as MainAppViewState;
+		} as unknown as MainAppViewState;
 
-		const sessionStoreMock: Partial<SessionStore> = {
-			initializeSessionUpdates: vi.fn(() => okAsync(undefined)),
-			loadSessions: vi.fn(() => okAsync([])),
-			loadStartupSessions: vi.fn(() => okAsync({ missing: [] })),
-			preloadSessions: vi.fn(() => okAsync({ loaded: [], missing: [] })),
-			loadSessionById: vi.fn(() =>
+		mockSessionStore = {
+			initializeSessionUpdates: mock(() => okAsync(undefined)),
+			loadSessions: mock(() => okAsync([])),
+			loadStartupSessions: mock(() => okAsync({ missing: [] })),
+			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
+			loadSessionById: mock(() =>
 				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
 			),
-			isPreloaded: vi.fn(() => false),
-			connectSession: vi.fn(() =>
+			isPreloaded: mock(() => false),
+			connectSession: mock(() =>
 				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
 			),
-			scanSessions: vi.fn(() => okAsync(undefined)),
-			createSession: vi.fn((options) =>
+			scanSessions: mock(() => okAsync(undefined)),
+			createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
 				okAsync(
 					buildSession(
 						"session-1",
@@ -106,25 +102,22 @@ describe("InitializationManager", () => {
 					)
 				)
 			),
-			getSessionCold: vi.fn(() => undefined),
-		};
-		mockSessionStore = sessionStoreMock as SessionStore;
+			getSessionCold: mock(() => undefined),
+		} as unknown as SessionStore;
 
-		const agentStoreMock: Partial<AgentStore> = {
-			loadAvailableAgents: vi.fn(() => okAsync([])),
-		};
-		mockAgentStore = agentStoreMock as AgentStore;
+		mockAgentStore = {
+			loadAvailableAgents: mock(() => okAsync([])),
+		} as unknown as AgentStore;
 
-		const panelStoreMock: Partial<PanelStore> = {
+		mockPanelStore = {
 			panels: [],
-			updatePanelSession: vi.fn(() => {}),
-			closePanelBySessionId: vi.fn(() => {}),
-			clearPanels: vi.fn(() => {}),
-		};
-		mockPanelStore = panelStoreMock as PanelStore;
+			updatePanelSession: mock(() => {}),
+			closePanelBySessionId: mock(() => {}),
+			clearPanels: mock(() => {}),
+		} as unknown as PanelStore;
 
-		const workspaceStoreMock: Partial<WorkspaceStore> = {
-			load: vi.fn(() =>
+		mockWorkspaceStore = {
+			load: mock(() =>
 				okAsync({
 					version: 1,
 					panels: [],
@@ -133,39 +126,34 @@ describe("InitializationManager", () => {
 					savedAt: new Date().toISOString(),
 				})
 			),
-			restore: vi.fn(() => []),
-		};
-		mockWorkspaceStore = workspaceStoreMock as WorkspaceStore;
+			restore: mock(() => []),
+		} as unknown as WorkspaceStore;
 
-		const projectManagerMock: Partial<ProjectManager> = {
+		mockProjectManager = {
+			recentProjects: [],
 			projects: [],
 			projectCount: 0,
-			loadProjects: vi.fn(() => okAsync(undefined)),
-		};
-		mockProjectManager = projectManagerMock as ProjectManager;
+			loadProjects: mock(() => okAsync(undefined)),
+		} as unknown as ProjectManager;
 
-		const agentPreferencesStoreMock: Partial<AgentPreferencesStore> = {
-			initialize: vi.fn(() => okAsync(undefined)),
-		};
-		mockAgentPreferencesStore = agentPreferencesStoreMock as AgentPreferencesStore;
+		mockAgentPreferencesStore = {
+			initialize: mock(() => okAsync(undefined)),
+		} as unknown as AgentPreferencesStore;
 
-		const keybindingsServiceMock: Partial<KeybindingsService> = {
-			initialize: vi.fn(() => ok(undefined)),
-			upsertAction: vi.fn(() => {}),
-			install: vi.fn(() => ok(undefined)),
-			loadUserKeybindings: vi.fn(() => okAsync(undefined)),
-			reinstall: vi.fn(() => ok(undefined)),
-			uninstall: vi.fn(() => ok(undefined)),
-		};
-		mockKeybindingsService = keybindingsServiceMock as KeybindingsService;
+		mockKeybindingsService = {
+			initialize: mock(() => ({ isOk: () => true, isErr: () => false })),
+			upsertAction: mock(() => {}),
+			install: mock(() => {}),
+			loadUserKeybindings: mock(() => okAsync(undefined)),
+			reinstall: mock(() => {}),
+			uninstall: mock(() => {}),
+		} as unknown as KeybindingsService;
 
-		const preconnectionAgentSkillsStoreMock: Partial<PreconnectionAgentSkillsStore> = {
-			initialize: vi.fn(() => okAsync(undefined)),
-			ensureLoaded: vi.fn(() => okAsync(undefined)),
-			refresh: vi.fn(() => okAsync(undefined)),
-		};
-		mockPreconnectionAgentSkillsStore =
-			preconnectionAgentSkillsStoreMock as PreconnectionAgentSkillsStore;
+		mockPreconnectionAgentSkillsStore = {
+			initialize: mock(() => okAsync(undefined)),
+			ensureLoaded: mock(() => okAsync(undefined)),
+			refresh: mock(() => okAsync(undefined)),
+		} as unknown as PreconnectionAgentSkillsStore;
 
 		manager = new InitializationManager(
 			mockState,
@@ -199,9 +187,6 @@ describe("InitializationManager", () => {
 			expect(mockKeybindingsService.initialize).toHaveBeenCalled();
 		});
 
-		// Note: Keybinding actions are registered by KeybindingManager, not InitializationManager
-		// This is tested in keybinding-manager.test.ts
-
 		it("should install keybindings on window", async () => {
 			await manager.initialize();
 			expect(mockKeybindingsService.install).toHaveBeenCalledWith(window);
@@ -226,9 +211,21 @@ describe("InitializationManager", () => {
 		});
 
 		it("continues startup when preconnection skills warming fails", async () => {
-			mockPreconnectionAgentSkillsStore.initialize = vi.fn(() =>
+			mockPreconnectionAgentSkillsStore.initialize = mock(() =>
 				errAsync(new AgentError("skills_list_agent_skills", new Error("Failed")))
 			) as PreconnectionAgentSkillsStore["initialize"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockPreconnectionAgentSkillsStore
+			);
 
 			const result = await manager.initialize();
 
@@ -271,7 +268,7 @@ describe("InitializationManager", () => {
 				configurable: true,
 				get: () => currentPanels,
 			});
-			mockPanelStore.updatePanelSession = vi.fn((panelId: string, sessionId: string | null) => {
+			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
 				currentPanels = currentPanels.map((panel) =>
 					panel.id === panelId
 						? {
@@ -285,6 +282,8 @@ describe("InitializationManager", () => {
 							projectPath: panel.projectPath,
 							agentId: panel.agentId,
 							sessionTitle: panel.sessionTitle,
+							sourcePath: panel.sourcePath,
+							worktreePath: panel.worktreePath,
 						}
 						: panel
 				);
@@ -315,7 +314,7 @@ describe("InitializationManager", () => {
 					sessionTitle: null,
 				},
 			];
-			mockSessionStore.getSessionCold = vi.fn((sessionId: string) =>
+			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 						id: "session-1",
@@ -377,9 +376,22 @@ describe("InitializationManager", () => {
 		});
 
 		it("should handle initialization errors", async () => {
-			mockAgentStore.loadAvailableAgents = vi.fn(() =>
+			mockAgentStore.loadAvailableAgents = mock(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
+			) as AgentStore["loadAvailableAgents"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockPreconnectionAgentSkillsStore
 			);
+
 			const result = await manager.initialize();
 			expect(result.isErr()).toBe(true);
 			expect(mockState.initializationComplete).toBe(false);

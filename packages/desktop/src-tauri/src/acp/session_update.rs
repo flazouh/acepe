@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod compatibility_tests;
 mod content;
 mod deserialize;
 mod normalize;

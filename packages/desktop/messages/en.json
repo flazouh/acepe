@@ -862,7 +862,5 @@
 	"voice_error_load_failed": "Failed to load model",
 	"voice_error_transcription_timeout": "Transcription timed out",
 	"voice_model_menu_label": "Voice model",
-	"voice_model_menu_downloading": "Downloading…",
-	"permission_header_count": "{current} of {total}",
-	"permission_header_label": "Permission Request"
+	"voice_model_menu_downloading": "Downloading…"
 }

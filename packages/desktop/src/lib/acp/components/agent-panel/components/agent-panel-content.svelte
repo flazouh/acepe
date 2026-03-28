@@ -10,7 +10,6 @@ import UserMessage from "../../messages/user-message.svelte";
 import ProjectSelectionPanel from "../../project-selection-panel.svelte";
 import ReadyToAssistPlaceholder from "../../ready-to-assist-placeholder.svelte";
 import type { AgentPanelContentProps } from "../types/agent-panel-content-props.js";
-import ConnectionErrorUI from "./connection-error-ui.svelte";
 import VirtualizedEntryList from "./virtualized-entry-list.svelte";
 
 let {
@@ -121,11 +120,7 @@ export function scrollToTop() {
 		{onProjectAgentSelected}
 	/>
 {:else if viewState.kind === "error"}
-	<ConnectionErrorUI
-		error={viewState.details}
-		onRetry={() => onRetryConnection?.()}
-		onCancel={() => onCancelConnection?.()}
-	/>
+	<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
 {:else if viewState.kind === "conversation"}
 	<div class="h-full flex flex-col relative">
 		<div class="flex-1 min-h-0">

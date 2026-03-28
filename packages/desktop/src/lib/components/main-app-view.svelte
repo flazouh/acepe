@@ -55,10 +55,10 @@ import {
 } from "$lib/notifications/notification-state.js";
 import * as m from "$lib/paraglide/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
+import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
-import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
@@ -723,9 +723,10 @@ const hasAnyPanel = $derived(
 // The open state now controls width/content density instead of removing it entirely.
 const showSidebar = $derived(projectManager.projectCount !== null && projectManager.projectCount > 0);
 
-/** Tab bar above main/panel column (hidden when only one tab — nothing to switch) */
+/** Tab bar above main/panel column (only shown in session fullscreen when there is something to switch) */
 const showTabBarStrip = $derived(
 	!viewState.reviewFullscreenOpen &&
+		viewState.isFullscreen &&
 		tabBarStore.tabs.length > 1 &&
 		viewState.topBarVisible
 );

@@ -1,7 +1,7 @@
 //! Parser for OpenCode agent.
 
 use crate::acp::parsers::adapters::OpenCodeAdapter;
-use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::opencode::parse_edit_arguments;
 use crate::acp::parsers::types::{
     parse_common_update_type_name, parse_standard_usage_telemetry, AgentParser, AgentType,
@@ -58,7 +58,7 @@ impl AgentParser for OpenCodeParser {
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {
-        ToolKind::from(OpenCodeAdapter::normalize(name))
+        OpenCodeAdapter::normalize(name)
     }
 
     fn parse_typed_tool_arguments(
@@ -80,7 +80,7 @@ impl AgentParser for OpenCodeParser {
         if kind == ToolKind::Edit {
             return Some(parse_edit_arguments(raw_arguments));
         }
-        Some(parse_canonical_tool_arguments(kind, raw_arguments))
+        Some(parse_tool_kind_arguments(kind, raw_arguments))
     }
 
     fn parse_usage_telemetry(
@@ -137,7 +137,7 @@ impl OpenCodeParser {
             .cloned()
             .unwrap_or(serde_json::json!({}));
 
-        let kind = ToolKind::from(OpenCodeAdapter::normalize(&name));
+        let kind = OpenCodeAdapter::normalize(&name);
 
         Ok(RawToolCallInput {
             id,

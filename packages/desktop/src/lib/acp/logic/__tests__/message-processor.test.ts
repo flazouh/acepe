@@ -248,7 +248,7 @@ describe("MessageProcessor", () => {
 				type: "toolCall",
 				tool_call: {
 					id: "tool-123",
-					name: "read_file",
+					name: "Read",
 					kind: "read",
 					arguments: { kind: "read", file_path: "/test.txt" },
 					status: "pending",
@@ -267,7 +267,7 @@ describe("MessageProcessor", () => {
 						type: "tool_call",
 						toolCall: {
 							id: "tool-123",
-							name: "read_file",
+							name: "Read",
 							kind: "read",
 							arguments: { kind: "read", file_path: "/test.txt" },
 							status: "pending",

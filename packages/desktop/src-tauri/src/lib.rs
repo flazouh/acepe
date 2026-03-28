@@ -111,7 +111,6 @@ use skills::commands::{
     skills_delete,
     skills_get,
     skills_get_plugin_skill,
-    skills_list_agent_skills,
     skills_list_plugin_skills,
     // Plugin skills commands
     skills_list_plugins,
@@ -433,6 +432,7 @@ pub fn run() {
     // let devtools = tauri_plugin_devtools::init();
 
     let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_locale::init())
         .plugin(tauri_plugin_notification::init())
@@ -922,7 +922,6 @@ pub fn run() {
             checkpoint_revert_file,
             checkpoint_get_file_snapshots,
             // Skills commands
-            skills_list_agent_skills,
             skills_list_tree,
             skills_get,
             skills_create,

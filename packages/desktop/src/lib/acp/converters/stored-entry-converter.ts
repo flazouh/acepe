@@ -9,6 +9,28 @@ import type { AssistantMessage } from "../types/assistant-message.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { UserMessage } from "../types/user-message.js";
 
+const LEGACY_TOOL_NAME_LABELS: Record<string, string> = {
+	Bash: "Run",
+	Execute: "Run",
+	Glob: "Find",
+	Grep: "Search",
+	WebSearch: "Web Search",
+	TaskOutput: "Task Output",
+	EnterPlanMode: "Plan",
+	ExitPlanMode: "Plan",
+	CreatePlan: "Create Plan",
+	read_file: "Read",
+	ReadFile: "Read",
+	edit_file: "Edit",
+	EditFile: "Edit",
+	apply_patch: "Edit",
+};
+
+function canonicalToolName(name: string): string {
+	const label = LEGACY_TOOL_NAME_LABELS[name];
+	return label ? label : name;
+}
+
 /**
  * Convert ToolCallData (backend) to ToolCall (frontend).
  *
@@ -17,9 +39,12 @@ import type { UserMessage } from "../types/user-message.js";
  * this is a direct pass-through with recursive task children conversion.
  */
 function convertToolCallData(data: ToolCallData): ToolCall {
+	const taskChildren = data.taskChildren ? data.taskChildren.map(convertToolCallData) : undefined;
+
 	return {
 		...data,
-		taskChildren: data.taskChildren?.map(convertToolCallData) ?? undefined,
+		name: canonicalToolName(data.name),
+		taskChildren,
 	};
 }
 

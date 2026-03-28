@@ -1,7 +1,7 @@
 //! Parser for Codex agent.
 
 use crate::acp::parsers::adapters::CodexAdapter;
-use crate::acp::parsers::arguments::parse_canonical_tool_arguments;
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::codex::parse_edit_arguments;
 use crate::acp::parsers::kind as kind_utils;
 use crate::acp::parsers::status as status_utils;
@@ -71,7 +71,7 @@ impl AgentParser for CodexParser {
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {
-        ToolKind::from(CodexAdapter::normalize(name))
+        CodexAdapter::normalize(name)
     }
 
     fn parse_typed_tool_arguments(
@@ -93,7 +93,7 @@ impl AgentParser for CodexParser {
             .unwrap_or(ToolKind::Other);
 
         if inferred_kind != ToolKind::Edit {
-            return Some(parse_canonical_tool_arguments(inferred_kind, raw_arguments));
+            return Some(parse_tool_kind_arguments(inferred_kind, raw_arguments));
         }
         Some(parse_edit_arguments(raw_arguments))
     }
@@ -425,7 +425,7 @@ impl CodexParser {
             .map(str::to_string)
             .or_else(|| title.clone())
             .unwrap_or_else(|| "unknown".to_string());
-        let normalized_name_kind = ToolKind::from(CodexAdapter::normalize(&provisional_name));
+        let normalized_name_kind = CodexAdapter::normalize(&provisional_name);
         let argument_kind = Self::infer_kind_from_arguments(&arguments);
         let inferred_kind = Self::resolve_kind(
             payload_kind,
@@ -534,7 +534,7 @@ impl CodexParser {
             .map(str::to_string)
             .or_else(|| title.clone())
             .unwrap_or_else(|| "unknown".to_string());
-        let normalized_name_kind = ToolKind::from(CodexAdapter::normalize(&provisional_name));
+        let normalized_name_kind = CodexAdapter::normalize(&provisional_name);
         let argument_kind = raw_input.as_ref().and_then(Self::infer_kind_from_arguments);
         let inferred_kind = Self::resolve_kind(
             payload_kind,

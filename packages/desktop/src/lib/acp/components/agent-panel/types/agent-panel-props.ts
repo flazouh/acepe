@@ -191,4 +191,10 @@ export interface AgentPanelProps {
 	 * Callback to resize an attached file panel.
 	 */
 	readonly onResizeAttachedFilePanel?: (filePanelId: string, delta: number) => void;
+
+	/**
+	 * Callback when the user wants to create a GitHub issue from an agent error.
+	 * The draft contains a prefilled title, body, and category for the issue dialog.
+	 */
+	readonly onCreateIssueReport?: (draft: { title: string; body: string; category: string }) => void;
 }

@@ -80,19 +80,6 @@ export class PermissionStore {
 	}
 
 	/**
-	 * Get all pending permissions for a session, ordered by insertion (oldest first).
-	 */
-	getForSession(sessionId: string): ReadonlyArray<PermissionRequest> {
-		const result: PermissionRequest[] = [];
-		for (const permission of this.pending.values()) {
-			if (permission.sessionId === sessionId) {
-				result.push(permission);
-			}
-		}
-		return result;
-	}
-
-	/**
 	 * Get the most recent pending permission for a given tool call.
 	 */
 	getForToolCall(toolCallId: string): PermissionRequest | undefined {

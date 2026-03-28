@@ -1,6 +1,6 @@
 //! Agent-specific adapters for tool name normalization.
 //!
-//! Each adapter normalizes agent-specific tool names to the canonical `CanonicalTool` enum.
+//! Each adapter normalizes agent-specific tool names directly to `ToolKind`.
 //! This allows each agent to use different tool names while maintaining a unified
 //! classification system.
 

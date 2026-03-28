@@ -4,7 +4,7 @@ use crate::acp::session_update::{
     ToolCallData, ToolKind,
 };
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-use crate::session_jsonl::display_names::{format_model_display_name, format_tool_display_name};
+use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
     ConvertedSession, SessionStats, StoredAssistantChunk, StoredAssistantMessage,
     StoredContentBlock, StoredEntry, StoredUserMessage,
@@ -294,12 +294,14 @@ fn convert_opencode_assistant_message(
                 } else {
                     None
                 };
+                let display_name = crate::acp::parsers::kind::display_name_for_tool(kind, name);
+
                 tool_entries.push(StoredEntry::ToolCall {
                     id: id.clone(),
                     message: ToolCallData {
                         id: id.clone(),
-                        name: name.clone(),
-                        title: Some(format_tool_display_name(name)),
+                        name: display_name.clone(),
+                        title: Some(display_name),
                         status: tool_call_status_from_str(status),
                         result: result.map(serde_json::Value::String),
                         kind: Some(kind),

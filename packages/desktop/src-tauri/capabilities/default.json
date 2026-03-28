@@ -11,6 +11,7 @@
 		"core:window:allow-close",
 		"core:webview:allow-create-webview-window",
 		"core:webview:allow-set-webview-zoom",
+		"clipboard-manager:allow-write-text",
 		"opener:default",
 		{
 			"identifier": "opener:allow-open-path",

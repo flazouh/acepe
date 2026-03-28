@@ -7,6 +7,7 @@ license = "FSL-1.1-ALv2"
 repository = "https://github.com/flazouh/acepe"
 edition = "2021"
 default-run = "acepe"
+autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -90,6 +91,7 @@ zip = "2"
 partial-json-fixer = "0.5"
 cc-sdk = "0.7.0"
 tauri-plugin-mcp-bridge = "0.9"
+tauri-plugin-clipboard-manager = "2.3.2"
 # Unix signal handling for graceful shutdown
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28", features = ["signal", "process"] }
@@ -101,6 +103,9 @@ objc2 = { version = "0.6", features = ["catch-all"] }
 # Metal feature is macOS-only, while the base crate is used cross-platform.
 whisper-rs = { version = "=0.16.0", features = ["metal"] }
 
+[features]
+manual-test-targets = []
+
 [[bin]]
 name = "scan_unmatched_tools"
 path = "src/bin/scan_unmatched_tools.rs"
@@ -109,11 +114,45 @@ path = "src/bin/scan_unmatched_tools.rs"
 name = "dump_cursor_tool_use"
 path = "src/bin/dump_cursor_tool_use.rs"
 
+[[test]]
+name = "history_integration_test"
+path = "tests/history_integration_test.rs"
+
+[[test]]
+name = "e2e_migration_test"
+path = "tests/e2e_migration_test.rs"
+
+[[test]]
+name = "startup_scan_benchmark"
+path = "tests/startup_scan_benchmark.rs"
+required-features = ["manual-test-targets"]
+
+[[test]]
+name = "indexer_benchmark"
+path = "tests/indexer_benchmark.rs"
+required-features = ["manual-test-targets"]
+
+[[test]]
+name = "codex_scanner_benchmark"
+path = "tests/codex_scanner_benchmark.rs"
+required-features = ["manual-test-targets"]
+
+[[test]]
+name = "codex_scanner_test"
+path = "tests/codex_scanner_test.rs"
+required-features = ["manual-test-targets"]
+
+[[test]]
+name = "voice_transcription"
+path = "tests/voice_transcription.rs"
+required-features = ["manual-test-targets"]
+
+[[test]]
+name = "acp_session_list_probe"
+path = "tests/acp_session_list_probe.rs"
+required-features = ["manual-test-targets"]
+
 [dev-dependencies]
 tokio-test = "0.4"
 insta = { version = "1", features = ["json"] }
 hound = "3"
-
-# TODO(ZhangHanDong/claude-code-api-rs#14): switch back to crates.io once upstream PR is merged and released
-[patch.crates-io]
-cc-sdk = { git = "https://github.com/flazouh/claude-code-api-rs.git", rev = "dc6ac1027a96c0700adf1ac2851ee86bf423ca8b" }

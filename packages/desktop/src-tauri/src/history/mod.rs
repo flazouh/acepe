@@ -9,6 +9,7 @@ pub mod constants;
 pub mod cursor_sqlite_parser;
 pub mod indexer;
 pub mod scan_cache;
+pub mod session_context;
 pub(crate) mod tag_utils;
 pub(crate) mod title_utils;
 
