@@ -128,6 +128,10 @@ impl ToolCallIdTracker {
         }
         id
     }
+
+    async fn is_empty(&self) -> bool {
+        self.map.lock().await.is_empty()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +265,11 @@ impl CcSdkClaudeClient {
             pending_mode_id: None,
             pending_model_id: None,
         })
+    }
+
+    fn reset_stream_runtime_state(&mut self) {
+        self.tool_call_tracker = Arc::new(ToolCallIdTracker::new());
+        self.task_reconciler = Arc::new(std::sync::Mutex::new(TaskReconciler::new()));
     }
 
     /// Build cc-sdk options for the given working directory.
@@ -616,13 +625,6 @@ async fn run_streaming_bridge(
                                                     Some(session_id.as_str()),
                                                 )
                                             });
-                                            log_emitted_event(
-                                                &session_id,
-                                                &SessionUpdate::ToolCallUpdate {
-                                                    update: update.clone(),
-                                                    session_id: Some(session_id.clone()),
-                                                },
-                                            );
                                             dispatch_cc_sdk_update(
                                                 &dispatcher,
                                                 &task_reconciler,
@@ -822,6 +824,7 @@ impl AgentClient for CcSdkClaudeClient {
 
     async fn new_session(&mut self, cwd: String) -> AcpResult<NewSessionResponse> {
         let session_id = Uuid::new_v4().to_string();
+        self.reset_stream_runtime_state();
         let options = self.build_options(&cwd, &session_id, None, false);
         // Defer connection until the first send_prompt so the initial user
         // message is passed to connect() and the CLI starts processing it
@@ -853,6 +856,7 @@ impl AgentClient for CcSdkClaudeClient {
         session_id: String,
         cwd: String,
     ) -> AcpResult<ResumeSessionResponse> {
+        self.reset_stream_runtime_state();
         self.pending_options = Some(self.build_options(&cwd, &session_id, Some(session_id.clone()), false));
         let models = self.hydrated_session_model_state().await;
         self.pending_options = None;
@@ -882,6 +886,7 @@ impl AgentClient for CcSdkClaudeClient {
         cwd: String,
     ) -> AcpResult<NewSessionResponse> {
         let new_session_id = Uuid::new_v4().to_string();
+        self.reset_stream_runtime_state();
         self.pending_options = Some(self.build_options(&cwd, &new_session_id, Some(session_id.clone()), true));
         let models = self.hydrated_session_model_state().await;
         self.pending_options = None;
@@ -1017,6 +1022,7 @@ impl AgentClient for CcSdkClaudeClient {
         // Drop the Arc — once no other holders remain the client cleans up the subprocess.
         self.sdk_client = None;
         self.session_id = None;
+        self.reset_stream_runtime_state();
     }
 }
 
@@ -1568,6 +1574,72 @@ mod tests {
                 assert!(tool_call.task_children.is_none());
             }
             other => panic!("expected tool call update, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn reset_stream_runtime_state_clears_tracker_and_reconciler() {
+        let mut client = make_test_client();
+
+        client
+            .tool_call_tracker
+            .record("Bash".to_string(), "toolu_old".to_string())
+            .await;
+
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let _ = collect_cc_sdk_updates_for_dispatch(
+            &make_task_tool_call("toolu_task_parent"),
+            &client.task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+        let child_outputs = collect_cc_sdk_updates_for_dispatch(
+            &make_child_tool_call("toolu_child_orphan", "Bash", ToolKind::Execute),
+            &client.task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+
+        assert!(matches!(
+            &child_outputs[0],
+            SessionUpdate::ToolCall { tool_call, .. } if tool_call.id == "toolu_task_parent"
+        ));
+
+        client.reset_stream_runtime_state();
+
+        assert!(client.tool_call_tracker.is_empty().await);
+
+        let outputs_after_reset = collect_cc_sdk_updates_for_dispatch(
+            &SessionUpdate::ToolCallUpdate {
+                update: crate::acp::session_update::ToolCallUpdateData {
+                    tool_call_id: "toolu_child_orphan".to_string(),
+                    status: Some(ToolCallStatus::Completed),
+                    result: Some(serde_json::json!({"ok": true})),
+                    title: None,
+                    content: None,
+                    streaming_input_delta: None,
+                    streaming_arguments: None,
+                    streaming_plan: None,
+                    raw_output: None,
+                    locations: None,
+                    arguments: None,
+                    failure_reason: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+            &client.task_reconciler,
+            provider.parser_agent_type(),
+            Some(&provider),
+        );
+
+        assert_eq!(outputs_after_reset.len(), 1);
+        match &outputs_after_reset[0] {
+            SessionUpdate::ToolCallUpdate { update, .. } => {
+                assert_eq!(update.tool_call_id, "toolu_child_orphan");
+            }
+            other => panic!("expected passthrough tool call update, got {:?}", other),
         }
     }
 
