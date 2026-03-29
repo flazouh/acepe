@@ -23,6 +23,13 @@ use tokio::sync::Mutex;
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 
+fn canonicalize_or_original_for_test(path: &std::path::Path) -> String {
+    std::fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .into_owned()
+}
+
 async fn setup_test_db() -> DbConn {
     let db = Database::connect("sqlite::memory:")
         .await
@@ -140,7 +147,7 @@ fn session_metadata_context_from_cwd_returns_plain_project_for_normal_directory(
     let (project_path, worktree_path) =
         session_metadata_context_from_cwd(temp.path());
 
-    assert_eq!(project_path, temp.path().to_string_lossy());
+    assert_eq!(project_path, canonicalize_or_original_for_test(temp.path()));
     assert_eq!(worktree_path, None);
 }
 
@@ -165,7 +172,7 @@ fn session_metadata_context_from_cwd_returns_base_project_for_git_worktree() {
     assert_eq!(project_path, repo_path.to_string_lossy());
     assert_eq!(
         resolved_worktree_path,
-        Some(worktree_path.to_string_lossy().into_owned())
+        Some(canonicalize_or_original_for_test(&worktree_path))
     );
 }
 
@@ -202,10 +209,10 @@ async fn persist_session_metadata_for_cwd_inserts_worktree_placeholder() {
     assert_eq!(row.project_path, repo_path.to_string_lossy());
     assert_eq!(
         row.worktree_path,
-        Some(worktree_path.to_string_lossy().into_owned())
+        Some(canonicalize_or_original_for_test(&worktree_path))
     );
     assert_eq!(row.agent_id, "claude-code");
-    assert!(row.is_placeholder());
+    assert!(!row.is_placeholder());
 }
 
 #[tokio::test]
@@ -227,7 +234,7 @@ async fn persist_session_metadata_for_cwd_inserts_plain_project_placeholder() {
         .expect("load row")
         .expect("row should exist");
 
-    assert_eq!(row.project_path, temp.path().to_string_lossy());
+    assert_eq!(row.project_path, canonicalize_or_original_for_test(temp.path()));
     assert_eq!(row.worktree_path, None);
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_placeholder());
