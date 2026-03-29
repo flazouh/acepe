@@ -5,6 +5,7 @@ import { toast } from "svelte-sonner";
 import { copySessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
+import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import {
