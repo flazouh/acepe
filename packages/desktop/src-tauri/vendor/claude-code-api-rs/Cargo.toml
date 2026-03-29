@@ -1,0 +1,20 @@
+[workspace]
+members = ["claude-code-api", "claude-code-sdk-rs"]
+resolver = "2"
+
+[workspace.package]
+version = "0.6.0"
+edition = "2024"
+authors = ["blackanger"]
+license = "MIT"
+repository = "https://github.com/ZhangHanDong/claude-code-api-rs"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+futures = "0.3"
+async-trait = "0.1"

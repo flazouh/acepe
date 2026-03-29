@@ -89,7 +89,7 @@ tar = "0.4"
 flate2 = "1.0"
 zip = "2"
 partial-json-fixer = "0.5"
-cc-sdk = "0.7.0"
+cc-sdk = { path = "vendor/claude-code-api-rs/claude-code-sdk-rs" }
 tauri-plugin-mcp-bridge = "0.9"
 tauri-plugin-clipboard-manager = "2.3.2"
 # Unix signal handling for graceful shutdown
@@ -156,6 +156,3 @@ required-features = ["manual-test-targets"]
 tokio-test = "0.4"
 insta = { version = "1", features = ["json"] }
 hound = "3"
-
-[patch.crates-io]
-cc-sdk = { git = "https://github.com/ZhangHanDong/claude-code-api-rs", rev = "dc6ac1027a96c0700adf1ac2851ee86bf423ca8b" }
