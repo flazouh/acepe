@@ -85,6 +85,7 @@ export class VoiceInputState {
 
 	private readonly sessionId: string;
 	private readonly onTranscriptionReady: ((text: string) => void) | null;
+	private readonly onOverlayDeactivated: (() => void) | null;
 	private readonly getSelectedLanguage: () => string;
 	private readonly getSelectedModelId: () => string;
 	private isDisposed = false;
@@ -92,13 +93,15 @@ export class VoiceInputState {
 	constructor(options: {
 		sessionId: string;
 		onTranscriptionReady?: (text: string) => void;
+		onOverlayDeactivated?: () => void;
 		getSelectedLanguage?: () => string;
 		getSelectedModelId?: () => string;
 	}) {
 		this.sessionId = options.sessionId;
-		this.onTranscriptionReady = options.onTranscriptionReady ?? null;
-		this.getSelectedLanguage = options.getSelectedLanguage ?? (() => "auto");
-		this.getSelectedModelId = options.getSelectedModelId ?? (() => "small.en");
+		this.onTranscriptionReady = options.onTranscriptionReady !== undefined ? options.onTranscriptionReady : null;
+		this.onOverlayDeactivated = options.onOverlayDeactivated !== undefined ? options.onOverlayDeactivated : null;
+		this.getSelectedLanguage = options.getSelectedLanguage !== undefined ? options.getSelectedLanguage : () => "auto";
+		this.getSelectedModelId = options.getSelectedModelId !== undefined ? options.getSelectedModelId : () => "small.en";
 		log("VoiceInputState created", { sessionId: this.sessionId });
 	}
 
@@ -491,6 +494,9 @@ export class VoiceInputState {
 				this.stopRecordingElapsedTimer();
 			}
 			log(`transition: ${prev} → ${result}`);
+			if (!this.isDisposed && shouldShowVoiceOverlay(prev) && !shouldShowVoiceOverlay(result)) {
+				this.onOverlayDeactivated?.();
+			}
 		} else {
 			log(`transition BLOCKED: ${prev} → ${next}`);
 		}

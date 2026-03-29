@@ -547,6 +547,10 @@ async function initializeVoiceState(): Promise<void> {
 		sessionId: targetSessionId,
 		getSelectedLanguage: () => voiceSettingsStore.language,
 		getSelectedModelId: () => voiceSettingsStore.selectedModelId,
+		onOverlayDeactivated: () => {
+			// Editor is re-mounted after overlay hides; focus it on next microtask
+			queueMicrotask(() => editorRef?.focus());
+		},
 		onTranscriptionReady: (text) => {
 			const normalizedText = normalizeVoiceInputText(text);
 			if (!normalizedText) {
@@ -614,6 +618,10 @@ onMount(() => {
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
 			isShiftPressed = true;
+		}
+		if (document.activeElement !== editorRef && voiceState && shouldUseVoiceHoldKey(event)) {
+			event.preventDefault();
+			voiceState.onKeyboardHoldStart();
 		}
 	};
 	const handleWindowKeyUp = (event: KeyboardEvent) => {
