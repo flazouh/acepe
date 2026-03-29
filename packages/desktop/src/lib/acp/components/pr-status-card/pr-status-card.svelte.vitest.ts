@@ -31,6 +31,14 @@ vi.mock("phosphor-svelte/lib/GitMerge", async () => {
 	};
 });
 
+vi.mock("phosphor-svelte/lib/GitPullRequest", async () => {
+	const Stub = (await import("./test-component-stub.svelte")).default;
+
+	return {
+		default: Stub,
+	};
+});
+
 
 vi.mock("../diff-viewer/diff-viewer-modal.svelte", async () => {
 	const Stub = (await import("./test-component-stub.svelte")).default;
