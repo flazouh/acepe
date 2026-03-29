@@ -14,7 +14,6 @@ import type {
 
 export { createProjectColorMap, createProjectNameMap };
 
-import { getToolCompactDisplayText, getToolKindTitle } from "../../registry/tool-kind-ui-registry.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { truncateText } from "../../utils/tool-state-utils.js";
@@ -42,17 +41,49 @@ export function createLoadingSessionGroups(projects: readonly Project[]): Sessio
 /**
  * Extracts tool info from a single session entry.
  */
+function extractToolTarget(toolCall: ToolCall, kind: ToolKind): string {
+	const args = toolCall.arguments;
+	switch (kind) {
+		case "read":
+		case "delete":
+			if (args.kind === "read" || args.kind === "delete") {
+				const path = args.file_path;
+				return path ? (path.split("/").pop() || path) : "";
+			}
+			return "";
+		case "edit":
+			if (args.kind === "edit") {
+				const path = args.edits[0]?.filePath;
+				return path ? (path.split("/").pop() || path) : "";
+			}
+			return "";
+		case "execute":
+			if (args.kind === "execute" && args.command) {
+				return truncateText(args.command.replace(/\\\s*\n\s*/g, " ").trim(), 50);
+			}
+			return "";
+		case "search":
+			return args.kind === "search" && args.query ? truncateText(args.query, 40) : "";
+		case "glob":
+			return args.kind === "glob" && args.pattern ? truncateText(args.pattern, 40) : "";
+		case "think":
+		case "task":
+			if (args.kind === "think" && args.description) {
+				return truncateText(args.description, 50);
+			}
+			return toolCall.title ?? "";
+		default:
+			return toolCall.title ?? "";
+	}
+}
+
 function extractToolInfoFromEntry(entry: SessionEntry): LastToolInfo | null {
 	if (entry.type !== "tool_call") return null;
 
 	const toolCall = entry.message;
 	const kind = (toolCall.kind || "other") as ToolKind;
-	const name = getToolKindTitle(kind, toolCall, entry.isStreaming ? "streaming" : "completed");
-	const target = getToolCompactDisplayText(
-		kind,
-		toolCall,
-		entry.isStreaming ? "streaming" : "completed"
-	);
+	const name = toolCall.title || toolCall.name;
+	const target = extractToolTarget(toolCall, kind);
 
 	return { name, target: target || "", kind };
 }
