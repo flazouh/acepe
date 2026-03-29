@@ -47,6 +47,157 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
 	{
+		version: "2026.3.33",
+		date: "2026-03-29",
+		highlights:
+			"Claude Code worktree sessions now recover provider-backed history correctly, agent task cards surface the latest tool call inline, and worktree toggle lock states read more clearly.",
+		changes: [
+			{
+				type: "fix",
+				description:
+					"Claude Code session metadata now persists provider-backed session ID aliases so worktree sessions reload the correct history after restart.",
+			},
+			{
+				type: "fix",
+				description:
+					"History loading, plan lookup, batch upserts, and cleanup now respect provider session IDs instead of treating provider transcripts as separate sessions.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Agent task cards now surface the latest tool call inline above the tally strip for faster scanning.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Worktree toggles now keep the primary control visibly disabled when a global auto-worktree default locks it on.",
+			},
+		],
+	},
+	{
+		version: "2026.3.32",
+		date: "2026-03-29",
+		highlights:
+			"Permission prompts render in a dedicated header, Claude worktree restore is more reliable, and GitHub Releases now drive the macOS download flow.",
+		changes: [
+			{
+				type: "feature",
+				description: "Wispr Flow sound effects for voice input and notifications.",
+			},
+			{
+				type: "feature",
+				description: "Inline error cards can now open GitHub issue drafts directly.",
+			},
+			{
+				type: "feature",
+				description: "Preconnect slash commands now preload agent skills.",
+			},
+			{
+				type: "improvement",
+				description: "Permission prompts now render above the agent input in a dedicated header.",
+			},
+			{
+				type: "improvement",
+				description: "GitHub star count now appears in website navigation.",
+			},
+			{
+				type: "improvement",
+				description: "Landing, pricing, and download pages polished.",
+			},
+			{
+				type: "improvement",
+				description: "Social preview image updated to the Acepe working view screenshot.",
+			},
+			{
+				type: "improvement",
+				description: "Unused website waitlist and Resend flow removed.",
+			},
+			{
+				type: "fix",
+				description: "ACP permission request identity stabilized for more reliable permission targeting.",
+			},
+			{
+				type: "fix",
+				description: "Claude worktree sessions and session context restore more reliably after restart.",
+			},
+			{
+				type: "fix",
+				description: "Async HTML is preserved during markdown streaming.",
+			},
+			{
+				type: "fix",
+				description: "Voice input lifecycle and quiet-input live meter behavior hardened.",
+			},
+			{
+				type: "fix",
+				description: "Agent input stream controls and voice start state aligned correctly.",
+			},
+			{
+				type: "fix",
+				description: "Claude Code subagent task nesting and session ID mapping restored.",
+			},
+			{
+				type: "fix",
+				description: "macOS downloads now bypass the old website proxy for GitHub Releases.",
+			},
+			{
+				type: "fix",
+				description: "Footer buttons no longer disappear when branch names are long.",
+			},
+		],
+	},
+	{
+		version: "2026.3.31",
+		date: "2026-03-27",
+		changes: [
+			{
+				type: "fix",
+				description: "Mic button tooltip now shows the correct keyboard shortcut.",
+			},
+		],
+	},
+	{
+		version: "2026.3.30",
+		date: "2026-03-27",
+		changes: [
+			{
+				type: "fix",
+				description: "Website CI and fixture setup restored for release builds.",
+			},
+		],
+	},
+	{
+		version: "2026.3.29",
+		date: "2026-03-26",
+		changes: [
+			{
+				type: "fix",
+				description: "Pierre diff workers now build as ES modules.",
+			},
+		],
+	},
+	{
+		version: "2026.3.28",
+		date: "2026-03-26",
+		changes: [
+			{
+				type: "fix",
+				description: "Desktop CI and release pipeline unblocked.",
+			},
+		],
+	},
+	{
+		version: "2026.3.27",
+		date: "2026-03-26",
+		changes: [
+			{
+				type: "fix",
+				description:
+					"Rust cache invalidation now picks up updated mcp-bridge permissions metadata.",
+			},
+		],
+	},
+	{
 		version: "2026.3.26",
 		date: "2026-03-26",
 		highlights:

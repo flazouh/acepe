@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.3.33] - 2026-03-29
+
+### Changed
+- Agent task cards now show the latest tool call inline above the tally strip for faster scanning
+- Worktree toggles now keep the primary control visibly disabled when a global auto-worktree default locks it on
+
+### Fixed
+- Claude Code session metadata now persists provider-backed session ID aliases so worktree sessions reload the correct history after restart
+- History loading, plan lookup, batch upserts, and cleanup now respect provider session IDs instead of treating provider transcripts as separate sessions
+- Disabled worktree toggle buttons now dim correctly when interaction is locked
+
 ## [2026.3.32] - 2026-03-29
 
 ### Added
@@ -338,26 +349,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Intel build support from release process
 - Intel download button from website
 
-[Unreleased]: https://github.com/acepe/acepe/compare/v2026.3.32...HEAD
-[2026.3.32]: https://github.com/acepe/acepe/releases/tag/v2026.3.32
-[2026.3.31]: https://github.com/acepe/acepe/releases/tag/v2026.3.31
-[2026.3.30]: https://github.com/acepe/acepe/releases/tag/v2026.3.30
-[2026.3.29]: https://github.com/acepe/acepe/releases/tag/v2026.3.29
-[2026.3.28]: https://github.com/acepe/acepe/releases/tag/v2026.3.28
-[2026.3.27]: https://github.com/acepe/acepe/releases/tag/v2026.3.27
-[2026.3.26]: https://github.com/acepe/acepe/releases/tag/v2026.3.26
-[2026.3.14]: https://github.com/acepe/acepe/releases/tag/v2026.3.14
-[2026.3.12]: https://github.com/acepe/acepe/releases/tag/v2026.3.12
-[2026.3.11]: https://github.com/acepe/acepe/releases/tag/v2026.3.11
-[2026.3.8]: https://github.com/acepe/acepe/releases/tag/v2026.3.8
-[2026.3.7]: https://github.com/acepe/acepe/releases/tag/v2026.3.7
-[2026.3.6]: https://github.com/acepe/acepe/releases/tag/v2026.3.6
-[2026.3.5]: https://github.com/acepe/acepe/releases/tag/v2026.3.5
-[2026.3.4]: https://github.com/acepe/acepe/releases/tag/v2026.3.4
-[2026.3.3]: https://github.com/acepe/acepe/releases/tag/v2026.3.3
-[2026.3.2]: https://github.com/acepe/acepe/releases/tag/v2026.3.2
-[2026.3.1]: https://github.com/acepe/acepe/releases/tag/v2026.3.1
-[2026.2.41]: https://github.com/acepe/acepe/releases/tag/v2026.2.41
+[Unreleased]: https://github.com/flazouh/acepe/compare/v2026.3.33...HEAD
+[2026.3.33]: https://github.com/flazouh/acepe/releases/tag/v2026.3.33
+[2026.3.32]: https://github.com/flazouh/acepe/releases/tag/v2026.3.32
+[2026.3.31]: https://github.com/flazouh/acepe/releases/tag/v2026.3.31
+[2026.3.30]: https://github.com/flazouh/acepe/releases/tag/v2026.3.30
+[2026.3.29]: https://github.com/flazouh/acepe/releases/tag/v2026.3.29
+[2026.3.28]: https://github.com/flazouh/acepe/releases/tag/v2026.3.28
+[2026.3.27]: https://github.com/flazouh/acepe/releases/tag/v2026.3.27
+[2026.3.26]: https://github.com/flazouh/acepe/releases/tag/v2026.3.26
+[2026.3.14]: https://github.com/flazouh/acepe/releases/tag/v2026.3.14
+[2026.3.12]: https://github.com/flazouh/acepe/releases/tag/v2026.3.12
+[2026.3.11]: https://github.com/flazouh/acepe/releases/tag/v2026.3.11
+[2026.3.8]: https://github.com/flazouh/acepe/releases/tag/v2026.3.8
+[2026.3.7]: https://github.com/flazouh/acepe/releases/tag/v2026.3.7
+[2026.3.6]: https://github.com/flazouh/acepe/releases/tag/v2026.3.6
+[2026.3.5]: https://github.com/flazouh/acepe/releases/tag/v2026.3.5
+[2026.3.4]: https://github.com/flazouh/acepe/releases/tag/v2026.3.4
+[2026.3.3]: https://github.com/flazouh/acepe/releases/tag/v2026.3.3
+[2026.3.2]: https://github.com/flazouh/acepe/releases/tag/v2026.3.2
+[2026.3.1]: https://github.com/flazouh/acepe/releases/tag/v2026.3.1
+[2026.2.41]: https://github.com/flazouh/acepe/releases/tag/v2026.2.41
 [2026.2.40]: https://github.com/acepe/acepe/releases/tag/v2026.2.40
 [2026.2.39]: https://github.com/acepe/acepe/releases/tag/v2026.2.39
 [2026.2.38]: https://github.com/acepe/acepe/releases/tag/v2026.2.38
