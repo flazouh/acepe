@@ -223,7 +223,7 @@ export class VoiceInputState {
 		}
 		this.clearPressTimer();
 		this.isPressAndHold = true;
-		playSound(SoundEffect.SoundUp);
+		playSound(SoundEffect.DictationStart);
 		log("keyboard press-and-hold: starting recording immediately");
 		this.startRecording();
 	}
@@ -242,7 +242,7 @@ export class VoiceInputState {
 		}
 		if (this.isPressAndHold && this.phase === "recording") {
 			log("keyboard press-and-hold release: stopping recording");
-			playSound(SoundEffect.SoundDown);
+			playSound(SoundEffect.DictationStop);
 			this.stopRecording();
 		}
 	}
@@ -267,22 +267,22 @@ export class VoiceInputState {
 			if (this.phase === "idle") {
 				this.isPressAndHold = false;
 				log("click-to-toggle: starting recording");
-				playSound(SoundEffect.SoundUp);
+				playSound(SoundEffect.DictationStart);
 				this.startRecording();
 			} else if (this.phase === "recording") {
 				log("click-to-toggle: stopping recording");
-				playSound(SoundEffect.SoundDown);
+				playSound(SoundEffect.DictationStop);
 				this.stopRecording();
 			}
 		} else if (this.isPressAndHold && this.phase === "recording") {
 			// Released after threshold → end hold
 			log("press-and-hold release: stopping recording");
-			playSound(SoundEffect.SoundDown);
+			playSound(SoundEffect.DictationStop);
 			this.stopRecording();
 		} else if (this.phase === "recording") {
 			// Click-to-toggle stop: pointerdown was ignored while recording, so stop on release.
 			log("click-to-toggle: stopping recording");
-			playSound(SoundEffect.SoundDown);
+			playSound(SoundEffect.DictationStop);
 			this.stopRecording();
 		}
 	}

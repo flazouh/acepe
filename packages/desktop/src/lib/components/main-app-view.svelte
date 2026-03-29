@@ -551,8 +551,9 @@ onMount(async () => {
 
 	// Preload latency-critical voice sounds so spacebar-triggered
 	// recording feedback is instant (Web Audio API buffer cache).
-	preloadSound(SoundEffect.SoundUp);
-	preloadSound(SoundEffect.SoundDown);
+	preloadSound(SoundEffect.DictationStart);
+	preloadSound(SoundEffect.DictationStop);
+	preloadSound(SoundEffect.Notification);
 	void import("@tauri-apps/api/app")
 		.then((mod) => mod.getVersion())
 		.then((version) => {
