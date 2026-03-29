@@ -26,7 +26,6 @@ import { getPlanPreferenceStore } from "../../store/plan-preference-store.svelte
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
-import { COLOR_NAMES, Colors } from "../../utils/colors.js";
 import PlanDialog from "../plan-dialog.svelte";
 
 interface Props {
@@ -146,7 +145,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 	<AgentToolCard>
 		<EmbeddedPanelHeader class="bg-accent/40">
 			<HeaderTitleCell compactPadding>
-				<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
+				<PlanIcon size="sm" class="shrink-0 mr-1" />
 				<span class="text-[11px] font-semibold font-mono text-foreground select-none leading-none">
 					Plan
 				</span>

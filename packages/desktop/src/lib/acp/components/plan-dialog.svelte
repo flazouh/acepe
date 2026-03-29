@@ -15,7 +15,6 @@ import * as m from "$lib/paraglide/messages.js";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
 
 import { useSessionContext } from "../hooks/use-session-context.js";
-import { Colors } from "../utils/colors.js";
 import CopyButton from "./messages/copy-button.svelte";
 import MarkdownText from "./messages/markdown-text.svelte";
 
@@ -53,7 +52,7 @@ function downloadAsMarkdown() {
 		<!-- Header -->
 		<EmbeddedPanelHeader class="bg-muted/10 border-border/30">
 			<HeaderTitleCell>
-				<PlanIcon size="md" class="shrink-0 mr-1.5" style="color: {Colors.orange}" />
+				<PlanIcon size="md" class="shrink-0 mr-1.5" />
 				<span
 					class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none"
 				>

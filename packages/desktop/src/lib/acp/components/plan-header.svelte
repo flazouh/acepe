@@ -12,8 +12,6 @@ import ArrowsOutSimple from "phosphor-svelte/lib/ArrowsOutSimple";
 import * as m from "$lib/paraglide/messages.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
 
-import { Colors } from "../utils/colors.js";
-
 interface Props {
 	plan: SessionPlanResponse;
 	isExpanded: boolean;
@@ -25,7 +23,7 @@ let { plan, isExpanded, onToggleSidebar }: Props = $props();
 
 <EmbeddedPanelHeader>
 	<HeaderTitleCell>
-		<PlanIcon size="md" class="shrink-0 mr-1.5" style="color: {Colors.orange}" />
+		<PlanIcon size="md" class="shrink-0 mr-1.5" />
 		<span
 			class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none"
 		>

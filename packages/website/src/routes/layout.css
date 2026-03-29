@@ -38,8 +38,10 @@
 	--border: #2a2a2a;
 	--input: #313131;
 	--ring: #30373a;
-	--success: var(--token-success-dark);
+	--success: var(--token-build-icon-dark);
 	--success-foreground: #ffffff;
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-dark);
 	--chart-1: #88c0d0;
 	--chart-2: #a3be8c;
 	--chart-3: #ebcb8b;
@@ -87,6 +89,8 @@
 	--card-foreground: #0A0A09;
 	--success: var(--token-success-light);
 	--success-foreground: #ffffff;
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-light);
 	--popover: #FFFFFF;
 	--popover-foreground: #0A0A09;
 	--secondary: #E5E0D5;
