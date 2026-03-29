@@ -4,8 +4,10 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import ArrowsOut from "phosphor-svelte/lib/ArrowsOut";
 import Check from "phosphor-svelte/lib/Check";
 import Cpu from "phosphor-svelte/lib/Cpu";
+import DotsThreeVertical from "phosphor-svelte/lib/DotsThreeVertical";
 import FileCode from "phosphor-svelte/lib/FileCode";
 import GitPullRequest from "phosphor-svelte/lib/GitPullRequest";
+import NotePencil from "phosphor-svelte/lib/NotePencil";
 import Robot from "phosphor-svelte/lib/Robot";
 import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -57,8 +59,6 @@ interface Props {
 	availableAgents?: AgentInfo[];
 	/** Current/default agent ID for PR generation */
 	currentAgentId?: string | null;
-	/** Available models for PR generation selection */
-	availableModels?: readonly Model[];
 	/** Current/default model ID for PR generation */
 	currentModelId?: string | null;
 	/** Current effective theme */
@@ -75,7 +75,6 @@ let {
 	createPrLabel = null,
 	availableAgents = [],
 	currentAgentId = null,
-	availableModels = [],
 	currentModelId = null,
 	effectiveTheme = "dark",
 }: Props = $props();
@@ -84,20 +83,27 @@ let {
 const reviewPreferenceStore = getReviewPreferenceStore();
 
 let isExpanded = $state(false);
+let showPromptEditor = $state(false);
 
 // PR generation preferences — persisted globally via SQLite
 const prPrefs = $derived(agentModelPrefs.getPrGenerationPrefs());
 
 // Derived effective values (persisted override > current default)
-const effectiveAgentId = $derived(prPrefs.agentId ?? currentAgentId);
-const effectiveModelId = $derived(prPrefs.modelId ?? currentModelId);
+const effectiveAgentId = $derived(prPrefs.agentId ? prPrefs.agentId : currentAgentId);
+const effectiveModelId = $derived(prPrefs.modelId ? prPrefs.modelId : currentModelId);
+
+// Models react to the effective agent selection — when the user picks a
+// different agent in the dropdown the model list updates automatically.
+const reactiveModels = $derived(
+	effectiveAgentId ? agentModelPrefs.getCachedModels(effectiveAgentId) : []
+);
 
 const effectiveAgent = $derived(
-	effectiveAgentId ? (availableAgents.find((a) => a.id === effectiveAgentId) ?? null) : null
+	effectiveAgentId ? (availableAgents.find((a) => a.id === effectiveAgentId) ? availableAgents.find((a) => a.id === effectiveAgentId)! : null) : null
 );
 const effectiveModel = $derived(
 	effectiveModelId
-		? (availableModels.find((m) => m.id === effectiveModelId) ?? null)
+		? (reactiveModels.find((mdl) => mdl.id === effectiveModelId) ? reactiveModels.find((mdl) => mdl.id === effectiveModelId)! : null)
 		: null
 );
 
@@ -107,11 +113,11 @@ const effectiveModelDisplayName = $derived.by(() => {
 });
 
 const totalAdded = $derived(
-	modifiedFilesState?.files.reduce((sum, f) => sum + f.totalAdded, 0) ?? 0
+	modifiedFilesState ? modifiedFilesState.files.reduce((sum, f) => sum + f.totalAdded, 0) : 0
 );
 
 const totalRemoved = $derived(
-	modifiedFilesState?.files.reduce((sum, f) => sum + f.totalRemoved, 0) ?? 0
+	modifiedFilesState ? modifiedFilesState.files.reduce((sum, f) => sum + f.totalRemoved, 0) : 0
 );
 
 const reviewStatusByFilePath = $derived.by(
@@ -159,7 +165,35 @@ function handleCreatePrClick(): void {
 	const config: PrGenerationConfig = {};
 	if (prPrefs.agentId) config.agentId = prPrefs.agentId;
 	if (prPrefs.modelId) config.modelId = prPrefs.modelId;
+	if (prPrefs.customPrompt) config.customPrompt = prPrefs.customPrompt;
 	onCreatePr(Object.keys(config).length > 0 ? config : undefined);
+}
+
+function handleAgentSelect(agentId: string, isSelected: boolean): void {
+	const newAgentId = isSelected ? undefined : agentId;
+	agentModelPrefs.setPrGenerationPrefs({
+		agentId: newAgentId,
+		modelId: prPrefs.modelId,
+		customPrompt: prPrefs.customPrompt,
+	});
+}
+
+function handleModelSelect(modelId: string, isSelected: boolean): void {
+	agentModelPrefs.setPrGenerationPrefs({
+		agentId: prPrefs.agentId,
+		modelId: isSelected ? undefined : modelId,
+		customPrompt: prPrefs.customPrompt,
+	});
+}
+
+function handlePromptChange(e: Event): void {
+	const textarea = e.target as HTMLTextAreaElement;
+	const value = textarea.value.trim();
+	agentModelPrefs.setPrGenerationPrefs({
+		agentId: prPrefs.agentId,
+		modelId: prPrefs.modelId,
+		customPrompt: value.length > 0 ? value : undefined,
+	});
 }
 </script>
 
@@ -202,7 +236,7 @@ function handleCreatePrClick(): void {
 			</div>
 
 			<div class="flex items-center gap-3 shrink-0">
-				<!-- PR split button: main action + dropdown for agent/model config -->
+				<!-- PR split button: main action + dropdown for agent/model/prompt config -->
 				{#if onCreatePr}
 					<DropdownMenu.Root>
 						<div
@@ -218,7 +252,7 @@ function handleCreatePrClick(): void {
 							>
 								{#if createPrLoading}
 									<Spinner class="size-3 shrink-0" />
-									{createPrLabel ?? m.agent_panel_open_pr()}
+									{createPrLabel ? createPrLabel : m.agent_panel_open_pr()}
 								{:else}
 									<GitPullRequest size={11} weight="bold" class="shrink-0" style="color: var(--success)" />
 									{m.agent_panel_open_pr()}
@@ -229,12 +263,10 @@ function handleCreatePrClick(): void {
 								class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
 								onclick={(e: MouseEvent) => e.stopPropagation()}
 							>
-								<svg class="size-2.5" viewBox="0 0 10 10" fill="none">
-									<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-								</svg>
+								<DotsThreeVertical size={12} weight="bold" class="shrink-0" />
 							</DropdownMenu.Trigger>
 						</div>
-						<DropdownMenu.Content align="end" class="w-[240px] p-0" sideOffset={4}>
+						<DropdownMenu.Content align="end" class="w-[260px] p-0" sideOffset={4}>
 							<!-- Agent Selection -->
 							{#if availableAgents.length > 0}
 								<div class="px-2.5 pt-2.5 pb-1">
@@ -250,10 +282,7 @@ function handleCreatePrClick(): void {
 										<DropdownMenu.Item
 											onSelect={(e) => {
 												e.preventDefault();
-												agentModelPrefs.setPrGenerationPrefs({
-													...prPrefs,
-													agentId: isSelected ? undefined : agent.id,
-												});
+												handleAgentSelect(agent.id, isSelected);
 											}}
 											class="cursor-pointer text-[0.6875rem] py-1.5"
 										>
@@ -272,12 +301,12 @@ function handleCreatePrClick(): void {
 							{/if}
 
 							<!-- Separator -->
-							{#if availableAgents.length > 0 && availableModels.length > 0}
+							{#if availableAgents.length > 0 && reactiveModels.length > 0}
 								<DropdownMenu.Separator />
 							{/if}
 
-							<!-- Model Selection -->
-							{#if availableModels.length > 0}
+							<!-- Model Selection (reacts to agent changes) -->
+							{#if reactiveModels.length > 0}
 								<div class="px-2.5 pt-1.5 pb-1">
 									<div class="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
 										<Cpu size={10} weight="bold" class="shrink-0" />
@@ -285,16 +314,13 @@ function handleCreatePrClick(): void {
 									</div>
 								</div>
 								<div class="px-1 pb-1.5 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-									{#each availableModels as model (model.id)}
+									{#each reactiveModels as model (model.id)}
 										{@const isSelected = model.id === effectiveModelId}
 										{@const displayName = getModelDisplayName(model, effectiveAgentId)}
 										<DropdownMenu.Item
 											onSelect={(e) => {
 												e.preventDefault();
-												agentModelPrefs.setPrGenerationPrefs({
-													...prPrefs,
-													modelId: isSelected ? undefined : model.id,
-												});
+												handleModelSelect(model.id, isSelected);
 											}}
 											class="cursor-pointer text-[0.6875rem] py-1.5"
 										>
@@ -306,6 +332,44 @@ function handleCreatePrClick(): void {
 											</div>
 										</DropdownMenu.Item>
 									{/each}
+								</div>
+							{/if}
+
+							<!-- Separator before prompt -->
+							<DropdownMenu.Separator />
+
+							<!-- Custom prompt section -->
+							<div class="px-2.5 pt-1.5 pb-1">
+								<button
+									type="button"
+									class="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors w-full"
+									onclick={(e: MouseEvent) => {
+										e.preventDefault();
+										e.stopPropagation();
+										showPromptEditor = !showPromptEditor;
+									}}
+								>
+									<NotePencil size={10} weight="bold" class="shrink-0" />
+									Prompt
+									<AnimatedChevron isOpen={showPromptEditor} class="size-2.5 ml-auto" durationClass="duration-150" />
+								</button>
+							</div>
+							{#if showPromptEditor}
+								<div
+									class="px-2.5 pb-2"
+									onclick={(e: MouseEvent) => e.stopPropagation()}
+									onkeydown={(e: KeyboardEvent) => e.stopPropagation()}
+									role="none"
+								>
+									<textarea
+										class="w-full min-h-[80px] max-h-[160px] text-[0.6875rem] leading-snug rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-foreground placeholder:text-muted-foreground/50 resize-y focus:outline-none focus:ring-1 focus:ring-primary/40"
+										placeholder="Custom instructions for PR generation…"
+										value={prPrefs.customPrompt ? prPrefs.customPrompt : ""}
+										onchange={handlePromptChange}
+									></textarea>
+									<p class="text-[0.5625rem] text-muted-foreground/60 mt-1 leading-tight">
+										Replaces the default prompt. Leave empty to use built-in template with ASCII flow diagrams.
+									</p>
 								</div>
 							{/if}
 
@@ -331,7 +395,7 @@ function handleCreatePrClick(): void {
 								>
 									{#if createPrLoading}
 										<Spinner class="size-3 shrink-0" />
-										{createPrLabel ?? m.agent_panel_open_pr()}
+										{createPrLabel ? createPrLabel : m.agent_panel_open_pr()}
 									{:else}
 										<GitPullRequest size={11} weight="bold" class="shrink-0" />
 										Create PR
