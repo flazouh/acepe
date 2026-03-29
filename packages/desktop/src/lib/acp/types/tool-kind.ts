@@ -1,6 +1,4 @@
 // Re-export ToolKind from generated Rust types
-import type { ToolKind } from "../../services/converted-session-types.js";
-
 export type { ToolKind } from "../../services/converted-session-types.js";
 
 /**
@@ -28,29 +26,3 @@ export const TOOL_KINDS = {
 	TOOL_SEARCH: "tool_search",
 	OTHER: "other",
 } as const;
-
-/**
- * Human-readable display labels for each tool kind.
- */
-export const TOOL_KIND_LABELS: Record<ToolKind, string> = {
-	read: "Read",
-	edit: "Edit",
-	execute: "Run",
-	search: "Search",
-	glob: "Find",
-	fetch: "Fetch",
-	web_search: "Web Search",
-	think: "Think",
-	todo: "Todo",
-	question: "Question",
-	task: "Task",
-	task_output: "Task Output",
-	skill: "Skill",
-	move: "Move",
-	delete: "Delete",
-	enter_plan_mode: "Plan",
-	exit_plan_mode: "Plan",
-	create_plan: "Create Plan",
-	tool_search: "Tool Search",
-	other: "Tool",
-};

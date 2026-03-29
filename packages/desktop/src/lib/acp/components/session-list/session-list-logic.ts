@@ -14,9 +14,8 @@ import type {
 
 export { createProjectColorMap, createProjectNameMap };
 
-import { getToolCompactDisplayText } from "../../registry/tool-kind-ui-registry.js";
+import { getToolCompactDisplayText, getToolKindTitle } from "../../registry/tool-kind-ui-registry.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { TOOL_KIND_LABELS } from "../../types/tool-kind.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { truncateText } from "../../utils/tool-state-utils.js";
 
@@ -48,7 +47,7 @@ function extractToolInfoFromEntry(entry: SessionEntry): LastToolInfo | null {
 
 	const toolCall = entry.message;
 	const kind = (toolCall.kind || "other") as ToolKind;
-	const name = TOOL_KIND_LABELS[kind] || toolCall.name;
+	const name = getToolKindTitle(kind, toolCall, entry.isStreaming ? "streaming" : "completed");
 	const target = getToolCompactDisplayText(
 		kind,
 		toolCall,
