@@ -4,6 +4,10 @@
  * Sends a prompt to an ACP agent via a temporary session (hidden from UI),
  * captures the streaming response, and parses the XML into structured data.
  * The session is destroyed after generation completes.
+ *
+ * Two entry-points:
+ *   - `generateShipContent`          – waits for the final result (legacy)
+ *   - `generateShipContentStreaming`  – invokes `onUpdate` after every chunk
  */
 
 import { okAsync, ResultAsync } from "neverthrow";
@@ -18,22 +22,16 @@ const GENERATION_TIMEOUT_MS = 60_000;
 
 const logger = createLogger({ id: "ship-card-generation", name: "ShipCardGeneration" });
 
-/**
- * Generate commit message + PR content by sending a prompt to an ephemeral ACP session.
- *
- * Creates a temporary ACP session that is not registered in the UI session store,
- * streams the agent's response, parses the XML, and destroys the session on completion.
- *
- * @param prompt  - The full context prompt (from collectShipContext)
- * @param cwd     - Working directory for the ephemeral session (project or worktree path)
- * @param agentId - Optional agent ID to use; defaults to the server's default agent
- * @param modelId - Optional model ID to use; when set, switches the ephemeral session's model before sending the prompt
- */
-export function generateShipContent(
+// ---------------------------------------------------------------------------
+// Shared core that both public functions delegate to.
+// ---------------------------------------------------------------------------
+
+function runGeneration(
 	prompt: string,
 	cwd: string,
-	agentId?: string,
-	modelId?: string,
+	onUpdate: ((data: ShipCardData) => void) | undefined,
+	agentId: string | undefined,
+	modelId: string | undefined,
 ): ResultAsync<ShipCardData, AgentError> {
 	return tauriClient.acp
 		.newSession(cwd, agentId)
@@ -42,7 +40,6 @@ export function generateShipContent(
 			const ephemeralSessionId = sessionResult.sessionId;
 			logger.info("Ship card generation: ephemeral session created", { ephemeralSessionId, modelId });
 
-			// If a specific model was requested, set it on the ephemeral session
 			const modelSetup = modelId
 				? tauriClient.acp
 						.setModel(ephemeralSessionId, modelId)
@@ -84,6 +81,9 @@ export function generateShipContent(
 
 				if (update.type === "agentMessageChunk" && update.chunk.content.type === "text") {
 					accumulated += update.chunk.content.text;
+					if (onUpdate) {
+						onUpdate(parseShipXml(accumulated));
+					}
 				} else if (update.type === "turnComplete") {
 					clearTimeout(timeoutId);
 					const parsed = parseShipXml(accumulated);
@@ -92,6 +92,9 @@ export function generateShipContent(
 						hasCommitMessage: parsed.commitMessage !== null,
 						hasPrTitle: parsed.prTitle !== null,
 					});
+					if (onUpdate) {
+						onUpdate(parsed);
+					}
 					resolveStream(parsed);
 				} else if (update.type === "turnError") {
 					clearTimeout(timeoutId);
@@ -141,4 +144,37 @@ export function generateShipContent(
 						});
 				});
 		});
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commit message + PR content (legacy – no streaming callback).
+ */
+export function generateShipContent(
+	prompt: string,
+	cwd: string,
+	agentId?: string,
+	modelId?: string,
+): ResultAsync<ShipCardData, AgentError> {
+	return runGeneration(prompt, cwd, undefined, agentId, modelId);
+}
+
+/**
+ * Generate commit message + PR content with live streaming updates.
+ *
+ * `onUpdate` is called after every incoming text chunk with the latest
+ * incrementally-parsed {@link ShipCardData}. The returned `ResultAsync`
+ * resolves with the final complete data once the agent finishes.
+ */
+export function generateShipContentStreaming(
+	prompt: string,
+	cwd: string,
+	onUpdate: (data: ShipCardData) => void,
+	agentId?: string,
+	modelId?: string,
+): ResultAsync<ShipCardData, AgentError> {
+	return runGeneration(prompt, cwd, onUpdate, agentId, modelId);
 }

@@ -156,7 +156,7 @@ pub async fn git_collect_ship_context(project_path: String) -> Result<Option<Shi
     let branch = crate::git::worktree::git_current_branch(project_path).await?;
     let staged = operations::collect_staged_context(&path).await?;
     Ok(staged.map(|ctx| {
-        let prompt = text_generation::build_ship_prompt(&branch, &ctx);
+        let prompt = text_generation::build_ship_prompt(&branch, &ctx, None);
         ShipContext {
             prompt,
             branch,

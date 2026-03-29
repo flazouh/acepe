@@ -39,10 +39,12 @@ const AGENT_AVAILABLE_MODES_CACHE_KEY = "agent_available_modes_cache";
 const SESSION_MODEL_PER_MODE_KEY = "session_model_per_mode";
 const PR_GENERATION_PREFS_KEY = "pr_generation_preferences";
 
-/** Global preferences for PR content generation (agent + model). */
+/** Global preferences for PR content generation (agent + model + custom prompt). */
 export interface PrGenerationPreferences {
 	agentId?: string;
 	modelId?: string;
+	/** User-provided instructions that replace the default prompt template. */
+	customPrompt?: string;
 }
 
 // State using Svelte 5 runes
