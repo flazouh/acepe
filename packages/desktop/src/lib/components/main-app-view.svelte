@@ -84,6 +84,7 @@ import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
+import { UpdateAvailablePage } from "./update-available/index.js";
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -434,6 +435,7 @@ async function handleOpenFolder() {
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
 let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
+let showUpdateAvailable = $state(false);
 let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 
@@ -516,6 +518,7 @@ async function checkForAppUpdate(): Promise<void> {
 	availableUpdate = result;
 	logger.info("Update available", { version: result.version });
 	updaterState = createAvailableUpdaterState(result.version);
+	showUpdateAvailable = true;
 	playSound(SoundEffect.AppStartFinish);
 }
 
@@ -562,6 +565,7 @@ onMount(async () => {
 
 	if (import.meta.env.DEV) {
 		updaterState = createAvailableUpdaterState("0.0.0-dev");
+		showUpdateAvailable = true;
 	} else {
 		await checkForAppUpdate();
 		updatePollTimer = setInterval(() => {
@@ -946,6 +950,27 @@ onDestroy(() => {
 					projectManager.addProjectOptimistic(path, name);
 				}}
 				onDismiss={handleOnboardingDismiss}
+			/>
+		</div>
+	{/if}
+
+	<!-- Update Available (shows on app open when an update is found) -->
+	{#if showUpdateAvailable && updaterState.kind === "available"}
+		<div
+			class="fixed inset-0 z-[9998]"
+			role="dialog"
+			aria-modal="true"
+			aria-label={m.update_available_title()}
+		>
+			<UpdateAvailablePage
+				version={updaterState.version}
+				onInstall={() => {
+					showUpdateAvailable = false;
+					void installAvailableUpdate();
+				}}
+				onSkip={() => {
+					showUpdateAvailable = false;
+				}}
 			/>
 		</div>
 	{/if}
