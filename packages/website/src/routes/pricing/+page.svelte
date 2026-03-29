@@ -7,6 +7,21 @@
 	import logo from '$lib/assets/favicon.svg';
 
 	let { data } = $props();
+	const faqItems = [
+		{ q: 'Is the free plan really free?', a: "Yes. The desktop app, local agent sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are all free. No trial, no time limit." },
+		{ q: 'What are cloud agents?', a: 'They let you run coding sessions on remote machines. Queue up work, close your laptop, check results later. Your local Acepe app connects to them automatically.' },
+		{ q: 'When will Premium launch?', a: "We're building the cloud infrastructure now. Join the waitlist and we'll email you when it's ready." },
+		{ q: 'Do I need a separate subscription?', a: "No. Acepe works with agents you already have. If you have a Claude Code or Cursor subscription, just connect it. Acepe picks up your existing authentication automatically." },
+		{ q: 'Which agents does Acepe support?', a: "Claude Code, Codex, Cursor Agent, and OpenCode. You can run any of them side by side, or all at once." },
+		{ q: 'Can I use Acepe with my own custom agent?', a: "If your agent runs in a terminal, it works in Acepe. We plan to add a plugin system for deeper integrations." },
+		{ q: 'Does Acepe store my code or send it anywhere?', a: "No. Everything runs locally on your machine. Acepe never sees your code. The agents you connect handle their own data policies." },
+		{ q: 'How is Acepe better than Superset?', a: "Superset only shows you terminals. No attention queue, no side-by-side channels, no skills management, no SQL editor. Acepe gives you a full environment with color-coded sessions, checkpoints, and a dedicated UI for each agent." },
+		{ q: 'How is Acepe different from 1Code?', a: "1Code lacks an attention queue, side-by-side channels, skills management, and a built-in SQL editor. Acepe gives you a richer environment with color-coded sessions, checkpoints, and dedicated UI for managing multiple agents at once." },
+		{ q: 'How does Acepe compare to T3?', a: "T3 is an interface for Claude Code and Codex. Acepe supports those plus Cursor and OpenCode, all running in parallel. T3 has no attention queue, no side-by-side channels, no skills management, and no SQL editor. The design is minimal by comparison, with no color coding or visual session context." },
+		{ q: 'How is this different from just using multiple terminals?', a: "Terminals don't track what each agent is doing, snapshot file changes, or tell you which session needs your attention. Acepe does." },
+		{ q: 'What operating systems are supported?', a: "macOS right now. Linux is next, Windows after that." },
+		{ q: 'Is Acepe open source?', a: "Yes. The full source is on GitHub. You can inspect it, fork it, or contribute." },
+	];
 </script>
 
 <svelte:head>
@@ -41,14 +56,14 @@
 				<p
 					class="mx-auto max-w-[600px] text-lg leading-[1.5] text-muted-foreground md:text-[22px]"
 				>
-					Free forever for individuals. Upgrade when you need more.
+					Start free, no credit card required. Upgrade when your workflow demands it.
 				</p>
 			</div>
 		</section>
 
 		<!-- Pricing Cards -->
 		<section class="mx-auto max-w-5xl px-4 pb-32 md:px-6">
-			<div class="grid gap-2 md:grid-cols-3">
+			<div class="grid gap-6 md:grid-cols-3">
 				<!-- Free Tier -->
 				<div
 					class="pricing-card flex flex-col overflow-hidden rounded-xl border border-border/50 bg-card/20"
@@ -184,7 +199,7 @@
 						</div>
 
 						<a
-							href="mailto:hello@acepe.dev"
+							href="mailto:sasha.zelts@acepe.dev"
 							class="mt-6 mb-6 flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
 						>
 							Contact us
@@ -226,7 +241,7 @@
 					</h2>
 				</div>
 				<div class="flex flex-col gap-0">
-					{#each [{ q: 'Is the free plan really free forever?', a: "Yes. Acepe's core desktop experience — local agent sessions, checkpoints, Git integration, SQL Studio, and full keyboard workflows — will always be free. We believe every developer deserves great tools." }, { q: 'What are cloud agents?', a: 'Cloud agents let you run coding sessions on remote machines so you can queue up work, close your laptop, and check results later. Your local Acepe app connects seamlessly to remote sessions.' }, { q: 'When will Premium launch?', a: "We're actively building the cloud infrastructure and integrations. Join the waitlist to be notified when Premium is available." }, { q: 'Do I need to bring my own API keys?', a: "Yes. Acepe is an interface layer — you connect your own agents (Claude Code, Codex, etc.) with your existing API keys and subscriptions. We don't charge for AI usage." }] as item}
+					{#each faqItems as item}
 						<div class="border-t border-border/30 py-5">
 							<h3 class="mb-2 text-sm font-medium text-foreground">{item.q}</h3>
 							<p class="text-[13px] leading-relaxed text-muted-foreground">
@@ -242,7 +257,7 @@
 	<!-- Footer -->
 	<footer class="border-t border-border/50 px-4 py-12 md:px-6">
 		<div class="mx-auto max-w-6xl">
-			<div class="grid grid-cols-2 gap-8 md:grid-cols-4">
+			<div class="mx-auto grid w-fit grid-cols-2 gap-8 md:grid-cols-4">
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
@@ -300,6 +315,20 @@
 							>
 								<GithubLogo size={14} weight="fill" />
 								GitHub
+							</a>
+						</li>
+					</ul>
+
+					<h3 class="mt-6 mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
+						Contact
+					</h3>
+					<ul class="flex flex-col gap-2">
+						<li>
+							<a
+								href="mailto:sasha.zelts@acepe.dev"
+								class="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+							>
+								sasha.zelts@acepe.dev
 							</a>
 						</li>
 					</ul>

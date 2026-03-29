@@ -55,7 +55,7 @@
 
 <header class="fixed top-4 left-1/2 z-50 w-[calc(100%-3rem)] max-w-4xl -translate-x-1/2">
 	<div
-		class="flex items-center justify-between rounded-full bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
+		class="relative flex items-center justify-between rounded-full bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
 	>
 		<div class="flex items-center">
 			<a
@@ -67,8 +67,8 @@
 			</a>
 		</div>
 
-		<!-- Desktop nav: visible from md up, original sizes -->
-		<div class="hidden items-center gap-3 md:flex">
+		<!-- Desktop nav: centered links -->
+		<div class="absolute left-1/2 -translate-x-1/2 hidden items-center gap-3 md:flex">
 			<a href="/blog" class={desktopNavLinkClass}>
 				{m.nav_blog()}
 			</a>
@@ -83,6 +83,10 @@
 			<a href="/pricing" class={desktopNavLinkClass}>
 				{m.nav_pricing()}
 			</a>
+		</div>
+
+		<!-- Desktop nav: right-side icons -->
+		<div class="hidden items-center gap-3 md:flex">
 			<a
 				href="https://github.com/flazouh/acepe"
 				target="_blank"

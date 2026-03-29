@@ -8,7 +8,7 @@ import type { AgentGridItem } from "@acepe/ui/agent-panel";
 import { AppTabBar, AppSessionItem as AppSessionItemComponent } from "@acepe/ui/app-layout";
 import type { AppTab, AppSessionItemType } from "@acepe/ui/app-layout";
 import { SqlStudioDataGrid } from "@acepe/ui/sql-studio";
-import { ActivityEntry } from "@acepe/ui/attention-queue";
+import { SectionedFeed, ActivityEntry } from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
 import WaitlistInline from "$lib/components/waitlist-inline.svelte";
@@ -91,17 +91,17 @@ let { data } = $props();
 	},
 ];
 
-const mockPlanContent = `## Implementation Plan
+const mockPlanContent = `Implementation Plan
 
-### 1. Add rate limiting middleware
+1. Add rate limiting middleware
 - Use token bucket algorithm
 - Configure per-endpoint limits
 
-### 2. Update API routes
+2. Update API routes
 - Apply middleware to public endpoints
 - Skip for internal service calls
 
-### 3. Add monitoring
+3. Add monitoring
 - Track rate limit hits per endpoint
 - Alert on sustained high rejection rates`;
 
@@ -162,6 +162,41 @@ const mockSessions: AppSessionItemType[] = [
 		title: "Update README",
 		status: "done",
 		isActive: false,
+	},
+];
+
+const mockQueueGroups = [
+	{
+		id: "answer_needed" as const,
+		label: "Needs answer",
+		items: [
+			{
+				mode: "build", title: "Fix auth middleware", timeAgo: null, insertions: 0, deletions: 0,
+				isStreaming: false, fileToolDisplayText: null, statusText: null,
+				currentQuestion: { question: "Which auth strategy should I use?", multiSelect: false, options: [{ label: "JWT tokens" }, { label: "Session cookies" }, { label: "OAuth 2.0" }] },
+				totalQuestions: 1, hasMultipleQuestions: false, currentQuestionIndex: 0,
+				questionProgress: [{ questionIndex: 0, answered: false }],
+				currentQuestionOptions: [
+					{ label: "JWT tokens", selected: false, color: "#15DB95" },
+					{ label: "Session cookies", selected: false, color: "#FF5D5A" },
+					{ label: "OAuth 2.0", selected: false, color: "#FF78F7" },
+				],
+			},
+		],
+	},
+	{
+		id: "working" as const,
+		label: "Working",
+		items: [
+			{ mode: "build", title: "Database migration", timeAgo: null, insertions: 0, deletions: 0, isStreaming: true, fileToolDisplayText: "db/migrate/add_users.sql", statusText: null, showToolShimmer: true, todoProgress: { current: 2, total: 5, label: "migrations" } },
+		],
+	},
+	{
+		id: "finished" as const,
+		label: "Finished",
+		items: [
+			{ mode: "plan", title: "Write API docs", timeAgo: null, insertions: 0, deletions: 0, isStreaming: false, fileToolDisplayText: null, statusText: null, todoProgress: { current: 3, total: 3, label: "sections" } },
+		],
 	},
 ];
 
@@ -308,7 +343,7 @@ const features = [
 				<h1 class="mb-6 text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[56px]">
 					{m.landing_hero_title()}
 				</h1>
-				<p class="mx-auto mb-10 max-w-[720px] text-lg leading-[1.5] font-normal tracking-[-0.01em] text-muted-foreground md:text-[22px]">
+				<p class="mx-auto mb-10 max-w-[760px] text-lg leading-[1.5] font-normal tracking-[-0.01em] text-muted-foreground md:text-[22px]">
 					{m.landing_hero_subtitle()}
 				</p>
 
@@ -332,26 +367,14 @@ const features = [
 			</div>
 		</section>
 
-		<!-- Video Demo Section -->
+		<!-- Demo Screenshot Section -->
 		<section class="mx-auto max-w-6xl px-4 pb-24 md:px-6 md:pb-32">
-			<div class="video-container overflow-hidden rounded-xl border border-border/50 bg-card/10">
-				<video
+			<div class="overflow-hidden rounded-xl border border-border/50 bg-card/10">
+				<img
+					src="/images/landing/hero-demo-screenshot.png"
+					alt="Acepe main app view"
 					class="h-auto w-full"
-					autoplay
-					muted
-					loop
-					playsinline
-					preload="metadata"
-					poster="/images/landing/hero-demo-screenshot.png"
-				>
-					<source src="/videos/acepe-presentation.mp4" type="video/mp4" />
-					<!-- Fallback to screenshot -->
-					<img
-						src="/images/landing/hero-demo-screenshot.png"
-						alt="Acepe main app view"
-						class="h-auto w-full"
-					/>
-				</video>
+				/>
 			</div>
 		</section>
 
@@ -361,7 +384,7 @@ const features = [
 				<div class="mb-16 flex flex-col items-center text-center">
 					<div class="mb-5 flex items-center gap-2">
 						<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">//</span>
-						<span class="font-mono text-sm font-medium uppercase tracking-wider text-muted-foreground">Why an ADE</span>
+						<span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">The new paradigm</span>
 					</div>
 					<h2 class="mb-6 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[40px]">
 						{m.landing_ade_title()}
@@ -372,7 +395,7 @@ const features = [
 				</div>
 
 				<!-- Three pillars -->
-				<div class="grid gap-4 md:grid-cols-3 md:gap-6">
+				<div class="grid gap-6 md:grid-cols-3 md:gap-8">
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
 						<div class="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
 							{m.landing_pillar_orchestrate_label()}
@@ -410,12 +433,12 @@ const features = [
 				<div class="mb-16 flex flex-col items-center text-center">
 					<div class="mb-5 flex items-center gap-2">
 						<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">//</span>
-						<span class="font-mono text-sm font-medium uppercase tracking-wider text-muted-foreground">Features</span>
+						<span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Features</span>
 					</div>
 					<h2 class="mb-4 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[44px]">
 						{m.landing_features_heading()}
 					</h2>
-					<p class="max-w-[600px] text-lg leading-[1.5] text-muted-foreground md:text-[20px]">
+					<p class="max-w-[600px] text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
 						{m.landing_features_subheading()}
 					</p>
 				</div>
@@ -544,124 +567,54 @@ const features = [
 												</div>
 											</div>
 										{:else if feature.id === "queue"}
-											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
-												<ActivityEntry
-													onSelect={() => {}}
-													mode="build"
-													title="Fix auth middleware"
-													timeAgo="2m ago"
-													insertions={12}
-													deletions={3}
-													isStreaming={false}
-													taskDescription={null}
-													taskSubagentSummaries={[]}
-													showTaskSubagentList={false}
-													fileToolDisplayText="src/middleware/auth.ts"
-													toolContent={null}
-													showToolShimmer={false}
-													statusText="Needs review"
-													showStatusShimmer={false}
-													todoProgress={null}
-													currentQuestion={null}
-													totalQuestions={0}
-													hasMultipleQuestions={false}
-													currentQuestionIndex={0}
-													questionId=""
-													questionProgress={[]}
-													currentQuestionAnswered={false}
-													currentAnswerDisplay=""
-													currentQuestionOptions={[]}
-													otherText=""
-													otherPlaceholder=""
-													showSubmitButton={false}
-													canSubmit={false}
-													submitLabel=""
-													onOptionSelect={() => {}}
-													onOtherInput={() => {}}
-													onOtherKeydown={() => {}}
-													onSubmitAll={() => {}}
-													onPrevQuestion={() => {}}
-													onNextQuestion={() => {}}
-													compactPadding={true}
-												/>
-												<ActivityEntry
-													onSelect={() => {}}
-													mode="build"
-													title="Database migration"
-													timeAgo="15m ago"
-													insertions={45}
-													deletions={12}
-													isStreaming={true}
-													taskDescription={null}
-													taskSubagentSummaries={[]}
-													showTaskSubagentList={false}
-													fileToolDisplayText="db/migrate/add_users.sql"
-													toolContent={null}
-													showToolShimmer={true}
-													statusText={null}
-													showStatusShimmer={false}
-													todoProgress={{ current: 2, total: 5, label: "migrations" }}
-													currentQuestion={null}
-													totalQuestions={0}
-													hasMultipleQuestions={false}
-													currentQuestionIndex={0}
-													questionId=""
-													questionProgress={[]}
-													currentQuestionAnswered={false}
-													currentAnswerDisplay=""
-													currentQuestionOptions={[]}
-													otherText=""
-													otherPlaceholder=""
-													showSubmitButton={false}
-													canSubmit={false}
-													submitLabel=""
-													onOptionSelect={() => {}}
-													onOtherInput={() => {}}
-													onOtherKeydown={() => {}}
-													onSubmitAll={() => {}}
-													onPrevQuestion={() => {}}
-													onNextQuestion={() => {}}
-													compactPadding={true}
-												/>
-												<ActivityEntry
-													onSelect={() => {}}
-													mode="plan"
-													title="Write API docs"
-													timeAgo="1h ago"
-													insertions={0}
-													deletions={0}
-													isStreaming={false}
-													taskDescription={null}
-													taskSubagentSummaries={[]}
-													showTaskSubagentList={false}
-													fileToolDisplayText={null}
-													toolContent={null}
-													showToolShimmer={false}
-													statusText="Completed"
-													showStatusShimmer={false}
-													todoProgress={{ current: 3, total: 3, label: "sections" }}
-													currentQuestion={null}
-													totalQuestions={0}
-													hasMultipleQuestions={false}
-													currentQuestionIndex={0}
-													questionId=""
-													questionProgress={[]}
-													currentQuestionAnswered={false}
-													currentAnswerDisplay=""
-													currentQuestionOptions={[]}
-													otherText=""
-													otherPlaceholder=""
-													showSubmitButton={false}
-													canSubmit={false}
-													submitLabel=""
-													onOptionSelect={() => {}}
-													onOtherInput={() => {}}
-													onOtherKeydown={() => {}}
-													onSubmitAll={() => {}}
-													onPrevQuestion={() => {}}
-													onNextQuestion={() => {}}
-													compactPadding={true}
-												/>
+											<div class="queue-showcase">
+											<SectionedFeed
+												totalCount={3}
+												groups={mockQueueGroups}
+											>
+												{#snippet itemRenderer(item)}
+													{@const entry = /** @type {any} */ (item)}
+													<ActivityEntry
+														onSelect={() => {}}
+														mode={entry.mode}
+														title={entry.title}
+														timeAgo={entry.timeAgo}
+														insertions={entry.insertions}
+														deletions={entry.deletions}
+														isStreaming={entry.isStreaming}
+														taskDescription={null}
+														taskSubagentSummaries={[]}
+														showTaskSubagentList={false}
+														fileToolDisplayText={entry.fileToolDisplayText}
+														toolContent={null}
+														showToolShimmer={entry.showToolShimmer ?? false}
+														statusText={entry.statusText}
+														showStatusShimmer={false}
+														todoProgress={entry.todoProgress ?? null}
+														currentQuestion={entry.currentQuestion ?? null}
+														totalQuestions={entry.totalQuestions ?? 0}
+														hasMultipleQuestions={entry.hasMultipleQuestions ?? false}
+														currentQuestionIndex={entry.currentQuestionIndex ?? 0}
+														questionId=""
+														questionProgress={entry.questionProgress ?? []}
+														currentQuestionAnswered={false}
+														currentAnswerDisplay=""
+														currentQuestionOptions={entry.currentQuestionOptions ?? []}
+														otherText=""
+														otherPlaceholder=""
+														showOtherInput={false}
+														showSubmitButton={false}
+														canSubmit={false}
+														submitLabel=""
+														onOptionSelect={() => {}}
+														onOtherInput={() => {}}
+														onOtherKeydown={() => {}}
+														onSubmitAll={() => {}}
+														onPrevQuestion={() => {}}
+														onNextQuestion={() => {}}
+													/>
+												{/snippet}
+											</SectionedFeed>
 											</div>
 										{/if}
 									</div>
@@ -679,7 +632,7 @@ const features = [
 				<h2 class="mb-4 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[36px]">
 					{m.landing_cta_title()}
 				</h2>
-				<p class="mb-8 max-w-[500px] text-[15px] leading-relaxed text-muted-foreground">
+				<p class="mb-8 max-w-[500px] whitespace-pre-line text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
 					{m.landing_cta_description()}
 				</p>
 				{#if data.featureFlags.downloadEnabled}
@@ -802,10 +755,6 @@ const features = [
 		backdrop-filter: blur(12px);
 	}
 
-	.video-container {
-		backdrop-filter: blur(12px);
-	}
-
 	.showcase {
 		pointer-events: none;
 		user-select: none;
@@ -815,6 +764,28 @@ const features = [
 	.checkpoint-showcase {
 		transform: scale(0.92);
 		transform-origin: center center;
+	}
+
+	.queue-showcase {
+		width: 70%;
+		margin: 0 auto;
+	}
+
+	/* Equalize top/bottom padding inside checkpoint file lists */
+	.checkpoint-showcase :global(.px-2.py-1) {
+		padding-top: 0.125rem;
+		padding-bottom: 0.125rem;
+	}
+
+	/* Indent question options in the queue showcase */
+	.showcase :global(.pl-2\.5.rounded-sm) {
+		margin-left: 2px;
+		margin-bottom: 1px;
+	}
+
+	/* Bottom margin on last option */
+	.queue-showcase :global(.pl-2\.5.rounded-sm:last-child) {
+		margin-bottom: 4px;
 	}
 
 	.showcase :global(button),
