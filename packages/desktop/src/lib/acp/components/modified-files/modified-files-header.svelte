@@ -30,6 +30,8 @@ import type { ModifiedFilesState } from "./types/modified-files-state.js";
 export interface PrGenerationConfig {
 	agentId?: string;
 	modelId?: string;
+	/** User-provided instructions that replace the default prompt template. */
+	customPrompt?: string;
 }
 
 /**
