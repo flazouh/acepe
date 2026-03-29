@@ -18,7 +18,6 @@ import * as agentModelPrefs from "../../store/agent-model-preferences-store.svel
 import { getMessageQueueStore, getPanelStore, getSessionStore } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
-import { Colors } from "../../utils/colors.js";
 import { createLogger } from "../../utils/logger.js";
 import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { ArtefactBadge } from "../artefact/index.js";
@@ -33,7 +32,7 @@ import VoiceModelMenu from "./components/voice-model-menu.svelte";
 import PastedTextOverlay from "./components/pasted-text-overlay.svelte";
 import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
-import { shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
+import { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
 	findInlineArtefactRangeAtPosition,
@@ -157,15 +156,15 @@ const effectiveCurrentModeId = $derived.by(() =>
 	})
 );
 
-// Derive button color based on current mode
+// Derive submit button fill from the same tokens as mode icons (plan / build mint in dark)
 const buttonColor = $derived.by(() => {
 	switch (effectiveCurrentModeId) {
 		case CanonicalModeId.PLAN:
-			return Colors.orange;
+			return "var(--plan-icon)";
 		case CanonicalModeId.BUILD:
-			return "var(--success)";
+			return "var(--build-icon)";
 		default:
-			return "var(--success)";
+			return "var(--build-icon)";
 	}
 });
 
@@ -1015,6 +1014,10 @@ function handlePrimaryButtonClick(): void {
 		handleSteer();
 		return;
 	}
+	if (primaryButtonIntent === "cancel") {
+		void handleCancel();
+		return;
+	}
 	if (primaryButtonIntent === "send") {
 		void handleSend();
 		return;
@@ -1063,10 +1066,10 @@ function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	if (!shouldStartVoiceHold(event)) {
 		return false;
 	}
-	if (!voiceEnabled || currentVoiceState === null || isSending || isStreaming) {
+	if (!voiceEnabled || currentVoiceState === null) {
 		return false;
 	}
-	return currentVoiceState.phase === "idle";
+	return canStartVoiceInteraction(currentVoiceState.phase, isSending);
 }
 
 function handleEditorKeyDown(event: KeyboardEvent): void {
@@ -1713,7 +1716,7 @@ async function handleCancel() {
 							{/if}
 							<MicButton
 								voiceState={currentVoiceState}
-								disabled={isStreaming || isSending}
+								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}
 							/>
 						</div>
 					{:else}
@@ -1745,10 +1748,10 @@ async function handleCancel() {
 							{/if}
 							<div class="voice-controls flex items-center">
 								<VoiceModelMenu {voiceSettingsStore} />
-								<MicButton
-									voiceState={currentVoiceState}
-									disabled={isStreaming || isSending}
-								/>
+							<MicButton
+								voiceState={currentVoiceState}
+								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}
+							/>
 							</div>
 						{/if}
 					{/if}

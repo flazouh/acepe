@@ -174,10 +174,6 @@ const STOP_RED = "#FF5D5A";
 	}
 	.mic-idle:hover {
 		color: #f9c396;
-		transform: scale(1.08);
-	}
-	.mic-idle:active {
-		transform: scale(0.95);
 	}
 
 	.mic-idle :global(svg) {

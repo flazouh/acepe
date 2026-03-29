@@ -1,5 +1,13 @@
 import type { VoiceInputPhase } from "$lib/acp/types/voice-input.js";
 
+export function canStartVoiceInteraction(phase: VoiceInputPhase, isSending: boolean): boolean {
+	if (isSending) {
+		return false;
+	}
+
+	return phase === "idle";
+}
+
 export function canCancelVoiceInteraction(phase: VoiceInputPhase): boolean {
 	return (
 		phase === "checking_permission" ||
