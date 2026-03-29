@@ -573,7 +573,7 @@ const features = [
 												groups={mockQueueGroups}
 											>
 												{#snippet itemRenderer(item)}
-													{@const entry = /** @type {any} */ (item)}
+													{@const entry = item as any}
 													<ActivityEntry
 														onSelect={() => {}}
 														mode={entry.mode}
