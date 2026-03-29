@@ -50,6 +50,17 @@ describe("submit intent", () => {
 		).toBe("send");
 	});
 
+	it("uses cancel when streaming without a draft", () => {
+		expect(
+			resolvePrimaryButtonIntent({
+				hasDraftInput: false,
+				isAgentBusy: true,
+				isStreaming: true,
+				isShiftPressed: false,
+			})
+		).toBe("cancel");
+	});
+
 	it("switches button to steer while Shift is held", () => {
 		expect(
 			resolvePrimaryButtonIntent({

@@ -122,7 +122,9 @@ let { embedded = false }: Props = $props();
 				>
 					<!-- Mode label -->
 					<div class="flex items-center gap-1.5 w-16 shrink-0">
-						<span class={modeType === CanonicalModeId.PLAN ? "text-[#FF8D20]" : "text-success"}>
+						<span
+							class={modeType === CanonicalModeId.PLAN ? "text-[color:var(--plan-icon)]" : "text-success"}
+						>
 							{#if modeType === CanonicalModeId.PLAN}
 								<PlanIcon size="lg" class="size-3.5 text-current" />
 							{:else}

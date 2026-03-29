@@ -116,7 +116,7 @@ const keyPrefix = $derived.by(() => {
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">
 					{#if isArray}
-						<PlanIcon size="md" style="color: {Colors.orange}" />
+						<PlanIcon size="md" />
 					{:else}
 						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
 					{/if}
@@ -136,7 +136,7 @@ const keyPrefix = $derived.by(() => {
 			<div class="structured-card-header">
 				<span class="structured-chevron" aria-hidden="true">
 					{#if isArray}
-						<PlanIcon size="md" style="color: {Colors.orange}" />
+						<PlanIcon size="md" />
 					{:else}
 						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
 					{/if}

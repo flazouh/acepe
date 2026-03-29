@@ -31,22 +31,38 @@
 		showDownload={false}
 	/>
 
-	<!-- Split screen -->
-	<div class="flex min-h-screen flex-col lg:flex-row">
+	<!-- Split layout: content left, video right -->
+	<div class="flex min-h-screen flex-col lg:flex-row lg:items-center">
 
 		<!-- Left: content -->
-		<div class="flex w-full flex-col justify-center px-8 py-24 lg:w-[45%] lg:px-16 lg:py-0">
-
-			<h1 class="mb-3 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[48px]">
-				Download {m.app_name()}
+		<div class="flex w-full shrink-0 flex-col px-16 py-24 lg:w-auto lg:pl-48 lg:pr-4 lg:py-0 lg:-mt-28">
+			<h1 class="mb-4 text-3xl leading-[1.1] font-bold tracking-[-0.04em] md:text-[52px]">
+				Ship faster.
 			</h1>
-			<p class="mb-8 max-w-sm text-base leading-relaxed text-muted-foreground md:text-lg">
-				{m.landing_hero_title()}
+			<p class="mb-10 max-w-xs text-base font-semibold leading-snug text-muted-foreground md:text-lg">
+				The environment built for developers obsessed with peak output.
 			</p>
 
-			<!-- Download card -->
-			<div class="download-card w-full max-w-sm overflow-hidden rounded-xl border border-border/50 bg-card/20">
+			<!-- Download button -->
+			<a
+				href={data.downloadUrl}
+				onclick={handleDownload}
+				class="theme-invert-btn mb-8 flex h-10 w-full max-w-sm items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
+			>
+				{#if downloading}
+					<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+						<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" opacity="0.2" />
+						<path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+					</svg>
+					Downloading...
+				{:else}
+					<Download class="h-4 w-4" />
+					{m.landing_download_button()}
+				{/if}
+			</a>
 
+			<!-- Info card -->
+			<div class="download-card w-full max-w-sm overflow-hidden rounded-xl border border-border/50 bg-card/20">
 				<!-- Panel header -->
 				<div class="flex h-9 items-center justify-between border-b border-border/50 px-3">
 					<div class="flex items-center gap-1.5">
@@ -58,47 +74,27 @@
 					</span>
 				</div>
 
-				<!-- Body -->
-				<div class="p-4">
-					<a
-						href={data.downloadUrl}
-						onclick={handleDownload}
-						class="theme-invert-btn flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
-					>
-						{#if downloading}
-							<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-								<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" opacity="0.2" />
-								<path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-							</svg>
-							Downloading...
-						{:else}
-							<Download class="h-4 w-4" />
-							{m.landing_download_button()}
-						{/if}
-					</a>
-
-					<!-- Requirements -->
-					<div class="mt-3 flex flex-col gap-0">
-						{#each [{ label: 'macOS', value: '12 Monterey or later' }, { label: 'chip', value: 'Apple Silicon (M1+)' }] as req}
-							<div class="flex items-center justify-between border-t border-border/30 py-2 font-mono text-xs">
-								<span class="text-muted-foreground/60">{req.label}</span>
-								<span class="text-foreground/80">{req.value}</span>
-							</div>
-						{/each}
-					</div>
+				<!-- Requirements -->
+				<div class="flex flex-col gap-0 px-3">
+					{#each [{ label: 'macOS', value: '12 Monterey or later' }, { label: 'chip', value: 'Apple Silicon (M1+)' }] as req}
+						<div class="flex items-center justify-between border-t border-border/30 py-2 font-mono text-xs">
+							<span class="text-muted-foreground/60">{req.label}</span>
+							<span class="text-foreground/80">{req.value}</span>
+						</div>
+					{/each}
 				</div>
 			</div>
 		</div>
 
 		<!-- Right: video -->
-		<div class="flex w-full items-center justify-center p-6 lg:w-[55%] lg:p-10">
+		<div class="flex flex-1 items-center p-6 lg:pl-32 lg:pr-16 lg:pt-[10.5rem] lg:pb-80">
 			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
 				autoplay
 				muted
 				loop
 				playsinline
-				class="w-full max-h-[60vh] rounded-lg object-contain shadow-2xl lg:max-h-[80vh]"
+				class="w-full rounded-xl object-contain shadow-2xl"
 			>
 				<source src="/videos/acepe-side-by-side.mp4" type="video/mp4" />
 			</video>

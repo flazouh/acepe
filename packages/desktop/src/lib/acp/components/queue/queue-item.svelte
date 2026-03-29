@@ -300,7 +300,6 @@ function handlePlanReject() {
 }
 
 const redColor = Colors[COLOR_NAMES.RED];
-const orangeColor = Colors[COLOR_NAMES.ORANGE];
 
 function submitAllAnswers() {
 	if (!item.pendingQuestion || !questionId) return;
@@ -428,7 +427,7 @@ function handleNextQuestion() {
 		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
 			<EmbeddedPanelHeader>
 				<HeaderTitleCell compactPadding>
-					<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {orangeColor}" />
+					<PlanIcon size="sm" class="shrink-0 mr-1" />
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>

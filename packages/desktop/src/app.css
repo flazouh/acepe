@@ -38,6 +38,8 @@
 	--destructive-foreground: hsl(0 0% 100%);
 	--success: var(--token-success-light);
 	--success-foreground: hsl(0 0% 100%);
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-light);
 	--border: #BDB6A6;
 	--input: #E0DBD0;
 	--ring: #D97757;
@@ -101,8 +103,11 @@
 	--accent: #303030; /* hover/selected item background */
 	--accent-foreground: #ffffff; /* list.hoverForeground */
 	--destructive: #bf616a; /* editorError.foreground */
-	--success: var(--token-success-dark);
+	/* Dark: semantic success matches build accent (Colors.green) */
+	--success: var(--token-build-icon-dark);
 	--success-foreground: #ffffff;
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-dark);
 	--border: #2a2a2a; /* input.border, dropdown.border */
 	--input: #313131; /* input.background */
 	--ring: #30373a; /* focusBorder */

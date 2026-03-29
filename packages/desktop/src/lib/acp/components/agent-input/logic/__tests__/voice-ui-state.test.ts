@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../voice-ui-state.js";
+import { canCancelVoiceInteraction, canStartVoiceInteraction, shouldShowVoiceOverlay } from "../voice-ui-state.js";
 import type { VoiceInputPhase } from "../../../../types/voice-input.js";
 
 describe("voice-ui-state", () => {
@@ -28,6 +28,23 @@ describe("voice-ui-state", () => {
 		)("returns false for %s", (phase) => {
 			expect(canCancelVoiceInteraction(phase)).toBe(false);
 		});
+	});
+
+	describe("canStartVoiceInteraction", () => {
+		it("allows idle voice input while agent is streaming elsewhere", () => {
+			expect(canStartVoiceInteraction("idle", false)).toBe(true);
+		});
+
+		it("blocks voice input while the input is currently sending", () => {
+			expect(canStartVoiceInteraction("idle", true)).toBe(false);
+		});
+
+		it.each(ALL_PHASES.filter((phase) => phase !== "idle"))(
+			"blocks voice start when phase is %s",
+			(phase) => {
+				expect(canStartVoiceInteraction(phase, false)).toBe(false);
+			}
+		);
 	});
 
 	describe("shouldShowVoiceOverlay", () => {

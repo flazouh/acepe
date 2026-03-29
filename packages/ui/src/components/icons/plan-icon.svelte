@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { PencilRuler } from "phosphor-svelte";
-	import { Colors } from "../../lib/colors.js";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";
@@ -17,4 +16,19 @@
 	};
 </script>
 
-<PencilRuler class="{sizeClasses[size]} {className ?? ''}" style="color: {Colors.orange}; {style ?? ''}" weight="fill" />
+<span
+	class="plan-icon-root inline-flex shrink-0 items-center justify-center {sizeClasses[size]} {className ? className : ''}"
+	style={style}
+>
+	<PencilRuler class="block size-full max-h-full max-w-full" weight="fill" />
+</span>
+
+<style>
+	.plan-icon-root {
+		color: var(--plan-icon, var(--token-plan-icon-light, #ff8d20));
+	}
+
+	.plan-icon-root.text-current {
+		color: currentColor;
+	}
+</style>
