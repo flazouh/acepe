@@ -56,8 +56,9 @@ pub async fn create_client(
                 agent_id.as_str(),
                 cwd.display()
             );
-            let mut client =
-                crate::acp::client::cc_sdk_client::CcSdkClaudeClient::new(provider, app_handle, cwd)?;
+            let mut client = crate::acp::client::cc_sdk_client::CcSdkClaudeClient::new(
+                provider, app_handle, cwd,
+            )?;
             timeout(CLIENT_START_TIMEOUT, client.start())
                 .await
                 .map_err(|_| {

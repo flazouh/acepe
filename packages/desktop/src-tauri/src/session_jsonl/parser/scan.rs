@@ -145,9 +145,7 @@ impl MetadataParseState {
             worktree_path: None,
             pr_number: None,
             worktree_deleted: None,
-            session_lifecycle_state: Some(
-                crate::db::repository::SessionLifecycleState::Persisted,
-            ),
+            session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
         }))
     }
 }
@@ -325,7 +323,10 @@ pub async fn scan_all_threads() -> Result<Vec<HistoryEntry>> {
             }
 
             // Check cache first - only parse if file changed
-            if let Some(cached_entry) = cache.check_file_with_metadata(&file_path, mtime, size).await {
+            if let Some(cached_entry) = cache
+                .check_file_with_metadata(&file_path, mtime, size)
+                .await
+            {
                 all_entries.push(cached_entry);
                 sessions_in_project += 1;
                 continue;
@@ -494,8 +495,9 @@ where
                     let project_path_ref = &project_path_owned;
                     async move {
                         // Check cache first — only parse if file changed
-                        if let Some(cached_entry) =
-                            cache.check_file_with_metadata(&file_path, mtime, size).await
+                        if let Some(cached_entry) = cache
+                            .check_file_with_metadata(&file_path, mtime, size)
+                            .await
                         {
                             let corrected =
                                 process_cached_entry_for_project(cached_entry, project_path_ref);

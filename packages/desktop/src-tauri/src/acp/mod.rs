@@ -1,7 +1,7 @@
 pub mod active_agent;
-pub mod attachment_token_expander;
 pub mod agent_context;
 pub mod agent_installer;
+pub mod attachment_token_expander;
 pub mod client;
 pub(crate) mod client_errors;
 pub mod client_factory;

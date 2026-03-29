@@ -202,8 +202,14 @@ pub async fn voice_load_model(
         .map_err(|e| e.to_string());
 
     match &result {
-        Ok(()) => tracing::info!(model_id, elapsed_ms = t0.elapsed().as_millis() as u64, "voice_load_model: loaded OK"),
-        Err(e) => tracing::error!(model_id, error = %e, elapsed_ms = t0.elapsed().as_millis() as u64, "voice_load_model: load FAILED"),
+        Ok(()) => tracing::info!(
+            model_id,
+            elapsed_ms = t0.elapsed().as_millis() as u64,
+            "voice_load_model: loaded OK"
+        ),
+        Err(e) => {
+            tracing::error!(model_id, error = %e, elapsed_ms = t0.elapsed().as_millis() as u64, "voice_load_model: load FAILED")
+        }
     }
     result
 }
@@ -279,8 +285,12 @@ pub async fn voice_stop_recording(
                 },
             );
             match emit_result {
-                Ok(()) => tracing::info!("voice_stop_recording: emitted transcription_complete event"),
-                Err(error) => tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_complete event"),
+                Ok(()) => {
+                    tracing::info!("voice_stop_recording: emitted transcription_complete event")
+                }
+                Err(error) => {
+                    tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_complete event")
+                }
             }
             Ok(())
         }
@@ -301,7 +311,9 @@ pub async fn voice_stop_recording(
             );
             match emit_result {
                 Ok(()) => tracing::info!("voice_stop_recording: emitted transcription_error event"),
-                Err(error) => tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_error event"),
+                Err(error) => {
+                    tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_error event")
+                }
             }
             Err(message)
         }

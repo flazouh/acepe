@@ -142,9 +142,7 @@ pub(crate) async fn respond(
 pub(crate) async fn send_prompt_fire_and_forget(
     stdin_writer: &StdArc<Mutex<Option<ChildStdin>>>,
     request_id: &StdArc<std::sync::Mutex<u64>>,
-    prompt_request_sessions: &StdArc<
-        Mutex<HashMap<u64, crate::acp::client::PromptRequestSession>>,
-    >,
+    prompt_request_sessions: &StdArc<Mutex<HashMap<u64, crate::acp::client::PromptRequestSession>>>,
     process_generation: u64,
     session_id: String,
     method: &str,

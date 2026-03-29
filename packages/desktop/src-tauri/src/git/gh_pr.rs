@@ -646,7 +646,8 @@ exit 0
         );
 
         let _gh_bin_guard = EnvVarGuard::set_path_like("ACEPE_GH_BIN", &bin_dir.path().join("gh"));
-        let _git_bin_guard = EnvVarGuard::set_path_like("ACEPE_GIT_BIN", &bin_dir.path().join("git"));
+        let _git_bin_guard =
+            EnvVarGuard::set_path_like("ACEPE_GIT_BIN", &bin_dir.path().join("git"));
         let _test_log_guard = EnvVarGuard::set_path_like("TEST_LOG_DIR", repo_dir.path());
 
         let result = merge_pull_request(repo_dir.path(), 90, MergeStrategy::Squash).await;

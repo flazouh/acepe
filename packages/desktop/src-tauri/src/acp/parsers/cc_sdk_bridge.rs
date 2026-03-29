@@ -6,9 +6,9 @@
 use super::get_parser;
 use crate::acp::agent_context::current_agent;
 use crate::acp::session_update::{
-    build_tool_call_from_raw, ContentChunk, RawToolCallInput, SessionUpdate, ToolArguments,
-    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData, UsageTelemetryData,
-    UsageTelemetryTokens,
+    build_tool_call_from_raw, ContentChunk, QuestionData, RawToolCallInput, SessionUpdate,
+    ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
+    TurnErrorData, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use cc_sdk::Message;
@@ -138,9 +138,15 @@ fn translate_assistant(
                 };
                 let tool_call = build_tool_call_from_raw(parser, raw);
                 updates.push(SessionUpdate::ToolCall {
-                    tool_call,
+                    tool_call: tool_call.clone(),
                     session_id: session_id.clone(),
                 });
+
+                if let Some(question_update) =
+                    build_question_request_update(&tool_call, &session_id)
+                {
+                    updates.push(question_update);
+                }
             }
 
             cc_sdk::ContentBlock::ToolResult(tr) => {
@@ -180,6 +186,36 @@ fn translate_assistant(
     }
 
     updates
+}
+
+fn build_question_request_update(
+    tool_call: &ToolCallData,
+    session_id: &Option<String>,
+) -> Option<SessionUpdate> {
+    if tool_call.kind != Some(ToolKind::Question) {
+        return None;
+    }
+
+    let questions = tool_call.normalized_questions.clone()?;
+    if questions.is_empty() {
+        return None;
+    }
+
+    let question = QuestionData {
+        id: tool_call.id.clone(),
+        session_id: session_id.clone().unwrap_or_default(),
+        json_rpc_request_id: None,
+        questions,
+        tool: Some(ToolReference {
+            message_id: String::new(),
+            call_id: tool_call.id.clone(),
+        }),
+    };
+
+    Some(SessionUpdate::QuestionRequest {
+        question,
+        session_id: session_id.clone(),
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -985,6 +1021,68 @@ mod tests {
                 }
             } else {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn assistant_ask_user_question_emits_tool_call_and_question_request() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_question_001".to_string(),
+                            name: "AskUserQuestion".to_string(),
+                            input: serde_json::json!({
+                                "questions": [
+                                    {
+                                        "question": "Which branch should I use?",
+                                        "header": "Branch",
+                                        "options": [
+                                            {
+                                                "label": "main",
+                                                "description": "Use the default branch"
+                                            }
+                                        ],
+                                        "multiSelect": false
+                                    }
+                                ]
+                            }),
+                        })],
+                        model: Some("claude-opus-4-6".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 2);
+            match &updates[0] {
+                SessionUpdate::ToolCall { tool_call, .. } => {
+                    assert_eq!(tool_call.id, "toolu_question_001");
+                    assert_eq!(tool_call.kind, Some(ToolKind::Question));
+                    assert_eq!(
+                        tool_call.normalized_questions.as_ref().map(Vec::len),
+                        Some(1)
+                    );
+                }
+                other => panic!("expected tool call update, got {:?}", other),
+            }
+
+            match &updates[1] {
+                SessionUpdate::QuestionRequest { question, .. } => {
+                    assert_eq!(question.id, "toolu_question_001");
+                    assert_eq!(question.session_id, "ses-test");
+                    assert_eq!(question.questions.len(), 1);
+                    assert_eq!(
+                        question.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                        Some("toolu_question_001")
+                    );
+                }
+                other => panic!("expected question request update, got {:?}", other),
             }
         });
     }

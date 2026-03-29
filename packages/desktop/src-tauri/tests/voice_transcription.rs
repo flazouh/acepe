@@ -91,7 +91,10 @@ fn engine_transcribes_wav_when_provided() {
     println!("Language: {:?}", result.language);
 
     // The test simply verifies no panic; actual content checked manually.
-    assert!(result.duration_ms == 0, "Engine sets duration_ms=0; caller provides wall time");
+    assert!(
+        result.duration_ms == 0,
+        "Engine sets duration_ms=0; caller provides wall time"
+    );
 }
 
 #[test]
@@ -99,16 +102,17 @@ fn engine_errors_when_no_model_loaded() {
     let engine = WhisperEngine::new();
     let audio = vec![0.0f32; 16_000];
     let result = engine.transcribe(&audio, 16_000, None);
-    assert!(result.is_err(), "Transcribe without a loaded model should return Err");
+    assert!(
+        result.is_err(),
+        "Transcribe without a loaded model should return Err"
+    );
 }
 
 // ── WAV helper ────────────────────────────────────────────────────────────
 
 /// Read a WAV file as a mono f32 PCM sample vector.
 /// Mixes down stereo to mono by averaging channels.
-fn read_wav_as_f32_mono(
-    path: &std::path::Path,
-) -> anyhow::Result<Vec<f32>> {
+fn read_wav_as_f32_mono(path: &std::path::Path) -> anyhow::Result<Vec<f32>> {
     use std::io::BufReader;
 
     let file = std::fs::File::open(path)?;
@@ -117,9 +121,7 @@ fn read_wav_as_f32_mono(
     let channels = spec.channels as usize;
 
     let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .collect::<Result<_, _>>()?,
+        hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<_, _>>()?,
         hound::SampleFormat::Int => {
             let max = (1i64 << (spec.bits_per_sample - 1)) as f32;
             reader

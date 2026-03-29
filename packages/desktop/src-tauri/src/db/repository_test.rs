@@ -752,13 +752,9 @@ mod session_metadata_tests {
         )
         .await
         .unwrap();
-        SessionMetadataRepository::set_provider_session_id(
-            &db,
-            "acepe-session",
-            "claude-session",
-        )
-        .await
-        .unwrap();
+        SessionMetadataRepository::set_provider_session_id(&db, "acepe-session", "claude-session")
+            .await
+            .unwrap();
 
         let updated = SessionMetadataRepository::batch_upsert(
             &db,
@@ -808,13 +804,9 @@ mod session_metadata_tests {
         )
         .await
         .unwrap();
-        SessionMetadataRepository::set_provider_session_id(
-            &db,
-            "acepe-session",
-            "claude-session",
-        )
-        .await
-        .unwrap();
+        SessionMetadataRepository::set_provider_session_id(&db, "acepe-session", "claude-session")
+            .await
+            .unwrap();
 
         let deleted = SessionMetadataRepository::delete_by_agent_for_projects_excluding_ids(
             &db,
@@ -897,7 +889,10 @@ mod session_metadata_tests {
             .unwrap();
 
         assert_eq!(session.project_path, base_project_str);
-        assert_eq!(session.worktree_path.as_deref(), Some(worktree_str.as_str()));
+        assert_eq!(
+            session.worktree_path.as_deref(),
+            Some(worktree_str.as_str())
+        );
     }
 
     #[tokio::test]

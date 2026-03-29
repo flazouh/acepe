@@ -62,7 +62,8 @@ pub async fn get_unified_session(
                 &context.history_session_id,
                 &context.effective_project_path,
             )
-            .await {
+            .await
+            {
                 Ok(full_session) => {
                     let converted =
                         crate::session_converter::convert_claude_full_session_to_entries(
@@ -206,7 +207,8 @@ pub async fn get_unified_session(
                 ),
                 context.source_path.as_deref(),
             )
-            .await {
+            .await
+            {
                 Ok(session) => session,
                 Err(e) => {
                     tracing::warn!(
@@ -550,14 +552,14 @@ pub async fn set_session_worktree_path(
     );
 
     let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
-            tracing::error!(
-                session_id = %session_id,
-                worktree_path = %worktree_path,
-                error = %e,
-                "Worktree path validation failed"
-            );
-            format!("Invalid worktree path: {}", e)
-        })?;
+        tracing::error!(
+            session_id = %session_id,
+            worktree_path = %worktree_path,
+            error = %e,
+            "Worktree path validation failed"
+        );
+        format!("Invalid worktree path: {}", e)
+    })?;
 
     let db = app
         .try_state::<DbConn>()

@@ -250,7 +250,11 @@ async fn cold_scan() {
         .expect("scan_projects");
     let cold_ms = ms(t.elapsed());
 
-    println!("Cold scan:  {:>8.1}ms  ({} entries)", cold_ms, entries.len());
+    println!(
+        "Cold scan:  {:>8.1}ms  ({} entries)",
+        cold_ms,
+        entries.len()
+    );
 
     // Warm scan (should hit cache)
     let t = Instant::now();
@@ -306,7 +310,12 @@ async fn warm_scan() {
             .expect("scan_projects");
         let elapsed = ms(t.elapsed());
         durations.push(elapsed);
-        println!("  Run {}: {:>8.1}ms  ({} entries)", i + 1, elapsed, entries.len());
+        println!(
+            "  Run {}: {:>8.1}ms  ({} entries)",
+            i + 1,
+            elapsed,
+            entries.len()
+        );
     }
 
     durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -330,9 +339,7 @@ async fn phase_breakdown() {
 
     // Phase 1: Directory walk
     println!("\n--- Phase 1: Directory Walk ---");
-    let walk = benchmark_dir_walk(&project_paths)
-        .await
-        .expect("dir walk");
+    let walk = benchmark_dir_walk(&project_paths).await.expect("dir walk");
     println!(
         "  Total: {:.1}ms for {} projects, {} files",
         walk.walk_ms, walk.project_count, walk.total_files
@@ -369,13 +376,7 @@ async fn phase_breakdown() {
 
         // Top 10 slowest files
         println!("  Top 10 slowest files:");
-        for (i, &dur) in extract
-            .per_file_ms
-            .iter()
-            .rev()
-            .take(10)
-            .enumerate()
-        {
+        for (i, &dur) in extract.per_file_ms.iter().rev().take(10).enumerate() {
             println!("    #{}: {:.2}ms", i + 1, dur);
         }
     }
@@ -541,7 +542,10 @@ async fn file_size_distribution() {
     println!("Average:  {:.1} KB", avg / 1024.0);
     println!("Median:   {:.1} KB", sizes[sizes.len() / 2] as f64 / 1024.0);
     println!("Min:      {:.1} KB", sizes[0] as f64 / 1024.0);
-    println!("Max:      {:.1} MB", sizes[sizes.len() - 1] as f64 / 1_048_576.0);
+    println!(
+        "Max:      {:.1} MB",
+        sizes[sizes.len() - 1] as f64 / 1_048_576.0
+    );
 
     // Buckets
     let buckets = [
@@ -616,7 +620,10 @@ async fn cache_effectiveness() {
     let _ = session_jsonl_parser::scan_projects(&project_paths).await;
     let warm2_ms = ms(t.elapsed());
     let warm2_stats = cache.get_stats();
-    println!("\nWarm scan #2 (TTL expired, mtime check): {:.1}ms", warm2_ms);
+    println!(
+        "\nWarm scan #2 (TTL expired, mtime check): {:.1}ms",
+        warm2_ms
+    );
     println!(
         "  Hits: {}, Misses: {}",
         warm2_stats.hits, warm2_stats.misses
@@ -713,7 +720,9 @@ async fn startup_simulation() {
 
     if index_populated {
         println!("  → Fast path: startup scan complete in {:.1}ms", idx_ms);
-        println!("    (Title derivation adds ~10-50ms on top, but sessions are visible immediately)");
+        println!(
+            "    (Title derivation adds ~10-50ms on top, but sessions are visible immediately)"
+        );
     } else {
         // Step 2: File scan fallback
         invalidate_cache().await;

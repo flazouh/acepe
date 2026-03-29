@@ -4,7 +4,8 @@
 //! that isolate agent work from the main repository. Each worktree gets a fun
 //! adjective-noun branch name like "clever-falcon" or "cosmic-harbor".
 
-use crate::git::worktree_config;use crate::path_safety;
+use crate::git::worktree_config;
+use crate::path_safety;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -222,7 +223,10 @@ fn ensure_initial_commit_for_unborn_repo(repo_path: &Path) -> Result<bool, Strin
 
     if !add_output.status.success() {
         let stderr = String::from_utf8_lossy(&add_output.stderr);
-        return Err(format!("Failed to stage files for initial commit: {}", stderr.trim()));
+        return Err(format!(
+            "Failed to stage files for initial commit: {}",
+            stderr.trim()
+        ));
     }
 
     let commit_output = Command::new("git")
@@ -244,7 +248,10 @@ fn ensure_initial_commit_for_unborn_repo(repo_path: &Path) -> Result<bool, Strin
 
     if !commit_output.status.success() {
         let stderr = String::from_utf8_lossy(&commit_output.stderr);
-        return Err(format!("Failed to create initial commit: {}", stderr.trim()));
+        return Err(format!(
+            "Failed to create initial commit: {}",
+            stderr.trim()
+        ));
     }
 
     tracing::info!(repo_path = %repo_path.display(), "Initial commit created for unborn repository");
@@ -543,7 +550,10 @@ pub async fn git_worktree_rename(
 
     if current_branch != renamed_branch {
         if branch_exists(&main_repo, &renamed_branch)? {
-            return Err(format!("A branch named '{}' already exists", renamed_branch));
+            return Err(format!(
+                "A branch named '{}' already exists",
+                renamed_branch
+            ));
         }
 
         let output = Command::new("git")
@@ -559,7 +569,12 @@ pub async fn git_worktree_rename(
     }
 
     let output = Command::new("git")
-        .args(["worktree", "move", &worktree_path, &validated_renamed_path.to_string_lossy()])
+        .args([
+            "worktree",
+            "move",
+            &worktree_path,
+            &validated_renamed_path.to_string_lossy(),
+        ])
         .current_dir(&main_repo)
         .output()
         .map_err(|e| format!("Failed to execute git worktree move: {}", e))?;
@@ -1262,6 +1277,9 @@ branch refs/heads/acepe/clever-falcon";
         let changed = ensure_initial_commit_for_unborn_repo(repo_dir.path())
             .expect("second bootstrap should succeed");
 
-        assert!(!changed, "existing head should not create another initial commit");
+        assert!(
+            !changed,
+            "existing head should not create another initial commit"
+        );
     }
 }

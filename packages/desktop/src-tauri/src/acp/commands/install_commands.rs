@@ -21,10 +21,7 @@ pub async fn acp_install_agent(
         | CanonicalAgentId::Codex => {}
         _ => {
             return Err(SerializableAcpError::InvalidState {
-                message: format!(
-                    "Agent '{}' is not installable (unknown agent)",
-                    agent_id
-                ),
+                message: format!("Agent '{}' is not installable (unknown agent)", agent_id),
             });
         }
     }

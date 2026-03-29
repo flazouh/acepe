@@ -1,11 +1,9 @@
 use super::*;
-use crate::db::repository::SessionMetadataRepository;
 use crate::acp::session_registry::redact_session_id;
+use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
 
-fn git_main_repo_from_worktree_path(
-    worktree_path: &std::path::Path,
-) -> Option<std::path::PathBuf> {
+fn git_main_repo_from_worktree_path(worktree_path: &std::path::Path) -> Option<std::path::PathBuf> {
     let git_file_path = worktree_path.join(".git");
     let git_file_content = std::fs::read_to_string(&git_file_path).ok()?;
     let git_dir_path = git_file_content.strip_prefix("gitdir: ")?.trim();
@@ -23,9 +21,7 @@ fn git_main_repo_from_worktree_path(
         .map(std::path::Path::to_path_buf)
 }
 
-pub(crate) fn session_metadata_context_from_cwd(
-    cwd: &std::path::Path,
-) -> (String, Option<String>) {
+pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
     let canonical_cwd = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
 
     if canonical_cwd.join(".git").is_file() {
@@ -63,13 +59,19 @@ pub(crate) async fn persist_session_metadata_for_cwd(
             ),
         })?;
     } else {
-        SessionMetadataRepository::ensure_exists(db, session_id, &project_path, agent_id.as_str(), None)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to persist session metadata for session {session_id}: {error}"
-                ),
-            })?;
+        SessionMetadataRepository::ensure_exists(
+            db,
+            session_id,
+            &project_path,
+            agent_id.as_str(),
+            None,
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to persist session metadata for session {session_id}: {error}"
+            ),
+        })?;
     }
 
     Ok(())

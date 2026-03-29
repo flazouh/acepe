@@ -1386,9 +1386,7 @@ fn test_process_cached_entry_for_project_corrects_mismatch() {
         worktree_path: None,
         pr_number: None,
         worktree_deleted: None,
-        session_lifecycle_state: Some(
-            crate::db::repository::SessionLifecycleState::Persisted,
-        ),
+        session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
     };
 
     let expected_project = "/Users/test/Documents/project"; // Correct - from database
@@ -1427,9 +1425,7 @@ fn test_process_cached_entry_for_project_no_change_when_matching() {
         worktree_path: None,
         pr_number: None,
         worktree_deleted: None,
-        session_lifecycle_state: Some(
-            crate::db::repository::SessionLifecycleState::Persisted,
-        ),
+        session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
     };
 
     let result = process_cached_entry_for_project(cached_entry.clone(), project_path);
@@ -1545,8 +1541,14 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
 
     invalidate_cache().await;
 
-    let returned_ids: Vec<String> = entries.iter().map(|entry| entry.session_id.clone()).collect();
-    assert_eq!(returned_ids, vec![newer_session_id.to_string(), older_session_id.to_string()]);
+    let returned_ids: Vec<String> = entries
+        .iter()
+        .map(|entry| entry.session_id.clone())
+        .collect();
+    assert_eq!(
+        returned_ids,
+        vec![newer_session_id.to_string(), older_session_id.to_string()]
+    );
     assert_eq!(emitted_ids.len(), returned_ids.len());
     assert!(emitted_ids.contains(&newer_session_id.to_string()));
     assert!(emitted_ids.contains(&older_session_id.to_string()));

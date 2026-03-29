@@ -187,9 +187,15 @@ fn make_error(code: &str, message: &str) -> String {
 
 fn parse_gh_error(stderr: &str, exit_code: Option<i32>) -> String {
     if stderr.contains("HTTP 401") || exit_code == Some(4) {
-        make_error("auth_required", "GitHub authentication required. Run 'gh auth login' to authenticate.")
+        make_error(
+            "auth_required",
+            "GitHub authentication required. Run 'gh auth login' to authenticate.",
+        )
     } else if stderr.contains("rate limit") || stderr.contains("HTTP 403") {
-        make_error("rate_limited", "GitHub API rate limit exceeded. Please try again later.")
+        make_error(
+            "rate_limited",
+            "GitHub API rate limit exceeded. Please try again later.",
+        )
     } else if stderr.contains("HTTP 404") {
         make_error("not_found", "Not found on GitHub.")
     } else {
@@ -201,7 +207,10 @@ fn parse_http_error(status: u16, body: &str) -> String {
     if status == 401 {
         make_error("auth_required", "GitHub authentication required.")
     } else if status == 403 && body.contains("rate limit") {
-        make_error("rate_limited", "GitHub API rate limit exceeded. Sign in with 'gh auth login' for higher limits.")
+        make_error(
+            "rate_limited",
+            "GitHub API rate limit exceeded. Sign in with 'gh auth login' for higher limits.",
+        )
     } else if status == 404 {
         make_error("not_found", "Not found on GitHub.")
     } else {
@@ -222,8 +231,12 @@ fn gh_api_get(endpoint: &str) -> Result<serde_json::Value, String> {
         return Err(parse_gh_error(&stderr, output.status.code()));
     }
 
-    serde_json::from_slice(&output.stdout)
-        .map_err(|e| make_error("unknown", &format!("Failed to parse GitHub API response: {}", e)))
+    serde_json::from_slice(&output.stdout).map_err(|e| {
+        make_error(
+            "unknown",
+            &format!("Failed to parse GitHub API response: {}", e),
+        )
+    })
 }
 
 fn gh_api_post(endpoint: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
@@ -250,8 +263,12 @@ fn gh_api_post(endpoint: &str, body: &serde_json::Value) -> Result<serde_json::V
         return Err(parse_gh_error(&stderr, output.status.code()));
     }
 
-    serde_json::from_slice(&output.stdout)
-        .map_err(|e| make_error("unknown", &format!("Failed to parse GitHub API response: {}", e)))
+    serde_json::from_slice(&output.stdout).map_err(|e| {
+        make_error(
+            "unknown",
+            &format!("Failed to parse GitHub API response: {}", e),
+        )
+    })
 }
 
 fn gh_api_delete(endpoint: &str) -> Result<(), String> {
@@ -292,8 +309,12 @@ fn gh_api_get_with_pagination(endpoint: &str) -> Result<(serde_json::Value, bool
 
     let has_next = headers.contains("rel=\"next\"");
 
-    let json: serde_json::Value = serde_json::from_str(body)
-        .map_err(|e| make_error("unknown", &format!("Failed to parse GitHub API response: {}", e)))?;
+    let json: serde_json::Value = serde_json::from_str(body).map_err(|e| {
+        make_error(
+            "unknown",
+            &format!("Failed to parse GitHub API response: {}", e),
+        )
+    })?;
 
     Ok((json, has_next))
 }
@@ -362,9 +383,7 @@ fn check_auth() -> AuthStatus {
     }
 
     // Check auth token exists
-    let auth_check = Command::new("gh")
-        .args(["auth", "token"])
-        .output();
+    let auth_check = Command::new("gh").args(["auth", "token"]).output();
 
     match auth_check {
         Ok(output) if output.status.success() => {
@@ -399,7 +418,10 @@ fn validate_reaction_content(content: &str) -> Result<(), String> {
     if VALID_REACTION_CONTENTS.contains(&content) {
         Ok(())
     } else {
-        Err(make_error("unknown", &format!("Invalid reaction content: {}", content)))
+        Err(make_error(
+            "unknown",
+            &format!("Invalid reaction content: {}", content),
+        ))
     }
 }
 
@@ -534,9 +556,7 @@ pub async fn search_github_issues(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_github_issue(
-    number: i32,
-) -> Result<GitHubIssue, String> {
+pub async fn get_github_issue(number: i32) -> Result<GitHubIssue, String> {
     let endpoint = format!("repos/{}/{}/issues/{}", OWNER, REPO, number);
 
     let json = if check_auth().authenticated {
@@ -557,10 +577,19 @@ pub fn create_github_issue(
     labels: Option<Vec<String>>,
 ) -> Result<GitHubIssue, String> {
     if title.is_empty() || title.len() > MAX_TITLE_LENGTH {
-        return Err(make_error("unknown", &format!("Title must be between 1 and {} characters", MAX_TITLE_LENGTH)));
+        return Err(make_error(
+            "unknown",
+            &format!(
+                "Title must be between 1 and {} characters",
+                MAX_TITLE_LENGTH
+            ),
+        ));
     }
     if body.len() > MAX_BODY_LENGTH {
-        return Err(make_error("unknown", &format!("Body must not exceed {} characters", MAX_BODY_LENGTH)));
+        return Err(make_error(
+            "unknown",
+            &format!("Body must not exceed {} characters", MAX_BODY_LENGTH),
+        ));
     }
 
     let mut payload = serde_json::json!({
@@ -611,12 +640,15 @@ pub async fn list_issue_comments(
 
 #[tauri::command]
 #[specta::specta]
-pub fn create_issue_comment(
-    number: i32,
-    body: String,
-) -> Result<GitHubComment, String> {
+pub fn create_issue_comment(number: i32, body: String) -> Result<GitHubComment, String> {
     if body.is_empty() || body.len() > MAX_COMMENT_LENGTH {
-        return Err(make_error("unknown", &format!("Comment must be between 1 and {} characters", MAX_COMMENT_LENGTH)));
+        return Err(make_error(
+            "unknown",
+            &format!(
+                "Comment must be between 1 and {} characters",
+                MAX_COMMENT_LENGTH
+            ),
+        ));
     }
 
     let payload = serde_json::json!({ "body": body });
@@ -627,10 +659,7 @@ pub fn create_issue_comment(
 
 #[tauri::command]
 #[specta::specta]
-pub fn toggle_issue_reaction(
-    number: i32,
-    content: String,
-) -> Result<bool, String> {
+pub fn toggle_issue_reaction(number: i32, content: String) -> Result<bool, String> {
     validate_reaction_content(&content)?;
 
     let endpoint = format!("repos/{}/{}/issues/{}/reactions", OWNER, REPO, number);
@@ -645,7 +674,12 @@ pub fn toggle_issue_reaction(
     let user_output = Command::new("gh")
         .args(["api", "user", "--jq", ".login"])
         .output()
-        .map_err(|e| make_error("auth_required", &format!("Failed to get current user: {}", e)))?;
+        .map_err(|e| {
+            make_error(
+                "auth_required",
+                &format!("Failed to get current user: {}", e),
+            )
+        })?;
     let current_user = String::from_utf8(user_output.stdout)
         .map_err(|_| make_error("unknown", "Invalid user response"))?
         .trim()
@@ -653,7 +687,8 @@ pub fn toggle_issue_reaction(
 
     // Find existing reaction from current user with matching content
     let existing = reactions.iter().find(|r| {
-        r["user"]["login"].as_str() == Some(&current_user) && r["content"].as_str() == Some(&content)
+        r["user"]["login"].as_str() == Some(&current_user)
+            && r["content"].as_str() == Some(&content)
     });
 
     if let Some(reaction) = existing {
@@ -677,10 +712,7 @@ pub fn toggle_issue_reaction(
 
 #[tauri::command]
 #[specta::specta]
-pub fn toggle_comment_reaction(
-    comment_id: i64,
-    content: String,
-) -> Result<bool, String> {
+pub fn toggle_comment_reaction(comment_id: i64, content: String) -> Result<bool, String> {
     validate_reaction_content(&content)?;
 
     let endpoint = format!(
@@ -696,14 +728,20 @@ pub fn toggle_comment_reaction(
     let user_output = Command::new("gh")
         .args(["api", "user", "--jq", ".login"])
         .output()
-        .map_err(|e| make_error("auth_required", &format!("Failed to get current user: {}", e)))?;
+        .map_err(|e| {
+            make_error(
+                "auth_required",
+                &format!("Failed to get current user: {}", e),
+            )
+        })?;
     let current_user = String::from_utf8(user_output.stdout)
         .map_err(|_| make_error("unknown", "Invalid user response"))?
         .trim()
         .to_string();
 
     let existing = reactions.iter().find(|r| {
-        r["user"]["login"].as_str() == Some(&current_user) && r["content"].as_str() == Some(&content)
+        r["user"]["login"].as_str() == Some(&current_user)
+            && r["content"].as_str() == Some(&content)
     });
 
     if let Some(reaction) = existing {

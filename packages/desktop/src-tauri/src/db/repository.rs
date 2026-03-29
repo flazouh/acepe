@@ -3,8 +3,8 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -856,7 +856,9 @@ impl SessionMetadataRepository {
         let now = Utc::now();
 
         let existing = SessionMetadata::find()
-            .filter(Self::query_existing_session_by_id_or_provider_session_id(&session_id))
+            .filter(Self::query_existing_session_by_id_or_provider_session_id(
+                &session_id,
+            ))
             .one(db)
             .await?;
 
@@ -1041,8 +1043,7 @@ impl SessionMetadataRepository {
             return Ok(false);
         }
 
-        Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path)
-            .await?;
+        Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path).await?;
         Ok(true)
     }
 
@@ -1221,15 +1222,15 @@ impl SessionMetadataRepository {
     pub async fn get_all_file_index_entries(
         db: &DbConn,
     ) -> Result<Vec<(String, String, i64, i64)>> {
-        let models = SessionMetadata::find()
-            .all(db)
-            .await?;
+        let models = SessionMetadata::find().all(db).await?;
 
         Ok(models
             .into_iter()
             .map(|model| {
                 (
-                    model.provider_session_id.unwrap_or_else(|| model.id.clone()),
+                    model
+                        .provider_session_id
+                        .unwrap_or_else(|| model.id.clone()),
                     model.file_path,
                     model.file_mtime,
                     model.file_size,

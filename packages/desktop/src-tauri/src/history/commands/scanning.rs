@@ -244,7 +244,10 @@ mod tests {
 
     #[test]
     fn test_indexed_source_path_hides_worktree_sentinel() {
-        assert_eq!(indexed_source_path("__worktree__/ses_legacy".to_string()), None);
+        assert_eq!(
+            indexed_source_path("__worktree__/ses_legacy".to_string()),
+            None
+        );
     }
 }
 

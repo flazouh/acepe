@@ -44,12 +44,12 @@ pub use interaction_commands::{
 };
 use path_validation::{normalize_acp_path, validate_session_cwd};
 pub use registry_commands::{acp_list_agents, acp_register_custom_agent};
+#[cfg(test)]
+pub(crate) use session_commands::persist_session_metadata_for_cwd;
 pub use session_commands::{
     acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_initialize,
     acp_new_session, acp_resume_session,
 };
-#[cfg(test)]
-pub(crate) use session_commands::persist_session_metadata_for_cwd;
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;
 type SessionClientArc = Arc<SessionClientMutex>;

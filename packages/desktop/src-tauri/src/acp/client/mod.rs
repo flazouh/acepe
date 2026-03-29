@@ -28,8 +28,8 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::{timeout, Duration};
 
-pub mod cc_sdk_client;
 mod auth;
+pub mod cc_sdk_client;
 mod lifecycle;
 mod model_discovery;
 mod prompt_ops;

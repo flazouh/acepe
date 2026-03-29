@@ -1311,7 +1311,10 @@ mod tests {
         .await
         .expect("fixture should parse successfully");
 
-        assert!(!session.messages.is_empty(), "fixture should include messages");
+        assert!(
+            !session.messages.is_empty(),
+            "fixture should include messages"
+        );
         assert!(
             session.stats.user_messages >= 1,
             "fixture should include at least one user message"

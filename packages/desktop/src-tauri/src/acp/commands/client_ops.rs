@@ -1,6 +1,6 @@
 use super::*;
-use crate::analytics;
 use crate::acp::session_registry::redact_session_id;
+use crate::analytics;
 
 fn agent_display_name(agent_id: &CanonicalAgentId) -> &str {
     match agent_id {

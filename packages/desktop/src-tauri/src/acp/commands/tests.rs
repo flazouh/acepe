@@ -1,16 +1,18 @@
 use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
-use crate::acp::commands::session_commands::{
-    persist_session_metadata_for_cwd, session_metadata_context_from_cwd,
-};
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
+use crate::acp::commands::session_commands::{
+    persist_session_metadata_for_cwd, session_metadata_context_from_cwd,
+};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
 use crate::db::repository::SessionMetadataRepository;
 use async_trait::async_trait;
+use sea_orm::{Database, DbConn};
+use sea_orm_migration::MigratorTrait;
 use serde_json::json;
 use std::collections::HashMap;
 use std::process::Stdio;
@@ -20,8 +22,6 @@ use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use sea_orm::{Database, DbConn};
-use sea_orm_migration::MigratorTrait;
 
 fn canonicalize_or_original_for_test(path: &std::path::Path) -> String {
     std::fs::canonicalize(path)
@@ -144,8 +144,7 @@ fn validate_session_cwd_accepts_directory() {
 #[test]
 fn session_metadata_context_from_cwd_returns_plain_project_for_normal_directory() {
     let temp = tempdir().expect("temp dir");
-    let (project_path, worktree_path) =
-        session_metadata_context_from_cwd(temp.path());
+    let (project_path, worktree_path) = session_metadata_context_from_cwd(temp.path());
 
     assert_eq!(project_path, canonicalize_or_original_for_test(temp.path()));
     assert_eq!(worktree_path, None);
@@ -166,8 +165,7 @@ fn session_metadata_context_from_cwd_returns_base_project_for_git_worktree() {
     )
     .expect("write .git file");
 
-    let (project_path, resolved_worktree_path) =
-        session_metadata_context_from_cwd(&worktree_path);
+    let (project_path, resolved_worktree_path) = session_metadata_context_from_cwd(&worktree_path);
 
     assert_eq!(project_path, repo_path.to_string_lossy());
     assert_eq!(
@@ -234,7 +232,10 @@ async fn persist_session_metadata_for_cwd_inserts_created_plain_project_session(
         .expect("load row")
         .expect("row should exist");
 
-    assert_eq!(row.project_path, canonicalize_or_original_for_test(temp.path()));
+    assert_eq!(
+        row.project_path,
+        canonicalize_or_original_for_test(temp.path())
+    );
     assert_eq!(row.worktree_path, None);
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_transcript_pending());
@@ -416,28 +417,29 @@ fn session_metadata_real_rows_are_resumable() {
 
 #[test]
 fn session_metadata_created_rows_with_worktree_context_are_resumable() {
-	let temp = tempdir().expect("temp dir");
-	let worktree_path = temp.path().to_string_lossy().to_string();
+    let temp = tempdir().expect("temp dir");
+    let worktree_path = temp.path().to_string_lossy().to_string();
 
-	let row = crate::db::repository::SessionMetadataRow {
-		id: "session-worktree-placeholder".to_string(),
-		display: "Worktree Session".to_string(),
-		timestamp: 0,
-		project_path: "/project".to_string(),
-		agent_id: "opencode".to_string(),
-		file_path: "__session_registry__/session-worktree-placeholder".to_string(),
-		file_mtime: 0,
-		file_size: 0,
+    let row = crate::db::repository::SessionMetadataRow {
+        id: "session-worktree-placeholder".to_string(),
+        display: "Worktree Session".to_string(),
+        timestamp: 0,
+        project_path: "/project".to_string(),
+        agent_id: "opencode".to_string(),
+        file_path: "__session_registry__/session-worktree-placeholder".to_string(),
+        file_mtime: 0,
+        file_size: 0,
         provider_session_id: None,
-		worktree_path: Some(worktree_path),
-		pr_number: None,
-	};
+        worktree_path: Some(worktree_path),
+        pr_number: None,
+    };
 
     assert!(row.is_transcript_pending());
 }
 
 #[tokio::test]
-async fn persist_session_metadata_for_multiple_worktree_sessions_uses_unique_created_session_paths() {
+async fn persist_session_metadata_for_multiple_worktree_sessions_uses_unique_created_session_paths()
+{
     let db = setup_test_db().await;
 
     SessionMetadataRepository::ensure_exists(

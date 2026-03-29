@@ -9,8 +9,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as TokioMutex;
 
 use super::models_validation::{
-	clear_validation_metadata, load_validation_metadata, save_validation_metadata,
-	ValidationMetadata,
+    clear_validation_metadata, load_validation_metadata, save_validation_metadata,
+    ValidationMetadata,
 };
 
 const MAX_DOWNLOAD_SIZE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
@@ -211,7 +211,7 @@ impl ModelManager {
             tracing::info!(model_id, "ModelManager: model file deleted");
         }
 
-		clear_validation_metadata(&path)?;
+        clear_validation_metadata(&path)?;
 
         Ok(())
     }
@@ -249,7 +249,12 @@ impl ModelManager {
         F: FnMut(ModelDownloadProgress),
     {
         let spec = Self::find_spec(model_id).context("Unknown voice model")?;
-        tracing::info!(model_id, url = spec.url, size_bytes = spec.size_bytes, "ModelManager: starting download");
+        tracing::info!(
+            model_id,
+            url = spec.url,
+            size_bytes = spec.size_bytes,
+            "ModelManager: starting download"
+        );
         fs::create_dir_all(&self.models_dir).with_context(|| {
             format!(
                 "Failed to create models directory {}",
@@ -259,7 +264,10 @@ impl ModelManager {
 
         let final_path = self.models_dir.join(format!("ggml-{}.bin", spec.id));
         if self.validate_model(spec.id, &final_path).is_ok() {
-            tracing::info!(model_id, "ModelManager: model already exists and is valid, skipping download");
+            tracing::info!(
+                model_id,
+                "ModelManager: model already exists and is valid, skipping download"
+            );
             emit_progress(ModelDownloadProgress {
                 model_id: spec.id.to_string(),
                 downloaded_bytes: spec.size_bytes,
@@ -414,12 +422,16 @@ pub fn validate_model_file(model_id: &str, path: &Path) -> anyhow::Result<()> {
         );
     }
 
-	if let Some(cached) = load_validation_metadata(path)? {
-		if cached.size_bytes == spec.size_bytes && cached.sha256 == spec.sha256 {
-			tracing::debug!(model_id, elapsed_ms = t0.elapsed().as_millis() as u64, "validate_model_file: cache hit");
-			return Ok(());
-		}
-	}
+    if let Some(cached) = load_validation_metadata(path)? {
+        if cached.size_bytes == spec.size_bytes && cached.sha256 == spec.sha256 {
+            tracing::debug!(
+                model_id,
+                elapsed_ms = t0.elapsed().as_millis() as u64,
+                "validate_model_file: cache hit"
+            );
+            return Ok(());
+        }
+    }
 
     let mut file = fs::File::open(path)
         .with_context(|| format!("Failed to open model file {}", path.display()))?;
@@ -447,15 +459,19 @@ pub fn validate_model_file(model_id: &str, path: &Path) -> anyhow::Result<()> {
         );
     }
 
-	save_validation_metadata(
-		path,
-		&ValidationMetadata {
-			size_bytes: spec.size_bytes,
-			sha256: spec.sha256.to_string(),
-		},
-	)?;
+    save_validation_metadata(
+        path,
+        &ValidationMetadata {
+            size_bytes: spec.size_bytes,
+            sha256: spec.sha256.to_string(),
+        },
+    )?;
 
-    tracing::debug!(model_id, elapsed_ms = t0.elapsed().as_millis() as u64, "validate_model_file: OK");
+    tracing::debug!(
+        model_id,
+        elapsed_ms = t0.elapsed().as_millis() as u64,
+        "validate_model_file: OK"
+    );
     Ok(())
 }
 

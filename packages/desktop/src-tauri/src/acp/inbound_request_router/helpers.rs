@@ -30,8 +30,6 @@ pub(super) fn parse_params<T: for<'de> Deserialize<'de>>(
     serde_json::from_value(params.clone())
 }
 
-
-
 pub(super) fn build_permission_request_log_payload(
     method: &str,
     raw_params: &Value,

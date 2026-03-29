@@ -11,7 +11,10 @@ use crate::path_safety::validate_project_directory_from_str;
 
 use super::git::get_file_content_from_head;
 use super::service::FileIndexService;
-use super::types::{FileDiffResult, FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus, ProjectGitOverview, ProjectIndex};
+use super::types::{
+    FileDiffResult, FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus,
+    ProjectGitOverview, ProjectIndex,
+};
 
 fn validate_project_path_for_indexing(project_path: &str) -> Result<String, String> {
     let validated = validate_project_root(project_path)?;
@@ -522,7 +525,8 @@ mod tests {
     fn validate_existing_path_within_project_rejects_absolute_paths() {
         let dir = tempdir().expect("temp dir");
 
-        let result = validate_existing_path_within_project(&dir.path().to_string_lossy(), "/etc/passwd");
+        let result =
+            validate_existing_path_within_project(&dir.path().to_string_lossy(), "/etc/passwd");
 
         assert!(result.is_err());
     }
@@ -531,7 +535,8 @@ mod tests {
     fn validate_existing_path_within_project_rejects_parent_traversal() {
         let dir = tempdir().expect("temp dir");
 
-        let result = validate_existing_path_within_project(&dir.path().to_string_lossy(), "../escape.txt");
+        let result =
+            validate_existing_path_within_project(&dir.path().to_string_lossy(), "../escape.txt");
 
         assert!(result.is_err());
     }
@@ -561,7 +566,8 @@ mod tests {
         fs::write(&tracked_file, "hello").expect("write file");
         fs::remove_file(&tracked_file).expect("remove file");
 
-        let result = validate_preview_path_within_project(&project.path().to_string_lossy(), "gone.ts");
+        let result =
+            validate_preview_path_within_project(&project.path().to_string_lossy(), "gone.ts");
 
         assert!(result.is_ok());
     }

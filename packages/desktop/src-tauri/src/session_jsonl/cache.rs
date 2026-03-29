@@ -416,9 +416,7 @@ mod tests {
             worktree_path: None,
             pr_number: None,
             worktree_deleted: None,
-            session_lifecycle_state: Some(
-                crate::db::repository::SessionLifecycleState::Persisted,
-            ),
+            session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
         }
     }
 
@@ -510,7 +508,9 @@ mod tests {
             .insert(file_path.clone(), make_test_entry("s1"), mtime, size)
             .await;
 
-        let cached = cache.check_file_with_metadata(&file_path, mtime, size).await;
+        let cached = cache
+            .check_file_with_metadata(&file_path, mtime, size)
+            .await;
         assert!(cached.is_some());
         assert_eq!(cached.unwrap().session_id, "s1");
 

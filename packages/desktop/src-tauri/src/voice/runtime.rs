@@ -14,7 +14,9 @@ use zeroize::Zeroize;
 use super::engine::{resample, TranscriptionEngine, TranscriptionResult};
 
 fn max_abs_sample(samples: &[f32]) -> f32 {
-    samples.iter().fold(0.0_f32, |max, sample| max.max(sample.abs()))
+    samples
+        .iter()
+        .fold(0.0_f32, |max, sample| max.max(sample.abs()))
 }
 
 fn rms_level(samples: &[f32]) -> f32 {
@@ -301,7 +303,10 @@ fn worker_loop(
                 match &result {
                     Ok(()) => {
                         loaded_model_path = Some(path);
-                        tracing::info!(elapsed_ms = t0.elapsed().as_millis() as u64, "worker: model loaded OK");
+                        tracing::info!(
+                            elapsed_ms = t0.elapsed().as_millis() as u64,
+                            "worker: model loaded OK"
+                        );
                     }
                     Err(e) => {
                         loaded_model_path = None;
@@ -329,7 +334,11 @@ fn worker_loop(
                 }
                 match start_capture(session_id.clone(), amp_cb, error_cb, tx.clone()) {
                     Ok(session) => {
-                        tracing::info!(session_id, sample_rate = session.sample_rate, "worker: capture started");
+                        tracing::info!(
+                            session_id,
+                            sample_rate = session.sample_rate,
+                            "worker: capture started"
+                        );
                         state = WorkerState::Recording(Box::new(session));
                         let _ = reply.send(Ok(()));
                     }
@@ -401,7 +410,11 @@ fn worker_loop(
 
                 let t0 = Instant::now();
                 let result = engine
-                    .transcribe(&normalized_audio_16k, WHISPER_SAMPLE_RATE, language.as_deref())
+                    .transcribe(
+                        &normalized_audio_16k,
+                        WHISPER_SAMPLE_RATE,
+                        language.as_deref(),
+                    )
                     .map(|mut r| {
                         if r.duration_ms == 0 {
                             r.duration_ms = duration_ms;
@@ -431,7 +444,11 @@ fn worker_loop(
                     &state,
                     WorkerState::Recording(s) if s.session_id == session_id
                 );
-                tracing::info!(session_id, was_recording = matches_session, "worker: CancelRecording");
+                tracing::info!(
+                    session_id,
+                    was_recording = matches_session,
+                    "worker: CancelRecording"
+                );
                 if matches_session {
                     let WorkerState::Recording(mut session) =
                         std::mem::replace(&mut state, WorkerState::Idle)
@@ -445,7 +462,10 @@ fn worker_loop(
                 let _ = reply.send(Ok(()));
             }
 
-            Ok(WorkerMessage::InputStreamError { session_id, message }) => {
+            Ok(WorkerMessage::InputStreamError {
+                session_id,
+                message,
+            }) => {
                 tracing::error!(session_id, error = %message, "worker: InputStreamError");
                 let matches_session = matches!(
                     &state,
@@ -462,7 +482,10 @@ fn worker_loop(
                 };
                 drop(session.stream);
                 session.accumulated.zeroize();
-                (session.error_cb)(RecordingErrorPayload { session_id, message });
+                (session.error_cb)(RecordingErrorPayload {
+                    session_id,
+                    message,
+                });
             }
 
             Ok(WorkerMessage::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
@@ -553,12 +576,26 @@ fn start_capture(
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels() as usize;
     let format = supported.sample_format();
-    tracing::info!(session_id, sample_rate, channels, ?format, "start_capture: input device config");
+    tracing::info!(
+        session_id,
+        sample_rate,
+        channels,
+        ?format,
+        "start_capture: input device config"
+    );
     let config: cpal::StreamConfig = supported.into();
 
     let rb = HeapRb::<f32>::new(RING_BUF_FRAMES);
     let (prod, cons) = rb.split();
-    let stream = build_input_stream(&device, &config, format, channels, prod, tx, session_id.clone())?;
+    let stream = build_input_stream(
+        &device,
+        &config,
+        format,
+        channels,
+        prod,
+        tx,
+        session_id.clone(),
+    )?;
     stream.play()?;
 
     Ok(RecordingSession {
@@ -728,7 +765,10 @@ mod tests {
         }
 
         fn load_model(&mut self, path: &Path) -> anyhow::Result<()> {
-            self.loads.lock().expect("load mutex poisoned").push(path.to_path_buf());
+            self.loads
+                .lock()
+                .expect("load mutex poisoned")
+                .push(path.to_path_buf());
             Ok(())
         }
     }
@@ -853,7 +893,9 @@ mod tests {
 
     #[test]
     fn resample_down_sample_ratio_is_approximately_correct() {
-        let input: Vec<f32> = (0..48_000).map(|index| (index as f32 * 0.001).sin()).collect();
+        let input: Vec<f32> = (0..48_000)
+            .map(|index| (index as f32 * 0.001).sin())
+            .collect();
         let output = resample(&input, 48_000, 16_000);
         let difference = (output.len() as i64 - 16_000_i64).abs();
         assert!(

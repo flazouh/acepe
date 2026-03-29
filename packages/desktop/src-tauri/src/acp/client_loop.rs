@@ -1,5 +1,5 @@
-use crate::acp::client_errors::extract_turn_error;
 use crate::acp::client::{PendingRequestEntry, PromptRequestSession};
+use crate::acp::client_errors::extract_turn_error;
 use crate::acp::client_transport::{
     drain_permissions_as_failed, fail_pending_requests, send_inbound_response, truncate_for_log,
     InboundRequestResponder,
@@ -806,7 +806,9 @@ mod tests {
 
         fail_pending_requests(&pending, 1, "old process exited").await;
 
-        let old_response = old_rx.await.expect("old generation request should be failed");
+        let old_response = old_rx
+            .await
+            .expect("old generation request should be failed");
         let old_error = old_response
             .get("error")
             .and_then(|value| value.get("message"))

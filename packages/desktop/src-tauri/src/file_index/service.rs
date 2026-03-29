@@ -8,9 +8,9 @@ use dashmap::DashMap;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
+use super::explorer::{load_explorer_preview, search_explorer};
 use super::git::{get_git_overview_summary, get_git_status, get_git_status_summary};
 use super::scanner::scan_project;
-use super::explorer::{load_explorer_preview, search_explorer};
 use super::types::{
     FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus, IndexedFile,
     ProjectGitOverview, ProjectIndex,

@@ -7,7 +7,8 @@ use tauri::{AppHandle, State};
 use super::shared::{capitalize_name, get_db, validate_project_path_for_storage, Project};
 
 fn classify_missing_project_paths(paths: &[String]) -> Vec<String> {
-    paths.iter()
+    paths
+        .iter()
         .filter_map(|path| match validate_project_directory_from_str(path) {
             Ok(_) => None,
             Err(ProjectPathSafetyError::PathNotFound | ProjectPathSafetyError::NotDirectory) => {

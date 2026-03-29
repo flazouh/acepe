@@ -328,15 +328,8 @@ async fn install_agent_inner(agent_id: &CanonicalAgentId, app: &AppHandle) -> Ac
             asset_pattern,
             cmd,
         } => {
-            fetch_github_release_download_info(
-                &client,
-                owner,
-                repo,
-                tag_prefix,
-                asset_pattern,
-                cmd,
-            )
-            .await?
+            fetch_github_release_download_info(&client, owner, repo, tag_prefix, asset_pattern, cmd)
+                .await?
         }
     };
 
@@ -492,10 +485,7 @@ async fn fetch_github_release_download_info(
     let expected_asset = asset_pattern.replace("{platform}", platform);
 
     // Fetch releases and find the latest one matching our tag prefix
-    let api_url = format!(
-        "https://api.github.com/repos/{}/{}/releases",
-        owner, repo
-    );
+    let api_url = format!("https://api.github.com/repos/{}/{}/releases", owner, repo);
     let releases: Vec<GitHubRelease> = client
         .get(&api_url)
         .header("Accept", "application/vnd.github+json")
@@ -693,10 +683,7 @@ fn agent_id_str(agent_id: &CanonicalAgentId) -> String {
         CanonicalAgentId::Custom(id) => {
             // Sanitize: reject path separators and traversal to prevent directory escape
             assert!(
-                !id.contains('/')
-                    && !id.contains('\\')
-                    && !id.contains("..")
-                    && !id.is_empty(),
+                !id.contains('/') && !id.contains('\\') && !id.contains("..") && !id.is_empty(),
                 "Custom agent ID contains illegal characters: {}",
                 id
             );

@@ -51,7 +51,7 @@ use acp::github_issues::{
     toggle_issue_reaction,
 };
 use acp::opencode::OpenCodeManagerRegistry;
-use acp::provider::CommandAvailabilityCache;
+use acp::provider::{AgentProvider, CommandAvailabilityCache};
 use acp::providers::CustomAgentConfig;
 use acp::registry::AgentRegistry;
 use acp::session_registry::SessionRegistry;
@@ -64,11 +64,11 @@ use commands::window::activate_window;
 use cursor_history::commands::{has_cursor_history, is_cursor_installed};
 use db::repository::{AppSettingsRepository, ProjectRepository};
 use file_index::{
-    copy_file, create_directory, create_file, delete_path, get_file_diff, get_project_files,
-    get_project_git_overview_summary, get_project_git_status, get_project_git_status_summary,
-    invalidate_project_files, read_file_content, read_image_as_base64, rename_path,
-    resolve_file_path, revert_file_content, FileIndexService,
-    search_project_files_for_explorer, get_file_explorer_preview,
+    copy_file, create_directory, create_file, delete_path, get_file_diff,
+    get_file_explorer_preview, get_project_files, get_project_git_overview_summary,
+    get_project_git_status, get_project_git_status_summary, invalidate_project_files,
+    read_file_content, read_image_as_base64, rename_path, resolve_file_path, revert_file_content,
+    search_project_files_for_explorer, FileIndexService,
 };
 use git::commands::{browse_clone_destination, git_clone, git_collect_ship_context};
 use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_details};
@@ -131,10 +131,11 @@ use std::sync::Arc;
 use storage::commands::{
     add_project, browse_project, delete_api_key, delete_session, delete_session_review_state,
     get_api_key, get_custom_keybindings, get_missing_project_paths, get_project_count,
-    get_projects, get_recent_projects, get_session_file_path, get_session_review_state, get_streaming_log_path,
-    get_thread_list_settings, get_user_setting, import_project, open_in_finder, open_streaming_log,
-    remove_project, reset_database, save_api_key, save_custom_keybindings,
-    save_session_review_state, save_thread_list_settings, save_user_setting, update_project_color,
+    get_projects, get_recent_projects, get_session_file_path, get_session_review_state,
+    get_streaming_log_path, get_thread_list_settings, get_user_setting, import_project,
+    open_in_finder, open_streaming_log, remove_project, reset_database, save_api_key,
+    save_custom_keybindings, save_session_review_state, save_thread_list_settings,
+    save_user_setting, update_project_color,
 };
 use tauri::Manager;
 use terminal::commands::{
@@ -327,6 +328,160 @@ fn run_audit_cli(
     ))
 }
 
+#[derive(serde::Serialize)]
+struct ClaudeModelDiscoveryCommandProbe {
+    attempted: bool,
+    command: String,
+    args: Vec<String>,
+    elapsed_ms: u128,
+    status_code: Option<i32>,
+    timed_out: bool,
+    parsed_model_ids: Vec<String>,
+    error: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct ClaudeModelHydrationProbe {
+    project_path: String,
+    provider_model_ids: Vec<String>,
+    discovery_attempted_in_app: bool,
+    hydrated_model_ids: Vec<String>,
+    cli_probe: Option<ClaudeModelDiscoveryCommandProbe>,
+}
+
+fn should_attempt_claude_model_discovery(provider_model_ids: &[String]) -> bool {
+    provider_model_ids.is_empty()
+}
+
+fn merge_claude_model_ids(
+    mut provider_model_ids: Vec<String>,
+    discovered_model_ids: Vec<String>,
+) -> Vec<String> {
+    for model_id in discovered_model_ids {
+        if !provider_model_ids
+            .iter()
+            .any(|existing| existing == &model_id)
+        {
+            provider_model_ids.push(model_id);
+        }
+    }
+
+    provider_model_ids.sort();
+    provider_model_ids
+}
+
+async fn run_claude_model_discovery_command_probe(
+    project_path: String,
+) -> ClaudeModelDiscoveryCommandProbe {
+    let provider = acp::providers::ClaudeCodeProvider;
+    let attempts = provider.model_discovery_commands();
+    let Some(attempt) = attempts.into_iter().next() else {
+        return ClaudeModelDiscoveryCommandProbe {
+            attempted: false,
+            command: String::new(),
+            args: Vec::new(),
+            elapsed_ms: 0,
+            status_code: None,
+            timed_out: false,
+            parsed_model_ids: Vec::new(),
+            error: Some("Claude provider does not expose any model discovery command".to_string()),
+        };
+    };
+
+    let mut command = tokio::process::Command::new(&attempt.command);
+    command.args(&attempt.args);
+    command.stdin(std::process::Stdio::null());
+    command.stdout(std::process::Stdio::piped());
+    command.stderr(std::process::Stdio::piped());
+    command.current_dir(&project_path);
+
+    for (key, value) in &attempt.env {
+        command.env(key, value);
+    }
+
+    let started_at = std::time::Instant::now();
+    match tokio::time::timeout(std::time::Duration::from_secs(10), command.output()).await {
+        Ok(Ok(output)) => ClaudeModelDiscoveryCommandProbe {
+            attempted: true,
+            command: attempt.command,
+            args: attempt.args,
+            elapsed_ms: started_at.elapsed().as_millis(),
+            status_code: output.status.code(),
+            timed_out: false,
+            parsed_model_ids: crate::acp::client_session::parse_model_discovery_output(
+                &String::from_utf8_lossy(&output.stdout),
+            )
+            .into_iter()
+            .map(|model| model.model_id)
+            .collect(),
+            error: None,
+        },
+        Ok(Err(error)) => ClaudeModelDiscoveryCommandProbe {
+            attempted: true,
+            command: attempt.command,
+            args: attempt.args,
+            elapsed_ms: started_at.elapsed().as_millis(),
+            status_code: None,
+            timed_out: false,
+            parsed_model_ids: Vec::new(),
+            error: Some(error.to_string()),
+        },
+        Err(_) => ClaudeModelDiscoveryCommandProbe {
+            attempted: true,
+            command: attempt.command,
+            args: attempt.args,
+            elapsed_ms: started_at.elapsed().as_millis(),
+            status_code: None,
+            timed_out: true,
+            parsed_model_ids: Vec::new(),
+            error: Some("Timed out after 10s".to_string()),
+        },
+    }
+}
+
+fn run_claude_model_hydration_probe_cli(
+    project_path: String,
+    include_cli_probe: bool,
+) -> Result<ClaudeModelHydrationProbe, String> {
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    rt.block_on(async move {
+        let provider = acp::providers::ClaudeCodeProvider;
+        let mut provider_model_ids = provider
+            .default_model_candidates()
+            .into_iter()
+            .map(|candidate| candidate.model_id)
+            .collect::<Vec<_>>();
+        provider_model_ids.sort();
+
+        let discovery_attempted_in_app = should_attempt_claude_model_discovery(&provider_model_ids);
+        let cli_probe = if include_cli_probe {
+            Some(run_claude_model_discovery_command_probe(project_path.clone()).await)
+        } else {
+            None
+        };
+
+        let hydrated_model_ids = if discovery_attempted_in_app {
+            merge_claude_model_ids(
+                provider_model_ids.clone(),
+                cli_probe
+                    .as_ref()
+                    .map(|probe| probe.parsed_model_ids.clone())
+                    .unwrap_or_default(),
+            )
+        } else {
+            provider_model_ids.clone()
+        };
+
+        Ok(ClaudeModelHydrationProbe {
+            project_path,
+            provider_model_ids,
+            discovery_attempted_in_app,
+            hydrated_model_ids,
+            cli_probe,
+        })
+    })
+}
+
 const ANALYTICS_DISTINCT_ID_FILENAME: &str = "analytics_distinct_id";
 
 fn generate_analytics_distinct_id() -> String {
@@ -382,8 +537,43 @@ fn get_analytics_distinct_id() -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Parse --audit-session for CLI timing audit (before starting full Tauri app)
+    // Parse --probe-claude-model-hydration for CLI validation of the cc-sdk
+    // model hydration path (before starting the full Tauri app).
     let args: Vec<String> = std::env::args().collect();
+    if let Some(pos) = args
+        .iter()
+        .position(|argument| argument == "--probe-claude-model-hydration")
+    {
+        let candidate_project_path = args.get(pos + 1).cloned();
+        let project_path = match candidate_project_path {
+            Some(path) if !path.starts_with("--") => path,
+            _ => std::env::current_dir()
+                .map_err(|error| error.to_string())
+                .and_then(|path| {
+                    path.into_os_string()
+                        .into_string()
+                        .map_err(|_| "Current directory is not valid UTF-8".to_string())
+                })
+                .unwrap_or_else(|_| ".".to_string()),
+        };
+        let include_cli_probe = !args.iter().any(|argument| argument == "--skip-cli-probe");
+
+        init_logging();
+        dotenv::dotenv().ok();
+
+        match run_claude_model_hydration_probe_cli(project_path, include_cli_probe) {
+            Ok(report) => {
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                std::process::exit(0);
+            }
+            Err(error) => {
+                eprintln!("Claude model hydration probe failed: {}", error);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    // Parse --audit-session for CLI timing audit (before starting full Tauri app)
     if let Some(pos) = args.iter().position(|a| a == "--audit-session") {
         if pos + 4 <= args.len() {
             let session_id = args[pos + 1].clone();
@@ -1011,6 +1201,25 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, _event| {});
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use super::should_attempt_claude_model_discovery;
+    use crate::acp::provider::AgentProvider;
+
+    #[test]
+    fn claude_defaults_skip_model_discovery_probe() {
+        let provider = crate::acp::providers::ClaudeCodeProvider;
+        let provider_model_ids = provider
+            .default_model_candidates()
+            .into_iter()
+            .map(|candidate| candidate.model_id)
+            .collect::<Vec<_>>();
+
+        assert!(!provider_model_ids.is_empty());
+        assert!(!should_attempt_claude_model_discovery(&provider_model_ids));
+    }
 }
 
 #[cfg(test)]

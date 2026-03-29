@@ -10,10 +10,12 @@ async fn main() -> Result<()> {
         .get(1)
         .cloned()
         .unwrap_or_else(|| "Reply with exactly: hello".to_string());
-    let cwd = args
-        .get(2)
-        .cloned()
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).display().to_string());
+    let cwd = args.get(2).cloned().unwrap_or_else(|| {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .display()
+            .to_string()
+    });
     let include_partial_messages = args.iter().any(|arg| arg == "--include-partials");
 
     let mut builder = ClaudeCodeOptions::builder().cwd(PathBuf::from(&cwd));
@@ -36,7 +38,10 @@ async fn main() -> Result<()> {
         index += 1;
         match message? {
             Message::StreamEvent { event, .. } => {
-                let event_type = event.get("type").and_then(|value| value.as_str()).unwrap_or("unknown");
+                let event_type = event
+                    .get("type")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("unknown");
                 let delta_type = event
                     .get("delta")
                     .and_then(|delta| delta.get("type"))
