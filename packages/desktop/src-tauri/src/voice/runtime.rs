@@ -35,6 +35,16 @@ fn normalization_gain_for_peak(peak: f32) -> f32 {
     unclamped_gain.clamp(1.0, 64.0)
 }
 
+fn live_meter_gain_for_peak(peak: f32) -> f32 {
+    if peak <= 0.0 {
+        return 1.0;
+    }
+
+    let target_peak = 0.35_f32;
+    let unclamped_gain = target_peak / peak;
+    unclamped_gain.clamp(1.0, 24.0)
+}
+
 fn normalize_audio_for_transcription(samples: &[f32]) -> Vec<f32> {
     if samples.is_empty() {
         return Vec::new();
@@ -674,12 +684,16 @@ fn compute_amplitude_batch(samples: &[f32]) -> [f32; 3] {
     if samples.is_empty() {
         return [0.0; 3];
     }
+
+    let gain = live_meter_gain_for_peak(max_abs_sample(samples));
     let chunk = (samples.len() / 3).max(1);
     let rms = |s: &[f32]| -> f32 {
         if s.is_empty() {
             return 0.0;
         }
-        (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt()
+
+        let level = (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt() * gain;
+        level.clamp(0.0, 1.0)
     };
     [
         rms(&samples[..chunk]),
@@ -766,6 +780,23 @@ mod tests {
             loads.lock().expect("load mutex poisoned").as_slice(),
             &[first_model_path, second_model_path]
         );
+    }
+
+    #[test]
+    fn compute_amplitude_batch_boosts_quiet_capture_for_live_meter() {
+        let samples = vec![0.004_f32; 96];
+
+        let values = compute_amplitude_batch(&samples);
+
+        assert!(values.iter().all(|value| *value > 0.02));
+        assert!(values.iter().all(|value| *value <= 1.0));
+    }
+
+    #[test]
+    fn compute_amplitude_batch_keeps_silence_silent() {
+        let values = compute_amplitude_batch(&[0.0; 96]);
+
+        assert_eq!(values, [0.0, 0.0, 0.0]);
     }
 
     #[test]
