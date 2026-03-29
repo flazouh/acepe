@@ -21,7 +21,6 @@
 	import PlanIcon from "../icons/plan-icon.svelte";
 	import BuildIcon from "../icons/build-icon.svelte";
 	import LoadingIcon from "../icons/loading-icon.svelte";
-	import { Colors } from "../../lib/colors.js";
 
 	interface Props {
 		title: string;
@@ -64,7 +63,7 @@
 	<!-- Header -->
 	<EmbeddedPanelHeader class="bg-muted/30">
 		<HeaderTitleCell compactPadding>
-			<PlanIcon size="md" class="shrink-0 mr-1.5" style="color: {Colors.orange}" />
+			<PlanIcon size="md" class="shrink-0 mr-1.5" />
 			<span class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none">
 				{title}
 			</span>

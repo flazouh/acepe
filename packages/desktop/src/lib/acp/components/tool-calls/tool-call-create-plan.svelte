@@ -143,7 +143,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 		<div class="flex items-center shrink-0">
 			<EmbeddedPanelHeader>
 				<HeaderTitleCell compactPadding>
-					<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
+					<PlanIcon size="sm" class="shrink-0 mr-1" />
 					<TextShimmer class="inline-flex h-4 m-0 items-center text-xs leading-none">
 						{m.tool_create_plan_running()}
 					</TextShimmer>
@@ -177,7 +177,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 	<div class="flex items-center shrink-0">
 		<EmbeddedPanelHeader>
 			<HeaderTitleCell compactPadding>
-				<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
+				<PlanIcon size="sm" class="shrink-0 mr-1" />
 				<TextShimmer class="inline-flex h-4 m-0 items-center text-xs leading-none">
 					{m.tool_create_plan_running()}
 				</TextShimmer>
@@ -189,7 +189,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 	<div class="flex flex-col shrink-0">
 		<EmbeddedPanelHeader class="bg-accent/40">
 			<HeaderTitleCell compactPadding>
-				<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
+				<PlanIcon size="sm" class="shrink-0 mr-1" />
 				<span class="text-[11px] font-semibold font-mono text-foreground select-none leading-none">
 					Plan
 				</span>
@@ -218,7 +218,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 	<div class="flex items-center shrink-0">
 		<EmbeddedPanelHeader>
 			<HeaderTitleCell compactPadding>
-				<PlanIcon size="sm" class="shrink-0 mr-1" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
+				<PlanIcon size="sm" class="shrink-0 mr-1" />
 				{#if isApproved}
 					<CheckCircle weight="fill" class="size-3 shrink-0 mr-1" style="color: {greenColor}" />
 					<span
