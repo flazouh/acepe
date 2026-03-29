@@ -14,6 +14,7 @@ import type {
 
 export { createProjectColorMap, createProjectNameMap };
 
+import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { truncateText } from "../../utils/tool-state-utils.js";
