@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Component } from "svelte";
+import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { PermissionRequest } from "../../types/permission.js";
@@ -81,7 +82,10 @@ let { toolCall, turnState = "idle", projectPath }: Props = $props();
 let nowMs = $state(Date.now());
 
 const permissionStore = getPermissionStore();
-const pendingPermission = $derived(permissionStore.getForToolCall(toolCall.id));
+const sessionContext = useSessionContext();
+const pendingPermission = $derived(
+	permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id)
+);
 
 // Get the tool kind directly from the toolCall (Rust always provides this)
 // Default to "other" only as a safety net - should never happen in practice

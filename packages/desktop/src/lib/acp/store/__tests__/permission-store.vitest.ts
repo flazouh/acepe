@@ -1,8 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PermissionRequest } from "../../types/permission.js";
+import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 
 import { PermissionStore } from "../permission-store.svelte.js";
+
+function createAcpPermission(
+	sessionId: string,
+	toolCallId: string,
+	jsonRpcRequestId: number
+): PermissionRequest {
+	return {
+		id: buildAcpPermissionId(sessionId, toolCallId, jsonRpcRequestId),
+		sessionId,
+		jsonRpcRequestId,
+		permission: "Execute",
+		patterns: [],
+		metadata: { options: [] },
+		always: [],
+		tool: { messageID: "", callID: toolCallId },
+	};
+}
 
 /** Builds a chainable mock matching the ResultAsync interface subset used by PermissionStore. */
 function mockResultAsync() {
@@ -77,75 +94,58 @@ describe("PermissionStore", () => {
 			expect(store.pending.get("perm-1")).toEqual(permission);
 		});
 
-		it("should add permission with jsonRpcRequestId", () => {
-			const permission: PermissionRequest = {
-				id: "perm-2::123",
-				sessionId: "session-2",
-				jsonRpcRequestId: 123,
-				permission: "Bash",
-				patterns: [],
-				metadata: { rawInput: { command: "ls" } },
-				always: ["allow_always"],
-			};
+		it("should add ACP permission without rewriting its canonical id", () => {
+			const permission = createAcpPermission("session-2", "tool-2", 123);
 
 			store.add(permission);
 
-			expect(store.pending.get("perm-2::123")?.jsonRpcRequestId).toBe(123);
+			expect(store.pending.get(permission.id)?.jsonRpcRequestId).toBe(123);
 		});
 
 		it("should keep multiple ACP permissions for the same tool call", () => {
-			store.add({
-				id: "tool-1::100",
-				sessionId: "session-1",
-				jsonRpcRequestId: 100,
-				permission: "Execute",
-				patterns: [],
-				metadata: {},
-				always: [],
-				tool: { messageID: "", callID: "tool-1" },
-			});
-			store.add({
-				id: "tool-1::101",
-				sessionId: "session-1",
-				jsonRpcRequestId: 101,
-				permission: "Execute",
-				patterns: [],
-				metadata: {},
-				always: [],
-				tool: { messageID: "", callID: "tool-1" },
-			});
+			const firstPermission = createAcpPermission("session-1", "tool-1", 100);
+			const secondPermission = createAcpPermission("session-1", "tool-1", 101);
+
+			store.add(firstPermission);
+			store.add(secondPermission);
 
 			expect(store.pending.size).toBe(2);
-			expect(store.pending.has("tool-1::100")).toBe(true);
-			expect(store.pending.has("tool-1::101")).toBe(true);
+			expect(store.pending.has(firstPermission.id)).toBe(true);
+			expect(store.pending.has(secondPermission.id)).toBe(true);
 		});
 
-		it("should resolve permission by tool call id", () => {
-			store.add({
-				id: "tool-1::100",
-				sessionId: "session-1",
-				jsonRpcRequestId: 100,
-				permission: "Execute",
-				patterns: [],
-				metadata: {},
-				always: [],
-				tool: { messageID: "", callID: "tool-1" },
-			});
-			store.add({
-				id: "tool-1::101",
-				sessionId: "session-1",
-				jsonRpcRequestId: 101,
-				permission: "Execute",
-				patterns: [],
-				metadata: {},
-				always: [],
-				tool: { messageID: "", callID: "tool-1" },
-			});
+		it("should resolve permission by session-scoped tool call id", () => {
+			store.add(createAcpPermission("session-1", "tool-1", 100));
+			store.add(createAcpPermission("session-1", "tool-1", 101));
 
-			const permission = store.getForToolCall("tool-1");
+			const permission = store.getForToolCall("session-1", "tool-1");
 
 			expect(permission?.jsonRpcRequestId).toBe(101);
-			expect(permission?.id).toBe("tool-1::101");
+			expect(permission?.id).toBe(buildAcpPermissionId("session-1", "tool-1", 101));
+		});
+
+		it("should isolate permissions with the same tool call id across sessions", () => {
+			const sessionOnePermission = createAcpPermission("session-1", "tool-1", 100);
+			const sessionTwoPermission = createAcpPermission("session-2", "tool-1", 100);
+
+			store.add(sessionOnePermission);
+			store.add(sessionTwoPermission);
+
+			expect(store.getForToolCall("session-1", "tool-1")?.id).toBe(sessionOnePermission.id);
+			expect(store.getForToolCall("session-2", "tool-1")?.id).toBe(sessionTwoPermission.id);
+		});
+
+		it("should prefer the highest jsonRpcRequestId for same-session ACP siblings", () => {
+			const newerPermission = createAcpPermission("session-1", "tool-1", 101);
+			const olderPermission = createAcpPermission("session-1", "tool-1", 100);
+
+			store.add(newerPermission);
+			store.add(olderPermission);
+
+			const permission = store.getForToolCall("session-1", "tool-1");
+
+			expect(permission?.id).toBe(newerPermission.id);
+			expect(permission?.jsonRpcRequestId).toBe(101);
 		});
 	});
 
@@ -243,15 +243,7 @@ describe("PermissionStore", () => {
 
 			store.setAutoAccept((p) => p.sessionId === "child-session");
 
-			const permission: PermissionRequest = {
-				id: "perm-child::200",
-				sessionId: "child-session",
-				jsonRpcRequestId: 200,
-				permission: "Bash",
-				patterns: [],
-				metadata: {},
-				always: [],
-			};
+			const permission = createAcpPermission("child-session", "tool-child", 200);
 
 			store.add(permission);
 
@@ -283,7 +275,7 @@ describe("PermissionStore", () => {
 			store.setAutoAccept(() => true);
 
 			const permission: PermissionRequest = {
-				id: "perm-opts::300",
+				id: buildAcpPermissionId("child-session", "tool-opts", 300),
 				sessionId: "child-session",
 				jsonRpcRequestId: 300,
 				permission: "Bash",
@@ -295,6 +287,7 @@ describe("PermissionStore", () => {
 					],
 				},
 				always: [],
+				tool: { messageID: "", callID: "tool-opts" },
 			};
 
 			store.add(permission);
@@ -344,18 +337,10 @@ describe("PermissionStore", () => {
 		it("should use JSON-RPC response for permissions with jsonRpcRequestId", async () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
-			const permission: PermissionRequest = {
-				id: "perm-jsonrpc::456",
-				sessionId: "session-jsonrpc",
-				jsonRpcRequestId: 456,
-				permission: "Bash",
-				patterns: [],
-				metadata: {},
-				always: [],
-			};
+			const permission = createAcpPermission("session-jsonrpc", "tool-jsonrpc", 456);
 
 			store.add(permission);
-			await store.reply("perm-jsonrpc::456", "once");
+			await store.reply(permission.id, "once");
 
 			expect(respondToPermission).toHaveBeenCalledWith("session-jsonrpc", 456, true, "allow");
 			expect(mockReplyPermission).not.toHaveBeenCalled();
@@ -366,17 +351,18 @@ describe("PermissionStore", () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
 			const permission: PermissionRequest = {
-				id: "perm-always::789",
+				id: buildAcpPermissionId("session-always", "tool-always", 789),
 				sessionId: "session-always",
 				jsonRpcRequestId: 789,
 				permission: "Bash",
 				patterns: [],
-				metadata: {},
+				metadata: { options: [] },
 				always: ["allow_always"],
+				tool: { messageID: "", callID: "tool-always" },
 			};
 
 			store.add(permission);
-			await store.reply("perm-always::789", "always");
+			await store.reply(permission.id, "always");
 
 			expect(respondToPermission).toHaveBeenCalledWith("session-always", 789, true, "allow_always");
 		});
@@ -384,18 +370,10 @@ describe("PermissionStore", () => {
 		it("should send reject optionId and allowed=false for 'reject' reply", async () => {
 			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
 
-			const permission: PermissionRequest = {
-				id: "perm-reject::101",
-				sessionId: "session-reject",
-				jsonRpcRequestId: 101,
-				permission: "Bash",
-				patterns: [],
-				metadata: {},
-				always: [],
-			};
+			const permission = createAcpPermission("session-reject", "tool-reject", 101);
 
 			store.add(permission);
-			await store.reply("perm-reject::101", "reject");
+			await store.reply(permission.id, "reject");
 
 			expect(respondToPermission).toHaveBeenCalledWith("session-reject", 101, false, "reject");
 		});

@@ -27,7 +27,11 @@ import {
 	type RequestPermissionParams,
 } from "../schemas/inbound-request.schema.js";
 import { api } from "../store/api.js";
-import type { PermissionRequest } from "../types/permission.js";
+import {
+	buildAcpPermissionId,
+	type AcpPermissionRequest,
+	type PermissionRequest,
+} from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import { createLogger } from "../utils/logger.js";
 import { openAcpEventSource } from "./acp-event-bridge.js";
@@ -36,10 +40,6 @@ const logger = createLogger({
 	id: "inbound-request-handler",
 	name: "Inbound Request Handler",
 });
-
-function buildPermissionRequestId(toolCallId: string, jsonRpcRequestId: number): string {
-	return `${toolCallId}::${jsonRpcRequestId}`;
-}
 
 /**
  * Callback type for permission request events.
@@ -179,16 +179,12 @@ export class InboundRequestHandler {
 			return;
 		}
 
-		// Create a permission request with a stable request identity.
-		const permission: PermissionRequest = {
-			id: buildPermissionRequestId(params.toolCall.toolCallId, request.id),
+		// Create a permission request with the JSON-RPC request ID
+		const permission: AcpPermissionRequest = {
+			id: buildAcpPermissionId(params.sessionId, params.toolCall.toolCallId, request.id),
 			sessionId: params.sessionId,
 			jsonRpcRequestId: request.id,
-			permission: params.toolCall.title
-				? params.toolCall.title
-				: params.toolCall.name
-					? params.toolCall.name
-					: "Execute tool",
+			permission: params.toolCall.title ? params.toolCall.title : params.toolCall.name ? params.toolCall.name : "Execute tool",
 			patterns: [],
 			metadata: {
 				rawInput: params.toolCall.rawInput,

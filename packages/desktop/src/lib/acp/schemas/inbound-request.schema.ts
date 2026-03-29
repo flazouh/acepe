@@ -8,6 +8,7 @@
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
 
+import type { JsonValue, ToolArguments } from "../../services/converted-session-types.js";
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 import { QuestionItemSchema } from "./tool-call-content.schema.js";
@@ -55,9 +56,9 @@ const PermissionOptionSchema = z.object({
 
 const ToolCallSchema = z.object({
 	toolCallId: z.string(),
-	rawInput: z.unknown(),
+	rawInput: z.custom<JsonValue>(),
 	/** Rust-parsed ToolArguments from rawInput — agent-agnostic. */
-	parsedArguments: z.unknown().optional(),
+	parsedArguments: z.custom<ToolArguments>().optional(),
 	title: z.string().optional(),
 	name: z.string().optional(),
 });

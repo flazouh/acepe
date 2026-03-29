@@ -39,6 +39,27 @@ export class PermissionStore {
 		};
 	}
 
+	private getToolCallId(permission: PermissionRequest): string {
+		return permission.tool?.callID ? permission.tool.callID : permission.id;
+	}
+
+	private shouldPreferPermission(
+		candidate: PermissionRequest,
+		current: PermissionRequest | undefined
+	): boolean {
+		if (!current) {
+			return true;
+		}
+
+		const candidateRequestId = candidate.jsonRpcRequestId;
+		const currentRequestId = current.jsonRpcRequestId;
+		if (candidateRequestId !== undefined && currentRequestId !== undefined) {
+			return candidateRequestId > currentRequestId;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Add a pending permission request.
 	 *
@@ -69,13 +90,23 @@ export class PermissionStore {
 	}
 
 	/**
-	 * Get the most recent pending permission for a given tool call.
+	 * Get the most recent pending permission for a given session-scoped tool call.
 	 */
-	getForToolCall(toolCallId: string): PermissionRequest | undefined {
+	getForToolCall(sessionId: string | undefined, toolCallId: string): PermissionRequest | undefined {
+		if (!sessionId) {
+			return undefined;
+		}
+
 		let latest: PermissionRequest | undefined;
 		for (const permission of this.pending.values()) {
-			const permissionToolCallId = permission.tool ? permission.tool.callID : permission.id;
-			if (permissionToolCallId === toolCallId) {
+			const permissionToolCallId = this.getToolCallId(permission);
+			if (permission.sessionId !== sessionId) {
+				continue;
+			}
+			if (permissionToolCallId !== toolCallId) {
+				continue;
+			}
+			if (this.shouldPreferPermission(permission, latest)) {
 				latest = permission;
 			}
 		}
@@ -111,11 +142,9 @@ export class PermissionStore {
 		reply: "once" | "always" | "reject"
 	): string {
 		// Try to find matching option from the stored options
-		const options = permission.metadata?.options as
-			| Array<{ kind: string; optionId: string }>
-			| undefined;
+		const options = permission.metadata.options;
 
-		if (options?.length) {
+		if (options && options.length > 0) {
 			const kindToMatch =
 				reply === "always" ? "allow_always" : reply === "once" ? "allow_once" : "reject_once";
 			const matchingOption = options.find((o) => o.kind === kindToMatch);

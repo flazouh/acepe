@@ -57,7 +57,9 @@ const inline = usePlanInline({
 	getAwaitingPlanApproval: () => false,
 });
 
-const pendingPermission = $derived(permissionStore.getForToolCall(toolCall.id));
+const pendingPermission = $derived(
+	permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id)
+);
 
 function handleBuildManual() {
 	if (pendingPermission) {
@@ -89,7 +91,7 @@ $effect(() => {
 	const handleKeyDown = (e: KeyboardEvent) => {
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 			e.preventDefault();
-			const current = permissionStore.getForToolCall(toolCall.id);
+			const current = permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id);
 			if (current?.id === currentPermissionId) {
 				handleBuildManual();
 			}
