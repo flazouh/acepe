@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as m from "$lib/paraglide/messages.js";
@@ -30,7 +30,7 @@ describe("AgentPanelHeader project-header style", () => {
 			agentIconSrc: "",
 			agentName: null,
 			isFullscreen: false,
-			sessionStatus: "connected",
+			sessionStatus: "empty",
 			projectName: "repo",
 			projectColor: "#FF5D5A",
 			hideProjectBadge: true,
@@ -70,5 +70,44 @@ describe("AgentPanelHeader project-header style", () => {
 
 		expect(onToggleFullscreen).toHaveBeenCalledTimes(1);
 		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not expose a delete action in the overflow menu", async () => {
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: "session-1",
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: vi.fn(),
+			onExportRawStreaming: undefined,
+			displayTitle: "Thread",
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: vi.fn(),
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onScrollToTop: undefined,
+			debugPanelState: null,
+		});
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+
+		expect(screen.getByRole("menuitem", { name: m.thread_open_in_finder() })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: m.session_menu_delete() })).toBeNull();
 	});
 });
