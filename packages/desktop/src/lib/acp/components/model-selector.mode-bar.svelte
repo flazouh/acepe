@@ -2,8 +2,6 @@
 import { BuildIcon, PlanIcon } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
-import { Colors } from "../utils/colors.js";
-
 interface Props {
 	showModeBar: boolean;
 	isPlanDefault: boolean;
@@ -32,7 +30,7 @@ let { showModeBar, isPlanDefault, isBuildDefault, onSetPlan, onSetBuild }: Props
 				? "opacity-100"
 				: "opacity-0 pointer-events-none group-hover/item:opacity-100 group-hover/item:pointer-events-auto"
 		)}
-		style={`--mode-color: ${Colors.orange}`}
+		style="--mode-color: var(--plan-icon)"
 		onclick={(event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -52,7 +50,7 @@ let { showModeBar, isPlanDefault, isBuildDefault, onSetPlan, onSetBuild }: Props
 				? "opacity-100"
 				: "opacity-0 pointer-events-none group-hover/item:opacity-100 group-hover/item:pointer-events-auto"
 		)}
-		style="--mode-color: var(--success)"
+		style="--mode-color: var(--build-icon)"
 		onclick={(event) => {
 			event.preventDefault();
 			event.stopPropagation();

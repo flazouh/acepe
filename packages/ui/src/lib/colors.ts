@@ -13,7 +13,8 @@ export const COLOR_NAMES = {
 
 /**
  * Color definitions with hex values.
- * GREEN: keep in sync with design-tokens.css --token-success-light
+ * GREEN: keep in sync with design-tokens.css --token-build-icon-dark
+ * ORANGE: keep in sync with design-tokens.css --token-plan-icon-light
  */
 export const Colors = {
 	[COLOR_NAMES.RED]: "#FF5D5A",
