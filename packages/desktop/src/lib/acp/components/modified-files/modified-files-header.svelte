@@ -98,14 +98,16 @@ const reactiveModels = $derived(
 	effectiveAgentId ? agentModelPrefs.getCachedModels(effectiveAgentId) : []
 );
 
-const effectiveAgent = $derived(
-	effectiveAgentId ? (availableAgents.find((a) => a.id === effectiveAgentId) ? availableAgents.find((a) => a.id === effectiveAgentId)! : null) : null
-);
-const effectiveModel = $derived(
-	effectiveModelId
-		? (reactiveModels.find((mdl) => mdl.id === effectiveModelId) ? reactiveModels.find((mdl) => mdl.id === effectiveModelId)! : null)
-		: null
-);
+const effectiveAgent = $derived.by((): AgentInfo | null => {
+	if (!effectiveAgentId) return null;
+	const found = availableAgents.find((a) => a.id === effectiveAgentId);
+	return found ? found : null;
+});
+const effectiveModel = $derived.by((): Model | null => {
+	if (!effectiveModelId) return null;
+	const found = reactiveModels.find((mdl) => mdl.id === effectiveModelId);
+	return found ? found : null;
+});
 
 const effectiveModelDisplayName = $derived.by(() => {
 	if (!effectiveModel) return "Default";
