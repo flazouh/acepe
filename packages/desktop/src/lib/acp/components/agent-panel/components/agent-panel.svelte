@@ -41,6 +41,7 @@ import PlanHeader from "../../plan-header.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import QueueCardStrip from "../../queue-card-strip.svelte";
 import TodoHeader from "../../todo-header.svelte";
+import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "../../worktree-toggle/worktree-storage.js";
 import { usePlanLoader } from "../hooks";
@@ -1711,6 +1712,16 @@ function handleCheckpointRevertComplete() {
 						<div class={isFullscreen ? "flex justify-center" : ""}>
 							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
 								<QueueCardStrip {sessionId} />
+							</div>
+						</div>
+					{/if}
+					{#if sessionId}
+						<div class={isFullscreen ? "flex justify-center" : ""}>
+							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
+								<PermissionBar
+									sessionId={sessionId}
+									projectPath={effectiveProjectPath ?? sessionProjectPath}
+								/>
 							</div>
 						</div>
 					{/if}

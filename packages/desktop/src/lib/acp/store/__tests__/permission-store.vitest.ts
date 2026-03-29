@@ -202,6 +202,17 @@ describe("PermissionStore", () => {
 			expect(store.pending.size).toBe(1);
 			expect(store.pending.has("perm-3")).toBe(true);
 		});
+
+		it("should clear queued session progress when a session is removed", () => {
+			store.add(createAcpPermission("session-1", "tool-1", 100));
+			store.add(createAcpPermission("session-1", "tool-2", 101));
+
+			expect(store.getSessionProgress("session-1")).toEqual({ total: 2, completed: 0 });
+
+			store.removeForSession("session-1");
+
+			expect(store.getSessionProgress("session-1")).toBeNull();
+		});
 	});
 
 	describe("auto-accept", () => {
@@ -383,5 +394,26 @@ describe("PermissionStore", () => {
 
 			expect(result.isErr()).toBe(true);
 		});
+
+			it("should keep session batch progress while later permissions remain pending", async () => {
+				const firstPermission = createAcpPermission("session-batch", "tool-1", 100);
+				const secondPermission = createAcpPermission("session-batch", "tool-2", 101);
+
+				store.add(firstPermission);
+				store.add(secondPermission);
+
+				expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
+					firstPermission.id,
+					secondPermission.id,
+				]);
+				expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 0 });
+
+				await store.reply(firstPermission.id, "once");
+
+				expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
+					secondPermission.id,
+				]);
+				expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 1 });
+			});
 	});
 });

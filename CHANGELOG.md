@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.3.34] - 2026-03-29
+
+### Changed
+- Claude Code permission prompts now queue one at a time above the composer and show batch progress with a compact tally bar
+
+### Fixed
+- Direct Claude Code sessions now launch the stdio permission prompt hook reliably so Bash and edit approvals reach Acepe instead of falling back to chat text
+- Permission cards now wrap long command previews without overflowing the composer area
+
 ## [2026.3.33] - 2026-03-29
 
 ### Changed

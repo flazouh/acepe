@@ -8,7 +8,6 @@ import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { mergePermissionArgs } from "../../utils/merge-permission-args.js";
 import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
-import PermissionActionBar from "./permission-action-bar.svelte";
 // Dedicated tool components - each kind has its own component
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
@@ -46,9 +45,6 @@ type ToolComponentProps = {
  * Each kind routes directly to its dedicated component.
  * Tools not listed here use ToolCallFallback.
  */
-/** Kinds whose dedicated components render their own permission UI. */
-const SELF_MANAGED_PERMISSIONS: ReadonlySet<ToolKind> = new Set(["exit_plan_mode"]);
-
 const DEDICATED_COMPONENTS: Partial<Record<ToolKind, Component<ToolComponentProps>>> = {
 	read: ToolCallRead,
 	edit: ToolCallEdit,
@@ -146,8 +142,3 @@ $effect(() => {
 	{elapsedLabel}
 	pendingPermission={pendingPermission ?? null}
 />
-{#if pendingPermission && !SELF_MANAGED_PERMISSIONS.has(resolvedKind)}
-	<div class="px-1 pt-1">
-		<PermissionActionBar permission={pendingPermission} />
-	</div>
-{/if}

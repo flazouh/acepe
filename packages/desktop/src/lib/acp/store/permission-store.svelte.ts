@@ -27,9 +27,59 @@ const logger = createLogger({ id: "permission-store", name: "PermissionStore" })
 
 export class PermissionStore {
 	pending = new SvelteMap<string, PermissionRequest>();
+	private sessionBatchTotals = new SvelteMap<string, number>();
+	private sessionBatchCompleted = new SvelteMap<string, number>();
 
 	/** Callback to check if a permission should be auto-accepted (e.g. child sessions). */
 	private shouldAutoAccept: ((permission: PermissionRequest) => boolean) | null = null;
+
+	private countPendingForSession(sessionId: string): number {
+		let count = 0;
+		for (const permission of this.pending.values()) {
+			if (permission.sessionId === sessionId) {
+				count += 1;
+			}
+		}
+		return count;
+	}
+
+	private clearSessionProgress(sessionId: string): void {
+		this.sessionBatchTotals.delete(sessionId);
+		this.sessionBatchCompleted.delete(sessionId);
+	}
+
+	private notePermissionAdded(sessionId: string, hadPendingBeforeAdd: boolean): void {
+		if (!hadPendingBeforeAdd) {
+			this.sessionBatchTotals.set(sessionId, 1);
+			this.sessionBatchCompleted.set(sessionId, 0);
+			return;
+		}
+
+		const currentTotal = this.sessionBatchTotals.get(sessionId);
+		if (currentTotal !== undefined && currentTotal > 0) {
+			this.sessionBatchTotals.set(sessionId, currentTotal + 1);
+		} else {
+			this.sessionBatchTotals.set(sessionId, this.countPendingForSession(sessionId));
+		}
+
+		if (!this.sessionBatchCompleted.has(sessionId)) {
+			this.sessionBatchCompleted.set(sessionId, 0);
+		}
+	}
+
+	private notePermissionResolved(sessionId: string): void {
+		const totalValue = this.sessionBatchTotals.get(sessionId);
+		const total = totalValue !== undefined ? totalValue : 0;
+		if (total > 0) {
+			const completedValue = this.sessionBatchCompleted.get(sessionId);
+			const completed = completedValue !== undefined ? completedValue : 0;
+			this.sessionBatchCompleted.set(sessionId, Math.min(total, completed + 1));
+		}
+
+		if (this.countPendingForSession(sessionId) === 0) {
+			this.clearSessionProgress(sessionId);
+		}
+	}
 
 	/** Configure auto-accept predicate. Returns a dispose function. */
 	setAutoAccept(fn: (permission: PermissionRequest) => boolean): () => void {
@@ -67,7 +117,9 @@ export class PermissionStore {
 	 * when an `isChildSession` check is configured via `setChildSessionCheck()`.
 	 */
 	add(permission: PermissionRequest): void {
+		const hadPendingBeforeAdd = this.countPendingForSession(permission.sessionId) > 0;
 		this.pending.set(permission.id, permission);
+		this.notePermissionAdded(permission.sessionId, hadPendingBeforeAdd);
 
 		if (this.shouldAutoAccept?.(permission)) {
 			logger.info("Auto-accepting permission", {
@@ -113,11 +165,40 @@ export class PermissionStore {
 		return latest;
 	}
 
+	getForSession(sessionId: string): PermissionRequest[] {
+		const permissions: PermissionRequest[] = [];
+		for (const permission of this.pending.values()) {
+			if (permission.sessionId === sessionId) {
+				permissions.push(permission);
+			}
+		}
+		return permissions;
+	}
+
+	getSessionProgress(sessionId: string): { total: number; completed: number } | null {
+		const totalValue = this.sessionBatchTotals.get(sessionId);
+		const total = totalValue !== undefined ? totalValue : this.countPendingForSession(sessionId);
+		if (total <= 0) {
+			return null;
+		}
+
+		const completedValue = this.sessionBatchCompleted.get(sessionId);
+		const completed = completedValue !== undefined ? completedValue : 0;
+		return {
+			total,
+			completed: Math.min(completed, total),
+		};
+	}
+
 	/**
 	 * Remove a pending permission request.
 	 */
 	remove(permissionId: string): void {
+		const permission = this.pending.get(permissionId);
 		this.pending.delete(permissionId);
+		if (permission && this.countPendingForSession(permission.sessionId) === 0) {
+			this.clearSessionProgress(permission.sessionId);
+		}
 		logger.debug("Permission request removed", { permissionId });
 	}
 
@@ -128,6 +209,7 @@ export class PermissionStore {
 		for (const [id, p] of this.pending) {
 			if (p.sessionId === sessionId) this.pending.delete(id);
 		}
+		this.clearSessionProgress(sessionId);
 		logger.debug("Permissions removed for session", { sessionId });
 	}
 
@@ -173,7 +255,9 @@ export class PermissionStore {
 
 		// Eagerly remove from pending map so the UI updates immediately.
 		// The user's intent is clear — don't wait for the async IPC response.
-		this.remove(permissionId);
+		this.pending.delete(permissionId);
+		this.notePermissionResolved(permission.sessionId);
+		logger.debug("Permission request removed", { permissionId });
 
 		// If this permission has a JSON-RPC request ID, use the JSON-RPC response mechanism (ACP mode)
 		if (permission.jsonRpcRequestId !== undefined) {

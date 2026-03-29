@@ -32,6 +32,7 @@ export {
 	AgentToolTask,
 	AgentToolTodo,
 	AgentUserMessage,
+	ToolTally,
 	TodoNumberIcon,
 } from "./components/agent-panel/index.js";
 export type {
