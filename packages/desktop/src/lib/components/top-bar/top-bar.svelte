@@ -22,6 +22,7 @@ import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { ThemeToggle } from "$lib/components/theme/index.js";
+import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
@@ -46,6 +47,16 @@ let {
 }: Props = $props();
 
 const panelStore = getPanelStore();
+const UPDATE_BUTTON_SEGMENT_COUNT = 16;
+
+const updateDownloadPercent = $derived(
+	updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+		? Math.min(
+				Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100),
+				100
+			)
+		: 0
+);
 
 const viewModes: { value: ViewMode; label: string; color: string }[] = [
 	{ value: "single", label: "Single", color: "#9858FF" },
@@ -79,12 +90,19 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 			<div class="flex items-center pl-2">
 			<PillButton variant="invert" size="xs" disabled>
 				{#snippet children()}
-					<span class="size-2.5 animate-spin rounded-full border border-current border-t-transparent"></span>
-						{#if updaterState.totalBytes && updaterState.totalBytes > 0}
-							{Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100)}%
-						{:else}
-							Updating
-						{/if}
+					<div class="flex items-center gap-2">
+						<span>Updating</span>
+						<div class="w-[52px]">
+							<VoiceDownloadProgress
+								ariaLabel={m.update_downloading()}
+								compact={true}
+								label=""
+								percent={updateDownloadPercent}
+								segmentCount={UPDATE_BUTTON_SEGMENT_COUNT}
+								showPercent={false}
+							/>
+						</div>
+					</div>
 					{/snippet}
 				</PillButton>
 			</div>
