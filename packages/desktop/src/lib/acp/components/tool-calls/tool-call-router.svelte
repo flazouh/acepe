@@ -26,6 +26,7 @@ import ToolCallTask from "./tool-call-task.svelte";
 import ToolCallTaskOutput from "./tool-call-task-output.svelte";
 import ToolCallThink from "./tool-call-think.svelte";
 import ToolCallTodo from "./tool-call-todo.svelte";
+import ToolCallToolSearch from "./tool-call-tool-search.svelte";
 import ToolCallWebSearch from "./tool-call-web-search.svelte";
 import ToolCallFallback from "./tool-call-fallback.svelte";
 
@@ -67,6 +68,7 @@ const DEDICATED_COMPONENTS: Partial<Record<ToolKind, Component<ToolComponentProp
 	task: ToolCallTask,
 	task_output: ToolCallTaskOutput,
 	skill: ToolCallSkill,
+	tool_search: ToolCallToolSearch,
 };
 
 interface Props {

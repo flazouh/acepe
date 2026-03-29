@@ -108,6 +108,12 @@ function areToolArgumentsEqual(
 			return nextArgs.kind === "delete" && currentArgs.file_path === nextArgs.file_path;
 		case "planMode":
 			return nextArgs.kind === "planMode" && currentArgs.mode === nextArgs.mode;
+		case "toolSearch":
+			return (
+				nextArgs.kind === "toolSearch" &&
+				currentArgs.query === nextArgs.query &&
+				currentArgs.max_results === nextArgs.max_results
+			);
 		case "other":
 			return (
 				nextArgs.kind === "other" &&

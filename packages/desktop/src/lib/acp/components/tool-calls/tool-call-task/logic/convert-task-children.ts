@@ -27,6 +27,7 @@ const KIND_MAP: Record<ToolKind, AgentToolKind> = {
 	enter_plan_mode: "other",
 	exit_plan_mode: "other",
 	create_plan: "other",
+	tool_search: "other",
 	other: "other",
 };
 
