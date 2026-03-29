@@ -239,6 +239,12 @@ impl OpenCodeAdapter {
         }
         if any_eq(
             name,
+            &["toolsearch", "tool_search"],
+        ) {
+            return ToolKind::ToolSearch;
+        }
+        if any_eq(
+            name,
             &[
                 "move",
                 "mv",

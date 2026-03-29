@@ -399,6 +399,10 @@ pub(crate) fn parse_tool_kind_arguments(
                 mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),
             }
         }
+        ToolKind::ToolSearch => ToolArguments::ToolSearch {
+            query: extract_parser_string(raw_arguments, &["query"]),
+            max_results: raw_arguments.get("max_results").and_then(|v| v.as_u64()),
+        },
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),
         },

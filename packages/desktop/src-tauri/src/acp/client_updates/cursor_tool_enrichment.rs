@@ -269,6 +269,9 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
         ToolArguments::Move { from, to } => usize::from(from.is_some()) + usize::from(to.is_some()),
         ToolArguments::Delete { file_path } => usize::from(file_path.is_some()),
         ToolArguments::PlanMode { mode } => usize::from(mode.is_some()),
+        ToolArguments::ToolSearch { query, max_results } => {
+            usize::from(query.is_some()) + usize::from(max_results.is_some())
+        }
         ToolArguments::Other { raw } => {
             if raw.is_null() {
                 return 0;

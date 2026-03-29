@@ -25,6 +25,7 @@ export const TOOL_KINDS = {
 	ENTER_PLAN_MODE: "enter_plan_mode",
 	EXIT_PLAN_MODE: "exit_plan_mode",
 	CREATE_PLAN: "create_plan",
+	TOOL_SEARCH: "tool_search",
 	OTHER: "other",
 } as const;
 
@@ -50,5 +51,6 @@ export const TOOL_KIND_LABELS: Record<ToolKind, string> = {
 	enter_plan_mode: "Plan",
 	exit_plan_mode: "Plan",
 	create_plan: "Create Plan",
+	tool_search: "Tool Search",
 	other: "Tool",
 };

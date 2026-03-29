@@ -95,6 +95,9 @@ impl ClaudeCodeAdapter {
         if any_eq(clean_name, &["createplan", "create_plan"]) {
             return ToolKind::CreatePlan;
         }
+        if any_eq(clean_name, &["toolsearch", "tool_search"]) {
+            return ToolKind::ToolSearch;
+        }
         if any_eq(clean_name, &["move", "mv", "rename"]) {
             return ToolKind::Move;
         }
