@@ -15,6 +15,8 @@ export type CanonicalAgentId = "claude-code" | "cursor" | "opencode" | "codex" |
  */
 { custom: string }
 
+export type SessionLifecycleState = "created" | "persisted"
+
 export type HistoryEntry = { 
 /**
  * Database ID (UUID)
@@ -40,4 +42,8 @@ prNumber?: number | null;
 /**
  * Whether the worktree path stored for this session no longer exists on disk.
  */
-worktreeDeleted?: boolean | null }
+worktreeDeleted?: boolean | null; 
+/**
+ * Lifecycle state for the canonical session.
+ */
+sessionLifecycleState?: SessionLifecycleState | null }

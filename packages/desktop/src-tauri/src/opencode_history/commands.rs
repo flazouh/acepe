@@ -160,6 +160,9 @@ pub async fn get_opencode_sessions_for_project(
                 worktree_path: None,
                 pr_number: None,
                 worktree_deleted: None,
+                session_lifecycle_state: Some(
+                    crate::db::repository::SessionLifecycleState::Persisted,
+                ),
             }
         })
         .collect();

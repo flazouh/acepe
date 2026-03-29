@@ -565,6 +565,13 @@ impl SessionReviewStateRepository {
 
 use crate::db::entities::session_metadata;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum SessionLifecycleState {
+    Created,
+    Persisted,
+}
+
 /// Row returned from session metadata queries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMetadataRow {
@@ -581,11 +588,19 @@ pub struct SessionMetadataRow {
 }
 
 impl SessionMetadataRow {
-    pub fn is_placeholder(&self) -> bool {
-        self.file_mtime == 0
+    pub fn lifecycle_state(&self) -> SessionLifecycleState {
+        if self.file_mtime == 0
             && self.file_size == 0
-            && self.worktree_path.is_none()
             && SessionMetadataRepository::normalized_source_path(&self.file_path).is_none()
+        {
+            SessionLifecycleState::Created
+        } else {
+            SessionLifecycleState::Persisted
+        }
+    }
+
+    pub fn is_transcript_pending(&self) -> bool {
+        self.lifecycle_state() == SessionLifecycleState::Created
     }
 }
 
@@ -593,13 +608,21 @@ impl SessionMetadataRow {
 /// (session_id, display, timestamp, project_path, agent_id, file_path, file_mtime, file_size)
 pub type SessionMetadataRecord = (String, String, i64, String, String, String, i64, i64);
 
-/// Repository for session metadata (pre-indexed session information).
+/// Repository for canonical session records plus transcript metadata.
 ///
-/// This provides fast O(1) lookups for session history instead of
-/// scanning JSONL files on every request.
+/// A session always exists once created; transcript persistence is just a later
+/// lifecycle step for that same session.
 pub struct SessionMetadataRepository;
 
 impl SessionMetadataRepository {
+    fn created_session_file_path(session_id: &str) -> String {
+        format!("__session_registry__/{session_id}")
+    }
+
+    fn is_non_persisted_session_file_path(file_path: &str) -> bool {
+        file_path.starts_with("__session_registry__/") || file_path.starts_with("__worktree__/")
+    }
+
     fn git_main_repo_from_worktree_path(
         worktree_path: &std::path::Path,
     ) -> Option<std::path::PathBuf> {
@@ -659,14 +682,14 @@ impl SessionMetadataRepository {
     }
 
     pub(crate) fn normalized_source_path(file_path: &str) -> Option<String> {
-        if file_path.is_empty() || file_path.starts_with("__worktree__/") {
+        if file_path.is_empty() || Self::is_non_persisted_session_file_path(file_path) {
             None
         } else {
             Some(file_path.to_string())
         }
     }
 
-    async fn insert_placeholder(
+    async fn insert_created_session(
         db: &DbConn,
         session_id: &str,
         project_path: &str,
@@ -683,7 +706,7 @@ impl SessionMetadataRepository {
             timestamp: Set(now.timestamp_millis()),
             project_path: Set(project_path.to_string()),
             agent_id: Set(agent_id.to_string()),
-            file_path: Set(String::new()),
+            file_path: Set(Self::created_session_file_path(session_id)),
             file_mtime: Set(0),
             file_size: Set(0),
             worktree_path: Set(worktree_path.map(|path| path.to_string())),
@@ -698,7 +721,7 @@ impl SessionMetadataRepository {
             project_path = %project_path,
             agent_id = %agent_id,
             worktree_path = ?worktree_path,
-            "Session metadata placeholder inserted"
+            "Session metadata inserted for created session without persisted transcript"
         );
 
         Ok(())
@@ -915,8 +938,8 @@ impl SessionMetadataRepository {
         Ok(updated_count)
     }
 
-    /// Ensure a session metadata row exists so foreign-keyed records can be created safely.
-    /// Returns true when a placeholder row was inserted, false when the row already existed.
+    /// Ensure a canonical session row exists so foreign-keyed records can be created safely.
+    /// Returns true when a new created-session row was inserted, false when the row already existed.
     pub async fn ensure_exists(
         db: &DbConn,
         session_id: &str,
@@ -931,7 +954,8 @@ impl SessionMetadataRepository {
             return Ok(false);
         }
 
-        Self::insert_placeholder(db, session_id, project_path, agent_id, worktree_path).await?;
+        Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path)
+            .await?;
         Ok(true)
     }
 
@@ -962,7 +986,7 @@ impl SessionMetadataRepository {
             let context_agent_id = agent_id.ok_or_else(|| {
                 anyhow::anyhow!("Session not found in metadata index and agent_id was not provided")
             })?;
-            Self::insert_placeholder(
+            Self::insert_created_session(
                 db,
                 session_id,
                 context_project_path,

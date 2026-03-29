@@ -1,3 +1,5 @@
+export type SessionLifecycleState = "created" | "persisted";
+
 /**
  * Session metadata - rarely changing, serializable data.
  *
@@ -13,6 +15,11 @@ export interface SessionMetadata {
 	 * Set when session is discovered from filesystem scanning.
 	 */
 	readonly sourcePath?: string;
+	/**
+	 * Lifecycle state for the canonical session.
+	 * A session exists once created; transcript persistence is just a later state.
+	 */
+	readonly sessionLifecycleState?: SessionLifecycleState;
 	/**
 	 * Parent session ID (for subsessions).
 	 * null if this is a root session.

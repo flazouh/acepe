@@ -93,20 +93,25 @@ pub async fn get_session_history(app: AppHandle) -> Result<Vec<HistoryEntry>, St
     // Convert indexed sessions to HistoryEntry (already sorted by timestamp DESC)
     let entries: Vec<HistoryEntry> = indexed_sessions
         .into_iter()
-        .map(|s| HistoryEntry {
-            id: s.id.clone(),
-            display: s.display,
-            timestamp: s.timestamp,
-            project: s.project_path,
-            session_id: s.id,
-            pasted_contents: serde_json::json!({}),
-            agent_id: CanonicalAgentId::parse(&s.agent_id), // Convert from DB string to enum
-            updated_at: s.timestamp,
-            source_path: None, // Claude Code sessions are found via JSONL path convention
-            parent_id: None,
-            worktree_path: s.worktree_path,
-            pr_number: None,
-            worktree_deleted: None,
+        .map(|s| {
+            let session_lifecycle_state = s.lifecycle_state();
+
+            HistoryEntry {
+                id: s.id.clone(),
+                display: s.display,
+                timestamp: s.timestamp,
+                project: s.project_path,
+                session_id: s.id,
+                pasted_contents: serde_json::json!({}),
+                agent_id: CanonicalAgentId::parse(&s.agent_id), // Convert from DB string to enum
+                updated_at: s.timestamp,
+                source_path: None, // Claude Code sessions are found via JSONL path convention
+                parent_id: None,
+                worktree_path: s.worktree_path,
+                pr_number: None,
+                worktree_deleted: None,
+                session_lifecycle_state: Some(session_lifecycle_state),
+            }
         })
         .collect();
 

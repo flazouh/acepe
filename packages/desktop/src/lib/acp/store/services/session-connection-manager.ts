@@ -234,6 +234,7 @@ export class SessionConnectionManager {
 					title: options.title || "New Thread",
 					updatedAt: now,
 					createdAt: now,
+					sessionLifecycleState: "created",
 					parentId: null,
 				};
 

@@ -372,6 +372,12 @@ impl CcSdkClaudeClient {
         }
     }
 
+    async fn session_has_persisted_history(&self, session_id: &str, cwd: &str) -> bool {
+        crate::session_jsonl::parser::find_session_file(session_id, cwd)
+            .await
+            .is_ok()
+    }
+
     async fn hydrated_session_model_state(&self) -> SessionModelState {
         let mut model_state = default_session_model_state();
 
@@ -855,6 +861,29 @@ impl AgentClient for CcSdkClaudeClient {
         cwd: String,
     ) -> AcpResult<ResumeSessionResponse> {
         self.reset_stream_runtime_state();
+        if !self.session_has_persisted_history(&session_id, &cwd).await {
+            let options = self.build_options(&cwd, &session_id, None, false);
+            self.pending_options = Some(options);
+            self.session_id = Some(session_id.clone());
+            let models = self.hydrated_session_model_state().await;
+            tracing::info!(
+                session_id = %session_id,
+                provider = %self.provider.id(),
+                available_model_ids = ?models
+                    .available_models
+                    .iter()
+                    .map(|model| model.model_id.clone())
+                    .collect::<Vec<_>>(),
+                "cc-sdk resume_session restored created session without CLI resume"
+            );
+            return Ok(ResumeSessionResponse {
+                models,
+                modes: default_modes(),
+                available_commands: vec![],
+                config_options: vec![],
+            });
+        }
+
         self.pending_options = Some(self.build_options(&cwd, &session_id, Some(session_id.clone()), false));
         let models = self.hydrated_session_model_state().await;
         self.pending_options = None;

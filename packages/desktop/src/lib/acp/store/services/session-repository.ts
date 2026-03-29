@@ -199,6 +199,9 @@ export class SessionRepository {
 					title: scannedSession.title,
 					updatedAt: scannedSession.updatedAt,
 					sourcePath: scannedSession.sourcePath ?? existingSession.sourcePath,
+					sessionLifecycleState: scannedSession.sessionLifecycleState
+						? scannedSession.sessionLifecycleState
+						: existingSession.sessionLifecycleState,
 					parentId: scannedSession.parentId ?? existingSession.parentId,
 					worktreePath: scannedSession.worktreePath ?? existingSession.worktreePath,
 					prNumber: scannedSession.prNumber ?? existingSession.prNumber,
@@ -377,12 +380,12 @@ export class SessionRepository {
 			}
 		}
 
-		// Create placeholder if not in store
+		// Create a transient loading shell if not in store yet
 		const existing = this.stateReader.getSessionCold(sessionId);
-		const createdPlaceholder = !existing;
-		if (createdPlaceholder) {
+		const createdLoadingShell = !existing;
+		if (createdLoadingShell) {
 			const now = new Date();
-			const placeholder: SessionCold = {
+			const loadingShell: SessionCold = {
 				id: sessionId,
 				projectPath,
 				agentId,
@@ -391,9 +394,10 @@ export class SessionRepository {
 				updatedAt: now,
 				createdAt: now,
 				sourcePath,
+				sessionLifecycleState: sourcePath ? "persisted" : "created",
 				parentId: null,
 			};
-			this.stateWriter.addSession(placeholder);
+			this.stateWriter.addSession(loadingShell);
 		}
 
 		// Start content loading in state machine
@@ -414,9 +418,9 @@ export class SessionRepository {
 				return this.stateReader.getSessionCold(sessionId)!;
 			})
 			.mapErr((error) => {
-				// Content loading failed — remove placeholder to prevent ghost sessions
+				// Content loading failed — remove transient loading shell to prevent ghost sessions
 				// that survive mergeHistoryWithExisting indefinitely
-				if (createdPlaceholder) {
+				if (createdLoadingShell) {
 					this.stateWriter.removeSession(sessionId);
 				}
 				this.connectionManager.sendContentLoadError(sessionId);
@@ -466,6 +470,7 @@ export class SessionRepository {
 			updatedAt: now,
 			createdAt: now,
 			sourcePath,
+			sessionLifecycleState: "persisted",
 			parentId: parentId ?? null,
 		};
 
@@ -507,7 +512,7 @@ export class SessionRepository {
 						: (existingSession.title ?? undefined));
 				mergedSessions.push({
 					...existingSession,
-					// Propagate worktreePath from scan if placeholder was created without it
+					// Propagate worktreePath from scan if the loading shell was created without it
 					// (earlyPreloadPanelSessions doesn't have worktreePath in panel state).
 					// Preserve any existing value; fall back to what the scan found.
 					// Matches the pattern in refreshSessionsFromScan (line 194).
@@ -575,6 +580,8 @@ export class SessionRepository {
 			updatedAt: new Date(entry.updatedAt),
 			createdAt: new Date(entry.timestamp),
 			sourcePath: entry.sourcePath === null ? undefined : entry.sourcePath,
+			sessionLifecycleState:
+				entry.sessionLifecycleState === null ? undefined : entry.sessionLifecycleState,
 			parentId: entry.parentId ?? null,
 			worktreePath: entry.worktreePath === null ? undefined : entry.worktreePath,
 			worktreeDeleted: entry.worktreeDeleted === null ? undefined : entry.worktreeDeleted,

@@ -264,6 +264,7 @@ describe("InitializationManager", () => {
 					projectPath: "/project1",
 					agentId: "claude-code",
 					sessionTitle: "Old Session",
+					sourcePath: "/project1/.claude/projects/missing-session.jsonl",
 				},
 			];
 			Object.defineProperty(mockPanelStore, "panels", {
@@ -296,6 +297,57 @@ describe("InitializationManager", () => {
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
 			expect(mockSessionStore.loadSessionById).not.toHaveBeenCalled();
 			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+		});
+
+		it("preserves recoverable created-session restored ids", async () => {
+			mockProjectManager.projects = [
+				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
+			];
+			let currentPanels: TestPanel[] = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "recoverable-session",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: null,
+					sessionTitle: "Recover me",
+					sourcePath: null,
+				},
+			];
+
+			Object.defineProperty(mockPanelStore, "panels", {
+				configurable: true,
+				get: () => currentPanels,
+			});
+
+			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
+				currentPanels = currentPanels.map((panel) =>
+					panel.id === panelId
+						? {
+							id: panel.id,
+							kind: panel.kind,
+							ownerPanelId: panel.ownerPanelId,
+							sessionId,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sessionTitle: panel.sessionTitle,
+							sourcePath: panel.sourcePath,
+							worktreePath: panel.worktreePath,
+						}
+						: panel
+				);
+			});
+
+			await manager.initialize();
+
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 		});
 
 		it("preloads restored sessions using stored session metadata when panel metadata is missing", async () => {

@@ -213,19 +213,6 @@ pub async fn acp_resume_session(
             message: format!("Failed to load session metadata for resume: {error}"),
         })?;
 
-    if let Some(row) = metadata.as_ref() {
-        if row.is_placeholder() {
-            tracing::warn!(
-                session_id = %session_id,
-                project_path = %row.project_path,
-                "Rejecting resume for placeholder session metadata without persisted history"
-            );
-            return Err(SerializableAcpError::SessionNotFound {
-                session_id: session_id.clone(),
-            });
-        }
-    }
-
     let effective_cwd = match metadata {
         Some(row) if row.worktree_path.is_some() => {
             let wt_path = row.worktree_path.unwrap();

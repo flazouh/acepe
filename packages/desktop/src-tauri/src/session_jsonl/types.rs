@@ -1,5 +1,6 @@
 use crate::acp::session_update::ToolCallData;
 use crate::acp::types::CanonicalAgentId;
+use crate::db::repository::SessionLifecycleState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
@@ -52,6 +53,13 @@ pub struct HistoryEntry {
         rename = "worktreeDeleted"
     )]
     pub worktree_deleted: Option<bool>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "sessionLifecycleState"
+    )]
+    pub session_lifecycle_state: Option<SessionLifecycleState>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
@@ -394,7 +402,7 @@ pub struct ConvertedSession {
 }
 
 impl ConvertedSession {
-    /// Create an empty session placeholder.
+    /// Create an empty session snapshot.
     ///
     /// Used when session content cannot be loaded from disk (e.g. worktree cleaned up,
     /// agent not yet started). Returning an empty session prevents the frontend from

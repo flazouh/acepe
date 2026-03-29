@@ -936,7 +936,7 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_ensure_exists_for_worktree_session_does_not_write_sentinel_file_path() {
+    async fn test_ensure_exists_for_worktree_session_writes_unique_registry_placeholder_path() {
         let db = setup_test_db().await;
 
         let created = SessionMetadataRepository::ensure_exists(
@@ -957,7 +957,10 @@ mod session_metadata_tests {
             .unwrap();
 
         assert_eq!(session.worktree_path.as_deref(), Some("/tmp/real-worktree"));
-        assert!(session.file_path.is_empty());
+        assert_eq!(
+            session.file_path,
+            "__session_registry__/session-worktree-placeholder"
+        );
         assert_eq!(session.file_mtime, 0);
         assert_eq!(session.file_size, 0);
     }

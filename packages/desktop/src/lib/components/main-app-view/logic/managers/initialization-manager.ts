@@ -27,7 +27,7 @@
  * ## Session Loading Strategy
  *
  * Restored panels only preload after session history is loaded and validated, so
- * startup never attempts to resume placeholder session ids that have no persisted
+ * startup never attempts to resume created session ids that have no persisted
  * history on disk.
  *
  * earlyPreloadPanelSessions clears panel session references on load failure,
@@ -404,6 +404,10 @@ export class InitializationManager {
 		let clearedCount = 0;
 		for (const panel of this.panelStore.panels) {
 			if (panel.sessionId && !this.sessionStore.getSessionCold(panel.sessionId)) {
+				if (this.canRecoverRegistryOnlyPanel(panel)) {
+					continue;
+				}
+
 				logger.debug("Session not found on disk, clearing from panel", {
 					sessionId: panel.sessionId.substring(0, 8),
 					panelId: panel.id,
@@ -416,6 +420,22 @@ export class InitializationManager {
 			logger.info(`Cleared ${clearedCount} orphaned session reference(s) from panels`);
 		}
 		return okAsync(undefined);
+	}
+
+	private canRecoverRegistryOnlyPanel(panel: {
+		sessionId: string | null;
+		projectPath: string | null;
+		agentId: string | null;
+		selectedAgentId: string | null;
+		sourcePath?: string | null;
+	}): boolean {
+		const projectPath = panel.projectPath;
+		const resolvedAgentId = panel.agentId ? panel.agentId : panel.selectedAgentId;
+		if (!panel.sessionId || !projectPath || !resolvedAgentId) {
+			return false;
+		}
+
+		return !panel.sourcePath;
 	}
 
 	/**
@@ -484,7 +504,7 @@ export class InitializationManager {
 	/**
 	 * Pre-loads panel session content in parallel with the sidebar scan.
 	 * Panels already have sessionId + projectPath + agentId from workspace persistence.
-	 * loadSessionById handles placeholder creation, state machines, and error recovery.
+	 * loadSessionById handles transient loading shells, state machines, and error recovery.
 	 */
 	private earlyPreloadPanelSessions(): void {
 		for (const panel of this.panelStore.panels) {

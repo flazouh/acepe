@@ -177,7 +177,7 @@ fn session_metadata_context_from_cwd_returns_base_project_for_git_worktree() {
 }
 
 #[tokio::test]
-async fn persist_session_metadata_for_cwd_inserts_worktree_placeholder() {
+async fn persist_session_metadata_for_cwd_inserts_created_worktree_session() {
     let db = setup_test_db().await;
     let temp = tempdir().expect("temp dir");
     let repo_path = temp.path().join("repo");
@@ -212,11 +212,11 @@ async fn persist_session_metadata_for_cwd_inserts_worktree_placeholder() {
         Some(canonicalize_or_original_for_test(&worktree_path))
     );
     assert_eq!(row.agent_id, "claude-code");
-    assert!(!row.is_placeholder());
+    assert!(row.is_transcript_pending());
 }
 
 #[tokio::test]
-async fn persist_session_metadata_for_cwd_inserts_plain_project_placeholder() {
+async fn persist_session_metadata_for_cwd_inserts_created_plain_project_session() {
     let db = setup_test_db().await;
     let temp = tempdir().expect("temp dir");
 
@@ -237,7 +237,7 @@ async fn persist_session_metadata_for_cwd_inserts_plain_project_placeholder() {
     assert_eq!(row.project_path, canonicalize_or_original_for_test(temp.path()));
     assert_eq!(row.worktree_path, None);
     assert_eq!(row.agent_id, "claude-code");
-    assert!(row.is_placeholder());
+    assert!(row.is_transcript_pending());
 }
 
 #[cfg(target_os = "macos")]
@@ -377,7 +377,7 @@ async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
 }
 
 #[test]
-fn session_metadata_placeholder_rows_are_detected_as_non_resumable() {
+fn session_metadata_created_rows_are_detected_as_pending_transcript() {
     let row = crate::db::repository::SessionMetadataRow {
         id: "session-placeholder".to_string(),
         display: "New Thread".to_string(),
@@ -391,7 +391,7 @@ fn session_metadata_placeholder_rows_are_detected_as_non_resumable() {
         pr_number: None,
     };
 
-    assert!(row.is_placeholder());
+    assert!(row.is_transcript_pending());
 }
 
 #[test]
@@ -423,14 +423,53 @@ fn session_metadata_placeholder_rows_with_worktree_context_are_resumable() {
 		timestamp: 0,
 		project_path: "/project".to_string(),
 		agent_id: "opencode".to_string(),
-		file_path: String::new(),
+		file_path: "__session_registry__/session-worktree-placeholder".to_string(),
 		file_mtime: 0,
 		file_size: 0,
 		worktree_path: Some(worktree_path),
 		pr_number: None,
 	};
 
-	assert!(!row.is_placeholder());
+    assert!(row.is_transcript_pending());
+}
+
+#[tokio::test]
+async fn persist_session_metadata_for_multiple_worktree_sessions_uses_unique_created_session_paths() {
+    let db = setup_test_db().await;
+
+    SessionMetadataRepository::ensure_exists(
+        &db,
+        "session-worktree-a",
+        "/project",
+        "claude-code",
+        Some("/project/.worktrees/feature-a"),
+    )
+    .await
+    .expect("insert first created worktree session");
+
+    SessionMetadataRepository::ensure_exists(
+        &db,
+        "session-worktree-b",
+        "/project",
+        "claude-code",
+        Some("/project/.worktrees/feature-b"),
+    )
+    .await
+    .expect("insert second created worktree session");
+
+    let first = SessionMetadataRepository::get_by_id(&db, "session-worktree-a")
+        .await
+        .expect("load first")
+        .expect("first exists");
+    let second = SessionMetadataRepository::get_by_id(&db, "session-worktree-b")
+        .await
+        .expect("load second")
+        .expect("second exists");
+
+    assert_eq!(first.file_path, "__session_registry__/session-worktree-a");
+    assert_eq!(second.file_path, "__session_registry__/session-worktree-b");
+    assert!(first.is_transcript_pending());
+    assert!(second.is_transcript_pending());
 }
 
 #[tokio::test]

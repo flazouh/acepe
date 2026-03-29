@@ -643,6 +643,9 @@ fn to_history_entry(metadata: &SessionMetadata) -> HistoryEntry {
         worktree_path: None,
         pr_number: None,
         worktree_deleted: None,
+        session_lifecycle_state: Some(
+            crate::db::repository::SessionLifecycleState::Persisted,
+        ),
     }
 }
 
@@ -670,6 +673,9 @@ fn to_history_entry_fast(metadata: &SessionMetadataFast) -> HistoryEntry {
         worktree_path: None,
         pr_number: None,
         worktree_deleted: None,
+        session_lifecycle_state: Some(
+            crate::db::repository::SessionLifecycleState::Persisted,
+        ),
     }
 }
 

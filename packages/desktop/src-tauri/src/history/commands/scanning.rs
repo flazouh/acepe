@@ -2,11 +2,7 @@ use super::*;
 use std::path::Path;
 
 fn indexed_source_path(file_path: String) -> Option<String> {
-    if file_path.is_empty() || file_path.starts_with("__worktree__/") {
-        None
-    } else {
-        Some(file_path)
-    }
+    SessionMetadataRepository::normalized_source_path(&file_path)
 }
 
 fn derive_title_from_converted_session(
@@ -39,11 +35,7 @@ async fn derive_indexed_session_title(
     worktree_path: Option<&str>,
     display: &str,
 ) -> String {
-    let source_path = if file_path.is_empty() || file_path.starts_with("__worktree__/") {
-        None
-    } else {
-        Some(file_path.to_string())
-    };
+    let source_path = SessionMetadataRepository::normalized_source_path(file_path);
 
     if worktree_path.is_some() {
         if let Ok(Some(session)) = crate::history::commands::session_loading::get_unified_session(
@@ -124,6 +116,7 @@ async fn scan_project_sessions_inner(
         // DB already returns ORDER BY timestamp DESC — no sort needed
         let mut entries: Vec<HistoryEntry> = Vec::with_capacity(count);
         for s in indexed {
+            let session_lifecycle_state = s.lifecycle_state();
             let display = derive_indexed_session_title(
                 &app,
                 &s.id,
@@ -153,6 +146,7 @@ async fn scan_project_sessions_inner(
                 worktree_path: s.worktree_path,
                 worktree_deleted,
                 pr_number: s.pr_number.map(|n| n as i64),
+                session_lifecycle_state: Some(session_lifecycle_state),
             });
         }
         tracing::info!(
