@@ -289,6 +289,7 @@ impl CcSdkClaudeClient {
         };
 
         let mut builder = cc_sdk::ClaudeCodeOptions::builder().cwd(PathBuf::from(cwd));
+        builder = builder.session_id(session_id.to_string());
         builder = builder.include_partial_messages(true);
 
         if let Some(mode_id) = &self.pending_mode_id {
@@ -1167,6 +1168,7 @@ mod tests {
         assert!(options.include_partial_messages);
         assert_eq!(options.model.as_deref(), Some("claude-opus-4-6"));
         assert_eq!(options.permission_mode, cc_sdk::PermissionMode::Plan);
+        assert_eq!(options.session_id.as_deref(), Some("session-1"));
     }
 
     #[test]
