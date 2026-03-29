@@ -60,8 +60,11 @@ pub async fn resolve_session_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::commands::persist_session_metadata_for_cwd;
+    use crate::acp::types::CanonicalAgentId;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
+    use tempfile::tempdir;
 
     async fn setup_test_db() -> DbConn {
         let db = Database::connect("sqlite::memory:")
@@ -104,6 +107,57 @@ mod tests {
             Some("/repo/.worktrees/feature-a")
         );
         assert_eq!(context.effective_project_path, "/repo/.worktrees/feature-a");
+        assert_eq!(context.source_path, None);
+        assert_eq!(context.agent_id, "claude-code");
+    }
+
+    #[tokio::test]
+    async fn resolve_session_context_uses_worktree_metadata_persisted_at_session_start() {
+        let db = setup_test_db().await;
+        let temp = tempdir().expect("temp dir");
+        let repo_path = temp.path().join("repo");
+        let worktree_path = temp.path().join("worktrees").join("feature-a");
+        let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
+
+        std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
+        std::fs::create_dir_all(&worktree_path).expect("create worktree");
+        std::fs::write(
+            worktree_path.join(".git"),
+            format!("gitdir: {}\n", gitdir_path.display()),
+        )
+        .expect("write .git file");
+
+        persist_session_metadata_for_cwd(
+            &db,
+            "session-worktree",
+            &CanonicalAgentId::ClaudeCode,
+            &worktree_path,
+        )
+        .await
+        .expect("persist startup metadata");
+
+        let canonical_worktree_path = worktree_path
+            .canonicalize()
+            .expect("canonical worktree path");
+
+        let context = resolve_session_context(
+            Some(&db),
+            "session-worktree",
+            "/fallback-project",
+            "cursor",
+            None,
+        )
+        .await;
+
+        assert_eq!(context.project_path, repo_path.to_string_lossy());
+        assert_eq!(
+            context.worktree_path.as_deref(),
+            Some(canonical_worktree_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            context.effective_project_path,
+            canonical_worktree_path.to_string_lossy()
+        );
         assert_eq!(context.source_path, None);
         assert_eq!(context.agent_id, "claude-code");
     }

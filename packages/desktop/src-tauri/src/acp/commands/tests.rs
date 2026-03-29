@@ -1,11 +1,15 @@
 use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
+use crate::acp::commands::session_commands::{
+    persist_session_metadata_for_cwd, session_metadata_context_from_cwd,
+};
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
+use crate::db::repository::SessionMetadataRepository;
 use async_trait::async_trait;
 use serde_json::json;
 use std::collections::HashMap;
@@ -16,6 +20,27 @@ use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
+use sea_orm::{Database, DbConn};
+use sea_orm_migration::MigratorTrait;
+
+fn canonicalize_or_original_for_test(path: &std::path::Path) -> String {
+    std::fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .into_owned()
+}
+
+async fn setup_test_db() -> DbConn {
+    let db = Database::connect("sqlite::memory:")
+        .await
+        .expect("Failed to connect to in-memory SQLite");
+
+    crate::db::migrations::Migrator::up(&db, None)
+        .await
+        .expect("Failed to run migrations");
+
+    db
+}
 
 #[test]
 fn test_normalize_acp_path_no_change_needed() {
@@ -114,6 +139,105 @@ fn validate_session_cwd_accepts_directory() {
     );
 
     assert!(result.is_ok(), "valid directory cwd should be accepted");
+}
+
+#[test]
+fn session_metadata_context_from_cwd_returns_plain_project_for_normal_directory() {
+    let temp = tempdir().expect("temp dir");
+    let (project_path, worktree_path) =
+        session_metadata_context_from_cwd(temp.path());
+
+    assert_eq!(project_path, canonicalize_or_original_for_test(temp.path()));
+    assert_eq!(worktree_path, None);
+}
+
+#[test]
+fn session_metadata_context_from_cwd_returns_base_project_for_git_worktree() {
+    let temp = tempdir().expect("temp dir");
+    let repo_path = temp.path().join("repo");
+    let worktree_path = temp.path().join("worktrees").join("feature-a");
+    let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
+
+    std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
+    std::fs::create_dir_all(&worktree_path).expect("create worktree");
+    std::fs::write(
+        worktree_path.join(".git"),
+        format!("gitdir: {}\n", gitdir_path.display()),
+    )
+    .expect("write .git file");
+
+    let (project_path, resolved_worktree_path) =
+        session_metadata_context_from_cwd(&worktree_path);
+
+    assert_eq!(project_path, repo_path.to_string_lossy());
+    assert_eq!(
+        resolved_worktree_path,
+        Some(canonicalize_or_original_for_test(&worktree_path))
+    );
+}
+
+#[tokio::test]
+async fn persist_session_metadata_for_cwd_inserts_worktree_placeholder() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let repo_path = temp.path().join("repo");
+    let worktree_path = temp.path().join("worktrees").join("feature-a");
+    let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
+
+    std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
+    std::fs::create_dir_all(&worktree_path).expect("create worktree");
+    std::fs::write(
+        worktree_path.join(".git"),
+        format!("gitdir: {}\n", gitdir_path.display()),
+    )
+    .expect("write .git file");
+
+    persist_session_metadata_for_cwd(
+        &db,
+        "session-worktree",
+        &CanonicalAgentId::ClaudeCode,
+        &worktree_path,
+    )
+    .await
+    .expect("persist session metadata");
+
+    let row = SessionMetadataRepository::get_by_id(&db, "session-worktree")
+        .await
+        .expect("load row")
+        .expect("row should exist");
+
+    assert_eq!(row.project_path, repo_path.to_string_lossy());
+    assert_eq!(
+        row.worktree_path,
+        Some(canonicalize_or_original_for_test(&worktree_path))
+    );
+    assert_eq!(row.agent_id, "claude-code");
+    assert!(!row.is_placeholder());
+}
+
+#[tokio::test]
+async fn persist_session_metadata_for_cwd_inserts_plain_project_placeholder() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+
+    persist_session_metadata_for_cwd(
+        &db,
+        "session-project",
+        &CanonicalAgentId::ClaudeCode,
+        temp.path(),
+    )
+    .await
+    .expect("persist session metadata");
+
+    let row = SessionMetadataRepository::get_by_id(&db, "session-project")
+        .await
+        .expect("load row")
+        .expect("row should exist");
+
+    assert_eq!(row.project_path, canonicalize_or_original_for_test(temp.path()));
+    assert_eq!(row.worktree_path, None);
+    assert_eq!(row.agent_id, "claude-code");
+    assert!(row.is_placeholder());
 }
 
 #[cfg(target_os = "macos")]
