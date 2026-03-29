@@ -246,7 +246,7 @@ function ensureNativeNotificationPermission(): ResultAsync<boolean, Error> {
 function maybePlaySound(): void {
 	const now = Date.now();
 	if (now - lastSoundTime > SOUND_DEBOUNCE_MS) {
-		playSound(SoundEffect.LeonardoDiCaprio);
+		playSound(SoundEffect.Notification);
 		lastSoundTime = now;
 	}
 }
