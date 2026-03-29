@@ -1,4 +1,4 @@
-export type SubmitIntent = "none" | "send" | "steer";
+export type SubmitIntent = "none" | "send" | "steer" | "cancel";
 
 interface EnterKeyIntentInput {
 	hasDraftInput: boolean;
@@ -33,7 +33,7 @@ export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent 
 
 export function resolvePrimaryButtonIntent(input: PrimaryButtonIntentInput): SubmitIntent {
 	if (input.isStreaming && !input.hasDraftInput) {
-		return "steer";
+		return "cancel";
 	}
 
 	if (!input.hasDraftInput) {
