@@ -78,11 +78,7 @@
   <!-- Header -->
   <EmbeddedPanelHeader class="bg-accent/40">
     <HeaderTitleCell compactPadding>
-      <PlanIcon
-        size="sm"
-        class="shrink-0 mr-1"
-        style="color: var(--orange, #f59e0b)"
-      />
+      <PlanIcon size="sm" class="shrink-0 mr-1" />
       <span
         class="text-[11px] font-semibold font-mono text-foreground select-none leading-none"
       >

@@ -7,8 +7,6 @@ import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import type { AvailableMode } from "../types/available-mode.js";
 import { CanonicalModeId } from "../types/canonical-mode-id.js";
 import type { ModeId } from "../types/mode-id.js";
-import { Colors } from "../utils/colors.js";
-
 interface ModeSelectorProps {
 	availableModes: readonly AvailableMode[];
 	currentModeId: ModeId | null;
@@ -53,11 +51,11 @@ export function cycle() {
 function modeColor(modeId: string): string {
 	switch (modeId) {
 		case CanonicalModeId.BUILD:
-			return "var(--success)";
+			return "var(--build-icon)";
 		case CanonicalModeId.PLAN:
-			return Colors.orange;
+			return "var(--plan-icon)";
 		default:
-			return "var(--success)";
+			return "var(--build-icon)";
 	}
 }
 

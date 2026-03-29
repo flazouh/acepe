@@ -1,9 +1,16 @@
 /**
  * Design tokens - single source of truth for semantic colors.
  * Apps map these to theme-specific --success via: --success: var(--token-success-light) etc.
- * Keep colors.ts GREEN in sync with --token-success-light.
+ * Keep colors.ts ORANGE in sync with --token-plan-icon-light.
+ * Keep colors.ts GREEN in sync with --token-build-icon-dark (dark build / shared green accent).
  */
 :root {
   --token-success-light: #17803D;
+  /** Reference green for dark success-adjacent UIs not tied to build token */
   --token-success-dark: #16db95;
+  /** Build accent + dark --success (same as Colors.green) */
+  --token-build-icon-dark: #15db95;
+  /** Plan / pencil-ruler icon — light: same as Colors.orange */
+  --token-plan-icon-light: #ff8d20;
+  --token-plan-icon-dark: #ffc799;
 }
