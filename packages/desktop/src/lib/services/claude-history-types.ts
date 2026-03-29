@@ -42,8 +42,4 @@ prNumber?: number | null;
 /**
  * Whether the worktree path stored for this session no longer exists on disk.
  */
-worktreeDeleted?: boolean | null; 
-/**
- * Lifecycle state for the canonical session.
- */
-sessionLifecycleState?: SessionLifecycleState | null }
+worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null }
