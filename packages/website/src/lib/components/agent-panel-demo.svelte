@@ -176,9 +176,6 @@
 		agentIconSrc="/svgs/claude-icon-dark.svg"
 		{sessionStatus}
 		iconBasePath="/svgs/icons"
-		inputMode="build"
-		inputModel="claude-sonnet-4-6"
-		inputPlaceholder="Message Acepe…"
 	/>
 
 	{#if !animating && visibleCount >= FULL_SCRIPT.length}

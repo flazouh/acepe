@@ -18,7 +18,6 @@ export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
-export { default as AgentInputStub } from "./agent-input-stub.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export type { AgentGridItem } from "./agent-selection-grid-types.js";
 
