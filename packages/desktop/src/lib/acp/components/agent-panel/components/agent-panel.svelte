@@ -169,12 +169,6 @@ const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
 const sessionWorktreePath = $derived(sessionIdentity?.worktreePath ?? null);
 const sessionTitle = $derived(sessionMetadata?.title ?? null);
 
-// Cached models for the active agent (used by PR generation popover)
-const prAgentId = $derived(sessionAgentId || selectedAgentId);
-const prCachedModels = $derived(
-	prAgentId ? agentModelPrefs.getCachedModels(prAgentId) : []
-);
-
 // Current model from session hot state (for PR popover default)
 const sessionCurrentModelId = $derived(
 	sessionId ? sessionStore.getHotState(sessionId)?.currentModel?.id ?? null : null
@@ -570,6 +564,7 @@ let createPrLabel = $state<string | null>(null);
 let mergePrRunning = $state(false);
 let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
 let prFetchError = $state<string | null>(null);
+let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(null);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 /** Derived: is the selected agent currently being installed? */
 const agentInstallState = $derived.by(() => {
@@ -1038,6 +1033,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 
 	// Generate commit message + PR content via AI (falls back to default if generation fails)
 	createPrLabel = m.git_generating();
+	streamingShipData = null;
 	let commitMsg = m.agent_panel_default_commit_message();
 	let prTitle: string | undefined;
 	let prBody: string | undefined;
@@ -1047,13 +1043,15 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		const ctx = shipCtxResult.value;
 		logger.info("handleCreatePr: generating commit/PR content via AI", { branch: ctx.branch });
 
-		// Use the ephemeral text generation service to get AI-generated content
-		const { generateShipContent } = await import("../../ship-card/ship-card-generation.js");
-		const genResult = await generateShipContent(
-			ctx.prompt,
+		// Use the streaming text generation service — updates the PR card live
+		const { generateShipContentStreaming } = await import("../../ship-card/ship-card-generation.js");
+		const promptToSend = config?.customPrompt ? config.customPrompt + "\n\n" + ctx.prompt : ctx.prompt;
+		const genResult = await generateShipContentStreaming(
+			promptToSend,
 			path,
-			config?.agentId || sessionAgentId || selectedAgentId || undefined,
-			config?.modelId || undefined,
+			(data) => { streamingShipData = data; },
+			config?.agentId ? config.agentId : (sessionAgentId ? sessionAgentId : (selectedAgentId ? selectedAgentId : undefined)),
+			config?.modelId ? config.modelId : undefined,
 		);
 		if (genResult.isOk()) {
 			const gen = genResult.value;
@@ -1080,6 +1078,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		(ok) => {
 			createPrRunning = false;
 			createPrLabel = null;
+			streamingShipData = null;
 			logger.info("handleCreatePr: success", {
 				action: ok.action,
 				commitStatus: ok.commit.status,
@@ -1113,6 +1112,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		(err) => {
 			createPrRunning = false;
 			createPrLabel = null;
+			streamingShipData = null;
 			const details = getErrorCauseDetails(err);
 			logger.error("handleCreatePr: failed", {
 				message: err.message,
@@ -1643,7 +1643,7 @@ function handleCheckpointRevertComplete() {
 							</div>
 						</div>
 					{/if}
-					{#if effectivePathForGit && (createdPr || createPrRunning)}
+					{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
 						<div class={isFullscreen ? "flex justify-center" : ""}>
 							<div class={isFullscreen ? "w-full max-w-[60%]" : ""}>
 								<PrStatusCard
@@ -1654,6 +1654,7 @@ function handleCheckpointRevertComplete() {
 									fetchError={prFetchError}
 									onMerge={(strategy) => void handleMergePr(strategy)}
 									merging={mergePrRunning}
+									streamingData={streamingShipData}
 								/>
 							</div>
 						</div>
@@ -1672,8 +1673,7 @@ function handleCheckpointRevertComplete() {
 									createPrLoading={createPrRunning}
 									{createPrLabel}
 									{availableAgents}
-									currentAgentId={sessionAgentId || selectedAgentId}
-									availableModels={prCachedModels}
+									currentAgentId={sessionAgentId ? sessionAgentId : selectedAgentId}
 									currentModelId={sessionCurrentModelId}
 									{effectiveTheme}
 								/>
