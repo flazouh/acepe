@@ -53,7 +53,7 @@ const hasWorktree = $derived(worktreeName !== null);
 const active = $derived(hasWorktree || pending);
 const buttonLabel = $derived.by(() => {
 	if (hasWorktree) return worktreeName;
-	if (pending || autoWorktree) return m.worktree_toggle_pending_label();
+	if (pending) return m.worktree_toggle_pending_label();
 	return m.worktree_toggle_label();
 });
 const canRename = $derived(hasWorktree && loading === false && deleted === false && Boolean(onRename));
@@ -207,7 +207,7 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 										event.preventDefault();
 										onAutoWorktreeChange?.(!autoWorktree);
 									}}
-									disabled={disabled || loading}
+									disabled={loading}
 								>
 									<div class="flex w-full items-center justify-between gap-3">
 										<div class="flex min-w-0 items-center gap-2">
@@ -220,7 +220,7 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 										</div>
 									<Switch
 										checked={autoWorktree}
-										disabled={disabled || loading}
+												disabled={loading}
 										onCheckedChange={(checked) => {
 											onAutoWorktreeChange?.(checked);
 										}}

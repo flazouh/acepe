@@ -42,6 +42,7 @@ import { PlanSidebar } from "../../plan-sidebar/index.js";
 import QueueCardStrip from "../../queue-card-strip.svelte";
 import TodoHeader from "../../todo-header.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
+import { loadWorktreeEnabled } from "../../worktree-toggle/worktree-storage.js";
 import { usePlanLoader } from "../hooks";
 import {
 	createPendingWorktreeCloseConfirmationState,
@@ -56,6 +57,7 @@ import {
 	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
 } from "../logic";
+import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target";
@@ -355,6 +357,16 @@ const viewStateInput = $derived({
 });
 const viewState = $derived(derivePanelViewState(viewStateInput));
 const panelViewKind = $derived(viewState.kind);
+
+$effect(() => {
+	worktreePending = resolveAgentPanelWorktreePending({
+		panelId,
+		activeWorktreePath: effectiveActiveWorktreePath,
+		hasMessages,
+		globalWorktreeDefault,
+		loadEnabled: loadWorktreeEnabled,
+	});
+});
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
@@ -951,6 +963,7 @@ function handleSessionCreated(sessionIdParam: string) {
 }
 
 function handleWorktreeCreated(info: WorktreeInfo) {
+	worktreePending = false;
 	activeWorktreePath = info.directory;
 	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
 
