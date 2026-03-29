@@ -23,6 +23,11 @@ import { getModelDisplayName } from "../model-selector-logic.js";
 import AnimatedChevron from "../animated-chevron.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import InlineModifiedFileRow from "./components/inline-modified-file-row.svelte";
+import {
+	buildPrGenerationPrefsForAgentSelection,
+	buildPrGenerationRequestConfig,
+	getValidPrGenerationModelId,
+} from "./logic/pr-generation-preferences.js";
 import { getReviewStatusByFilePath } from "./logic/review-progress.js";
 import type { ModifiedFilesState } from "./types/modified-files-state.js";
 
@@ -90,13 +95,14 @@ const prPrefs = $derived(agentModelPrefs.getPrGenerationPrefs());
 
 // Derived effective values (persisted override > current default)
 const effectiveAgentId = $derived(prPrefs.agentId ? prPrefs.agentId : currentAgentId);
-const effectiveModelId = $derived(prPrefs.modelId ? prPrefs.modelId : currentModelId);
 
 // Models react to the effective agent selection — when the user picks a
 // different agent in the dropdown the model list updates automatically.
 const reactiveModels = $derived(
 	effectiveAgentId ? agentModelPrefs.getCachedModels(effectiveAgentId) : []
 );
+const selectedModelId = $derived(getValidPrGenerationModelId(prPrefs.modelId, reactiveModels));
+const effectiveModelId = $derived(selectedModelId ? selectedModelId : currentModelId);
 
 const effectiveAgent = $derived.by((): AgentInfo | null => {
 	if (!effectiveAgentId) return null;
@@ -164,20 +170,29 @@ function handleReviewButtonClick(fileIndex: number): void {
 
 function handleCreatePrClick(): void {
 	if (!onCreatePr) return;
-	const config: PrGenerationConfig = {};
-	if (prPrefs.agentId) config.agentId = prPrefs.agentId;
-	if (prPrefs.modelId) config.modelId = prPrefs.modelId;
-	if (prPrefs.customPrompt) config.customPrompt = prPrefs.customPrompt;
-	onCreatePr(Object.keys(config).length > 0 ? config : undefined);
+	const config = buildPrGenerationRequestConfig(
+		prPrefs.agentId,
+		prPrefs.modelId,
+		prPrefs.customPrompt,
+		reactiveModels,
+	);
+	onCreatePr(config);
 }
 
 function handleAgentSelect(agentId: string, isSelected: boolean): void {
 	const newAgentId = isSelected ? undefined : agentId;
-	agentModelPrefs.setPrGenerationPrefs({
-		agentId: newAgentId,
-		modelId: prPrefs.modelId,
-		customPrompt: prPrefs.customPrompt,
-	});
+	const nextEffectiveAgentId = newAgentId ? newAgentId : currentAgentId;
+	const nextModels = nextEffectiveAgentId
+		? agentModelPrefs.getCachedModels(nextEffectiveAgentId)
+		: [];
+	agentModelPrefs.setPrGenerationPrefs(
+		buildPrGenerationPrefsForAgentSelection(
+			newAgentId,
+			prPrefs.modelId,
+			prPrefs.customPrompt,
+			nextModels,
+		),
+	);
 }
 
 function handleModelSelect(modelId: string, isSelected: boolean): void {

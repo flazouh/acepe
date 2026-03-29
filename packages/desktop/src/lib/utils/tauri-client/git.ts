@@ -183,8 +183,9 @@ export const git = {
 	 */
 	collectShipContext: (
 		projectPath: string,
+		customInstructions?: string,
 	): ResultAsync<ShipContext | null, AppError> => {
-		return invokeAsync(CMD.git.collect_ship_context, { projectPath });
+		return invokeAsync(CMD.git.collect_ship_context, { projectPath, customInstructions });
 	},
 
 	prDetails: (projectPath: string, prNumber: number): ResultAsync<PrDetails, AppError> => {

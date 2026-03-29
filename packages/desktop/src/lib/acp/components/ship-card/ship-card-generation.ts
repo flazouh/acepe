@@ -10,7 +10,7 @@
  *   - `generateShipContentStreaming`  – invokes `onUpdate` after every chunk
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
 import type { SessionUpdate, TurnErrorData } from "$lib/services/converted-session-types.js";
@@ -46,7 +46,12 @@ function runGeneration(
 						.mapErr((e) => new AgentError("setModel", e))
 				: okAsync<void, AgentError>(undefined);
 
-			return modelSetup.map(() => ephemeralSessionId);
+			return modelSetup.map(() => ephemeralSessionId).orElse((error) =>
+				tauriClient.acp
+					.closeSession(ephemeralSessionId)
+					.orElse(() => okAsync(undefined))
+					.andThen(() => errAsync(error))
+			);
 		})
 		.andThen((ephemeralSessionId) => {
 			logger.info("Ship card generation: session ready, starting generation", { ephemeralSessionId });

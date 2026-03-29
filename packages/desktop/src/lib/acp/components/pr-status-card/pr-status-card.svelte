@@ -53,7 +53,12 @@
 		streamingData = null,
 	}: Props = $props();
 
-	let isExpanded = $state(false);
+	let isExpanded = $state(
+		(() => {
+			if (!streamingData) return false;
+			return streamingData.prTitle !== null || streamingData.prDescription !== null;
+		})(),
+	);
 	let diffModalOpen = $state(false);
 	let selectedCommitSha = $state<string | null>(null);
 
@@ -62,13 +67,6 @@
 	const hasStreamingContent = $derived(
 		streamingData !== null && (streamingData.prTitle !== null || streamingData.prDescription !== null),
 	);
-
-	// Auto-expand when streaming begins; collapse is manual
-	$effect(() => {
-		if (hasStreamingContent && !isExpanded) {
-			isExpanded = true;
-		}
-	});
 
 	const safeRenderMarkdown = Result.fromThrowable(
 		(body: string) => {

@@ -147,27 +147,37 @@ pub struct ShipContext {
     pub staged_summary: String,
 }
 
+fn build_ship_context(
+    branch: &str,
+    context: &operations::StagedContext,
+    custom_instructions: Option<&str>,
+) -> ShipContext {
+    let prompt = text_generation::build_ship_prompt(branch, context, custom_instructions);
+    ShipContext {
+        prompt,
+        branch: branch.to_string(),
+        staged_summary: context.summary.clone(),
+    }
+}
+
 /// Collect staged diff context and build the AI generation prompt.
 /// Returns None if nothing is staged.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_collect_ship_context(project_path: String) -> Result<Option<ShipContext>, String> {
+pub async fn git_collect_ship_context(
+    project_path: String,
+    custom_instructions: Option<String>,
+) -> Result<Option<ShipContext>, String> {
     let path = PathBuf::from(&project_path);
     let branch = crate::git::worktree::git_current_branch(project_path).await?;
     let staged = operations::collect_staged_context(&path).await?;
-    Ok(staged.map(|ctx| {
-        let prompt = text_generation::build_ship_prompt(&branch, &ctx, None);
-        ShipContext {
-            prompt,
-            branch,
-            staged_summary: ctx.summary,
-        }
-    }))
+    Ok(staged.map(|ctx| build_ship_context(&branch, &ctx, custom_instructions.as_deref())))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::operations::StagedContext;
 
     #[test]
     fn test_capitalize_name() {
@@ -175,5 +185,35 @@ mod tests {
         assert_eq!(capitalize_name("my_project"), "My Project");
         assert_eq!(capitalize_name("myproject"), "Myproject");
         assert_eq!(capitalize_name("MY-PROJECT"), "My Project");
+    }
+
+    #[test]
+    fn build_ship_context_uses_custom_instructions_in_prompt() {
+        let context = StagedContext {
+            summary: "M\tsrc/lib.rs".to_string(),
+            patch: "diff --git a/src/lib.rs b/src/lib.rs".to_string(),
+        };
+
+        let ship_context = build_ship_context(
+            "feature/custom-prompt",
+            &context,
+            Some("Custom prompt instructions"),
+        );
+
+        assert!(
+            ship_context
+                .prompt
+                .starts_with("Custom prompt instructions"),
+            "expected prompt to start with custom instructions"
+        );
+        assert!(
+            !ship_context
+                .prompt
+                .contains(text_generation::DEFAULT_SHIP_INSTRUCTIONS),
+            "expected custom instructions to replace the default template"
+        );
+        assert!(ship_context
+            .prompt
+            .contains("Current branch: feature/custom-prompt"));
     }
 }
