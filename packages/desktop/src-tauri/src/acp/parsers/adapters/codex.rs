@@ -118,6 +118,12 @@ impl CodexAdapter {
         }
         if any_eq(
             without_prefix,
+            &["toolsearch", "tool_search", "functions.tool_search"],
+        ) {
+            return ToolKind::ToolSearch;
+        }
+        if any_eq(
+            without_prefix,
             &["code_search", "codesearch", "search_code", "searchcode"],
         ) {
             return ToolKind::Search;

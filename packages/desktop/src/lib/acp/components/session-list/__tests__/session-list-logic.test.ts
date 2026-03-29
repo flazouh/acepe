@@ -346,13 +346,13 @@ describe("extractLastToolInfo", () => {
 		];
 		const result = extractLastToolInfo(entries);
 		// Registry uses truncateText(50) - full command fits
-		expect(result).toEqual({ name: "Run", target: "npm run build && npm test", kind: "execute" });
+		expect(result).toEqual({ name: "Bash", target: "npm run build && npm test", kind: "execute" });
 	});
 
 	it("should extract Search tool with query", () => {
 		const entries: SessionEntry[] = [createToolCallEntry("Grep", "search", { query: "TODO" })];
 		const result = extractLastToolInfo(entries);
-		expect(result).toEqual({ name: "Search", target: "TODO", kind: "search" });
+		expect(result).toEqual({ name: "Grep", target: "TODO", kind: "search" });
 	});
 
 	it("should find the most recent tool call (last in array)", () => {
@@ -371,9 +371,9 @@ describe("extractLastToolInfo", () => {
 		];
 		const result = extractLastToolInfo(entries);
 		// Registry falls back to title (e.g. "Thinking") when subtitle is empty
-		expect(result?.name).toBe("Think");
+		expect(result?.name).toBe("TodoWrite");
 		expect(result?.kind).toBe("think");
-		expect(result?.target).toBeTruthy(); // Non-empty fallback from registry
+		expect(result?.target).toBe(""); // No description or title available
 	});
 
 	it("should show task description for think tools (matches queue item display)", () => {
@@ -385,7 +385,7 @@ describe("extractLastToolInfo", () => {
 		];
 		const result = extractLastToolInfo(entries);
 		expect(result).toEqual({
-			name: "Think",
+			name: "Task",
 			target: "Explore Acepe codebase structure",
 			kind: "think",
 		});

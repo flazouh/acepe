@@ -324,6 +324,18 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		},
 	},
 
+	tool_search: {
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? m.tool_tool_search_running() : m.tool_tool_search_completed();
+		},
+		subtitle: (toolCall) => {
+			const query =
+				toolCall.arguments.kind === "toolSearch" ? toolCall.arguments.query : null;
+			return query ? truncateText(query, 40) : "";
+		},
+	},
+
 	task_output: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);

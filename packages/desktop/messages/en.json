@@ -640,6 +640,8 @@
 	"tool_exit_plan_mode_completed": "Plan ready",
 	"tool_create_plan_running": "Creating plan",
 	"tool_create_plan_completed": "Created plan",
+	"tool_tool_search_running": "Loading tools",
+	"tool_tool_search_completed": "Loaded tools",
 	"tool_move_running": "Moving",
 	"tool_move_completed": "Moved",
 	"tool_delete_running": "Deleting",

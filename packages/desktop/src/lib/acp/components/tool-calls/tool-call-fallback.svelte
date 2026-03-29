@@ -12,7 +12,7 @@ import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
 
-interface ToolCallSimpleProps {
+interface Props {
 	toolCall: ToolCall;
 	turnState?: TurnState;
 	isNested?: boolean;
@@ -20,7 +20,7 @@ interface ToolCallSimpleProps {
 	elapsedLabel?: string | null;
 }
 
-let { toolCall, turnState, elapsedLabel }: ToolCallSimpleProps = $props();
+let { toolCall, turnState, elapsedLabel }: Props = $props();
 
 // Get the tool kind directly from the toolCall
 const resolvedKind = $derived<ToolKind>(toolCall.kind ?? "other");

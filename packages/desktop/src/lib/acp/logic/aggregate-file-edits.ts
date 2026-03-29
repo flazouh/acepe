@@ -3,7 +3,6 @@ import type { EditEntry } from "../../services/converted-session-types.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ToolCall } from "../types/tool-call.js";
-import { TOOL_KINDS } from "../types/tool-kind.js";
 import { calculateDiffStats, getFileName } from "../utils/file-utils.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -111,7 +110,7 @@ type FileAccumulator = {
 export function aggregateFileEdits(entries: ReadonlyArray<SessionEntry>): ModifiedFilesState {
 	const fileMap = new Map<string, FileAccumulator>();
 	const allToolCalls = collectAllToolCalls(entries);
-	const editToolCalls = allToolCalls.filter((toolCall) => toolCall.kind === TOOL_KINDS.EDIT);
+	const editToolCalls = allToolCalls.filter((toolCall) => toolCall.kind === "edit");
 	let validEditToolCallCount = 0;
 
 	for (const toolCall of editToolCalls) {

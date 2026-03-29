@@ -78,7 +78,6 @@ function buildOrderBy(sort: string) {
 			return desc(reports.commentCount);
 		case 'trending':
 			return sql`(${reports.upvoteCount} - ${reports.downvoteCount}) / pow(extract(epoch from now() - ${reports.createdAt}) / 3600 + 2, 1.8) desc`;
-		case 'newest':
 		default:
 			return desc(reports.createdAt);
 	}

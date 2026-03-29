@@ -9,7 +9,7 @@ import type { ToolKind } from "../../types/tool-kind.js";
 import { mergePermissionArgs } from "../../utils/merge-permission-args.js";
 import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
 import PermissionActionBar from "./permission-action-bar.svelte";
-// Collapsible tool components - each kind has its own dedicated component
+// Dedicated tool components - each kind has its own component
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
@@ -21,13 +21,14 @@ import ToolCallQuestion from "./tool-call-question.svelte";
 import ToolCallRead from "./tool-call-read.svelte";
 import ToolCallReadLints from "./tool-call-read-lints.svelte";
 import ToolCallSearch from "./tool-call-search.svelte";
-import ToolCallSimple from "./tool-call-simple.svelte";
 import ToolCallSkill from "./tool-call-skill.svelte";
 import ToolCallTask from "./tool-call-task.svelte";
 import ToolCallTaskOutput from "./tool-call-task-output.svelte";
 import ToolCallThink from "./tool-call-think.svelte";
 import ToolCallTodo from "./tool-call-todo.svelte";
+import ToolCallToolSearch from "./tool-call-tool-search.svelte";
 import ToolCallWebSearch from "./tool-call-web-search.svelte";
+import ToolCallFallback from "./tool-call-fallback.svelte";
 
 /**
  * Props for tool call components.
@@ -43,7 +44,7 @@ type ToolComponentProps = {
 /**
  * Kind → Component mapping for tools with dedicated components.
  * Each kind routes directly to its dedicated component.
- * Tools not listed here use ToolCallSimple.
+ * Tools not listed here use ToolCallFallback.
  */
 /** Kinds whose dedicated components render their own permission UI. */
 const SELF_MANAGED_PERMISSIONS: ReadonlySet<ToolKind> = new Set(["exit_plan_mode"]);
@@ -67,6 +68,7 @@ const DEDICATED_COMPONENTS: Partial<Record<ToolKind, Component<ToolComponentProp
 	task: ToolCallTask,
 	task_output: ToolCallTaskOutput,
 	skill: ToolCallSkill,
+	tool_search: ToolCallToolSearch,
 };
 
 interface Props {
@@ -99,7 +101,7 @@ const enrichedToolCall = $derived<ToolCall>({
 	arguments: mergePermissionArgs(toolCall.arguments, pendingPermission),
 });
 
-// Get the component: dedicated by kind, with special case for Read Lints, else ToolCallSimple
+// Get the component: dedicated by kind, with special case for Read Lints, else ToolCallFallback
 const ToolComponent = $derived.by(() => {
 	if (
 		resolvedKind === "read" &&
@@ -107,7 +109,7 @@ const ToolComponent = $derived.by(() => {
 	) {
 		return ToolCallReadLints;
 	}
-	return DEDICATED_COMPONENTS[resolvedKind] ?? ToolCallSimple;
+	return DEDICATED_COMPONENTS[resolvedKind] ?? ToolCallFallback;
 });
 
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
