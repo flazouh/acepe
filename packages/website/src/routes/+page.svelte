@@ -11,7 +11,6 @@ import { SqlStudioDataGrid } from "@acepe/ui/sql-studio";
 import { SectionedFeed, ActivityEntry } from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
-import WaitlistInline from "$lib/components/waitlist-inline.svelte";
 import logo from "$lib/assets/favicon.svg";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 import {
@@ -348,21 +347,17 @@ const features = [
 				</p>
 
 				<div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-					{#if data.featureFlags.downloadEnabled}
-						<PillButton
-							href="/download"
-							variant="invert"
-							size="default"
-							class="h-11 py-1.5 pr-1.5 pl-5"
-						>
-							<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
-							{#snippet trailingIcon()}
-								<ArrowRightIcon size="lg" />
-							{/snippet}
-						</PillButton>
-					{:else}
-						<WaitlistInline ctaVariant="waitlist" />
-					{/if}
+					<PillButton
+						href="/download"
+						variant="invert"
+						size="default"
+						class="h-11 py-1.5 pr-1.5 pl-5"
+					>
+						<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
+						{#snippet trailingIcon()}
+							<ArrowRightIcon size="lg" />
+						{/snippet}
+					</PillButton>
 				</div>
 			</div>
 		</section>
@@ -635,21 +630,17 @@ const features = [
 				<p class="mb-8 max-w-[500px] whitespace-pre-line text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
 					{m.landing_cta_description()}
 				</p>
-				{#if data.featureFlags.downloadEnabled}
-					<PillButton
-						href="/download"
-						variant="invert"
-						size="default"
-						class="h-11 py-1.5 pr-1.5 pl-5"
-					>
-						<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
-						{#snippet trailingIcon()}
-							<ArrowRightIcon size="lg" />
-						{/snippet}
-					</PillButton>
-				{:else}
-					<WaitlistInline ctaVariant="waitlist" />
-				{/if}
+				<PillButton
+					href="/download"
+					variant="invert"
+					size="default"
+					class="h-11 py-1.5 pr-1.5 pl-5"
+				>
+					<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
+					{#snippet trailingIcon()}
+						<ArrowRightIcon size="lg" />
+					{/snippet}
+				</PillButton>
 			</div>
 		</section>
 	</main>

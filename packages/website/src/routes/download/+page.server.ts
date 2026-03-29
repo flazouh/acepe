@@ -1,5 +1,4 @@
 import { dev } from '$app/environment';
-import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/flazouh/acepe/releases/latest';
@@ -25,13 +24,7 @@ function getDownloadUrl(version: string | null): string {
 	return `${GITHUB_RELEASES_BASE_URL}/download/v${version}/Acepe_${version}_aarch64.dmg`;
 }
 
-export const load: PageServerLoad = async ({ parent }) => {
-	const { featureFlags } = await parent();
-
-	if (!dev && !featureFlags.downloadEnabled) {
-		throw redirect(302, '/');
-	}
-
+export const load: PageServerLoad = async () => {
 	const version = await getLatestVersion();
 
 	return {

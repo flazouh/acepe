@@ -10,7 +10,7 @@
 	const faqItems = [
 		{ q: 'Is the free plan really free?', a: "Yes. The desktop app, local agent sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are all free. No trial, no time limit." },
 		{ q: 'What are cloud agents?', a: 'They let you run coding sessions on remote machines. Queue up work, close your laptop, check results later. Your local Acepe app connects to them automatically.' },
-		{ q: 'When will Premium launch?', a: "We're building the cloud infrastructure now. Join the waitlist and we'll email you when it's ready." },
+		{ q: 'When will Premium launch?', a: "We're building the cloud infrastructure now. We'll announce Premium availability on the site, changelog, and GitHub releases." },
 		{ q: 'Do I need a separate subscription?', a: "No. Acepe works with agents you already have. If you have a Claude Code or Cursor subscription, just connect it. Acepe picks up your existing authentication automatically." },
 		{ q: 'Which agents does Acepe support?', a: "Claude Code, Codex, Cursor Agent, and OpenCode. You can run any of them side by side, or all at once." },
 		{ q: 'Can I use Acepe with my own custom agent?', a: "If your agent runs in a terminal, it works in Acepe. We plan to add a plugin system for deeper integrations." },

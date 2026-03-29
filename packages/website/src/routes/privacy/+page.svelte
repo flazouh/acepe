@@ -9,8 +9,8 @@
 			title: 'What We Collect',
 			items: [
 				{
-					label: 'Waitlist',
-					body: 'If you join the waitlist, we store your email address and the timestamp of your signup. We use this solely to notify you when Acepe is available. We do not sell or share this data with third parties.',
+					label: 'Website usage',
+					body: 'The website itself does not collect account data, mailing-list signups, or personal profile information. If you download the app or follow external links, those providers may process request metadata such as IP addresses and timestamps.',
 				},
 				{
 					label: 'Analytics',
@@ -28,7 +28,7 @@
 			items: [
 				{
 					label: 'Retention',
-					body: 'Waitlist emails are stored in a database hosted on infrastructure we control. We retain this data only as long as it is needed to contact you about the product.',
+					body: 'We store only the minimum operational data needed to run the website and its product surfaces. We do not maintain a mailing-list or email-confirmation datastore for the marketing site.',
 				},
 			],
 		},
@@ -38,7 +38,7 @@
 			items: [
 				{
 					label: 'Deletion',
-					body: 'You can request deletion of your waitlist entry at any time by emailing us. We will remove your data within 7 days.',
+					body: 'If you believe we are retaining personal data beyond what is necessary for operating the site or app, contact us through GitHub and we will investigate and remove it where appropriate.',
 				},
 			],
 		},

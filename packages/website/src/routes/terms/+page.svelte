@@ -66,7 +66,7 @@
 			items: [
 				{
 					label: 'Beta period',
-					body: 'The acepe.dev website, waitlist, and associated services are operated as-is during the beta period. We reserve the right to modify or discontinue any service at any time without notice.',
+					body: 'The acepe.dev website and associated services are operated as-is during the beta period. We reserve the right to modify or discontinue any service at any time without notice.',
 				},
 				{
 					label: 'Changes',
