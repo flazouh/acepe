@@ -513,8 +513,6 @@
 							agentIconSrc="/svgs/agents/claude/claude-icon-dark.svg"
 							sessionStatus={p1Status}
 							iconBasePath="/svgs/icons"
-							inputMode="build"
-							inputModel="claude-sonnet-4-6"
 						/>
 					</div>
 					<div
@@ -528,8 +526,6 @@
 							agentIconSrc="/svgs/agents/codex/codex-icon-dark.svg"
 							sessionStatus={p2Status}
 							iconBasePath="/svgs/icons"
-							inputMode="build"
-							inputModel="o4-mini"
 						/>
 					</div>
 					<div
@@ -543,8 +539,6 @@
 							agentIconSrc="/svgs/agents/opencode/opencode-logo-dark.svg"
 							sessionStatus={p3Status}
 							iconBasePath="/svgs/icons"
-							inputMode="build"
-							inputModel="deepseek-r1"
 						/>
 					</div>
 				</ProjectCard>

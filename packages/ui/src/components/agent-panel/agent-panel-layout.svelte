@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { Snippet } from "svelte";
+
 	import type { AnyAgentEntry, AgentSessionStatus } from "./types.js";
 	import AgentPanelHeader from "./agent-panel-header.svelte";
 	import AgentUserMessage from "./agent-user-message.svelte";
@@ -9,7 +11,6 @@
 	import AgentToolFetch from "./agent-tool-fetch.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
-	import AgentInputStub from "./agent-input-stub.svelte";
 	import { TextShimmer } from "../text-shimmer/index.js";
 
 	interface Props {
@@ -22,12 +23,8 @@
 		onClose?: () => void;
 		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
-		/** Current mode shown in the input toolbar */
-		inputMode?: "build" | "plan";
-		/** Model name shown in the input toolbar */
-		inputModel?: string;
-		/** Placeholder in the input area */
-		inputPlaceholder?: string;
+		/** Real agent input chrome (desktop: compose `agent-input-ui` here). Omit for message-only layouts. */
+		inputArea?: Snippet;
 	}
 
 	let {
@@ -39,9 +36,7 @@
 		sessionStatus = "empty",
 		onClose,
 		iconBasePath = "",
-		inputMode = "build",
-		inputModel = "claude-sonnet-4-6",
-		inputPlaceholder = "Message Acepe…",
+		inputArea,
 	}: Props = $props();
 
 	let scrollContainer: HTMLDivElement | null = $state(null);
@@ -137,10 +132,7 @@
 		{/each}
 	</div>
 
-	<!-- Input area — mirrors agent-input-ui.svelte structure -->
-	<AgentInputStub
-		placeholder={inputPlaceholder}
-		mode={inputMode}
-		model={inputModel}
-	/>
+	{#if inputArea}
+		{@render inputArea()}
+	{/if}
 </div>
