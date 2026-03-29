@@ -41,7 +41,6 @@ function buildOrderBy(sort: string) {
 			return asc(reportComments.createdAt);
 		case 'most_upvoted':
 			return desc(reportComments.upvoteCount);
-		case 'newest':
 		default:
 			return desc(reportComments.createdAt);
 	}
