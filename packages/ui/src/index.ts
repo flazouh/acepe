@@ -18,7 +18,6 @@ export type {
 // Agent panel components
 export {
 	AgentAssistantMessage,
-	AgentInputStub,
 	AgentPanelHeader,
 	AgentPanelLayout,
 	AgentPanelStatusIcon,
