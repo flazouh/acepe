@@ -99,12 +99,10 @@
 				<div class="flex flex-col gap-0.5 p-1 pt-0">
 					{#each groups as group, i (group.id)}
 						{#if group.items.length > 0 || emptyHint}
-							<div class="section-card flex overflow-hidden rounded-lg border border-border/50 bg-card/20">
-								<!-- Left pipe -->
-								<div
-									class="w-[3px] shrink-0 self-stretch rounded-full my-0.5 ml-0.5"
-									style="background-color: {sectionColor(group.id)};"
-								></div>
+							<div 
+								class="section-card flex overflow-hidden rounded-lg border border-border/50 bg-card/20 border-l-[3px]"
+								style="border-left-color: {sectionColor(group.id)};"
+							>
 
 								<!-- Section content -->
 								<div class="flex min-w-0 flex-1 flex-col">
