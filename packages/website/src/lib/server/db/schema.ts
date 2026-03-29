@@ -1,23 +1,6 @@
 import { pgTable, pgEnum, text, timestamp, boolean, index, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-export const waitlistEntries = pgTable(
-	'waitlist_entries',
-	{
-		id: text('id').primaryKey(),
-		email: text('email').notNull().unique(),
-		locale: text('locale').notNull().default('en'),
-		confirmationToken: text('confirmation_token').notNull().unique(),
-		emailConfirmed: boolean('email_confirmed').notNull().default(false),
-		createdAt: timestamp('created_at').notNull().defaultNow(),
-		confirmedAt: timestamp('confirmed_at')
-	},
-	(table) => ({
-		emailIdx: index('email_idx').on(table.email),
-		confirmationTokenIdx: index('confirmation_token_idx').on(table.confirmationToken)
-	})
-);
-
 export const users = pgTable('users', {
 	id: text('id').primaryKey(),
 	email: text('email').notNull().unique(),
