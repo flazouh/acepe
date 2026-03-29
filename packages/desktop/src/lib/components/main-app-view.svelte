@@ -438,6 +438,65 @@ let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
 let showUpdateAvailable = $state(false);
 let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
+let devUpdateStartTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+let devUpdateStepTimer = $state<ReturnType<typeof setInterval> | null>(null);
+
+const DEV_UPDATE_VERSION = "0.0.0-dev";
+const DEV_UPDATE_TOTAL_BYTES = 48 * 1024 * 1024;
+const DEV_UPDATE_STEP_BYTES = 3 * 1024 * 1024;
+const DEV_UPDATE_START_DELAY_MS = 700;
+const DEV_UPDATE_STEP_DELAY_MS = 180;
+
+function clearDevUpdateSimulation(): void {
+	if (devUpdateStartTimer) {
+		clearTimeout(devUpdateStartTimer);
+		devUpdateStartTimer = null;
+	}
+	if (devUpdateStepTimer) {
+		clearInterval(devUpdateStepTimer);
+		devUpdateStepTimer = null;
+	}
+}
+
+function startDevUpdateSimulation(): void {
+	clearDevUpdateSimulation();
+	showUpdateAvailable = true;
+	updaterState = createCheckingUpdaterState();
+
+	devUpdateStartTimer = setTimeout(() => {
+		devUpdateStartTimer = null;
+		updaterState = {
+			kind: "downloading",
+			version: DEV_UPDATE_VERSION,
+			downloadedBytes: 0,
+			totalBytes: DEV_UPDATE_TOTAL_BYTES,
+		};
+
+		devUpdateStepTimer = setInterval(() => {
+			if (updaterState.kind !== "downloading") {
+				clearDevUpdateSimulation();
+				return;
+			}
+
+			const nextDownloadedBytes = Math.min(
+				updaterState.downloadedBytes + DEV_UPDATE_STEP_BYTES,
+				DEV_UPDATE_TOTAL_BYTES
+			);
+
+			updaterState = {
+				kind: "downloading",
+				version: updaterState.version,
+				downloadedBytes: nextDownloadedBytes,
+				totalBytes: DEV_UPDATE_TOTAL_BYTES,
+			};
+
+			if (nextDownloadedBytes >= DEV_UPDATE_TOTAL_BYTES) {
+				clearInterval(devUpdateStepTimer);
+				devUpdateStepTimer = null;
+			}
+		}, DEV_UPDATE_STEP_DELAY_MS);
+	}, DEV_UPDATE_START_DELAY_MS);
+}
 
 // Register urgency jump handler (Cmd+J)
 kb.upsertAction({
@@ -510,6 +569,7 @@ async function checkForAppUpdate(): Promise<void> {
 		availableUpdate = null;
 		if (updaterState.kind !== "error") {
 			updaterState = createIdleUpdaterState();
+			showUpdateAvailable = false;
 		}
 		playSound(SoundEffect.AppStartFinish);
 		return;
@@ -519,7 +579,7 @@ async function checkForAppUpdate(): Promise<void> {
 	logger.info("Update available", { version: result.version });
 	updaterState = createAvailableUpdaterState(result.version);
 	showUpdateAvailable = true;
-	playSound(SoundEffect.AppStartFinish);
+	void installAvailableUpdate();
 }
 
 async function installAvailableUpdate(): Promise<void> {
@@ -564,12 +624,12 @@ onMount(async () => {
 		});
 
 	if (import.meta.env.DEV) {
-		updaterState = createAvailableUpdaterState("0.0.0-dev");
-		showUpdateAvailable = true;
+		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
+		playSound(SoundEffect.AppStartFinish);
 	} else {
 		await checkForAppUpdate();
 		updatePollTimer = setInterval(() => {
-			if (updaterState.kind === "downloading") {
+			if (updaterState.kind === "downloading" || showUpdateAvailable) {
 				return;
 			}
 			void checkForAppUpdate();
@@ -756,6 +816,7 @@ onDestroy(() => {
 	if (updatePollTimer) {
 		clearInterval(updatePollTimer);
 	}
+	clearDevUpdateSimulation();
 });
 </script>
 
@@ -771,6 +832,9 @@ onDestroy(() => {
 				}}
 				onRetryUpdateClick={() => {
 					void checkForAppUpdate();
+				}}
+				onDevShowUpdatePage={() => {
+					startDevUpdateSimulation();
 				}}
 			>
 				{#snippet addProjectButton()}
@@ -954,23 +1018,28 @@ onDestroy(() => {
 		</div>
 	{/if}
 
-	<!-- Update Available (shows on app open when an update is found) -->
-	{#if showUpdateAvailable && updaterState.kind === "available"}
+	<!-- Auto-update overlay (shows during checking, downloading, error) -->
+	{#if showUpdateAvailable && updaterState.kind !== "idle"}
 		<div
 			class="fixed inset-0 z-[9998]"
 			role="dialog"
 			aria-modal="true"
-			aria-label={m.update_available_title()}
+			aria-label={m.update_downloading()}
 		>
 			<UpdateAvailablePage
-				version={updaterState.version}
-				onInstall={() => {
-					showUpdateAvailable = false;
-					void installAvailableUpdate();
+				updaterState={updaterState}
+				onRetry={() => {
+					if (import.meta.env.DEV) {
+						startDevUpdateSimulation();
+						return;
+					}
+					void checkForAppUpdate();
 				}}
-				onSkip={() => {
+				onDismiss={import.meta.env.DEV ? () => {
+					clearDevUpdateSimulation();
 					showUpdateAvailable = false;
-				}}
+					updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
+				} : undefined}
 			/>
 		</div>
 	{/if}

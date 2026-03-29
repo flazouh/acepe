@@ -15,6 +15,7 @@ import Sidebar from "phosphor-svelte/lib/Sidebar";
 import SlidersHorizontal from "phosphor-svelte/lib/SlidersHorizontal";
 import Square from "phosphor-svelte/lib/Square";
 import SquaresFour from "phosphor-svelte/lib/SquaresFour";
+import Wrench from "phosphor-svelte/lib/Wrench";
 import type { Snippet } from "svelte";
 import { getPanelStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
@@ -32,9 +33,17 @@ interface Props {
 	updaterState?: UpdaterBannerState;
 	onUpdateClick?: () => void;
 	onRetryUpdateClick?: () => void;
+	onDevShowUpdatePage?: () => void;
 }
 
-let { viewState, addProjectButton, updaterState, onUpdateClick, onRetryUpdateClick }: Props = $props();
+let {
+	viewState,
+	addProjectButton,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+	onDevShowUpdatePage,
+}: Props = $props();
 
 const panelStore = getPanelStore();
 
@@ -207,6 +216,38 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 		<HeaderCell withDivider={false}>
 			<ThemeToggle />
 		</HeaderCell>
+		{#if import.meta.env.DEV && onDevShowUpdatePage}
+			<HeaderCell withDivider={false}>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									<EmbeddedIconButton {...props} title="Dev Tools" ariaLabel="Dev Tools">
+										<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+									</EmbeddedIconButton>
+								</Tooltip.Trigger>
+								<Tooltip.Content>Dev Tools</Tooltip.Content>
+							</Tooltip.Root>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="min-w-[160px] p-0 text-[11px]">
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading
+								class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
+							>Dev Overlays</DropdownMenu.GroupHeading>
+							<DropdownMenu.Item
+								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
+								onclick={onDevShowUpdatePage}
+							>
+								<DownloadSimple class="size-4" weight="fill" />
+								<span>Update Page</span>
+							</DropdownMenu.Item>
+						</DropdownMenu.Group>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			</HeaderCell>
+		{/if}
 		<HeaderCell withDivider={false}>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
