@@ -40,6 +40,8 @@
 			: null
 	);
 
+	const isInstalling = $derived(downloadPercent !== null && downloadPercent >= 100);
+
 	function formatBytes(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -151,7 +153,7 @@
 				<div class="flex flex-col gap-5">
 					<div class="flex items-baseline justify-between">
 						<TextShimmer class="text-[15px] font-medium text-foreground">
-							{m.update_downloading()}
+							{isInstalling ? m.update_installing() : m.update_downloading()}
 						</TextShimmer>
 						{#if downloadPercent !== null}
 							<span class="text-xs tabular-nums text-muted-foreground/50">{downloadPercent}%</span>
@@ -159,7 +161,7 @@
 					</div>
 
 					<VoiceDownloadProgress
-						ariaLabel={m.update_downloading()}
+						ariaLabel={isInstalling ? m.update_installing() : m.update_downloading()}
 						compact={false}
 						fillWidth={true}
 						label=""

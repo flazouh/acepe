@@ -8,6 +8,8 @@ export type UpdaterBannerState =
 	| { kind: "downloading"; version: string; downloadedBytes: number; totalBytes: number | undefined }
 	| { kind: "error"; message: string };
 
+export type UpdaterPrimaryAction = "install" | "simulate";
+
 export function createCheckingUpdaterState(): UpdaterBannerState {
 	return { kind: "checking" };
 }
@@ -30,6 +32,15 @@ export function createDownloadingUpdaterState(version: string): UpdaterBannerSta
 		version,
 		downloadedBytes: 0,
 		totalBytes: undefined,
+	};
+}
+
+export function createInstallingUpdaterState(version: string): UpdaterBannerState {
+	return {
+		kind: "downloading",
+		version,
+		downloadedBytes: 1,
+		totalBytes: 1,
 	};
 }
 
@@ -82,4 +93,15 @@ export function getUpdaterActionLabel(state: UpdaterBannerState): string | null 
 		return `Updating ${state.version}`;
 	}
 	return null;
+}
+
+export function getUpdaterPrimaryAction(
+	isDev: boolean,
+	hasAvailableUpdatePayload: boolean
+): UpdaterPrimaryAction {
+	if (isDev && !hasAvailableUpdatePayload) {
+		return "simulate";
+	}
+
+	return "install";
 }

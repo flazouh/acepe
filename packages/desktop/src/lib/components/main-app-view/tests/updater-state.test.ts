@@ -5,6 +5,8 @@ import {
 	createAvailableUpdaterState,
 	createCheckingUpdaterState,
 	createDownloadingUpdaterState,
+	createInstallingUpdaterState,
+	getUpdaterPrimaryAction,
 	getUpdaterActionLabel,
 	getUpdaterStatusLabel,
 } from "../logic/updater-state.js";
@@ -30,5 +32,21 @@ describe("updater-state", () => {
 
 		expect(getUpdaterActionLabel(progressed)).toBe("Updating 1.2.3");
 		expect(getUpdaterStatusLabel(progressed)).toBe("Downloading 25%");
+	});
+
+	it("represents install-in-progress as a completed download", () => {
+		const installing = createInstallingUpdaterState("1.2.3");
+
+		expect(getUpdaterActionLabel(installing)).toBe("Updating 1.2.3");
+		expect(getUpdaterStatusLabel(installing)).toBe("Downloading 100%");
+	});
+
+	it("uses the dev simulation action when no update payload exists", () => {
+		expect(getUpdaterPrimaryAction(true, false)).toBe("simulate");
+	});
+
+	it("uses the install action when a real update payload exists", () => {
+		expect(getUpdaterPrimaryAction(true, true)).toBe("install");
+		expect(getUpdaterPrimaryAction(false, false)).toBe("install");
 	});
 });

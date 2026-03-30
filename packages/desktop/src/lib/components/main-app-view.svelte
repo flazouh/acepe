@@ -81,8 +81,14 @@ import {
 	createErrorUpdaterState,
 	createIdleUpdaterState,
 	createDownloadingUpdaterState,
+	createInstallingUpdaterState,
+	getUpdaterPrimaryAction,
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
+import {
+	installDownloadedUpdate,
+	predownloadUpdate,
+} from "./main-app-view/logic/updater-workflow.js";
 import { getQuestionToolCallBackfill } from "./main-app-view/question-tool-sync.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
@@ -583,9 +589,30 @@ async function checkForAppUpdate(): Promise<void> {
 
 	availableUpdate = result;
 	logger.info("Update available", { version: result.version });
-	updaterState = createAvailableUpdaterState(result.version);
+	void predownloadAvailableUpdate();
+}
+
+async function predownloadAvailableUpdate(): Promise<void> {
+	if (!availableUpdate) {
+		return;
+	}
+
 	showUpdateAvailable = true;
-	void installAvailableUpdate();
+	updaterState = createDownloadingUpdaterState(availableUpdate.version);
+	await predownloadUpdate(availableUpdate, (event: DownloadEvent) => {
+		updaterState = applyUpdaterDownloadEvent(updaterState, event);
+	}).match(
+		(version) => {
+			logger.info("Update download finished", { version });
+			updaterState = createAvailableUpdaterState(version);
+			showUpdateAvailable = false;
+		},
+		(error) => {
+			availableUpdate = null;
+			updaterState = createErrorUpdaterState(error.message);
+			logger.error("Update download failed", { error: error.message });
+		}
+	);
 }
 
 async function installAvailableUpdate(): Promise<void> {
@@ -593,25 +620,16 @@ async function installAvailableUpdate(): Promise<void> {
 		return;
 	}
 
-	updaterState = createDownloadingUpdaterState(availableUpdate.version);
-	await ResultAsync.fromPromise(
-		availableUpdate.downloadAndInstall((event: DownloadEvent) => {
-			updaterState = applyUpdaterDownloadEvent(updaterState, event);
-			if (event.event === "Finished") {
-				logger.info("Download finished, relaunching...");
-			}
-		}),
-		(e) => e as Error
-	)
-		.andThen(() => ResultAsync.fromPromise(relaunch(), (e) => e as Error))
-		.match(
-			() => undefined,
-			(error) => {
-				availableUpdate = null;
-				updaterState = createErrorUpdaterState(error.message);
-				logger.error("Update install failed", { error: error.message });
-			}
-		);
+	showUpdateAvailable = true;
+	updaterState = createInstallingUpdaterState(availableUpdate.version);
+	await installDownloadedUpdate(availableUpdate, relaunch).match(
+		() => undefined,
+		(error) => {
+			availableUpdate = null;
+			updaterState = createErrorUpdaterState(error.message);
+			logger.error("Update install failed", { error: error.message });
+		}
+	);
 }
 
 // Initialize on mount
@@ -635,7 +653,7 @@ onMount(async () => {
 		await checkForAppUpdate();
 		updatePollTimer = setInterval(
 			() => {
-				if (updaterState.kind === "downloading" || showUpdateAvailable) {
+				if (updaterState.kind === "downloading" || showUpdateAvailable || availableUpdate !== null) {
 					return;
 				}
 				void checkForAppUpdate();
@@ -842,6 +860,10 @@ onDestroy(() => {
 				{viewState}
 				updaterState={updaterState}
 				onUpdateClick={() => {
+					if (getUpdaterPrimaryAction(import.meta.env.DEV, availableUpdate !== null) === "simulate") {
+						startDevUpdateSimulation();
+						return;
+					}
 					void installAvailableUpdate();
 				}}
 				onRetryUpdateClick={() => {
