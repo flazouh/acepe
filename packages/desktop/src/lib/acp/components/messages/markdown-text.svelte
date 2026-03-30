@@ -48,7 +48,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let { text, isStreaming: _isStreaming = false, projectPath: propProjectPath }: Props = $props();
+let { text, isStreaming = false, projectPath: propProjectPath }: Props = $props();
 
 // Use context projectPath if no prop provided, otherwise use prop (backward compatibility)
 const projectPath = $derived(propProjectPath ?? contextProjectPath);
@@ -64,7 +64,7 @@ let gitStatusByPath = $state<ReadonlyMap<string, FileGitStatus> | null>(null);
 let lastGitStatusRequestKey = "";
 
 // Fetch and cache repo context for enhancing commit badges
-let repoContext = $state<{ owner: string; repo: string } | null>(null);
+let repoContext = $state<RepoContext | null>(null);
 
 $effect(() => {
 	if (projectPath && !repoContext) {
@@ -91,26 +91,38 @@ let asyncHtml = $state<string | null>(null);
 let asyncError = $state<string | null>(null);
 let asyncPending = $state(false);
 
-// Track what text we've already triggered async for to prevent duplicate calls
-let lastAsyncText = "";
+// Track the latest async render request so stale completions cannot overwrite newer content.
+let lastAsyncRequestKey = "";
+
+function getAsyncRequestKey(textValue: string, currentRepoContext: RepoContext | null): string {
+	if (!currentRepoContext) return `${textValue}::none`;
+	return `${textValue}::${currentRepoContext.owner}/${currentRepoContext.repo}`;
+}
 
 // Trigger async rendering when sync can't handle it - uses $effect
 $effect(() => {
 	const result = syncResult;
 	const currentText = text;
 	const currentRepoContext = repoContext;
+	const requestKey = getAsyncRequestKey(currentText, currentRepoContext);
 
-	if (result.needsAsync && !result.html && currentText !== lastAsyncText) {
-		lastAsyncText = currentText;
+	if (result.needsAsync && !result.html && requestKey !== lastAsyncRequestKey) {
+		lastAsyncRequestKey = requestKey;
 		asyncPending = true;
 		asyncError = null;
 
 		renderMarkdown(currentText, currentRepoContext ?? undefined).match(
 			(html) => {
+				if (lastAsyncRequestKey !== requestKey) {
+					return;
+				}
 				asyncHtml = html;
 				asyncPending = false;
 			},
 			(err) => {
+				if (lastAsyncRequestKey !== requestKey) {
+					return;
+				}
 				logger.error("Markdown rendering failed:", err);
 				asyncError = String(err);
 				asyncPending = false;
@@ -156,13 +168,16 @@ $effect(() => {
 });
 
 // Determine what to render
-const html = $derived(syncResult.html ?? asyncHtml ?? null);
+const visibleHtml = $derived.by(() => {
+	if (isStreaming) return null;
+	return syncResult.html ?? asyncHtml ?? null;
+});
 const error = $derived(asyncError);
 const isLoading = $derived(syncResult.needsAsync && asyncPending);
 
 // Parse content blocks from HTML (extracts mermaid, github badges, etc.)
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
-const contentBlocks = $derived(html ? parseContentBlocks(html) : []);
+const contentBlocks = $derived(visibleHtml ? parseContentBlocks(visibleHtml) : []);
 const hasSpecialBlocks = $derived(contentBlocks.some((block) => block.type !== "html"));
 
 // Mount FilePathBadge and GitHubBadge Svelte components into inline placeholder <span>s after DOM render.
@@ -170,12 +185,12 @@ const hasSpecialBlocks = $derived(contentBlocks.some((block) => block.type !== "
 $effect(() => {
 	const container = markdownContainerRef;
 	// Track these so the effect re-runs when html or diff stats change
-	void html;
+	void visibleHtml;
 	const currentGitStatus = gitStatusByPath;
 	const currentModifiedFiles = mergedModifiedFilesState;
 	const currentRepoContext = repoContext;
 
-	if (!container) return;
+	if (!container || isStreaming || !visibleHtml) return;
 
 	const cleanupFile = mountFileBadges(container, (filePath) =>
 		resolveDiffStatsForFilePath(filePath, {
@@ -293,7 +308,7 @@ function handleKeydown(event: KeyboardEvent) {
 		<p>{m.markdown_render_error({ error })}</p>
 		<p class="whitespace-pre-wrap mt-2">{text}</p>
 	</div>
-{:else if html}
+{:else if visibleHtml}
 	{#if hasSpecialBlocks}
 		<!-- Content with mermaid diagrams - render blocks separately -->
 		<div
@@ -316,10 +331,10 @@ function handleKeydown(event: KeyboardEvent) {
 			onclick={handleClick}
 			onkeydown={handleKeydown}
 		>
-			{@html html}
+			{@html visibleHtml}
 		</div>
 	{/if}
-{:else if isLoading}
+{:else if isLoading || isStreaming}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
 	<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap leading-relaxed">
 		{text}
