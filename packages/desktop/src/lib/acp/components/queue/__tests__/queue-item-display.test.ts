@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
-import { getTaskSubagentSummaries } from "../queue-item-display.js";
+import {
+	getQueueItemToolDisplay,
+	getTaskSubagentSummaries,
+	type QueueItemToolDisplayInput,
+} from "../queue-item-display.js";
 
 function createTaskToolCall(children: ToolCall[]): ToolCall {
 	return {
@@ -26,6 +30,33 @@ function createSubagentChild(id: string, description: string): ToolCall {
 	};
 }
 
+function createReadToolCall(id: string, status: ToolCall["status"]): ToolCall {
+	return {
+		id,
+		name: "Read",
+		kind: "read",
+		arguments: {
+			kind: "read",
+			file_path: `/repo/${id}.ts`,
+		},
+		status,
+		awaitingPlanApproval: false,
+	};
+}
+
+function createToolDisplayInput(
+	overrides: Partial<QueueItemToolDisplayInput> = {}
+): QueueItemToolDisplayInput {
+	return {
+		activityKind: "idle",
+		currentStreamingToolCall: null,
+		currentToolKind: null,
+		lastToolCall: null,
+		lastToolKind: null,
+		...overrides,
+	};
+}
+
 describe("getTaskSubagentSummaries", () => {
 	it("returns all child subagent descriptions for task tools", () => {
 		const taskTool = createTaskToolCall([
@@ -47,5 +78,61 @@ describe("getTaskSubagentSummaries", () => {
 		const taskTool = createTaskToolCall([]);
 
 		expect(getTaskSubagentSummaries(taskTool)).toEqual([]);
+	});
+});
+
+describe("getQueueItemToolDisplay", () => {
+	it("falls back to the last completed tool when no live tool is streaming", () => {
+		const lastToolCall = createReadToolCall("last-tool", "completed");
+
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "streaming",
+				lastToolCall,
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toEqual({
+			toolCall: lastToolCall,
+			toolKind: "read",
+			isStreaming: false,
+			turnState: "completed",
+		});
+	});
+
+	it("suppresses tool display while the session is planning next moves", () => {
+		const lastToolCall = createReadToolCall("last-tool", "completed");
+
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "thinking",
+				lastToolCall,
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toBeNull();
+	});
+
+	it("marks the displayed tool as streaming when it matches the live tool", () => {
+		const liveToolCall = createReadToolCall("live-tool", "in_progress");
+
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "streaming",
+				currentStreamingToolCall: liveToolCall,
+				currentToolKind: "read",
+				lastToolCall: liveToolCall,
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toEqual({
+			toolCall: liveToolCall,
+			toolKind: "read",
+			isStreaming: true,
+			turnState: "streaming",
+		});
 	});
 });

@@ -1,5 +1,44 @@
 import { getToolKindSubtitle, getToolKindTitle } from "../../registry/tool-kind-ui-registry.js";
 import type { ToolCall } from "../../types/tool-call.js";
+import type { ToolKind } from "../../types/tool-kind.js";
+
+export interface QueueItemToolDisplayInput {
+	readonly activityKind: "idle" | "thinking" | "streaming" | "paused";
+	readonly currentStreamingToolCall: ToolCall | null;
+	readonly currentToolKind: ToolKind | null;
+	readonly lastToolCall: ToolCall | null;
+	readonly lastToolKind: ToolKind | null;
+}
+
+export interface QueueItemToolDisplay {
+	readonly toolCall: ToolCall;
+	readonly toolKind: ToolKind;
+	readonly isStreaming: boolean;
+	readonly turnState: "streaming" | "completed";
+}
+
+export function getQueueItemToolDisplay(
+	input: QueueItemToolDisplayInput
+): QueueItemToolDisplay | null {
+	if (input.activityKind === "thinking") {
+		return null;
+	}
+
+	if (!input.lastToolCall || !input.lastToolKind) {
+		return null;
+	}
+
+	const isStreaming =
+		input.currentStreamingToolCall?.id === input.lastToolCall.id &&
+		input.currentToolKind === input.lastToolKind;
+
+	return {
+		toolCall: input.lastToolCall,
+		toolKind: input.lastToolKind,
+		isStreaming,
+		turnState: isStreaming ? "streaming" : "completed",
+	};
+}
 
 function getChildSummary(child: ToolCall): string | null {
 	if (child.arguments.kind === "think" && child.arguments.description) {

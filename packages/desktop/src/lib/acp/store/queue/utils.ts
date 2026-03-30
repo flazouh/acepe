@@ -89,6 +89,20 @@ function computeSessionDiffStats(session: QueueSessionSnapshot): {
  */
 export type ProjectColorLookup = (projectPath: string) => string | null;
 
+function getQueueConnectionState(
+	session: QueueSessionSnapshot
+): ReturnType<typeof statusToConnectionState> {
+	if (session.isThinking) {
+		return "awaitingResponse";
+	}
+
+	if (session.isStreaming) {
+		return "streaming";
+	}
+
+	return statusToConnectionState(session.status);
+}
+
 /**
  * Build a QueueItem from session data.
  */
@@ -116,7 +130,7 @@ export function buildQueueItem(
 
 	// Compute the unified session state
 	const state = deriveSessionState({
-		connectionState: statusToConnectionState(session.status),
+		connectionState: getQueueConnectionState(session),
 		modeId: session.currentModeId,
 		tool: currentStreamingToolCall,
 		pendingQuestion,

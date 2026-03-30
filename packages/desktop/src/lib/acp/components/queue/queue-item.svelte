@@ -34,7 +34,7 @@ import {
 	extractPermissionCommand,
 	extractPermissionFilePath,
 } from "../tool-calls/permission-display.js";
-import { getTaskSubagentSummaries } from "./queue-item-display.js";
+import { getQueueItemToolDisplay, getTaskSubagentSummaries } from "./queue-item-display.js";
 import {
 	buildQueueItemQuestionUiState,
 	type QuestionSelectionReader,
@@ -73,7 +73,6 @@ const selectionReader: QuestionSelectionReader = {
 	},
 };
 
-const isStreaming = $derived(item.state.activity.kind === "streaming");
 const hasPendingQuestion = $derived(item.state.pendingInput.kind === "question");
 const hasPendingPermission = $derived(item.state.pendingInput.kind === "permission");
 
@@ -184,16 +183,22 @@ const statusText = $derived.by(() => {
 
 const showShimmer = $derived(isThinking && !hasPendingQuestion);
 
-const effectiveToolCall = $derived(isStreaming ? item.currentStreamingToolCall : null);
-const effectiveToolKind = $derived(isStreaming ? item.currentToolKind : null);
+const toolDisplay = $derived.by(() =>
+	getQueueItemToolDisplay({
+		activityKind: item.state.activity.kind,
+		currentStreamingToolCall: item.currentStreamingToolCall,
+		currentToolKind: item.currentToolKind,
+		lastToolCall: item.lastToolCall,
+		lastToolKind: item.lastToolKind,
+	})
+);
+const displayedToolIsStreaming = $derived(toolDisplay?.isStreaming ?? false);
+const effectiveToolCall = $derived(toolDisplay?.toolCall ?? null);
+const effectiveToolKind = $derived(toolDisplay?.toolKind ?? null);
 
 const toolContent = $derived.by(() => {
-	if (!effectiveToolCall || !effectiveToolKind) return null;
-	return getToolCompactDisplayText(
-		effectiveToolKind,
-		effectiveToolCall,
-		isStreaming ? "streaming" : "completed"
-	);
+	if (!toolDisplay) return null;
+	return getToolCompactDisplayText(toolDisplay.toolKind, toolDisplay.toolCall, toolDisplay.turnState);
 });
 
 const toolFilePath = $derived.by(() => {
@@ -207,7 +212,7 @@ const isFileTool = $derived(
 	effectiveToolKind === "read" || effectiveToolKind === "edit" || effectiveToolKind === "delete"
 );
 const showToolShimmer = $derived(
-	(effectiveToolKind === "think" || effectiveToolKind === "task") && isStreaming
+	(effectiveToolKind === "think" || effectiveToolKind === "task") && displayedToolIsStreaming
 );
 
 const mode = $derived<ActivityEntryMode>(
@@ -252,14 +257,14 @@ const fileToolDisplayText = $derived.by(() => {
 	const fileName = toolFilePath.split("/").pop() ?? toolFilePath;
 	const verb =
 		effectiveToolKind === "read"
-			? isStreaming
+			? displayedToolIsStreaming
 				? m.tool_read_running()
 				: m.tool_read_completed()
 			: effectiveToolKind === "edit"
-				? isStreaming
+				? displayedToolIsStreaming
 					? m.tool_edit_running()
 					: m.tool_edit_completed()
-				: isStreaming
+				: displayedToolIsStreaming
 					? m.tool_delete_running()
 					: m.tool_delete_completed();
 	return `${verb} ${fileName}`;
@@ -460,7 +465,7 @@ function handleNextQuestion() {
 		deletions={item.deletions}
 		{projectBadge}
 		{agentBadge}
-		{isStreaming}
+		isStreaming={displayedToolIsStreaming}
 		{taskDescription}
 		{taskSubagentSummaries}
 		{showTaskSubagentList}
