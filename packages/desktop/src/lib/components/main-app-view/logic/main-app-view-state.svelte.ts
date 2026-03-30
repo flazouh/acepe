@@ -176,20 +176,36 @@ export class MainAppViewState {
 	// ============================================
 
 	/**
-	 * Whether any panel is in fullscreen mode.
+	 * Whether the app is showing the single-session fullscreen layout.
 	 */
 	get isFullscreen(): boolean {
-		return this.panelStore.fullscreenPanelId !== null;
+		return this.panelStore.viewMode === "single";
+	}
+
+	private getSingleModePanelId(): string | null {
+		const explicitFullscreenPanelId = this.panelStore.fullscreenPanelId;
+		if (explicitFullscreenPanelId && this.panelStore.getPanel(explicitFullscreenPanelId)) {
+			return explicitFullscreenPanelId;
+		}
+
+		const focusedPanelId = this.panelStore.focusedPanelId;
+		if (focusedPanelId && this.panelStore.getPanel(focusedPanelId)) {
+			return focusedPanelId;
+		}
+
+		const firstPanel = this.panelStore.panels[0];
+		return firstPanel ? firstPanel.id : null;
 	}
 
 	/**
-	 * Whether any panel is in fullscreen mode but NOT due to review mode.
+	 * Whether the single-session fullscreen layout is active but NOT due to review mode.
 	 * Used to determine sidebar visibility - sidebar stays visible during review mode.
 	 */
 	get isFullscreenWithoutReview(): boolean {
-		const fullscreenPanelId = this.panelStore.fullscreenPanelId;
-		if (!fullscreenPanelId) return false;
-		return !this.panelStore.isPanelInReviewMode(fullscreenPanelId);
+		if (!this.isFullscreen) return false;
+		const singleModePanelId = this.getSingleModePanelId();
+		if (!singleModePanelId) return false;
+		return !this.panelStore.isPanelInReviewMode(singleModePanelId);
 	}
 
 	/**
@@ -572,8 +588,7 @@ export class MainAppViewState {
 	 * @param panelId - The panel to enter fullscreen with (ignored when exiting)
 	 */
 	handleToggleFullscreen(panelId: string): void {
-		const currentFullscreenId = this.panelStore.fullscreenPanelId;
-		if (currentFullscreenId !== null) {
+		if (this.panelStore.viewMode === "single") {
 			// Exiting fullscreen: restore to the previous non-single view mode.
 			// Never restore to "single" — that still renders the fullscreen layout.
 			const restoreMode =
@@ -587,6 +602,7 @@ export class MainAppViewState {
 			// Entering fullscreen: save current view mode, switch to single.
 			// setViewMode() resets fullscreenPanelId, so we re-establish it afterwards.
 			this.preFullscreenViewMode = this.panelStore.viewMode;
+			this.panelStore.focusPanel(panelId);
 			this.panelStore.setViewMode("single");
 			this.panelStore.switchFullscreen(panelId);
 		}

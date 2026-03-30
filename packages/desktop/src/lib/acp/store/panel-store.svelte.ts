@@ -75,6 +75,24 @@ export class PanelStore {
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
 	private nextTerminalTabCreatedAt = 1;
 
+	private isAgentFullscreenTarget(panelId: string | null): boolean {
+		if (panelId === null) return false;
+		return this.panels.some((panel) => panel.id === panelId);
+	}
+
+	private setFullscreenPanelTarget(panelId: string | null): void {
+		this.fullscreenPanelId = panelId;
+		if (this.isAgentFullscreenTarget(panelId)) {
+			this.viewMode = "single";
+		}
+	}
+
+	ensureSingleViewForAgentFullscreen(): void {
+		if (this.isAgentFullscreenTarget(this.fullscreenPanelId)) {
+			this.viewMode = "single";
+		}
+	}
+
 	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): void {
 		const requiredWidth = Math.max(MIN_PANEL_WIDTH, attachedWidth);
 		this.panels = this.panels.map((panel) =>
@@ -271,8 +289,8 @@ export class PanelStore {
 		const existing = this.panelBySessionId.get(sessionId);
 		if (existing) {
 			this.focusedPanelId = existing.id;
-			if (this.fullscreenPanelId !== null) {
-				this.fullscreenPanelId = existing.id;
+			if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
+				this.switchFullscreen(existing.id);
 			}
 			return existing;
 		}
@@ -307,8 +325,8 @@ export class PanelStore {
 		this.focusedPanelId = panel.id;
 
 		// If in fullscreen mode, switch fullscreen to the new panel
-		if (this.fullscreenPanelId !== null) {
-			this.fullscreenPanelId = panel.id;
+		if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
+			this.switchFullscreen(panel.id);
 		}
 
 		this.onPersist();
@@ -355,8 +373,8 @@ export class PanelStore {
 		this.focusedPanelId = panel.id;
 
 		// If in fullscreen mode, switch fullscreen to the new panel
-		if (this.fullscreenPanelId !== null) {
-			this.fullscreenPanelId = panel.id;
+		if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
+			this.switchFullscreen(panel.id);
 		}
 
 		// In focused view, switch to the panel's project so it's visible
@@ -423,9 +441,9 @@ export class PanelStore {
 		if (this.fullscreenPanelId === panelId) {
 			// If there are remaining panels, fullscreen the newly focused one
 			if (this.panels.length > 0 && this.focusedPanelId) {
-				this.fullscreenPanelId = this.focusedPanelId;
+				this.switchFullscreen(this.focusedPanelId);
 			} else {
-				this.fullscreenPanelId = null;
+				this.exitFullscreen();
 			}
 		}
 
@@ -459,7 +477,7 @@ export class PanelStore {
 	 */
 	focusAndSwitchToPanel(panelId: string): void {
 		this.focusPanel(panelId);
-		if (this.fullscreenPanelId !== null) {
+		if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
 			this.switchFullscreen(panelId);
 		}
 		// In focused view, switch to the panel's project so it becomes visible
@@ -487,14 +505,18 @@ export class PanelStore {
 	 * Toggle fullscreen for a panel.
 	 */
 	toggleFullscreen(panelId: string): void {
-		this.fullscreenPanelId = this.fullscreenPanelId === panelId ? null : panelId;
+		if (this.fullscreenPanelId === panelId) {
+			this.exitFullscreen();
+			return;
+		}
+		this.switchFullscreen(panelId);
 	}
 
 	/**
 	 * Exit fullscreen (clear main fullscreen panel). Aux panel selection is left as-is.
 	 */
 	exitFullscreen(): void {
-		this.fullscreenPanelId = null;
+		this.setFullscreenPanelTarget(null);
 	}
 
 	/**
@@ -503,14 +525,14 @@ export class PanelStore {
 	 * When there are no agent panels, enters aux-only fullscreen mode.
 	 */
 	enterTerminalFullscreen(terminalPanelId: string): void {
-		this.fullscreenPanelId = terminalPanelId;
+		this.setFullscreenPanelTarget(terminalPanelId);
 	}
 
 	/**
 	 * Switch to a different fullscreen panel.
 	 */
 	switchFullscreen(panelId: string): void {
-		this.fullscreenPanelId = panelId;
+		this.setFullscreenPanelTarget(panelId);
 	}
 
 	/**
@@ -595,14 +617,14 @@ export class PanelStore {
 		}
 		this.browserPanels = [];
 		this.focusedPanelId = null;
-		this.fullscreenPanelId = null;
+		this.setFullscreenPanelTarget(null);
 		this.onPersist();
 	}
 
 	setViewMode(mode: ViewMode): void {
 		this.viewMode = mode;
 		// Reset fullscreen state — each view mode manages its own layout.
-		this.fullscreenPanelId = null;
+		this.setFullscreenPanelTarget(null);
 		this.onPersist();
 	}
 
@@ -917,7 +939,7 @@ export class PanelStore {
 				this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, existing.id);
 			} else {
 				this.focusedPanelId = existing.id;
-				this.fullscreenPanelId = existing.id;
+				this.switchFullscreen(existing.id);
 			}
 			logger.debug("File already open, focusing existing panel", { filePath, projectPath });
 			return existing;
@@ -940,7 +962,7 @@ export class PanelStore {
 			this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, panel.id);
 		} else {
 			this.focusedPanelId = panel.id;
-			this.fullscreenPanelId = panel.id;
+			this.switchFullscreen(panel.id);
 		}
 		this.onPersist();
 
@@ -976,7 +998,11 @@ export class PanelStore {
 				this.focusedPanelId = nextTopLevelPanelId;
 			}
 			if (this.fullscreenPanelId === panelId) {
-				this.fullscreenPanelId = nextTopLevelPanelId;
+				if (nextTopLevelPanelId) {
+					this.switchFullscreen(nextTopLevelPanelId);
+				} else {
+					this.exitFullscreen();
+				}
 			}
 		}
 		this.onPersist();
@@ -1276,7 +1302,7 @@ export class PanelStore {
 		if (this.fullscreenPanelId !== null) {
 			const fullscreenGroup = this.getTerminalPanelGroup(this.fullscreenPanelId);
 			if (fullscreenGroup && fullscreenGroup.projectPath === projectPath) {
-				this.fullscreenPanelId = group.id;
+				this.switchFullscreen(group.id);
 			}
 		}
 		this.onPersist();
@@ -1354,7 +1380,7 @@ export class PanelStore {
 		this.terminalTabs = this.terminalTabs.concat([firstTab]);
 		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
 		this.focusedPanelId = group.id;
-		this.fullscreenPanelId = group.id;
+		this.switchFullscreen(group.id);
 		this.onPersist();
 
 		logger.debug("Opened terminal panel", { projectPath, panelId: group.id });
@@ -1478,7 +1504,7 @@ export class PanelStore {
 		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
 		this.focusedPanelId = newGroup.id;
 		if (previousFullscreenPanelId === sourceGroup.id) {
-			this.fullscreenPanelId = newGroup.id;
+			this.switchFullscreen(newGroup.id);
 		}
 		this.onPersist();
 
@@ -1550,7 +1576,11 @@ export class PanelStore {
 				this.focusedPanelId = nextTopLevelPanelId;
 			}
 			if (this.fullscreenPanelId === group.id) {
-				this.fullscreenPanelId = nextTopLevelPanelId;
+				if (nextTopLevelPanelId) {
+					this.switchFullscreen(nextTopLevelPanelId);
+				} else {
+					this.exitFullscreen();
+				}
 			}
 			this.onPersist();
 			return;
@@ -1601,7 +1631,7 @@ export class PanelStore {
 		if (forProject.length > 0) {
 			const first = forProject[0];
 			this.focusedPanelId = first.id;
-			this.fullscreenPanelId = first.id;
+			this.switchFullscreen(first.id);
 			this.onPersist();
 		} else {
 			this.openTerminalPanel(projectPath, width);
@@ -1697,7 +1727,7 @@ export class PanelStore {
 		const existing = this.browserPanels.find((p) => p.projectPath === projectPath && p.url === url);
 		if (existing) {
 			this.focusedPanelId = existing.id;
-			this.fullscreenPanelId = existing.id;
+			this.switchFullscreen(existing.id);
 			logger.debug("Browser panel already open for URL, focusing", { url, projectPath });
 			return existing;
 		}
@@ -1714,7 +1744,7 @@ export class PanelStore {
 
 		this.browserPanels = [panel, ...this.browserPanels];
 		this.focusedPanelId = panel.id;
-		this.fullscreenPanelId = panel.id;
+		this.switchFullscreen(panel.id);
 		this.onPersist();
 
 		logger.debug("Opened browser panel", { url, panelId: panel.id });
@@ -1736,7 +1766,11 @@ export class PanelStore {
 			this.focusedPanelId = nextTopLevelPanelId;
 		}
 		if (this.fullscreenPanelId === panelId) {
-			this.fullscreenPanelId = nextTopLevelPanelId;
+			if (nextTopLevelPanelId) {
+				this.switchFullscreen(nextTopLevelPanelId);
+			} else {
+				this.exitFullscreen();
+			}
 		}
 		this.onPersist();
 		logger.debug("Closed browser panel", { panelId });

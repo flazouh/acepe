@@ -2,7 +2,7 @@
  * View mode derivations – single place that defines what single/project/multi mean.
  *
  * Semantics:
- * - single: fullscreen layout, one panel (the focused panel)
+ * - single: fullscreen session layout
  * - project: card layout, one project visible at a time (others hidden)
  * - multi: card layout, all projects visible
  *
@@ -26,7 +26,7 @@ export interface ProjectGroupRef {
 }
 
 export interface ViewModeState {
-	/** "fullscreen" when single or explicit fullscreen panel; "cards" for project/multi */
+	/** "fullscreen" when single; "cards" for project/multi */
 	readonly layout: "fullscreen" | "cards";
 	readonly isSingleMode: boolean;
 	/** Same as layout === "fullscreen" */
@@ -37,7 +37,7 @@ export interface ViewModeState {
 	readonly focusedModeAllProjects:
 		| readonly { name: string; color: string; path: string }[]
 		| undefined;
-	/** The panel to show in fullscreen layout; null when layout is "cards" */
+	/** The agent panel to show in single mode; null when layout is "cards" */
 	readonly fullscreenPanel: PanelWithProject | null;
 }
 
@@ -57,15 +57,18 @@ export function getViewModeState(
 	const { panelsWithState, allGroups } = context;
 	const viewMode = panelStore.viewMode;
 	const isSingleMode = viewMode === "single";
-	const isFullscreenMode = panelStore.fullscreenPanelId !== null || isSingleMode;
+	const explicitlySelectedSinglePanel =
+		panelStore.fullscreenPanelId !== null
+			? (panelsWithState.find((x) => x.id === panelStore.fullscreenPanelId) ?? null)
+			: null;
+	const isFullscreenMode = isSingleMode;
 	const layout: "fullscreen" | "cards" = isFullscreenMode ? "fullscreen" : "cards";
 
 	const fullscreenPanel: PanelWithProject | null = (() => {
-		if (panelStore.fullscreenPanelId !== null) {
-			const p = panelsWithState.find((x) => x.id === panelStore.fullscreenPanelId);
-			return p ?? null;
-		}
 		if (isSingleMode) {
+			if (explicitlySelectedSinglePanel) {
+				return explicitlySelectedSinglePanel;
+			}
 			const p =
 				panelsWithState.find((x) => x.id === panelStore.focusedPanelId) ??
 				panelsWithState[0] ??

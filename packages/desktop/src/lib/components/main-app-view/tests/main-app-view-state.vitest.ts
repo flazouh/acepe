@@ -46,6 +46,33 @@ function createState(options?: {
 		focusedViewProjectPath: options?.focusedViewProjectPath ? options.focusedViewProjectPath : null,
 		focusedPanelId: null,
 		viewMode: "project",
+		setViewMode: vi.fn((mode: "single" | "project" | "multi") => {
+			panelStore.viewMode = mode;
+			panelStore.fullscreenPanelId = null;
+		}),
+		switchFullscreen: vi.fn((panelId: string) => {
+			panelStore.fullscreenPanelId = panelId;
+		}),
+		focusPanel: vi.fn((panelId: string) => {
+			panelStore.focusedPanelId = panelId;
+		}),
+		getPanel: vi.fn((panelId: string) =>
+			panelId === "panel-1" ? { id: "panel-1", reviewMode: false } : undefined
+		),
+		panels: [
+			{
+				id: "panel-1",
+				kind: "agent",
+				ownerPanelId: null,
+				sessionId: null,
+				width: 100,
+				pendingProjectSelection: false,
+				selectedAgentId: null,
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			},
+		],
 	} as Partial<PanelStore>;
 
 	const projectManager = {
@@ -98,5 +125,38 @@ describe("MainAppViewState file explorer", () => {
 
 		expect(state.fileExplorerOpen).toBe(false);
 		expect(state.fileExplorerVisible).toBe(false);
+	});
+
+	it("treats single mode as fullscreen for the shell", () => {
+		const { state, panelStore } = createState();
+
+		expect(state.isFullscreen).toBe(false);
+
+		panelStore.viewMode = "single";
+
+		expect(state.isFullscreen).toBe(true);
+	});
+
+	it("enters single mode when toggling session fullscreen", () => {
+		const { state, panelStore } = createState();
+
+		state.handleToggleFullscreen("panel-1");
+
+		expect(panelStore.focusPanel).toHaveBeenCalledWith("panel-1");
+		expect(panelStore.setViewMode).toHaveBeenCalledWith("single");
+		expect(panelStore.switchFullscreen).toHaveBeenCalledWith("panel-1");
+		expect(panelStore.viewMode).toBe("single");
+		expect(panelStore.fullscreenPanelId).toBe("panel-1");
+	});
+
+	it("restores the prior card mode when leaving single mode", () => {
+		const { state, panelStore } = createState();
+
+		state.handleToggleFullscreen("panel-1");
+		state.handleToggleFullscreen("panel-1");
+
+		expect(panelStore.setViewMode).toHaveBeenLastCalledWith("project");
+		expect(panelStore.viewMode).toBe("project");
+		expect(panelStore.fullscreenPanelId).toBeNull();
 	});
 });

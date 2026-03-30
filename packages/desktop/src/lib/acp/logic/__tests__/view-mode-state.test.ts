@@ -67,14 +67,27 @@ describe("getViewModeState", () => {
 		expect(state.fullscreenPanel?.id).toBe("p1");
 	});
 
-	it("explicit fullscreenPanelId: layout fullscreen, that panel is fullscreen panel", () => {
+	it("single prefers an explicitly selected fullscreen panel over the focus fallback", () => {
 		const store = createMockPanelStore({
-			viewMode: "multi",
+			viewMode: "single",
 			fullscreenPanelId: "p3",
+			focusedPanelId: "p2",
 		});
 		const state = getViewModeState(store, { panelsWithState, allGroups });
 		expect(state.layout).toBe("fullscreen");
 		expect(state.fullscreenPanel?.id).toBe("p3");
+	});
+
+	it("ignores an explicit agent fullscreen target outside single mode", () => {
+		const store = createMockPanelStore({
+			viewMode: "project",
+			fullscreenPanelId: "p3",
+			focusedPanelId: "p2",
+		});
+		const state = getViewModeState(store, { panelsWithState, allGroups });
+		expect(state.layout).toBe("cards");
+		expect(state.isFullscreenMode).toBe(false);
+		expect(state.fullscreenPanel).toBeNull();
 	});
 
 	it("project: layout cards, activeProjectPath from focusedViewProjectPath", () => {
@@ -110,8 +123,8 @@ describe("getViewModeState", () => {
 
 		const state = getViewModeState(store, { panelsWithState: mixedPanels, allGroups });
 
-		expect(state.fullscreenPanel?.id).toBe("browser-1");
-		expect(state.fullscreenPanel?.projectPath).toBe("/b");
+		expect(state.isFullscreenMode).toBe(false);
+		expect(state.fullscreenPanel).toBeNull();
 	});
 
 	it("project mode falls back to a focused non-agent panel project", () => {

@@ -4,7 +4,7 @@ import { WorkspaceStore } from "../workspace-store.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
 function createPanelStoreStub() {
-	return {
+	const panelStore = {
 		workspacePanels: [] as WorkspacePanel[],
 		panels: [],
 		filePanels: [],
@@ -30,13 +30,27 @@ function createPanelStoreStub() {
 		scrollX: 0,
 		focusedPanelId: null as string | null,
 		fullscreenPanelId: null as string | null,
-		viewMode: "multi",
+		viewMode: "multi" as "single" | "project" | "multi",
 		focusedViewProjectPath: null,
 		embeddedTerminals: {
 			serialize: mock(() => []),
 			restore: mock(() => {}),
 			getSelectedTabId: mock(() => null),
 		},
+		switchFullscreen: mock((panelId: string) => {
+			panelStore.fullscreenPanelId = panelId;
+		}),
+		ensureSingleViewForAgentFullscreen: mock(() => {
+			if (
+				panelStore.fullscreenPanelId &&
+				panelStore.workspacePanels.some(
+					(panel: WorkspacePanel) =>
+						panel.id === panelStore.fullscreenPanelId && panel.kind === "agent"
+				)
+			) {
+				panelStore.viewMode = "single";
+			}
+		}),
 		setActiveFilePanelMap: mock(() => {}),
 		setPlanSidebarExpanded: mock(() => {}),
 		setMessageDraft: mock(() => {}),
@@ -49,7 +63,9 @@ function createPanelStoreStub() {
 			reviewFileIndex: 0,
 			embeddedTerminalDrawerOpen: false,
 		})),
-	} as const;
+	};
+
+	return panelStore;
 }
 
 describe("workspace fullscreen migration", () => {
@@ -88,6 +104,41 @@ describe("workspace fullscreen migration", () => {
 			throw new Error("expected restored workspace panel");
 		}
 		expect(restoredPanel.kind).toBe("browser");
+	});
+
+	it("restores an agent fullscreen target as single view mode", () => {
+		const panelStore = createPanelStoreStub();
+		const sessionStore = {
+			getSessionIdentity: mock(() => undefined),
+			getSessionMetadata: mock(() => undefined),
+		};
+		const store = new WorkspaceStore(panelStore as never, sessionStore as never);
+
+		store.restore({
+			version: 10,
+			workspacePanels: [
+				{
+					id: "agent-1",
+					kind: "agent",
+					projectPath: "/tmp/project",
+					ownerPanelId: null,
+					width: 500,
+					sessionId: "session-1",
+					pendingProjectSelection: false,
+					selectedAgentId: null,
+					agentId: null,
+				},
+			],
+			panels: [],
+			focusedPanelIndex: 0,
+			fullscreenPanelIndex: 0,
+			panelContainerScrollX: 0,
+			savedAt: new Date().toISOString(),
+			viewMode: "project",
+		});
+
+		expect(panelStore.fullscreenPanelId).toBe("agent-1");
+		expect(panelStore.viewMode).toBe("single");
 	});
 
 	it("migrates legacy terminal panels into terminal groups and tabs", () => {

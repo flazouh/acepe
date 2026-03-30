@@ -535,8 +535,18 @@ export class WorkspaceStore {
 					state.fullscreenPanelIndex >= 0 &&
 					state.fullscreenPanelIndex < topLevelWorkspacePanels.length
 				) {
-					this.panelStore.fullscreenPanelId = topLevelWorkspacePanels[state.fullscreenPanelIndex].id;
+					this.panelStore.switchFullscreen(topLevelWorkspacePanels[state.fullscreenPanelIndex].id);
 				}
+
+				if (state.viewMode !== undefined) {
+					this.panelStore.viewMode = state.viewMode;
+				} else if (state.focusedViewEnabled) {
+					this.panelStore.viewMode = "project";
+				}
+				if (state.focusedViewProjectPath !== undefined) {
+					this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
+				}
+				this.panelStore.ensureSingleViewForAgentFullscreen();
 
 				const sessionIds = restoredAgentPanels
 					.map((panel) => panel.sessionId)
@@ -674,7 +684,7 @@ export class WorkspaceStore {
 			state.fullscreenPanelIndex >= 0 &&
 			state.fullscreenPanelIndex < restoredPanels.length
 		) {
-			this.panelStore.fullscreenPanelId = restoredPanels[state.fullscreenPanelIndex].id;
+			this.panelStore.switchFullscreen(restoredPanels[state.fullscreenPanelIndex].id);
 		}
 
 		// Restore SQL Studio state (version 4+)
@@ -734,7 +744,7 @@ export class WorkspaceStore {
 				state.fullscreenPanelIndex >= 0 &&
 				state.fullscreenPanelIndex < migratedTerminalPanels.length
 			) {
-				this.panelStore.fullscreenPanelId = migratedTerminalPanels[state.fullscreenPanelIndex].id;
+				this.panelStore.switchFullscreen(migratedTerminalPanels[state.fullscreenPanelIndex].id);
 			}
 		}
 
@@ -779,6 +789,7 @@ export class WorkspaceStore {
 		if (state.focusedViewProjectPath !== undefined) {
 			this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
 		}
+		this.panelStore.ensureSingleViewForAgentFullscreen();
 
 		// Return session IDs that need loading
 		const sessionIds = restoredPanels

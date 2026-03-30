@@ -21,6 +21,28 @@ function createStore(): PanelStore {
 }
 
 describe("PanelStore terminal fullscreen", () => {
+	it("normalizes agent fullscreen targets to single view mode", () => {
+		const store = createStore();
+		const panel = store.spawnPanel({ projectPath: "/tmp/project" });
+
+		store.viewMode = "project";
+		store.switchFullscreen(panel.id);
+
+		expect(store.viewMode).toBe("single");
+		expect(store.fullscreenPanelId).toBe(panel.id);
+	});
+
+	it("keeps terminal fullscreen separate from single view mode", () => {
+		const store = createStore();
+		store.viewMode = "project";
+		const group = store.openTerminalPanel("/tmp/project");
+
+		store.enterTerminalFullscreen(group.id);
+
+		expect(store.viewMode).toBe("project");
+		expect(store.fullscreenPanelId).toBe(group.id);
+	});
+
 	it("enters fullscreen for a terminal without creating an agent panel", () => {
 		const store = createStore();
 		const group = store.openTerminalPanel("/tmp/project");
