@@ -17,6 +17,7 @@ cargo clippy       # Rust lint (in src-tauri/)
 ## Critical Rules
 
 - Use the compound engineering and test driven development skills.
+- **ALWAYS fix bugs with TDD** — write a focused failing test or characterization first, verify it fails, then implement the minimal fix and rerun the test.
 - **NEVER run `bun dev`** - user manages dev server
 - **NEVER run `git stash`** without explicit user consent - stashing can hide in-progress work
 - **When debugging, separate facts from inference** — do not present an inferred root cause as fact. Label hypotheses clearly and prefer instrumentation or observed state transitions before claiming causality.
