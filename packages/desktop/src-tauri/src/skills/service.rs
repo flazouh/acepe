@@ -10,7 +10,9 @@ use tokio::sync::Mutex;
 
 use crate::skills::parser::{generate_skill_content, parse_skill_content};
 use crate::skills::plugins::PluginDiscovery;
-use crate::skills::types::{PluginInfo, PluginSkill, Skill, SkillAgent, SkillTreeNode};
+use crate::skills::types::{
+    AgentSkills, PluginInfo, PluginSkill, Skill, SkillAgent, SkillTreeNode,
+};
 
 /// Agent configuration with ID, name, and skills directory path.
 #[derive(Debug, Clone)]
@@ -181,6 +183,23 @@ impl SkillsService {
         }
 
         Ok(tree)
+    }
+
+    /// List parsed on-disk skills grouped by agent.
+    pub async fn list_agent_skills(&self) -> Result<Vec<AgentSkills>, String> {
+        let mut grouped_skills = Vec::new();
+
+        let mut agent_configs: Vec<_> = self.agents.values().collect();
+        agent_configs.sort_by(|a, b| a.name.cmp(&b.name));
+
+        for config in agent_configs {
+            grouped_skills.push(AgentSkills {
+                agent_id: config.id.clone(),
+                skills: self.list_skills_for_agent(&config.id).await?,
+            });
+        }
+
+        Ok(grouped_skills)
     }
 
     /// List all skills for a specific agent.

@@ -29,7 +29,7 @@ pub(crate) mod session_loading;
 
 pub use plans::get_unified_plan;
 pub use projects::{count_sessions_for_project, list_all_project_paths};
-pub use scanning::{discover_all_projects_with_sessions, scan_project_sessions};
+pub use scanning::{discover_all_projects_with_sessions, get_startup_sessions, scan_project_sessions};
 pub use session_loading::{
     audit_session_load_timing, audit_session_load_timing_cli, get_unified_session,
     set_session_worktree_path,

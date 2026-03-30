@@ -155,6 +155,14 @@ export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[]
 }
 
 /**
+ * Load only the metadata for specific restored session IDs.
+ * Used on startup to hydrate open panels without blocking on a full sidebar scan.
+ */
+export function getStartupSessions(sessionIds: string[]): ResultAsync<HistoryEntry[], AppError> {
+	return tauriClient.history.getStartupSessions(sessionIds);
+}
+
+/**
  * Get a session with full entries from any agent.
  * Routes to agent-specific parsers that read from source files.
  *
@@ -272,6 +280,7 @@ export const api = {
 
 	// History
 	scanSessions,
+	getStartupSessions,
 	getSession,
 	getConvertedSession,
 

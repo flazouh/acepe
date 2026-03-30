@@ -78,6 +78,57 @@ pub async fn scan_project_sessions(
         .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn get_startup_sessions(
+    app: AppHandle,
+    session_ids: Vec<String>,
+) -> Result<Vec<HistoryEntry>, String> {
+    let db = app
+        .try_state::<DbConn>()
+        .map(|state| state.inner().clone())
+        .ok_or_else(|| "No DbConn available".to_string())?;
+
+    let mut indexed = SessionMetadataRepository::get_for_session_ids(&db, &session_ids)
+        .await
+        .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
+
+    let startup_order = session_ids
+        .into_iter()
+        .enumerate()
+        .map(|(index, session_id)| (session_id, index))
+        .collect::<std::collections::HashMap<_, _>>();
+    indexed.sort_by_key(|row| startup_order.get(&row.id).copied().unwrap_or(usize::MAX));
+
+    let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
+    for session in indexed {
+        let session_lifecycle_state = session.lifecycle_state();
+        let worktree_deleted = session
+            .worktree_path
+            .as_ref()
+            .map(|path| !Path::new(path).exists());
+
+        entries.push(HistoryEntry {
+            id: session.id.clone(),
+            display: session.display,
+            timestamp: session.timestamp,
+            project: session.project_path,
+            session_id: session.id,
+            pasted_contents: serde_json::json!({}),
+            agent_id: CanonicalAgentId::parse(&session.agent_id),
+            updated_at: session.timestamp,
+            source_path: indexed_source_path(session.file_path),
+            parent_id: None,
+            worktree_path: session.worktree_path,
+            worktree_deleted,
+            pr_number: session.pr_number.map(|number| number as i64),
+            session_lifecycle_state: Some(session_lifecycle_state),
+        });
+    }
+
+    Ok(entries)
+}
+
 async fn scan_project_sessions_inner(
     app: AppHandle,
     project_paths: Vec<String>,

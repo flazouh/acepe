@@ -1,0 +1,200 @@
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { okAsync } from "neverthrow";
+import type { HistoryEntry } from "../../../../services/claude-history-types.js";
+import type { SessionCold } from "../../types.js";
+import type {
+	IConnectionManager,
+	IEntryManager,
+	ISessionStateReader,
+	ISessionStateWriter,
+} from "../interfaces/index.js";
+
+const getStartupSessionsMock = mock(() => okAsync([] as HistoryEntry[]));
+
+mock.module("../../api.js", () => ({
+	api: {
+		getStartupSessions: getStartupSessionsMock,
+	},
+}));
+
+import { SessionRepository } from "../session-repository.js";
+
+type SessionStoreState = {
+	sessions: SessionCold[];
+};
+
+function createSession(overrides: Partial<SessionCold> = {}): SessionCold {
+	return {
+		id: "session-123",
+		projectPath: "/projects/acepe",
+		agentId: "opencode",
+		title: "OpenCode Session",
+		updatedAt: new Date(1000),
+		createdAt: new Date(500),
+		sourcePath: undefined,
+		parentId: null,
+		...overrides,
+	};
+}
+
+function createHistoryEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+	return {
+		id: "history-123",
+		sessionId: "session-123",
+		display: "OpenCode Session",
+		project: "/projects/acepe",
+		timestamp: 1000,
+		updatedAt: 2000,
+		pastedContents: {},
+		agentId: "opencode",
+		sourcePath: "/opencode/storage/session/session-123.json",
+		prNumber: null,
+		...overrides,
+	};
+}
+
+function createStateReader(state: SessionStoreState): ISessionStateReader {
+	return {
+		getHotState: () => ({
+			status: "idle",
+			isConnected: false,
+			turnState: "idle" as const,
+			acpSessionId: null,
+			connectionError: null,
+			currentModel: null,
+			currentMode: null,
+			availableCommands: [],
+			statusChangedAt: Date.now(),
+		}),
+		getEntries: () => [],
+		isPreloaded: () => false,
+		getSessionsForProject: () => [],
+		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
+		getAllSessions: () => state.sessions,
+	};
+}
+
+function createStateWriter(state: SessionStoreState): ISessionStateWriter {
+	return {
+		addSession: (session) => {
+			state.sessions = [...state.sessions, session];
+		},
+		updateSession: (id, updates) => {
+			state.sessions = state.sessions.map((session) =>
+				session.id === id ? { ...session, ...updates } : session
+			);
+		},
+		removeSession: (sessionId) => {
+			state.sessions = state.sessions.filter((session) => session.id !== sessionId);
+		},
+		setSessions: (sessions) => {
+			state.sessions = sessions;
+		},
+		setLoading: () => {},
+		addScanningProjects: () => {},
+		removeScanningProjects: () => {},
+	};
+}
+
+const entryManager: IEntryManager = {
+	getEntries: () => [],
+	hasEntries: () => false,
+	isPreloaded: () => false,
+	markPreloaded: () => {},
+	unmarkPreloaded: () => {},
+	storeEntriesAndBuildIndex: () => {},
+	addEntry: () => {},
+	removeEntry: () => {},
+	updateEntry: () => {},
+	clearEntries: () => {},
+	createToolCallEntry: () => {},
+	updateToolCallEntry: () => {},
+	updateChildInParent: () => {},
+	aggregateAssistantChunk: () => {
+		throw new Error("Not implemented for test");
+	},
+	clearStreamingAssistantEntry: () => {},
+};
+
+const connectionManager: IConnectionManager = {
+	createOrGetMachine: () => {
+		throw new Error("Not implemented for test");
+	},
+	getMachine: () => null,
+	getState: () => null,
+	removeMachine: () => {},
+	isConnecting: () => false,
+	setConnecting: () => {},
+	sendContentLoad: () => {},
+	sendContentLoaded: () => {},
+	sendContentLoadError: () => {},
+	sendConnectionConnect: () => {},
+	sendConnectionSuccess: () => {},
+	sendCapabilitiesLoaded: () => {},
+	sendConnectionError: () => {},
+	sendTurnFailed: () => {},
+	sendDisconnect: () => {},
+	sendMessageSent: () => {},
+	sendResponseStarted: () => {},
+	sendResponseComplete: () => {},
+	initializeConnectedSession: () => {},
+};
+
+describe("SessionRepository.loadStartupSessions", () => {
+	beforeEach(() => {
+		getStartupSessionsMock.mockClear();
+		getStartupSessionsMock.mockImplementation(() => okAsync([] as HistoryEntry[]));
+	});
+
+	it("hydrates requested startup session metadata and reports missing ids", async () => {
+		const state: SessionStoreState = { sessions: [] };
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		getStartupSessionsMock.mockImplementation(() => okAsync([createHistoryEntry()]));
+
+		const result = await repository.loadStartupSessions(state.sessions, [
+			"session-123",
+			"missing-session",
+		]);
+
+		expect(getStartupSessionsMock).toHaveBeenCalledWith([
+			"session-123",
+			"missing-session",
+		]);
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.missing).toEqual(["missing-session"]);
+		}
+		expect(state.sessions[0]?.id).toBe("session-123");
+		expect(state.sessions[0]?.projectPath).toBe("/projects/acepe");
+		expect(state.sessions[0]?.sourcePath).toBe(
+			"/opencode/storage/session/session-123.json"
+		);
+	});
+
+	it("skips fetching startup session metadata already loaded in memory", async () => {
+		const state: SessionStoreState = {
+			sessions: [createSession()],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		const result = await repository.loadStartupSessions(state.sessions, ["session-123"]);
+
+		expect(getStartupSessionsMock).not.toHaveBeenCalled();
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.missing).toEqual([]);
+		}
+		expect(state.sessions).toHaveLength(1);
+	});
+});

@@ -44,6 +44,10 @@ export const history = {
 		});
 	},
 
+	getStartupSessions: (sessionIds: string[]): ResultAsync<HistoryEntry[], AppError> => {
+		return invokeAsync(CMD.history.get_startup_sessions, { sessionIds });
+	},
+
 	getUnifiedPlan: (
 		sessionId: string,
 		projectPath: string,

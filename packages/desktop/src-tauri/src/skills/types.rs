@@ -42,6 +42,16 @@ pub struct Skill {
     pub modified_at: i64,
 }
 
+/// Parsed skills grouped by agent for startup caches.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSkills {
+    /// Agent identifier.
+    pub agent_id: String,
+    /// Parsed on-disk skills for this agent.
+    pub skills: Vec<Skill>,
+}
+
 /// Tree node for UI rendering.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

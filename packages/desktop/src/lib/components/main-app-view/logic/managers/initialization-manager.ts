@@ -15,10 +15,14 @@
  * Phase 2 (Sequential - needs projects):
  *   └── restoreWorkspace()
  *
- * Phase 3 (Sequential):
- *   ├── loadSessionHistory()
+ * Phase 3 (Sequential - restored sessions):
+ *   ├── loadStartupSessions() [load only restored session metadata by id]
  *   ├── validateRestoredSessions() [clear orphaned restored session ids]
- *   └── earlyPreloadPanelSessions() [preload restored panels after validation]
+ *   ├── earlyPreloadPanelSessions() [preload restored panels after validation]
+ *   └── triggerBackgroundScan() [refresh sidebar sessions without blocking panel hydration]
+ *
+ * Phase 3 fallback (Sequential - no restored sessions):
+ *   └── loadSessionHistory() [full blocking sidebar load]
  *
  * Phase 4 (Fire & Forget):
  *   └── createSessionsForAgentOnlyPanels()
@@ -131,17 +135,7 @@ export class InitializationManager {
 				.andThen(() => this.initializeAgentPreferences())
 				// Phase 2: Restore workspace (needs projects from Phase 1)
 			.andThen(() => this.restoreWorkspace())
-			// Phase 3: Load session history before early preload so orphaned restored
-			// session ids are cleared before any resume attempt can spawn a client.
-			.andThen(() =>
-				this.loadSessionHistory().andThen(() => this.validateRestoredSessions())
-			)
-			.map(() => {
-				// Fire-and-forget after validation: preload panel sessions using the
-				// restored session ids that still have persisted history.
-				this.earlyPreloadPanelSessions();
-				return undefined;
-			})
+			.andThen((restoredSessionIds) => this.hydrateStartupPanels(restoredSessionIds))
 				// Phase 4: Create sessions for panels with agent but no session (fire and forget)
 				.andThen(() => this.createSessionsForAgentOnlyPanels())
 				.map(() => {
@@ -341,13 +335,13 @@ export class InitializationManager {
 	 *
 	 * @returns ResultAsync indicating success or error
 	 */
-	private restoreWorkspace(): ResultAsync<void, MainAppViewError> {
+	private restoreWorkspace(): ResultAsync<string[], MainAppViewError> {
 		return this.workspaceStore
 			.load()
 			.map((workspace) => {
 				// Always restore — panels gracefully handle missing projects/sessions.
 				// This allows onboarding to import projects without clearing workspace.
-				this.workspaceStore.restore(
+				return this.workspaceStore.restore(
 					workspace ?? {
 						version: 6,
 						panels: [],
@@ -358,7 +352,6 @@ export class InitializationManager {
 						savedAt: new Date().toISOString(),
 					}
 				);
-				return undefined;
 			})
 			.mapErr(
 				(error) =>
@@ -370,12 +363,41 @@ export class InitializationManager {
 	}
 
 	/**
+	 * Prioritize restored panel hydration on startup.
+	 *
+	 * When panels were open on the previous run, load only those session records first,
+	 * validate them, hydrate panel content, and refresh the broader sidebar session list in
+	 * the background. If no panels were restored, keep the existing full blocking history load.
+	 */
+	private hydrateStartupPanels(restoredSessionIds: string[]): ResultAsync<void, MainAppViewError> {
+		if (restoredSessionIds.length === 0) {
+			return this.loadSessionHistory(this.getKnownProjectPaths());
+		}
+
+		return this.sessionStore
+			.loadStartupSessions(restoredSessionIds)
+			.map(() => undefined)
+			.mapErr(
+				(error) =>
+					new InitializationError(
+						"loadStartupSessions",
+						error instanceof Error ? error : new Error(String(error))
+					)
+			)
+			.andThen(() => this.validateRestoredSessions())
+			.map(() => {
+				this.earlyPreloadPanelSessions();
+				this.triggerBackgroundScan(this.getKnownProjectPaths());
+				return undefined;
+			});
+	}
+
+	/**
 	 * Loads session history for sidebar.
 	 *
 	 * @returns ResultAsync indicating success or error
 	 */
-	private loadSessionHistory(): ResultAsync<void, MainAppViewError> {
-		const projectPaths = this.projectManager.projects.map((p) => p.path);
+	private loadSessionHistory(projectPaths: string[]): ResultAsync<void, MainAppViewError> {
 		return this.sessionStore
 			.loadSessions(projectPaths)
 			.map(() => undefined)
@@ -386,6 +408,22 @@ export class InitializationManager {
 						error instanceof Error ? error : new Error(String(error))
 					)
 			);
+	}
+
+	private getKnownProjectPaths(): string[] {
+		const paths = new Set<string>();
+
+		for (const project of this.projectManager.projects) {
+			paths.add(project.path);
+		}
+
+		for (const panel of this.panelStore.panels) {
+			if (panel.projectPath) {
+				paths.add(panel.projectPath);
+			}
+		}
+
+		return Array.from(paths);
 	}
 
 	/**
@@ -444,19 +482,15 @@ export class InitializationManager {
 	 *
 	 * @returns ResultAsync indicating success or error
 	 */
-	private triggerBackgroundScan(): ResultAsync<void, MainAppViewError> {
-		const projectPaths = this.projectManager.projects.map((p) => p.path);
-
+	private triggerBackgroundScan(projectPaths: string[]): void {
 		if (projectPaths.length === 0) {
-			return okAsync(undefined);
+			return;
 		}
 
 		// Start scan in background - don't block initialization
 		this.sessionStore.scanSessions(projectPaths).mapErr((error) => {
 			console.warn("Background session scan failed:", error);
 		});
-
-		return okAsync(undefined);
 	}
 
 	/**

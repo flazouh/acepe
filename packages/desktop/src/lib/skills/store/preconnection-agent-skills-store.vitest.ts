@@ -1,60 +1,68 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mock } from "bun:test";
 import { errAsync, okAsync } from "neverthrow";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError } from "../../acp/errors/app-error";
-import { libraryApi } from "../api/skills-api.js";
-import type { LibrarySkillWithSync } from "../types/index.js";
-import {
-	normalizeAgentSkillsToCommands,
-	PreconnectionAgentSkillsStore,
-} from "./preconnection-agent-skills-store.svelte.js";
+import type { AgentSkills, Skill } from "../types/index.js";
 
-vi.mock("../api/skills-api.js", () => ({
-	libraryApi: {
-		listSkillsWithSync: vi.fn(),
-	},
-}));
+const listAgentSkillsMock = vi.fn();
 
-function buildLibrarySkillWithSync(options: {
+let PreconnectionAgentSkillsStore: typeof import("./preconnection-agent-skills-store.svelte.js").PreconnectionAgentSkillsStore;
+let normalizeAgentSkillsToCommands: typeof import("./preconnection-agent-skills-store.svelte.js").normalizeAgentSkillsToCommands;
+
+function buildSkill(options: {
 	id: string;
+	agentId: string;
+	folderName: string;
 	name: string;
-	description: string | null;
-	targets: Array<{ agentId: string; enabled: boolean }>;
-}): LibrarySkillWithSync {
+	description: string;
+}): Skill {
 	return {
-		skill: {
-			id: options.id,
-			name: options.name,
-			description: options.description,
-			content: "",
-			category: null,
-			createdAt: 1,
-			updatedAt: 1,
-		},
-		syncTargets: options.targets.map((target) => ({
-			agentId: target.agentId,
-			agentName: target.agentId,
-			enabled: target.enabled,
-			status: target.enabled ? "synced" : "never",
-			syncedAt: target.enabled ? 1 : null,
-		})),
-		hasPendingChanges: false,
+		id: options.id,
+		agentId: options.agentId,
+		folderName: options.folderName,
+		path: `/tmp/${options.agentId}/${options.folderName}/SKILL.md`,
+		name: options.name,
+		description: options.description,
+		content: "",
+		modifiedAt: 1,
+	};
+}
+
+function buildAgentSkills(agentId: string, skills: Skill[]): AgentSkills {
+	return {
+		agentId,
+		skills,
 	};
 }
 
 describe("PreconnectionAgentSkillsStore", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
+	beforeEach(async () => {
+		listAgentSkillsMock.mockReset();
+
+		mock.module("../api/skills-api.js", () => ({
+			skillsApi: {
+				listAgentSkills: listAgentSkillsMock,
+			},
+		}));
+
+		({ PreconnectionAgentSkillsStore, normalizeAgentSkillsToCommands } = await import(
+			"./preconnection-agent-skills-store.svelte.js"
+		));
 	});
 
-	it("normalizes skills by agent using frontmatter name and description", async () => {
-		vi.mocked(libraryApi.listSkillsWithSync).mockReturnValue(
+	it("normalizes on-disk skills by agent using frontmatter name and description", async () => {
+		listAgentSkillsMock.mockReturnValue(
 			okAsync([
-				buildLibrarySkillWithSync({
-					id: "skill-1",
-					name: "ce:brainstorm",
-					description: "Brainstorm a feature",
-					targets: [{ agentId: "claude-code", enabled: true }],
-				}),
+				buildAgentSkills("claude-code", [
+					buildSkill({
+						id: "skill-1",
+						agentId: "claude-code",
+						folderName: "brainstorm-feature",
+						name: "ce:brainstorm",
+						description: "Brainstorm a feature",
+					}),
+				]),
+				buildAgentSkills("cursor", []),
 			])
 		);
 
@@ -73,20 +81,24 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("drops later duplicate names within one agent deterministically", () => {
-		const commands = normalizeAgentSkillsToCommands([
-			buildLibrarySkillWithSync({
-				id: "skill-1",
-				name: "ce:brainstorm",
-				description: "First description",
-				targets: [{ agentId: "claude-code", enabled: true }],
-			}),
-			buildLibrarySkillWithSync({
-				id: "skill-2",
-				name: "ce:brainstorm",
-				description: "Second description",
-				targets: [{ agentId: "claude-code", enabled: true }],
-			}),
-		], "claude-code");
+		const commands = normalizeAgentSkillsToCommands(
+			buildAgentSkills("claude-code", [
+				buildSkill({
+					id: "skill-1",
+					agentId: "claude-code",
+					folderName: "brainstorm-first",
+					name: "ce:brainstorm",
+					description: "First description",
+				}),
+				buildSkill({
+					id: "skill-2",
+					agentId: "claude-code",
+					folderName: "brainstorm-second",
+					name: "ce:brainstorm",
+					description: "Second description",
+				}),
+			])
+		);
 
 		expect(commands).toEqual([
 			{
@@ -97,7 +109,7 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("keeps the store retryable when initialization fails", async () => {
-		vi.mocked(libraryApi.listSkillsWithSync).mockReturnValue(
+		listAgentSkillsMock.mockReturnValue(
 			errAsync(new AgentError("skills_list_agent_skills", new Error("boom")))
 		);
 
@@ -111,17 +123,19 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("can retry successfully after an initialization failure", async () => {
-		const mockedListSkillsWithSync = vi.mocked(libraryApi.listSkillsWithSync);
-		mockedListSkillsWithSync
+		listAgentSkillsMock
 			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
 			.mockReturnValueOnce(
 				okAsync([
-					buildLibrarySkillWithSync({
-						id: "skill-1",
-						name: "ce:plan",
-						description: "Plan implementation",
-						targets: [{ agentId: "claude-code", enabled: true }],
-					}),
+					buildAgentSkills("claude-code", [
+						buildSkill({
+							id: "skill-1",
+							agentId: "claude-code",
+							folderName: "plan-implementation",
+							name: "ce:plan",
+							description: "Plan implementation",
+						}),
+					]),
 				])
 			);
 
@@ -140,17 +154,19 @@ describe("PreconnectionAgentSkillsStore", () => {
 	});
 
 	it("ensureLoaded retries after a failed startup warmup", async () => {
-		const mockedListSkillsWithSync = vi.mocked(libraryApi.listSkillsWithSync);
-		mockedListSkillsWithSync
+		listAgentSkillsMock
 			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
 			.mockReturnValueOnce(
 				okAsync([
-					buildLibrarySkillWithSync({
-						id: "skill-1",
-						name: "ce:review",
-						description: "Review changes",
-						targets: [{ agentId: "claude-code", enabled: true }],
-					}),
+					buildAgentSkills("claude-code", [
+						buildSkill({
+							id: "skill-1",
+							agentId: "claude-code",
+							folderName: "review-changes",
+							name: "ce:review",
+							description: "Review changes",
+						}),
+					]),
 				])
 			);
 

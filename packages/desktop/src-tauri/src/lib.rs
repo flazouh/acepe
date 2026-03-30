@@ -111,6 +111,7 @@ use skills::commands::{
     skills_delete,
     skills_get,
     skills_get_plugin_skill,
+    skills_list_agent_skills,
     skills_list_plugin_skills,
     // Plugin skills commands
     skills_list_plugins,
@@ -987,6 +988,7 @@ pub fn run() {
             history::commands::session_loading::set_session_pr_number,
             history::commands::plans::get_unified_plan,
             history::commands::scanning::scan_project_sessions,
+            history::commands::scanning::get_startup_sessions,
             history::commands::scanning::discover_all_projects_with_sessions,
             history::commands::projects::list_all_project_paths,
             history::commands::projects::count_sessions_for_project,
@@ -1112,6 +1114,7 @@ pub fn run() {
             checkpoint_get_file_snapshots,
             // Skills commands
             skills_list_tree,
+            skills_list_agent_skills,
             skills_get,
             skills_create,
             skills_update,

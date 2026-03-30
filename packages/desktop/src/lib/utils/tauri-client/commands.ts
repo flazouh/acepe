@@ -27,6 +27,7 @@ export const CMD = {
 
 	history: {
 		get_unified_session: "get_unified_session",
+		get_startup_sessions: "get_startup_sessions",
 		audit_session_load_timing: "audit_session_load_timing",
 		get_unified_plan: "get_unified_plan",
 		scan_project_sessions: "scan_project_sessions",
@@ -176,6 +177,7 @@ export const CMD = {
 
 	skills: {
 		list_tree: "skills_list_tree",
+		list_agent_skills: "skills_list_agent_skills",
 		get: "skills_get",
 		create: "skills_create",
 		update: "skills_update",

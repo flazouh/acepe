@@ -815,6 +815,38 @@ impl SessionMetadataRepository {
         Ok(models.into_iter().map(Self::model_to_row).collect())
     }
 
+    /// Get startup sessions for specific session IDs.
+    ///
+    /// Matches against both canonical app session IDs and provider session IDs so restored
+    /// panels can hydrate without a broad project scan.
+    pub async fn get_for_session_ids(
+        db: &DbConn,
+        session_ids: &[String],
+    ) -> Result<Vec<SessionMetadataRow>> {
+        if session_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        tracing::debug!(
+            session_count = session_ids.len(),
+            "Loading session metadata for startup sessions"
+        );
+
+        let models = SessionMetadata::find()
+            .filter(
+                Condition::any()
+                    .add(session_metadata::Column::Id.is_in(session_ids.to_vec()))
+                    .add(session_metadata::Column::ProviderSessionId.is_in(session_ids.to_vec())),
+            )
+            .all(db)
+            .await?;
+
+        let count = models.len();
+        tracing::debug!(count = count, "Loaded startup session metadata");
+
+        Ok(models.into_iter().map(Self::model_to_row).collect())
+    }
+
     /// Get all sessions ordered by timestamp DESC.
     pub async fn get_all(db: &DbConn) -> Result<Vec<SessionMetadataRow>> {
         tracing::debug!("Loading all session metadata");

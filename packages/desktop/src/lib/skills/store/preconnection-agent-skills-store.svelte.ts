@@ -4,8 +4,8 @@ import { SvelteMap } from "svelte/reactivity";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { libraryApi } from "../api/skills-api.js";
-import type { LibrarySkillWithSync } from "../types/index.js";
+import { skillsApi } from "../api/skills-api.js";
+import type { AgentSkills } from "../types/index.js";
 
 const PRECONNECTION_AGENT_SKILLS_STORE_KEY = Symbol("preconnection-agent-skills-store");
 const logger = createLogger({
@@ -14,24 +14,18 @@ const logger = createLogger({
 });
 
 export function normalizeAgentSkillsToCommands(
-	skills: LibrarySkillWithSync[],
-	agentId: string
+	agentSkills: AgentSkills
 ): AvailableCommand[] {
 	const commands: AvailableCommand[] = [];
 	const seenNames = new Set<string>();
 
-	for (const skill of skills) {
-		const syncTarget = skill.syncTargets.find((target) => target.agentId === agentId && target.enabled);
-		if (!syncTarget) {
-			continue;
-		}
-
-		const commandName = skill.skill.name;
+	for (const skill of agentSkills.skills) {
+		const commandName = skill.name;
 		if (seenNames.has(commandName)) {
 			logger.warn("Skipping duplicate preconnection skill command", {
-				agentId,
+				agentId: agentSkills.agentId,
 				commandName,
-				skillId: skill.skill.id,
+				skillId: skill.id,
 			});
 			continue;
 		}
@@ -39,7 +33,7 @@ export function normalizeAgentSkillsToCommands(
 		seenNames.add(commandName);
 		commands.push({
 			name: commandName,
-			description: skill.skill.description ? skill.skill.description : "",
+			description: skill.description,
 		});
 	}
 
@@ -76,10 +70,10 @@ export class PreconnectionAgentSkillsStore {
 		this.loading = true;
 		this.error = null;
 
-		return libraryApi
-			.listSkillsWithSync()
-			.map((skills) => {
-				this.replaceCommands(skills);
+		return skillsApi
+			.listAgentSkills()
+			.map((agentSkills) => {
+				this.replaceCommands(agentSkills);
 				this.loading = false;
 				this.loaded = true;
 			})
@@ -101,20 +95,11 @@ export class PreconnectionAgentSkillsStore {
 		return commands ? commands : [];
 	}
 
-	private replaceCommands(skills: LibrarySkillWithSync[]): void {
+	private replaceCommands(agentSkills: AgentSkills[]): void {
 		this.commandsByAgent.clear();
 
-		const agentIds = new Set<string>();
-		for (const skill of skills) {
-			for (const target of skill.syncTargets) {
-				if (target.enabled) {
-					agentIds.add(target.agentId);
-				}
-			}
-		}
-
-		for (const agentId of agentIds) {
-			this.commandsByAgent.set(agentId, normalizeAgentSkillsToCommands(skills, agentId));
+		for (const group of agentSkills) {
+			this.commandsByAgent.set(group.agentId, normalizeAgentSkillsToCommands(group));
 		}
 	}
 }

@@ -248,10 +248,74 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
+		it("hydrates restored panels before running the background sidebar scan", async () => {
+			mockProjectManager.projects = [
+				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
+				{ path: "/project2", name: "Project 2", createdAt: new Date(), color: "green" },
+			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 1",
+				},
+			];
+
+			const restoredSession = buildSession(
+				"session-1",
+				"claude-code",
+				"/project1",
+				"Session 1"
+			);
+			const callOrder: string[] = [];
+
+			mockSessionStore.loadStartupSessions = mock(() => {
+				callOrder.push("startup");
+				return okAsync({ missing: [] });
+			}) as SessionStore["loadStartupSessions"];
+			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+				sessionId === "session-1" ? restoredSession : undefined
+			) as SessionStore["getSessionCold"];
+			mockSessionStore.loadSessionById = mock(() => {
+				callOrder.push("preload");
+				return okAsync(restoredSession);
+			}) as SessionStore["loadSessionById"];
+			mockSessionStore.connectSession = mock(() => {
+				callOrder.push("connect");
+				return okAsync(restoredSession);
+			}) as SessionStore["connectSession"];
+			mockSessionStore.scanSessions = mock((projectPaths: string[]) => {
+				callOrder.push(`scan:${projectPaths.join(",")}`);
+				return okAsync(undefined);
+			}) as SessionStore["scanSessions"];
+
+			await manager.initialize();
+
+			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(callOrder).toEqual([
+				"startup",
+				"preload",
+				"scan:/project1,/project2",
+				"connect",
+			]);
+		});
+
 		it("clears orphaned restored session ids before attempting startup reconnect", async () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
+			mockWorkspaceStore.restore = mock(
+				() => ["missing-session"]
+			) as WorkspaceStore["restore"];
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -293,7 +357,8 @@ describe("InitializationManager", () => {
 			});
 			await manager.initialize();
 
-			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith(["/project1"]);
+			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["missing-session"]);
+			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
 			expect(mockSessionStore.loadSessionById).not.toHaveBeenCalled();
 			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
@@ -303,6 +368,9 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
+			mockWorkspaceStore.restore = mock(
+				() => ["recoverable-session"]
+			) as WorkspaceStore["restore"];
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -354,6 +422,7 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -384,6 +453,8 @@ describe("InitializationManager", () => {
 
 			await manager.initialize();
 
+			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
 				"session-1",
 				"/project1",
@@ -399,6 +470,7 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -415,9 +487,26 @@ describe("InitializationManager", () => {
 					worktreePath: "/project1/.git/worktrees/feature-a",
 				},
 			];
+			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+				sessionId === "session-1"
+					? {
+						id: "session-1",
+						projectPath: "/project1",
+						agentId: "claude-code",
+						title: "Feature thread",
+						createdAt: new Date(),
+						updatedAt: new Date(),
+						parentId: null,
+						worktreePath: "/project1/.git/worktrees/feature-a",
+						sourcePath: "/project1/.cursor/sessions/session-1.json",
+					}
+					: undefined
+			) as SessionStore["getSessionCold"];
 
 			await manager.initialize();
 
+			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
 				"session-1",
 				"/project1",
@@ -433,6 +522,7 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/Users/alex/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
 			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
 
 			let storedSessions: SessionCold[] = [
 				buildSession(
@@ -512,9 +602,8 @@ describe("InitializationManager", () => {
 
 			await manager.initialize();
 
-			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith([
-				"/Users/alex/Documents/acepe",
-			]);
+			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
 				"session-1",

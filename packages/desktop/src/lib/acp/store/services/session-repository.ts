@@ -240,15 +240,26 @@ export class SessionRepository {
 		logger.debug("Loading startup sessions", { sessionIds });
 
 		const loadedIds = new Set(existingSessions.map((s) => s.id));
-		const missing: string[] = sessionIds.filter((id) => !loadedIds.has(id));
+		const sessionIdsToFetch = sessionIds.filter((id) => !loadedIds.has(id));
 
-		if (missing.length === 0) {
+		if (sessionIdsToFetch.length === 0) {
 			logger.debug("All startup sessions already loaded");
 			return okAsync({ missing: [] });
 		}
 
-		logger.debug("Startup sessions not found (likely deleted)", { missing });
-		return okAsync({ missing });
+		return api.getStartupSessions(sessionIdsToFetch).map((entries) => {
+			const mergedSessions = this.mergeHistoryWithExisting(entries, existingSessions);
+			this.stateWriter.setSessions(mergedSessions);
+
+			const foundIds = new Set(mergedSessions.map((session) => session.id));
+			const missing = sessionIds.filter((id) => !foundIds.has(id));
+
+			if (missing.length > 0) {
+				logger.debug("Startup sessions not found (likely deleted)", { missing });
+			}
+
+			return { missing };
+		});
 	}
 
 	/**

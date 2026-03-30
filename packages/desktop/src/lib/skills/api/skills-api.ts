@@ -10,6 +10,7 @@ import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type {
+	AgentSkills,
 	LibrarySkill,
 	LibrarySkillWithSync,
 	PluginInfo,
@@ -26,6 +27,13 @@ import type {
  */
 export function listTree(): ResultAsync<SkillTreeNode[], AppError> {
 	return tauriClient.skills.listTree();
+}
+
+/**
+ * List parsed on-disk skills grouped by agent.
+ */
+export function listAgentSkills(): ResultAsync<AgentSkills[], AppError> {
+	return tauriClient.skills.listAgentSkills();
 }
 
 /**
@@ -102,6 +110,7 @@ export function onSkillsChanged(
  * Skills API object for convenient access.
  */
 export const skillsApi = {
+	listAgentSkills,
 	listTree,
 	getSkill,
 	createSkill,
