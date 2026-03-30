@@ -63,6 +63,11 @@ static MESSAGE_ROLE_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
 static MESSAGE_PART_TEXT_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
+/// Global cache for message part metadata needed by delta-only SSE events.
+/// Key: part_id (String), Value: part_type (e.g. "text" | "reasoning")
+static MESSAGE_PART_TYPE_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
 /// Set the role for a specific message_id (used when role is explicitly provided)
 fn set_message_role(message_id: &str, role: &str) {
     let mut cache = match MESSAGE_ROLE_CACHE.write() {
@@ -96,6 +101,8 @@ pub(super) fn cache_message_role_from_update(_properties: &Value) -> Option<()> 
 
 fn resolve_text_delta(
     part_id: &str,
+    message_id: &str,
+    part_type: &str,
     delta: Option<&str>,
     full_text: Option<&str>,
 ) -> Option<String> {
@@ -109,6 +116,8 @@ fn resolve_text_delta(
         }
     };
 
+    let fallback_key = format!("message:{message_id}:{part_type}");
+
     // Evict if cache exceeds limit to prevent unbounded growth
     if cache.len() >= MAX_CACHE_ENTRIES {
         tracing::warn!(
@@ -119,7 +128,10 @@ fn resolve_text_delta(
         cache.clear();
     }
 
-    let cached = cache.get(part_id).cloned();
+    let cached = cache
+        .get(part_id)
+        .cloned()
+        .or_else(|| cache.get(&fallback_key).cloned());
 
     if let Some(delta_text) = delta {
         let next_text = if let Some(full) = full_text {
@@ -131,7 +143,8 @@ fn resolve_text_delta(
         } else {
             delta_text.to_string()
         };
-        cache.insert(part_id.to_string(), next_text);
+        cache.insert(part_id.to_string(), next_text.clone());
+        cache.insert(fallback_key, next_text);
         return Some(delta_text.to_string());
     }
 
@@ -141,7 +154,9 @@ fn resolve_text_delta(
                 return None;
             }
             if let Some(suffix) = full.strip_prefix(&prev) {
-                cache.insert(part_id.to_string(), full.to_string());
+                let next_text = full.to_string();
+                cache.insert(part_id.to_string(), next_text.clone());
+                cache.insert(fallback_key, next_text);
                 return if suffix.is_empty() {
                     None
                 } else {
@@ -150,11 +165,44 @@ fn resolve_text_delta(
             }
         }
 
-        cache.insert(part_id.to_string(), full.to_string());
-        return Some(full.to_string());
+        let next_text = full.to_string();
+        cache.insert(part_id.to_string(), next_text.clone());
+        cache.insert(fallback_key, next_text.clone());
+        return Some(next_text);
     }
 
     None
+}
+
+fn cache_message_part_type(part_id: &str, part_type: &str) {
+    let mut cache = match MESSAGE_PART_TYPE_CACHE.write() {
+        Ok(cache) => cache,
+        Err(error) => {
+            tracing::error!(%error, "MESSAGE_PART_TYPE_CACHE lock poisoned while caching part type");
+            return;
+        }
+    };
+
+    if cache.len() >= MAX_CACHE_ENTRIES {
+        tracing::warn!(
+            cache_size = cache.len(),
+            max_size = MAX_CACHE_ENTRIES,
+            "MESSAGE_PART_TYPE_CACHE exceeded limit, clearing to prevent memory growth"
+        );
+        cache.clear();
+    }
+
+    cache.insert(part_id.to_string(), part_type.to_string());
+}
+
+fn get_cached_message_part_type(part_id: &str) -> Option<String> {
+    match MESSAGE_PART_TYPE_CACHE.read() {
+        Ok(cache) => cache.get(part_id).cloned(),
+        Err(error) => {
+            tracing::error!(%error, "MESSAGE_PART_TYPE_CACHE lock poisoned while reading part type");
+            None
+        }
+    }
 }
 
 /// Clear all cached roles (call when starting a new session)
@@ -173,6 +221,12 @@ pub(super) fn clear_message_part_text_cache() {
         cache.clear();
     } else {
         tracing::error!("MESSAGE_PART_TEXT_CACHE lock poisoned while clearing text cache");
+    }
+
+    if let Ok(mut cache) = MESSAGE_PART_TYPE_CACHE.write() {
+        cache.clear();
+    } else {
+        tracing::error!("MESSAGE_PART_TYPE_CACHE lock poisoned while clearing part type cache");
     }
 }
 
@@ -266,6 +320,19 @@ struct MessagePartUpdatedEvent {
     info: Option<MessageInfo>,
     #[serde(default)]
     role: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MessagePartDeltaEvent {
+    #[serde(rename = "partID")]
+    part_id: String,
+    #[serde(rename = "messageID")]
+    message_id: String,
+    #[serde(rename = "sessionID")]
+    session_id: String,
+    field: String,
+    delta: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -463,6 +530,11 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
         Err(e) => return PartConversionResult::Failed(e.to_string()),
     };
     let part = event.part;
+    let part_type = part.part_type.as_deref().unwrap_or("");
+
+    if !part_type.is_empty() {
+        cache_message_part_type(&part.id, part_type);
+    }
 
     if part.reason.as_deref() == Some("stop") {
         return PartConversionResult::Filtered(PartFilterReason::StopReason);
@@ -522,8 +594,6 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
         }
     };
 
-    let part_type = part.part_type.as_deref().unwrap_or("");
-
     // Filter user text/reasoning parts (matching OpenChamber behavior)
     if resolved_role.as_deref() == Some("user")
         && matches!(part_type, "text" | "step-start" | "reasoning")
@@ -539,11 +609,16 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
 
     match part_type {
         "text" | "step-start" => {
-            let text =
-                match resolve_text_delta(&part.id, event.delta.as_deref(), part.text.as_deref()) {
-                    Some(t) => t,
-                    None => return PartConversionResult::Filtered(PartFilterReason::EmptyPart),
-                };
+            let text = match resolve_text_delta(
+                &part.id,
+                &part.message_id,
+                part_type,
+                event.delta.as_deref(),
+                part.text.as_deref(),
+            ) {
+                Some(t) => t,
+                None => return PartConversionResult::Filtered(PartFilterReason::EmptyPart),
+            };
             PartConversionResult::Converted(Box::new(SessionUpdate::AgentMessageChunk {
                 chunk: ContentChunk {
                     content: ContentBlock::Text { text },
@@ -555,11 +630,16 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
         }
 
         "reasoning" => {
-            let text =
-                match resolve_text_delta(&part.id, event.delta.as_deref(), part.text.as_deref()) {
-                    Some(t) => t,
-                    None => return PartConversionResult::Filtered(PartFilterReason::EmptyPart),
-                };
+            let text = match resolve_text_delta(
+                &part.id,
+                &part.message_id,
+                part_type,
+                event.delta.as_deref(),
+                part.text.as_deref(),
+            ) {
+                Some(t) => t,
+                None => return PartConversionResult::Filtered(PartFilterReason::EmptyPart),
+            };
             PartConversionResult::Converted(Box::new(SessionUpdate::AgentThoughtChunk {
                 chunk: ContentChunk {
                     content: ContentBlock::Text { text },
@@ -781,6 +861,68 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
             }
             PartConversionResult::Filtered(PartFilterReason::EmptyPart)
         }
+    }
+}
+
+pub(super) fn convert_message_part_delta_to_session_update(
+    properties: &Value,
+) -> PartConversionResult {
+    let event: MessagePartDeltaEvent = match serde_json::from_value(properties.clone()) {
+        Ok(event) => event,
+        Err(error) => return PartConversionResult::Failed(error.to_string()),
+    };
+
+    if event.field != "text" || event.delta.is_empty() {
+        return PartConversionResult::Filtered(PartFilterReason::EmptyPart);
+    }
+
+    let part_type =
+        get_cached_message_part_type(&event.part_id).unwrap_or_else(|| "text".to_string());
+
+    let resolved_role = match MESSAGE_ROLE_CACHE.read() {
+        Ok(cache) => cache.get(&event.message_id).cloned(),
+        Err(error) => {
+            tracing::error!(%error, "MESSAGE_ROLE_CACHE lock poisoned while resolving delta role");
+            None
+        }
+    };
+
+    if resolved_role.as_deref() == Some("user")
+        && matches!(part_type.as_str(), "text" | "reasoning")
+    {
+        return PartConversionResult::Filtered(PartFilterReason::UserMessage);
+    }
+
+    let text = match resolve_text_delta(
+        &event.part_id,
+        &event.message_id,
+        &part_type,
+        Some(event.delta.as_str()),
+        None,
+    ) {
+        Some(text) => text,
+        None => return PartConversionResult::Filtered(PartFilterReason::EmptyPart),
+    };
+
+    match part_type.as_str() {
+        "reasoning" => {
+            PartConversionResult::Converted(Box::new(SessionUpdate::AgentThoughtChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text { text },
+                },
+                part_id: None,
+                message_id: Some(event.message_id),
+                session_id: Some(event.session_id),
+            }))
+        }
+        _ => PartConversionResult::Converted(Box::new(SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text { text },
+            },
+            part_id: None,
+            message_id: Some(event.message_id),
+            session_id: Some(event.session_id),
+        })),
     }
 }
 

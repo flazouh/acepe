@@ -225,6 +225,68 @@ describe("ToolCallManager", () => {
 			);
 		});
 
+		it("preserves richer edit arguments when duplicate create data is sparse", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "Edit",
+					status: "pending",
+					arguments: {
+						kind: "edit",
+						edits: [
+							{
+								filePath: "/tmp/example.rs",
+								oldString: "before",
+								newString: "after",
+								content: null,
+							},
+						],
+					},
+					kind: "edit",
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const sparseData = createToolCallData("tc-1", {
+				name: "Edit",
+				status: "completed",
+				kind: "edit",
+				arguments: {
+					kind: "edit",
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+				},
+			});
+			const result = manager.createEntry("s1", sparseData);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.arguments).toEqual({
+					kind: "edit",
+					edits: [
+						{
+							filePath: "/tmp/example.rs",
+							oldString: "before",
+							newString: "after",
+							content: null,
+						},
+					],
+				});
+			}
+		});
+
 		it("does not downgrade terminal status when replayed create data is pending", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
@@ -594,6 +656,66 @@ describe("ToolCallManager", () => {
 					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
 				});
 				expect(updatedEntry.message.status).toBe("completed");
+			}
+		});
+
+		it("preserves richer edit arguments when update payload is sparse", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "Edit",
+					status: "in_progress",
+					kind: "edit",
+					arguments: {
+						kind: "edit",
+						edits: [
+							{
+								filePath: "/tmp/example.rs",
+								oldString: "before",
+								newString: "after",
+								content: null,
+							},
+						],
+					},
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const update = createToolCallUpdate("tc-1", {
+				status: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+				},
+			});
+			const result = manager.updateEntry("s1", update);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.arguments).toEqual({
+					kind: "edit",
+					edits: [
+						{
+							filePath: "/tmp/example.rs",
+							oldString: "before",
+							newString: "after",
+							content: null,
+						},
+					],
+				});
 			}
 		});
 	});

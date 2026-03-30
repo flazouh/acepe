@@ -219,6 +219,51 @@ export function extractResultFromContent(
 	return textParts.length > 0 ? textParts.join("\n") : null;
 }
 
+function mergeEditEntries(
+	currentEdits: Extract<ToolArguments, { kind: "edit" }>["edits"],
+	incomingEdits: Extract<ToolArguments, { kind: "edit" }>["edits"]
+): Extract<ToolArguments, { kind: "edit" }>["edits"] {
+	const maxLength = Math.max(currentEdits.length, incomingEdits.length);
+	const merged: Extract<ToolArguments, { kind: "edit" }>["edits"] = [];
+
+	for (let index = 0; index < maxLength; index += 1) {
+		const currentEdit = currentEdits[index];
+		const incomingEdit = incomingEdits[index];
+
+		if (currentEdit && incomingEdit) {
+			merged.push({
+				filePath: incomingEdit.filePath ?? currentEdit.filePath,
+				oldString: incomingEdit.oldString ?? currentEdit.oldString,
+				newString: incomingEdit.newString ?? currentEdit.newString,
+				content: incomingEdit.content ?? currentEdit.content,
+			});
+			continue;
+		}
+
+		if (incomingEdit) {
+			merged.push(incomingEdit);
+			continue;
+		}
+
+		if (currentEdit) {
+			merged.push(currentEdit);
+		}
+	}
+
+	return merged;
+}
+
+function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments): ToolArguments {
+	if (currentArgs.kind === "edit" && nextArgs.kind === "edit") {
+		return {
+			kind: "edit",
+			edits: mergeEditEntries(currentArgs.edits, nextArgs.edits),
+		};
+	}
+
+	return nextArgs;
+}
+
 export class ToolCallManager implements IToolCallManager {
 	// Track which tool call IDs belong to which session (for cleanup on clearSession)
 	private sessionToolCallIds = new Map<string, Set<string>>();
@@ -273,7 +318,7 @@ export class ToolCallManager implements IToolCallManager {
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
 				name: data.name,
-				arguments: data.arguments,
+				arguments: mergeToolArguments(existingToolCall.arguments, data.arguments),
 				status: nextStatus ?? existingToolCall.status,
 				result: data.result ?? existingToolCall.result,
 				kind: nextKind,
@@ -425,7 +470,11 @@ export class ToolCallManager implements IToolCallManager {
 		const startedAtMs = toolCall.startedAtMs ?? entry.timestamp?.getTime() ?? nowMs();
 		const completedAtMs =
 			toolCall.completedAtMs ?? (isTerminalStatus(newStatus) ? nowMs() : undefined);
-		const nextArguments = update.arguments ?? update.streamingArguments ?? toolCall.arguments;
+		const rawNextArguments = update.arguments ?? update.streamingArguments ?? toolCall.arguments;
+		const nextArguments =
+			rawNextArguments === toolCall.arguments
+				? toolCall.arguments
+				: mergeToolArguments(toolCall.arguments, rawNextArguments);
 		const pathFromArguments = extractPathFromToolArguments(nextArguments);
 		const pathFromLocations = extractPathFromLocations(update.locations ?? toolCall.locations);
 		const resolvedPath = pathFromArguments ?? pathFromLocations;
@@ -538,13 +587,17 @@ export class ToolCallManager implements IToolCallManager {
 			const nextStatus = resolveNextStatus(child.status, incomingStatus);
 			const nextArguments =
 				childUpdate.arguments ?? childUpdate.streamingArguments ?? child.arguments;
+			const mergedArguments =
+				nextArguments === child.arguments
+					? child.arguments
+					: mergeToolArguments(child.arguments, nextArguments);
 			return {
 				...child,
 				status: nextStatus ?? child.status,
 				result: extractedResult ?? child.result,
 				title: childUpdate.title ?? child.title,
 				locations: childUpdate.locations ?? child.locations,
-				arguments: nextArguments,
+				arguments: mergedArguments,
 			};
 		});
 

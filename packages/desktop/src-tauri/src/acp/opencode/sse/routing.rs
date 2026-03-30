@@ -5,11 +5,11 @@ use crate::acp::streaming_log::log_streaming_event;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, AcpUiEventPriority};
 
 use super::conversion::{
-    cache_message_role_from_update, convert_message_part_to_session_update,
-    convert_permission_asked_to_session_update, convert_question_asked_to_session_update,
-    convert_session_error_to_session_update, convert_session_idle_to_session_update,
-    convert_session_status_to_session_update, EventEnvelope, MultiplexedEventEnvelope,
-    PartConversionResult,
+    cache_message_role_from_update, convert_message_part_delta_to_session_update,
+    convert_message_part_to_session_update, convert_permission_asked_to_session_update,
+    convert_question_asked_to_session_update, convert_session_error_to_session_update,
+    convert_session_idle_to_session_update, convert_session_status_to_session_update,
+    EventEnvelope, MultiplexedEventEnvelope, PartConversionResult,
 };
 
 pub(super) fn handle_sse_event(raw: &str, dispatcher: &AcpUiEventDispatcher) -> Result<()> {
@@ -94,6 +94,29 @@ pub(super) fn handle_event_envelope(
                         properties = %envelope.properties,
                         error = %error,
                         "Failed to convert message.part.updated to SessionUpdate"
+                    );
+                }
+            }
+        }
+
+        "message.part.delta" => {
+            match convert_message_part_delta_to_session_update(&envelope.properties) {
+                PartConversionResult::Converted(update) => {
+                    dispatcher.enqueue(AcpUiEvent::session_update(*update));
+                }
+                PartConversionResult::Filtered(reason) => {
+                    tracing::trace!(
+                        event_type = %envelope.event_type,
+                        ?reason,
+                        "Filtered message part delta (intentional)"
+                    );
+                }
+                PartConversionResult::Failed(error) => {
+                    tracing::warn!(
+                        event_type = %envelope.event_type,
+                        properties = %envelope.properties,
+                        error = %error,
+                        "Failed to convert message.part.delta to SessionUpdate"
                     );
                 }
             }

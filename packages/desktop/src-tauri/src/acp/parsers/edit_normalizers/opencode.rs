@@ -47,6 +47,7 @@ pub(crate) fn parse_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArg
 pub(crate) fn parse_patch_text(raw_arguments: &serde_json::Value) -> Option<ToolArguments> {
     let patch_text = raw_arguments
         .get("patch_text")
+        .or_else(|| raw_arguments.get("patchText"))
         .and_then(|v| v.as_str())
         .filter(|s| !s.trim().is_empty())?;
 
@@ -62,21 +63,23 @@ pub(crate) fn parse_patch_text(raw_arguments: &serde_json::Value) -> Option<Tool
 pub(crate) fn parse_patch_text_str(patch_text: &str) -> Vec<EditEntry> {
     let mut edits: Vec<EditEntry> = Vec::new();
 
-    // Split on "*** Update File: " markers to get per-file sections.
+    // Split on file section markers to get per-file sections.
     // The first segment (before any file marker) is the header/preamble — discard it.
-    let file_marker = "*** Update File: ";
+    let file_markers = ["*** Update File: ", "*** Add File: "];
     let end_marker = "*** End Patch";
 
-    // Find all "*** Update File:" positions
     let mut remaining = patch_text;
 
     loop {
-        // Find the next file section
-        let Some(file_start) = remaining.find(file_marker) else {
+        let Some((file_start, marker)) = file_markers
+            .iter()
+            .filter_map(|marker| remaining.find(marker).map(|index| (index, *marker)))
+            .min_by_key(|(index, _)| *index)
+        else {
             break;
         };
 
-        let after_marker = &remaining[file_start + file_marker.len()..];
+        let after_marker = &remaining[file_start + marker.len()..];
 
         // Extract file path (the rest of that line)
         let path_end = after_marker.find('\n').unwrap_or(after_marker.len());
@@ -90,8 +93,11 @@ pub(crate) fn parse_patch_text_str(patch_text: &str) -> Vec<EditEntry> {
         let diff_section = &after_marker[path_end..];
 
         // Find where this file's section ends (either next file marker or end patch)
-        let section_end = diff_section
-            .find(file_marker)
+        let next_marker_start = file_markers
+            .iter()
+            .filter_map(|next_marker| diff_section.find(next_marker))
+            .min();
+        let section_end = next_marker_start
             .or_else(|| diff_section.find(end_marker))
             .unwrap_or(diff_section.len());
 
@@ -233,5 +239,24 @@ mod tests {
     fn parse_patch_text_returns_none_when_no_file_markers() {
         let raw = serde_json::json!({ "patch_text": "*** Begin Patch\n*** End Patch\n" });
         assert!(parse_patch_text(&raw).is_none());
+    }
+
+    #[test]
+    fn parse_patch_text_accepts_camel_case_key() {
+        let patch = r#"*** Begin Patch
+*** Add File: src/foo.ts
++export const value = 1;
+*** End Patch"#;
+
+        let raw = serde_json::json!({ "patchText": patch });
+        let result = parse_patch_text(&raw).expect("should parse patchText");
+
+        match result {
+            ToolArguments::Edit { edits } => {
+                assert_eq!(edits.len(), 1);
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/foo.ts"));
+            }
+            other => panic!("Expected Edit, got {other:?}"),
+        }
     }
 }

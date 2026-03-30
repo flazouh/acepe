@@ -1,3 +1,4 @@
+use super::conversion::convert_message_part_delta_to_session_update;
 use super::*;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallStatus, ToolKind, TurnErrorData, TurnErrorKind,
@@ -176,6 +177,7 @@ fn test_session_status_in_session_updates() {
         "session.idle",
         "session.status",
         "message.updated",
+        "message.part.delta",
         "message.part.updated",
     ];
 
@@ -768,6 +770,40 @@ fn test_convert_apply_patch_tool_part_to_edit_tool_call() {
 }
 
 #[test]
+fn test_convert_apply_patch_tool_part_to_edit_tool_call_with_patch_text_camel_case() {
+    let properties = json!({
+        "part": {
+            "id": "prt_apply_patch_2",
+            "sessionID": "ses_abc",
+            "messageID": "msg_456",
+            "type": "tool",
+            "callID": "call_apply_patch_2",
+            "tool": "apply_patch",
+            "state": {
+                "status": "running",
+                "input": {
+                    "patchText": "*** Begin Patch\n*** Add File: link.txt\n+https://example.com\n*** End Patch"
+                }
+            }
+        }
+    });
+
+    let result = convert_message_part_to_session_update(&properties);
+    assert!(result.is_some());
+
+    match result.unwrap() {
+        SessionUpdate::ToolCall { tool_call, .. } => match tool_call.arguments {
+            ToolArguments::Edit { edits } => {
+                assert_eq!(edits.len(), 1);
+                assert_eq!(edits[0].file_path.as_deref(), Some("link.txt"));
+            }
+            other => panic!("Expected Edit arguments, got {other:?}"),
+        },
+        _ => panic!("Expected ToolCall"),
+    }
+}
+
+#[test]
 fn test_convert_tool_part_webfetch_search_url_maps_to_web_search() {
     let properties = json!({
         "part": {
@@ -1240,6 +1276,121 @@ fn test_streaming_emits_suffix_when_full_text_extends_cache() {
     match second_result.unwrap() {
         SessionUpdate::AgentMessageChunk { chunk, .. } => match chunk.content {
             ContentBlock::Text { text } => assert_eq!(text, " world"),
+            _ => panic!("Expected Text block"),
+        },
+        _ => panic!("Expected AgentMessageChunk"),
+    }
+}
+
+/// Test that text continues streaming when OpenCode changes part IDs mid-message.
+#[test]
+fn test_streaming_survives_part_id_rotation_with_same_message() {
+    let _guard = reset_caches();
+
+    let first = json!({
+        "part": {
+            "id": "prt_stream_a",
+            "sessionID": "ses_abc",
+            "messageID": "msg_rotate_1",
+            "type": "text",
+            "text": "Planning moves"
+        },
+        "delta": "Planning moves"
+    });
+
+    let second = json!({
+        "part": {
+            "id": "prt_stream_b",
+            "sessionID": "ses_abc",
+            "messageID": "msg_rotate_1",
+            "type": "text",
+            "text": "Planning moves\n\nHere is the actual answer."
+        }
+    });
+
+    let first_result = convert_message_part_to_session_update(&first);
+    assert!(first_result.is_some());
+
+    let second_result = convert_message_part_to_session_update(&second);
+    assert!(second_result.is_some());
+
+    match second_result.unwrap() {
+        SessionUpdate::AgentMessageChunk { chunk, .. } => match chunk.content {
+            ContentBlock::Text { text } => {
+                assert_eq!(text, "\n\nHere is the actual answer.");
+            }
+            _ => panic!("Expected Text block"),
+        },
+        _ => panic!("Expected AgentMessageChunk"),
+    }
+}
+
+#[test]
+fn test_message_part_delta_streams_reasoning_from_cached_part_type() {
+    let _guard = reset_caches();
+
+    let updated = json!({
+        "part": {
+            "id": "prt_reason_delta",
+            "sessionID": "ses_abc",
+            "messageID": "msg_reason_delta",
+            "type": "reasoning"
+        }
+    });
+
+    let delta = json!({
+        "partID": "prt_reason_delta",
+        "messageID": "msg_reason_delta",
+        "sessionID": "ses_abc",
+        "field": "text",
+        "delta": "Thinking"
+    });
+
+    let updated_result = convert_message_part_to_session_update(&updated);
+    assert!(updated_result.is_none());
+
+    let delta_result = convert_message_part_delta_to_session_update(&delta);
+    assert!(delta_result.is_some());
+
+    match delta_result.unwrap() {
+        SessionUpdate::AgentThoughtChunk { chunk, .. } => match chunk.content {
+            ContentBlock::Text { text } => assert_eq!(text, "Thinking"),
+            _ => panic!("Expected Text block"),
+        },
+        _ => panic!("Expected AgentThoughtChunk"),
+    }
+}
+
+#[test]
+fn test_message_part_delta_streams_text_chunks_directly() {
+    let _guard = reset_caches();
+
+    let updated = json!({
+        "part": {
+            "id": "prt_text_delta",
+            "sessionID": "ses_abc",
+            "messageID": "msg_text_delta",
+            "type": "text"
+        }
+    });
+
+    let delta = json!({
+        "partID": "prt_text_delta",
+        "messageID": "msg_text_delta",
+        "sessionID": "ses_abc",
+        "field": "text",
+        "delta": "Hello"
+    });
+
+    let updated_result = convert_message_part_to_session_update(&updated);
+    assert!(updated_result.is_none());
+
+    let delta_result = convert_message_part_delta_to_session_update(&delta);
+    assert!(delta_result.is_some());
+
+    match delta_result.unwrap() {
+        SessionUpdate::AgentMessageChunk { chunk, .. } => match chunk.content {
+            ContentBlock::Text { text } => assert_eq!(text, "Hello"),
             _ => panic!("Expected Text block"),
         },
         _ => panic!("Expected AgentMessageChunk"),

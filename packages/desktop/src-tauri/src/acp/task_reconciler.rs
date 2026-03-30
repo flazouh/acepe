@@ -71,19 +71,22 @@ impl TaskReconciler {
     /// Returns outputs to emit to the frontend.
     pub fn handle_tool_call(&mut self, tool_call: ToolCallData) -> Vec<ReconcilerOutput> {
         if self.active_tool_calls.contains_key(&tool_call.id) {
-            let update = tool_call_to_update(&tool_call);
-            let should_cleanup = {
+            let (merged_tool_call, should_cleanup) = {
                 let existing = self
                     .active_tool_calls
                     .get_mut(&tool_call.id)
                     .expect("tool call should exist when duplicate is detected");
-                *existing = merge_tool_call(existing.clone(), tool_call.clone());
-                is_terminal_status(&existing.status)
+                let merged = merge_tool_call(existing.clone(), tool_call);
+                let is_terminal = is_terminal_status(&merged.status);
+                *existing = merged.clone();
+                (merged, is_terminal)
             };
             if should_cleanup {
-                self.active_tool_calls.remove(&tool_call.id);
+                self.active_tool_calls.remove(&merged_tool_call.id);
             }
-            return vec![ReconcilerOutput::EmitToolCallUpdate(update)];
+            return vec![ReconcilerOutput::EmitToolCallUpdate(tool_call_to_update(
+                &merged_tool_call,
+            ))];
         }
 
         // Case 1: This is a child (has explicit parent_tool_use_id)
@@ -301,6 +304,51 @@ impl TaskReconciler {
     }
 }
 
+fn merge_tool_arguments(current: ToolArguments, incoming: ToolArguments) -> ToolArguments {
+    match (current, incoming) {
+        (
+            ToolArguments::Edit {
+                edits: current_edits,
+            },
+            ToolArguments::Edit {
+                edits: incoming_edits,
+            },
+        ) => ToolArguments::Edit {
+            edits: merge_edit_entries(current_edits, incoming_edits),
+        },
+        (_, incoming_arguments) => incoming_arguments,
+    }
+}
+
+fn merge_edit_entries(
+    current: Vec<crate::acp::session_update::EditEntry>,
+    incoming: Vec<crate::acp::session_update::EditEntry>,
+) -> Vec<crate::acp::session_update::EditEntry> {
+    let max_len = current.len().max(incoming.len());
+    let mut merged = Vec::with_capacity(max_len);
+
+    for index in 0..max_len {
+        let current_entry = current.get(index).cloned();
+        let incoming_entry = incoming.get(index).cloned();
+
+        let next_entry = match (current_entry, incoming_entry) {
+            (Some(current_value), Some(incoming_value)) => crate::acp::session_update::EditEntry {
+                file_path: incoming_value.file_path.or(current_value.file_path),
+                old_string: incoming_value.old_string.or(current_value.old_string),
+                new_string: incoming_value.new_string.or(current_value.new_string),
+                content: incoming_value.content.or(current_value.content),
+            },
+            (Some(current_value), None) => current_value,
+            (None, Some(incoming_value)) => incoming_value,
+            (None, None) => continue,
+        };
+
+        merged.push(next_entry);
+    }
+
+    merged
+}
+
 /// Apply a tool call update to an existing tool call.
 fn apply_update_to_tool_call(tool_call: &mut ToolCallData, update: &ToolCallUpdateData) {
     if let Some(status) = &update.status {
@@ -320,7 +368,7 @@ fn apply_update_to_tool_call(tool_call: &mut ToolCallData, update: &ToolCallUpda
         tool_call.locations = Some(locations.clone());
     }
     if let Some(arguments) = &update.arguments {
-        tool_call.arguments = arguments.clone();
+        tool_call.arguments = merge_tool_arguments(tool_call.arguments.clone(), arguments.clone());
     }
     // Note: raw_output and content are not applied to ToolCallData
     // as they have different structures
@@ -349,7 +397,7 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
     ToolCallData {
         id: current.id,
         name: incoming.name,
-        arguments: incoming.arguments,
+        arguments: merge_tool_arguments(current.arguments, incoming.arguments),
         status: incoming.status,
         result: incoming.result.or(current.result),
         kind: incoming.kind.or(current.kind),
@@ -803,6 +851,82 @@ mod tests {
     }
 
     #[test]
+    fn repeated_edit_tool_call_preserves_richer_arguments_when_duplicate_is_sparse() {
+        let mut reconciler = TaskReconciler::new();
+        let initial = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "Edit".to_string(),
+            arguments: ToolArguments::Edit {
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: Some("/tmp/example.rs".to_string()),
+                    old_string: Some("before".to_string()),
+                    new_string: Some("after".to_string()),
+                    content: None,
+                }],
+            },
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(ToolKind::Edit),
+            title: Some("Edit /tmp/example.rs".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        let sparse_duplicate = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "Edit".to_string(),
+            arguments: ToolArguments::Edit {
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: None,
+                    old_string: None,
+                    new_string: None,
+                    content: None,
+                }],
+            },
+            status: ToolCallStatus::Completed,
+            result: None,
+            kind: Some(ToolKind::Edit),
+            title: Some("Edit File".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let first_outputs = reconciler.handle_tool_call(initial);
+        assert!(matches!(
+            &first_outputs[0],
+            ReconcilerOutput::EmitToolCall(tool_call) if tool_call.id == "tool-1"
+        ));
+
+        let second_outputs = reconciler.handle_tool_call(sparse_duplicate);
+        assert_eq!(second_outputs.len(), 1);
+        match &second_outputs[0] {
+            ReconcilerOutput::EmitToolCallUpdate(update) => match update.arguments.as_ref() {
+                Some(ToolArguments::Edit { edits }) => {
+                    let first_edit = edits.first().expect("expected edit entry");
+                    assert_eq!(first_edit.file_path.as_deref(), Some("/tmp/example.rs"));
+                    assert_eq!(first_edit.old_string.as_deref(), Some("before"));
+                    assert_eq!(first_edit.new_string.as_deref(), Some("after"));
+                }
+                other => panic!("Expected edit arguments, got {:?}", other),
+            },
+            other => panic!("Expected EmitToolCallUpdate, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn completed_task_stops_capturing_children() {
         let mut reconciler = TaskReconciler::new();
 
@@ -942,5 +1066,70 @@ mod tests {
         assert_eq!(tool_call.status, ToolCallStatus::InProgress);
         // Result should be updated
         assert!(tool_call.result.is_some());
+    }
+
+    #[test]
+    fn apply_update_preserves_richer_edit_arguments_when_update_is_sparse() {
+        let mut tool_call = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "Edit".to_string(),
+            arguments: ToolArguments::Edit {
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: Some("/tmp/example.rs".to_string()),
+                    old_string: Some("before".to_string()),
+                    new_string: Some("after".to_string()),
+                    content: None,
+                }],
+            },
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Edit),
+            title: Some("Edit /tmp/example.rs".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let update = ToolCallUpdateData {
+            tool_call_id: "tool-1".to_string(),
+            status: Some(ToolCallStatus::Completed),
+            result: None,
+            content: None,
+            raw_output: None,
+            title: None,
+            locations: None,
+            streaming_input_delta: None,
+            normalized_todos: None,
+            normalized_questions: None,
+            streaming_arguments: None,
+            streaming_plan: None,
+            arguments: Some(ToolArguments::Edit {
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: None,
+                    old_string: None,
+                    new_string: None,
+                    content: None,
+                }],
+            }),
+            failure_reason: None,
+        };
+
+        apply_update_to_tool_call(&mut tool_call, &update);
+
+        match &tool_call.arguments {
+            ToolArguments::Edit { edits } => {
+                let first_edit = edits.first().expect("expected edit entry");
+                assert_eq!(first_edit.file_path.as_deref(), Some("/tmp/example.rs"));
+                assert_eq!(first_edit.old_string.as_deref(), Some("before"));
+                assert_eq!(first_edit.new_string.as_deref(), Some("after"));
+            }
+            other => panic!("Expected edit arguments, got {:?}", other),
+        }
     }
 }

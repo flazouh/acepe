@@ -1000,6 +1000,63 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not drop toolCall events when arguments become richer for the same id", () => {
+		const placeholder: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-apply-patch-1",
+				name: "apply_patch",
+				status: "pending",
+				kind: "edit",
+				arguments: { kind: "other", raw: {} },
+				awaitingPlanApproval: false,
+			},
+		};
+
+		const enriched: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-apply-patch-1",
+				name: "apply_patch",
+				status: "pending",
+				kind: "edit",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "link.txt",
+							oldString: null,
+							newString: null,
+							content: "https://example.com",
+						},
+					],
+				},
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(placeholder, handler);
+		service.handleSessionUpdate(enriched, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			expect.objectContaining({
+				id: "tool-apply-patch-1",
+				arguments: {
+					kind: "edit",
+					edits: [
+						expect.objectContaining({
+							filePath: "link.txt",
+						}),
+					],
+				},
+			})
+		);
+	});
+
 	it("drops duplicate long assistant text chunks during streaming turns", () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,

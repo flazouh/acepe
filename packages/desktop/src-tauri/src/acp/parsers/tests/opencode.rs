@@ -122,6 +122,33 @@ mod opencode_parse_tool_call {
     }
 
     #[test]
+    fn normalizes_apply_patch_to_edit_with_patch_text_camel_case_arguments() {
+        let data = json!({
+            "id": "tool-apply-patch-2",
+            "type": "tool-invocation",
+            "name": "apply_patch",
+            "input": {
+                "patchText": "*** Begin Patch\n*** Add File: link.txt\n+https://example.com\n*** End Patch"
+            }
+        });
+
+        let result = parser().parse_tool_call(&data).unwrap();
+        assert_eq!(result.name, "apply_patch");
+        assert_eq!(
+            result.kind,
+            Some(crate::acp::session_update::ToolKind::Edit)
+        );
+
+        match result.arguments {
+            crate::acp::session_update::ToolArguments::Edit { edits } => {
+                assert_eq!(edits.len(), 1);
+                assert_eq!(edits[0].file_path.as_deref(), Some("link.txt"));
+            }
+            other => panic!("Expected Edit arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn fails_when_id_missing() {
         let data = json!({
             "type": "tool-invocation",

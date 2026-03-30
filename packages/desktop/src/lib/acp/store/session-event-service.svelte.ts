@@ -771,8 +771,12 @@ export class SessionEventService {
 
 	private createReplayFingerprint(sessionId: string, update: SessionUpdate): string | null {
 		switch (update.type) {
-			case "toolCall":
-				return `${sessionId}|toolCall|${update.tool_call.id}|${update.tool_call.status}|${update.tool_call.name}`;
+			case "toolCall": {
+				const title = update.tool_call.title ?? "";
+				const kind = update.tool_call.kind ?? "none";
+				const argumentsPreview = JSON.stringify(update.tool_call.arguments).slice(0, 160);
+				return `${sessionId}|toolCall|${update.tool_call.id}|${update.tool_call.status}|${update.tool_call.name}|${kind}|${title}|${argumentsPreview}`;
+			}
 			case "toolCallUpdate": {
 				const status = update.update.status ?? "none";
 				const title = update.update.title ?? "";
