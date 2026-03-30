@@ -23,6 +23,7 @@ import {
 } from "../../registry/tool-kind-ui-registry.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
 import { getQuestionStore } from "../../store/question-store.svelte.js";
+import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { COLOR_NAMES, Colors } from "../../utils/colors.js";
@@ -34,6 +35,7 @@ import {
 	extractPermissionCommand,
 	extractPermissionFilePath,
 } from "../tool-calls/permission-display.js";
+import { isExitPlanPermission, getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
 import { getQueueItemToolDisplay, getTaskSubagentSummaries } from "./queue-item-display.js";
 import {
 	buildQueueItemQuestionUiState,
@@ -57,6 +59,7 @@ let { item, isSelected = false, onSelect }: Props = $props();
 
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
+const permissionStore = getPermissionStore();
 
 const selectionReader: QuestionSelectionReader = {
 	hasSelections(questionId, questionIndex) {
@@ -75,6 +78,19 @@ const selectionReader: QuestionSelectionReader = {
 
 const hasPendingQuestion = $derived(item.state.pendingInput.kind === "question");
 const hasPendingPermission = $derived(item.state.pendingInput.kind === "permission");
+
+// Detect ExitPlanMode permissions for custom plan card rendering
+const isExitPlanMode = $derived.by(() => {
+	if (!hasPendingPermission || !pendingPermission) return false;
+	return isExitPlanPermission(pendingPermission);
+});
+const exitPlanDisplayTitle = $derived.by(() => {
+	if (!isExitPlanMode || !pendingPermission) return "Plan";
+	const toolCall = effectiveToolCall;
+	if (!toolCall) return "Plan";
+	const plan = getExitPlanDisplayPlan(toolCall, pendingPermission, null);
+	return plan ? plan.title : "Plan";
+});
 
 // Detect plan approval questions (Approve/Reject from cursor/create_plan)
 const isPlanApproval = $derived.by(() => {
@@ -146,6 +162,7 @@ const currentQuestionAnswered = $derived(questionUiState.currentQuestionAnswered
 const questionProgress = $derived(questionUiState.questionProgress);
 const currentQuestionOptions = $derived(questionUiState.currentQuestionOptions);
 const isSingleQuestionSingleSelect = $derived(questionUiState.isSingleQuestionSingleSelect);
+const showOtherInput = $derived(questionUiState.showOtherInput);
 const otherText = $derived(questionUiState.otherText);
 const canSubmit = $derived(questionUiState.canSubmit);
 const showSubmitButton = $derived(questionUiState.showSubmitButton);
@@ -304,6 +321,16 @@ function handlePlanReject() {
 	questionStore.reply(item.pendingQuestion.id, answers, item.pendingQuestion.questions);
 }
 
+function handleExitPlanBuild() {
+	if (!pendingPermission) return;
+	permissionStore.reply(pendingPermission.id, "once");
+}
+
+function handleExitPlanCancel() {
+	if (!pendingPermission) return;
+	permissionStore.reply(pendingPermission.id, "reject");
+}
+
 const redColor = Colors[COLOR_NAMES.RED];
 
 function submitAllAnswers() {
@@ -362,10 +389,12 @@ function handleOtherKeydown(key: string) {
 	const otherValue = selectionStore.getOtherText(questionId, currentQuestionIndex).trim();
 
 	if (key === "Enter" && otherValue && item.pendingQuestion) {
-		if (totalQuestions === 1 && !currentQuestion?.multiSelect) {
+		if (totalQuestions === 1) {
 			submitAllAnswers();
 		} else if (currentQuestionIndex < totalQuestions - 1) {
 			currentQuestionIndex++;
+		} else {
+			submitAllAnswers();
 		}
 	}
 	if (key === "Escape") {
@@ -394,7 +423,50 @@ function handleNextQuestion() {
 	<AgentIcon agentId={item.agentId} size={14} class="block shrink-0 rounded" />
 {/snippet}
 
-{#if hasPendingPermission && pendingPermission}
+{#if isExitPlanMode && pendingPermission}
+	<!-- ExitPlanMode: custom plan card with Build/Cancel actions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="flex flex-col overflow-hidden cursor-pointer transition-colors hover:bg-accent/40 {isSelected ? '!bg-accent/40' : ''}"
+		onclick={handleSelect}
+		role="button"
+		tabindex="0"
+	>
+		<div class="flex items-center gap-1.5 px-2 py-1.5">
+			{@render projectBadge()}
+			{@render agentBadge()}
+			<span class="flex-1 min-w-0 text-xs font-medium truncate">{displayTitle}</span>
+			{#if timeAgo}
+				<span class="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{timeAgo}</span>
+			{/if}
+		</div>
+		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
+			<EmbeddedPanelHeader class="!border-b-0">
+				<HeaderTitleCell compactPadding>
+					<PlanIcon size="sm" class="shrink-0 mr-1" />
+					<span
+						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
+					>
+						{exitPlanDisplayTitle}
+					</span>
+				</HeaderTitleCell>
+				<HeaderActionCell withDivider={false}>
+					<button type="button" class="plan-queue-action" onclick={handleExitPlanCancel}>
+						<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
+						Cancel
+					</button>
+				</HeaderActionCell>
+				<HeaderActionCell>
+					<button type="button" class="plan-queue-action" onclick={handleExitPlanBuild}>
+						<BuildIcon size="sm" />
+						{m.plan_sidebar_build()}
+					</button>
+				</HeaderActionCell>
+			</EmbeddedPanelHeader>
+		</div>
+	</div>
+{:else if hasPendingPermission && pendingPermission}
 	<PermissionFeedItem
 		selected={isSelected}
 		onSelect={handleSelect}
@@ -486,7 +558,7 @@ function handleNextQuestion() {
 		{currentQuestionOptions}
 		{otherText}
 		otherPlaceholder={m.question_other_placeholder()}
-		showOtherInput={!isSingleQuestionSingleSelect}
+		{showOtherInput}
 		{showSubmitButton}
 		{canSubmit}
 		submitLabel={m.common_submit()}

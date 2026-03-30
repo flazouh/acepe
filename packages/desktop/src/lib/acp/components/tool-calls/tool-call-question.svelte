@@ -199,6 +199,19 @@ function handleOtherInput(questionIndex: number, text: string, multiSelect?: boo
 	}
 }
 
+function handleOtherKeydown(questionIndex: number, key: string) {
+	if (key !== "Enter" || !pendingQuestion || !displayQuestions) {
+		return;
+	}
+
+	const otherValue = selectionStore.getOtherText(questionId, questionIndex).trim();
+	if (!otherValue) {
+		return;
+	}
+
+	handleSubmit();
+}
+
 function handleSubmit() {
 	if (!pendingQuestion || !displayQuestions) return;
 
@@ -260,6 +273,7 @@ onMount(() => {
 	durationLabel={elapsedLabel ?? undefined}
 	onSelect={handleSelect}
 	onOtherInput={handleOtherInput}
+	onOtherKeydown={handleOtherKeydown}
 	onSubmit={handleSubmit}
 	onCancel={handleCancel}
 	{hasSelections}

@@ -27,6 +27,7 @@ export interface QueueItemQuestionUiState {
 	readonly questionProgress: readonly QueueItemQuestionProgress[];
 	readonly currentQuestionOptions: readonly QueueItemQuestionOption[];
 	readonly isSingleQuestionSingleSelect: boolean;
+	readonly showOtherInput: boolean;
 	readonly hasOtherActive: boolean;
 	readonly otherText: string;
 	readonly canSubmit: boolean;
@@ -73,6 +74,7 @@ export function buildQueueItemQuestionUiState(
 		: [];
 
 	const isSingleQuestionSingleSelect = totalQuestions === 1 && !currentQuestion?.multiSelect;
+	const showOtherInput = currentQuestion !== null;
 
 	const hasOtherActive = pendingQuestion
 		? pendingQuestion.questions.some(
@@ -102,6 +104,7 @@ export function buildQueueItemQuestionUiState(
 		questionProgress,
 		currentQuestionOptions,
 		isSingleQuestionSingleSelect,
+		showOtherInput,
 		hasOtherActive,
 		otherText,
 		canSubmit,

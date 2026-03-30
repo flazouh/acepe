@@ -1,9 +1,9 @@
 <script lang="ts">
 import IconSquare from "@tabler/icons-svelte/icons/square";
 import IconCheck from "@tabler/icons-svelte/icons/check";
+import IconHelpCircleFilled from "@tabler/icons-svelte/icons/help-circle-filled";
 import CaretRight from "phosphor-svelte/lib/CaretRight";
 import CaretLeft from "phosphor-svelte/lib/CaretLeft";
-import Question from "phosphor-svelte/lib/Question";
 import type { Snippet } from "svelte";
 
 import { TextShimmer } from "../text-shimmer/index.js";
@@ -126,6 +126,7 @@ const hasMainRowContent = $derived(
 			todoProgress
 	)
 );
+const questionIconClassName = $derived(currentQuestionAnswered ? "text-success" : "text-primary");
 </script>
 
 <FeedItem selected={selected} onSelect={onSelect} {slidingHighlight} {compactPadding} {collapsed}>
@@ -223,7 +224,7 @@ const hasMainRowContent = $derived(
 		<div class="mt-2 flex flex-col rounded-md border border-border/60 bg-muted/20 overflow-hidden shadow-sm">
 			<!-- Header -->
 			<div class="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/60 bg-muted/40">
-				<Question weight="fill" class="size-3.5 text-primary shrink-0" />
+				<IconHelpCircleFilled class={`size-3.5 shrink-0 ${questionIconClassName}`} />
 				<div class="flex-1 min-w-0 text-xs text-foreground font-medium leading-tight">
 					{currentQuestion.question}
 				</div>
@@ -269,8 +270,8 @@ const hasMainRowContent = $derived(
 			</div>
 
 			<!-- Options -->
-			{#if currentQuestion.options && currentQuestion.options.length > 0}
-				<div class="flex flex-col divide-y divide-border/40 bg-background/20">
+			<div class="flex flex-col divide-y divide-border/40 bg-background/20">
+				{#if currentQuestion.options && currentQuestion.options.length > 0}
 					{#each currentQuestionOptions as option, i (`${option.label}-${i}`)}
 						<button
 							type="button"
@@ -294,28 +295,34 @@ const hasMainRowContent = $derived(
 							<span>{option.label}</span>
 						</button>
 					{/each}
+				{/if}
 
-					{#if showOtherInput}
-						<div class="flex items-center gap-2 px-2.5 py-1.5 text-xs transition-all {otherText.trim() ? 'bg-primary/5' : 'focus-within:bg-muted/30'}">
-							<input
-								type="text"
-								class="flex-1 w-full bg-transparent border-none outline-none focus:ring-0 p-0 {otherText.trim() ? 'text-foreground font-medium' : 'text-foreground/80'} placeholder:text-muted-foreground/60"
-								placeholder={otherPlaceholder}
-								value={otherText}
-								oninput={(e) => {
-									e.stopPropagation();
-									onOtherInput((e.target as HTMLInputElement).value);
-								}}
-								onkeydown={(e) => {
-									e.stopPropagation();
-									onOtherKeydown(e.key);
-								}}
-								onclick={(e) => e.stopPropagation()}
-							/>
-						</div>
-					{/if}
-				</div>
-			{/if}
+				{#if showOtherInput}
+					<div class="flex items-center gap-2 px-2.5 py-1.5 text-xs transition-all {otherText.trim() ? 'bg-primary/5' : 'focus-within:bg-muted/30'}">
+						<input
+							type="text"
+							class="flex-1 w-full bg-transparent border-none outline-none focus:ring-0 p-0 {otherText.trim() ? 'text-foreground font-medium' : 'text-foreground/80'} placeholder:text-muted-foreground/60"
+							placeholder={otherPlaceholder}
+							value={otherText}
+							oninput={(e) => {
+								e.stopPropagation();
+								onOtherInput((e.target as HTMLInputElement).value);
+							}}
+							onkeydown={(e) => {
+								e.stopPropagation();
+								onOtherKeydown(e.key);
+							}}
+							onclick={(e) => e.stopPropagation()}
+						/>
+						<kbd
+							aria-label="Press Enter to submit"
+							class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 font-mono text-[10px] text-muted-foreground/80"
+						>
+							Enter
+						</kbd>
+					</div>
+				{/if}
+			</div>
 
 			{#if showSubmitButton}
 				<div class="flex items-center justify-end px-2 py-1.5 border-t border-border/50 bg-muted/30">

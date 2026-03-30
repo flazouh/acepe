@@ -4,7 +4,6 @@ import * as m from "$lib/paraglide/messages.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
-import ErrorMessage from "../../messages/error-message.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import UserMessage from "../../messages/user-message.svelte";
 import ProjectSelectionPanel from "../../project-selection-panel.svelte";
@@ -55,12 +54,6 @@ const turnState = $derived<TurnState>(hotState?.turnState ?? "idle");
 const isStreaming = $derived(turnState === "streaming");
 
 const isWaitingForResponse = $derived(runtimeState?.showThinking ?? false);
-
-const errorMessage = $derived(
-	viewState.kind === "conversation" && viewState.errorDetails
-		? { content: viewState.errorDetails }
-		: null
-);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {
@@ -124,13 +117,6 @@ export function scrollToTop() {
 {:else if viewState.kind === "conversation"}
 	<div class="h-full flex flex-col relative">
 		<div class="flex-1 min-h-0">
-			{#if errorMessage}
-				<div class="px-3 pt-3 {isFullscreen ? 'flex justify-center' : ''}">
-					<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
-						<ErrorMessage message={errorMessage} />
-					</div>
-				</div>
-			{/if}
 			{#if sessionId}
 				{#key sessionId}
 					<VirtualizedEntryList

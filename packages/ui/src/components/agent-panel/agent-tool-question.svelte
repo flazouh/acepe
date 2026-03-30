@@ -1,20 +1,16 @@
 <script lang="ts">
 	import Check from "phosphor-svelte/lib/Check";
 	import Square from "phosphor-svelte/lib/Square";
-	import CheckCircle from "phosphor-svelte/lib/CheckCircle";
 	import XCircle from "phosphor-svelte/lib/XCircle";
-	import Question from "phosphor-svelte/lib/Question";
 	import DotsThree from "phosphor-svelte/lib/DotsThree";
+	import IconHelpCircleFilled from "@tabler/icons-svelte/icons/help-circle-filled";
 	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentQuestion, AgentToolStatus } from "./types.js";
-	import { Colors } from "../../lib/colors.js";
 	import {
 		EmbeddedPanelHeader,
 		HeaderActionCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
-
-	const QUESTION_ICON_COLOR = Colors.purple;
 
 	interface Props {
 		/** Questions to display */
@@ -39,6 +35,8 @@
 		onSelect?: (questionIndex: number, label: string, multiSelect?: boolean) => void;
 		/** Callback when "Other" text input changes */
 		onOtherInput?: (questionIndex: number, text: string, multiSelect?: boolean) => void;
+		/** Callback when a key is pressed inside the "Other" input */
+		onOtherKeydown?: (questionIndex: number, key: string, multiSelect?: boolean) => void;
 		/** Callback when submit button is clicked */
 		onSubmit?: () => void;
 		/** Callback when cancel button is clicked */
@@ -75,6 +73,7 @@
 		durationLabel,
 		onSelect,
 		onOtherInput,
+		onOtherKeydown,
 		onSubmit,
 		onCancel,
 		hasSelections = false,
@@ -126,7 +125,7 @@
 					<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
 					<span class="question-title text-muted-foreground">{cancelledLabel}</span>
 				{:else}
-					<CheckCircle size={14} weight="fill" class="shrink-0 mr-1 text-success" />
+					<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
 					<span class="question-title">
 						{questions?.[0]?.header || questionLabel}
 					</span>
@@ -161,7 +160,7 @@
 		<!-- Header bar -->
 		<EmbeddedPanelHeader class="bg-accent/40">
 			<HeaderTitleCell compactPadding>
-				<Question size={14} weight="bold" class="shrink-0 mr-1" style="color: {QUESTION_ICON_COLOR}" />
+				<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
 				<span class="question-title">{questionLabel}</span>
 				{#if questions[0]?.header}
 					<span class="question-badge ml-1.5">{questions[0].header}</span>
@@ -184,9 +183,8 @@
 				{/if}
 
 				<div class="text-xs text-foreground mb-2">{question.question}</div>
-
-				{#if question.options && question.options.length > 0}
-					<div class="space-y-1">
+				<div class="space-y-1">
+					{#if question.options && question.options.length > 0}
 						{#each question.options as option, i (i)}
 							{@const selected = isSelected(qIndex, option.label)}
 							{@const optionClasses = [
@@ -229,33 +227,39 @@
 								</div>
 							</div>
 						{/each}
+					{/if}
 
-						<!-- "Other" text input (only in interactive mode) -->
-						{#if isInteractive}
-							{@const currentOtherText = otherText[qIndex] ?? ""}
-							{@const hasOtherText = currentOtherText.trim().length > 0}
-							<div
-								class="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-muted/50 overflow-hidden"
-							>
-								<div class="flex items-center gap-2 w-full">
-									{#if hasOtherText}
-										<Check size={14} class="text-foreground shrink-0" />
-									{:else}
-										<DotsThree size={14} weight="bold" class="text-muted-foreground shrink-0" />
-									{/if}
-									<input
-										type="text"
-										class="flex-1 px-2 py-1 text-xs rounded-sm border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-										placeholder={otherPlaceholder}
-										value={currentOtherText}
-										oninput={(e) =>
-											onOtherInput?.(qIndex, e.currentTarget.value, question.multiSelect)}
-									/>
-								</div>
+					<!-- "Other" text input (only in interactive mode) -->
+					{#if isInteractive}
+						{@const currentOtherText = otherText[qIndex] ?? ""}
+						{@const hasOtherText = currentOtherText.trim().length > 0}
+						<div class="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-muted/50 overflow-hidden">
+							<div class="flex items-center gap-2 w-full">
+								{#if hasOtherText}
+									<Check size={14} class="text-foreground shrink-0" />
+								{:else}
+									<DotsThree size={14} weight="bold" class="text-muted-foreground shrink-0" />
+								{/if}
+								<input
+									type="text"
+									class="flex-1 px-2 py-1 text-xs rounded-sm border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+									placeholder={otherPlaceholder}
+									value={currentOtherText}
+									oninput={(e) =>
+										onOtherInput?.(qIndex, e.currentTarget.value, question.multiSelect)}
+									onkeydown={(e) =>
+										onOtherKeydown?.(qIndex, e.key, question.multiSelect)}
+								/>
+								<kbd
+									aria-label="Press Enter to submit"
+									class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 font-mono text-[10px] text-muted-foreground/80"
+								>
+									Enter
+								</kbd>
 							</div>
-						{/if}
-					</div>
-				{/if}
+						</div>
+					{/if}
+				</div>
 			{/each}
 		</div>
 

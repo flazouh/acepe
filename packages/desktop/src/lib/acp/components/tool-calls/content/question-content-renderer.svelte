@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
 import IconCircle from "@tabler/icons-svelte/icons/circle";
-import IconHelpCircle from "@tabler/icons-svelte/icons/help-circle";
+import IconHelpCircleFilled from "@tabler/icons-svelte/icons/help-circle-filled";
 import IconSquare from "@tabler/icons-svelte/icons/square";
 import { Kbd } from "$lib/components/ui/kbd/index.js";
 
@@ -30,7 +30,7 @@ const isMultiSelect = $derived(primaryQuestion?.multiSelect ?? false);
 		<div class="rounded-md border bg-card p-3">
 			<!-- Question header -->
 			<div class="flex items-center gap-1.5 text-xs mb-2">
-				<IconHelpCircle class="h-3.5 w-3.5 text-primary shrink-0" />
+				<IconHelpCircleFilled class="h-3.5 w-3.5 text-primary shrink-0" />
 				<span class="font-medium text-muted-foreground">Question</span>
 				{#if question.header}
 					<span class="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
