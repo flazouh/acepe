@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- GitHub Copilot CLI can now be installed and launched as a built-in Acepe agent, with ACP-backed session listing and replay in history
+- Supported live sessions now expose an Autonomous toolbar toggle that switches execution profiles for hands-off runs
+- Modified files review now supports keep-all progress, richer PR instruction editing, and PR prompt preview generation
+- Attention queue task entries now render subagent activity as dedicated cards, and the shared UserMessageContainer is exported from @acepe/ui
+
+### Changed
+- Fullscreen and workspace restoration now treat agent, terminal, review, and Git panels as top-level single-view panels with more reliable focus restoration
+- Codex now uses the native app-server runtime, and built-in agent launcher resolution is aligned around provider-managed cached binaries
+- PR generation keeps the XML response contract hidden from the editable prompt, and toolbar config controls avoid duplicating mode and model selectors
+
+### Fixed
+- Pending permissions are restored if a reply fails, and resumed sessions reset autonomous execution profiles back to safe defaults
+- Worktree creation now branches from the mainline ref instead of the current checkout when possible
+- Drag-and-drop listener cleanup, PR header expansion order, dropdown icon color states, and queue task rendering are more reliable
+
 ## [2026.3.37] - 2026-03-30
 
 ### Changed
