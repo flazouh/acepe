@@ -11,6 +11,7 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
 import { COLOR_NAMES, Colors } from "../utils/colors.js";
+import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
 
 type ProjectViewMode = "sessions" | "files";
 
@@ -35,32 +36,7 @@ let {
 let menuOpen = $state(false);
 let showRemoveConfirm = $state(false);
 let triggerRef: HTMLButtonElement | undefined = $state();
-
-const colorOptions = [
-	{ name: COLOR_NAMES.RED, hex: Colors[COLOR_NAMES.RED], label: () => m.project_color_red() },
-	{
-		name: COLOR_NAMES.ORANGE,
-		hex: Colors[COLOR_NAMES.ORANGE],
-		label: () => m.project_color_orange(),
-	},
-	{
-		name: COLOR_NAMES.YELLOW,
-		hex: Colors[COLOR_NAMES.YELLOW],
-		label: () => m.project_color_yellow(),
-	},
-	{
-		name: COLOR_NAMES.GREEN,
-		hex: Colors[COLOR_NAMES.GREEN],
-		label: () => m.project_color_green(),
-	},
-	{ name: COLOR_NAMES.CYAN, hex: Colors[COLOR_NAMES.CYAN], label: () => m.project_color_cyan() },
-	{
-		name: COLOR_NAMES.PURPLE,
-		hex: Colors[COLOR_NAMES.PURPLE],
-		label: () => m.project_color_purple(),
-	},
-	{ name: COLOR_NAMES.PINK, hex: Colors[COLOR_NAMES.PINK], label: () => m.project_color_pink() },
-];
+const colorOptions = PROJECT_COLOR_OPTIONS;
 
 function handleColorSelect(colorName: string) {
 	onColorChange?.(colorName);

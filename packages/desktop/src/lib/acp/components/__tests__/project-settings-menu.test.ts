@@ -15,4 +15,9 @@ describe("project settings menu", () => {
 		expect(source).toContain("<DropdownMenu.SubTrigger>");
 		expect(source).toContain("<DropdownMenu.SubContent");
 	});
+
+	it("uses the shared project color options", () => {
+		expect(source).toContain('import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";');
+		expect(source).not.toContain("const colorOptions = [");
+	});
 });

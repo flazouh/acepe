@@ -1,6 +1,7 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
 import FloppyDisk from "phosphor-svelte/lib/FloppyDisk";
+import PaperPlaneRight from "phosphor-svelte/lib/PaperPlaneRight";
 import PencilSimple from "phosphor-svelte/lib/PencilSimple";
 import Queue from "phosphor-svelte/lib/Queue";
 import Trash from "phosphor-svelte/lib/Trash";
@@ -80,6 +81,10 @@ function handleResume(): void {
 	messageQueueStore.resume(sessionId);
 }
 
+function handleSendNow(messageId: string): void {
+	messageQueueStore.sendNow(sessionId, messageId);
+}
+
 function truncate(text: string, maxLength: number): string {
 	const lines = text.split("\n");
 	const firstLine = lines[0] ? lines[0] : text;
@@ -107,7 +112,7 @@ function truncate(text: string, maxLength: number): string {
 								<div class="flex items-center justify-end gap-1">
 									<button
 										type="button"
-										class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
+										class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 										onclick={handleCancelEdit}
 									>
 										<X size={10} weight="bold" class="shrink-0" />
@@ -115,7 +120,7 @@ function truncate(text: string, maxLength: number): string {
 									</button>
 									<button
 										type="button"
-										class="h-6 px-2 text-[10px] font-mono font-medium text-foreground bg-accent/60 hover:bg-accent/80 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
+										class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 										onclick={handleSaveEdit}
 									>
 										<FloppyDisk size={10} weight="bold" class="shrink-0" />
@@ -139,7 +144,15 @@ function truncate(text: string, maxLength: number): string {
 							<div class="flex items-center gap-1 shrink-0" role="none">
 								<button
 									type="button"
-									class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
+									class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+									onclick={() => handleSendNow(message.id)}
+								>
+									<PaperPlaneRight size={10} weight="bold" class="shrink-0" />
+									{m.agent_input_queue_send_now()}
+								</button>
+								<button
+									type="button"
+									class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 									onclick={() => handleStartEdit(message.id, message.content)}
 								>
 									<PencilSimple size={10} weight="bold" class="shrink-0" />
@@ -147,7 +160,7 @@ function truncate(text: string, maxLength: number): string {
 								</button>
 								<button
 									type="button"
-									class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
+									class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 									onclick={() => handleRemove(message.id)}
 								>
 									<Trash size={10} weight="bold" class="shrink-0" />
@@ -179,7 +192,7 @@ function truncate(text: string, maxLength: number): string {
 				{#if isPaused}
 					<button
 						type="button"
-						class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer"
+						class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 						onclick={handleResume}
 					>
 						{m.agent_input_queue_resume()}
@@ -187,7 +200,7 @@ function truncate(text: string, maxLength: number): string {
 				{/if}
 				<button
 					type="button"
-					class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer"
+					class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
 					onclick={handleClear}
 				>
 					{m.agent_input_queue_clear()}

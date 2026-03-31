@@ -66,6 +66,8 @@ export interface MessageQueueStore {
 	removeMessage(sessionId: string, messageId: string): void;
 	clearQueue(sessionId: string): void;
 	drainNext(sessionId: string): void;
+	/** Send a specific queued message immediately, removing it from the queue. */
+	sendNow(sessionId: string, messageId: string): void;
 	pause(sessionId: string): void;
 	resume(sessionId: string): void;
 	isPaused(sessionId: string): boolean;
@@ -211,6 +213,40 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			});
 	}
 
+	function sendNow(sessionId: string, messageId: string): void {
+		const queue = queues.get(sessionId);
+		if (!queue) return;
+
+		const index = queue.findIndex((m) => m.id === messageId);
+		if (index === -1) return;
+
+		const target = queue[index];
+		const rest = queue.filter((_, i) => i !== index);
+		if (rest.length > 0) {
+			queues.set(sessionId, rest);
+			bumpVersion(sessionId);
+		} else {
+			queues.delete(sessionId);
+			clearVersion(sessionId);
+		}
+
+		logger.debug("Sending queued message now", { sessionId, messageId: target.id });
+
+		sender
+			.sendMessage(sessionId, target.content, target.attachments)
+			.mapErr((error) => {
+				const current = queues.get(sessionId) ?? [];
+				queues.set(sessionId, [target, ...current]);
+				bumpVersion(sessionId);
+				pausedIds.add(sessionId);
+				logger.warn("sendNow failed, re-inserted and paused", {
+					sessionId,
+					messageId: target.id,
+					error,
+				});
+			});
+	}
+
 	function pause(sessionId: string): void {
 		pausedIds.add(sessionId);
 		logger.debug("Queue paused", { sessionId });
@@ -247,6 +283,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 		removeMessage,
 		clearQueue,
 		drainNext,
+		sendNow,
 		pause,
 		resume,
 		isPaused,

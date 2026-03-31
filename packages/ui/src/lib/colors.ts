@@ -4,9 +4,14 @@
 export const COLOR_NAMES = {
 	RED: "red",
 	ORANGE: "orange",
+	AMBER: "amber",
 	YELLOW: "yellow",
+	LIME: "lime",
 	GREEN: "green",
+	TEAL: "teal",
 	CYAN: "cyan",
+	BLUE: "blue",
+	INDIGO: "indigo",
 	PURPLE: "purple",
 	PINK: "pink",
 } as const;
@@ -19,9 +24,14 @@ export const COLOR_NAMES = {
 export const Colors = {
 	[COLOR_NAMES.RED]: "#FF5D5A",
 	[COLOR_NAMES.ORANGE]: "#FF8D20",
+	[COLOR_NAMES.AMBER]: "#FFB347",
 	[COLOR_NAMES.YELLOW]: "#FAD83C",
+	[COLOR_NAMES.LIME]: "#B7E63E",
 	[COLOR_NAMES.GREEN]: "#15DB95",
+	[COLOR_NAMES.TEAL]: "#18D6C3",
 	[COLOR_NAMES.CYAN]: "#4AD0FF",
+	[COLOR_NAMES.BLUE]: "#4D8DFF",
+	[COLOR_NAMES.INDIGO]: "#6F6BFF",
 	[COLOR_NAMES.PURPLE]: "#9858FF",
 	[COLOR_NAMES.PINK]: "#FF78F7",
 } as const;
@@ -32,9 +42,14 @@ export const Colors = {
 export const TAG_COLORS = [
 	Colors[COLOR_NAMES.RED],
 	Colors[COLOR_NAMES.ORANGE],
+	Colors[COLOR_NAMES.AMBER],
 	Colors[COLOR_NAMES.YELLOW],
+	Colors[COLOR_NAMES.LIME],
 	Colors[COLOR_NAMES.GREEN],
+	Colors[COLOR_NAMES.TEAL],
 	Colors[COLOR_NAMES.CYAN],
+	Colors[COLOR_NAMES.BLUE],
+	Colors[COLOR_NAMES.INDIGO],
 	Colors[COLOR_NAMES.PURPLE],
 	Colors[COLOR_NAMES.PINK],
 ];
