@@ -49,6 +49,28 @@ describe("workspace panel persistence", () => {
 				url: "https://example.com",
 				title: "Example",
 			},
+			{
+				id: "review-1",
+				kind: "review",
+				projectPath: "/tmp/project",
+				width: 600,
+				ownerPanelId: null,
+				modifiedFilesState: {
+					files: [],
+					byPath: new Map(),
+					fileCount: 0,
+					totalEditCount: 0,
+				},
+				selectedFileIndex: 0,
+			},
+			{
+				id: "git-1",
+				kind: "git",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				initialTarget: { section: "prs", prNumber: 42 },
+			},
 		]);
 
 		expect(persisted).toEqual([
@@ -92,6 +114,24 @@ describe("workspace panel persistence", () => {
 				ownerPanelId: null,
 				url: "https://example.com",
 				title: "Example",
+			},
+			{
+				id: "review-1",
+				kind: "review",
+				projectPath: "/tmp/project",
+				width: 600,
+				ownerPanelId: null,
+				files: [],
+				totalEditCount: 0,
+				selectedFileIndex: 0,
+			},
+			{
+				id: "git-1",
+				kind: "git",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				initialTarget: { section: "prs", prNumber: 42 },
 			},
 		]);
 	});
@@ -152,6 +192,54 @@ describe("workspace panel persistence", () => {
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
+			},
+		]);
+	});
+
+	it("hydrates review and git panels as top-level workspace panels", () => {
+		const panels = hydratePersistedWorkspacePanels([
+			{
+				id: "review-1",
+				kind: "review",
+				projectPath: "/tmp/project",
+				width: 600,
+				ownerPanelId: null,
+				files: [],
+				totalEditCount: 0,
+				selectedFileIndex: 0,
+			},
+			{
+				id: "git-1",
+				kind: "git",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				initialTarget: { section: "prs", prNumber: 42 },
+			},
+		]);
+
+		expect(panels).toEqual([
+			{
+				id: "review-1",
+				kind: "review",
+				projectPath: "/tmp/project",
+				width: 600,
+				ownerPanelId: null,
+				modifiedFilesState: {
+					files: [],
+					byPath: new Map(),
+					fileCount: 0,
+					totalEditCount: 0,
+				},
+				selectedFileIndex: 0,
+			},
+			{
+				id: "git-1",
+				kind: "git",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				initialTarget: { section: "prs", prNumber: 42 },
 			},
 		]);
 	});

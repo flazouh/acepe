@@ -57,18 +57,11 @@ export function getViewModeState(
 	const { panelsWithState, allGroups } = context;
 	const viewMode = panelStore.viewMode;
 	const isSingleMode = viewMode === "single";
-	const explicitlySelectedSinglePanel =
-		panelStore.fullscreenPanelId !== null
-			? (panelsWithState.find((x) => x.id === panelStore.fullscreenPanelId) ?? null)
-			: null;
 	const isFullscreenMode = isSingleMode;
 	const layout: "fullscreen" | "cards" = isFullscreenMode ? "fullscreen" : "cards";
 
 	const fullscreenPanel: PanelWithProject | null = (() => {
 		if (isSingleMode) {
-			if (explicitlySelectedSinglePanel) {
-				return explicitlySelectedSinglePanel;
-			}
 			const p =
 				panelsWithState.find((x) => x.id === panelStore.focusedPanelId) ??
 				panelsWithState[0] ??

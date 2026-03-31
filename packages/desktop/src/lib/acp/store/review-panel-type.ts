@@ -1,34 +1,9 @@
-import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state.js";
+import type { ReviewWorkspacePanel } from "./types.js";
 
 /**
  * Review panel for reviewing and accepting/rejecting file modifications.
  */
-export interface ReviewPanel {
-	/**
-	 * Unique panel identifier.
-	 */
-	id: string;
-
-	/**
-	 * Absolute path to the project root.
-	 */
-	projectPath: string;
-
-	/**
-	 * Panel width in pixels.
-	 */
-	width: number;
-
-	/**
-	 * The aggregated modified files state from the session.
-	 */
-	modifiedFilesState: ModifiedFilesState;
-
-	/**
-	 * Index of the currently selected file in the files array.
-	 */
-	selectedFileIndex: number;
-}
+export type ReviewPanel = ReviewWorkspacePanel;
 
 /**
  * Default width for review panels.

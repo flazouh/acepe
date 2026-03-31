@@ -32,7 +32,7 @@ function createStore(workspacePanels: WorkspacePanel[], focusedPanelId: string |
 }
 
 describe("TabBarStore non-agent tabs", () => {
-	it("includes top-level file, terminal, and browser panels without fabricating agent metadata", () => {
+	it("includes top-level file, terminal, browser, review, and git panels without fabricating agent metadata", () => {
 		const store = createStore(
 			[
 				{
@@ -59,6 +59,28 @@ describe("TabBarStore non-agent tabs", () => {
 					width: 430,
 					url: "https://example.com",
 					title: "Example",
+				},
+				{
+					id: "review-1",
+					kind: "review",
+					projectPath: "/projects/acepe",
+					ownerPanelId: null,
+					width: 440,
+					modifiedFilesState: {
+						files: [],
+						byPath: new Map(),
+						fileCount: 0,
+						totalEditCount: 0,
+					},
+					selectedFileIndex: 0,
+				},
+				{
+					id: "git-1",
+					kind: "git",
+					projectPath: "/projects/acepe",
+					ownerPanelId: null,
+					width: 450,
+					initialTarget: { section: "prs", prNumber: 7 },
 				},
 			],
 			"terminal-1"
@@ -92,6 +114,18 @@ describe("TabBarStore non-agent tabs", () => {
 				title: "Example",
 				agentId: null,
 				sessionId: null,
+				}),
+				expect.objectContaining({
+					panelId: "review-1",
+					title: "Review",
+					agentId: null,
+					sessionId: null,
+				}),
+				expect.objectContaining({
+					panelId: "git-1",
+					title: "Source Control",
+					agentId: null,
+					sessionId: null,
 			}),
 		]);
 	});

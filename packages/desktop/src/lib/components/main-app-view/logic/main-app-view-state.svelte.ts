@@ -15,6 +15,7 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -106,7 +107,7 @@ export class MainAppViewState {
 		if (draft.body) params.set("body", draft.body);
 		if (draft.category) params.set("labels", draft.category);
 		const url = `https://github.com/flazouh/acepe/issues/new?${params.toString()}`;
-		window.open(url, "_blank", "noopener,noreferrer");
+		void openUrl(url).catch(() => {});
 	}
 
 	/**
@@ -183,11 +184,6 @@ export class MainAppViewState {
 	}
 
 	private getSingleModePanelId(): string | null {
-		const explicitFullscreenPanelId = this.panelStore.fullscreenPanelId;
-		if (explicitFullscreenPanelId && this.panelStore.getPanel(explicitFullscreenPanelId)) {
-			return explicitFullscreenPanelId;
-		}
-
 		const focusedPanelId = this.panelStore.focusedPanelId;
 		if (focusedPanelId && this.panelStore.getPanel(focusedPanelId)) {
 			return focusedPanelId;
@@ -588,6 +584,11 @@ export class MainAppViewState {
 	 * @param panelId - The panel to enter fullscreen with (ignored when exiting)
 	 */
 	handleToggleFullscreen(panelId: string): void {
+		if (!this.panelStore.getPanel(panelId)) {
+			this.panelStore.toggleFullscreen(panelId);
+			return;
+		}
+
 		if (this.panelStore.viewMode === "single") {
 			// Exiting fullscreen: restore to the previous non-single view mode.
 			// Never restore to "single" — that still renders the fullscreen layout.
@@ -599,12 +600,10 @@ export class MainAppViewState {
 			this.preFullscreenViewMode = null;
 			this.setSidebarOpen(true);
 		} else {
-			// Entering fullscreen: save current view mode, switch to single.
-			// setViewMode() resets fullscreenPanelId, so we re-establish it afterwards.
+			// Entering fullscreen: save current view mode and switch to single.
 			this.preFullscreenViewMode = this.panelStore.viewMode;
 			this.panelStore.focusPanel(panelId);
 			this.panelStore.setViewMode("single");
-			this.panelStore.switchFullscreen(panelId);
 		}
 	}
 

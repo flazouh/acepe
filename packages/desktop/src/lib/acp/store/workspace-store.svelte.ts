@@ -17,11 +17,13 @@ import { remapOwnerPanelId } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
+import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import {
 	MIN_PANEL_WIDTH,
 	type AgentWorkspacePanel,
 	type BrowserWorkspacePanel,
 	type FileWorkspacePanel,
+	type GitWorkspacePanel,
 	type Panel,
 	type PersistedBrowserPanelState,
 	type PersistedTerminalPanelGroupState,
@@ -30,12 +32,15 @@ import {
 	type PersistedFilePanelState,
 	type PersistedFileWorkspacePanelState,
 	type PersistedAgentWorkspacePanelState,
+	type PersistedGitWorkspacePanelState,
+	type PersistedReviewWorkspacePanelState,
 	type PersistedReviewFullscreenState,
 	type PersistedSqlStudioState,
 	type PersistedTerminalPanelState,
 	type PersistedTerminalWorkspacePanelState,
 	type PersistedWorkspacePanelState,
 	type PersistedWorkspaceState,
+	type ReviewWorkspacePanel,
 	type TerminalPanelGroup,
 	type TerminalTab,
 	type TerminalWorkspacePanel,
@@ -208,6 +213,16 @@ export function hydratePersistedBrowserPanels(
 	}));
 }
 
+function createModifiedFilesStateLookup(
+	files: ReadonlyArray<ModifiedFileEntry>
+): ReadonlyMap<string, ModifiedFileEntry> {
+	const byPath = new Map<string, ModifiedFileEntry>();
+	for (const file of files) {
+		byPath.set(file.filePath, file);
+	}
+	return byPath;
+}
+
 export function serializeWorkspacePanels(
 	workspacePanels: ReadonlyArray<WorkspacePanel>
 ): PersistedWorkspacePanelState[] {
@@ -252,6 +267,32 @@ export function serializeWorkspacePanels(
 				width: panel.width,
 				ownerPanelId: panel.ownerPanelId,
 				groupId: panel.groupId,
+			};
+			return persisted;
+		}
+
+		if (panel.kind === "review") {
+			const persisted: PersistedReviewWorkspacePanelState = {
+				id: panel.id,
+				kind: "review",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				files: panel.modifiedFilesState.files,
+				totalEditCount: panel.modifiedFilesState.totalEditCount,
+				selectedFileIndex: panel.selectedFileIndex,
+			};
+			return persisted;
+		}
+
+		if (panel.kind === "git") {
+			const persisted: PersistedGitWorkspacePanelState = {
+				id: panel.id,
+				kind: "git",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				initialTarget: panel.initialTarget,
 			};
 			return persisted;
 		}
@@ -314,6 +355,37 @@ export function hydratePersistedWorkspacePanels(
 				width: clampedWidth,
 				ownerPanelId: panel.ownerPanelId,
 				groupId: panel.groupId,
+			};
+			return hydrated;
+		}
+
+		if (panel.kind === "review") {
+			const files = Array.from(panel.files);
+			const hydrated: ReviewWorkspacePanel = {
+				id: panel.id ? panel.id : crypto.randomUUID(),
+				kind: "review",
+				projectPath: panel.projectPath,
+				width: clampedWidth,
+				ownerPanelId: panel.ownerPanelId,
+				modifiedFilesState: {
+					files,
+					byPath: createModifiedFilesStateLookup(files),
+					fileCount: files.length,
+					totalEditCount: panel.totalEditCount,
+				},
+				selectedFileIndex: panel.selectedFileIndex,
+			};
+			return hydrated;
+		}
+
+		if (panel.kind === "git") {
+			const hydrated: GitWorkspacePanel = {
+				id: panel.id ? panel.id : crypto.randomUUID(),
+				kind: "git",
+				projectPath: panel.projectPath,
+				width: clampedWidth,
+				ownerPanelId: panel.ownerPanelId,
+				initialTarget: panel.initialTarget,
 			};
 			return hydrated;
 		}
@@ -530,21 +602,26 @@ export class WorkspaceStore {
 				}
 
 				if (
-					state.fullscreenPanelIndex !== undefined &&
-					state.fullscreenPanelIndex !== null &&
-					state.fullscreenPanelIndex >= 0 &&
-					state.fullscreenPanelIndex < topLevelWorkspacePanels.length
-				) {
-					this.panelStore.switchFullscreen(topLevelWorkspacePanels[state.fullscreenPanelIndex].id);
-				}
-
-				if (state.viewMode !== undefined) {
+					state.viewMode !== undefined) {
 					this.panelStore.viewMode = state.viewMode;
 				} else if (state.focusedViewEnabled) {
 					this.panelStore.viewMode = "project";
 				}
 				if (state.focusedViewProjectPath !== undefined) {
 					this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
+				}
+				if (
+					state.fullscreenPanelIndex !== undefined &&
+					state.fullscreenPanelIndex !== null &&
+					state.fullscreenPanelIndex >= 0 &&
+					state.fullscreenPanelIndex < topLevelWorkspacePanels.length
+				) {
+					const fullscreenPanel = topLevelWorkspacePanels[state.fullscreenPanelIndex];
+					if (fullscreenPanel) {
+						this.panelStore.focusedPanelId = fullscreenPanel.id;
+						this.panelStore.viewMode = "single";
+						this.panelStore.fullscreenPanelId = null;
+					}
 				}
 				this.panelStore.ensureSingleViewForAgentFullscreen();
 
@@ -677,15 +754,13 @@ export class WorkspaceStore {
 			this.panelStore.setMessageDraft(id, draft);
 		}
 
-		// Restore fullscreen state
-		if (
+		const legacyFullscreenPanelId =
 			state.fullscreenPanelIndex !== undefined &&
 			state.fullscreenPanelIndex !== null &&
 			state.fullscreenPanelIndex >= 0 &&
 			state.fullscreenPanelIndex < restoredPanels.length
-		) {
-			this.panelStore.switchFullscreen(restoredPanels[state.fullscreenPanelIndex].id);
-		}
+				? restoredPanels[state.fullscreenPanelIndex].id
+				: null;
 
 		// Restore SQL Studio state (version 4+)
 		if (state.sqlStudio) {
@@ -744,7 +819,9 @@ export class WorkspaceStore {
 				state.fullscreenPanelIndex >= 0 &&
 				state.fullscreenPanelIndex < migratedTerminalPanels.length
 			) {
-				this.panelStore.switchFullscreen(migratedTerminalPanels[state.fullscreenPanelIndex].id);
+				this.panelStore.focusedPanelId = migratedTerminalPanels[state.fullscreenPanelIndex].id;
+				this.panelStore.viewMode = "single";
+				this.panelStore.fullscreenPanelId = null;
 			}
 		}
 
@@ -788,6 +865,11 @@ export class WorkspaceStore {
 		}
 		if (state.focusedViewProjectPath !== undefined) {
 			this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
+		}
+		if (legacyFullscreenPanelId !== null) {
+			this.panelStore.focusedPanelId = legacyFullscreenPanelId;
+			this.panelStore.viewMode = "single";
+			this.panelStore.fullscreenPanelId = null;
 		}
 		this.panelStore.ensureSingleViewForAgentFullscreen();
 

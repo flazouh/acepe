@@ -4,6 +4,12 @@ import type { AgentStore } from "../agent-store.svelte.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
+vi.stubGlobal("localStorage", {
+	getItem: vi.fn(() => null),
+	setItem: vi.fn(),
+	removeItem: vi.fn(),
+});
+
 function requireValue<T>(value: T | null): T {
 	expect(value).not.toBeNull();
 	if (value === null) {
@@ -21,7 +27,7 @@ function createStore(): PanelStore {
 }
 
 describe("PanelStore terminal fullscreen", () => {
-	it("normalizes agent fullscreen targets to single view mode", () => {
+	it("uses single view mode for agent fullscreen without storing an aux fullscreen target", () => {
 		const store = createStore();
 		const panel = store.spawnPanel({ projectPath: "/tmp/project" });
 
@@ -29,18 +35,19 @@ describe("PanelStore terminal fullscreen", () => {
 		store.switchFullscreen(panel.id);
 
 		expect(store.viewMode).toBe("single");
-		expect(store.fullscreenPanelId).toBe(panel.id);
+		expect(store.fullscreenPanelId).toBeNull();
 	});
 
-	it("keeps terminal fullscreen separate from single view mode", () => {
+	it("uses single view mode for terminal fullscreen without storing a separate fullscreen target", () => {
 		const store = createStore();
 		store.viewMode = "project";
 		const group = store.openTerminalPanel("/tmp/project");
 
 		store.enterTerminalFullscreen(group.id);
 
-		expect(store.viewMode).toBe("project");
-		expect(store.fullscreenPanelId).toBe(group.id);
+		expect(store.viewMode).toBe("single");
+		expect(store.focusedPanelId).toBe(group.id);
+		expect(store.fullscreenPanelId).toBeNull();
 	});
 
 	it("enters fullscreen for a terminal without creating an agent panel", () => {
@@ -88,6 +95,46 @@ describe("PanelStore terminal fullscreen", () => {
 		const newGroup = store.moveTerminalTabToNewPanel(tab.id);
 
 		expect(newGroup).not.toBeNull();
+		expect(store.fullscreenPanelId).toBeNull();
+	});
+
+	it("keeps single mode on the next remaining agent when closing the visible single-mode agent", () => {
+		const store = createStore();
+		const first = store.spawnPanel({ projectPath: "/tmp/project-a" });
+		const second = store.spawnPanel({ projectPath: "/tmp/project-b" });
+
+		store.viewMode = "project";
+		store.switchFullscreen(first.id);
+		store.closePanel(first.id);
+
+		expect(store.viewMode).toBe("single");
+		expect(store.focusedPanelId).toBe(second.id);
+		expect(store.fullscreenPanelId).toBeNull();
+	});
+
+	it("exits single mode when closing the last visible single-mode agent", () => {
+		const store = createStore();
+		const panel = store.spawnPanel({ projectPath: "/tmp/project" });
+
+		store.viewMode = "project";
+		store.switchFullscreen(panel.id);
+		store.closePanel(panel.id);
+
+		expect(store.viewMode).toBe("multi");
+		expect(store.fullscreenPanelId).toBeNull();
+	});
+
+	it("keeps single mode on the next remaining top-level panel when closing the visible terminal", () => {
+		const store = createStore();
+		const first = store.openTerminalPanel("/tmp/project-a");
+		const second = store.openTerminalPanel("/tmp/project-b");
+
+		store.viewMode = "project";
+		store.switchFullscreen(first.id);
+		store.closeTerminalPanel(first.id);
+
+		expect(store.viewMode).toBe("single");
+		expect(store.focusedPanelId).toBe(second.id);
 		expect(store.fullscreenPanelId).toBeNull();
 	});
 });

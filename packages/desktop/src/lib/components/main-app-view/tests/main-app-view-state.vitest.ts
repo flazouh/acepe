@@ -10,6 +10,12 @@ vi.mock("$lib/services/zoom.svelte.js", () => ({
 	}),
 }));
 
+const openUrlMock = vi.fn();
+
+vi.mock("@tauri-apps/plugin-opener", () => ({
+	openUrl: openUrlMock,
+}));
+
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
@@ -39,6 +45,7 @@ function createState(options?: {
 
 	const panelStore = {
 		fullscreenPanelId: null,
+		toggleFullscreen: vi.fn(),
 		isPanelInReviewMode: vi.fn(() => false),
 		focusedPanel: options?.focusedPanelProjectPath
 			? { projectPath: options.focusedPanelProjectPath }
@@ -144,9 +151,9 @@ describe("MainAppViewState file explorer", () => {
 
 		expect(panelStore.focusPanel).toHaveBeenCalledWith("panel-1");
 		expect(panelStore.setViewMode).toHaveBeenCalledWith("single");
-		expect(panelStore.switchFullscreen).toHaveBeenCalledWith("panel-1");
+		expect(panelStore.switchFullscreen).not.toHaveBeenCalled();
 		expect(panelStore.viewMode).toBe("single");
-		expect(panelStore.fullscreenPanelId).toBe("panel-1");
+		expect(panelStore.fullscreenPanelId).toBeNull();
 	});
 
 	it("restores the prior card mode when leaving single mode", () => {
@@ -158,5 +165,37 @@ describe("MainAppViewState file explorer", () => {
 		expect(panelStore.setViewMode).toHaveBeenLastCalledWith("project");
 		expect(panelStore.viewMode).toBe("project");
 		expect(panelStore.fullscreenPanelId).toBeNull();
+	});
+
+	it("enters single mode when toggling fullscreen for a non-agent top-level panel", () => {
+		const { state, panelStore } = createState();
+		panelStore.getPanel = vi.fn(() => undefined);
+
+		state.handleToggleFullscreen("terminal-1");
+
+		expect(panelStore.switchFullscreen).not.toHaveBeenCalled();
+		expect(panelStore.focusPanel).toHaveBeenCalledWith("terminal-1");
+		expect(panelStore.setViewMode).toHaveBeenCalledWith("single");
+		expect(panelStore.viewMode).toBe("single");
+	});
+
+	it("opens issue drafts with the system browser opener", () => {
+		const { state } = createState();
+		openUrlMock.mockReset();
+		openUrlMock.mockResolvedValue(undefined);
+		const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+		state.openUserReportsWithDraft({
+			title: "Bug report",
+			body: "Line 1\nLine 2",
+			category: "bug",
+		});
+
+		expect(openUrlMock).toHaveBeenCalledWith(
+			"https://github.com/flazouh/acepe/issues/new?title=Bug+report&body=Line+1%0ALine+2&labels=bug"
+		);
+		expect(windowOpenSpy).not.toHaveBeenCalled();
+
+		windowOpenSpy.mockRestore();
 	});
 });

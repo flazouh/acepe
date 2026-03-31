@@ -136,6 +136,28 @@ describe("groupWorkspacePanelsByProject", () => {
 					url: "https://example.com",
 					title: "Example",
 				},
+				{
+					id: "review-1",
+					kind: "review",
+					projectPath: "/tmp/project-a",
+					ownerPanelId: null,
+					width: 600,
+					modifiedFilesState: {
+						files: [],
+						byPath: new Map(),
+						fileCount: 0,
+						totalEditCount: 0,
+					},
+					selectedFileIndex: 0,
+				},
+				{
+					id: "git-1",
+					kind: "git",
+					projectPath: "/tmp/project-a",
+					ownerPanelId: null,
+					width: 500,
+					initialTarget: { section: "commits", commitSha: "abc123" },
+				},
 			],
 			[],
 			[],
@@ -154,5 +176,7 @@ describe("groupWorkspacePanelsByProject", () => {
 		expect(groups[0]?.filePanels).toHaveLength(1);
 		expect(groups[0]?.terminalPanels).toHaveLength(1);
 		expect(groups[0]?.browserPanels).toHaveLength(1);
+		expect(groups[0]?.reviewPanels).toHaveLength(1);
+		expect(groups[0]?.gitPanels).toHaveLength(1);
 	});
 });

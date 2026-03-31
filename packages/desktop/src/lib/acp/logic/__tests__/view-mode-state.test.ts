@@ -67,7 +67,7 @@ describe("getViewModeState", () => {
 		expect(state.fullscreenPanel?.id).toBe("p1");
 	});
 
-	it("single prefers an explicitly selected fullscreen panel over the focus fallback", () => {
+	it("single resolves the fullscreen agent from the focused panel instead of fullscreenPanelId", () => {
 		const store = createMockPanelStore({
 			viewMode: "single",
 			fullscreenPanelId: "p3",
@@ -75,7 +75,7 @@ describe("getViewModeState", () => {
 		});
 		const state = getViewModeState(store, { panelsWithState, allGroups });
 		expect(state.layout).toBe("fullscreen");
-		expect(state.fullscreenPanel?.id).toBe("p3");
+		expect(state.fullscreenPanel?.id).toBe("p2");
 	});
 
 	it("ignores an explicit agent fullscreen target outside single mode", () => {

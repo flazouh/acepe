@@ -206,6 +206,20 @@ fn has_valid_head(repo_path: &Path) -> Result<bool, String> {
     Ok(output.status.success())
 }
 
+fn resolve_worktree_base_ref(repo_path: &Path) -> Result<String, String> {
+    for candidate in ["origin/main", "origin/master", "main", "master"] {
+        if branch_exists(repo_path, candidate)? {
+            return Ok(candidate.to_string());
+        }
+    }
+
+    if has_valid_head(repo_path)? {
+        return Ok("HEAD".to_string());
+    }
+
+    Err("Could not determine worktree base ref".to_string())
+}
+
 fn ensure_initial_commit_for_unborn_repo(repo_path: &Path) -> Result<bool, String> {
     if has_valid_head(repo_path)? {
         return Ok(false);
@@ -382,7 +396,10 @@ pub async fn git_worktree_create(
         "Checked unborn HEAD status before worktree creation"
     );
 
-    // Create the worktree with a new branch based on HEAD (last committed state)
+    let base_ref = resolve_worktree_base_ref(&project_path_buf)?;
+    tracing::info!(base_ref = %base_ref, "Resolved worktree base ref");
+
+    // Create the worktree with a new branch based on mainline instead of the current checkout.
     let output = Command::new("git")
         .args([
             "worktree",
@@ -390,7 +407,7 @@ pub async fn git_worktree_create(
             "-b",
             &info.branch,
             &info.directory,
-            "HEAD",
+            &base_ref,
         ])
         .current_dir(&project_path)
         .output()
@@ -1091,6 +1108,7 @@ pub async fn git_has_uncommitted_changes(project_path: String) -> Result<bool, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use tempfile::TempDir;
 
     fn run_git(repo_path: &Path, args: &[&str]) -> std::process::Output {
@@ -1103,11 +1121,73 @@ mod tests {
             .expect("git command should run")
     }
 
+    fn run_git_with_env(
+        repo_path: &Path,
+        args: &[&str],
+        extra_env: &[(&str, &str)],
+    ) -> std::process::Output {
+        let mut command = Command::new("git");
+        command
+            .args(args)
+            .current_dir(repo_path)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE");
+
+        for (key, value) in extra_env {
+            command.env(key, value);
+        }
+
+        command.output().expect("git command should run")
+    }
+
     fn init_repo() -> TempDir {
         let temp_dir = TempDir::new().expect("temp dir should create");
         let init_output = run_git(temp_dir.path(), &["init"]);
         assert!(init_output.status.success(), "git init should succeed");
+
+        let set_main_output = run_git(temp_dir.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+        assert!(
+            set_main_output.status.success(),
+            "git symbolic-ref HEAD refs/heads/main should succeed"
+        );
+
         temp_dir
+    }
+
+    fn write_repo_file(repo_path: &Path, relative_path: &str, contents: &str) {
+        let file_path = repo_path.join(relative_path);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).expect("parent directory should be created");
+        }
+        fs::write(file_path, contents).expect("file contents should be written");
+    }
+
+    fn commit_all(repo_path: &Path, message: &str) {
+        let add_output = run_git(repo_path, &["add", "-A"]);
+        assert!(add_output.status.success(), "git add -A should succeed");
+
+        let commit_output = run_git_with_env(
+            repo_path,
+            &["commit", "-m", message],
+            &[
+                ("GIT_AUTHOR_NAME", "Acepe Tests"),
+                ("GIT_AUTHOR_EMAIL", "acepe-tests@local"),
+                ("GIT_COMMITTER_NAME", "Acepe Tests"),
+                ("GIT_COMMITTER_EMAIL", "acepe-tests@local"),
+            ],
+        );
+        assert!(
+            commit_output.status.success(),
+            "git commit should succeed: {}",
+            String::from_utf8_lossy(&commit_output.stderr)
+        );
+    }
+
+    fn init_bare_remote() -> TempDir {
+        let remote_dir = TempDir::new().expect("remote temp dir should create");
+        let init_output = run_git(remote_dir.path(), &["init", "--bare"]);
+        assert!(init_output.status.success(), "git init --bare should succeed");
+        remote_dir
     }
 
     #[test]
@@ -1281,5 +1361,45 @@ branch refs/heads/acepe/clever-falcon";
             !changed,
             "existing head should not create another initial commit"
         );
+    }
+
+    #[test]
+    fn resolve_worktree_base_ref_prefers_origin_main_over_current_head() {
+        let remote_dir = init_bare_remote();
+        let repo_dir = init_repo();
+
+        write_repo_file(repo_dir.path(), "README.md", "main branch\n");
+        commit_all(repo_dir.path(), "initial commit");
+
+        let remote_path = remote_dir.path().to_string_lossy().to_string();
+        let add_remote_output = run_git(repo_dir.path(), &["remote", "add", "origin", &remote_path]);
+        assert!(add_remote_output.status.success(), "git remote add should succeed");
+
+        let push_output = run_git(repo_dir.path(), &["push", "-u", "origin", "main"]);
+        assert!(push_output.status.success(), "git push should succeed");
+
+        let checkout_output = run_git(repo_dir.path(), &["checkout", "-b", "feature/worktree-base"]);
+        assert!(checkout_output.status.success(), "git checkout -b should succeed");
+
+        write_repo_file(repo_dir.path(), "README.md", "feature branch\n");
+        commit_all(repo_dir.path(), "feature commit");
+
+        let base_ref =
+            resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
+
+        assert_eq!(base_ref, "origin/main");
+    }
+
+    #[test]
+    fn resolve_worktree_base_ref_falls_back_to_local_main_when_origin_main_is_missing() {
+        let repo_dir = init_repo();
+
+        write_repo_file(repo_dir.path(), "README.md", "main branch\n");
+        commit_all(repo_dir.path(), "initial commit");
+
+        let base_ref =
+            resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
+
+        assert_eq!(base_ref, "main");
     }
 }

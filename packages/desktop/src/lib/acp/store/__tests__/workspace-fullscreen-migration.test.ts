@@ -106,7 +106,7 @@ describe("workspace fullscreen migration", () => {
 		expect(restoredPanel.kind).toBe("browser");
 	});
 
-	it("restores an agent fullscreen target as single view mode", () => {
+	it("restores an agent fullscreen target as focused single-mode state without aux fullscreen", () => {
 		const panelStore = createPanelStoreStub();
 		const sessionStore = {
 			getSessionIdentity: mock(() => undefined),
@@ -137,7 +137,8 @@ describe("workspace fullscreen migration", () => {
 			viewMode: "project",
 		});
 
-		expect(panelStore.fullscreenPanelId).toBe("agent-1");
+		expect(panelStore.fullscreenPanelId).toBeNull();
+		expect(panelStore.focusedPanelId).toBe("agent-1");
 		expect(panelStore.viewMode).toBe("single");
 	});
 
@@ -177,7 +178,8 @@ describe("workspace fullscreen migration", () => {
 			order: 1,
 		});
 		expect(panelStore.workspacePanels).toHaveLength(2);
-		expect(panelStore.focusedPanelId).toBe("terminal-a");
-		expect(panelStore.fullscreenPanelId).toBe("terminal-b");
+		expect(panelStore.focusedPanelId).toBe("terminal-b");
+		expect(panelStore.fullscreenPanelId).toBeNull();
+		expect(panelStore.viewMode).toBe("single");
 	});
 });

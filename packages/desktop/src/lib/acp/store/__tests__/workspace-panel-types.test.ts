@@ -4,10 +4,14 @@ import type {
 	AgentWorkspacePanel,
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
+	GitWorkspacePanel,
 	PersistedAgentWorkspacePanelState,
 	PersistedBrowserWorkspacePanelState,
 	PersistedFileWorkspacePanelState,
+	PersistedGitWorkspacePanelState,
+	PersistedReviewWorkspacePanelState,
 	PersistedTerminalWorkspacePanelState,
+	ReviewWorkspacePanel,
 	TerminalWorkspacePanel,
 	WorkspacePanel,
 } from "../types.js";
@@ -59,16 +63,51 @@ describe("workspace panel types", () => {
 			title: "Example",
 		};
 
-		const panels: WorkspacePanel[] = [agentPanel, filePanel, terminalPanel, browserPanel];
+		const reviewPanel: ReviewWorkspacePanel = {
+			id: "review-1",
+			kind: "review",
+			projectPath: "/tmp/project",
+			width: 600,
+			ownerPanelId: null,
+			modifiedFilesState: {
+				files: [],
+				byPath: new Map(),
+				fileCount: 0,
+				totalEditCount: 0,
+			},
+			selectedFileIndex: 0,
+		};
+
+		const gitPanel: GitWorkspacePanel = {
+			id: "git-1",
+			kind: "git",
+			projectPath: "/tmp/project",
+			width: 500,
+			ownerPanelId: null,
+			initialTarget: { section: "prs", prNumber: 42 },
+		};
+
+		const panels: WorkspacePanel[] = [
+			agentPanel,
+			filePanel,
+			terminalPanel,
+			browserPanel,
+			reviewPanel,
+			gitPanel,
+		];
 
 		expect(panels.map((panel) => panel.kind)).toEqual([
 			"agent",
 			"file",
 			"terminal",
 			"browser",
+			"review",
+			"git",
 		]);
 		expect(filePanel.ownerPanelId).toBe("agent-1");
 		expect(terminalPanel.ownerPanelId).toBeNull();
+		expect(reviewPanel.ownerPanelId).toBeNull();
+		expect(gitPanel.ownerPanelId).toBeNull();
 	});
 
 	it("supports persisted workspace panel variants", () => {
@@ -77,6 +116,8 @@ describe("workspace panel types", () => {
 			PersistedFileWorkspacePanelState,
 			PersistedTerminalWorkspacePanelState,
 			PersistedBrowserWorkspacePanelState,
+			PersistedReviewWorkspacePanelState,
+			PersistedGitWorkspacePanelState,
 		] = [
 			{
 				id: "agent-1",
@@ -119,6 +160,24 @@ describe("workspace panel types", () => {
 				url: "https://example.com",
 				title: "Example",
 			},
+			{
+				id: "review-1",
+				kind: "review",
+				projectPath: "/tmp/project",
+				width: 600,
+				ownerPanelId: null,
+				files: [],
+				totalEditCount: 0,
+				selectedFileIndex: 0,
+			},
+			{
+				id: "git-1",
+				kind: "git",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				initialTarget: { section: "prs", prNumber: 42 },
+			},
 		];
 
 		expect(persistedPanels.map((panel) => panel.kind)).toEqual([
@@ -126,6 +185,8 @@ describe("workspace panel types", () => {
 			"file",
 			"terminal",
 			"browser",
+			"review",
+			"git",
 		]);
 	});
 });
