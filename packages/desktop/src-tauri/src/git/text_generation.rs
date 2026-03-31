@@ -124,7 +124,8 @@ mod tests {
         assert!(prompt.contains("## Problem"));
         assert!(prompt.contains("## Solution"));
         assert!(prompt.contains("Explain the problem in depth before describing the fix."));
-        assert!(prompt.contains("Include an ASCII diagram that shows the current behavior, failure mode,"));
+        assert!(prompt
+            .contains("Include an ASCII diagram that shows the current behavior, failure mode,"));
         assert!(prompt.contains("Include a concrete before/after example"));
         assert!(prompt.contains("Current branch: feature/default"));
         assert!(prompt.contains("Diff:\ndiff --git a/src/lib.rs b/src/lib.rs"));
@@ -137,7 +138,8 @@ mod tests {
             patch: "diff --git a/src/lib.rs b/src/lib.rs".to_string(),
         };
 
-        let prompt = build_ship_prompt("feature/custom", &context, Some("Custom ship instructions"));
+        let prompt =
+            build_ship_prompt("feature/custom", &context, Some("Custom ship instructions"));
 
         assert!(prompt.starts_with("Custom ship instructions"));
         assert!(!prompt.contains(DEFAULT_SHIP_INSTRUCTIONS));

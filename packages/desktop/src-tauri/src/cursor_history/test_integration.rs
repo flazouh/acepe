@@ -294,7 +294,8 @@ mod tests {
         println!("Discovered {} chats without filter", entries.len());
 
         // Test with a filter
-        let filtered = discover_all_chats(&["/Users/example/Documents/sample-repo".to_string()]).await;
+        let filtered =
+            discover_all_chats(&["/Users/example/Documents/sample-repo".to_string()]).await;
         assert!(
             filtered.is_ok(),
             "discover_all_chats with filter should succeed"

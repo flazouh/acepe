@@ -25,8 +25,8 @@ pub async fn acp_list_preconnection_commands(
         }
     })?;
 
-    let mut client = OpenCodeHttpClient::new(manager, project_key)
-        .map_err(SerializableAcpError::from)?;
+    let mut client =
+        OpenCodeHttpClient::new(manager, project_key).map_err(SerializableAcpError::from)?;
 
     let commands = client
         .list_preconnection_commands(cwd.to_string_lossy().to_string())

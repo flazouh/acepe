@@ -25,9 +25,7 @@ fn fallback_project_path_for_history_load(
         CanonicalAgentId::ClaudeCode
         | CanonicalAgentId::Copilot
         | CanonicalAgentId::OpenCode
-        | CanonicalAgentId::Codex => {
-            effective_project_path.to_string()
-        }
+        | CanonicalAgentId::Codex => effective_project_path.to_string(),
         _ => project_path.to_string(),
     }
 }
@@ -230,7 +228,9 @@ pub async fn get_unified_session(
                     .ok()
                     .flatten()
                     .map(|row| row.display)
-                    .unwrap_or_else(|| format!("Session {}", &session_id[..8.min(session_id.len())])),
+                    .unwrap_or_else(|| {
+                        format!("Session {}", &session_id[..8.min(session_id.len())])
+                    }),
                 None => format!("Session {}", &session_id[..8.min(session_id.len())]),
             };
 

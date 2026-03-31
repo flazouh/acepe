@@ -237,10 +237,7 @@ impl OpenCodeAdapter {
         if any_eq(name, &["createplan", "create_plan"]) {
             return ToolKind::CreatePlan;
         }
-        if any_eq(
-            name,
-            &["toolsearch", "tool_search"],
-        ) {
+        if any_eq(name, &["toolsearch", "tool_search"]) {
             return ToolKind::ToolSearch;
         }
         if any_eq(

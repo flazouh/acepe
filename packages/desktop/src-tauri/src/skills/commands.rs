@@ -8,8 +8,8 @@ use crate::db::repository::SkillsRepository;
 use crate::skills::service::SkillsService;
 use crate::skills::sync::SyncEngine;
 use crate::skills::types::{
-    AgentSkills, LibrarySkill, LibrarySkillWithSync, PluginInfo, PluginSkill, Skill,
-    SkillTreeNode, SyncResult, SyncTarget,
+    AgentSkills, LibrarySkill, LibrarySkillWithSync, PluginInfo, PluginSkill, Skill, SkillTreeNode,
+    SyncResult, SyncTarget,
 };
 
 /// List all agents and their skills as a tree structure.

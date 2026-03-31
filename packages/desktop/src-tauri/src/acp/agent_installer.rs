@@ -411,8 +411,7 @@ async fn install_agent_inner(agent_id: &CanonicalAgentId, app: &AppHandle) -> Ac
         .map_err(|e| AcpError::InvalidState(format!("Failed to create tmp dir: {}", e)))?;
 
     // 6. Extract with path traversal protection
-    if download_info.archive_url.ends_with(".tar.gz")
-        || download_info.archive_url.ends_with(".tgz")
+    if download_info.archive_url.ends_with(".tar.gz") || download_info.archive_url.ends_with(".tgz")
     {
         safe_extract_tar_gz(&archive_bytes, &tmp_dir)?;
     } else if download_info.archive_url.ends_with(".zip") {
@@ -505,10 +504,7 @@ async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBu
                     ),
                 )
             } else {
-                (
-                    Some(0.5),
-                    "Downloading Claude CLI...".to_string(),
-                )
+                (Some(0.5), "Downloading Claude CLI...".to_string())
             };
 
             emit_progress(
@@ -660,7 +656,8 @@ async fn fetch_copilot_download_info(client: &reqwest::Client) -> AcpResult<Down
         copilot_release_asset_name_for(std::env::consts::OS, std::env::consts::ARCH)?;
     let checksum_asset = find_release_asset(&release, "SHA256SUMS.txt")?;
     let archive_asset = find_release_asset(&release, expected_asset)?;
-    let checksum_manifest = download_text_asset(client, &checksum_asset.browser_download_url).await?;
+    let checksum_manifest =
+        download_text_asset(client, &checksum_asset.browser_download_url).await?;
     let official_sha256 = parse_sha256_manifest(&checksum_manifest, expected_asset)?;
 
     Ok(DownloadInfo {
@@ -769,7 +766,10 @@ async fn fetch_latest_github_release(
     owner: &str,
     repo: &str,
 ) -> AcpResult<GitHubRelease> {
-    let api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+    let api_url = format!(
+        "https://api.github.com/repos/{}/{}/releases/latest",
+        owner, repo
+    );
 
     client
         .get(&api_url)
@@ -1168,7 +1168,9 @@ mod tests {
         let error = copilot_release_asset_name_for("freebsd", "x86_64")
             .expect_err("unsupported platform should fail");
 
-        assert!(matches!(error, AcpError::InvalidState(message) if message.contains("Unsupported Copilot platform")));
+        assert!(
+            matches!(error, AcpError::InvalidState(message) if message.contains("Unsupported Copilot platform"))
+        );
     }
 
     #[test]
@@ -1187,7 +1189,9 @@ mod tests {
         let error = parse_sha256_manifest(manifest, "copilot-linux-x64.tar.gz")
             .expect_err("missing manifest entry should fail");
 
-        assert!(matches!(error, AcpError::InvalidState(message) if message.contains("Official checksum manifest did not contain an entry")));
+        assert!(
+            matches!(error, AcpError::InvalidState(message) if message.contains("Official checksum manifest did not contain an entry"))
+        );
     }
 
     #[test]

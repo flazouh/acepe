@@ -218,7 +218,9 @@ mod tests {
         let configs = provider.spawn_configs();
 
         assert!(!configs.is_empty());
-        assert!(configs.iter().all(|config| !config.command.trim().is_empty()));
+        assert!(configs
+            .iter()
+            .all(|config| !config.command.trim().is_empty()));
     }
 
     #[test]

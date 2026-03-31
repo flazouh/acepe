@@ -780,7 +780,12 @@ async fn initialize_retries_with_next_spawn_config_after_subprocess_exit() {
 async fn start_returns_clear_error_when_provider_has_no_launchers() {
     let mut client = create_no_launcher_test_client();
 
-    let error = client.start().await.expect_err("start should fail without launchers");
+    let error = client
+        .start()
+        .await
+        .expect_err("start should fail without launchers");
 
-    assert!(matches!(error, AcpError::InvalidState(message) if message.contains("No launchers available for provider cursor")));
+    assert!(
+        matches!(error, AcpError::InvalidState(message) if message.contains("No launchers available for provider cursor"))
+    );
 }

@@ -185,6 +185,9 @@ mod tests {
     fn provider_uses_native_communication_mode() {
         let provider = CodexProvider;
 
-        assert_eq!(provider.communication_mode(), CommunicationMode::CodexNative);
+        assert_eq!(
+            provider.communication_mode(),
+            CommunicationMode::CodexNative
+        );
     }
 }

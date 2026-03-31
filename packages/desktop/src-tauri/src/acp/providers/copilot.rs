@@ -41,11 +41,17 @@ impl AgentProvider for CopilotProvider {
     }
 
     fn spawn_config(&self) -> SpawnConfig {
-        self.spawn_configs().into_iter().next().unwrap_or_else(|| SpawnConfig {
-            command: "__acepe_missing_copilot_binary__".to_string(),
-            args: ACP_STDIO_ARGS.iter().map(|arg| (*arg).to_string()).collect(),
-            env: filtered_env(),
-        })
+        self.spawn_configs()
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| SpawnConfig {
+                command: "__acepe_missing_copilot_binary__".to_string(),
+                args: ACP_STDIO_ARGS
+                    .iter()
+                    .map(|arg| (*arg).to_string())
+                    .collect(),
+                env: filtered_env(),
+            })
     }
 
     fn spawn_configs(&self) -> Vec<SpawnConfig> {
@@ -84,7 +90,9 @@ impl AgentProvider for CopilotProvider {
             ));
         }
 
-        Ok(Some(serde_json::json!({ "methodId": COPILOT_LOGIN_METHOD_ID })))
+        Ok(Some(
+            serde_json::json!({ "methodId": COPILOT_LOGIN_METHOD_ID }),
+        ))
     }
 
     fn normalize_mode_id(&self, id: &str) -> String {
@@ -153,7 +161,10 @@ fn resolve_copilot_spawn_configs(
 ) -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
     let env = filtered_env();
-    let args: Vec<String> = ACP_STDIO_ARGS.iter().map(|arg| (*arg).to_string()).collect();
+    let args: Vec<String> = ACP_STDIO_ARGS
+        .iter()
+        .map(|arg| (*arg).to_string())
+        .collect();
 
     if let Some(command) = cached_command {
         push_unique_spawn_config(
@@ -167,14 +178,7 @@ fn resolve_copilot_spawn_configs(
     }
 
     if let Some(command) = debug_override_command {
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command,
-                args,
-                env,
-            },
-        );
+        push_unique_spawn_config(&mut configs, SpawnConfig { command, args, env });
     }
 
     configs
@@ -225,9 +229,18 @@ mod tests {
     fn provider_normalizes_copilot_mode_uris_to_ui_modes() {
         let provider = CopilotProvider;
 
-        assert_eq!(provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#agent"), "build");
-        assert_eq!(provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#plan"), "plan");
-        assert_eq!(provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#autopilot"), "build");
+        assert_eq!(
+            provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#agent"),
+            "build"
+        );
+        assert_eq!(
+            provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#plan"),
+            "plan"
+        );
+        assert_eq!(
+            provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#autopilot"),
+            "build"
+        );
     }
 
     #[test]
@@ -259,7 +272,9 @@ mod tests {
         })];
 
         assert_eq!(
-            provider.authenticate_request_params(&auth_methods).expect("auth params"),
+            provider
+                .authenticate_request_params(&auth_methods)
+                .expect("auth params"),
             Some(json!({ "methodId": "copilot-login" }))
         );
     }

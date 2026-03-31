@@ -181,7 +181,8 @@ impl AcpClient {
             Err(err) => return Err(err),
         };
 
-        self.finalize_resume_response(session_id, result, "load").await
+        self.finalize_resume_response(session_id, result, "load")
+            .await
     }
 
     async fn finalize_resume_response(

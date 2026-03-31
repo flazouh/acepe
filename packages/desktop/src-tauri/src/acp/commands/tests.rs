@@ -54,7 +54,10 @@ fn test_normalize_acp_path_fixes_duplicate_cwd() {
     // Path with duplicate cwd (cwd + "/" + absolute_path) should be normalized
     // The pattern: /cwd//cwd/subpath -> /cwd/subpath
     let path = "/Users/example/project//Users/example/project/src/file.ts";
-    assert_eq!(normalize_acp_path(path), "/Users/example/project/src/file.ts");
+    assert_eq!(
+        normalize_acp_path(path),
+        "/Users/example/project/src/file.ts"
+    );
 }
 
 #[test]

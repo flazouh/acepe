@@ -299,7 +299,10 @@ mod tests {
             .find(|agent| agent.id == "codex")
             .expect("Codex agent should exist");
 
-        assert_eq!(claude.autonomous_supported_mode_ids, vec!["build".to_string()]);
+        assert_eq!(
+            claude.autonomous_supported_mode_ids,
+            vec!["build".to_string()]
+        );
         assert!(codex.autonomous_supported_mode_ids.is_empty());
     }
 

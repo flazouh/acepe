@@ -547,7 +547,10 @@ impl OpenCodeManagerRegistry {
             return;
         }
 
-        tracing::info!(count = managers.len(), "Shutting down all OpenCode managers");
+        tracing::info!(
+            count = managers.len(),
+            "Shutting down all OpenCode managers"
+        );
 
         for (project_key, manager) in managers {
             let mut guard = manager.lock().await;

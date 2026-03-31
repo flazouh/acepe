@@ -9,7 +9,9 @@ use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
     SessionInfo,
 };
-use crate::acp::client_loop::{new_stderr_buffer, read_stderr_buffer, spawn_stderr_reader, StderrBuffer};
+use crate::acp::client_loop::{
+    new_stderr_buffer, read_stderr_buffer, spawn_stderr_reader, StderrBuffer,
+};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::write_serialized_line;
 use crate::acp::error::{AcpError, AcpResult};
@@ -109,7 +111,9 @@ impl CodexNativeClient {
 
         let response = timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), rx)
             .await
-            .map_err(|_| AcpError::Timeout(format!("{} (after {}s)", method, REQUEST_TIMEOUT_SECS)))?
+            .map_err(|_| {
+                AcpError::Timeout(format!("{} (after {}s)", method, REQUEST_TIMEOUT_SECS))
+            })?
             .map_err(|_| AcpError::ChannelClosed)?;
 
         if let Some(error) = response.get("error") {
@@ -145,16 +149,20 @@ impl CodexNativeClient {
             match self.send_request("thread/resume", params).await {
                 Ok(result) => result,
                 Err(error) if is_recoverable_thread_resume_error(&error) => {
-                    self.send_request("thread/start", json!({ "cwd": cwd })).await?
+                    self.send_request("thread/start", json!({ "cwd": cwd }))
+                        .await?
                 }
                 Err(error) => return Err(error),
             }
         } else {
-            self.send_request("thread/start", json!({ "cwd": cwd })).await?
+            self.send_request("thread/start", json!({ "cwd": cwd }))
+                .await?
         };
 
         let provider_thread_id = parse_thread_id(&thread_result).ok_or_else(|| {
-            AcpError::ProtocolError("Codex thread open response did not include a thread id".to_string())
+            AcpError::ProtocolError(
+                "Codex thread open response did not include a thread id".to_string(),
+            )
         })?;
 
         self.provider_thread_id = Some(provider_thread_id.clone());
@@ -185,7 +193,13 @@ impl CodexNativeClient {
 #[async_trait]
 impl AgentClient for CodexNativeClient {
     async fn start(&mut self) -> AcpResult<()> {
-        if self.child.lock().ok().and_then(|guard| guard.as_ref().map(|_| ())).is_some() {
+        if self
+            .child
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().map(|_| ()))
+            .is_some()
+        {
             return Ok(());
         }
 
@@ -327,8 +341,10 @@ impl AgentClient for CodexNativeClient {
     ) -> AcpResult<ResumeSessionResponse> {
         self.session_id = Some(session_id.clone());
         *self.active_session_id.lock().await = Some(session_id.clone());
-        let resume_thread_id = provider_thread_id_for_app_session(self.db.as_ref(), &session_id).await;
-        self.open_thread(&session_id, &cwd, resume_thread_id).await?;
+        let resume_thread_id =
+            provider_thread_id_for_app_session(self.db.as_ref(), &session_id).await;
+        self.open_thread(&session_id, &cwd, resume_thread_id)
+            .await?;
         Ok(self.build_resume_session_response().await)
     }
 
@@ -348,7 +364,9 @@ impl AgentClient for CodexNativeClient {
 
     async fn set_session_mode(&mut self, _session_id: String, mode_id: String) -> AcpResult<()> {
         if mode_id != "build" && mode_id != "plan" {
-            return Err(AcpError::ProtocolError(format!("Unsupported Codex mode: {mode_id}")));
+            return Err(AcpError::ProtocolError(format!(
+                "Unsupported Codex mode: {mode_id}"
+            )));
         }
         self.current_mode_id = mode_id;
         Ok(())
@@ -360,7 +378,8 @@ impl AgentClient for CodexNativeClient {
         config_id: String,
         value: String,
     ) -> AcpResult<Value> {
-        let config_options = set_codex_native_config_option(&mut self.config_state, &config_id, &value)?;
+        let config_options =
+            set_codex_native_config_option(&mut self.config_state, &config_id, &value)?;
         Ok(json!({ "configOptions": config_options }))
     }
 
@@ -424,10 +443,13 @@ impl AgentClient for CodexNativeClient {
             AcpError::ProtocolError(format!("Invalid Codex permission request id: {request_id}"))
         })?;
         let decision = map_permission_reply(&reply)?;
-        write_message(&self.stdin_writer, &json!({
-            "id": request_id,
-            "result": { "decision": decision }
-        }))
+        write_message(
+            &self.stdin_writer,
+            &json!({
+                "id": request_id,
+                "result": { "decision": decision }
+            }),
+        )
         .await?;
         Ok(true)
     }
@@ -442,10 +464,13 @@ impl AgentClient for CodexNativeClient {
         })?;
         let question_ids = self.pending_question_ids.lock().await.remove(&request_id);
         let result = build_question_reply_result(question_ids.as_deref(), answers)?;
-        write_message(&self.stdin_writer, &json!({
-            "id": parsed_request_id,
-            "result": result,
-        }))
+        write_message(
+            &self.stdin_writer,
+            &json!({
+                "id": parsed_request_id,
+                "result": result,
+            }),
+        )
         .await?;
         Ok(true)
     }
@@ -637,7 +662,10 @@ fn content_blocks_to_codex_input(prompt: &[ContentBlock]) -> AcpResult<Vec<Codex
             }
             ContentBlock::Resource { resource } => append_embedded_resource(resource, &mut input),
             ContentBlock::ResourceLink { uri, mime_type, .. } => {
-                if mime_type.as_deref().is_some_and(|value| value.starts_with("image/")) {
+                if mime_type
+                    .as_deref()
+                    .is_some_and(|value| value.starts_with("image/"))
+                {
                     input.push(CodexTurnInputItem::Image { url: uri.clone() });
                 } else if !uri.trim().is_empty() {
                     input.push(CodexTurnInputItem::Text {
@@ -664,7 +692,11 @@ fn content_blocks_to_codex_input(prompt: &[ContentBlock]) -> AcpResult<Vec<Codex
 }
 
 fn append_embedded_resource(resource: &EmbeddedResource, input: &mut Vec<CodexTurnInputItem>) {
-    if let Some(text) = resource.text.as_ref().filter(|text| !text.trim().is_empty()) {
+    if let Some(text) = resource
+        .text
+        .as_ref()
+        .filter(|text| !text.trim().is_empty())
+    {
         input.push(CodexTurnInputItem::Text {
             text: text.clone(),
             text_elements: Vec::new(),
@@ -803,7 +835,10 @@ async fn persist_thread_id_alias(
     .await;
 }
 
-async fn provider_thread_id_for_app_session(db: Option<&DbConn>, session_id: &str) -> Option<String> {
+async fn provider_thread_id_for_app_session(
+    db: Option<&DbConn>,
+    session_id: &str,
+) -> Option<String> {
     let db = db?;
     crate::db::repository::SessionMetadataRepository::get_by_id(db, session_id)
         .await
@@ -824,11 +859,7 @@ async fn persist_provider_thread_id(
     };
 
     let _ = crate::db::repository::SessionMetadataRepository::ensure_exists(
-        db,
-        session_id,
-        cwd,
-        agent_id,
-        None,
+        db, session_id, cwd, agent_id, None,
     )
     .await;
 
@@ -847,7 +878,10 @@ mod tests {
 
     #[test]
     fn permission_replies_map_to_codex_decisions() {
-        assert_eq!(map_permission_reply("once").expect("once should map"), "accept");
+        assert_eq!(
+            map_permission_reply("once").expect("once should map"),
+            "accept"
+        );
         assert_eq!(
             map_permission_reply("always").expect("always should map"),
             "acceptForSession"
@@ -863,7 +897,10 @@ mod tests {
     fn question_replies_use_original_question_ids() {
         let result = build_question_reply_result(
             Some(&["scope".to_string(), "compat".to_string()]),
-            vec![vec!["Project".to_string()], vec!["Keep current envelope".to_string()]],
+            vec![
+                vec!["Project".to_string()],
+                vec!["Keep current envelope".to_string()],
+            ],
         )
         .expect("question reply should build");
 
@@ -900,8 +937,8 @@ mod tests {
         assert!(is_recoverable_thread_resume_error(&AcpError::JsonRpcError(
             "thread/resume failed: timed out waiting for server".to_string(),
         )));
-        assert!(!is_recoverable_thread_resume_error(&AcpError::JsonRpcError(
-            "thread/start failed: permission denied".to_string(),
-        )));
+        assert!(!is_recoverable_thread_resume_error(
+            &AcpError::JsonRpcError("thread/start failed: permission denied".to_string(),)
+        ));
     }
 }

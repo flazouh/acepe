@@ -246,7 +246,10 @@ mod tests {
     fn canonical_agent_id_preserves_custom_prefix_behavior() {
         let agent_id = CanonicalAgentId::parse("custom:copilot-like");
 
-        assert_eq!(agent_id, CanonicalAgentId::Custom("copilot-like".to_string()));
+        assert_eq!(
+            agent_id,
+            CanonicalAgentId::Custom("copilot-like".to_string())
+        );
     }
 
     #[test]

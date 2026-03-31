@@ -1145,7 +1145,10 @@ mod tests {
         let init_output = run_git(temp_dir.path(), &["init"]);
         assert!(init_output.status.success(), "git init should succeed");
 
-        let set_main_output = run_git(temp_dir.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+        let set_main_output = run_git(
+            temp_dir.path(),
+            &["symbolic-ref", "HEAD", "refs/heads/main"],
+        );
         assert!(
             set_main_output.status.success(),
             "git symbolic-ref HEAD refs/heads/main should succeed"
@@ -1186,7 +1189,10 @@ mod tests {
     fn init_bare_remote() -> TempDir {
         let remote_dir = TempDir::new().expect("remote temp dir should create");
         let init_output = run_git(remote_dir.path(), &["init", "--bare"]);
-        assert!(init_output.status.success(), "git init --bare should succeed");
+        assert!(
+            init_output.status.success(),
+            "git init --bare should succeed"
+        );
         remote_dir
     }
 
@@ -1372,20 +1378,29 @@ branch refs/heads/acepe/clever-falcon";
         commit_all(repo_dir.path(), "initial commit");
 
         let remote_path = remote_dir.path().to_string_lossy().to_string();
-        let add_remote_output = run_git(repo_dir.path(), &["remote", "add", "origin", &remote_path]);
-        assert!(add_remote_output.status.success(), "git remote add should succeed");
+        let add_remote_output =
+            run_git(repo_dir.path(), &["remote", "add", "origin", &remote_path]);
+        assert!(
+            add_remote_output.status.success(),
+            "git remote add should succeed"
+        );
 
         let push_output = run_git(repo_dir.path(), &["push", "-u", "origin", "main"]);
         assert!(push_output.status.success(), "git push should succeed");
 
-        let checkout_output = run_git(repo_dir.path(), &["checkout", "-b", "feature/worktree-base"]);
-        assert!(checkout_output.status.success(), "git checkout -b should succeed");
+        let checkout_output = run_git(
+            repo_dir.path(),
+            &["checkout", "-b", "feature/worktree-base"],
+        );
+        assert!(
+            checkout_output.status.success(),
+            "git checkout -b should succeed"
+        );
 
         write_repo_file(repo_dir.path(), "README.md", "feature branch\n");
         commit_all(repo_dir.path(), "feature commit");
 
-        let base_ref =
-            resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
+        let base_ref = resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
 
         assert_eq!(base_ref, "origin/main");
     }
@@ -1397,8 +1412,7 @@ branch refs/heads/acepe/clever-falcon";
         write_repo_file(repo_dir.path(), "README.md", "main branch\n");
         commit_all(repo_dir.path(), "initial commit");
 
-        let base_ref =
-            resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
+        let base_ref = resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
 
         assert_eq!(base_ref, "main");
     }

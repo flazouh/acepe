@@ -16,8 +16,8 @@ use crate::acp::session_update::{
 
 // Re-import parser structs for get_parser factory
 use crate::acp::parsers::claude_code_parser::ClaudeCodeParser;
-use crate::acp::parsers::copilot_parser::CopilotParser;
 use crate::acp::parsers::codex_parser::CodexParser;
+use crate::acp::parsers::copilot_parser::CopilotParser;
 use crate::acp::parsers::cursor_parser::CursorParser;
 use crate::acp::parsers::opencode_parser::OpenCodeParser;
 

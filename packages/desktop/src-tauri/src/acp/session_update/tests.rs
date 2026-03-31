@@ -492,7 +492,10 @@ mod parse_tool_call_from_acp {
                     assert!(raw.is_some(), "Expected raw payload to be preserved");
                 }
                 other => {
-                    panic!("Expected Think arguments for Copilot task payload, got {:?}", other)
+                    panic!(
+                        "Expected Think arguments for Copilot task payload, got {:?}",
+                        other
+                    )
                 }
             }
         });
@@ -502,11 +505,7 @@ mod parse_tool_call_from_acp {
     fn uses_kind_hint_when_tool_name_missing() {
         with_agent(AgentType::Copilot, || {
             let test_cases = vec![
-                (
-                    "read",
-                    json!({ "path": "/tmp/file.rs" }),
-                    ToolKind::Read,
-                ),
+                ("read", json!({ "path": "/tmp/file.rs" }), ToolKind::Read),
                 (
                     "execute",
                     json!({ "command": "echo ok" }),
@@ -537,11 +536,19 @@ mod parse_tool_call_from_acp {
                     "status": "pending"
                 });
 
-                let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+                let result: Result<ToolCallData, serde_json::Error> =
+                    parse_tool_call_from_acp(&data);
 
-                assert!(result.is_ok(), "Expected Ok for {kind_hint}, got {:?}", result);
+                assert!(
+                    result.is_ok(),
+                    "Expected Ok for {kind_hint}, got {:?}",
+                    result
+                );
                 let tool_call = result.unwrap();
-                assert_ne!(tool_call.name, "unknown", "Expected inferred name for {kind_hint}");
+                assert_ne!(
+                    tool_call.name, "unknown",
+                    "Expected inferred name for {kind_hint}"
+                );
                 assert_eq!(
                     tool_call.kind,
                     Some(expected_kind),
@@ -814,7 +821,8 @@ mod parse_tool_call_from_acp {
                     assert_eq!(
                         command,
                         Some(
-                            "cat /Users/example/.codex/skills/using-superpowers/SKILL.md".to_string()
+                            "cat /Users/example/.codex/skills/using-superpowers/SKILL.md"
+                                .to_string()
                         )
                     );
                 }

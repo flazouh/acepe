@@ -139,7 +139,9 @@ pub async fn load_session(
         .await
         .map_err(|error| format!("Failed to initialize Copilot session loader: {error}"))?;
 
-    let load_result = client.load_session(session_id.to_string(), cwd.to_string()).await;
+    let load_result = client
+        .load_session(session_id.to_string(), cwd.to_string())
+        .await;
     let replay_updates = collect_replay_updates(&mut receiver, session_id).await;
     client.stop();
 
@@ -379,7 +381,8 @@ impl ReplayAccumulator {
             SessionUpdate::ToolCall { tool_call, .. } => {
                 self.last_assistant_key = None;
                 let entry_index = self.entries.len();
-                self.tool_call_indices.insert(tool_call.id.clone(), entry_index);
+                self.tool_call_indices
+                    .insert(tool_call.id.clone(), entry_index);
                 self.entries.push(StoredEntry::ToolCall {
                     id: tool_call.id.clone(),
                     message: tool_call.clone(),
@@ -388,7 +391,8 @@ impl ReplayAccumulator {
             }
             SessionUpdate::ToolCallUpdate { update, .. } => {
                 if let Some(index) = self.tool_call_indices.get(&update.tool_call_id).copied() {
-                    if let Some(StoredEntry::ToolCall { message, .. }) = self.entries.get_mut(index) {
+                    if let Some(StoredEntry::ToolCall { message, .. }) = self.entries.get_mut(index)
+                    {
                         merge_tool_call_update(message, update);
                     }
                 }
@@ -620,7 +624,10 @@ mod tests {
         match &converted.entries[1] {
             StoredEntry::Assistant { message, .. } => {
                 assert_eq!(message.chunks.len(), 1);
-                assert_eq!(message.chunks[0].block.text.as_deref(), Some("Scanning the workspace"));
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("Scanning the workspace")
+                );
             }
             other => panic!("expected assistant entry, got {:?}", other),
         }

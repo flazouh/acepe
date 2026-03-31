@@ -2,9 +2,9 @@ pub mod acp;
 mod analytics;
 pub mod browser_webview;
 pub mod checkpoint;
-pub mod copilot_history;
 pub mod codex_history;
 mod commands;
+pub mod copilot_history;
 pub mod cursor_history;
 pub mod db;
 pub mod file_index;
@@ -36,8 +36,8 @@ use browser_webview::{
 use acp::active_agent::ActiveAgent;
 use acp::commands::{
     acp_cancel, acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_initialize,
-    acp_install_agent, acp_list_agents, acp_list_preconnection_commands, acp_new_session, acp_read_text_file,
-    acp_register_custom_agent, acp_reply_permission, acp_reply_question,
+    acp_install_agent, acp_list_agents, acp_list_preconnection_commands, acp_new_session,
+    acp_read_text_file, acp_register_custom_agent, acp_reply_permission, acp_reply_question,
     acp_respond_inbound_request, acp_resume_session, acp_send_prompt, acp_set_config_option,
     acp_set_execution_profile, acp_set_mode, acp_set_model, acp_uninstall_agent,
     acp_write_text_file,
@@ -134,11 +134,10 @@ use std::sync::Arc;
 use storage::commands::{
     add_project, browse_project, delete_api_key, delete_session_review_state, get_api_key,
     get_custom_keybindings, get_missing_project_paths, get_project_count, get_projects,
-    get_recent_projects, get_session_file_path, get_session_review_state,
-    get_streaming_log_path, get_thread_list_settings, get_user_setting, import_project,
-    open_in_finder, open_streaming_log, remove_project, reset_database, save_api_key,
-    save_custom_keybindings, save_session_review_state, save_thread_list_settings,
-    save_user_setting, update_project_color,
+    get_recent_projects, get_session_file_path, get_session_review_state, get_streaming_log_path,
+    get_thread_list_settings, get_user_setting, import_project, open_in_finder, open_streaming_log,
+    remove_project, reset_database, save_api_key, save_custom_keybindings,
+    save_session_review_state, save_thread_list_settings, save_user_setting, update_project_color,
 };
 use tauri::Manager;
 use terminal::commands::{

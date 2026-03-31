@@ -222,7 +222,8 @@ impl PermissionBridge {
     async fn resolve(&self, id: u64, result: cc_sdk::PermissionResult) {
         let pending = {
             let mut state = self.state.lock().await;
-            Self::take_request_bundle(&mut state, id).and_then(|mut requests| requests.drain(..1).next())
+            Self::take_request_bundle(&mut state, id)
+                .and_then(|mut requests| requests.drain(..1).next())
         };
 
         if let Some(pending) = pending {
@@ -302,7 +303,11 @@ impl PermissionBridge {
         let pending_requests = {
             let mut state = self.state.lock().await;
             state.approval_groups.clear();
-            state.pending.drain().map(|(_, pending)| pending).collect::<Vec<_>>()
+            state
+                .pending
+                .drain()
+                .map(|(_, pending)| pending)
+                .collect::<Vec<_>>()
         };
 
         for pending in pending_requests {
@@ -1284,10 +1289,7 @@ struct StreamingBridgeContext {
     db: Option<DbConn>,
 }
 
-fn note_pending_stream_tool_call(
-    pending_tool_call_ids: &mut VecDeque<String>,
-    tool_call_id: &str,
-) {
+fn note_pending_stream_tool_call(pending_tool_call_ids: &mut VecDeque<String>, tool_call_id: &str) {
     if pending_tool_call_ids
         .iter()
         .any(|pending_tool_call_id| pending_tool_call_id == tool_call_id)
@@ -1404,12 +1406,13 @@ async fn run_streaming_bridge(
                 if let cc_sdk::Message::StreamEvent { event, .. } = &msg {
                     if let Some(event_type) = event.get("type").and_then(|value| value.as_str()) {
                         if event_type == "message_start" && awaiting_tool_turn_resume {
-                            let synthetic_updates = take_synthetic_tool_completions_for_resumed_tool_turn(
-                                &mut pending_tool_call_ids,
-                                &pending_questions,
-                                &session_id,
-                            )
-                            .await;
+                            let synthetic_updates =
+                                take_synthetic_tool_completions_for_resumed_tool_turn(
+                                    &mut pending_tool_call_ids,
+                                    &pending_questions,
+                                    &session_id,
+                                )
+                                .await;
 
                             for synthetic_update in synthetic_updates {
                                 dispatch_cc_sdk_update(
@@ -1792,9 +1795,9 @@ fn permission_result_from_ui_result(
                 tool_name,
                 permission_suggestions,
                 ..
-            } if selected_option_id(result) == Some("allow_always") => {
-                Some(choose_always_permission_updates(tool_name, permission_suggestions))
-            }
+            } if selected_option_id(result) == Some("allow_always") => Some(
+                choose_always_permission_updates(tool_name, permission_suggestions),
+            ),
             _ => None,
         };
 
@@ -3277,7 +3280,10 @@ mod tests {
             )
             .await;
 
-        assert!(matches!(resolved_kind, Some(PendingPermissionKind::Tool { .. })));
+        assert!(matches!(
+            resolved_kind,
+            Some(PendingPermissionKind::Tool { .. })
+        ));
         assert!(matches!(
             handler_task.await.expect("handler task failed"),
             cc_sdk::PermissionResult::Allow(_)
@@ -3292,7 +3298,10 @@ mod tests {
         };
         let serialized = serde_json::to_value(output).expect("serialize hook output");
 
-        assert_eq!(serialized["hookSpecificOutput"]["decision"]["behavior"], "allow");
+        assert_eq!(
+            serialized["hookSpecificOutput"]["decision"]["behavior"],
+            "allow"
+        );
         assert_eq!(sink.lock().expect("sink lock").len(), 1);
     }
 

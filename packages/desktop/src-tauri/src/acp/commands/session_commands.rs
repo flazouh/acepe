@@ -32,9 +32,11 @@ async fn reset_resumed_session_execution_profile(
         return Ok(());
     }
 
-    let provider = registry.get(&agent_id).ok_or_else(|| SerializableAcpError::AgentNotFound {
-        agent_id: agent_id.as_str().to_string(),
-    })?;
+    let provider = registry
+        .get(&agent_id)
+        .ok_or_else(|| SerializableAcpError::AgentNotFound {
+            agent_id: agent_id.as_str().to_string(),
+        })?;
 
     let native_mode_id = provider
         .map_execution_profile_mode_id(current_mode_id, false)
@@ -46,7 +48,9 @@ async fn reset_resumed_session_execution_profile(
             ),
         })?;
 
-    let client_mutex = session_registry.get(session_id).map_err(SerializableAcpError::from)?;
+    let client_mutex = session_registry
+        .get(session_id)
+        .map_err(SerializableAcpError::from)?;
     let mut client_guard = lock_session_client(
         &client_mutex,
         "acp_resume_session: reset execution profile lock",

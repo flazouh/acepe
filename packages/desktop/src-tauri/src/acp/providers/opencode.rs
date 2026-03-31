@@ -120,10 +120,7 @@ mod tests {
 
     #[test]
     fn resolve_spawn_configs_uses_cached_binary_and_defaults_to_serve() {
-        let configs = resolve_opencode_spawn_configs(
-            Some("/tmp/opencode".to_string()),
-            Vec::new(),
-        );
+        let configs = resolve_opencode_spawn_configs(Some("/tmp/opencode".to_string()), Vec::new());
 
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].command, "/tmp/opencode");

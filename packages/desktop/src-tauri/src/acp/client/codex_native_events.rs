@@ -246,8 +246,8 @@ fn parse_questions(params: &serde_json::Map<String, Value>) -> Vec<QuestionItem>
                         .filter_map(|option| {
                             let option = option.as_object()?;
                             let label = get_non_empty_string(option.get("label"))?.to_string();
-                            let description = get_non_empty_string(option.get("description"))?
-                                .to_string();
+                            let description =
+                                get_non_empty_string(option.get("description"))?.to_string();
                             Some(QuestionOption { label, description })
                         })
                         .collect::<Vec<_>>()
@@ -429,7 +429,10 @@ mod tests {
                 assert_eq!(permission.id, "42");
                 assert_eq!(permission.permission, "Read src/lib.rs");
                 assert_eq!(permission.patterns, vec!["src/lib.rs"]);
-                assert_eq!(permission.tool.as_ref().map(|tool| tool.call_id.as_str()), Some("tool-1"));
+                assert_eq!(
+                    permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("tool-1")
+                );
                 assert_eq!(permission.always, vec!["allow_always"]);
             }
             other => panic!("unexpected update: {other:?}"),
@@ -472,7 +475,10 @@ mod tests {
                 assert_eq!(question.questions[0].question, "Apply to?");
                 assert!(question.questions[0].multi_select);
                 assert_eq!(question.questions[0].options.len(), 2);
-                assert_eq!(question.tool.as_ref().map(|tool| tool.call_id.as_str()), Some("tool-question-1"));
+                assert_eq!(
+                    question.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("tool-question-1")
+                );
             }
             other => panic!("unexpected update: {other:?}"),
         }
