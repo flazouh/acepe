@@ -4,32 +4,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session.js";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
 
+const storageMock: Storage = {
+	length: 0,
+	clear: () => undefined,
+	getItem: () => null,
+	key: () => null,
+	removeItem: () => undefined,
+	setItem: () => undefined,
+};
+
+Object.defineProperty(globalThis, "localStorage", {
+	configurable: true,
+	value: storageMock,
+});
+Object.defineProperty(globalThis, "sessionStorage", {
+	configurable: true,
+	value: storageMock,
+});
+
 vi.mock(
 	"svelte",
 	async () =>
 		// @ts-expect-error client runtime import for test
 		import("../../../../../../../node_modules/svelte/src/index-client.js")
 );
-
-vi.hoisted(() => {
-	const storageMock: Storage = {
-		length: 0,
-		clear: () => undefined,
-		getItem: () => null,
-		key: () => null,
-		removeItem: () => undefined,
-		setItem: () => undefined,
-	};
-
-	Object.defineProperty(globalThis, "localStorage", {
-		configurable: true,
-		value: storageMock,
-	});
-	Object.defineProperty(globalThis, "sessionStorage", {
-		configurable: true,
-		value: storageMock,
-	});
-});
 
 vi.mock("@acepe/ui", async () => ({
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,

@@ -55,6 +55,14 @@ vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	getCachedModels,
 }));
 
+const clearSentryAgentContext = vi.fn();
+const setSentryAgentContext = vi.fn();
+
+vi.mock("../../../analytics.js", () => ({
+	clearSentryAgentContext,
+	setSentryAgentContext,
+}));
+
 function createMockEventHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn(),

@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { openUrlMock } = vi.hoisted(() => ({
-	openUrlMock: vi.fn(),
-}));
+const openUrlMock = vi.fn();
 
 vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
@@ -26,16 +24,49 @@ import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import type { AgentWorkspacePanel, TerminalWorkspacePanel } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
+
+function createAgentPanel(projectPath: string | null): AgentWorkspacePanel {
+	return {
+		id: "panel-1",
+		kind: "agent",
+		ownerPanelId: null,
+		sessionId: null,
+		width: 100,
+		pendingProjectSelection: false,
+		selectedAgentId: null,
+		projectPath,
+		agentId: null,
+		sessionTitle: null,
+	};
+}
+
+function createTerminalPanel(projectPath: string): TerminalWorkspacePanel {
+	return {
+		id: "terminal-1",
+		kind: "terminal",
+		projectPath,
+		width: 100,
+		ownerPanelId: null,
+		groupId: "terminal-group-1",
+	};
+}
 
 function createState(options?: {
 	focusedPanelProjectPath?: string | null;
 	focusedViewProjectPath?: string | null;
 	projects?: Array<{ path: string; name: string }>;
 }) {
+	const agentPanel = createAgentPanel(null);
+	const focusedTopLevelPanel = options?.focusedPanelProjectPath
+		? createAgentPanel(options.focusedPanelProjectPath)
+		: null;
+	const terminalPanel = createTerminalPanel("/repo");
+
 	const workspaceStore = {
 		registerProviders: vi.fn(),
 		persist: vi.fn(),
@@ -49,28 +80,13 @@ function createState(options?: {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
 		isPanelInReviewMode: vi.fn(() => false),
-		focusedTopLevelPanel: options?.focusedPanelProjectPath
-			? { id: "panel-1", kind: "agent", projectPath: options.focusedPanelProjectPath }
-			: null,
+		focusedTopLevelPanel,
 		focusedPanel: options?.focusedPanelProjectPath
 			? { projectPath: options.focusedPanelProjectPath }
 			: null,
 		focusedViewProjectPath: options?.focusedViewProjectPath ? options.focusedViewProjectPath : null,
 		focusedPanelId: null,
-		workspacePanels: [
-			{
-				id: "panel-1",
-				kind: "agent",
-				ownerPanelId: null,
-				sessionId: null,
-				width: 100,
-				pendingProjectSelection: false,
-				selectedAgentId: null,
-				projectPath: null,
-				agentId: null,
-				sessionTitle: null,
-			},
-		],
+		workspacePanels: [agentPanel],
 		viewMode: "project",
 		setViewMode: vi.fn((mode: "single" | "project" | "multi") => {
 			panelStore.viewMode = mode;
@@ -83,27 +99,16 @@ function createState(options?: {
 			panelStore.focusedPanelId = panelId;
 		}),
 		getTopLevelPanel: vi.fn((panelId: string) =>
-			panelId === "panel-1" || panelId === "terminal-1"
-				? { id: panelId, kind: panelId === "panel-1" ? "agent" : "terminal", projectPath: null, ownerPanelId: null }
-				: undefined
+			panelId === "panel-1"
+				? (focusedTopLevelPanel ?? agentPanel)
+				: panelId === "terminal-1"
+					? terminalPanel
+					: undefined
 		),
 		getPanel: vi.fn((panelId: string) =>
 			panelId === "panel-1" ? { id: "panel-1", reviewMode: false } : undefined
 		),
-		panels: [
-			{
-				id: "panel-1",
-				kind: "agent",
-				ownerPanelId: null,
-				sessionId: null,
-				width: 100,
-				pendingProjectSelection: false,
-				selectedAgentId: null,
-				projectPath: null,
-				agentId: null,
-				sessionTitle: null,
-			},
-		],
+		panels: [agentPanel],
 	} as Partial<PanelStore>;
 
 	const projectManager = {
@@ -193,12 +198,6 @@ describe("MainAppViewState file explorer", () => {
 
 	it("enters single mode when toggling fullscreen for a non-agent top-level panel", () => {
 		const { state, panelStore } = createState();
-		panelStore.getTopLevelPanel = vi.fn(() => ({
-			id: "terminal-1",
-			kind: "terminal",
-			projectPath: "/repo",
-			ownerPanelId: null,
-		}));
 
 		state.handleToggleFullscreen("terminal-1");
 

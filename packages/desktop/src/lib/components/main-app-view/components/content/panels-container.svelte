@@ -349,7 +349,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 					onClose={() => panelStore.closeBrowserPanel(browserPanel.id)}
 					onResize={(panelId, delta) => panelStore.resizeBrowserPanel(panelId, delta)}
 				/>
-			{:else}
+			{:else if fullscreenTopLevelPanel.kind === "git"}
 				{@const gitPanel = fullscreenTopLevelPanel.panel}
 				{@const project = projectManager.projects.find((p) => p.path === gitPanel.projectPath)}
 				<GitPanel

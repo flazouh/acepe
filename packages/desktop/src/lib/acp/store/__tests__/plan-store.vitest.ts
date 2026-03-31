@@ -12,11 +12,7 @@ type GetUnifiedPlan = (
 	agentId: string
 ) => ResultAsync<SessionPlanResponse | null, AppError>;
 
-const { getUnifiedPlanMock } = vi.hoisted(() => {
-	return {
-		getUnifiedPlanMock: vi.fn<GetUnifiedPlan>(),
-	};
-});
+const getUnifiedPlanMock = vi.fn<GetUnifiedPlan>();
 
 vi.mock("../../../utils/tauri-client.js", () => ({
 	tauriClient: {

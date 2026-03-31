@@ -2,29 +2,25 @@ import { cleanup, fireEvent, render } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { browserWebviewMock } = vi.hoisted(() => {
-	function result() {
-		return {
-			match: (onOk: () => void) => {
-				onOk();
-				return undefined;
-			},
-		};
-	}
-
+function browserWebviewResult() {
 	return {
-		browserWebviewMock: {
-			open: vi.fn(() => result()),
-			close: vi.fn(() => result()),
-			resize: vi.fn(() => result()),
-			setZoom: vi.fn(() => result()),
-			navigate: vi.fn(() => result()),
-			back: vi.fn(() => result()),
-			forward: vi.fn(() => result()),
-			reload: vi.fn(() => result()),
+		match: (onOk: () => void) => {
+			onOk();
+			return undefined;
 		},
 	};
-});
+}
+
+const browserWebviewMock = {
+	open: vi.fn(() => browserWebviewResult()),
+	close: vi.fn(() => browserWebviewResult()),
+	resize: vi.fn(() => browserWebviewResult()),
+	setZoom: vi.fn(() => browserWebviewResult()),
+	navigate: vi.fn(() => browserWebviewResult()),
+	back: vi.fn(() => browserWebviewResult()),
+	forward: vi.fn(() => browserWebviewResult()),
+	reload: vi.fn(() => browserWebviewResult()),
+};
 
 vi.mock(
 	"svelte",

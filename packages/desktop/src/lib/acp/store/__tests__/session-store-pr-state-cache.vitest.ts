@@ -5,11 +5,9 @@ import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
 import type { PrDetails } from "../../../utils/tauri-client/git.js";
 
-const { prDetailsMock } = vi.hoisted(() => ({
-	prDetailsMock: vi.fn<
-		(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>
-	>(),
-}));
+const prDetailsMock = vi.fn<
+	(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>
+>();
 
 vi.mock("../api.js", () => ({
 	api: {
