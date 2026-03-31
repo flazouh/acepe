@@ -16,13 +16,10 @@ describe("PanelsContainer fullscreen AgentPanel bindings", () => {
 		);
 	});
 
-	it("uses a null-safe snapshot for source control GitPanel props", () => {
-		expect(source).toContain("const sourceControlPanelSnapshot = $derived.by(() => {");
-		expect(source).toContain("panelId={sourceControlPanelSnapshot.id}");
-		expect(source).toContain("projectPath={sourceControlPanelSnapshot.projectPath}");
-		expect(source).toContain("width={sourceControlPanelSnapshot.width}");
-		expect(source).toContain(
-			"onClose={() => panelStore.closeGitPanel(sourceControlPanelSnapshot.id)}"
-		);
+	it("renders git panels inline in the main container instead of through a modal-only host", () => {
+		expect(source).not.toContain("EmbeddedModalShell");
+		expect(source).not.toContain("const sourceControlPanelSnapshot = $derived.by(() => {");
+		expect(source).toContain("{:else if fullscreenTopLevelPanel.kind === \"git\"}");
+		expect(source).toContain("{#each group.gitPanels as gitPanel (gitPanel.id)}");
 	});
 });
