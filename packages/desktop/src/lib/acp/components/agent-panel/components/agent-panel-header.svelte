@@ -62,7 +62,7 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 </script>
 
 {#if worktreeCloseConfirming}
-	<EmbeddedPanelHeader>
+	<EmbeddedPanelHeader class="bg-card/50">
 		<HeaderTitleCell>
 			{#snippet children()}
 				<span class="text-[11px] font-medium truncate text-muted-foreground">
@@ -123,6 +123,7 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 	</EmbeddedPanelHeader>
 {:else}
 	<AgentPanelHeaderLayout
+		class="bg-card/50"
 		sessionTitle={sessionTitle ?? undefined}
 		{agentIconSrc}
 		{isFullscreen}

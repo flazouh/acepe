@@ -86,7 +86,7 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 	{
 		key: "$mod+.",
 		command: KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE,
-		when: "!inputFocused && !settingsOpen && !modalOpen",
+		when: "!settingsOpen && !modalOpen",
 		source: "default",
 	},
 	{

@@ -1,6 +1,5 @@
 <script lang="ts">
 import { TextShimmer } from "@acepe/ui";
-import Cpu from "phosphor-svelte/lib/Cpu";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
@@ -40,7 +39,6 @@ let {
 				</TextShimmer>
 			{/if}
 		{:else if !isCompact}
-			<Cpu class="text-primary h-3.5 w-3.5 shrink-0" weight="fill" />
 			<span>{displayName}</span>
 		{/if}
 		<AnimatedChevron {isOpen} class="h-3.5 w-3.5 shrink-0" />

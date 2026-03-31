@@ -237,10 +237,6 @@ const autonomousToggleDisabled = $derived.by(() => {
 });
 
 const autonomousTooltip = $derived.by(() => {
-	if (autonomousSupportState.disabledReason === "not-live") {
-		return "Available once this session is live.";
-	}
-
 	if (autonomousSupportState.disabledReason === "unsupported-agent") {
 		return "This agent does not support Autonomous.";
 	}
@@ -253,7 +249,7 @@ const autonomousTooltip = $derived.by(() => {
 		return "Autonomous is on. New permissions for this session auto-approve.";
 	}
 
-	return "Autonomous auto-approves new permissions for this session.";
+	return "Autonomous will auto-approve new permissions for this session.";
 });
 
 // Derive submit button fill from the same tokens as mode icons (plan / build mint in dark)
@@ -2126,16 +2122,5 @@ async function handleCancel() {
 			opacity: 1;
 			transform: translateX(0);
 		}
-	}
-
-	/* Individual meter bars: GPU-accelerated smooth height transition */
-	.voice-bar {
-		transition: height 130ms cubic-bezier(0.2, 0.9, 0.2, 1), opacity 130ms ease-out;
-		will-change: height;
-	}
-
-	/* Meter container */
-	.voice-meter {
-		min-width: 16px;
 	}
 </style>

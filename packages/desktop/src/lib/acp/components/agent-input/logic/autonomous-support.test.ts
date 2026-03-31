@@ -34,6 +34,20 @@ describe("autonomous-support", () => {
 		});
 	});
 
+	it("keeps Autonomous available before the session is connected", () => {
+		expect(
+			resolveAutonomousSupport({
+				agentId: "claude-code",
+				connectionPhase: "disconnected",
+				currentUiModeId: CanonicalModeId.BUILD,
+				agents,
+			})
+		).toEqual({
+			supported: true,
+			disabledReason: null,
+		});
+	});
+
 	it("disables unsupported modes for otherwise supported agents", () => {
 		expect(
 			resolveAutonomousSupport({
@@ -62,17 +76,17 @@ describe("autonomous-support", () => {
 		});
 	});
 
-	it("disables pre-live sessions even when the agent supports Autonomous", () => {
+	it("still disables unsupported modes before the session is connected", () => {
 		expect(
 			resolveAutonomousSupport({
 				agentId: "claude-code",
-				connectionPhase: "connecting",
-				currentUiModeId: CanonicalModeId.BUILD,
+				connectionPhase: "disconnected",
+				currentUiModeId: CanonicalModeId.PLAN,
 				agents,
 			})
 		).toEqual({
 			supported: false,
-			disabledReason: "not-live",
+			disabledReason: "unsupported-mode",
 		});
 	});
 });

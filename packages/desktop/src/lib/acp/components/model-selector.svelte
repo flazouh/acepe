@@ -4,7 +4,6 @@ import { Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ResultAsync } from "neverthrow";
 import Brain from "phosphor-svelte/lib/Brain";
-import Cpu from "phosphor-svelte/lib/Cpu";
 import { onDestroy, onMount } from "svelte";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -296,7 +295,6 @@ function handleCodexEffortOpenChange(open: boolean) {
 										Loading models...
 									</TextShimmer>
 								{:else}
-									<Cpu class="size-3 shrink-0" weight="fill" />
 									<span class="text-xs truncate">{codexModelDisplayName}</span>
 								{/if}
 							{/snippet}
@@ -428,7 +426,6 @@ function handleCodexEffortOpenChange(open: boolean) {
 										Loading models...
 									</TextShimmer>
 								{:else}
-									<Cpu class="size-3 shrink-0" weight="fill" />
 									<span class="text-xs truncate">{displayName}</span>
 								{/if}
 							{/snippet}

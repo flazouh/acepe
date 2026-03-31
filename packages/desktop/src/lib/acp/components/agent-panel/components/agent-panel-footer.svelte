@@ -59,7 +59,7 @@ const hasProjectPath = $derived(projectPath !== null);
 const worktreeProjectPath = $derived(projectPath || "");
 </script>
 
-<div class="shrink-0 flex items-center h-7 border-t border-border/50">
+<div class="shrink-0 flex items-center h-7 border-t border-border/50 bg-card/50">
 	{#if hasProjectPath}
 		<WorktreeToggleControl
 			{panelId}

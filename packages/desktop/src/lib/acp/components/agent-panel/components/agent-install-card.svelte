@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import CircularProgress from "$lib/components/ui/circular-progress/circular-progress.svelte";
+import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 import * as m from "$lib/paraglide/messages.js";
 import AnimatedChevron from "../../animated-chevron.svelte";
 import AgentIcon from "../../agent-icon.svelte";
@@ -15,6 +15,7 @@ interface Props {
 let { agentId, agentName, stage, progress }: Props = $props();
 
 let isExpanded = $state(false);
+const progressPercent = $derived(progress < 0 ? 0 : progress > 1 ? 100 : progress * 100);
 
 </script>
 
@@ -46,15 +47,14 @@ let isExpanded = $state(false);
 		</div>
 
 		<div class="flex items-center gap-2 shrink-0">
-			{#if progress > 0}
-				<CircularProgress
-					current={progress}
-					total={1}
-					size={12}
-					strokeWidth={1.5}
-					class="text-muted-foreground"
-				/>
-			{/if}
+			<VoiceDownloadProgress
+				ariaLabel={`${m.agent_install_setting_up({ agentName })} ${stage}`}
+				compact={true}
+				label=""
+				percent={progressPercent}
+				segmentCount={20}
+				showPercent={false}
+			/>
 			<AnimatedChevron isOpen={isExpanded} class="size-3.5 text-muted-foreground" />
 		</div>
 	</div>

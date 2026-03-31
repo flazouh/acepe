@@ -53,4 +53,10 @@ describe("modified-files-header structure", () => {
 		expect(prSettingsPopoverSource).not.toContain("handleCreatePrClick");
 		expect(prSettingsPopoverSource).not.toContain("m.agent_panel_open_pr()");
 	});
+
+	it("renders the PR model picker label without the CPU icon", () => {
+		expect(source).not.toContain('from "phosphor-svelte/lib/Cpu"');
+		expect(prSettingsPopoverSource).not.toContain("<Cpu");
+		expect(prSettingsPopoverSource).toContain("Model");
+	});
 });

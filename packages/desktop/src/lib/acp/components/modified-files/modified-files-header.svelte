@@ -3,7 +3,6 @@ import { DiffPill } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import ArrowsOut from "phosphor-svelte/lib/ArrowsOut";
 import Check from "phosphor-svelte/lib/Check";
-import Cpu from "phosphor-svelte/lib/Cpu";
 import DotsThreeVertical from "phosphor-svelte/lib/DotsThreeVertical";
 import FileCode from "phosphor-svelte/lib/FileCode";
 import GitPullRequest from "phosphor-svelte/lib/GitPullRequest";
@@ -450,8 +449,7 @@ function handlePromptResetClick(): void {
 									</div>
 
 									<div class="space-y-1.5">
-										<div class="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-											<Cpu size={10} weight="bold" class="shrink-0" />
+										<div class="text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
 											Model
 										</div>
 										<DropdownMenu.Root>

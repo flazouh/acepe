@@ -18,13 +18,6 @@ export function resolveAutonomousSupport(input: {
 	readonly supported: boolean;
 	readonly disabledReason: "not-live" | "unsupported-agent" | "unsupported-mode" | null;
 } {
-	if (input.connectionPhase !== "connected") {
-		return {
-			supported: false,
-			disabledReason: "not-live",
-		};
-	}
-
 	if (!input.agentId) {
 		return {
 			supported: false,

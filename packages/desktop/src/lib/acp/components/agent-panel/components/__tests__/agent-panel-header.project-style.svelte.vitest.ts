@@ -55,9 +55,11 @@ describe("AgentPanelHeader project-header style", () => {
 
 		const fullscreen = container.querySelector(`button[title='${m.panel_fullscreen()}']`);
 		const close = container.querySelector(`button[title='${m.common_close()}']`);
+		const header = container.firstElementChild;
 
 		expect(fullscreen).not.toBeNull();
 		expect(close).not.toBeNull();
+		expect(header?.className).toContain("bg-card/50");
 		expect(fullscreen?.className).toContain("h-7");
 		expect(close?.className).toContain("h-7");
 

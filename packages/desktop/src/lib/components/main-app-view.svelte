@@ -866,7 +866,7 @@ onDestroy(() => {
 </script>
 
 <ThemeProvider class="bg-primary p-1 overflow-hidden h-dvh">
-	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background rounded-xl p-0.5">
+	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background rounded-lg p-0.5">
 		<!-- Top bar -->
 		<div class="shrink-0 bg-card/50 border border-border rounded-lg overflow-hidden">
 			<TopBar

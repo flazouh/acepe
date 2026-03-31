@@ -32,6 +32,18 @@ describe("default keybindings", () => {
 		);
 	});
 
+	it("keeps mode cycling available while the composer is focused", () => {
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).not.toContain(
+			"!inputFocused"
+		);
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
+			"!settingsOpen"
+		);
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
+			"!modalOpen"
+		);
+	});
+
 	it("does not include legacy sequence-style shortcuts", () => {
 		const sequenceBindings = DEFAULT_KEYBINDINGS.filter(
 			(entry) => entry.key.includes(" ") && !entry.key.includes("+")

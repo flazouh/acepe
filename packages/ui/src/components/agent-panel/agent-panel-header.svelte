@@ -28,6 +28,7 @@
 		dropdownMenu?: Snippet;
 		trailingActions?: Snippet;
 		controls?: Snippet;
+		class?: string;
 	}
 
 	let {
@@ -46,10 +47,11 @@
 		dropdownMenu,
 		trailingActions,
 		controls,
+		class: className = "",
 	}: Props = $props();
 </script>
 
-<EmbeddedPanelHeader onHeaderClick={onScrollToTop}>
+<EmbeddedPanelHeader onHeaderClick={onScrollToTop} class={className}>
 	{#if pendingProjectSelection}
 		<HeaderTitleCell>
 			{#snippet children()}
