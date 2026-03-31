@@ -11,7 +11,7 @@ import type { QueueItem } from "./types.js";
  * Section IDs for the queue display.
  * Order matches display order in the UI.
  */
-export type QueueSectionId = "answer_needed" | "working" | "finished" | "error";
+export type QueueSectionId = "answer_needed" | "planning" | "working" | "finished" | "error";
 
 /**
  * A grouped section of queue items for display.
@@ -22,7 +22,13 @@ export interface QueueSectionGroup {
 }
 
 /** Ordered section IDs for consistent rendering. */
-const SECTION_ORDER: readonly QueueSectionId[] = ["answer_needed", "working", "finished", "error"];
+const SECTION_ORDER: readonly QueueSectionId[] = [
+	"answer_needed",
+	"planning",
+	"working",
+	"finished",
+	"error",
+];
 
 /**
  * A session is "finished attention" only when:
@@ -44,20 +50,28 @@ export function classifyItem(item: QueueItem): QueueSectionId {
 	// permission/question responses, so pending input must be checked first.
 	if (state.pendingInput.kind !== "none") return "answer_needed";
 
-	// Priority 2: Active work (streaming or thinking with no pending input)
+	// Priority 2: Plan-mode active work — streaming or thinking while in plan mode.
+	if (
+		(state.activity.kind === "streaming" || state.activity.kind === "thinking") &&
+		item.currentModeId === "plan"
+	) {
+		return "planning";
+	}
+
+	// Priority 3: Active work (streaming or thinking with no pending input)
 	if (state.activity.kind === "streaming" || state.activity.kind === "thinking") {
 		return "working";
 	}
 
-	// Priority 3: Errors
+	// Priority 4: Errors
 	if (state.connection === "error") return "error";
 
-	// Priority 4: Unseen completions (only when idle)
+	// Priority 5: Unseen completions (only when idle)
 	if (state.activity.kind === "idle" && state.attention.hasUnseenCompletion) {
 		return "finished";
 	}
 
-	// Priority 5: Paused treated as working
+	// Priority 6: Paused treated as working
 	if (state.activity.kind === "paused") return "working";
 
 	// Default: idle sessions not in queue (but if we get here, treat as finished)

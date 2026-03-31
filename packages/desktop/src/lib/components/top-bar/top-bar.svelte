@@ -10,6 +10,7 @@ import DiscordLogo from "phosphor-svelte/lib/DiscordLogo";
 import DownloadSimple from "phosphor-svelte/lib/DownloadSimple";
 import GithubLogo from "phosphor-svelte/lib/GithubLogo";
 import HardDrives from "phosphor-svelte/lib/HardDrives";
+import Kanban from "phosphor-svelte/lib/Kanban";
 import Rows from "phosphor-svelte/lib/Rows";
 import Sidebar from "phosphor-svelte/lib/Sidebar";
 import SlidersHorizontal from "phosphor-svelte/lib/SlidersHorizontal";
@@ -62,6 +63,7 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 	{ value: "single", label: "Single", color: "#9858FF" },
 	{ value: "project", label: "Project", color: "#FF8D20" },
 	{ value: "multi", label: "Multi", color: "var(--success)" },
+	{ value: "kanban", label: "Kanban", color: "#3B82F6" },
 ];
 </script>
 
@@ -178,8 +180,10 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 										<Square class="size-3" weight="fill" style="color: {mode.color}" />
 									{:else if mode.value === "project"}
 										<Columns class="size-3" weight="fill" style="color: {mode.color}" />
-									{:else}
+									{:else if mode.value === "multi"}
 										<SquaresFour class="size-3" weight="fill" style="color: {mode.color}" />
+									{:else}
+										<Kanban class="size-3" weight="fill" style="color: {mode.color}" />
 									{/if}
 									{mode.label}
 								</button>

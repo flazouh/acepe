@@ -6,6 +6,8 @@ import CaretRight from "phosphor-svelte/lib/CaretRight";
 import CaretLeft from "phosphor-svelte/lib/CaretLeft";
 import type { Snippet } from "svelte";
 
+import type { AgentToolEntry } from "../agent-panel/types.js";
+import ToolTally from "../agent-panel/tool-tally.svelte";
 import { TextShimmer } from "../text-shimmer/index.js";
 import { DiffPill } from "../diff-pill/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
@@ -116,26 +118,39 @@ let {
 	collapsed = false,
 }: Props = $props();
 
+const taskWidgetSummary = $derived.by(() => {
+	if (taskSubagentSummaries.length > 0) {
+		return taskSubagentSummaries[taskSubagentSummaries.length - 1] ?? null;
+	}
+
+	return taskDescription;
+});
+const taskTallyToolCalls = $derived.by((): AgentToolEntry[] => {
+	if (!showTaskSubagentList || taskSubagentSummaries.length === 0) {
+		return [];
+	}
+
+	return taskSubagentSummaries.map((summary, index) => ({
+		id: `queue-task-${index}-${summary}`,
+		type: "tool_call",
+		title: summary,
+		status: index === taskSubagentSummaries.length - 1 && isStreaming ? "running" : "done",
+	}));
+});
+
 const showMainRow = $derived(!currentQuestion);
 const hasMainRowContent = $derived(
 	Boolean(
-		taskDescription ||
-			showTaskSubagentList ||
+			taskWidgetSummary ||
 			fileToolDisplayText ||
 			toolContent ||
 			statusText ||
-			todoProgress
+			todoProgress ||
+			taskTallyToolCalls.length > 0
 	)
 );
 const questionIconClassName = $derived(currentQuestionAnswered ? "text-success" : "text-primary");
-const taskWidgetSummaries = $derived.by(() => {
-	if (showTaskSubagentList || taskSubagentSummaries.length > 0) {
-		return taskSubagentSummaries;
-	}
-
-	return taskDescription ? [taskDescription] : [];
-});
-const showTaskWidgets = $derived(taskWidgetSummaries.length > 0);
+const showTaskWidget = $derived(taskWidgetSummary !== null);
 </script>
 
 <FeedItem selected={selected} onSelect={onSelect} {slidingHighlight} {compactPadding} {collapsed}>
@@ -151,11 +166,12 @@ const showTaskWidgets = $derived(taskWidgetSummaries.length > 0);
 			{/if}
 		</div>
 	{:else}
-	<div class="flex items-center gap-1.5">
+						{#if showTaskWidget && taskWidgetSummary}
 		{#if projectBadge}
-			{@render projectBadge()}
-		{/if}
-		{#if agentBadge}
+								<QueueSubagentCard summary={taskWidgetSummary} isStreaming={isStreaming} />
+								{#if taskTallyToolCalls.length > 0}
+									<ToolTally toolCalls={taskTallyToolCalls} inline />
+								{/if}
 			{@render agentBadge()}
 		{/if}
 

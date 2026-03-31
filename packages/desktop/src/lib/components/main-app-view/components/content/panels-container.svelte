@@ -22,6 +22,7 @@ import * as m from "$lib/paraglide/messages.js";
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 
 import { groupAllPanelsByProject } from "./panel-grouping.js";
+import KanbanView from "./kanban-view.svelte";
 
 const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContainerPerf" });
 
@@ -125,6 +126,7 @@ const allGroups = $derived(
 		projectManager.projects
 	)
 );
+const hideEmbeddedProjectBadge = $derived(allGroups.length > 1);
 
 const topLevelPanelsWithProject = $derived.by(() => {
 	const topLevelPanels: Array<{ id: string; projectPath: string | null }> = [];
@@ -211,6 +213,23 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 		reviewFileIndex: panel?.reviewFileIndex ?? 0,
 	};
 });
+
+const terminalTabsPanelStore = $derived.by(() => ({
+	fullscreenPanelId: panelStore.fullscreenPanelId,
+	focusedPanelId: panelStore.focusedPanelId,
+	viewMode: panelStore.viewMode === "kanban" ? "project" : panelStore.viewMode,
+	getSelectedTerminalTabId: panelStore.getSelectedTerminalTabId.bind(panelStore),
+	setSelectedTerminalTab: panelStore.setSelectedTerminalTab.bind(panelStore),
+	openTerminalTab: panelStore.openTerminalTab.bind(panelStore),
+	closeTerminalTab: panelStore.closeTerminalTab.bind(panelStore),
+	moveTerminalTabToNewPanel: panelStore.moveTerminalTabToNewPanel.bind(panelStore),
+	canMoveTerminalTabToNewPanel: panelStore.canMoveTerminalTabToNewPanel.bind(panelStore),
+	enterTerminalFullscreen: panelStore.enterTerminalFullscreen.bind(panelStore),
+	exitFullscreen: panelStore.exitFullscreen.bind(panelStore),
+	closeTerminalPanel: panelStore.closeTerminalPanel.bind(panelStore),
+	resizeTerminalPanel: panelStore.resizeTerminalPanel.bind(panelStore),
+	updateTerminalPtyId: panelStore.updateTerminalPtyId.bind(panelStore),
+}));
 </script>
 
 <div class="flex flex-col flex-1 min-h-0 gap-0.5">
@@ -271,7 +290,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 						onToggleFullscreen={() =>
 							state.handleToggleFullscreen(fullscreenPanelSnapshot.panelId)}
 						onFocus={() => state.handleFocusPanel(fullscreenPanelSnapshot.panelId)}
-						hideProjectBadge={true}
+						hideProjectBadge={hideEmbeddedProjectBadge}
 						reviewMode={fullscreenPanelSnapshot.reviewMode}
 						reviewFilesState={fullscreenPanelSnapshot.reviewFilesState}
 						reviewFileIndex={fullscreenPanelSnapshot.reviewFileIndex}
@@ -336,7 +355,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 					projectPath={terminalGroup.projectPath}
 					projectName={project ? project.name : m.project_unknown()}
 					projectColor={project ? project.color : "#4AD0FF"}
-					{panelStore}
+					panelStore={terminalTabsPanelStore}
 				/>
 			{:else if fullscreenTopLevelPanel.kind === "browser"}
 				{@const browserPanel = fullscreenTopLevelPanel.panel}
@@ -373,6 +392,8 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 					}}
 				/>
 			{/if}
+		{:else if viewModeState.layout === "kanban"}
+			<KanbanView />
 		{:else}
 			<!-- Project/Multi mode: panels grouped by project; hide inactive in focused view so they stay mounted -->
 		{#each allGroups as group (group.projectPath)}
@@ -418,7 +439,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 								projectPath={group.projectPath}
 								projectName={group.projectName}
 								projectColor={group.projectColor}
-								{panelStore}
+								panelStore={terminalTabsPanelStore}
 							/>
 						{/each}
 					{/if}
@@ -502,7 +523,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 								onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
 								onToggleFullscreen={() => state.handleToggleFullscreen(panel.id)}
 								onFocus={() => state.handleFocusPanel(panel.id)}
-								hideProjectBadge={true}
+								hideProjectBadge={hideEmbeddedProjectBadge}
 								reviewMode={panel.reviewMode}
 								reviewFilesState={panel.reviewFilesState}
 								reviewFileIndex={panel.reviewFileIndex}

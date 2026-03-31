@@ -1,23 +1,13 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import type { SectionedFeedGroup, SectionedFeedItemData, SectionedFeedSectionId } from "./types.js";
+	import type { SectionedFeedGroup, SectionedFeedItemData } from "./types.js";
 
 	import BellSimple from "phosphor-svelte/lib/BellSimple";
 	import CaretDown from "phosphor-svelte/lib/CaretDown";
 	import CaretRight from "phosphor-svelte/lib/CaretRight";
 
 	import FeedSectionHeader from "./feed-section-header.svelte";
-	import { Colors } from "../../lib/colors.js";
-
-	function sectionColor(id: SectionedFeedSectionId): string {
-		switch (id) {
-			case "answer_needed": return Colors.orange;
-			case "working":
-			case "planning":      return Colors.purple;
-			case "finished":      return Colors.green;
-			case "error":         return Colors.red;
-		}
-	}
+	import { sectionColor } from "./section-color.js";
 
 	interface Props {
 		groups: readonly SectionedFeedGroup<SectionedFeedItemData>[];

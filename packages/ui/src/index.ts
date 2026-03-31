@@ -169,6 +169,20 @@ export {
 } from "./components/icons/index.js";
 export { InlineArtefactBadge } from "./components/inline-artefact-badge/index.js";
 export { Input, Root as InputRoot } from "./components/input/index.js";
+export type {
+	KanbanCardData,
+	KanbanColumnGroup,
+	KanbanPermissionData,
+	KanbanQuestionData,
+	KanbanQuestionOption,
+} from "./components/kanban/index.js";
+export {
+	KanbanBoard,
+	KanbanCard,
+	KanbanColumn,
+	KanbanPermissionFooter,
+	KanbanQuestionFooter,
+} from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";
 export {
 	Content as NavigationMenuContent,

@@ -78,4 +78,60 @@ describe("ActivityEntry todo progress", () => {
 			segments.filter((segment) => segment.getAttribute("data-filled") === "false")
 		).toHaveLength(2);
 	});
+
+	it("renders one compact task card with the latest child summary and a tally strip", () => {
+		const { container, getByText, queryByText } = render(ActivityEntry, {
+			selected: false,
+			onSelect: vi.fn(),
+			mode: null,
+			title: "Queue item",
+			timeAgo: "1m",
+			insertions: 0,
+			deletions: 0,
+			isStreaming: true,
+			taskDescription: null,
+			taskSubagentSummaries: [
+				"github.com",
+				"raw.githubusercontent.com",
+				"api.github.com",
+			],
+			showTaskSubagentList: true,
+			fileToolDisplayText: null,
+			toolContent: null,
+			showToolShimmer: false,
+			statusText: null,
+			showStatusShimmer: false,
+			todoProgress: null,
+			currentQuestion: null,
+			totalQuestions: 0,
+			hasMultipleQuestions: false,
+			currentQuestionIndex: 0,
+			questionId: "",
+			questionProgress: [],
+			currentQuestionAnswered: false,
+			currentAnswerDisplay: "",
+			currentQuestionOptions: [],
+			otherText: "",
+			otherPlaceholder: "Other",
+			showOtherInput: true,
+			showSubmitButton: false,
+			canSubmit: false,
+			submitLabel: "Submit",
+			onOptionSelect: vi.fn(),
+			onOtherInput: vi.fn(),
+			onOtherKeydown: vi.fn(),
+			onSubmitAll: vi.fn(),
+			onPrevQuestion: vi.fn(),
+			onNextQuestion: vi.fn(),
+		});
+
+		expect(container.querySelectorAll("[data-testid='queue-subagent-card']")).toHaveLength(1);
+		expect(getByText("api.github.com")).toBeTruthy();
+		expect(queryByText("github.com")).toBeNull();
+		expect(queryByText("raw.githubusercontent.com")).toBeNull();
+
+		const tally = container.querySelector('[title="3 tool calls"]');
+		expect(tally).toBeTruthy();
+		expect(tally?.children).toHaveLength(3);
+	});
 });

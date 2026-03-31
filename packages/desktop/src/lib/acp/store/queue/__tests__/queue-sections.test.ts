@@ -177,16 +177,53 @@ describe("classifyItem", () => {
 		).toBe("working");
 	});
 
-	it("should classify streaming with plan mode as working", () => {
+	it("should classify streaming with plan mode as planning", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "plan" }))
-		).toBe("working");
+		).toBe("planning");
 	});
 
 	it("should classify streaming with null mode as working", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: null }))
 		).toBe("working");
+	});
+
+	it("should classify thinking with plan mode as planning", () => {
+		const item = makeItem({
+			state: makeState({ activityKind: "thinking", modeId: "plan" }),
+			currentModeId: "plan",
+		});
+		expect(classifyItem(item)).toBe("planning");
+	});
+
+	it("should classify plan mode + pending input as answer_needed", () => {
+		const item = makeItem({
+			state: makeState({
+				activityKind: "streaming",
+				modeId: "plan",
+				pendingInputKind: "question",
+			}),
+			currentModeId: "plan",
+		});
+		expect(classifyItem(item)).toBe("answer_needed");
+	});
+
+	it("should classify plan mode + idle + unseen completion as finished", () => {
+		const item = makeItem({
+			state: makeState({ activityKind: "idle", modeId: "plan", hasUnseenCompletion: true }),
+			currentModeId: "plan",
+			status: "ready",
+		});
+		expect(classifyItem(item)).toBe("finished");
+	});
+
+	it("should classify plan mode + paused as working", () => {
+		const item = makeItem({
+			state: makeState({ activityKind: "paused", modeId: "plan" }),
+			currentModeId: "plan",
+		});
+		expect(classifyItem(item)).toBe("working");
 	});
 
 	it("should classify ready status as finished", () => {
@@ -337,7 +374,7 @@ describe("groupIntoSections", () => {
 		expect(sections[0].items[2].sessionId).toBe("s-1"); // 100 (oldest)
 	});
 
-	it("should group planning items together with working", () => {
+	it("should separate planning items from working items", () => {
 		const items = [
 			makeItem({
 				sessionId: "s-1",
@@ -356,8 +393,37 @@ describe("groupIntoSections", () => {
 		];
 
 		const sections = groupIntoSections(items);
-		expect(sections).toHaveLength(1);
-		expect(sections[0].id).toBe("working");
-		expect(sections[0].items).toHaveLength(2);
+		expect(sections).toHaveLength(2);
+		expect(sections[0].id).toBe("planning");
+		expect(sections[0].items).toHaveLength(1);
+		expect(sections[0].items[0].sessionId).toBe("s-2");
+		expect(sections[1].id).toBe("working");
+		expect(sections[1].items).toHaveLength(1);
+		expect(sections[1].items[0].sessionId).toBe("s-1");
+	});
+
+	it("should include planning and error sections together", () => {
+		const items = [
+			makeItem({
+				sessionId: "s-1",
+				status: "streaming",
+				isStreaming: true,
+				currentModeId: "plan",
+				lastActivityAt: 200,
+			}),
+			makeItem({
+				sessionId: "s-2",
+				status: "error",
+				hasError: true,
+				lastActivityAt: 100,
+			}),
+		];
+
+		const sections = groupIntoSections(items);
+		expect(sections).toHaveLength(2);
+		expect(sections[0].id).toBe("planning");
+		expect(sections[0].items).toHaveLength(1);
+		expect(sections[1].id).toBe("error");
+		expect(sections[1].items).toHaveLength(1);
 	});
 });

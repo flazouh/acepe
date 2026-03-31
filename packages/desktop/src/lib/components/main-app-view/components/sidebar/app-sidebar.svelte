@@ -204,7 +204,9 @@ const visibleSessions = $derived.by(() => {
 
 <AppSidebarLayout>
 	{#snippet queueSection()}
-		<AppQueueRow {projectManager} state={appState} />
+		{#if panelStore.viewMode !== "kanban"}
+			<AppQueueRow {projectManager} state={appState} />
+		{/if}
 	{/snippet}
 
 	{#snippet sessionList()}

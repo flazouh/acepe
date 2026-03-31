@@ -26,8 +26,8 @@ export interface ProjectGroupRef {
 }
 
 export interface ViewModeState {
-	/** "fullscreen" when single; "cards" for project/multi */
-	readonly layout: "fullscreen" | "cards";
+	/** "fullscreen" when single; "cards" for project/multi; "kanban" for kanban board */
+	readonly layout: "fullscreen" | "cards" | "kanban";
 	readonly isSingleMode: boolean;
 	/** Same as layout === "fullscreen" */
 	readonly isFullscreenMode: boolean;
@@ -56,6 +56,18 @@ export function getViewModeState(
 ): ViewModeState {
 	const { panelsWithState, allGroups } = context;
 	const viewMode = panelStore.viewMode;
+
+	if (viewMode === "kanban") {
+		return {
+			layout: "kanban",
+			isSingleMode: false,
+			isFullscreenMode: false,
+			activeProjectPath: null,
+			focusedModeAllProjects: undefined,
+			fullscreenPanel: null,
+		};
+	}
+
 	const isSingleMode = viewMode === "single";
 	const isFullscreenMode = isSingleMode;
 	const layout: "fullscreen" | "cards" = isFullscreenMode ? "fullscreen" : "cards";

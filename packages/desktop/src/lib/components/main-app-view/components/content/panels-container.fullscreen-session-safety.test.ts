@@ -22,4 +22,9 @@ describe("PanelsContainer fullscreen AgentPanel bindings", () => {
 		expect(source).toContain("{:else if fullscreenTopLevelPanel.kind === \"git\"}");
 		expect(source).toContain("{#each group.gitPanels as gitPanel (gitPanel.id)}");
 	});
+
+	it("shows the embedded project badge for agent panels when only one project group exists", () => {
+		expect(source).toContain("const hideEmbeddedProjectBadge = $derived(allGroups.length > 1);");
+		expect(source.match(/hideProjectBadge=\{hideEmbeddedProjectBadge\}/g)?.length).toBe(2);
+	});
 });

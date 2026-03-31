@@ -9,7 +9,7 @@ import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getViewModeState } from "../view-mode-state.js";
 
 function createMockPanelStore(overrides: {
-	viewMode?: "single" | "project" | "multi";
+	viewMode?: "single" | "project" | "multi" | "kanban";
 	fullscreenPanelId?: string | null;
 	focusedPanelId?: string | null;
 	focusedViewProjectPath?: string | null;
@@ -152,5 +152,16 @@ describe("getViewModeState", () => {
 		});
 		expect(state.activeProjectPath).toBeNull();
 		expect(state.focusedModeAllProjects).toBeUndefined();
+	});
+
+	it("kanban: layout is kanban, no fullscreen, no project scoping", () => {
+		const store = createMockPanelStore({ viewMode: "kanban" });
+		const state = getViewModeState(store, { panelsWithState, allGroups });
+		expect(state.layout).toBe("kanban");
+		expect(state.isFullscreenMode).toBe(false);
+		expect(state.isSingleMode).toBe(false);
+		expect(state.activeProjectPath).toBeNull();
+		expect(state.focusedModeAllProjects).toBeUndefined();
+		expect(state.fullscreenPanel).toBeNull();
 	});
 });

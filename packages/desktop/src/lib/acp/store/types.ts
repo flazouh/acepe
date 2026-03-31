@@ -448,7 +448,7 @@ export { isToolCallEntry } from "../application/dto/session";
 // ============================================
 
 /** Layout view mode: how panels are displayed */
-export type ViewMode = "single" | "project" | "multi";
+export type ViewMode = "single" | "project" | "multi" | "kanban";
 
 // ============================================
 // WORKSPACE PERSISTENCE TYPES

@@ -9,6 +9,7 @@ import QueueItemComponent from "./queue-item.svelte";
 
 const SECTION_LABELS: Record<QueueSectionId, () => string> = {
 	answer_needed: () => m.queue_group_answer_needed(),
+	planning: () => m.queue_group_planning(),
 	working: () => m.queue_group_working(),
 	finished: () => m.queue_group_finished(),
 	error: () => m.queue_group_error(),
