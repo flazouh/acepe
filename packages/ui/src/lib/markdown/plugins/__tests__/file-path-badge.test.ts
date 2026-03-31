@@ -26,8 +26,8 @@ describe("filePathBadgePlugin", () => {
 		});
 
 		it("renders file chip for absolute path in backticks", () => {
-			const html = renderWithPlugin("`/Users/alex/file.ts`");
-			expectFileChip(html, "/Users/alex/file.ts");
+			const html = renderWithPlugin("`/Users/example/file.ts`");
+			expectFileChip(html, "/Users/example/file.ts");
 		});
 
 		it("renders file chip for path with line number in backticks", () => {

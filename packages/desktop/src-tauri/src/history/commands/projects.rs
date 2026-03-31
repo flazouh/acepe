@@ -134,7 +134,7 @@ async fn list_cursor_project_paths() -> Result<Vec<String>, String> {
             continue;
         }
 
-        // Convert slug to path: `Users-alex-Documents-pointer` -> `/Users/alex/Documents/pointer`
+        // Convert slug to path: `Users-example-Documents-sample-repo` -> `/Users/example/Documents/sample-repo`
         let project_path = format!("/{}", file_name_str.replace('-', "/"));
         project_paths.push(project_path);
     }
@@ -225,7 +225,7 @@ async fn count_cursor_sessions_for_project(project_path: &str) -> Result<u32, St
         return Ok(0);
     }
 
-    // Convert project path back to slug: `/Users/alex/Documents/pointer` -> `Users-alex-Documents-pointer`
+    // Convert project path back to slug: `/Users/example/Documents/sample-repo` -> `Users-example-Documents-sample-repo`
     let slug = project_path.trim_start_matches('/').replace('/', "-");
     let project_dir = projects_dir.join(&slug);
 

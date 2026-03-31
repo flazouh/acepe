@@ -648,7 +648,7 @@ mod tests {
         fn codex_overrides_mislabeled_search_kind_for_list_files_commands() {
             let payload = json!({
                 "toolCallId": "tool-list-1",
-                "title": "List /Users/alex/Documents/acepe",
+                "title": "List /Users/example/Documents/acepe",
                 "kind": "search",
                 "status": "in_progress",
                 "rawInput": {
@@ -767,9 +767,9 @@ mod tests {
         fn codex_parse_typed_tool_arguments_extracts_changes_map_as_edit() {
             let raw = json!({
                 "changes": {
-                    "/Users/alex/Downloads/hello-world-go/README.md": {
+                    "/Users/example/Downloads/sample-go-project/README.md": {
                         "type": "add",
-                        "content": "# hello-world-go"
+                        "content": "# sample-go-project"
                     }
                 }
             });
@@ -783,11 +783,11 @@ mod tests {
                     let e = edits.first().expect("edit entry");
                     assert_eq!(
                         e.file_path.as_deref(),
-                        Some("/Users/alex/Downloads/hello-world-go/README.md")
+                        Some("/Users/example/Downloads/sample-go-project/README.md")
                     );
                     assert_eq!(e.old_string, None);
-                    assert_eq!(e.new_string.as_deref(), Some("# hello-world-go"));
-                    assert_eq!(e.content.as_deref(), Some("# hello-world-go"));
+                    assert_eq!(e.new_string.as_deref(), Some("# sample-go-project"));
+                    assert_eq!(e.content.as_deref(), Some("# sample-go-project"));
                 }
                 other => panic!("expected edit arguments, got {:?}", other),
             }
@@ -797,7 +797,7 @@ mod tests {
         fn codex_parse_typed_tool_arguments_extracts_old_new_content_changes_map_as_edit() {
             let raw = json!({
                 "changes": {
-                    "/Users/alex/Downloads/hello-world-go/block.go": {
+                    "/Users/example/Downloads/sample-go-project/block.go": {
                         "old_content": "package main\n\nfunc main() {}\n",
                         "new_content": "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\n"
                     }
@@ -813,7 +813,7 @@ mod tests {
                     let e = edits.first().expect("edit entry");
                     assert_eq!(
                         e.file_path.as_deref(),
-                        Some("/Users/alex/Downloads/hello-world-go/block.go")
+                        Some("/Users/example/Downloads/sample-go-project/block.go")
                     );
                     assert_eq!(
                         e.old_string.as_deref(),

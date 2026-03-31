@@ -33,7 +33,7 @@ pub(super) fn validate_session_cwd(
 ///
 /// The ACP subprocess sometimes incorrectly concatenates the session cwd with
 /// an already-absolute path, resulting in paths like:
-/// `/Users/alex/project//Users/alex/project/src/file.ts`
+/// `/Users/example/project//Users/example/project/src/file.ts`
 ///
 /// This happens because: cwd + "/" + absolute_path creates double slashes
 /// where the cwd ends and the absolute path begins (since absolute_path

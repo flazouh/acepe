@@ -113,8 +113,8 @@ mod tests {
     async fn test_path_to_slug() {
         // Test basic path conversion
         assert_eq!(
-            path_to_slug("/Users/alex/Documents"),
-            "-Users-alex-Documents"
+            path_to_slug("/Users/example/Documents"),
+            "-Users-example-Documents"
         );
         assert_eq!(path_to_slug("/home/user/project"), "-home-user-project");
         assert_eq!(path_to_slug("relative/path"), "relative-path");

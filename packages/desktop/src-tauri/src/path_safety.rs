@@ -303,7 +303,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn lexical_classifier_ignores_regular_project_paths() {
-        let project = Path::new("/Users/alex/Documents/acepe");
+        let project = Path::new("/Users/example/Documents/acepe");
         assert_eq!(classify_legacy_unsafe_project_root_lexical(project), None);
     }
 

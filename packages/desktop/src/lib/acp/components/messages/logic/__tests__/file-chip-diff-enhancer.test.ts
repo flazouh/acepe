@@ -34,8 +34,8 @@ describe("normalizeToProjectRelativePath", () => {
 	it("normalizes absolute paths inside the project", () => {
 		expect(
 			normalizeToProjectRelativePath(
-				"/Users/alex/Documents/acepe/packages/desktop/src/lib/file.ts",
-				"/Users/alex/Documents/acepe/packages/desktop"
+				"/Users/example/Documents/acepe/packages/desktop/src/lib/file.ts",
+				"/Users/example/Documents/acepe/packages/desktop"
 			)
 		).toBe("src/lib/file.ts");
 	});
@@ -44,7 +44,7 @@ describe("normalizeToProjectRelativePath", () => {
 		expect(
 			normalizeToProjectRelativePath(
 				"/packages/desktop/src/lib/file.ts",
-				"/Users/alex/Documents/acepe/packages/desktop"
+				"/Users/example/Documents/acepe/packages/desktop"
 			)
 		).toBe("src/lib/file.ts");
 	});
@@ -65,7 +65,7 @@ describe("resolveDiffStatsForFilePath", () => {
 		]);
 
 		const stats = resolveDiffStatsForFilePath("src/lib/file.ts", {
-			projectPath: "/Users/alex/Documents/acepe/packages/desktop",
+			projectPath: "/Users/example/Documents/acepe/packages/desktop",
 			gitStatusByPath,
 		});
 
@@ -94,7 +94,7 @@ describe("resolveDiffStatsForFilePath", () => {
 		]);
 
 		const stats = resolveDiffStatsForFilePath("src/lib/file.ts", {
-			projectPath: "/Users/alex/Documents/acepe/packages/desktop",
+			projectPath: "/Users/example/Documents/acepe/packages/desktop",
 			gitStatusByPath,
 			sessionState: createSessionState("src/lib/file.ts", 1, 1),
 		});
@@ -116,7 +116,7 @@ describe("resolveDiffStatsForFilePath", () => {
 		]);
 
 		const stats = resolveDiffStatsForFilePath("src/lib/file.ts", {
-			projectPath: "/Users/alex/Documents/acepe/packages/desktop",
+			projectPath: "/Users/example/Documents/acepe/packages/desktop",
 			gitStatusByPath,
 		});
 
@@ -137,7 +137,7 @@ describe("resolveDiffStatsForFilePath", () => {
 		]);
 
 		const stats = resolveDiffStatsForFilePath("/packages/desktop/src/lib/file.ts", {
-			projectPath: "/Users/alex/Documents/acepe/packages/desktop",
+			projectPath: "/Users/example/Documents/acepe/packages/desktop",
 			gitStatusByPath,
 		});
 

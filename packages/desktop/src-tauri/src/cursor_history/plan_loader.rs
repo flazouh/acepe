@@ -80,7 +80,7 @@ async fn find_cursor_transcript(
         return Ok(None);
     }
 
-    // Convert project path to slug: `/Users/alex/Documents/pointer` -> `Users-alex-Documents-pointer`
+    // Convert project path to slug: `/Users/example/Documents/sample-repo` -> `Users-example-Documents-sample-repo`
     let slug = parser::path_to_slug(project_path);
     let project_dir = projects_dir.join(&slug);
 

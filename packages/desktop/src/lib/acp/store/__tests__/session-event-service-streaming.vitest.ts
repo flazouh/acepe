@@ -180,7 +180,7 @@ describe("SessionEventService streaming delta handling", () => {
 				content: null,
 				rawOutput: null,
 				title: null,
-				locations: [{ path: "/Users/alex/.claude/plans/test.md" }],
+				locations: [{ path: "/Users/example/.claude/plans/test.md" }],
 				streamingInputDelta: '"}',
 			},
 			session_id: "session-123",
@@ -206,11 +206,11 @@ describe("SessionEventService streaming delta handling", () => {
 				result: null,
 				content: null,
 				rawOutput: null,
-				title: "Write `/Users/alex/.claude/plans/test.md`",
-				locations: [{ path: "/Users/alex/.claude/plans/test.md" }],
+				title: "Write `/Users/example/.claude/plans/test.md`",
+				locations: [{ path: "/Users/example/.claude/plans/test.md" }],
 				streamingArguments: {
 					kind: "edit",
-					edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
+					edits: [{ filePath: "/Users/example/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
 				},
 			},
 			session_id: "session-123",
@@ -220,14 +220,14 @@ describe("SessionEventService streaming delta handling", () => {
 
 		expect(handler.setStreamingArguments).toHaveBeenCalledWith("session-123", "tool-123", {
 			kind: "edit",
-			edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
+			edits: [{ filePath: "/Users/example/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
 		});
 		expect(handler.updateChildInParent).toHaveBeenCalledWith(
 			"session-123",
 			expect.objectContaining({
 				toolCallId: "tool-123",
 				status: "completed",
-				title: "Write `/Users/alex/.claude/plans/test.md`",
+				title: "Write `/Users/example/.claude/plans/test.md`",
 			})
 		);
 	});
@@ -1071,7 +1071,7 @@ describe("SessionEventService streaming delta handling", () => {
 			chunk: {
 				content: {
 					type: "text",
-					text: "Hi. How can I help you today? I see you are in the hello-world-go project.",
+					text: "Hi. How can I help you today? I see you are in the sample-go-project project.",
 				},
 			},
 		};

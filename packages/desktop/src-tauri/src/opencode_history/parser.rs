@@ -734,7 +734,7 @@ mod tests {
     fn opencode_project_without_updated_time_parses() {
         let raw = r#"{
 			"id": "project-hash",
-			"worktree": "/Users/alex/Documents/acepe",
+			"worktree": "/Users/example/Documents/acepe",
 			"time": { "created": 1234 }
 		}"#;
 

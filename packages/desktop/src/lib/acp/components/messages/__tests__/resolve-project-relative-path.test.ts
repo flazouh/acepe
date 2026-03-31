@@ -5,7 +5,7 @@
  * This function converts various path formats to project-relative paths.
  *
  * Handles three types of paths:
- * 1. Absolute paths within project (e.g., /Users/alex/project/src/file.ts)
+ * 1. Absolute paths within project (e.g., /Users/example/project/src/file.ts)
  * 2. Monorepo-relative paths (e.g., /packages/desktop/src/file.ts)
  * 3. Project-relative paths (e.g., src/file.ts)
  */
@@ -15,24 +15,24 @@ import { describe, expect, it } from "vitest";
 import { normalizeToProjectRelativePath } from "../logic/file-chip-diff-enhancer.js";
 
 describe("normalizeToProjectRelativePath", () => {
-	const projectPath = "/Users/alex/Documents/acepe/packages/desktop";
+	const projectPath = "/Users/example/Documents/acepe/packages/desktop";
 
 	describe("absolute paths within project", () => {
 		it("should strip project path prefix from absolute paths", () => {
-			const filePath = "/Users/alex/Documents/acepe/packages/desktop/src/lib/file.ts";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/src/lib/file.ts";
 			expect(normalizeToProjectRelativePath(filePath, projectPath)).toBe("src/lib/file.ts");
 		});
 
 		it("should handle deeply nested paths", () => {
 			const filePath =
-				"/Users/alex/Documents/acepe/packages/desktop/src/lib/acp/components/messages/markdown-text.svelte";
+				"/Users/example/Documents/acepe/packages/desktop/src/lib/acp/components/messages/markdown-text.svelte";
 			expect(normalizeToProjectRelativePath(filePath, projectPath)).toBe(
 				"src/lib/acp/components/messages/markdown-text.svelte"
 			);
 		});
 
 		it("should handle root-level files", () => {
-			const filePath = "/Users/alex/Documents/acepe/packages/desktop/package.json";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/package.json";
 			expect(normalizeToProjectRelativePath(filePath, projectPath)).toBe("package.json");
 		});
 	});
@@ -96,7 +96,7 @@ describe("normalizeToProjectRelativePath", () => {
 	describe("edge cases", () => {
 		it("should handle exact project path match", () => {
 			// Edge case: path is exactly the project path + file
-			const filePath = "/Users/alex/Documents/acepe/packages/desktop/file.ts";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/file.ts";
 			expect(normalizeToProjectRelativePath(filePath, projectPath)).toBe("file.ts");
 		});
 
@@ -123,10 +123,10 @@ describe("normalizeToProjectRelativePath", () => {
 
 		it("should handle Windows-style paths on Unix (forward slashes)", () => {
 			// If someone pastes a Windows path with forward slashes
-			const filePath = "C:/Users/alex/project/src/file.ts";
+			const filePath = "C:/Users/example/project/src/file.ts";
 			// No overlap with Unix project path, returns as-is
 			expect(normalizeToProjectRelativePath(filePath, projectPath)).toBe(
-				"C:/Users/alex/project/src/file.ts"
+				"C:/Users/example/project/src/file.ts"
 			);
 		});
 	});

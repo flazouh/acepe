@@ -283,13 +283,13 @@ fn test_session_update_tool_call_acp_format() {
             }
         },
         "rawInput": {
-            "file_path": "/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts"
+            "file_path": "/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts"
         },
         "status": "pending",
         "kind": "read",
-        "title": "Read /Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts",
+        "title": "Read /Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts",
         "locations": [
-            {"path": "/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts", "line": 0}
+            {"path": "/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts", "line": 0}
         ],
         "content": []
     });
@@ -307,7 +307,7 @@ fn test_session_update_tool_call_acp_format() {
             assert_eq!(
                 tool_call.title,
                 Some(
-                    "Read /Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts"
+                    "Read /Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts"
                         .to_string()
                 )
             );

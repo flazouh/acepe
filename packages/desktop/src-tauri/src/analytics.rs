@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn sanitized_error_message_redacts_home_path_segment() {
-        let message = "failed: /Users/alex/Documents/acepe/file.txt";
+        let message = "failed: /Users/example/Documents/acepe/file.txt";
         let sanitized = sanitized_error_message(message);
 
         assert_eq!(sanitized, "failed: /Users/***/Documents/acepe/file.txt");

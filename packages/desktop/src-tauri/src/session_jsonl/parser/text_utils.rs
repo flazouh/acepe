@@ -20,7 +20,7 @@ pub(super) fn get_session_jsonl_root() -> Result<PathBuf> {
 pub(super) fn path_to_slug(path: &str) -> String {
     // Convert path to slug format used by Claude Code.
     // Claude Code replaces both '/' and '.' with '-'.
-    // /Users/alex/.acepe/worktrees/foo -> -Users-alex--acepe-worktrees-foo
+    // /Users/example/.acepe/worktrees/foo -> -Users-example--acepe-worktrees-foo
     path.replace(['/', '.'], "-")
 }
 

@@ -40,7 +40,7 @@ pub fn get_cursor_projects_dir() -> Result<PathBuf> {
 }
 
 /// Convert a project path to Cursor's slug format.
-/// `/Users/alex/Documents/pointer` -> `Users-alex-Documents-pointer`
+/// `/Users/example/Documents/sample-repo` -> `Users-example-Documents-sample-repo`
 pub fn path_to_slug(path: &str) -> String {
     path.trim_start_matches('/').replace('/', "-")
 }
@@ -211,7 +211,7 @@ pub async fn scan_all_chats() -> Result<Vec<CursorChatEntry>> {
 }
 
 /// Convert a Cursor slug back to a path.
-/// `Users-alex-Documents-pointer` -> `/Users/alex/Documents/pointer`
+/// `Users-example-Documents-sample-repo` -> `/Users/example/Documents/sample-repo`
 pub fn slug_to_path(slug: &str) -> String {
     format!("/{}", slug.replace('-', "/"))
 }

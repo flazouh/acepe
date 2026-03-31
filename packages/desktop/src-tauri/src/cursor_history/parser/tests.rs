@@ -4,8 +4,8 @@ use tempfile::tempdir;
 #[test]
 fn test_path_to_slug() {
     assert_eq!(
-        path_to_slug("/Users/alex/Documents/pointer"),
-        "Users-alex-Documents-pointer"
+        path_to_slug("/Users/example/Documents/sample-repo"),
+        "Users-example-Documents-sample-repo"
     );
     assert_eq!(path_to_slug("/home/user/project"), "home-user-project");
 }
@@ -13,8 +13,8 @@ fn test_path_to_slug() {
 #[test]
 fn test_slug_to_path() {
     assert_eq!(
-        slug_to_path("Users-alex-Documents-pointer"),
-        "/Users/alex/Documents/pointer"
+        slug_to_path("Users-example-Documents-sample-repo"),
+        "/Users/example/Documents/sample-repo"
     );
 }
 
@@ -359,7 +359,7 @@ fn test_parse_txt_transcript_with_attached_files() {
     let txt = r#"user:
 <attached_files>
 
-<code_selection path="/Users/alex/project/src/main.ts" lines="1-10">
+<code_selection path="/Users/example/project/src/main.ts" lines="1-10">
      1|import { App } from './app';
      2|
      3|const app = new App();
@@ -400,7 +400,7 @@ This code initializes and starts the application."#;
 
     // Verify attachment details
     let attachment = &attachments[0];
-    assert_eq!(attachment.path, "/Users/alex/project/src/main.ts");
+    assert_eq!(attachment.path, "/Users/example/project/src/main.ts");
     assert_eq!(attachment.lines, Some("1-10".to_string()));
     assert!(attachment.content.contains("import { App }"));
 
@@ -501,12 +501,12 @@ async fn test_extract_transcript_metadata_supports_nested_jsonl_transcripts() {
 #[test]
 fn test_extract_workspace_from_nested_jsonl_transcript_path() {
     let path = Path::new(
-            "/Users/alex/.cursor/projects/Users-alex-Documents-acepe/agent-transcripts/session-123/session-123.jsonl",
+            "/Users/example/.cursor/projects/Users-example-Documents-acepe/agent-transcripts/session-123/session-123.jsonl",
         );
 
     assert_eq!(
         extract_workspace_from_transcript_path(path),
-        "/Users/alex/Documents/acepe"
+        "/Users/example/Documents/acepe"
     );
 }
 

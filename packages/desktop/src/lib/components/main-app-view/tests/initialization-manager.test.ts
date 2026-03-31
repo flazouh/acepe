@@ -520,7 +520,7 @@ describe("InitializationManager", () => {
 
 		it("does not clear a restored worktree session when history contains it", async () => {
 			mockProjectManager.projects = [
-				{ path: "/Users/alex/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
+				{ path: "/Users/example/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
 			];
 			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
 
@@ -528,7 +528,7 @@ describe("InitializationManager", () => {
 				buildSession(
 					"session-1",
 					"claude-code",
-					"/Users/alex/Documents/acepe",
+					"/Users/example/Documents/acepe",
 					"Feature thread"
 				),
 			];
@@ -540,7 +540,7 @@ describe("InitializationManager", () => {
 				createdAt: storedSessions[0].createdAt,
 				updatedAt: storedSessions[0].updatedAt,
 				parentId: storedSessions[0].parentId,
-				worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+				worktreePath: "/Users/example/.acepe/worktrees/worktree-123456/feature-branch",
 			};
 
 			let currentPanels: TestPanel[] = [
@@ -552,10 +552,10 @@ describe("InitializationManager", () => {
 					width: 600,
 					pendingProjectSelection: false,
 					selectedAgentId: "claude-code",
-					projectPath: "/Users/alex/Documents/acepe",
+					projectPath: "/Users/example/Documents/acepe",
 					agentId: "claude-code",
 					sessionTitle: "Feature thread",
-					worktreePath: "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+					worktreePath: "/Users/example/.acepe/worktrees/worktree-123456/feature-branch",
 				},
 			];
 
@@ -607,10 +607,10 @@ describe("InitializationManager", () => {
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
 				"session-1",
-				"/Users/alex/Documents/acepe",
+				"/Users/example/Documents/acepe",
 				"claude-code",
 				undefined,
-				"/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean",
+				"/Users/example/.acepe/worktrees/worktree-123456/feature-branch",
 				"Feature thread"
 			);
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");

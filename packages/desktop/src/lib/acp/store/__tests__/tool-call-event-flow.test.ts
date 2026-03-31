@@ -135,7 +135,7 @@ describe("Tool Call Event Flow", () => {
 				"toolu_016jRdp79JqqfcH22yvZLkF3",
 				"mcp__acp__Read",
 				"read",
-				"/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts"
+				"/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts"
 			);
 
 			expect(update.type).toBe("toolCall");
@@ -329,7 +329,7 @@ describe("Tool Call Event Flow", () => {
 				toolCallId,
 				"mcp__acp__Read",
 				"read",
-				"/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts"
+				"/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts"
 			);
 
 			// Step 2: Verify it's a valid toolCall update
@@ -363,7 +363,7 @@ describe("Tool Call Event Flow", () => {
 					arguments: {
 						kind: "edit",
 						edits: [{
-							filePath: "/Users/alex/Documents/acepe/packages/desktop/src/lib/test-file.ts",
+							filePath: "/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts",
 							oldString:
 								"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}",
 							newString:
@@ -584,12 +584,12 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: "/Users/alex/.claude/plans/test.md", oldString: "old", newString: "new", content: null }],
+					edits: [{ filePath: "/Users/example/.claude/plans/test.md", oldString: "old", newString: "new", content: null }],
 				},
 				status: "pending",
 				kind: "edit",
-				title: "Edit `/Users/alex/.claude/plans/test.md`",
-				locations: [{ path: "/Users/alex/.claude/plans/test.md" }],
+				title: "Edit `/Users/example/.claude/plans/test.md`",
+				locations: [{ path: "/Users/example/.claude/plans/test.md" }],
 				skillMeta: null,
 				result: null,
 				awaitingPlanApproval: false,
@@ -603,7 +603,7 @@ describe("Tool Call Event Flow", () => {
 				content: null,
 				rawOutput: null,
 				title: null,
-				locations: [{ path: "/Users/alex/.claude/plans/test.md" }],
+				locations: [{ path: "/Users/example/.claude/plans/test.md" }],
 			});
 
 			// Regression assertion: final merged entry must retain full edit arguments.
@@ -615,7 +615,7 @@ describe("Tool Call Event Flow", () => {
 			const args = entries[0].message.arguments;
 			expect(args.kind).toBe("edit");
 			if (args.kind !== "edit") return;
-			expect(args.edits[0]?.filePath).toBe("/Users/alex/.claude/plans/test.md");
+			expect(args.edits[0]?.filePath).toBe("/Users/example/.claude/plans/test.md");
 			expect(args.edits[0]?.oldString).toBe("old");
 			expect(args.edits[0]?.newString).toBe("new");
 		});
@@ -623,7 +623,7 @@ describe("Tool Call Event Flow", () => {
 		it("backfills generic read title when update carries path arguments", () => {
 			const sessionId = "sess-cursor-backfill-read";
 			const toolCallId = "tool_cursor_read_1";
-			const filePath = "/Users/alex/Documents/acepe/README.md";
+			const filePath = "/Users/example/Documents/acepe/README.md";
 			const entryStore = new SessionEntryStore();
 
 			entryStore.storeEntriesAndBuildIndex(sessionId, [
@@ -680,7 +680,7 @@ describe("Tool Call Event Flow", () => {
 		it("preserves explicit update title over synthesized backfill title", () => {
 			const sessionId = "sess-cursor-backfill-read-explicit-title";
 			const toolCallId = "tool_cursor_read_2";
-			const filePath = "/Users/alex/Documents/acepe/README.md";
+			const filePath = "/Users/example/Documents/acepe/README.md";
 			const explicitTitle = "Read README.md";
 			const entryStore = new SessionEntryStore();
 
@@ -774,7 +774,7 @@ describe("Tool Call Event Flow", () => {
 		it("replays 741d9bee edit sequence with progressive args and final completion", () => {
 			const sessionId = "741d9bee-d3d0-4691-8afa-1a12bcdfdaeb";
 			const toolCallId = "toolu_01Wv8NKq3rrz3uhJwFaFz4xi";
-			const filePath = "/Users/alex/.claude/plans/swift-coalescing-hummingbird.md";
+			const filePath = "/Users/example/.claude/plans/sample-plan.md";
 			const entryStore = new SessionEntryStore();
 
 			entryStore.storeEntriesAndBuildIndex(sessionId, []);
@@ -863,7 +863,7 @@ describe("Tool Call Event Flow", () => {
 		it("replays 4a5e6a70 write flow where content arrives in tool_call_update arguments", () => {
 			const sessionId = "4a5e6a70-b9a0-440e-871c-90acd10823b3";
 			const toolCallId = "toolu_01PEfCYGuNwA64xuw74mpsU6";
-			const filePath = "/Users/alex/Documents/articles/articles.csv";
+			const filePath = "/Users/example/Documents/articles/articles.csv";
 			const csvContent =
 				"folder,title\\nai-agents-explainer,What Is an AI Agent and Why It Matters";
 			const entryStore = new SessionEntryStore();

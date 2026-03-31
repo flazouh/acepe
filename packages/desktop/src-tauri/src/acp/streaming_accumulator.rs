@@ -857,7 +857,7 @@ mod tests {
             AgentType::ClaudeCode
         ));
         assert!(is_plan_file_path_for_agent(
-            "/Users/alex/.claude/plans/test.md",
+            "/Users/example/.claude/plans/test.md",
             AgentType::ClaudeCode
         ));
 
@@ -867,7 +867,7 @@ mod tests {
             AgentType::Cursor
         ));
         assert!(is_plan_file_path_for_agent(
-            "/Users/alex/.cursor/plans/test_abc.plan.md",
+            "/Users/example/.cursor/plans/test_abc.plan.md",
             AgentType::Cursor
         ));
 

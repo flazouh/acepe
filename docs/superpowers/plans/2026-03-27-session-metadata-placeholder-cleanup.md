@@ -218,7 +218,7 @@ Expected: PASS.
 Add a Rust test in `session_commands` tests that inserts metadata equivalent to:
 
 ```rust
-project_path = "/Users/alex/Documents/acepe"
+project_path = "/Users/example/Documents/acepe"
 file_path = ""
 file_mtime = 0
 file_size = 0

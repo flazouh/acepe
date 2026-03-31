@@ -195,7 +195,7 @@ Connection configs stored in local SQLite DB. sqlx 0.7 handles live query execut
 
 ## Railway (Website Hosting)
 
-- **Config**: `/Users/alex/Documents/acepe/railway.json`
+- **Config**: `/Users/example/Documents/acepe/railway.json`
 - **Builder**: Nixpacks
 - **Build**: `bun install --frozen-lockfile && NODE_OPTIONS=--max-old-space-size=6144 bun run --cwd packages/website build`
 - **Start**: `cd packages/website && node build`

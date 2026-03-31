@@ -730,12 +730,12 @@ async fn test_extract_session_id_from_file_invalid() {
 #[tokio::test]
 async fn test_path_to_slug() {
     // Claude Code uses leading dash for absolute paths
-    assert_eq!(path_to_slug("/Users/alex"), "-Users-alex");
+    assert_eq!(path_to_slug("/Users/example"), "-Users-example");
     assert_eq!(
-        path_to_slug("/Users/alex/Documents"),
-        "-Users-alex-Documents"
+        path_to_slug("/Users/example/Documents"),
+        "-Users-example-Documents"
     );
-    assert_eq!(path_to_slug("Users-alex"), "Users-alex");
+    assert_eq!(path_to_slug("Users-example"), "Users-example");
 }
 
 #[tokio::test]
@@ -880,7 +880,7 @@ async fn test_scan_all_threads_empty_project() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_real_file_with_summary() {
     // Test on a file that has a summary
-    let file_path = PathBuf::from("/Users/alex/.claude/projects/-Users-alex-Documents-pointer/35c55ab2-7600-4a4c-946b-1e1473f80225.jsonl");
+    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-sample-repo/35c55ab2-7600-4a4c-946b-1e1473f80225.jsonl");
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");
@@ -976,7 +976,7 @@ async fn test_real_file_with_summary() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_real_file_without_summary() {
     // Test on a file that might not have a summary
-    let file_path = PathBuf::from("/Users/alex/.claude/projects/-Users-alex-Documents-pointer/037829eb-e264-4e3a-b60d-9eb303b2598d.jsonl");
+    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-sample-repo/037829eb-e264-4e3a-b60d-9eb303b2598d.jsonl");
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");
@@ -1011,7 +1011,7 @@ async fn test_real_file_without_summary() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_most_recent_session() {
     // Test on the most recent session file
-    let file_path = PathBuf::from("/Users/alex/.claude/projects/-Users-alex-Documents-fluentai/038e127d-239a-4aad-baf7-f7ade1438f7f.jsonl");
+    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-fluentai/038e127d-239a-4aad-baf7-f7ade1438f7f.jsonl");
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");
@@ -1849,7 +1849,7 @@ async fn test_find_session_file_in_direct_slug_path() {
     let projects_dir = claude_dir.join("projects");
 
     let session_id = "550e8400-e29b-41d4-a716-446655440000";
-    let project_path = "/Users/alex/Documents/myproject";
+    let project_path = "/Users/example/Documents/myproject";
     let slug = path_to_slug(project_path);
     let project_dir = projects_dir.join(&slug);
     fs::create_dir_all(&project_dir).unwrap();
@@ -1871,9 +1871,9 @@ async fn test_find_session_file_in_scan_fallback_for_worktree() {
     let projects_dir = claude_dir.join("projects");
 
     let session_id = "08875fe0-1234-5678-abcd-ef1234567890";
-    // Correct slug for /Users/alex/.acepe/worktrees/abc/feat is
-    // -Users-alex--acepe-worktrees-abc-feat (dots become dashes)
-    let correct_slug = "-Users-alex--acepe-worktrees-abc-feat";
+    // Correct slug for /Users/example/.acepe/worktrees/abc/feat is
+    // -Users-example--acepe-worktrees-abc-feat (dots become dashes)
+    let correct_slug = "-Users-example--acepe-worktrees-abc-feat";
     let correct_dir = projects_dir.join(correct_slug);
     fs::create_dir_all(&correct_dir).unwrap();
     let expected = correct_dir.join(format!("{}.jsonl", session_id));
@@ -1882,7 +1882,7 @@ async fn test_find_session_file_in_scan_fallback_for_worktree() {
     // Call with a project_path whose slug does NOT match correct_slug,
     // simulating a lookup that must fall back to scanning.
     // (Any path whose slug differs from correct_slug will trigger the fallback.)
-    let wrong_project_path = "/Users/alex/.acepe/worktrees/abc/feat_WRONG";
+    let wrong_project_path = "/Users/example/.acepe/worktrees/abc/feat_WRONG";
     let result = find_session_file_in(session_id, wrong_project_path, &projects_dir)
         .await
         .unwrap();
@@ -1896,7 +1896,7 @@ async fn test_find_session_file_in_not_found() {
 
     let result = find_session_file_in(
         "deadbeef-0000-0000-0000-000000000000",
-        "/Users/alex/no-such-project",
+        "/Users/example/no-such-project",
         &projects_dir,
     )
     .await;
@@ -1906,21 +1906,21 @@ async fn test_find_session_file_in_not_found() {
 #[test]
 fn test_path_to_slug_replaces_dots_for_worktree_paths() {
     // Claude Code converts both '/' and '.' to '-' when computing project slugs.
-    // Worktree paths like /Users/alex/.acepe/... have dots that must become dashes
+    // Worktree paths like /Users/example/.acepe/... have dots that must become dashes
     // so that acepe looks in the correct ~/.claude/projects/ directory.
     //
-    // Real case: worktree_path = /Users/alex/.acepe/worktrees/6d4131f5197e/happy-canyon
-    // Actual dir: ~/.claude/projects/-Users-alex--acepe-worktrees-6d4131f5197e-happy-canyon/
-    let slug = path_to_slug("/Users/alex/.acepe/worktrees/6d4131f5197e/happy-canyon");
+    // Real case: worktree_path = /Users/example/.acepe/worktrees/6d4131f5197e/happy-canyon
+    // Actual dir: ~/.claude/projects/-Users-example--acepe-worktrees-6d4131f5197e-happy-canyon/
+    let slug = path_to_slug("/Users/example/.acepe/worktrees/6d4131f5197e/happy-canyon");
     assert_eq!(
         slug,
-        "-Users-alex--acepe-worktrees-6d4131f5197e-happy-canyon"
+        "-Users-example--acepe-worktrees-6d4131f5197e-happy-canyon"
     );
 }
 
 #[test]
 fn test_path_to_slug_regular_paths_unaffected() {
     // Paths without dots should produce the same slug as before.
-    let slug = path_to_slug("/Users/alex/Documents/acepe");
-    assert_eq!(slug, "-Users-alex-Documents-acepe");
+    let slug = path_to_slug("/Users/example/Documents/acepe");
+    assert_eq!(slug, "-Users-example-Documents-acepe");
 }

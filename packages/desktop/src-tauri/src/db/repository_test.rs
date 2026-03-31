@@ -226,8 +226,8 @@ mod session_metadata_tests {
     async fn test_upsert_preserves_base_project_for_existing_worktree_session() {
         let db = setup_test_db().await;
 
-        let base_project = "/Users/alex/Documents/acepe";
-        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+        let base_project = "/Users/example/Documents/acepe";
+        let worktree = "/Users/example/.acepe/worktrees/worktree-123456/feature-branch";
 
         SessionMetadataRepository::upsert(
             &db,
@@ -282,8 +282,8 @@ mod session_metadata_tests {
     async fn test_get_for_projects_includes_worktree_session_via_base_project() {
         let db = setup_test_db().await;
 
-        let base_project = "/Users/alex/Documents/acepe";
-        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+        let base_project = "/Users/example/Documents/acepe";
+        let worktree = "/Users/example/.acepe/worktrees/worktree-123456/feature-branch";
 
         SessionMetadataRepository::upsert(
             &db,
@@ -338,8 +338,8 @@ mod session_metadata_tests {
     async fn test_upsert_repairs_worktree_session_when_project_path_was_overwritten() {
         let db = setup_test_db().await;
 
-        let base_project = "/Users/alex/Documents/acepe";
-        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+        let base_project = "/Users/example/Documents/acepe";
+        let worktree = "/Users/example/.acepe/worktrees/worktree-123456/feature-branch";
 
         SessionMetadataRepository::upsert(
             &db,
@@ -393,8 +393,8 @@ mod session_metadata_tests {
     async fn test_batch_upsert_preserves_base_project_for_existing_worktree_session() {
         let db = setup_test_db().await;
 
-        let base_project = "/Users/alex/Documents/acepe";
-        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+        let base_project = "/Users/example/Documents/acepe";
+        let worktree = "/Users/example/.acepe/worktrees/worktree-123456/feature-branch";
 
         SessionMetadataRepository::upsert(
             &db,
@@ -450,8 +450,8 @@ mod session_metadata_tests {
     async fn test_batch_upsert_repairs_worktree_session_when_project_path_was_overwritten() {
         let db = setup_test_db().await;
 
-        let base_project = "/Users/alex/Documents/acepe";
-        let worktree = "/Users/alex/.acepe/worktrees/6d4131f5197e/witty-ocean";
+        let base_project = "/Users/example/Documents/acepe";
+        let worktree = "/Users/example/.acepe/worktrees/worktree-123456/feature-branch";
 
         SessionMetadataRepository::upsert(
             &db,

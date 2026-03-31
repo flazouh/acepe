@@ -89,8 +89,8 @@ describe("Workspace-Relative Path Privacy", () => {
 
 		it("produces shorter, cleaner paths", () => {
 			const longAbsolute =
-				"/Users/alex/Documents/projects/client-work/acepe/packages/desktop/src/lib/components/ui/button.svelte";
-			const workspace = "/Users/alex/Documents/projects/client-work/acepe";
+				"/Users/example/Documents/projects/client-work/acepe/packages/desktop/src/lib/components/ui/button.svelte";
+			const workspace = "/Users/example/Documents/projects/client-work/acepe";
 			const result = makeWorkspaceRelative(longAbsolute, workspace);
 
 			expect(result).toBe("packages/desktop/src/lib/components/ui/button.svelte");

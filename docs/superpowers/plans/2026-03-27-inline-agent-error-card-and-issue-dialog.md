@@ -48,8 +48,8 @@ describe("buildAgentErrorIssueDraft", () => {
 		const draft = buildAgentErrorIssueDraft({
 			agentId: "claude-code",
 			sessionId: "session-123",
-			projectPath: "/Users/alex/Documents/acepe",
-			worktreePath: "/Users/alex/.acepe/worktrees/feature-a",
+			projectPath: "/Users/example/Documents/acepe",
+			worktreePath: "/Users/example/.acepe/worktrees/feature-a",
 			errorSummary: "Resume session timed out",
 			errorDetails: "ERROR stack line 1\nstack line 2",
 		});
@@ -58,8 +58,8 @@ describe("buildAgentErrorIssueDraft", () => {
 		expect(draft.title).toContain("Resume session timed out");
 		expect(draft.body).toContain("Agent: claude-code");
 		expect(draft.body).toContain("Session ID: session-123");
-		expect(draft.body).toContain("Project Path: /Users/alex/Documents/acepe");
-		expect(draft.body).toContain("Worktree Path: /Users/alex/.acepe/worktrees/feature-a");
+		expect(draft.body).toContain("Project Path: /Users/example/Documents/acepe");
+		expect(draft.body).toContain("Worktree Path: /Users/example/.acepe/worktrees/feature-a");
 		expect(draft.body).toContain("```text\nERROR stack line 1\nstack line 2\n```");
 	});
 });

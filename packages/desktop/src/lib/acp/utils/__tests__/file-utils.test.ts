@@ -69,7 +69,7 @@ describe("extractLineNumbers", () => {
 			// From user's data: offset: 115, limit: 130
 			const args = {
 				file_path:
-					"/Users/alex/Documents/fluentai/packages/extension/src/common/components/bottom-control-bar/neural-subs-button.tsx",
+					"/Users/example/Documents/sample-app/packages/extension/src/common/components/bottom-control-bar/neural-subs-button.tsx",
 				limit: 130,
 				offset: 115,
 			};
@@ -111,7 +111,7 @@ describe("extractLineNumbers", () => {
 
 describe("getFileName", () => {
 	it("should extract filename from path", () => {
-		expect(getFileName("/Users/alex/Documents/file.ts")).toBe("file.ts");
+		expect(getFileName("/Users/example/Documents/file.ts")).toBe("file.ts");
 	});
 
 	it("should handle path with multiple segments", () => {
@@ -154,20 +154,20 @@ describe("getFileExtension", () => {
 describe("getRelativeFilePath", () => {
 	describe("absolute path conversion", () => {
 		it("should convert absolute path to relative by stripping project path", () => {
-			const filePath = "/Users/alex/Documents/acepe/packages/desktop/src/lib/file.ts";
-			const projectPath = "/Users/alex/Documents/acepe";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/src/lib/file.ts";
+			const projectPath = "/Users/example/Documents/acepe";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("packages/desktop/src/lib/file.ts");
 		});
 
 		it("should handle project path with trailing slash", () => {
-			const filePath = "/Users/alex/project/src/index.ts";
-			const projectPath = "/Users/alex/project/";
+			const filePath = "/Users/example/project/src/index.ts";
+			const projectPath = "/Users/example/project/";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("src/index.ts");
 		});
 
 		it("should handle nested paths correctly", () => {
-			const filePath = "/Users/alex/Documents/acepe/packages/desktop/src-tauri/src/acp/provider.rs";
-			const projectPath = "/Users/alex/Documents/acepe";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/src-tauri/src/acp/provider.rs";
+			const projectPath = "/Users/example/Documents/acepe";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe(
 				"packages/desktop/src-tauri/src/acp/provider.rs"
 			);
@@ -177,32 +177,32 @@ describe("getRelativeFilePath", () => {
 	describe("already relative paths", () => {
 		it("should return relative path unchanged", () => {
 			const filePath = "src/lib/file.ts";
-			const projectPath = "/Users/alex/project";
+			const projectPath = "/Users/example/project";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("src/lib/file.ts");
 		});
 
 		it("should return path unchanged if not under project path", () => {
 			const filePath = "/other/path/file.ts";
-			const projectPath = "/Users/alex/project";
+			const projectPath = "/Users/example/project";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("/other/path/file.ts");
 		});
 	});
 
 	describe("edge cases", () => {
 		it("should return null for null filePath", () => {
-			expect(getRelativeFilePath(null, "/Users/alex/project")).toBe(null);
+			expect(getRelativeFilePath(null, "/Users/example/project")).toBe(null);
 		});
 
 		it("should return null for undefined filePath", () => {
-			expect(getRelativeFilePath(undefined, "/Users/alex/project")).toBe(null);
+			expect(getRelativeFilePath(undefined, "/Users/example/project")).toBe(null);
 		});
 
 		it("should return null for null projectPath", () => {
-			expect(getRelativeFilePath("/Users/alex/project/file.ts", null)).toBe(null);
+			expect(getRelativeFilePath("/Users/example/project/file.ts", null)).toBe(null);
 		});
 
 		it("should return null for undefined projectPath", () => {
-			expect(getRelativeFilePath("/Users/alex/project/file.ts", undefined)).toBe(null);
+			expect(getRelativeFilePath("/Users/example/project/file.ts", undefined)).toBe(null);
 		});
 
 		it("should return null when both are null", () => {
@@ -210,14 +210,14 @@ describe("getRelativeFilePath", () => {
 		});
 
 		it("should handle file at project root", () => {
-			const filePath = "/Users/alex/project/file.ts";
-			const projectPath = "/Users/alex/project";
+			const filePath = "/Users/example/project/file.ts";
+			const projectPath = "/Users/example/project";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("file.ts");
 		});
 
 		it("should handle empty relative path (file path equals project path)", () => {
-			const filePath = "/Users/alex/project";
-			const projectPath = "/Users/alex/project";
+			const filePath = "/Users/example/project";
+			const projectPath = "/Users/example/project";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe("");
 		});
 	});
@@ -234,8 +234,8 @@ describe("findGitStatusForFile", () => {
 					deletions: 3,
 				},
 			],
-			"/Users/alex/Documents/acepe/packages/desktop/src/lib/acp/components/file-panel/file-panel.svelte",
-			"/Users/alex/Documents/acepe"
+			"/Users/example/Documents/acepe/packages/desktop/src/lib/acp/components/file-panel/file-panel.svelte",
+			"/Users/example/Documents/acepe"
 		);
 
 		expect(result).toEqual({
@@ -257,7 +257,7 @@ describe("findGitStatusForFile", () => {
 				},
 			],
 			"src/main.ts",
-			"/Users/alex/Documents/acepe"
+			"/Users/example/Documents/acepe"
 		);
 
 		expect(result?.path).toBe("src/main.ts");
@@ -274,7 +274,7 @@ describe("findGitStatusForFile", () => {
 				},
 			],
 			"src/main.ts",
-			"/Users/alex/Documents/acepe"
+			"/Users/example/Documents/acepe"
 		);
 
 		expect(result).toBe(null);
@@ -291,7 +291,7 @@ describe("findGitStatusForFile", () => {
 				},
 			],
 			"src/main.ts",
-			"/Users/alex/Documents/repo/nested"
+			"/Users/example/Documents/repo/nested"
 		);
 
 		expect(result).toEqual({
@@ -309,7 +309,7 @@ describe("findGitStatusForFile", () => {
 				{ path: "nested-b/src/main.ts", status: "M", insertions: 2, deletions: 0 },
 			],
 			"src/main.ts",
-			"/Users/alex/Documents/repo/nested"
+			"/Users/example/Documents/repo/nested"
 		);
 
 		expect(result).toBe(null);

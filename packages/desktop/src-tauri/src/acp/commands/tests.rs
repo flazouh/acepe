@@ -45,7 +45,7 @@ async fn setup_test_db() -> DbConn {
 #[test]
 fn test_normalize_acp_path_no_change_needed() {
     // Normal absolute path should remain unchanged
-    let path = "/Users/alex/project/src/file.ts";
+    let path = "/Users/example/project/src/file.ts";
     assert_eq!(normalize_acp_path(path), path);
 }
 
@@ -53,8 +53,8 @@ fn test_normalize_acp_path_no_change_needed() {
 fn test_normalize_acp_path_fixes_duplicate_cwd() {
     // Path with duplicate cwd (cwd + "/" + absolute_path) should be normalized
     // The pattern: /cwd//cwd/subpath -> /cwd/subpath
-    let path = "/Users/alex/project//Users/alex/project/src/file.ts";
-    assert_eq!(normalize_acp_path(path), "/Users/alex/project/src/file.ts");
+    let path = "/Users/example/project//Users/example/project/src/file.ts";
+    assert_eq!(normalize_acp_path(path), "/Users/example/project/src/file.ts");
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn test_normalize_acp_path_empty() {
 #[test]
 fn test_normalize_acp_path_single_slash() {
     // Path with single slash should remain unchanged
-    let path = "/Users/alex/project/src/file.ts";
+    let path = "/Users/example/project/src/file.ts";
     assert_eq!(normalize_acp_path(path), path);
 }
 

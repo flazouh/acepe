@@ -1205,9 +1205,9 @@ mod tests {
 
     #[test]
     fn test_project_id_from_path() {
-        let id1 = project_id_from_path("/Users/alex/Documents/acepe");
-        let id2 = project_id_from_path("/Users/alex/Documents/acepe");
-        let id3 = project_id_from_path("/Users/alex/Documents/other");
+        let id1 = project_id_from_path("/Users/example/Documents/acepe");
+        let id2 = project_id_from_path("/Users/example/Documents/acepe");
+        let id3 = project_id_from_path("/Users/example/Documents/other");
 
         assert_eq!(id1.len(), 12, "Project ID should be 12 characters");
         assert_eq!(id1, id2, "Same path should produce same ID");
@@ -1327,13 +1327,13 @@ branch refs/heads/acepe/clever-falcon";
 
     #[test]
     fn test_build_renamed_worktree_path_swaps_last_segment() {
-        let current = Path::new("/Users/alex/.acepe/worktrees/123abc/happy-canyon");
+        let current = Path::new("/Users/example/.acepe/worktrees/123abc/happy-canyon");
         let renamed =
             build_renamed_worktree_path(current, "brave-river").expect("path should build");
 
         assert_eq!(
             renamed,
-            PathBuf::from("/Users/alex/.acepe/worktrees/123abc/brave-river")
+            PathBuf::from("/Users/example/.acepe/worktrees/123abc/brave-river")
         );
     }
 

@@ -8,7 +8,7 @@ Acepe is an agent-first IDE built as a macOS desktop application (Tauri 2) with 
 
 ## Monorepo Structure
 
-Root config: `/Users/alex/Documents/acepe/package.json`
+Root config: `/Users/example/Documents/acepe/package.json`
 Package manager: **Bun** (not npm/yarn). Node.js 20.x minimum declared.
 
 | Package | Path | Role |
@@ -195,7 +195,7 @@ Config: `packages/desktop/src-tauri/Entitlements.plist`
 
 ### Runtime & Deployment
 
-- **Deployment**: Railway — config at `/Users/alex/Documents/acepe/railway.json`, Nixpacks builder
+- **Deployment**: Railway — config at `/Users/example/Documents/acepe/railway.json`, Nixpacks builder
 - **Start command**: `cd packages/website && node build`
 - **Adapter**: `@sveltejs/adapter-node ^5.4.0`
 - **Health check path**: `/health`

@@ -10,11 +10,11 @@ function createFilePathBadgePlaceholder(fileReference: string): string {
 
 /**
  * Renders file path badges for Unix/macOS file paths (absolute and relative).
- * Transforms paths like /Users/alex/file.csv or packages/desktop/src/file.ts into clickable badges.
+ * Transforms paths like /Users/example/file.csv or packages/desktop/src/file.ts into clickable badges.
  * Handles both plain text and inline code (backtick-wrapped) paths.
  *
  * Pattern examples:
- * - /Users/alex/Documents/file.csv → clickable file badge
+ * - /Users/example/Documents/file.csv → clickable file badge
  * - packages/desktop/src/lib/file.ts → clickable file badge
  * - `/path/to/file.txt` → clickable file badge
  */

@@ -31,18 +31,18 @@ async fn main() -> Result<()> {
 
     // Create directories list
     let project_dirs = vec![
-        PathBuf::from("/Users/zhangalex/Work/Projects/FW/rust-claude-code-api"),
-        PathBuf::from("/Users/zhangalex/Work/Projects/FW/claude-code-sdk-python"),
+        PathBuf::from("/Users/example/Work/Projects/FW/rust-claude-code-api"),
+        PathBuf::from("/Users/example/Work/Projects/FW/claude-code-sdk-python"),
     ];
 
     // Build options with all new features
     let mut builder = ClaudeCodeOptions::builder()
         // Set primary working directory
-        .cwd("/Users/zhangalex/Work/Projects/FW/rust-claude-code-api")
+        .cwd("/Users/example/Work/Projects/FW/rust-claude-code-api")
         // Add additional directories
         .add_dirs(project_dirs.clone())
         // Add one more directory individually
-        .add_dir("/Users/zhangalex/Work/Projects/FW/url-preview");
+        .add_dir("/Users/example/Work/Projects/FW/url-preview");
 
     // Only add settings if file exists
     if settings_path.exists() {

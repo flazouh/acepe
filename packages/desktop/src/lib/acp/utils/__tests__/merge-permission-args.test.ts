@@ -136,7 +136,7 @@ describe("mergePermissionArgs", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/Users/alex/Downloads/hello-world-go/blockchain/block.go",
+							filePath: "/Users/example/Downloads/sample-go-project/blockchain/block.go",
 							oldString: null,
 							newString: null,
 							content: null,
@@ -145,7 +145,7 @@ describe("mergePermissionArgs", () => {
 				},
 				rawInput: {
 					changes: {
-						"/Users/alex/Downloads/hello-world-go/blockchain/block.go": {
+						"/Users/example/Downloads/sample-go-project/blockchain/block.go": {
 							old_content: "old block content",
 							new_content: "new block content",
 						},
@@ -157,7 +157,7 @@ describe("mergePermissionArgs", () => {
 		expect(merged.kind).toBe("edit");
 		if (merged.kind !== "edit") return;
 		expect(merged.edits[0]?.filePath).toBe(
-			"/Users/alex/Downloads/hello-world-go/blockchain/block.go"
+			"/Users/example/Downloads/sample-go-project/blockchain/block.go"
 		);
 		expect(merged.edits[0]?.oldString).toBe("old block content");
 		expect(merged.edits[0]?.newString).toBe("new block content");

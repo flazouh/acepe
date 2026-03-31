@@ -160,7 +160,7 @@ assert "NODE_OPTIONS='--max-old-space-size=8192' bun run build" not in text
 print('ok')
 PY`
 
-Workdir: `/Users/alex/Documents/acepe`
+Workdir: `/Users/example/Documents/acepe`
 
 Expected:
 - prints `ok`
@@ -235,7 +235,7 @@ git commit -m "refactor: standardize paraglide generation contract"
 
 Run: `git push origin main`
 
-Workdir: `/Users/alex/Documents/acepe`
+Workdir: `/Users/example/Documents/acepe`
 
 Expected:
 - push succeeds without force
@@ -244,7 +244,7 @@ Expected:
 
 Run: `git show --stat --oneline HEAD`
 
-Workdir: `/Users/alex/Documents/acepe`
+Workdir: `/Users/example/Documents/acepe`
 
 Expected:
 - diff shows package-script changes plus CI orchestration cleanup

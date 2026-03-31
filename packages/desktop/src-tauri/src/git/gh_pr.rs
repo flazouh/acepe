@@ -629,7 +629,7 @@ mod tests {
         let (repo_dir, bin_dir) = setup_fake_binaries(
             r#"#!/bin/sh
 if [ "$1" = "pr" ] && [ "$2" = "merge" ]; then
-  echo "failed to run git: fatal: 'main' is already used by worktree at '/Users/alex/Documents/acepe'" >&2
+  echo "failed to run git: fatal: 'main' is already used by worktree at '/Users/example/Documents/acepe'" >&2
   exit 1
 fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then

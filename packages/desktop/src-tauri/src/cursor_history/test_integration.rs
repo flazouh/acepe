@@ -294,7 +294,7 @@ mod tests {
         println!("Discovered {} chats without filter", entries.len());
 
         // Test with a filter
-        let filtered = discover_all_chats(&["/Users/alex/Documents/pointer".to_string()]).await;
+        let filtered = discover_all_chats(&["/Users/example/Documents/sample-repo".to_string()]).await;
         assert!(
             filtered.is_ok(),
             "discover_all_chats with filter should succeed"
@@ -592,7 +592,7 @@ mod tests {
         let workspace_dir = workspace_storage_dir.join("workspace-hash");
         std::fs::create_dir_all(&workspace_dir).expect("workspace dir should be created");
 
-        let acepe_path = "/Users/alex/Documents/acepe";
+        let acepe_path = "/Users/example/Documents/acepe";
         std::fs::write(
             workspace_dir.join("workspace.json"),
             format!(r#"{{"folder":"file://{}"}}"#, acepe_path),
@@ -663,7 +663,7 @@ mod tests {
         }
 
         // Scan all formats for acepe project
-        let acepe_path = "/Users/alex/Documents/acepe".to_string();
+        let acepe_path = "/Users/example/Documents/acepe".to_string();
         let entries = scan_all_chats_with_projects(std::slice::from_ref(&acepe_path))
             .await
             .expect("Should scan all chats");

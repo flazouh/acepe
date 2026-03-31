@@ -3,7 +3,7 @@
 ## Repository Root
 
 ```
-/Users/alex/Documents/acepe/
+/Users/example/Documents/acepe/
 ├── packages/
 │   ├── acps/          # ACP agent binary packages
 │   ├── analytics/     # Shared analytics package

@@ -685,7 +685,7 @@ mod tests {
 
     #[test]
     fn test_parse_skill_meta_extracts_file_path() {
-        let content = r#"Base directory for this skill: /Users/alex/.claude/plugins/cache/test-skill/0.0.0/skills/test
+        let content = r#"Base directory for this skill: /Users/example/.claude/plugins/cache/test-skill/0.0.0/skills/test
 
 ## Description
 This is a test skill."#;
@@ -693,7 +693,7 @@ This is a test skill."#;
         let meta = parse_skill_meta_from_content(content);
         assert_eq!(
             meta.file_path,
-            Some("/Users/alex/.claude/plugins/cache/test-skill/0.0.0/skills/test".to_string())
+            Some("/Users/example/.claude/plugins/cache/test-skill/0.0.0/skills/test".to_string())
         );
     }
 

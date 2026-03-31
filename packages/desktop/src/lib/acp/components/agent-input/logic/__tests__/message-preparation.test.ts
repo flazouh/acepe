@@ -146,7 +146,7 @@ describe("prepareMessageForSend", () => {
 			{
 				id: "img-drop",
 				type: "image" as const,
-				path: "/Users/alex/screenshot.png",
+				path: "/Users/example/screenshot.png",
 				displayName: "screenshot.png",
 				extension: "png",
 				content: "data:image/png;base64,abc",
@@ -155,7 +155,7 @@ describe("prepareMessageForSend", () => {
 		const result = prepareMessageForSend("look", new Map(), attachments);
 		expect(result.isOk()).toBe(true);
 		if (result.isOk()) {
-			expect(result.value.content).toContain("@[image:/Users/alex/screenshot.png]");
+			expect(result.value.content).toContain("@[image:/Users/example/screenshot.png]");
 			expect(result.value.imageAttachments).toHaveLength(0);
 		}
 	});

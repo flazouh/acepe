@@ -22,14 +22,14 @@ pub struct Model {
     /// Unix timestamp in milliseconds (session creation time)
     pub timestamp: i64,
 
-    /// Project path (e.g., /Users/alex/Documents/acepe)
+    /// Project path (e.g., /Users/example/Documents/acepe)
     pub project_path: String,
 
     /// Agent ID (e.g., "claude-code")
     /// Stored as String in DB, but represents CanonicalAgentId
     pub agent_id: String,
 
-    /// File path relative to ~/.claude/projects/ (e.g., "-Users-alex-Documents-acepe/abc123.jsonl")
+    /// File path relative to ~/.claude/projects/ (e.g., "-Users-example-Documents-acepe/abc123.jsonl")
     #[sea_orm(unique)]
     pub file_path: String,
 

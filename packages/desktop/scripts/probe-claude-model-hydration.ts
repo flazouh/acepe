@@ -30,7 +30,7 @@ Usage: bun run scripts/probe-claude-model-hydration.ts [projectPath] [--skip-cli
 
 Examples:
   bun run scripts/probe-claude-model-hydration.ts
-  bun run scripts/probe-claude-model-hydration.ts /Users/alex/Documents/acepe
+  bun run scripts/probe-claude-model-hydration.ts /Users/example/Documents/acepe
   bun run scripts/probe-claude-model-hydration.ts --skip-cli-probe
 
 Defaults:

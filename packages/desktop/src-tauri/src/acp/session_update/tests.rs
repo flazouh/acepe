@@ -697,7 +697,7 @@ mod parse_tool_call_from_acp {
                 "id": "tool-2",
                 "name": "Read SKILL.md",
                 "input": {
-                    "command": ["/bin/zsh", "-lc", "cat /Users/alex/.codex/skills/using-superpowers/SKILL.md"]
+                    "command": ["/bin/zsh", "-lc", "cat /Users/example/.codex/skills/using-superpowers/SKILL.md"]
                 }
             });
 
@@ -711,7 +711,7 @@ mod parse_tool_call_from_acp {
                     assert_eq!(
                         command,
                         Some(
-                            "cat /Users/alex/.codex/skills/using-superpowers/SKILL.md".to_string()
+                            "cat /Users/example/.codex/skills/using-superpowers/SKILL.md".to_string()
                         )
                     );
                 }
@@ -730,7 +730,7 @@ mod parse_tool_call_from_acp {
                 "input": {
                     "arguments": {
                         "server": "filesystem",
-                        "uri": "file:///Users/alex/.codex/skills/using-superpowers/SKILL.md"
+                        "uri": "file:///Users/example/.codex/skills/using-superpowers/SKILL.md"
                     },
                     "server": "filesystem",
                     "tool": "read_mcp_resource"
@@ -746,7 +746,7 @@ mod parse_tool_call_from_acp {
                 ToolArguments::Read { file_path } => {
                     assert_eq!(
                         file_path,
-                        Some("/Users/alex/.codex/skills/using-superpowers/SKILL.md".to_string())
+                        Some("/Users/example/.codex/skills/using-superpowers/SKILL.md".to_string())
                     );
                 }
                 _ => panic!("Expected read tool arguments"),
@@ -794,7 +794,7 @@ mod parse_tool_call_from_acp {
                     "parsed_cmd": [
                         {
                             "type": "edit",
-                            "path": "/Users/alex/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
+                            "path": "/Users/example/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
                         }
                     ]
                 }
@@ -811,7 +811,7 @@ mod parse_tool_call_from_acp {
                     assert_eq!(
                             e.file_path,
                             Some(
-                                "/Users/alex/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
+                                "/Users/example/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
                                     .to_string()
                             )
                         );
@@ -1050,7 +1050,7 @@ mod parse_tool_call_from_acp {
                     "pattern": "**/*"
                 },
                 "locations": [
-                    { "path": "/Users/alex/Downloads/hello-world-go" }
+                    { "path": "/Users/example/Downloads/sample-go-project" }
                 ]
             });
 
@@ -1064,7 +1064,7 @@ mod parse_tool_call_from_acp {
                     assert_eq!(pattern.as_deref(), Some("**/*"));
                     assert_eq!(
                         path.as_deref(),
-                        Some("/Users/alex/Downloads/hello-world-go")
+                        Some("/Users/example/Downloads/sample-go-project")
                     );
                 }
                 other => panic!("Expected glob tool arguments, got {:?}", other),
@@ -1086,7 +1086,7 @@ mod parse_tool_call_from_acp {
                     "limit": 200
                 },
                 "locations": [
-                    { "path": "/Users/alex/Downloads/hello-world-go/README.md" }
+                    { "path": "/Users/example/Downloads/sample-go-project/README.md" }
                 ]
             });
 
@@ -1099,7 +1099,7 @@ mod parse_tool_call_from_acp {
                 ToolArguments::Read { file_path } => {
                     assert_eq!(
                         file_path.as_deref(),
-                        Some("/Users/alex/Downloads/hello-world-go/README.md")
+                        Some("/Users/example/Downloads/sample-go-project/README.md")
                     );
                 }
                 other => panic!("Expected read tool arguments, got {:?}", other),
@@ -1833,7 +1833,7 @@ mod parse_tool_call_update_from_acp {
                 "status": "in_progress",
                 "_meta": {
                     "claudeCode": {
-                        "streamingInputDelta": "{\"file_path\":\"/Users/alex/.claude/plans/live-plan.md\",\"content\":\"# Live Plan\"}"
+                        "streamingInputDelta": "{\"file_path\":\"/Users/example/.claude/plans/live-plan.md\",\"content\":\"# Live Plan\"}"
                     }
                 }
             });

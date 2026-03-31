@@ -1211,7 +1211,7 @@ impl IndexerActor {
             .ok_or_else(|| anyhow!("Invalid file path structure"))?;
 
         // Convert slug back to path (reverse of path_to_slug)
-        // -Users-alex-Documents -> /Users/alex/Documents
+        // -Users-example-Documents -> /Users/example/Documents
         let path = if slug.starts_with('-') {
             slug.replace('-', "/")
         } else {

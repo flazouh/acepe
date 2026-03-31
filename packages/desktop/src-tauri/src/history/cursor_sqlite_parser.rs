@@ -1173,7 +1173,7 @@ mod tests {
         let session = parse_cursor_store_db(
             &fixture_path,
             "f441a0b8-ed9d-4dd2-8318-70cee2f29fa2",
-            Some("/Users/alex/Downloads/hello-world-go"),
+            Some("/Users/example/Downloads/sample-go-project"),
         )
         .await
         .expect("Should parse store.db successfully");
@@ -1306,7 +1306,7 @@ mod tests {
         let session = parse_cursor_store_db(
             &fixture_path,
             "f441a0b8-ed9d-4dd2-8318-70cee2f29fa2",
-            Some("/Users/alex/Downloads/hello-world-go"),
+            Some("/Users/example/Downloads/sample-go-project"),
         )
         .await
         .expect("fixture should parse successfully");
