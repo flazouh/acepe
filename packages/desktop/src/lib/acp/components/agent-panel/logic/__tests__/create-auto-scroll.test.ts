@@ -193,8 +193,9 @@ describe("AutoScrollLogic", () => {
 			expect(logic.isAuto()).toBe(false);
 		});
 
-		it("treats larger bottom-offset drift as auto while suppression is active", () => {
+		it("treats larger bottom-offset drift as auto while metrics are still settling", () => {
 			logic.revealLatest();
+			mockProvider._setScrollSize(1400);
 			// Expected offset is 500 (scrollSize=1000 - viewportSize=500)
 			mockProvider._setScrollOffset(499); // 1px off
 			expect(logic.isAuto()).toBe(true);
@@ -304,14 +305,13 @@ describe("AutoScrollLogic", () => {
 			expect(logic.following).toBe(true);
 		});
 
-		it("does not re-engage via handleScroll even when near bottom", () => {
+		it("re-engages via handleScroll when the user returns near bottom", () => {
 			logic.handleWheelIntent(-100, false);
 			expect(logic.following).toBe(false);
 
 			mockProvider._setScrollOffset(495); // near bottom
 			logic.handleScroll();
-			// handleScroll never re-engages — only handleWheelIntent does
-			expect(logic.following).toBe(false);
+			expect(logic.following).toBe(true);
 		});
 
 		it("re-attaches when content no longer scrolls", () => {
@@ -404,6 +404,17 @@ describe("AutoScrollLogic", () => {
 			logic.handleScroll();
 
 			expect(logic.following).toBe(true);
+		});
+
+		it("detaches for small upward movement after reveal when metrics are unchanged", () => {
+			mockProvider._setScrollOffset(100);
+			logic.revealLatest();
+
+			// No remeasurement happened. A smaller offset means the user moved away.
+			mockProvider._setScrollOffset(489);
+			logic.handleScroll();
+
+			expect(logic.following).toBe(false);
 		});
 
 		it("still detaches for a real user scroll away during suppression window", () => {
