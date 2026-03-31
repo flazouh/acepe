@@ -36,5 +36,5 @@ onMount(() => {
 </script>
 
 	<div bind:this={containerRef}>
-		<MarkdownText {text} {projectPath} />
+		<MarkdownText {text} {isStreaming} {projectPath} />
 	</div>

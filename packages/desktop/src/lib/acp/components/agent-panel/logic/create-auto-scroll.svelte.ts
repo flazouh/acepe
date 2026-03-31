@@ -2,7 +2,6 @@ import { createLogger } from "../../../utils/logger.js";
 
 const BOTTOM_THRESHOLD = 10;
 const AUTO_MARK_TIMEOUT_MS = 400;
-const AUTO_MARK_MATCH_TOLERANCE_PX = 2;
 const AUTO_SETTLE_TOLERANCE_PX = 32;
 
 const DEBUG = false;
@@ -71,9 +70,8 @@ export class AutoScrollLogic {
 		| {
 				startedAt: number;
 				expiresAt: number;
+				scrollOffsetAtMark: number;
 				expectedBottomOffsetAtMark: number;
-				scrollSizeAtMark: number;
-				viewportSizeAtMark: number;
 		  }
 		| undefined;
 
@@ -174,14 +172,14 @@ export class AutoScrollLogic {
 	private markAuto(): void {
 		if (!this._provider) return;
 		const now = Date.now();
-		const scrollSize = this._provider.getScrollSize();
-		const viewportSize = this._provider.getViewportSize();
 		this._autoMark = {
 			startedAt: now,
 			expiresAt: now + AUTO_MARK_TIMEOUT_MS,
-			expectedBottomOffsetAtMark: Math.max(0, scrollSize - viewportSize),
-			scrollSizeAtMark: scrollSize,
-			viewportSizeAtMark: viewportSize,
+			scrollOffsetAtMark: this._provider.getScrollOffset(),
+			expectedBottomOffsetAtMark: Math.max(
+				0,
+				this._provider.getScrollSize() - this._provider.getViewportSize()
+			),
 		};
 	}
 
@@ -207,23 +205,18 @@ export class AutoScrollLogic {
 			return false;
 		}
 		const currentOffset = metrics.scrollOffset;
-		const metricsChanged =
-			Math.abs(metrics.scrollSize - this._autoMark.scrollSizeAtMark) > 1 ||
-			Math.abs(metrics.viewportSize - this._autoMark.viewportSizeAtMark) > 1;
-		const isAtMarkedBottom =
-			currentOffset >=
-			this._autoMark.expectedBottomOffsetAtMark - AUTO_MARK_MATCH_TOLERANCE_PX;
 		const isWithinSettlingRange =
-			metricsChanged &&
 			currentOffset >= this._autoMark.expectedBottomOffsetAtMark - AUTO_SETTLE_TOLERANCE_PX;
 
-		if (isAtMarkedBottom || isWithinSettlingRange) {
+		if (metrics.nearBottom || isWithinSettlingRange) {
 			return true;
 		}
 
-		// Stable metrics plus a smaller offset means the user moved away from the reveal target.
-		// Once that happens, stop classifying follow-up scroll events as programmatic.
-		this._autoMark = undefined;
+		// Clear suppression if we've clearly moved away from the previously targeted bottom.
+		if (currentOffset < this._autoMark.scrollOffsetAtMark - AUTO_SETTLE_TOLERANCE_PX) {
+			this._autoMark = undefined;
+		}
+
 		return false;
 	}
 
@@ -406,12 +399,9 @@ export class AutoScrollLogic {
 			return this.buildStateSnapshot(metrics);
 		}
 
-		// Returning to bottom by position alone is an explicit follow action.
+		// Near bottom — not a detach, just normal position.
+		// Re-engagement happens only via handleWheelIntent (unambiguous user intent).
 		if (metrics.nearBottom) {
-			if (!this._following) {
-				this._following = true;
-				log("scroll", "RE-ENGAGE (returned near bottom), dist=", metrics.distanceFromBottom);
-			}
 			return this.buildStateSnapshot(metrics);
 		}
 

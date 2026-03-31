@@ -26,7 +26,12 @@ const projectPath = $derived(propProjectPath ?? contextProjectPath);
 // Enhance commit ref with repo context if available
 const enhancedRef = $derived.by(() => {
 	if (ref.type === "commit" && repoContext && !ref.owner) {
-		return { ...ref, owner: repoContext.owner, repo: repoContext.repo };
+		return {
+			type: "commit" as const,
+			sha: ref.sha,
+			owner: repoContext.owner,
+			repo: repoContext.repo,
+		};
 	}
 	return ref;
 });
@@ -37,11 +42,94 @@ let insertions = $state(0);
 let deletions = $state(0);
 let prState = $state<"open" | "closed" | "merged" | undefined>(undefined);
 let statsLoading = $state(false);
+let hasLoadedStats = $state(false);
+let lastStatsKey = $state("");
+
+const statsKey = $derived.by(() => {
+	if (enhancedRef.type === "commit") {
+		return `commit:${projectPath ?? ""}:${enhancedRef.sha}`;
+	}
+
+	if (enhancedRef.type === "pr") {
+		return `pr:${projectPath ?? ""}:${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
+	}
+
+	return `issue:${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
+});
+
+$effect(() => {
+	const currentStatsKey = statsKey;
+	if (currentStatsKey === lastStatsKey) {
+		return;
+	}
+
+	lastStatsKey = currentStatsKey;
+	insertions = 0;
+	deletions = 0;
+	prState = undefined;
+	statsLoading = false;
+	hasLoadedStats = false;
+});
+
+function ensureStatsLoaded() {
+	if (hasLoadedStats || statsLoading || !projectPath || enhancedRef.type === "issue") {
+		return;
+	}
+
+	hasLoadedStats = true;
+	statsLoading = true;
+
+	if (enhancedRef.type === "commit" && enhancedRef.sha) {
+		void fetchCommitDiff(enhancedRef.sha, projectPath).then((result) => {
+			result.match(
+				(diff) => {
+					const stats = diff.files.reduce(
+						(acc, file) => ({
+							insertions: acc.insertions + (file.additions ?? 0),
+							deletions: acc.deletions + (file.deletions ?? 0),
+						}),
+						{ insertions: 0, deletions: 0 }
+					);
+					insertions = stats.insertions;
+					deletions = stats.deletions;
+				},
+				() => {}
+			);
+			statsLoading = false;
+		});
+		return;
+	}
+
+	if (enhancedRef.type === "pr" && enhancedRef.owner && enhancedRef.repo) {
+		void fetchPrDiff(enhancedRef.owner, enhancedRef.repo, enhancedRef.number).then((result) => {
+			result.match(
+				(diff) => {
+					prState = diff.pr.state;
+					const stats = diff.files.reduce(
+						(acc, file) => ({
+							insertions: acc.insertions + (file.additions ?? 0),
+							deletions: acc.deletions + (file.deletions ?? 0),
+						}),
+						{ insertions: 0, deletions: 0 }
+					);
+					insertions = stats.insertions;
+					deletions = stats.deletions;
+				},
+				() => {}
+			);
+			statsLoading = false;
+		});
+		return;
+	}
+
+	statsLoading = false;
+}
 
 function handleClick(e: MouseEvent) {
 	e.preventDefault();
 	e.stopPropagation();
 	if ((e.target as HTMLElement).closest(".github-badge-action-btn")) return;
+	ensureStatsLoaded();
 	if (enhancedRef.type === "issue" || !projectPath) return;
 
 	if (enhancedRef.type === "pr") {
@@ -64,84 +152,58 @@ function handleOpenInBrowser(e: MouseEvent) {
 	if (githubUrl) openUrl(githubUrl);
 }
 
+function handlePointerEnter() {
+	ensureStatsLoaded();
+}
+
+function handleFocus() {
+	ensureStatsLoaded();
+}
+
 function getTextToCopy(): string {
 	if (enhancedRef.type === "commit") return enhancedRef.sha;
 	return `${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
 }
 
-// Load stats on mount (one-time, not reactive)
-function loadStats() {
-	if (!enhancedRef || !projectPath) return;
-
-	statsLoading = true;
-	if (enhancedRef.type === "commit" && enhancedRef.sha) {
-		void fetchCommitDiff(enhancedRef.sha, projectPath).then((result) => {
-			result.match(
-				(diff) => {
-					const stats = diff.files.reduce(
-						(acc, file) => ({
-							insertions: acc.insertions + (file.additions ?? 0),
-							deletions: acc.deletions + (file.deletions ?? 0),
-						}),
-						{ insertions: 0, deletions: 0 }
-					);
-					insertions = stats.insertions;
-					deletions = stats.deletions;
-				},
-				() => {}
-			);
-			statsLoading = false;
-		});
-	} else if (enhancedRef.type === "pr" && enhancedRef.owner && enhancedRef.repo) {
-		void fetchPrDiff(enhancedRef.owner, enhancedRef.repo, enhancedRef.number).then((result) => {
-			result.match(
-				(diff) => {
-					prState = diff.pr.state;
-					const stats = diff.files.reduce(
-						(acc, file) => ({
-							insertions: acc.insertions + (file.additions ?? 0),
-							deletions: acc.deletions + (file.deletions ?? 0),
-						}),
-						{ insertions: 0, deletions: 0 }
-					);
-					insertions = stats.insertions;
-					deletions = stats.deletions;
-				},
-				() => {}
-			);
-			statsLoading = false;
-		});
-	}
-}
-loadStats();
 </script>
 
-<GitHubBadge ref={enhancedRef} {insertions} {deletions} {prState} loading={statsLoading} onclick={handleClick}>
-	{#if githubUrl}
-		<!-- Use span instead of button to avoid invalid nested <button> inside GitHubBadge's <button> -->
-		<span
-			role="button"
-			tabindex="0"
-			class="github-badge-action-btn shrink-0 inline-flex items-center justify-center rounded p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
-			title="Open on GitHub"
-			onclick={handleOpenInBrowser}
-			onkeydown={(e) => {
-				if (e.key === "Enter" || e.key === " ") handleOpenInBrowser(e as unknown as MouseEvent)
-			}}
-			onmouseenter={(e) => e.stopPropagation()}
-		>
-			<GithubLogo weight="fill" size={12} />
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="inline-flex" onmouseenter={handlePointerEnter} onfocusin={handleFocus}>
+	<GitHubBadge
+		ref={enhancedRef}
+		{insertions}
+		{deletions}
+		{prState}
+		loading={statsLoading}
+		onclick={handleClick}
+	>
+		{#if githubUrl}
+			<!-- Use span instead of button to avoid invalid nested <button> inside GitHubBadge's <button> -->
+			<span
+				role="button"
+				tabindex="0"
+				class="github-badge-action-btn shrink-0 inline-flex items-center justify-center rounded p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+				title="Open on GitHub"
+				onclick={handleOpenInBrowser}
+				onkeydown={(e) => {
+					if (e.key === "Enter" || e.key === " ") handleOpenInBrowser(e as unknown as MouseEvent)
+				}}
+				onmouseenter={(e) => e.stopPropagation()}
+			>
+				<GithubLogo weight="fill" size={12} />
+			</span>
+		{/if}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<span onmouseenter={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()}>
+			<CopyButton
+				getText={getTextToCopy}
+				size={12}
+				variant="icon"
+				class="github-badge-action-btn shrink-0"
+				stopPropagation
+			/>
 		</span>
-	{/if}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<span onmouseenter={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()}>
-		<CopyButton
-			getText={getTextToCopy}
-			size={12}
-			variant="icon"
-			class="github-badge-action-btn shrink-0"
-			stopPropagation
-		/>
-	</span>
-</GitHubBadge>
+	</GitHubBadge>
+</div>

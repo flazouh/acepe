@@ -16,7 +16,11 @@ import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { getRepoContext } from "../../services/github-service.js";
 import { getPanelStore } from "../../store/index.js";
 import { createLogger } from "../../utils/logger.js";
-import { renderMarkdown, renderMarkdownSync } from "../../utils/markdown-renderer.js";
+import {
+	renderMarkdown,
+	renderMarkdownSync,
+	type SyncRenderResult,
+} from "../../utils/markdown-renderer.js";
 import ContentBlockRenderer from "./content-block-renderer.svelte";
 import {
 	normalizeToProjectRelativePath,
@@ -27,6 +31,11 @@ import { mountGitHubBadges } from "./logic/mount-github-badges.js";
 import { parseContentBlocks } from "./logic/parse-content-blocks.js";
 
 const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
+const STREAMING_SYNC_RESULT = {
+	html: null,
+	fromCache: false,
+	needsAsync: false,
+} satisfies SyncRenderResult;
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -80,8 +89,20 @@ function textNeedsRepoContext(textValue: string): boolean {
 	return GITHUB_GIT_REF_PATTERN.test(textValue);
 }
 
+function htmlNeedsGitStatus(html: string | null): boolean {
+	if (html === null) {
+		return false;
+	}
+
+	return html.includes("file-path-badge-placeholder");
+}
+
 $effect(() => {
-	if (projectPath && !repoContext && textNeedsRepoContext(text)) {
+	if (!projectPath || repoContext || isStreaming || !textNeedsRepoContext(text)) {
+		return;
+	}
+
+	{
 		// Fetch repo context once on mount
 		(async () => {
 			const result = await getRepoContext(projectPath);
@@ -98,7 +119,13 @@ $effect(() => {
 });
 
 // Try sync rendering first (eliminates flicker for most messages)
-const syncResult = $derived(renderMarkdownSync(text, repoContext ?? undefined));
+const syncResult = $derived.by(() => {
+	if (isStreaming) {
+		return STREAMING_SYNC_RESULT;
+	}
+
+	return renderMarkdownSync(text, repoContext ?? undefined);
+});
 
 // Track async state only when needed (large messages or renderer not ready)
 let asyncHtml = $state<string | null>(null);
@@ -115,6 +142,14 @@ function getAsyncRequestKey(textValue: string, currentRepoContext: RepoContext |
 
 // Trigger async rendering when sync can't handle it - uses $effect
 $effect(() => {
+	if (isStreaming) {
+		asyncHtml = null;
+		asyncError = null;
+		asyncPending = false;
+		lastAsyncRequestKey = "";
+		return;
+	}
+
 	const result = syncResult;
 	const currentText = text;
 	const currentRepoContext = repoContext;
@@ -150,8 +185,9 @@ $effect(() => {
 // affect git status, and the gitStatusCache handles its own TTL-based refresh.
 $effect(() => {
 	const currentProjectPath = projectPath;
+	const currentVisibleHtml = visibleHtml;
 
-	if (!currentProjectPath) {
+	if (!currentProjectPath || !htmlNeedsGitStatus(currentVisibleHtml)) {
 		gitStatusByPath = null;
 		lastGitStatusRequestKey = "";
 		return;

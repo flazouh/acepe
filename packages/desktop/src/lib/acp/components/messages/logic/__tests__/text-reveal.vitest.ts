@@ -292,6 +292,38 @@ describe("createTextReveal", () => {
 		reveal.destroy();
 	});
 
+	it("coalesces repeated mutation reindexing until the next animation frame", async () => {
+		const container = document.createElement("div");
+		container.innerHTML = "<p>Hello</p>";
+
+		const reveal = createTextReveal(container);
+		reveal.setStreaming(true);
+
+		const createTreeWalkerSpy = vi.spyOn(document, "createTreeWalker");
+		createTreeWalkerSpy.mockClear();
+
+		const textNode = container.querySelector("p")?.firstChild;
+		if (!(textNode instanceof Text)) {
+			throw new Error("expected text node");
+		}
+
+		textNode.textContent = "Hello there";
+		await flushObserver();
+		textNode.textContent = "Hello there again";
+		await flushObserver();
+		textNode.textContent = "Hello there again and again";
+		await flushObserver();
+
+		expect(createTreeWalkerSpy).toHaveBeenCalledTimes(1);
+
+		flushOneFrame();
+
+		expect(createTreeWalkerSpy).toHaveBeenCalledTimes(2);
+
+		createTreeWalkerSpy.mockRestore();
+		reveal.destroy();
+	});
+
 	it("keeps pending text intact when unrelated child mutations happen mid-reveal", async () => {
 		const container = document.createElement("div");
 		container.innerHTML = "<p>AB</p>";

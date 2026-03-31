@@ -63,6 +63,9 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 	let observer: MutationObserver | null = null;
 	let fadeSpan: HTMLSpanElement | null = null;
 	let fadeAnimation: Animation | null = null;
+	let pendingDirtyTextNodes = new Set<Text>();
+	let hasPendingReindex = false;
+	let suppressImmediateReindex = false;
 	let progress = createRevealProgress(0);
 
 	function indexTextNodes(dirtyTextNodes?: ReadonlySet<Text>) {
@@ -180,6 +183,22 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 		}
 	}
 
+	function flushPendingMutations() {
+		if (!hasPendingReindex) {
+			return;
+		}
+
+		const dirtyTextNodes = pendingDirtyTextNodes.size > 0 ? new Set(pendingDirtyTextNodes) : undefined;
+		pendingDirtyTextNodes = new Set<Text>();
+		hasPendingReindex = false;
+
+		cleanupFadeSpan();
+
+		indexTextNodes(dirtyTextNodes);
+		indexHideableElements();
+		applyMask();
+	}
+
 	function applyMask() {
 		observer?.disconnect();
 		cleanupFadeSpan();
@@ -245,7 +264,11 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 	}
 
 	function scheduleAnimation() {
-		if (animFrameId !== null || !hasPendingReveal(progress)) {
+		if (animFrameId !== null) {
+			return;
+		}
+
+		if (!hasPendingReindex && !hasPendingReveal(progress)) {
 			return;
 		}
 
@@ -254,6 +277,9 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 
 	function animate(frameTime: number) {
 		animFrameId = null;
+		flushPendingMutations();
+		suppressImmediateReindex = false;
+
 		if (!progress.isStreaming || progress.revealedChars >= progress.totalChars) {
 			progress = clearRevealFrameTime(progress);
 			return;
@@ -266,26 +292,35 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 
 	function onDomMutation(mutations: MutationRecord[]) {
 		const dirtyTextNodes = collectDirtyTextNodes(mutations);
+		const hasStructuralMutation = mutations.some((mutation) => mutation.type !== "characterData");
 
 		if (!shouldReindexForMutations(mutations)) {
 			scheduleAnimation();
-			observer?.observe(container, OBSERVER_OPTIONS);
 			return;
 		}
 
-		cleanupFadeSpan();
-
-		indexTextNodes(dirtyTextNodes);
-		indexHideableElements();
-
-		if (!progress.isStreaming) {
-			progress = updateStreamingState(progress, false);
+		if (!progress.isStreaming || hasStructuralMutation || !suppressImmediateReindex) {
+			pendingDirtyTextNodes = new Set<Text>();
+			hasPendingReindex = false;
+			cleanupFadeSpan();
+			indexTextNodes(dirtyTextNodes);
+			indexHideableElements();
 			applyMask();
-			stopAnimation();
+
+			if (!progress.isStreaming) {
+				stopAnimation();
+				return;
+			}
+
+			suppressImmediateReindex = !hasStructuralMutation && hasPendingReveal(progress);
+			scheduleAnimation();
 			return;
 		}
 
-		applyMask();
+		for (const dirtyTextNode of dirtyTextNodes) {
+			pendingDirtyTextNodes.add(dirtyTextNode);
+		}
+		hasPendingReindex = true;
 		scheduleAnimation();
 	}
 
@@ -305,6 +340,8 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 
 			progress = updateStreamingState(progress, nextIsStreaming);
 			if (!nextIsStreaming) {
+				flushPendingMutations();
+				suppressImmediateReindex = false;
 				applyMask();
 				stopAnimation();
 				return;
@@ -315,6 +352,8 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 		destroy() {
 			observer?.disconnect();
 			observer = null;
+			flushPendingMutations();
+			suppressImmediateReindex = false;
 			stopAnimation();
 			cleanupFadeSpan();
 			for (const entry of textNodes) {

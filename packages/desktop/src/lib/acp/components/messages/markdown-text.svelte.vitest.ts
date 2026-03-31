@@ -24,11 +24,17 @@ vi.mock("../../hooks/use-session-context.js", () => ({
 	useSessionContext: () => null,
 }));
 
+const getProjectGitStatusMapMock = vi.fn<
+	(projectPath: string) => {
+		match: () => Promise<void>;
+	}
+>(() => ({
+	match: () => Promise.resolve(),
+}));
+
 vi.mock("../../services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
-		getProjectGitStatusMap: vi.fn(() => ({
-			match: () => Promise.resolve(undefined),
-		})),
+		getProjectGitStatusMap: (projectPath: string) => getProjectGitStatusMapMock(projectPath),
 	},
 }));
 
@@ -123,6 +129,10 @@ const { default: MarkdownText } = await import("./markdown-text.svelte");
 beforeEach(() => {
 	pendingAsyncRenders.clear();
 	getRepoContextMock.mockReset();
+	getProjectGitStatusMapMock.mockReset();
+	getProjectGitStatusMapMock.mockReturnValue({
+		match: () => Promise.resolve(undefined),
+	});
 	mountFileBadgesMock.mockClear();
 	mountGitHubBadgesMock.mockClear();
 	renderMarkdownMock.mockClear();
@@ -153,6 +163,23 @@ describe("MarkdownText", () => {
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 		expect(getRepoContextMock).not.toHaveBeenCalled();
+	});
+
+	it("does not load git status for plain markdown without file badges", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		render(MarkdownText, {
+			text: "Plain markdown without file badges.",
+			projectPath: "/repo",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(getProjectGitStatusMapMock).not.toHaveBeenCalled();
 	});
 
 	it("requests repo context when markdown contains bare commit refs", async () => {
@@ -343,15 +370,9 @@ describe("MarkdownText", () => {
 			isStreaming: true,
 		});
 
-		const pending = pendingAsyncRenders.get(getRequestKey(chunk));
-		if (!pending) {
-			throw new Error("Expected async markdown render to start");
-		}
-
-		pending.resolve("<h2>Streaming title</h2><p>Alpha body</p>");
-
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+		expect(renderMarkdownMock).not.toHaveBeenCalled();
 		expect(view.container.querySelector(".markdown-content")).toBeNull();
 		expect(view.container.textContent).toContain("Streaming title");
 		expect(mountFileBadgesMock).not.toHaveBeenCalled();
@@ -362,10 +383,63 @@ describe("MarkdownText", () => {
 			isStreaming: false,
 		});
 
+		const pending = pendingAsyncRenders.get(getRequestKey(chunk));
+		if (!pending) {
+			throw new Error("Expected async markdown render to start after streaming stops");
+		}
+
+		pending.resolve("<h2>Streaming title</h2><p>Alpha body</p>");
+
 		await waitFor(() => {
 			expect(view.container.querySelector(".markdown-content h2")?.textContent).toBe(
 				"Streaming title"
 			);
+		});
+	});
+
+	it("defers repo-context and markdown work until streaming settles", async () => {
+		const chunk = "# Streaming title\n\nSee abcdef1\n\n" + "alpha ".repeat(2500);
+		const repoContext = { owner: "acepe", repo: "desktop" };
+
+		getRepoContextMock.mockReturnValue({
+			match: (onOk: (ctx: RepoContext) => void) => {
+				onOk(repoContext);
+				return Promise.resolve();
+			},
+		});
+
+		renderMarkdownSyncMock.mockImplementation(() => ({
+			html: null,
+			fromCache: false,
+			needsAsync: true,
+		}));
+
+		const view = render(MarkdownText, {
+			text: chunk,
+			isStreaming: true,
+			projectPath: "/repo",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownMock).not.toHaveBeenCalled();
+		expect(getRepoContextMock).not.toHaveBeenCalled();
+		expect(view.container.querySelector(".markdown-loading")?.textContent).toContain("abcdef1");
+
+		await view.rerender({
+			text: chunk,
+			isStreaming: false,
+			projectPath: "/repo",
+		});
+
+		await waitFor(() => {
+			expect(renderMarkdownSyncMock).toHaveBeenCalled();
+			expect(getRepoContextMock).toHaveBeenCalledWith("/repo");
+		});
+
+		await waitFor(() => {
+			expect(renderMarkdownMock).toHaveBeenCalled();
 		});
 	});
 });
