@@ -250,8 +250,8 @@ function prepareForNextUserReveal() {
 }
 
 function scrollToBottomOnTabSwitch() {
-	// Don't force - preserves anchor if streaming
-	contentRef?.scrollToBottom();
+	// Returning to the panel resumes live follow for that thread.
+	contentRef?.scrollToBottom({ force: true });
 }
 
 // Effective panel ID (use prop or generate one)
@@ -827,7 +827,7 @@ $effect(() => {
 	});
 	lastPanelId = panelId;
 
-	// On tab switch, scroll to bottom (but don't force - preserves anchor if streaming)
+	// On tab switch, resume the live thread for the newly active panel.
 	if (isTabSwitch) {
 		tick().then(() => {
 			scrollToBottomOnTabSwitch();

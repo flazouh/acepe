@@ -11,6 +11,7 @@ import {
 	dataLengthHistory,
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
+	scrollToIndexCalls,
 } from "./fixtures/vlist-stub-state.js";
 
 type ResizeObserverCallback = () => void;
@@ -145,6 +146,7 @@ vi.mock("../../../tool-calls/index.js", async () => ({
 }));
 
 vi.mock("@acepe/ui", async () => ({
+	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
@@ -305,6 +307,43 @@ describe("VirtualizedEntryList auto-scroll", () => {
 
 		// The ThreadFollowController should force-reveal the new user message
 		// The test passes if no error is thrown and the component re-renders correctly
+	});
+
+	it("targets the new user turn instead of the thinking indicator when force-following a send", async () => {
+		const view = renderList({
+			entries: [createAssistantEntry("assistant-1", "latest")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		scrollToIndexCalls.length = 0;
+
+		const viewport = view.container.firstElementChild;
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Missing viewport element");
+		}
+
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		view.component.prepareForNextUserReveal({ force: true });
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [createAssistantEntry("assistant-1", "latest"), createUserEntry("user-1", "sent")],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 1,
+			options: { align: "end" },
+		});
 	});
 
 	it("does not force-follow a non-user latest update after the user detached", async () => {
