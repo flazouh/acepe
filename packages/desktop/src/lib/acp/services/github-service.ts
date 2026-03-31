@@ -240,6 +240,22 @@ export function clearDiffCache(): void {
 }
 
 /**
+ * Clears the cached repo-context entries.
+ * Intended for deterministic tests and explicit cache resets.
+ */
+export function clearRepoContextCache(): void {
+	repoContextCache.clear();
+}
+
+/**
+ * Clears in-flight repo-context requests.
+ * Intended for deterministic tests and explicit cache resets.
+ */
+export function clearRepoContextInflight(): void {
+	repoContextInflight.clear();
+}
+
+/**
  * Gets current cache size (for monitoring).
  */
 export function getCacheSize(): number {

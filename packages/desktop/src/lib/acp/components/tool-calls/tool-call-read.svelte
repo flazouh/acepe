@@ -1,12 +1,12 @@
 <script lang="ts">
 import { AgentToolRead } from "@acepe/ui/agent-panel";
 import * as m from "$lib/paraglide/messages.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
+import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
-import { getFileName, getRelativeFilePath } from "../../utils/file-utils.js";
+import { findGitStatusForFile, getFileName, getRelativeFilePath } from "../../utils/file-utils.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
 
 interface ToolCallReadProps {
@@ -60,10 +60,16 @@ $effect(() => {
 		return;
 	}
 
-	tauriClient.fileIndex.getProjectGitStatus(currentProjectPath).match(
-		(statuses) => {
+	gitStatusCache.getProjectGitStatusMap(currentProjectPath).match(
+		(statusMap) => {
 			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				const fileStatus = statuses.find((s) => s.path === currentRelativePath);
+				const fileStatus =
+					statusMap.get(currentRelativePath) ??
+					findGitStatusForFile(
+						Array.from(statusMap.values()),
+						currentFilePath,
+						currentProjectPath
+					);
 				if (fileStatus) {
 					linesAdded = fileStatus.insertions;
 					linesRemoved = fileStatus.deletions;

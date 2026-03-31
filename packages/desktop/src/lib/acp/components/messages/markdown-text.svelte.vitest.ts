@@ -134,6 +134,53 @@ afterEach(() => {
 });
 
 describe("MarkdownText", () => {
+	it("does not request repo context for plain markdown content", async () => {
+		getRepoContextMock.mockReturnValue({
+			match: () => Promise.resolve(),
+		});
+
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		render(MarkdownText, {
+			text: "Plain markdown without GitHub refs.",
+			projectPath: "/repo",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(getRepoContextMock).not.toHaveBeenCalled();
+	});
+
+	it("requests repo context when markdown contains bare commit refs", async () => {
+		const repoContext = { owner: "acepe", repo: "desktop" };
+		getRepoContextMock.mockReturnValue({
+			match: (onOk: (ctx: RepoContext) => void) => {
+				onOk(repoContext);
+				return Promise.resolve();
+			},
+		});
+
+		renderMarkdownSyncMock.mockImplementation(() => ({
+			html:
+				'<p>See <span class="github-badge-placeholder" data-github-ref="ref"></span></p>',
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		render(MarkdownText, {
+			text: "See abcdef1",
+			projectPath: "/repo",
+		});
+
+		await waitFor(() => {
+			expect(getRepoContextMock).toHaveBeenCalledWith("/repo");
+		});
+	});
+
 	it("keeps the previous async HTML visible while a newer large render is pending", async () => {
 		const firstChunk = "# Section A\n\n" + "alpha ".repeat(2500);
 		const secondChunk = "# Section B\n\n" + "beta ".repeat(2600);
@@ -227,8 +274,8 @@ describe("MarkdownText", () => {
 		expect(view.container.querySelector(".markdown-content h2")?.textContent).toBe("Newer");
 	});
 
-	it("starts a new async render when repo context arrives for the same text", async () => {
-		const chunk = "# Contextual\n\n" + "alpha ".repeat(2500);
+	it("starts a new async render when repo context arrives for the same bare-commit text", async () => {
+		const chunk = "# Contextual\n\nSee abcdef1\n\n" + "alpha ".repeat(2500);
 		const repoContext = { owner: "acepe", repo: "desktop" };
 		const repoContextResolver: { current: ((value: RepoContext) => void) | null } = { current: null };
 

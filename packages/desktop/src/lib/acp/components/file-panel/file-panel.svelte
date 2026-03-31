@@ -8,9 +8,9 @@ import {
 import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as m from "$lib/paraglide/messages.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
-import { findGitStatusForFile } from "../../utils/file-utils.js";
+import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
+import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";
 import { createLogger } from "../../utils/logger.js";
 import FilePanelCsvView from "./file-panel-csv-view.svelte";
 import { type FilePanelDisplayMode, getFilePanelDisplayOptions } from "./file-panel-format.js";
@@ -156,15 +156,19 @@ $effect(() => {
 		currentProjectPath,
 	});
 
-	tauriClient.fileIndex.getProjectGitStatus(currentProjectPath).match(
-		(statuses) => {
+	gitStatusCache.getProjectGitStatusMap(currentProjectPath).match(
+		(statusMap) => {
 			// Find status for this specific file
 			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				const fileStatus = findGitStatusForFile(statuses, currentFilePath, currentProjectPath);
+				const relativeFilePath = getRelativeFilePath(currentFilePath, currentProjectPath);
+				const exactFileStatus = relativeFilePath ? (statusMap.get(relativeFilePath) ?? null) : null;
+				const fileStatus =
+					exactFileStatus ??
+					findGitStatusForFile(Array.from(statusMap.values()), currentFilePath, currentProjectPath);
 				logger.info("Git status lookup result", {
 					currentFilePath,
 					currentProjectPath,
-					statusCount: statuses.length,
+					statusCount: statusMap.size,
 					fileStatusPath: fileStatus?.path ?? null,
 					fileStatusCode: fileStatus?.status ?? null,
 					insertions: fileStatus?.insertions ?? null,

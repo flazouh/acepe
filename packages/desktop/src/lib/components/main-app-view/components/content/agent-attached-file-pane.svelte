@@ -5,7 +5,7 @@ import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
-import { findGitStatusForFile } from "$lib/acp/utils/file-utils.js";
+import { findGitStatusForFile, getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import * as m from "$lib/paraglide/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
@@ -33,7 +33,9 @@ let {
 	onResizeFilePanel,
 }: Props = $props();
 
-let gitStatusesByProjectPath = $state<Record<string, readonly FileGitStatus[]>>({});
+const EMPTY_GIT_STATUS_MAP: ReadonlyMap<string, FileGitStatus> = new Map();
+
+let gitStatusMapsByProjectPath = $state(new Map<string, ReadonlyMap<string, FileGitStatus>>());
 
 const activeFilePanel = $derived.by(() => {
 	const active =
@@ -52,29 +54,27 @@ $effect(() => {
 	let cancelled = false;
 
 	// Reset cache to currently relevant projects only.
-	// Important: do not read gitStatusesByProjectPath in this effect, or we create
-	// a read/write self-dependency loop that can trigger effect_update_depth_exceeded.
-	const nextStatusesByProjectPath: Record<string, readonly FileGitStatus[]> = {};
+	// Important: keep updates based on a local map snapshot so sync test doubles or
+	// immediate cache hits do not create a read/write self-dependency loop.
+	let nextStatusMapsByProjectPath = new Map<string, ReadonlyMap<string, FileGitStatus>>();
 	for (const projectPath of currentProjectPaths) {
-		nextStatusesByProjectPath[projectPath] = [];
+		nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
 	}
-	gitStatusesByProjectPath = nextStatusesByProjectPath;
+	gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 
 	for (const projectPath of currentProjectPaths) {
 		gitStatusCache.getProjectGitStatusMap(projectPath).match(
 			(statusMap) => {
 				if (cancelled) return;
-				gitStatusesByProjectPath = {
-					...gitStatusesByProjectPath,
-					[projectPath]: Array.from(statusMap.values()),
-				};
+				nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
+				nextStatusMapsByProjectPath.set(projectPath, statusMap);
+				gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 			},
 			() => {
 				if (cancelled) return;
-				gitStatusesByProjectPath = {
-					...gitStatusesByProjectPath,
-					[projectPath]: [],
-				};
+				nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
+				nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
+				gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 			}
 		);
 	}
@@ -85,8 +85,12 @@ $effect(() => {
 });
 
 function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: number } {
-	const gitStatuses = gitStatusesByProjectPath[filePanel.projectPath] ?? [];
-	const fileStatus = findGitStatusForFile(gitStatuses, filePanel.filePath, filePanel.projectPath);
+	const statusMap = gitStatusMapsByProjectPath.get(filePanel.projectPath) ?? EMPTY_GIT_STATUS_MAP;
+	const relativeFilePath = getRelativeFilePath(filePanel.filePath, filePanel.projectPath);
+	const exactFileStatus = relativeFilePath ? (statusMap.get(relativeFilePath) ?? null) : null;
+	const fileStatus =
+		exactFileStatus ??
+		findGitStatusForFile(Array.from(statusMap.values()), filePanel.filePath, filePanel.projectPath);
 	return {
 		added: fileStatus?.insertions ?? 0,
 		removed: fileStatus?.deletions ?? 0,

@@ -3,6 +3,10 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { getContext } from "svelte";
 import * as m from "$lib/paraglide/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
+import {
+	GITHUB_COMMIT_SHA_PATTERN,
+	GITHUB_GIT_REF_PATTERN,
+} from "../../constants/github-badge-html.js";
 import type { RepoContext } from "../../types/github-integration.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import "@acepe/ui/markdown-prose.css";
@@ -66,8 +70,18 @@ let lastGitStatusRequestKey = "";
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
 
+function textNeedsRepoContext(textValue: string): boolean {
+	GITHUB_COMMIT_SHA_PATTERN.lastIndex = 0;
+	if (GITHUB_COMMIT_SHA_PATTERN.test(textValue)) {
+		return true;
+	}
+
+	GITHUB_GIT_REF_PATTERN.lastIndex = 0;
+	return GITHUB_GIT_REF_PATTERN.test(textValue);
+}
+
 $effect(() => {
-	if (projectPath && !repoContext) {
+	if (projectPath && !repoContext && textNeedsRepoContext(text)) {
 		// Fetch repo context once on mount
 		(async () => {
 			const result = await getRepoContext(projectPath);
