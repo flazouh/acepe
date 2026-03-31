@@ -13,7 +13,8 @@ pub const DEFAULT_SHIP_INSTRUCTIONS: &str = r#"Generate a git commit message and
 
 Focus on what changed, why it matters, the most important implementation details,
 and how it was verified. Keep the commit subject concise and imperative, and make
-the PR description easy for a reviewer to scan."#;
+the PR description easy for a reviewer to scan while still providing a deep,
+reviewer-friendly explanation."#;
 
 const SHIP_RESPONSE_FORMAT: &str = r#"Respond in this EXACT XML format — no other text outside the tags:
 
@@ -25,12 +26,17 @@ Optional body explaining WHY (not what).
 </commit-message>
 <pr-title>PR title here (≤72 chars, no trailing period)</pr-title>
 <pr-description>
-## Summary
-Provide a detailed explanation of the changes: what they accomplish, why they
-were needed, and how the different parts fit together.
+## Abstract
+Write a short executive summary in 2-4 sentences. State the core change, why it
+matters, and the main reviewer takeaway.
 
-When the change involves a non-trivial flow (data pipelines, request
-lifecycles, state machines, etc.), include an ASCII diagram:
+## Problem
+Explain the problem in depth before describing the fix. Cover the previous
+behavior, why it was insufficient, and the concrete impact on users, reviewers,
+or maintainers.
+
+Include an ASCII diagram that shows the current behavior, failure mode,
+or system shape before the fix:
 
 ```
     ┌──────────┐      ┌──────────┐      ┌──────────┐
@@ -38,11 +44,33 @@ lifecycles, state machines, etc.), include an ASCII diagram:
     └──────────┘      └──────────┘      └──────────┘
 ```
 
+Include a concrete before/after example for the problem statement, such as:
+
+- Input/output before the fix
+- Reviewer-visible behavior before the change
+- A small scenario that demonstrates the failure clearly
+
 Use the appropriate diagram style for the situation:
 - Sequence diagrams for request/response flows
 - Flowcharts for branching logic
 - Tree diagrams for hierarchical structures
 - Data-flow diagrams for pipelines
+
+## Solution
+Explain how the implementation solves the problem, why this approach was chosen,
+and how the main pieces work together.
+
+Include an ASCII diagram that shows the new flow, architecture, or decision path
+after the fix:
+
+```
+    ┌──────────┐      ┌────────────┐      ┌──────────┐
+    │  Input   │─────▶│ New logic  │─────▶│  Output  │
+    └──────────┘      └────────────┘      └──────────┘
+```
+
+Include a concrete before/after example that makes the solution obvious in
+practice.
 
 ## Changes
 - **`path/to/file.ts`** (+N -N) — brief description
@@ -92,6 +120,12 @@ mod tests {
 
         assert!(prompt.starts_with(DEFAULT_SHIP_INSTRUCTIONS));
         assert!(prompt.contains("Respond in this EXACT XML format"));
+        assert!(prompt.contains("## Abstract"));
+        assert!(prompt.contains("## Problem"));
+        assert!(prompt.contains("## Solution"));
+        assert!(prompt.contains("Explain the problem in depth before describing the fix."));
+        assert!(prompt.contains("Include an ASCII diagram that shows the current behavior, failure mode,"));
+        assert!(prompt.contains("Include a concrete before/after example"));
         assert!(prompt.contains("Current branch: feature/default"));
         assert!(prompt.contains("Diff:\ndiff --git a/src/lib.rs b/src/lib.rs"));
     }

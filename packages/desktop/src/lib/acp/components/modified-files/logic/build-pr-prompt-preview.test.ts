@@ -34,6 +34,12 @@ describe("buildPrPromptPreview", () => {
 
 		expect(prompt.startsWith(DEFAULT_SHIP_INSTRUCTIONS)).toBe(true);
 		expect(prompt).toContain("Respond in this EXACT XML format");
+		expect(prompt).toContain("## Abstract");
+		expect(prompt).toContain("## Problem");
+		expect(prompt).toContain("## Solution");
+		expect(prompt).toContain("Explain the problem in depth before describing the fix.");
+		expect(prompt).toContain("Include an ASCII diagram that shows the current behavior, failure mode,");
+		expect(prompt).toContain("Include a concrete before/after example");
 		expect(prompt).toContain("Current branch: feature/prompt-preview");
 		expect(prompt).toContain("Staged files:\nM\tsrc/alpha.ts\nA\tsrc/new-file.ts");
 		expect(prompt).toContain("diff --git a/src/alpha.ts b/src/alpha.ts");
