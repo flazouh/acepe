@@ -28,6 +28,27 @@ function installSyncRAF(): void {
 	};
 }
 
+function installQueuedRAF(): void {
+	rafCallbacks = [];
+	nextRafId = 1;
+	globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+		const id = nextRafId++;
+		rafCallbacks.push({ id, cb });
+		return id;
+	};
+	globalThis.cancelAnimationFrame = (id: number) => {
+		rafCallbacks = rafCallbacks.filter((frame) => frame.id !== id);
+	};
+}
+
+function flushQueuedRAF(): void {
+	const queued = [...rafCallbacks];
+	rafCallbacks = [];
+	for (const frame of queued) {
+		frame.cb(performance.now());
+	}
+}
+
 function restoreRAF(): void {
 	globalThis.requestAnimationFrame = originalRAF;
 	globalThis.cancelAnimationFrame = originalCancelRAF;
@@ -332,6 +353,32 @@ describe("ThreadFollowController", () => {
 
 			expect(nextUserHandle.reveal).toHaveBeenCalledWith(true);
 			expect(currentUserHandle.reveal).not.toHaveBeenCalled();
+		});
+
+		it("keeps the forced user reveal when a later latest target registers in the same frame", () => {
+			installQueuedRAF();
+
+			const latestTargetKey = "thinking-indicator";
+			let latestUserTargetKey = "entry-2";
+			const opts = createOptions({
+				getLatestTargetKey: () => latestTargetKey,
+				getLatestUserTargetKey: () => latestUserTargetKey,
+			});
+			const ctrl = new ThreadFollowController(opts);
+
+			ctrl.prepareForNextUserReveal({ force: true });
+
+			const userHandle = createHandle();
+			ctrl.registerTarget("entry-2", userHandle);
+
+			const thinkingHandle = createHandle();
+			ctrl.registerTarget("thinking-indicator", thinkingHandle);
+
+			flushQueuedRAF();
+
+			expect(userHandle.reveal).toHaveBeenCalledWith(true);
+			expect(thinkingHandle.reveal).not.toHaveBeenCalled();
+			latestUserTargetKey = "entry-2";
 		});
 	});
 });
