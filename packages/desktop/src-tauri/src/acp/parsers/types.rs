@@ -16,6 +16,7 @@ use crate::acp::session_update::{
 
 // Re-import parser structs for get_parser factory
 use crate::acp::parsers::claude_code_parser::ClaudeCodeParser;
+use crate::acp::parsers::copilot_parser::CopilotParser;
 use crate::acp::parsers::codex_parser::CodexParser;
 use crate::acp::parsers::cursor_parser::CursorParser;
 use crate::acp::parsers::opencode_parser::OpenCodeParser;
@@ -24,6 +25,7 @@ use crate::acp::parsers::opencode_parser::OpenCodeParser;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentType {
     ClaudeCode,
+    Copilot,
     OpenCode,
     Cursor,
     Codex,
@@ -34,6 +36,7 @@ impl AgentType {
     pub fn as_str(&self) -> &'static str {
         match self {
             AgentType::ClaudeCode => "claude-code",
+            AgentType::Copilot => "copilot",
             AgentType::OpenCode => "opencode",
             AgentType::Cursor => "cursor",
             AgentType::Codex => "codex",
@@ -46,6 +49,7 @@ impl AgentType {
     pub fn plan_file_patterns(&self) -> Option<(&'static str, &'static str)> {
         match self {
             AgentType::ClaudeCode => Some((".claude/plans/", ".md")),
+            AgentType::Copilot => Some((".claude/plans/", ".md")),
             AgentType::Cursor => Some((".cursor/plans/", ".plan.md")),
             AgentType::OpenCode | AgentType::Codex => None,
         }
@@ -55,7 +59,7 @@ impl AgentType {
     pub fn from_canonical(canonical: &crate::acp::types::CanonicalAgentId) -> Self {
         match canonical {
             crate::acp::types::CanonicalAgentId::ClaudeCode => AgentType::ClaudeCode,
-            crate::acp::types::CanonicalAgentId::Copilot => AgentType::ClaudeCode,
+            crate::acp::types::CanonicalAgentId::Copilot => AgentType::Copilot,
             crate::acp::types::CanonicalAgentId::OpenCode => AgentType::OpenCode,
             crate::acp::types::CanonicalAgentId::Cursor => AgentType::Cursor,
             crate::acp::types::CanonicalAgentId::Codex => AgentType::Codex,
@@ -508,6 +512,7 @@ pub(crate) fn parse_todo_write(
 pub fn get_parser(agent: AgentType) -> &'static dyn AgentParser {
     match agent {
         AgentType::ClaudeCode => &ClaudeCodeParser,
+        AgentType::Copilot => &CopilotParser,
         AgentType::OpenCode => &OpenCodeParser,
         AgentType::Cursor => &CursorParser,
         AgentType::Codex => &CodexParser,
