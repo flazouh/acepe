@@ -129,8 +129,7 @@ pub async fn scan_all_transcripts(project_paths: &[String]) -> Result<Vec<Cursor
             continue;
         }
 
-        // Convert slug back to path
-        let workspace_path = slug_to_path(&project_slug);
+        let workspace_path = resolve_workspace_path(&project_slug, project_paths);
 
         let transcripts_dir = project_path.join("agent-transcripts");
         if !tokio::fs::try_exists(&transcripts_dir)
@@ -211,9 +210,22 @@ pub async fn scan_all_chats() -> Result<Vec<CursorChatEntry>> {
 }
 
 /// Convert a Cursor slug back to a path.
-/// `Users-example-Documents-sample-repo` -> `/Users/example/Documents/sample-repo`
+///
+/// This is a best-effort fallback only. Cursor's slug format is lossy because
+/// both path separators and literal hyphens are encoded as `-`.
 pub fn slug_to_path(slug: &str) -> String {
     format!("/{}", slug.replace('-', "/"))
+}
+
+fn resolve_workspace_path(project_slug: &str, project_paths: &[String]) -> String {
+    if let Some(project_path) = project_paths
+        .iter()
+        .find(|project_path| path_to_slug(project_path) == project_slug)
+    {
+        return project_path.clone();
+    }
+
+    slug_to_path(project_slug)
 }
 
 /// Scan agent transcripts in a specific project directory.

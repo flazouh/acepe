@@ -33,6 +33,8 @@ describe("TerminalTabs", () => {
 	it("wires new-tab and move-to-panel actions through the group-scoped store API", async () => {
 		const panelStore = {
 			fullscreenPanelId: null,
+			focusedPanelId: null,
+			viewMode: "project" as const,
 			openTerminalTab: vi.fn(),
 			moveTerminalTabToNewPanel: vi.fn(),
 			getSelectedTerminalTabId: vi.fn(() => "tab-2"),

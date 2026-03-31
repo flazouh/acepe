@@ -12,8 +12,15 @@ fn test_path_to_slug() {
 
 #[test]
 fn test_slug_to_path() {
+    assert_eq!(slug_to_path("home-user-project"), "/home/user/project");
+}
+
+#[test]
+fn test_resolve_workspace_path_prefers_known_project_path() {
+    let project_paths = vec!["/Users/example/Documents/sample-repo".to_string()];
+
     assert_eq!(
-        slug_to_path("Users-example-Documents-sample-repo"),
+        resolve_workspace_path("Users-example-Documents-sample-repo", &project_paths),
         "/Users/example/Documents/sample-repo"
     );
 }

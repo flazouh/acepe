@@ -529,7 +529,7 @@ const fullscreenPanelSnapshot = $derived.by(() => {
 				{@render groupPanels()}
 			{:else}
 			<ProjectCard
-				class="{isAuxOnlyFullscreen || !hasAgentPanels
+				class="{!hasAgentPanels
 					? 'flex-1 min-w-0 min-h-0'
 					: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
 					projectName={group.projectName}

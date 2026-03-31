@@ -97,7 +97,7 @@ describe("AgentAttachedFilePane", () => {
 			ownerPanelId: "panel-1",
 			filePanels: [createFilePanel("file-a", "src/a.ts"), createFilePanel("file-b", "src/b.ts")],
 			activeFilePanelId: "file-a",
-			projects: [{ path: "/repo", name: "repo", color: "#123456" }],
+			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
 			onSelectFilePanel: vi.fn(),
 			onCloseFilePanel: vi.fn(),
 			onResizeFilePanel: vi.fn(),

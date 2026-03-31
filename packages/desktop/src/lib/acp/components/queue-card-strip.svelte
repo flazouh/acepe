@@ -148,7 +148,7 @@ function truncate(text: string, maxLength: number): string {
 									onclick={() => handleSendNow(message.id)}
 								>
 									<PaperPlaneRight size={10} weight="bold" class="shrink-0" />
-									{m.agent_input_queue_send_now()}
+									{m.agent_input_send_message()}
 								</button>
 								<button
 									type="button"
