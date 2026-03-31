@@ -784,11 +784,12 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 }
 
 const fileExplorerFocusContext = $derived.by(() => {
-	const focusedPanel = panelStore.focusedPanel;
+	const focusedPanel = panelStore.focusedTopLevelPanel;
 	if (focusedPanel) {
+		const focusedWorktreePath = focusedPanel.kind === "agent" ? focusedPanel.worktreePath : null;
 		return {
 			focusedProjectPath: focusedPanel.projectPath ? focusedPanel.projectPath : null,
-			focusedWorktreePath: focusedPanel.worktreePath ? focusedPanel.worktreePath : null,
+			focusedWorktreePath: focusedWorktreePath ? focusedWorktreePath : null,
 		};
 	}
 

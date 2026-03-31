@@ -50,17 +50,21 @@ describe("PanelStore terminal fullscreen", () => {
 		expect(store.fullscreenPanelId).toBeNull();
 	});
 
-	it("enters fullscreen for a terminal without creating an agent panel", () => {
+	it("opens a terminal as a top-level panel without creating an agent panel or forcing single mode", () => {
 		const store = createStore();
 		const group = store.openTerminalPanel("/tmp/project");
 
 		expect(store.panels).toHaveLength(0);
-		expect(store.fullscreenPanelId).toBe(group.id);
+		expect(store.focusedPanelId).toBe(group.id);
+		expect(store.viewMode).toBe("multi");
+		expect(store.fullscreenPanelId).toBeNull();
 
 		store.enterTerminalFullscreen(group.id);
 
 		expect(store.panels).toHaveLength(0);
-		expect(store.fullscreenPanelId).toBe(group.id);
+		expect(store.focusedPanelId).toBe(group.id);
+		expect(store.viewMode).toBe("single");
+		expect(store.fullscreenPanelId).toBeNull();
 	});
 
 	it("keeps the new terminal group focused after pop-out", () => {
@@ -83,7 +87,9 @@ describe("PanelStore terminal fullscreen", () => {
 		const newGroup = store.moveTerminalTabToNewPanel(tab.id);
 
 		expect(newGroup).not.toBeNull();
-		expect(store.fullscreenPanelId).toBe(newGroup?.id);
+		expect(store.viewMode).toBe("single");
+		expect(store.focusedPanelId).toBe(newGroup?.id);
+		expect(store.fullscreenPanelId).toBeNull();
 	});
 
 	it("does not move fullscreen after pop-out when fullscreen is inactive", () => {
@@ -95,6 +101,7 @@ describe("PanelStore terminal fullscreen", () => {
 		const newGroup = store.moveTerminalTabToNewPanel(tab.id);
 
 		expect(newGroup).not.toBeNull();
+		expect(store.viewMode).toBe("multi");
 		expect(store.fullscreenPanelId).toBeNull();
 	});
 

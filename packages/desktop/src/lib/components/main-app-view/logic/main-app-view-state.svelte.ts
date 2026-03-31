@@ -185,12 +185,14 @@ export class MainAppViewState {
 
 	private getSingleModePanelId(): string | null {
 		const focusedPanelId = this.panelStore.focusedPanelId;
-		if (focusedPanelId && this.panelStore.getPanel(focusedPanelId)) {
+		if (focusedPanelId && this.panelStore.getTopLevelPanel(focusedPanelId)) {
 			return focusedPanelId;
 		}
 
-		const firstPanel = this.panelStore.panels[0];
-		return firstPanel ? firstPanel.id : null;
+		const firstTopLevelPanel = this.panelStore.workspacePanels.find(
+			(panel) => panel.kind === "agent" || panel.ownerPanelId === null
+		);
+		return firstTopLevelPanel ? firstTopLevelPanel.id : null;
 	}
 
 	/**
@@ -213,13 +215,17 @@ export class MainAppViewState {
 
 	get fileExplorerVisible(): boolean {
 		if (!this.fileExplorerOpen) return false;
-		if (this.panelStore.focusedPanel && this.panelStore.focusedPanel.projectPath) return true;
+		if (this.panelStore.focusedTopLevelPanel && this.panelStore.focusedTopLevelPanel.projectPath) {
+			return true;
+		}
 		if (this.panelStore.focusedViewProjectPath) return true;
 		return this.projectManager.projects.length > 0;
 	}
 
 	private hasFileExplorerProjectContext(): boolean {
-		if (this.panelStore.focusedPanel && this.panelStore.focusedPanel.projectPath) return true;
+		if (this.panelStore.focusedTopLevelPanel && this.panelStore.focusedTopLevelPanel.projectPath) {
+			return true;
+		}
 		if (this.panelStore.focusedViewProjectPath) return true;
 		return this.projectManager.projects.length > 0;
 	}
@@ -511,7 +517,7 @@ export class MainAppViewState {
 
 		// Use focused panel's project when available (covers both focused view and normal multi-project mode).
 		const focusedProjectPath =
-			this.panelStore.focusedViewProjectPath || this.panelStore.focusedPanel?.projectPath;
+			this.panelStore.focusedViewProjectPath || this.panelStore.focusedTopLevelPanel?.projectPath;
 		if (focusedProjectPath) {
 			const project = this.projectManager.projects.find((p) => p.path === focusedProjectPath);
 			if (project) {
@@ -584,12 +590,12 @@ export class MainAppViewState {
 	 * @param panelId - The panel to enter fullscreen with (ignored when exiting)
 	 */
 	handleToggleFullscreen(panelId: string): void {
-		if (!this.panelStore.getPanel(panelId)) {
+		if (!this.panelStore.getTopLevelPanel(panelId)) {
 			this.panelStore.toggleFullscreen(panelId);
 			return;
 		}
 
-		if (this.panelStore.viewMode === "single") {
+		if (this.panelStore.viewMode === "single" && this.panelStore.focusedPanelId === panelId) {
 			// Exiting fullscreen: restore to the previous non-single view mode.
 			// Never restore to "single" — that still renders the fullscreen layout.
 			const restoreMode =
@@ -601,7 +607,9 @@ export class MainAppViewState {
 			this.setSidebarOpen(true);
 		} else {
 			// Entering fullscreen: save current view mode and switch to single.
-			this.preFullscreenViewMode = this.panelStore.viewMode;
+			if (this.panelStore.viewMode !== "single") {
+				this.preFullscreenViewMode = this.panelStore.viewMode;
+			}
 			this.panelStore.focusPanel(panelId);
 			this.panelStore.setViewMode("single");
 		}

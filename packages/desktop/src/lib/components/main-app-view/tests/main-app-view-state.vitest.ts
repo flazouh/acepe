@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+const { openUrlMock } = vi.hoisted(() => ({
+	openUrlMock: vi.fn(),
+}));
+
 vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		zoomIn: vi.fn(),
@@ -9,8 +13,6 @@ vi.mock("$lib/services/zoom.svelte.js", () => ({
 		zoomPercentage: "100%",
 	}),
 }));
-
-const openUrlMock = vi.fn();
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
@@ -47,11 +49,28 @@ function createState(options?: {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
 		isPanelInReviewMode: vi.fn(() => false),
+		focusedTopLevelPanel: options?.focusedPanelProjectPath
+			? { id: "panel-1", kind: "agent", projectPath: options.focusedPanelProjectPath }
+			: null,
 		focusedPanel: options?.focusedPanelProjectPath
 			? { projectPath: options.focusedPanelProjectPath }
 			: null,
 		focusedViewProjectPath: options?.focusedViewProjectPath ? options.focusedViewProjectPath : null,
 		focusedPanelId: null,
+		workspacePanels: [
+			{
+				id: "panel-1",
+				kind: "agent",
+				ownerPanelId: null,
+				sessionId: null,
+				width: 100,
+				pendingProjectSelection: false,
+				selectedAgentId: null,
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			},
+		],
 		viewMode: "project",
 		setViewMode: vi.fn((mode: "single" | "project" | "multi") => {
 			panelStore.viewMode = mode;
@@ -63,6 +82,11 @@ function createState(options?: {
 		focusPanel: vi.fn((panelId: string) => {
 			panelStore.focusedPanelId = panelId;
 		}),
+		getTopLevelPanel: vi.fn((panelId: string) =>
+			panelId === "panel-1" || panelId === "terminal-1"
+				? { id: panelId, kind: panelId === "panel-1" ? "agent" : "terminal", projectPath: null, ownerPanelId: null }
+				: undefined
+		),
 		getPanel: vi.fn((panelId: string) =>
 			panelId === "panel-1" ? { id: "panel-1", reviewMode: false } : undefined
 		),
@@ -169,7 +193,12 @@ describe("MainAppViewState file explorer", () => {
 
 	it("enters single mode when toggling fullscreen for a non-agent top-level panel", () => {
 		const { state, panelStore } = createState();
-		panelStore.getPanel = vi.fn(() => undefined);
+		panelStore.getTopLevelPanel = vi.fn(() => ({
+			id: "terminal-1",
+			kind: "terminal",
+			projectPath: "/repo",
+			ownerPanelId: null,
+		}));
 
 		state.handleToggleFullscreen("terminal-1");
 

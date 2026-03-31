@@ -12,7 +12,9 @@ import { stripArtifactsFromTitle } from "./session-title-policy.js";
 import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
+	GitWorkspacePanel,
 	Panel,
+	ReviewWorkspacePanel,
 	SessionHotState,
 	TerminalWorkspacePanel,
 } from "./types.js";
@@ -49,7 +51,9 @@ export interface PanelToTabInput {
 export type NonAgentWorkspacePanel =
 	| FileWorkspacePanel
 	| TerminalWorkspacePanel
-	| BrowserWorkspacePanel;
+	| BrowserWorkspacePanel
+	| ReviewWorkspacePanel
+	| GitWorkspacePanel;
 
 export interface NonAgentPanelToTabInput {
 	readonly panel: NonAgentWorkspacePanel;
@@ -261,6 +265,12 @@ function getNonAgentPanelTitle(panel: NonAgentWorkspacePanel): string {
 	}
 	if (panel.kind === "terminal") {
 		return "Terminal";
+	}
+	if (panel.kind === "review") {
+		return "Review";
+	}
+	if (panel.kind === "git") {
+		return "Source Control";
 	}
 	return panel.title;
 }

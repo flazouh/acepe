@@ -254,6 +254,14 @@ export function groupWorkspacePanelsByProject<TAgent extends { id: string; proje
 			});
 			continue;
 		}
+		if (panel.kind === "review") {
+			group.reviewPanels.push(panel);
+			continue;
+		}
+		if (panel.kind === "git") {
+			group.gitPanels.push(panel);
+			continue;
+		}
 		group.browserPanels.push(panel);
 	}
 
