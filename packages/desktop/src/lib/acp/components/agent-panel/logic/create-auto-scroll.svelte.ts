@@ -406,20 +406,13 @@ export class AutoScrollLogic {
 			return this.buildStateSnapshot(metrics);
 		}
 
-<<<<<<< HEAD
 		// Returning to bottom by position alone is an explicit follow action.
-		if (nearBottom) {
+		if (metrics.nearBottom) {
 			if (!this._following) {
 				this._following = true;
-				log("scroll", "RE-ENGAGE (returned near bottom), dist=", dist);
+				log("scroll", "RE-ENGAGE (returned near bottom), dist=", metrics.distanceFromBottom);
 			}
-			return;
-=======
-		// Near bottom — not a detach, just normal position.
-		// Re-engagement happens only via handleWheelIntent (unambiguous user intent).
-		if (metrics.nearBottom) {
 			return this.buildStateSnapshot(metrics);
->>>>>>> bd169a12 (perf(acp): coalesce auto-scroll updates)
 		}
 
 		// User scrolled away from bottom
