@@ -368,7 +368,7 @@ describe("AutoScrollLogic", () => {
 			expect(logic.following).toBe(true);
 		});
 
-		it("handles content size growth detected via handleScroll", () => {
+		it("stays following when content size grows while the thread is anchored", () => {
 			// Start at bottom
 			mockProvider._setScrollOffset(500);
 			logic.handleScroll();
@@ -377,6 +377,16 @@ describe("AutoScrollLogic", () => {
 			// Content grows - now we're far from bottom
 			mockProvider._setScrollSize(2000);
 			// distance = 2000 - (500 + 500) = 1000px
+			logic.handleScroll();
+			expect(logic.following).toBe(true);
+		});
+
+		it("stays detached when content keeps growing after the user scrolls away", () => {
+			mockProvider._setScrollOffset(100);
+			logic.handleScroll();
+			expect(logic.following).toBe(false);
+
+			mockProvider._setScrollSize(2000);
 			logic.handleScroll();
 			expect(logic.following).toBe(false);
 		});

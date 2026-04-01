@@ -4,8 +4,10 @@ import type { SessionEntry } from "../../../../application/dto/session.js";
 
 import {
 	buildVirtualizedDisplayEntries,
+	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
 	isMergedThoughtAssistantDisplayEntry,
+	THINKING_DISPLAY_ENTRY,
 } from "../virtualized-entry-display.js";
 
 function createThoughtAssistantEntry(id: string, text: string): SessionEntry {
@@ -69,5 +71,14 @@ describe("virtualized-entry-display", () => {
 		expect(getVirtualizedDisplayEntryKey(display[0]!)).toBe("a1");
 		expect(getVirtualizedDisplayEntryKey(display[1]!)).toBe("a3");
 		expect(isMergedThoughtAssistantDisplayEntry(display[1]!)).toBe(false);
+	});
+
+	it("uses the newest non-thinking entry as the reveal target when waiting trails the thread", () => {
+		const display = buildVirtualizedDisplayEntries([
+			createMessageAssistantEntry("assistant-1", "latest reply"),
+		]);
+		display.push(THINKING_DISPLAY_ENTRY);
+
+		expect(getLatestRevealTargetKey(display)).toBe("assistant-1");
 	});
 });

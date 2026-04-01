@@ -1,4 +1,5 @@
 import { createLogger } from "../../../utils/logger.js";
+import { recordHotPathDiagnostic } from "../../../utils/hot-path-diagnostics.js";
 
 const BOTTOM_THRESHOLD = 10;
 const AUTO_MARK_TIMEOUT_MS = 400;
@@ -66,6 +67,7 @@ export class AutoScrollLogic {
 	private _following = true;
 	private _provider: ScrollPositionProvider | undefined;
 	private _itemCount = 0;
+	private _lastScrollMetrics: ScrollMetrics | undefined;
 	private _autoMark:
 		| {
 				startedAt: number;
@@ -87,6 +89,7 @@ export class AutoScrollLogic {
 	 */
 	setProvider(provider: ScrollPositionProvider | undefined): void {
 		this._provider = provider;
+		this._lastScrollMetrics = undefined;
 	}
 
 	/**
@@ -232,6 +235,7 @@ export class AutoScrollLogic {
 
 	revealIndex(index: number, force?: boolean): boolean {
 		if (!this._provider) {
+			recordHotPathDiagnostic("auto-scroll", "reveal-missing-provider");
 			logger.info("revealIndex", {
 				index,
 				force: force ?? false,
@@ -241,6 +245,7 @@ export class AutoScrollLogic {
 			return false;
 		}
 		if (index < 0) {
+			recordHotPathDiagnostic("auto-scroll", "reveal-negative-index");
 			logger.info("revealIndex", {
 				index,
 				force: force ?? false,
@@ -253,6 +258,7 @@ export class AutoScrollLogic {
 		// Respect user scroll control unless forced
 		if (!this._following) {
 			if (!force) {
+				recordHotPathDiagnostic("auto-scroll", "reveal-detached-without-force");
 				logger.info("revealIndex", {
 					index,
 					force: force ?? false,
@@ -268,6 +274,7 @@ export class AutoScrollLogic {
 
 		// Content fits in viewport — nothing to scroll
 		if (!this.canScroll()) {
+			recordHotPathDiagnostic("auto-scroll", "reveal-content-fits");
 			logger.info("revealIndex", {
 				index,
 				force: force ?? false,
@@ -283,6 +290,7 @@ export class AutoScrollLogic {
 		// Already at bottom
 		const distanceFromBottom = this.distanceFromBottom();
 		if (distanceFromBottom < 2) {
+			recordHotPathDiagnostic("auto-scroll", "reveal-already-at-bottom", distanceFromBottom);
 			logger.info("revealIndex", {
 				index,
 				force: force ?? false,
@@ -298,6 +306,7 @@ export class AutoScrollLogic {
 
 		// Mark as programmatic before scrolling
 		this.markAuto();
+		recordHotPathDiagnostic("auto-scroll", "reveal-scrolling", distanceFromBottom);
 		logger.info("revealIndex", {
 			index,
 			force: force ?? false,
@@ -384,6 +393,9 @@ export class AutoScrollLogic {
 			return this.buildStateSnapshot(null);
 		}
 
+		const previousMetrics = this._lastScrollMetrics;
+		this._lastScrollMetrics = metrics;
+
 		// Content fits in viewport — reset, nothing to track
 		if (!metrics.canScroll) {
 			if (!this._following) {
@@ -396,6 +408,20 @@ export class AutoScrollLogic {
 		// Ignore scroll events triggered by our own scrollToBottom calls.
 		if (this.isAutoForMetrics(metrics)) {
 			log("scroll", "IGNORED (isAuto), dist=", metrics.distanceFromBottom);
+			return this.buildStateSnapshot(metrics);
+		}
+
+		const contentGrewWithoutUserScroll =
+			previousMetrics !== undefined &&
+			metrics.scrollSize > previousMetrics.scrollSize &&
+			metrics.scrollOffset >= previousMetrics.scrollOffset;
+
+		if (this._following && contentGrewWithoutUserScroll) {
+			log(
+				"scroll",
+				"IGNORED (content growth while following), dist=",
+				metrics.distanceFromBottom
+			);
 			return this.buildStateSnapshot(metrics);
 		}
 
@@ -426,6 +452,7 @@ export class AutoScrollLogic {
 		log("reset", "clearing state");
 		this._following = true;
 		this._autoMark = undefined;
+		this._lastScrollMetrics = undefined;
 	}
 }
 
@@ -497,6 +524,7 @@ export function createAutoScroll() {
 						deltaY: e.deltaY,
 					})
 				: false;
+		recordHotPathDiagnostic("auto-scroll", "wheel-event", e.deltaY);
 		logic.handleWheelIntent(e.deltaY, isNestedScrollable);
 		syncState(logic.getStateSnapshot());
 	}
@@ -508,8 +536,10 @@ export function createAutoScroll() {
 	 */
 	function handleScroll(): void {
 		if (rafId !== null) return;
+		recordHotPathDiagnostic("auto-scroll", "handle-scroll-scheduled");
 		rafId = requestAnimationFrame(() => {
 			rafId = null;
+			recordHotPathDiagnostic("auto-scroll", "handle-scroll-frame");
 			syncState(logic.handleScroll());
 		});
 	}

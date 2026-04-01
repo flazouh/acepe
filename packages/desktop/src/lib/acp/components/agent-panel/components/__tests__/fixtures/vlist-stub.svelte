@@ -23,6 +23,11 @@ type VListStubProps = {
 
 let { data, getKey, children, onscroll, ...rest }: VListStubProps = $props();
 
+function getSimulatedScrollSize(dataLength: number, itemSize: number | undefined): number {
+	const resolvedItemSize = itemSize === undefined ? 120 : itemSize;
+	return Math.max(320, dataLength * resolvedItemSize);
+}
+
 // Expose VListHandle-compatible methods for auto-scroll integration
 let _scrollOffset = 0;
 let _scrollSize = 320;
@@ -68,10 +73,12 @@ export function getItemSize(_index: number): number {
 
 // Test inspection helpers (not part of VListHandle)
 onMount(() => {
+	_scrollSize = getSimulatedScrollSize(data.length, rest.itemSize);
 	dataLengthHistory.push(data.length);
 });
 
 $effect(() => {
+	_scrollSize = getSimulatedScrollSize(data.length, rest.itemSize);
 	dataLengthHistory.push(data.length);
 });
 

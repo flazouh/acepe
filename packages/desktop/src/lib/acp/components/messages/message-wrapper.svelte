@@ -12,6 +12,7 @@ interface Props {
 	entryKey: string;
 	messageId?: string;
 	isFullscreen?: boolean;
+	observeRevealResize?: boolean;
 	revealEntryIndex?: (index: number, force?: boolean) => boolean;
 	children: Snippet;
 }
@@ -21,6 +22,7 @@ let {
 	entryKey,
 	messageId,
 	isFullscreen = false,
+	observeRevealResize = false,
 	revealEntryIndex,
 	children,
 }: Props = $props();
@@ -33,6 +35,7 @@ type RevealTargetActionParams = {
 	controller: ThreadFollowController | undefined;
 	entryIndex: number;
 	entryKey: string;
+	observeRevealResize: boolean;
 	revealEntryIndex?: (index: number, force?: boolean) => boolean;
 };
 
@@ -60,6 +63,10 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 			},
 		});
 
+		if (!nextParams.observeRevealResize) {
+			return;
+		}
+
 		observer = new ResizeObserver(() => {
 			nextParams.controller?.requestReveal(nextParams.entryKey);
 		});
@@ -84,6 +91,7 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 		controller: followController,
 		entryIndex,
 		entryKey,
+		observeRevealResize,
 		revealEntryIndex,
 	}}
 	class="py-1.5 px-3 {isFullscreen ? 'flex justify-center' : ''}"

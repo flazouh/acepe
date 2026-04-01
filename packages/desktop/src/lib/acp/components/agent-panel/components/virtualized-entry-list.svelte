@@ -22,6 +22,7 @@ import {
 } from "../logic/thread-follow-controller.svelte.js";
 import {
 	buildVirtualizedDisplayEntries,
+	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
 	isMergedThoughtAssistantDisplayEntry,
 	THINKING_DISPLAY_ENTRY,
@@ -112,8 +113,7 @@ const followController = new ThreadFollowController({
 	isNearBottom: () => autoScroll.isNearBottom(),
 	revealListBottom: (force?: boolean) => autoScroll.revealLatest(force),
 	getLatestTargetKey: () => {
-		const latestEntry = displayEntries.at(-1) ?? null;
-		return latestEntry ? getKey(latestEntry) : null;
+		return getLatestRevealTargetKey(displayEntries);
 	},
 	getLatestUserTargetKey: () => {
 		for (let i = displayEntries.length - 1; i >= 0; i -= 1) {
@@ -471,6 +471,7 @@ export function scrollToTop() {
 			entryIndex={index}
 			entryKey={getKey(entry)}
 			messageId={entry.type === "user" ? entry.id : undefined}
+			observeRevealResize={getKey(entry) === getLatestRevealTargetKey(displayEntries)}
 			revealEntryIndex={revealDisplayIndex}
 			{isFullscreen}
 		>

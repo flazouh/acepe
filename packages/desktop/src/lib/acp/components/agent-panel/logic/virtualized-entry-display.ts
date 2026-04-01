@@ -86,3 +86,25 @@ export function getVirtualizedDisplayEntryKey(entry: VirtualizedDisplayEntry): s
 	if (entry.type === "thinking") return entry.id;
 	return entry.id;
 }
+
+export function getLatestRevealTargetKey(
+	displayEntries: readonly VirtualizedDisplayEntry[]
+): string | null {
+	for (let i = displayEntries.length - 1; i >= 0; i -= 1) {
+		const entry = displayEntries[i];
+		if (!entry) {
+			continue;
+		}
+		if (entry.type === "thinking") {
+			continue;
+		}
+		return getVirtualizedDisplayEntryKey(entry);
+	}
+
+	const lastEntry = displayEntries.at(-1);
+	if (!lastEntry) {
+		return null;
+	}
+
+	return getVirtualizedDisplayEntryKey(lastEntry);
+}

@@ -9,6 +9,7 @@ import type { ToolCall } from "../../../../types/tool-call.js";
 import {
 	clearHistory,
 	dataLengthHistory,
+	scrollToIndexCalls,
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
 } from "./fixtures/vlist-stub-state.js";
@@ -100,6 +101,21 @@ function triggerResizeObservers(): void {
 	}
 }
 
+function triggerResizeObserversForEntryKey(entryKey: string): void {
+	for (const observer of resizeObservers) {
+		for (const target of observer.targets) {
+			if (!(target instanceof HTMLElement)) {
+				continue;
+			}
+			if (target.dataset.entryKey !== entryKey) {
+				continue;
+			}
+			observer.trigger();
+			break;
+		}
+	}
+}
+
 type QueuedAnimationFrame = {
 	id: number;
 	callback: FrameRequestCallback;
@@ -148,6 +164,12 @@ vi.mock("@acepe/ui", async () => ({
 	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
+
+vi.stubGlobal("localStorage", {
+	getItem: vi.fn(() => null),
+	setItem: vi.fn(),
+	removeItem: vi.fn(),
+});
 
 import VirtualizedEntryList from "../virtualized-entry-list.svelte";
 
@@ -352,6 +374,59 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		// ToolCallRouter is stubbed with user-message-stub
 		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
 		expect(stubs.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("reveals a growing tool call while the thinking indicator trails it", async () => {
+		const view = renderList({
+			entries: [createAssistantEntry("assistant-1", "latest")],
+			isWaitingForResponse: true,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		scrollToIndexCalls.length = 0;
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [
+				createAssistantEntry("assistant-1", "latest"),
+				createToolCallEntry("tool-1", null),
+			],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+
+		triggerResizeObserversForEntryKey("tool-1");
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.length).toBeGreaterThan(0);
+	});
+
+	it("observes resize only for the latest reveal target", async () => {
+		renderList({
+			entries: [
+				createUserEntry("user-1", "hello"),
+				createAssistantEntry("assistant-1", "latest"),
+				createToolCallEntry("tool-1", null),
+			],
+			isWaitingForResponse: true,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		const observedTargets = resizeObservers.flatMap((observer) => Array.from(observer.targets));
+		const observedEntryKeys = observedTargets
+			.filter((target): target is HTMLElement => target instanceof HTMLElement)
+			.map((target) => target.dataset.entryKey);
+
+		expect(observedEntryKeys).toEqual(["tool-1"]);
 	});
 
 	it("tracks last assistant id for streaming indicator", async () => {

@@ -8,6 +8,7 @@ import {
 	updateStreamingState,
 	type RevealProgress,
 } from "./text-reveal-model.js";
+import { recordHotPathDiagnostic } from "../../../utils/hot-path-diagnostics.js";
 
 /** Base reveal speed in characters per second. */
 const REVEAL_SKIP_SELECTOR = "svg, [data-reveal-skip]";
@@ -272,11 +273,13 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 			return;
 		}
 
+		recordHotPathDiagnostic("text-reveal", "animation-scheduled");
 		animFrameId = requestAnimationFrame((frameTime) => animate(frameTime));
 	}
 
 	function animate(frameTime: number) {
 		animFrameId = null;
+		recordHotPathDiagnostic("text-reveal", "animation-frame");
 		flushPendingMutations();
 		suppressImmediateReindex = false;
 
@@ -293,13 +296,20 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 	function onDomMutation(mutations: MutationRecord[]) {
 		const dirtyTextNodes = collectDirtyTextNodes(mutations);
 		const hasStructuralMutation = mutations.some((mutation) => mutation.type !== "characterData");
+		recordHotPathDiagnostic("text-reveal", "mutation-batch", mutations.length);
+		recordHotPathDiagnostic("text-reveal", "dirty-text-nodes", dirtyTextNodes.size);
+		if (hasStructuralMutation) {
+			recordHotPathDiagnostic("text-reveal", "mutation-structural");
+		}
 
 		if (!shouldReindexForMutations(mutations)) {
+			recordHotPathDiagnostic("text-reveal", "mutation-skipped-reindex");
 			scheduleAnimation();
 			return;
 		}
 
 		if (!progress.isStreaming || hasStructuralMutation || !suppressImmediateReindex) {
+			recordHotPathDiagnostic("text-reveal", "reindex-immediate");
 			pendingDirtyTextNodes = new Set<Text>();
 			hasPendingReindex = false;
 			cleanupFadeSpan();
@@ -320,6 +330,7 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 		for (const dirtyTextNode of dirtyTextNodes) {
 			pendingDirtyTextNodes.add(dirtyTextNode);
 		}
+		recordHotPathDiagnostic("text-reveal", "reindex-deferred");
 		hasPendingReindex = true;
 		scheduleAnimation();
 	}
@@ -338,6 +349,10 @@ export function createTextReveal(container: HTMLElement): TextRevealController {
 				return;
 			}
 
+			recordHotPathDiagnostic(
+				"text-reveal",
+				nextIsStreaming ? "streaming-start" : "streaming-stop"
+			);
 			progress = updateStreamingState(progress, nextIsStreaming);
 			if (!nextIsStreaming) {
 				flushPendingMutations();
