@@ -10,9 +10,9 @@ const attentionQueueIndexSource = readFileSync(resolve(import.meta.dir, "./index
 const rootUiIndexSource = readFileSync(resolve(import.meta.dir, "../../index.ts"), "utf8");
 
 describe("attention queue subagent card contract", () => {
-	it("uses shared tool icon and file chip primitives", () => {
+	it("uses the shared task header, latest tool row, and tally primitives", () => {
 		expect(componentSource).toContain("Robot");
-		expect(componentSource).toContain("FilePathBadge");
+		expect(componentSource).toContain("AgentToolRow");
 		expect(componentSource).toContain("ToolTally");
 		expect(componentSource).toContain('iconBasePath="/svgs/icons"');
 		expect(componentSource).toContain('data-testid="queue-subagent-card"');

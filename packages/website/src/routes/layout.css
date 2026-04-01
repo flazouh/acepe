@@ -39,6 +39,7 @@
 	--input: #313131;
 	--ring: #30373a;
 	--success: var(--token-build-icon-dark);
+	--success-reference: var(--token-success-dark);
 	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-dark);
@@ -88,6 +89,7 @@
 	--card: #F2EFE9;
 	--card-foreground: #0A0A09;
 	--success: var(--token-success-light);
+	--success-reference: var(--token-success-light);
 	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);

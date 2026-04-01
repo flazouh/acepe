@@ -8,6 +8,7 @@
 		type KanbanColumnGroup,
 		type KanbanPermissionData,
 		type KanbanQuestionData,
+		type KanbanToolData,
 	} from "@acepe/ui";
 	import type { QueueItem } from "$lib/acp/store/queue/types.js";
 	import type { QueueSectionId } from "$lib/acp/store/queue/queue-section-utils.js";
@@ -26,10 +27,18 @@
 		getQueueStore,
 		getQuestionStore,
 	} from "$lib/acp/store/index.js";
+	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 	import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { getQueueItemToolDisplay } from "$lib/acp/components/queue/queue-item-display.js";
+	import KanbanNewSessionDialog from "./kanban-new-session-dialog.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+
+	interface Props {
+		projectManager: ProjectManager;
+	}
+
+	let { projectManager }: Props = $props();
 
 	const panelStore = getPanelStore();
 	const queueStore = getQueueStore();
@@ -51,7 +60,6 @@
 		"planning",
 		"working",
 		"finished",
-		"error",
 	];
 
 	// NOTE: SECTION_LABELS is also defined in queue-section.svelte. Both are
@@ -81,9 +89,33 @@
 
 		const isStreaming =
 			item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";
-		const modeLabel: string | null = item.currentModeId === "plan" ? "Plan" : null;
 		const normalizedTitle = normalizeTitleForDisplay(item.title ? item.title : "");
 		const timeAgo = formatTimeAgo(item.lastActivityAt);
+
+		const latestTool: KanbanToolData | null = (() => {
+			if (!toolDisplay) return null;
+			const tc = toolDisplay.toolCall;
+			const displayTitle = getToolCompactDisplayText(
+				toolDisplay.toolKind,
+				tc,
+				toolDisplay.turnState
+			);
+			const filePath =
+				tc.locations && tc.locations.length > 0 && tc.locations[0]
+					? tc.locations[0].path
+					: undefined;
+			const status = tc.status === "completed" ? "done" as const
+				: tc.status === "failed" ? "error" as const
+				: tc.status === "in_progress" ? "running" as const
+				: "pending" as const;
+			return {
+				id: tc.id,
+				kind: toolDisplay.toolKind ? toolDisplay.toolKind : undefined,
+				title: displayTitle ? displayTitle : tc.name,
+				filePath,
+				status,
+			};
+		})();
 
 		return {
 			id: item.sessionId,
@@ -95,13 +127,15 @@
 			timeAgo: timeAgo ? timeAgo : "",
 			activityText,
 			isStreaming,
-			modeLabel,
+			modeId: item.currentModeId,
 			diffInsertions: item.insertions,
 			diffDeletions: item.deletions,
 			errorText: item.state.connection === "error" ? "Connection error" : null,
 			todoProgress: item.todoProgress
 				? { current: item.todoProgress.current, total: item.todoProgress.total }
 				: null,
+			latestTool,
+			toolCalls: [],
 		};
 	}
 
@@ -219,29 +253,37 @@
 	}
 </script>
 
-<KanbanBoard {groups} emptyHint="No sessions">
-	{#snippet cardRenderer(card)}
-		{@const item = itemLookup.get(card.id)}
-		<KanbanCard {card} onclick={() => handleCardClick(card.id)}>
-			{#snippet footer()}
-				{#if item}
-					{@const permData = getPermissionData(item)}
-					{@const questData = getQuestionData(item)}
-					{#if permData}
-						<KanbanPermissionFooter
-							permission={permData}
-							onApprove={() => handleApprovePermission(card.id)}
-							onReject={() => handleRejectPermission(card.id)}
-						/>
-					{:else if questData}
-						<KanbanQuestionFooter
-							question={questData}
-							onSelectOption={(i) => handleSelectOption(card.id, i)}
-							onSubmit={() => handleSubmitQuestion(card.id)}
-						/>
-					{/if}
-				{/if}
+<div class="flex h-full min-h-0 flex-col">
+	<div class="flex shrink-0 items-center justify-end px-2 pt-2">
+		<KanbanNewSessionDialog {projectManager} />
+	</div>
+
+	<div class="min-h-0 flex-1">
+		<KanbanBoard {groups} emptyHint="No sessions">
+			{#snippet cardRenderer(card)}
+				{@const item = itemLookup.get(card.id)}
+				<KanbanCard {card} onclick={() => handleCardClick(card.id)}>
+					{#snippet footer()}
+						{#if item}
+							{@const permData = getPermissionData(item)}
+							{@const questData = getQuestionData(item)}
+							{#if permData}
+								<KanbanPermissionFooter
+									permission={permData}
+									onApprove={() => handleApprovePermission(card.id)}
+									onReject={() => handleRejectPermission(card.id)}
+								/>
+							{:else if questData}
+								<KanbanQuestionFooter
+									question={questData}
+									onSelectOption={(i) => handleSelectOption(card.id, i)}
+									onSubmit={() => handleSubmitQuestion(card.id)}
+								/>
+							{/if}
+						{/if}
+					{/snippet}
+				</KanbanCard>
 			{/snippet}
-		</KanbanCard>
-	{/snippet}
-</KanbanBoard>
+		</KanbanBoard>
+	</div>
+</div>

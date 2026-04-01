@@ -53,6 +53,7 @@
 	--destructive: hsl(0 70% 35.2941%);
 	--destructive-foreground: hsl(0 0% 100%);
 	--success: var(--token-success-light);
+	--success-reference: var(--token-success-light);
 	--success-foreground: hsl(0 0% 100%);
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);
@@ -119,8 +120,9 @@
 	--accent: #303030; /* hover/selected item background */
 	--accent-foreground: #ffffff; /* list.hoverForeground */
 	--destructive: #bf616a; /* editorError.foreground */
-	/* Dark: semantic success matches build accent (Colors.green) */
+	/* Dark: build accent is separate from success-reference surfaces. */
 	--success: var(--token-build-icon-dark);
+	--success-reference: var(--token-success-dark);
 	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-dark);

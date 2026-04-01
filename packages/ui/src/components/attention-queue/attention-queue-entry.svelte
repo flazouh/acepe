@@ -126,11 +126,15 @@ let {
 }: Props = $props();
 
 const taskWidgetSummary = $derived.by(() => {
+	if (taskDescription && taskDescription.trim().length > 0) {
+		return taskDescription;
+	}
+
 	if (taskSubagentSummaries.length > 0) {
 		return taskSubagentSummaries[taskSubagentSummaries.length - 1] ?? null;
 	}
 
-	return taskDescription;
+	return null;
 });
 const taskTallyToolCalls = $derived.by((): AgentToolEntry[] => {
 	if (!showTaskSubagentList || taskSubagentSummaries.length === 0) {

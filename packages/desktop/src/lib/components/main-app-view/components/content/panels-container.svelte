@@ -395,7 +395,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				/>
 			{/if}
 		{:else if viewModeState.layout === "kanban"}
-			<KanbanView />
+			<KanbanView {projectManager} />
 		{:else}
 			<!-- Project/Multi mode: panels grouped by project; hide inactive in focused view so they stay mounted -->
 		{#each allGroups as group (group.projectPath)}

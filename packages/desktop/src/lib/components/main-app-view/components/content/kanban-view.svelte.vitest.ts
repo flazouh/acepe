@@ -13,11 +13,9 @@ describe("kanban empty-column contract", () => {
 		const source = readFileSync(kanbanViewPath, "utf8");
 
 		expect(source).toContain("const SECTION_ORDER: readonly QueueSectionId[] = [");
-		expect(source).toContain('"answer_needed"');
-		expect(source).toContain('"planning"');
-		expect(source).toContain('"working"');
-		expect(source).toContain('"finished"');
-		expect(source).toContain('"error"');
+		expect(source).toContain(
+			'const SECTION_ORDER: readonly QueueSectionId[] = [\n\t\t"answer_needed",\n\t\t"planning",\n\t\t"working",\n\t\t"finished",\n\t];'
+		);
 		expect(source).toContain("SECTION_ORDER.map((sectionId) => {");
 		expect(source).toContain(
 			"const section = queueStore.sections.find((section) => section.id === sectionId);"

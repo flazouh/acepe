@@ -26,11 +26,15 @@ describe("modified-files-header structure", () => {
 		expect(source).toContain("m.review_keep()");
 	});
 
-	it("renders an applied keep-all state with a success icon once every file is accepted", () => {
+	it("renders an applied keep-all state as a neutral disabled button once every file is accepted", () => {
 		expect(source).toContain("const isKeepAllApplied = $derived.by(() => {");
 		expect(source).not.toContain('from "$lib/paraglide/messages/review_applied.js"');
 		expect(source).toContain("m.review_applied()");
 		expect(source).toContain("<CheckCircle");
+		expect(source).toContain(
+			'class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-100"'
+		);
+		expect(source).not.toContain("border-success/30 bg-success/10");
 	});
 
 	it("renders review before keep in the right-side action cluster", () => {

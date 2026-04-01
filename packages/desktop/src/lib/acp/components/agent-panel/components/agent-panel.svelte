@@ -48,6 +48,7 @@ import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-
 import { loadWorktreeEnabled } from "../../worktree-toggle/worktree-storage.js";
 import { usePlanLoader } from "../hooks";
 import {
+	createWorktreeSetupMatchContext,
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,
 	createWorktreeCreationState,
@@ -441,7 +442,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	const pendingSetup = panelId ? panelStore.getHotState(panelId).pendingWorktreeSetup : null;
+	const pendingSetup = pendingWorktreeSetup;
 	if (!pendingSetup) {
 		return;
 	}
@@ -457,8 +458,8 @@ $effect(() => {
 });
 
 $effect(() => {
-	const projectPaths = worktreeSetupProjectPaths;
-	const worktreePaths = worktreeSetupWorktreePaths;
+	const projectPaths = worktreeSetupMatchContext.projectPaths;
+	const worktreePaths = worktreeSetupMatchContext.worktreePaths;
 	if (projectPaths.length === 0 && worktreePaths.length === 0) {
 		return;
 	}
@@ -497,8 +498,11 @@ $effect(() => {
 	const state = worktreeSetupState;
 	if (!state) return;
 
-	if (worktreeSetupWorktreePaths.length > 0) {
-		if (!state.worktreePath || !worktreeSetupWorktreePaths.includes(state.worktreePath)) {
+	if (worktreeSetupMatchContext.worktreePaths.length > 0) {
+		if (
+			!state.worktreePath ||
+			!worktreeSetupMatchContext.worktreePaths.includes(state.worktreePath)
+		) {
 			worktreeSetupState = null;
 			if (panelId) {
 				panelStore.clearPendingWorktreeSetup(panelId);
@@ -507,7 +511,10 @@ $effect(() => {
 		return;
 	}
 
-	if (!worktreeSetupProjectPaths.includes(state.projectPath)) {
+	if (
+		worktreeSetupMatchContext.projectPaths.length > 0 &&
+		!worktreeSetupMatchContext.projectPaths.includes(state.projectPath)
+	) {
 		worktreeSetupState = null;
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
@@ -560,20 +567,6 @@ const inputRenderKey = $derived(
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
-const worktreeSetupProjectPaths = $derived.by(() => {
-	const candidates = [
-		sessionProjectPath,
-		worktreeToggleProjectPath,
-		project?.path ?? null,
-		projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
-	];
-
-	return [...new Set(candidates.filter((value): value is string => Boolean(value)))];
-});
-const worktreeSetupWorktreePaths = $derived.by(() => {
-	const candidates = [effectiveActiveWorktreePath, sessionWorktreePath];
-	return [...new Set(candidates.filter((value): value is string => Boolean(value)))];
-});
 const _activeWorktreeName = $derived.by(() => {
 	const worktreePath = effectiveActiveWorktreePath;
 	if (!worktreePath) return null;
@@ -599,6 +592,18 @@ let prFetchError = $state<string | null>(null);
 let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(null);
 let prCardRenderKey = $state(0);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
+const worktreeSetupMatchContext = $derived.by(() => {
+	const activeSetupState =
+		worktreeSetupState && worktreeSetupState.isVisible ? worktreeSetupState : null;
+
+	return createWorktreeSetupMatchContext({
+		pendingSetupProjectPath: pendingWorktreeSetup ? pendingWorktreeSetup.projectPath : null,
+		pendingSetupWorktreePath: pendingWorktreeSetup ? pendingWorktreeSetup.worktreePath : null,
+		currentSetupProjectPath: activeSetupState ? activeSetupState.projectPath : null,
+		currentSetupWorktreePath: activeSetupState ? activeSetupState.worktreePath : null,
+	});
+});
 /** Derived: is the selected agent currently being installed? */
 const agentInstallState = $derived.by(() => {
 	if (!selectedAgentId) return null;
@@ -1694,6 +1699,16 @@ function handleCheckpointRevertComplete() {
 									</div>
 								</div>
 							{/if}
+							{#if sessionId}
+								<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
+									<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
+										<PermissionBar
+											sessionId={sessionId}
+											projectPath={effectiveProjectPath ?? sessionProjectPath}
+										/>
+									</div>
+								</div>
+							{/if}
 							{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
 								<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 									<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
@@ -1748,16 +1763,6 @@ function handleCheckpointRevertComplete() {
 								<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 									<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
 										<QueueCardStrip {sessionId} />
-									</div>
-								</div>
-							{/if}
-							{#if sessionId}
-								<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
-									<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-										<PermissionBar
-											sessionId={sessionId}
-											projectPath={effectiveProjectPath ?? sessionProjectPath}
-										/>
 									</div>
 								</div>
 							{/if}

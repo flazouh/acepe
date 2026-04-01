@@ -5,11 +5,12 @@ export function sectionColor(id: SectionedFeedSectionId): string {
 	switch (id) {
 		case "answer_needed":
 			return Colors.orange;
-		case "working":
 		case "planning":
-			return Colors.purple;
+			return "var(--plan-icon)";
+		case "working":
+			return "var(--build-icon)";
 		case "finished":
-			return Colors.green;
+			return "var(--success-reference)";
 		case "error":
 			return Colors.red;
 	}

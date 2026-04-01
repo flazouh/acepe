@@ -2,10 +2,10 @@
 	import CheckCircle from "phosphor-svelte/lib/CheckCircle";
 	import Keyboard from "phosphor-svelte/lib/Keyboard";
 	import Warning from "phosphor-svelte/lib/Warning";
-	import IconHammer from "@tabler/icons-svelte/icons/hammer";
 	import type { SectionedFeedSectionId } from "./types.js";
 
 	import BuildIcon from "../icons/build-icon.svelte";
+	import PlanIcon from "../icons/plan-icon.svelte";
 
 	interface Props {
 		sectionId: SectionedFeedSectionId;
@@ -24,7 +24,7 @@
 		{:else if sectionId === "working"}
 			<BuildIcon size="sm" class="shrink-0" />
 		{:else if sectionId === "planning"}
-			<IconHammer class="size-3 shrink-0" style="fill: {color};" />
+			<PlanIcon size="sm" />
 		{:else if sectionId === "finished"}
 			<CheckCircle class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "error"}

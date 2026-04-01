@@ -1,4 +1,13 @@
+import type { AgentToolEntry } from "../agent-panel/types.js";
 import type { SectionedFeedSectionId } from "../attention-queue/types.js";
+
+export interface KanbanToolData {
+	readonly id: string;
+	readonly kind?: string;
+	readonly title: string;
+	readonly filePath?: string;
+	readonly status: "pending" | "running" | "done" | "error";
+}
 
 export interface KanbanCardData {
 	readonly id: string;
@@ -10,11 +19,13 @@ export interface KanbanCardData {
 	readonly timeAgo: string;
 	readonly activityText: string | null;
 	readonly isStreaming: boolean;
-	readonly modeLabel: string | null;
+	readonly modeId: string | null;
 	readonly diffInsertions: number;
 	readonly diffDeletions: number;
 	readonly errorText: string | null;
 	readonly todoProgress: { current: number; total: number } | null;
+	readonly latestTool: KanbanToolData | null;
+	readonly toolCalls: readonly AgentToolEntry[];
 }
 
 export interface KanbanColumnGroup {

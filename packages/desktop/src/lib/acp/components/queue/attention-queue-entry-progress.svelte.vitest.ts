@@ -80,7 +80,7 @@ describe("ActivityEntry todo progress", () => {
 		).toHaveLength(2);
 	});
 
-	it("renders one compact task card with the latest child summary and a tally strip", () => {
+	it("renders the parent task label in the header with the default tally footer", () => {
 		const { container, getByText, queryByText } = render(ActivityEntry, {
 			selected: false,
 			latestTaskSubagentTool: null,
@@ -91,7 +91,7 @@ describe("ActivityEntry todo progress", () => {
 			insertions: 0,
 			deletions: 0,
 			isStreaming: true,
-			taskDescription: null,
+			taskDescription: "Explore GitHub endpoints",
 			taskSubagentSummaries: [
 				"github.com",
 				"raw.githubusercontent.com",
@@ -128,7 +128,8 @@ describe("ActivityEntry todo progress", () => {
 		});
 
 		expect(container.querySelectorAll("[data-testid='queue-subagent-card']")).toHaveLength(1);
-		expect(getByText("api.github.com")).toBeTruthy();
+		expect(getByText("Explore GitHub endpoints")).toBeTruthy();
+		expect(queryByText("api.github.com")).toBeNull();
 		expect(queryByText("github.com")).toBeNull();
 		expect(queryByText("raw.githubusercontent.com")).toBeNull();
 
@@ -141,10 +142,11 @@ describe("ActivityEntry todo progress", () => {
 
 		const tally = card?.querySelector('[title="3 tool calls"]');
 		expect(tally).toBeTruthy();
+		expect(tally?.className).toContain("border-t");
 		expect(tally?.children).toHaveLength(3);
 	});
 
-	it("renders the latest task child file chip in the header with svg icons and no duplicate body chip", () => {
+	it("renders a robot header label and the latest file row below it with one svg chip", () => {
 		const fullPath = "packages/desktop/src-tauri/src/acp/parsers/claude_code_parser.rs";
 		const { container, queryByText } = render(ActivityEntry, {
 			selected: false,
@@ -155,7 +157,7 @@ describe("ActivityEntry todo progress", () => {
 			insertions: 0,
 			deletions: 0,
 			isStreaming: true,
-			taskDescription: null,
+			taskDescription: "Explore parser regression",
 			taskSubagentSummaries: ["Investigate parser regression", fullPath],
 			latestTaskSubagentTool: {
 				id: "child-2",
@@ -199,10 +201,12 @@ describe("ActivityEntry todo progress", () => {
 		const fileChip = card?.querySelector(fileChipSelector);
 		expect(card?.querySelectorAll(fileChipSelector)).toHaveLength(1);
 		expect(fileChip).toBeTruthy();
-		expect(card?.firstElementChild?.querySelector(fileChipSelector)).toBeTruthy();
+		expect(card?.firstElementChild?.textContent).toContain("Explore parser regression");
+		expect(card?.firstElementChild?.querySelector(fileChipSelector)).toBeNull();
+		expect(card?.children[1]?.querySelector(fileChipSelector)).toBeTruthy();
 		expect(fileChip?.textContent).toContain("claude_code_parser.rs");
 		expect(card?.querySelector("img.file-icon")?.getAttribute("src")).toContain("/svgs/icons/");
 		expect(queryByText(fullPath)).toBeNull();
-		expect(card?.querySelector("svg[fill='currentColor']")).toBeTruthy();
+		expect(card?.querySelectorAll("svg[fill='currentColor']").length).toBeGreaterThan(0);
 	});
 });

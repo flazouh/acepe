@@ -9,7 +9,7 @@
   /** Reference green for dark success-adjacent UIs not tied to build token */
   --token-success-dark: #16db95;
   /** Build accent + dark --success (same as Colors.green) */
-  --token-build-icon-dark: #15db95;
+    --token-build-icon-dark: #99ffe4;
   /** Plan / pencil-ruler icon — light: same as Colors.orange */
   --token-plan-icon-light: #ff8d20;
   --token-plan-icon-dark: #ffc799;

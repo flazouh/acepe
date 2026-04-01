@@ -9,4 +9,5 @@ export type {
 	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
+	KanbanToolData,
 } from "./types.js";

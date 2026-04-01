@@ -18,6 +18,7 @@ export {
 	createResolvedWorktreeCloseConfirmationState,
 } from "./worktree-close-confirmation";
 export {
+	createWorktreeSetupMatchContext,
 	createWorktreeCreationState,
 	matchesWorktreeSetupContext,
 	reduceWorktreeSetupEvent,

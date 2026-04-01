@@ -54,12 +54,23 @@ export function getQueueItemToolDisplay(
 }
 
 function getTaskDescription(toolCall: ToolCall): string | null {
-	if (toolCall.arguments.kind !== "think" || !toolCall.arguments.description) {
+	if (toolCall.arguments.kind !== "think") {
 		return null;
 	}
 
-	const trimmedDescription = toolCall.arguments.description.trim();
-	return trimmedDescription.length > 0 ? trimmedDescription : null;
+	if (toolCall.arguments.description) {
+		const trimmedDescription = toolCall.arguments.description.trim();
+		if (trimmedDescription.length > 0) {
+			return trimmedDescription;
+		}
+	}
+
+	if (toolCall.arguments.subagent_type) {
+		const trimmedSubagentType = toolCall.arguments.subagent_type.trim();
+		return trimmedSubagentType.length > 0 ? trimmedSubagentType : null;
+	}
+
+	return null;
 }
 
 function getChildSummary(child: ToolCall): string | null {
@@ -122,7 +133,7 @@ export function getQueueItemTaskDisplay(
 
 	if (taskSubagentSummaries.length > 0) {
 		return {
-			taskDescription: null,
+			taskDescription: getTaskDescription(toolCall),
 			taskSubagentSummaries,
 			latestTaskSubagentTool,
 			showTaskSubagentList: true,

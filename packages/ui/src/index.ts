@@ -175,6 +175,7 @@ export type {
 	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
+	KanbanToolData,
 } from "./components/kanban/index.js";
 export {
 	KanbanBoard,

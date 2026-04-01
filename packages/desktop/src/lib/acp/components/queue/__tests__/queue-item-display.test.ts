@@ -97,7 +97,7 @@ describe("getTaskSubagentSummaries", () => {
 });
 
 describe("getQueueItemTaskDisplay", () => {
-	it("prefers child subagent widgets over the parent task description", () => {
+	it("keeps the parent task label for the card header while showing child tool details", () => {
 		const taskTool = createTaskToolCall([
 			createSubagentChild("child-1", "Explore community board and email notification code"),
 			createSubagentChild("child-2", "Trace queue item rendering for task tools"),
@@ -106,7 +106,7 @@ describe("getQueueItemTaskDisplay", () => {
 		const display = getQueueItemTaskDisplay(taskTool, "task", "completed");
 
 		expect(display).toEqual({
-			taskDescription: null,
+			taskDescription: "Parent task",
 			taskSubagentSummaries: [
 				"Explore community board and email notification code",
 				"Trace queue item rendering for task tools",

@@ -5,6 +5,13 @@ export interface WorktreeSetupMatchContext {
 	readonly worktreePaths: readonly string[];
 }
 
+export interface WorktreeSetupMatchContextOptions {
+	readonly pendingSetupProjectPath: string | null;
+	readonly pendingSetupWorktreePath: string | null;
+	readonly currentSetupProjectPath: string | null;
+	readonly currentSetupWorktreePath: string | null;
+}
+
 export interface WorktreeSetupState {
 	readonly projectPath: string;
 	readonly worktreePath: string | null;
@@ -31,6 +38,49 @@ export function createWorktreeCreationState(options: {
 		activeCommand: null,
 		outputText: "",
 		error: null,
+	};
+}
+
+function collectUniquePaths(values: readonly (string | null)[]): string[] {
+	const unique: string[] = [];
+
+	for (const value of values) {
+		if (!value) {
+			continue;
+		}
+
+		if (unique.includes(value)) {
+			continue;
+		}
+
+		unique.push(value);
+	}
+
+	return unique;
+}
+
+export function createWorktreeSetupMatchContext(
+	options: WorktreeSetupMatchContextOptions
+): WorktreeSetupMatchContext {
+	const worktreePaths = collectUniquePaths([
+		options.pendingSetupWorktreePath,
+		options.currentSetupWorktreePath,
+	]);
+	if (worktreePaths.length > 0) {
+		return {
+			projectPaths: [],
+			worktreePaths,
+		};
+	}
+
+	const projectPaths = collectUniquePaths([
+		options.pendingSetupProjectPath,
+		options.currentSetupProjectPath,
+	]);
+
+	return {
+		projectPaths,
+		worktreePaths: [],
 	};
 }
 
@@ -133,6 +183,10 @@ export function matchesWorktreeSetupContext(
 ): boolean {
 	if (context.worktreePaths.length > 0) {
 		return context.worktreePaths.includes(event.worktreePath);
+	}
+
+	if (context.projectPaths.length === 0) {
+		return false;
 	}
 
 	return context.projectPaths.includes(event.projectPath);

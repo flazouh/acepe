@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WorktreeSetupEvent } from "$lib/acp/types/worktree-setup.js";
 
 import {
+	createWorktreeSetupMatchContext,
 	createWorktreeCreationState,
 	matchesWorktreeSetupContext,
 	reduceWorktreeSetupEvent,
@@ -137,6 +138,44 @@ describe("reduceWorktreeSetupEvent", () => {
 });
 
 describe("matchesWorktreeSetupContext", () => {
+	it("does not subscribe panels without an explicit in-flight setup", () => {
+		const context = createWorktreeSetupMatchContext({
+			pendingSetupProjectPath: null,
+			pendingSetupWorktreePath: null,
+			currentSetupProjectPath: null,
+			currentSetupWorktreePath: null,
+		});
+
+		expect(context.projectPaths).toEqual([]);
+		expect(context.worktreePaths).toEqual([]);
+		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(false);
+	});
+
+	it("tracks the initiating panel by project path before the worktree path is known", () => {
+		const context = createWorktreeSetupMatchContext({
+			pendingSetupProjectPath: "/repo",
+			pendingSetupWorktreePath: null,
+			currentSetupProjectPath: null,
+			currentSetupWorktreePath: null,
+		});
+
+		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(true);
+	});
+
+	it("continues tracking the same panel by worktree path after setup starts", () => {
+		const context = createWorktreeSetupMatchContext({
+			pendingSetupProjectPath: null,
+			pendingSetupWorktreePath: null,
+			currentSetupProjectPath: "/repo",
+			currentSetupWorktreePath: "/wt/repo-a",
+		});
+
+		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(true);
+		expect(
+			matchesWorktreeSetupContext(createEvent({ worktreePath: "/wt/repo-b" }), context)
+		).toBe(false);
+	});
+
 	it("prefers worktree path matching when the panel already knows a worktree", () => {
 		expect(
 			matchesWorktreeSetupContext(createEvent(), {

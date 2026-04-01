@@ -46,11 +46,26 @@ describe("kanban UI contract", () => {
 
 		const cardSource = readFileSync(kanbanCardPath, "utf8");
 
-		expect(cardSource).toContain('from "../../lib/colors.js"');
-		expect(cardSource).not.toContain('$lib/colors.js');
-		expect(cardSource).toContain("Colors.purple");
+		expect(cardSource).toContain("ProjectLetterBadge");
+		expect(cardSource).toContain("PlanIcon");
+		expect(cardSource).toContain("BuildIcon");
+		expect(cardSource).toContain("SegmentedProgress");
+		expect(cardSource).toContain("DiffPill");
+		expect(cardSource).toContain("AgentToolRow");
+		expect(cardSource).toContain("ToolTally");
 		expect(cardSource).toContain("TextShimmer");
 		expect(cardSource).toContain('data-testid="kanban-card"');
 		expect(cardSource).toContain('data-testid="kanban-card-accent"');
+		expect(cardSource).toContain('data-testid="kanban-card-header"');
+		expect(cardSource).toContain('data-testid="kanban-card-tally"');
+	});
+
+	it("makes the kanban board claim the available width in flex layouts", () => {
+		expect(existsSync(kanbanBoardPath)).toBe(true);
+		if (!existsSync(kanbanBoardPath)) return;
+
+		const boardSource = readFileSync(kanbanBoardPath, "utf8");
+
+		expect(boardSource).toContain('class="flex h-full w-full min-w-0 flex-1');
 	});
 });
