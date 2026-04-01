@@ -136,7 +136,7 @@ setSessionListHighlightContext(highlightContext);
 <div class="flex flex-col gap-0.5 py-0 p-0 relative min-h-0 min-w-0" bind:this={containerRef}>
 	<div
 		bind:this={highlightRef}
-		class="pointer-events-none absolute rounded-md bg-accent/50 opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"
+		class="pointer-events-none absolute bg-accent/50 opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"
 		aria-hidden="true"
 	></div>
 	{#each rows as row (row.item.id)}
