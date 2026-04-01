@@ -221,6 +221,11 @@ export class SessionMessagingService {
 			status: "ready",
 			turnState: "completed",
 		});
+
+		// Mark any still-streaming tool call entries as not streaming
+		// so pending tools stop shimmering in the queue and thread views.
+		this.entryManager.finalizeStreamingEntries(sessionId);
+
 		logger.info("Stream completed - checking for auto-checkpoint", { sessionId });
 
 		// Create auto-checkpoint if files were modified

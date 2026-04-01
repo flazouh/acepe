@@ -47,10 +47,10 @@ describe("convertTaskChildren", () => {
 			expect(result[0].status).toBe("running");
 		});
 
-		it("maps 'in_progress' to 'pending' when turn is not streaming", () => {
+		it("maps 'in_progress' to 'done' when turn is not streaming", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "in_progress" })];
 			const result = convertTaskChildren(children, "completed");
-			expect(result[0].status).toBe("pending");
+			expect(result[0].status).toBe("done");
 		});
 
 		it("maps non-terminal status to 'done' when result is present", () => {
@@ -63,6 +63,12 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children, "streaming");
+			expect(result[0].status).toBe("done");
+		});
+
+		it("maps unfinished child to 'done' when the parent task completed successfully", () => {
+			const children = [createChild({ id: "t1", kind: "read", status: "in_progress" })];
+			const result = convertTaskChildren(children, "completed", true);
 			expect(result[0].status).toBe("done");
 		});
 

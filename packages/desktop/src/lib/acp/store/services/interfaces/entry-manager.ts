@@ -98,4 +98,10 @@ export interface IEntryManager {
 	 * Clear any in-progress assistant aggregation state for a session.
 	 */
 	clearStreamingAssistantEntry(sessionId: string): void;
+
+	/**
+	 * Mark all still-streaming tool call entries as not streaming.
+	 * Called on turn completion so pending tools stop shimmering.
+	 */
+	finalizeStreamingEntries(sessionId: string): void;
 }

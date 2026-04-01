@@ -6,8 +6,7 @@ import CaretRight from "phosphor-svelte/lib/CaretRight";
 import CaretLeft from "phosphor-svelte/lib/CaretLeft";
 import type { Snippet } from "svelte";
 
-import type { AgentToolEntry } from "../agent-panel/types.js";
-import ToolTally from "../agent-panel/tool-tally.svelte";
+import type { AgentToolEntry, AgentToolKind, AgentToolStatus } from "../agent-panel/types.js";
 import { TextShimmer } from "../text-shimmer/index.js";
 import { DiffPill } from "../diff-pill/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
@@ -22,6 +21,13 @@ import type {
 } from "./types.js";
 
 interface Props {
+	latestTaskSubagentTool: {
+		id: string;
+		kind?: AgentToolKind;
+		title: string;
+		filePath?: string;
+		status: AgentToolStatus;
+	} | null;
 	selected?: boolean;
 	onSelect: () => void;
 	mode: ActivityEntryMode;
@@ -73,6 +79,7 @@ interface Props {
 
 let {
 	selected = false,
+	latestTaskSubagentTool,
 	onSelect,
 	mode,
 	title,
@@ -192,49 +199,62 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 		</div>
 
 		{#if showMainRow && hasMainRowContent}
-			<div class="flex items-start gap-1.5">
-				{#if showTaskWidget && taskWidgetSummary}
-					<div class="flex max-w-[60%] min-w-0 flex-col gap-1">
-						<QueueSubagentCard summary={taskWidgetSummary} isStreaming={isStreaming} />
-						{#if taskTallyToolCalls.length > 0}
-							<ToolTally toolCalls={taskTallyToolCalls} inline />
-						{/if}
+			{#if showTaskWidget && taskWidgetSummary}
+				<div class="flex w-full min-w-0 flex-col gap-1">
+					<div class="flex w-full min-w-0 flex-col gap-1">
+						<QueueSubagentCard
+							summary={taskWidgetSummary}
+							isStreaming={isStreaming}
+							latestTool={latestTaskSubagentTool}
+							toolCalls={taskTallyToolCalls}
+						/>
 					</div>
-				{:else if fileToolDisplayText}
-					<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
-						{#if isStreaming}
-							<TextShimmer class="truncate">{fileToolDisplayText}</TextShimmer>
-						{:else}
-							<span class="truncate">{fileToolDisplayText}</span>
-						{/if}
-					</div>
-				{:else if toolContent}
-					<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
-						{#if showToolShimmer}
-							<TextShimmer class="truncate">{toolContent}</TextShimmer>
-						{:else}
-							<span class="truncate">{toolContent}</span>
-						{/if}
-					</div>
-				{:else if statusText}
-					<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
-						{#if showStatusShimmer}
-							<TextShimmer class="truncate">{statusText}</TextShimmer>
-						{:else}
-							<span class="truncate">{statusText}</span>
-						{/if}
-					</div>
-				{/if}
 
-				<div class="flex-1"></div>
+					{#if todoProgress}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
+							<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
+							<span class="truncate text-foreground/70">{todoProgress.label}</span>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<div class="flex items-start gap-1.5">
+					{#if fileToolDisplayText}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
+							{#if isStreaming}
+								<TextShimmer class="truncate">{fileToolDisplayText}</TextShimmer>
+							{:else}
+								<span class="truncate">{fileToolDisplayText}</span>
+							{/if}
+						</div>
+					{:else if toolContent}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
+							{#if showToolShimmer}
+								<TextShimmer class="truncate">{toolContent}</TextShimmer>
+							{:else}
+								<span class="truncate">{toolContent}</span>
+							{/if}
+						</div>
+					{:else if statusText}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
+							{#if showStatusShimmer}
+								<TextShimmer class="truncate">{statusText}</TextShimmer>
+							{:else}
+								<span class="truncate">{statusText}</span>
+							{/if}
+						</div>
+					{/if}
 
-				{#if todoProgress}
-					<div class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0 shrink-0">
-						<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
-						<span class="truncate text-foreground/70">{todoProgress.label}</span>
-					</div>
-				{/if}
-			</div>
+					<div class="flex-1"></div>
+
+					{#if todoProgress}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0 shrink-0">
+							<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
+							<span class="truncate text-foreground/70">{todoProgress.label}</span>
+						</div>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 
 	{#if currentQuestion}

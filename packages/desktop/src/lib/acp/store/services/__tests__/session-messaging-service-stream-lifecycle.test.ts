@@ -60,6 +60,7 @@ function createMockDeps() {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -167,6 +168,12 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 
 		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("finalizes streaming entries so pending tool calls stop shimmering", () => {
+		service.handleStreamComplete(sessionId);
+
+		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
 	});
 
 	it("passes agent context when creating auto-checkpoints", () => {

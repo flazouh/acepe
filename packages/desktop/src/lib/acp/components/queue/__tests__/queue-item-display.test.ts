@@ -45,6 +45,20 @@ function createReadToolCall(id: string, status: ToolCall["status"]): ToolCall {
 	};
 }
 
+function createSearchToolCall(id: string, status: ToolCall["status"]): ToolCall {
+	return {
+		id,
+		name: "Search",
+		kind: "search",
+		arguments: {
+			kind: "search",
+			query: "taskChildren",
+		},
+		status,
+		awaitingPlanApproval: false,
+	};
+}
+
 function createToolDisplayInput(
 	overrides: Partial<QueueItemToolDisplayInput> = {}
 ): QueueItemToolDisplayInput {
@@ -89,7 +103,7 @@ describe("getQueueItemTaskDisplay", () => {
 			createSubagentChild("child-2", "Trace queue item rendering for task tools"),
 		]);
 
-		const display = getQueueItemTaskDisplay(taskTool, "task");
+		const display = getQueueItemTaskDisplay(taskTool, "task", "completed");
 
 		expect(display).toEqual({
 			taskDescription: null,
@@ -97,18 +111,43 @@ describe("getQueueItemTaskDisplay", () => {
 				"Explore community board and email notification code",
 				"Trace queue item rendering for task tools",
 			],
+			latestTaskSubagentTool: {
+				id: "child-2",
+				kind: "task",
+				title: "Task completed",
+				filePath: undefined,
+				status: "done",
+			},
 			showTaskSubagentList: true,
+		});
+	});
+
+	it("returns the latest child tool metadata for compact queue rendering", () => {
+		const taskTool = createTaskToolCall([
+			createSearchToolCall("child-1", "completed"),
+			createReadToolCall("child-2", "in_progress"),
+		]);
+
+		const display = getQueueItemTaskDisplay(taskTool, "task", "streaming");
+
+		expect(display.latestTaskSubagentTool).toEqual({
+			id: "child-2",
+			kind: "read",
+			title: "Reading",
+			filePath: "/repo/child-2.ts",
+			status: "running",
 		});
 	});
 
 	it("falls back to the parent task description when no child subagents exist", () => {
 		const taskTool = createTaskToolCall([]);
 
-		const display = getQueueItemTaskDisplay(taskTool, "task");
+		const display = getQueueItemTaskDisplay(taskTool, "task", "completed");
 
 		expect(display).toEqual({
 			taskDescription: "Parent task",
 			taskSubagentSummaries: [],
+			latestTaskSubagentTool: null,
 			showTaskSubagentList: false,
 		});
 	});

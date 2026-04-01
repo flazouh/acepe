@@ -1,4 +1,7 @@
+import type { AgentToolEntry } from "@acepe/ui/agent-panel";
+import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
 import { getToolKindSubtitle, getToolKindTitle } from "../../registry/tool-kind-ui-registry.js";
+import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 
@@ -20,6 +23,10 @@ export interface QueueItemToolDisplay {
 export interface QueueItemTaskDisplay {
 	readonly taskDescription: string | null;
 	readonly taskSubagentSummaries: readonly string[];
+	readonly latestTaskSubagentTool: Pick<
+		AgentToolEntry,
+		"id" | "kind" | "title" | "filePath" | "status"
+	> | null;
 	readonly showTaskSubagentList: boolean;
 }
 
@@ -88,21 +95,36 @@ export function getTaskSubagentSummaries(toolCall: ToolCall): string[] {
 
 export function getQueueItemTaskDisplay(
 	toolCall: ToolCall | null,
-	toolKind: ToolKind | null
+	toolKind: ToolKind | null,
+	turnState?: TurnState
 ): QueueItemTaskDisplay {
 	if (!toolCall || toolKind !== "task") {
 		return {
 			taskDescription: null,
 			taskSubagentSummaries: [],
+			latestTaskSubagentTool: null,
 			showTaskSubagentList: false,
 		};
 	}
 
 	const taskSubagentSummaries = getTaskSubagentSummaries(toolCall);
+	const convertedChildren = convertTaskChildren(toolCall.taskChildren, turnState);
+	const latestTaskSubagentTool =
+		convertedChildren.length > 0
+			? {
+				id: convertedChildren[convertedChildren.length - 1].id,
+				kind: convertedChildren[convertedChildren.length - 1].kind,
+				title: convertedChildren[convertedChildren.length - 1].title,
+				filePath: convertedChildren[convertedChildren.length - 1].filePath,
+				status: convertedChildren[convertedChildren.length - 1].status,
+			}
+			: null;
+
 	if (taskSubagentSummaries.length > 0) {
 		return {
 			taskDescription: null,
 			taskSubagentSummaries,
+			latestTaskSubagentTool,
 			showTaskSubagentList: true,
 		};
 	}
@@ -110,6 +132,7 @@ export function getQueueItemTaskDisplay(
 	return {
 		taskDescription: getTaskDescription(toolCall),
 		taskSubagentSummaries: [],
+		latestTaskSubagentTool,
 		showTaskSubagentList: false,
 	};
 }

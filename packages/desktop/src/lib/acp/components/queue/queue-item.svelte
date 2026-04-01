@@ -240,9 +240,16 @@ const mode = $derived<ActivityEntryMode>(
 			: null
 );
 
-const taskDisplay = $derived.by(() => getQueueItemTaskDisplay(effectiveToolCall, effectiveToolKind));
+const taskDisplay = $derived.by(() =>
+	getQueueItemTaskDisplay(
+		effectiveToolCall,
+		effectiveToolKind,
+		displayedToolIsStreaming ? "streaming" : "completed"
+	)
+);
 const taskDescription = $derived(taskDisplay.taskDescription);
 const taskSubagentSummaries = $derived(taskDisplay.taskSubagentSummaries);
+const latestTaskSubagentTool = $derived(taskDisplay.latestTaskSubagentTool);
 const showTaskSubagentList = $derived(taskDisplay.showTaskSubagentList);
 
 let now = $state(Date.now());
@@ -527,6 +534,7 @@ function handleNextQuestion() {
 		isStreaming={displayedToolIsStreaming}
 		{taskDescription}
 		{taskSubagentSummaries}
+		{latestTaskSubagentTool}
 		{showTaskSubagentList}
 		{fileToolDisplayText}
 		toolContent={isFileTool ? null : toolContent}

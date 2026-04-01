@@ -67,6 +67,7 @@ function createMockDeps() {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {

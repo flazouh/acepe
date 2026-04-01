@@ -320,4 +320,20 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	clearStreamingAssistantEntry(sessionId: string): void {
 		this.chunkAggregator.clearStreamingAssistantEntry(sessionId);
 	}
+
+	/**
+	 * Mark all still-streaming tool call entries as not streaming.
+	 * Called on turn completion so pending tools stop shimmering.
+	 */
+	finalizeStreamingEntries(sessionId: string): void {
+		const entries = this.entriesById.get(sessionId);
+		if (!entries) return;
+
+		for (let i = 0; i < entries.length; i++) {
+			const entry = entries[i];
+			if (entry.type === "tool_call" && entry.isStreaming) {
+				entries[i] = { ...entry, isStreaming: false };
+			}
+		}
+	}
 }

@@ -172,6 +172,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+			finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -603,6 +604,7 @@ describe("SessionConnectionManager.createSession", () => {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+			finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -909,6 +911,7 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+			finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -1157,6 +1160,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		updateChildInParent: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+			finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -1312,6 +1316,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			updateChildInParent: vi.fn(),
 			aggregateAssistantChunk: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
+			finalizeStreamingEntries: vi.fn(),
 		};
 
 		const connectionManager: IConnectionManager = {

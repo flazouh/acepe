@@ -33,7 +33,11 @@ const KIND_MAP: Record<ToolKind, AgentToolKind> = {
 };
 
 /** Map ToolCallStatus to AgentToolStatus. */
-function mapStatus(child: ToolCall, turnState: TurnState | undefined): AgentToolStatus {
+function mapStatus(
+	child: ToolCall,
+	turnState: TurnState | undefined,
+	parentCompleted: boolean
+): AgentToolStatus {
 	if (child.status === "failed") {
 		return "error";
 	}
@@ -47,15 +51,29 @@ function mapStatus(child: ToolCall, turnState: TurnState | undefined): AgentTool
 		return "done";
 	}
 
+	if (parentCompleted) {
+		return "done";
+	}
+
 	if (child.status === "in_progress" && turnState === "streaming") {
 		return "running";
+	}
+
+	// Turn ended (completed / interrupted / idle / error) while tool was still
+	// in_progress → treat as done so the shimmer stops.
+	if (child.status === "in_progress" && turnState !== undefined && turnState !== "streaming") {
+		return "done";
 	}
 
 	return "pending";
 }
 
 /** Convert a ToolCall child into an AgentToolEntry for display in the task card. */
-function convertChild(child: ToolCall, turnState: TurnState | undefined): AgentToolEntry {
+function convertChild(
+	child: ToolCall,
+	turnState: TurnState | undefined,
+	parentCompleted: boolean
+): AgentToolEntry {
 	const kind = child.kind ?? "other";
 
 	return {
@@ -65,7 +83,7 @@ function convertChild(child: ToolCall, turnState: TurnState | undefined): AgentT
 		title: child.title ?? getToolKindTitle(kind, child) ?? child.name,
 		subtitle: getToolKindSubtitle(kind, child) || undefined,
 		filePath: getToolKindFilePath(kind, child) ?? undefined,
-		status: mapStatus(child, turnState),
+		status: mapStatus(child, turnState, parentCompleted),
 	};
 }
 
@@ -74,8 +92,9 @@ function convertChild(child: ToolCall, turnState: TurnState | undefined): AgentT
  */
 export function convertTaskChildren(
 	children: ToolCall[] | null | undefined,
-	turnState?: TurnState
+	turnState?: TurnState,
+	parentCompleted: boolean = false
 ): AgentToolEntry[] {
 	if (!children || children.length === 0) return [];
-	return children.map((child) => convertChild(child, turnState));
+	return children.map((child) => convertChild(child, turnState, parentCompleted));
 }

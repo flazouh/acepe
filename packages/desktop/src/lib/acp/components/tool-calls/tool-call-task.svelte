@@ -40,7 +40,7 @@ const agentStatus = $derived.by(() => {
 });
 
 // Convert task children to presentational entries
-const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState));
+const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState, toolStatus.isSuccess));
 </script>
 
 <AgentToolTask
@@ -49,6 +49,7 @@ const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState))
 	{resultText}
 	{children}
 	status={agentStatus}
+	showDoneIcon={toolStatus.isSuccess}
 	iconBasePath="/svgs/icons"
 	durationLabel={elapsedLabel ?? undefined}
 	runningFallback={m.tool_task_running_fallback()}

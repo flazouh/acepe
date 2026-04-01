@@ -10,11 +10,12 @@ const attentionQueueIndexSource = readFileSync(resolve(import.meta.dir, "./index
 const rootUiIndexSource = readFileSync(resolve(import.meta.dir, "../../index.ts"), "utf8");
 
 describe("attention queue subagent card contract", () => {
-	it("uses the shared robot and purple accent styling", () => {
+	it("uses shared tool icon and file chip primitives", () => {
 		expect(componentSource).toContain("Robot");
-		expect(componentSource).toContain("Colors.purple");
+		expect(componentSource).toContain("FilePathBadge");
+		expect(componentSource).toContain("ToolTally");
+		expect(componentSource).toContain('iconBasePath="/svgs/icons"');
 		expect(componentSource).toContain('data-testid="queue-subagent-card"');
-		expect(componentSource).toContain('data-testid="queue-subagent-accent"');
 	});
 
 	it("is exported from the UI package for desktop and website reuse", () => {

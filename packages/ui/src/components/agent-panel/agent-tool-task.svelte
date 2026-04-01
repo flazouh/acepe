@@ -1,4 +1,5 @@
 <script lang="ts">
+	import IconCircleCheckFilled from "@tabler/icons-svelte/icons/circle-check-filled";
 	import CaretRight from "phosphor-svelte/lib/CaretRight";
 	import Robot from "phosphor-svelte/lib/Robot";
 	import { Colors } from "../../lib/colors.js";
@@ -14,6 +15,7 @@
 		resultText?: string | null;
 		children?: AnyAgentEntry[];
 		status?: AgentToolStatus;
+		showDoneIcon?: boolean;
 		durationLabel?: string;
 		iconBasePath?: string;
 		runningFallback?: string;
@@ -27,6 +29,7 @@
 		resultText,
 		children = [],
 		status = "done",
+		showDoneIcon = false,
 		durationLabel,
 		iconBasePath = "",
 		runningFallback = "Running task…",
@@ -56,6 +59,7 @@
 	const hasChildren = $derived(toolCallChildren.length > 0);
 
 	const hasBorder = $derived(hasPrompt || hasResult);
+	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
 </script>
 
 <AgentToolCard>
@@ -79,6 +83,13 @@
 		</div>
 		{#if durationLabel}
 			<span class="shrink-0 font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+		{/if}
+		{#if shouldShowDoneIcon}
+			<IconCircleCheckFilled
+				size={12}
+				class="shrink-0 text-success"
+				data-testid="agent-tool-task-success-icon"
+			/>
 		{/if}
 	</div>
 
