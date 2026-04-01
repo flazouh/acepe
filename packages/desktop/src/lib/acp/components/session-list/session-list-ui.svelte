@@ -705,7 +705,7 @@ function openCreateBranchDialog(projectPath: string): void {
 				{#each sessionGroups as group (group.projectPath)}
 					{@const viewMode = getProjectViewMode(group.projectPath)}
 					<div
-						class="flex flex-col overflow-hidden border border-border rounded-lg bg-card/50 min-w-0"
+						class="flex flex-col overflow-hidden border border-border bg-card/50 min-w-0"
 					>
 						<!-- Real project header (only sessions are loading) -->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -846,7 +846,7 @@ function openCreateBranchDialog(projectPath: string): void {
 				{@const filesError = filesErrorByProject.get(group.projectPath)}
 				{@const flattenedFiles = getFlattenedFiles(group.projectPath)}
 				<div
-					class="flex flex-col overflow-hidden border border-border rounded-lg bg-card/50"
+					class="flex flex-col overflow-hidden border border-border bg-card/50"
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
