@@ -2,7 +2,7 @@ use crate::acp::client::{AcpClient, SessionInfo};
 use crate::acp::event_hub::{AcpEventEnvelope, AcpEventHubState};
 use crate::acp::provider::AgentProvider;
 use crate::acp::providers::copilot::CopilotProvider;
-use crate::acp::session_update::SessionUpdate;
+use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolCallData};
 use crate::acp::types::ContentBlock;
 use crate::history::constants::MAX_SESSIONS_PER_PROJECT;
 use crate::session_converter::{calculate_todo_timing, merge_tool_call_update};
@@ -333,6 +333,76 @@ fn combine_user_blocks(chunks: &[StoredContentBlock]) -> StoredContentBlock {
     }
 }
 
+fn merge_replay_tool_arguments(current: ToolArguments, incoming: ToolArguments) -> ToolArguments {
+    match (current, incoming) {
+        (
+            ToolArguments::Edit {
+                edits: current_edits,
+            },
+            ToolArguments::Edit {
+                edits: incoming_edits,
+            },
+        ) => ToolArguments::Edit {
+            edits: merge_replay_edit_entries(current_edits, incoming_edits),
+        },
+        (_, incoming_arguments) => incoming_arguments,
+    }
+}
+
+fn merge_replay_edit_entries(
+    current: Vec<crate::acp::session_update::EditEntry>,
+    incoming: Vec<crate::acp::session_update::EditEntry>,
+) -> Vec<crate::acp::session_update::EditEntry> {
+    let max_len = current.len().max(incoming.len());
+    let mut merged = Vec::with_capacity(max_len);
+
+    for index in 0..max_len {
+        let current_entry = current.get(index).cloned();
+        let incoming_entry = incoming.get(index).cloned();
+
+        let next_entry = match (current_entry, incoming_entry) {
+            (Some(current_value), Some(incoming_value)) => crate::acp::session_update::EditEntry {
+                file_path: incoming_value.file_path.or(current_value.file_path),
+                old_string: incoming_value.old_string.or(current_value.old_string),
+                new_string: incoming_value.new_string.or(current_value.new_string),
+                content: incoming_value.content.or(current_value.content),
+            },
+            (Some(current_value), None) => current_value,
+            (None, Some(incoming_value)) => incoming_value,
+            (None, None) => continue,
+        };
+
+        merged.push(next_entry);
+    }
+
+    merged
+}
+
+fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallData {
+    ToolCallData {
+        id: current.id,
+        name: incoming.name,
+        arguments: merge_replay_tool_arguments(current.arguments, incoming.arguments),
+        status: incoming.status,
+        result: incoming.result.or(current.result),
+        kind: incoming.kind.or(current.kind),
+        title: incoming.title.or(current.title),
+        locations: incoming.locations.or(current.locations),
+        skill_meta: incoming.skill_meta.or(current.skill_meta),
+        normalized_questions: incoming
+            .normalized_questions
+            .or(current.normalized_questions),
+        normalized_todos: incoming.normalized_todos.or(current.normalized_todos),
+        parent_tool_use_id: incoming.parent_tool_use_id.or(current.parent_tool_use_id),
+        task_children: incoming.task_children.or(current.task_children),
+        question_answer: incoming.question_answer.or(current.question_answer),
+        awaiting_plan_approval: incoming.awaiting_plan_approval,
+        plan_approval_request_id: incoming
+            .plan_approval_request_id
+            .or(current.plan_approval_request_id),
+    }
+}
+
 struct ReplayAccumulator {
     entries: Vec<StoredEntry>,
     assistant_indices: HashMap<String, usize>,
@@ -380,14 +450,21 @@ impl ReplayAccumulator {
             }
             SessionUpdate::ToolCall { tool_call, .. } => {
                 self.last_assistant_key = None;
-                let entry_index = self.entries.len();
-                self.tool_call_indices
-                    .insert(tool_call.id.clone(), entry_index);
-                self.entries.push(StoredEntry::ToolCall {
-                    id: tool_call.id.clone(),
-                    message: tool_call.clone(),
-                    timestamp,
-                });
+                if let Some(index) = self.tool_call_indices.get(&tool_call.id).copied() {
+                    if let Some(StoredEntry::ToolCall { message, .. }) = self.entries.get_mut(index)
+                    {
+                        *message = merge_replay_tool_call(message.clone(), tool_call.clone());
+                    }
+                } else {
+                    let entry_index = self.entries.len();
+                    self.tool_call_indices
+                        .insert(tool_call.id.clone(), entry_index);
+                    self.entries.push(StoredEntry::ToolCall {
+                        id: tool_call.id.clone(),
+                        message: tool_call.clone(),
+                        timestamp,
+                    });
+                }
             }
             SessionUpdate::ToolCallUpdate { update, .. } => {
                 if let Some(index) = self.tool_call_indices.get(&update.tool_call_id).copied() {
@@ -636,6 +713,129 @@ mod tests {
             StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(message.status, ToolCallStatus::Completed);
                 assert_eq!(message.result, Some(serde_json::json!({ "ok": true })));
+            }
+            other => panic!("expected tool call entry, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn merges_repeated_task_tool_calls_during_replay() {
+        let session_id = "copilot-session-2";
+        let child_tool = ToolCallData {
+            id: "child-read-1".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/README.md".to_string()),
+            },
+            status: ToolCallStatus::Completed,
+            result: Some(serde_json::json!({ "content": "Acepe" })),
+            kind: Some(ToolKind::Read),
+            title: Some("Read README".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: Some("task-1".to_string()),
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let converted = convert_replay_updates_to_session(
+            session_id,
+            "Copilot Session",
+            &[
+                (
+                    1_710_000_010_000,
+                    crate::acp::session_update::SessionUpdate::ToolCall {
+                        tool_call: ToolCallData {
+                            id: "task-1".to_string(),
+                            name: "Task".to_string(),
+                            arguments: ToolArguments::Think {
+                                description: Some("Explain the codebase".to_string()),
+                                prompt: Some("Explore the repository and summarize it.".to_string()),
+                                subagent_type: Some("explore".to_string()),
+                                skill: None,
+                                skill_args: None,
+                                raw: None,
+                            },
+                            status: ToolCallStatus::Pending,
+                            result: None,
+                            kind: Some(ToolKind::Task),
+                            title: Some("Explain the codebase".to_string()),
+                            locations: None,
+                            skill_meta: None,
+                            normalized_questions: None,
+                            normalized_todos: None,
+                            parent_tool_use_id: None,
+                            task_children: None,
+                            question_answer: None,
+                            awaiting_plan_approval: false,
+                            plan_approval_request_id: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+                (
+                    1_710_000_010_500,
+                    crate::acp::session_update::SessionUpdate::ToolCall {
+                        tool_call: ToolCallData {
+                            id: "task-1".to_string(),
+                            name: "Task".to_string(),
+                            arguments: ToolArguments::Think {
+                                description: Some("Explain the codebase".to_string()),
+                                prompt: Some("Explore the repository and summarize it.".to_string()),
+                                subagent_type: Some("explore".to_string()),
+                                skill: None,
+                                skill_args: None,
+                                raw: None,
+                            },
+                            status: ToolCallStatus::Pending,
+                            result: None,
+                            kind: Some(ToolKind::Task),
+                            title: Some("Explain the codebase".to_string()),
+                            locations: None,
+                            skill_meta: None,
+                            normalized_questions: None,
+                            normalized_todos: None,
+                            parent_tool_use_id: None,
+                            task_children: Some(vec![child_tool.clone()]),
+                            question_answer: None,
+                            awaiting_plan_approval: false,
+                            plan_approval_request_id: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+                (
+                    1_710_000_011_000,
+                    crate::acp::session_update::SessionUpdate::ToolCallUpdate {
+                        update: ToolCallUpdateData {
+                            tool_call_id: "task-1".to_string(),
+                            status: Some(ToolCallStatus::Completed),
+                            result: Some(serde_json::json!("Done")),
+                            ..Default::default()
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+            ],
+        );
+
+        assert_eq!(converted.entries.len(), 1);
+
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.id, "task-1");
+                assert_eq!(message.status, ToolCallStatus::Completed);
+                assert_eq!(message.result, Some(serde_json::json!("Done")));
+                let children = message
+                    .task_children
+                    .as_ref()
+                    .expect("task children should be preserved");
+                assert_eq!(children.len(), 1);
+                assert_eq!(children[0].id, "child-read-1");
             }
             other => panic!("expected tool call entry, got {:?}", other),
         }

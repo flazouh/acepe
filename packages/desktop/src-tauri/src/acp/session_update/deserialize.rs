@@ -84,8 +84,22 @@ impl<'de> serde::Deserialize<'de> for SessionUpdate {
                 })
             }
             "toolCall" => {
-                // Handle ACP format: { toolCallId, _meta.claudeCode.toolName, rawInput, status, ... }
-                let tool_call = parse_tool_call_from_acp::<D::Error>(&raw.data)?;
+                let tool_call = if let Some(serialized_tool_call) = raw
+                    .data
+                    .get("tool_call")
+                    .or_else(|| raw.data.get("toolCall"))
+                    .cloned()
+                {
+                    serde_json::from_value(serialized_tool_call).map_err(|error| {
+                        serde::de::Error::custom(format!(
+                            "Invalid serialized tool call: {}",
+                            error
+                        ))
+                    })?
+                } else {
+                    // Handle ACP format: { toolCallId, _meta.claudeCode.toolName, rawInput, status, ... }
+                    parse_tool_call_from_acp::<D::Error>(&raw.data)?
+                };
                 tracing::debug!(
                     session_id = ?session_id,
                     tool_call_id = %tool_call.id,
@@ -99,9 +113,17 @@ impl<'de> serde::Deserialize<'de> for SessionUpdate {
                 })
             }
             "toolCallUpdate" => {
-                // Handle ACP format: { toolCallId, status, content: [{"type": "content", "content": {...}}] }
-                let update =
-                    parse_tool_call_update_from_acp::<D::Error>(&raw.data, session_id.as_deref())?;
+                let update = if let Some(serialized_update) = raw.data.get("update").cloned() {
+                    serde_json::from_value(serialized_update).map_err(|error| {
+                        serde::de::Error::custom(format!(
+                            "Invalid serialized tool call update: {}",
+                            error
+                        ))
+                    })?
+                } else {
+                    // Handle ACP format: { toolCallId, status, content: [{"type": "content", "content": {...}}] }
+                    parse_tool_call_update_from_acp::<D::Error>(&raw.data, session_id.as_deref())?
+                };
                 tracing::debug!(
                     session_id = ?session_id,
                     tool_call_id = %update.tool_call_id,

@@ -179,9 +179,11 @@ fn translate_assistant(
     }
 
     // Emit usage telemetry if present
-    if let Some(usage) = message.usage {
-        if let Some(telemetry) = build_usage_telemetry_from_json(&usage, session_id.clone()) {
-            updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
+    if parent_tool_use_id.is_none() {
+        if let Some(usage) = message.usage {
+            if let Some(telemetry) = build_usage_telemetry_from_json(&usage, session_id.clone()) {
+                updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
+            }
         }
     }
 
@@ -1019,6 +1021,49 @@ mod tests {
                     }
                     other => panic!("expected Execute arguments, got {:?}", other),
                 }
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn assistant_subagent_tool_use_does_not_emit_usage_telemetry() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_child_telemetry_001".to_string(),
+                            name: "Bash".to_string(),
+                            input: serde_json::json!({"command": "pwd"}),
+                        })],
+                        model: Some("claude-haiku-4-5-20251001".to_string()),
+                        usage: Some(serde_json::json!({
+                            "input_tokens": 3,
+                            "output_tokens": 3,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 22537,
+                        })),
+                        error: None,
+                        parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1, "subagent child usage should not emit parent-session telemetry");
+            assert!(
+                updates
+                    .iter()
+                    .all(|update| !matches!(update, SessionUpdate::UsageTelemetryUpdate { .. })),
+                "subagent child assistant messages should not emit usage telemetry"
+            );
+
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.id, "toolu_child_telemetry_001");
+                assert_eq!(tool_call.kind, Some(ToolKind::Execute));
+                assert_eq!(tool_call.parent_tool_use_id.as_deref(), Some("toolu_task_parent"));
             } else {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
             }

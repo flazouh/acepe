@@ -12,11 +12,13 @@ use super::conversion::{
     SSE_RECONNECT_MAX_DELAY_MS,
 };
 use super::routing::handle_sse_event;
+use super::task_hydrator::OpenCodeTaskHydrator;
 
 pub(super) async fn connect_and_process_stream(
     url: &str,
     dispatcher: &AcpUiEventDispatcher,
     cancel_token: &CancellationToken,
+    task_hydrator: &mut OpenCodeTaskHydrator,
 ) -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(24 * 60 * 60)) // 24 hours for long-lived SSE
@@ -74,7 +76,7 @@ pub(super) async fn connect_and_process_stream(
                             if !data_lines.is_empty() {
                                 let raw = data_lines.join("\n");
                                 data_lines.clear();
-                                if let Err(error) = handle_sse_event(&raw, dispatcher) {
+                                if let Err(error) = handle_sse_event(&raw, dispatcher, task_hydrator) {
                                     tracing::warn!(%error, "Failed to handle SSE event");
                                 }
                             }

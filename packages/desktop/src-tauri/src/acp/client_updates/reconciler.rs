@@ -28,7 +28,7 @@ pub(crate) fn process_through_reconciler(
                     &tool_call.name,
                 );
             }
-            let outputs = reconciler_guard.handle_tool_call(tool_call.clone());
+            let outputs = reconciler_guard.handle_tool_call_for_agent(tool_call.clone(), agent_type);
             outputs
                 .into_iter()
                 .filter_map(|output| match output {
@@ -87,5 +87,167 @@ pub(crate) fn process_through_reconciler(
         }
         // All other update types pass through unchanged
         _ => vec![update.clone()],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::process_through_reconciler;
+    use crate::acp::parsers::AgentType;
+    use crate::acp::provider::{AgentProvider, SpawnConfig};
+    use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
+    use crate::acp::task_reconciler::TaskReconciler;
+    use std::collections::HashMap;
+    use std::sync::{Arc as StdArc, Mutex};
+
+    struct CopilotTaskReconcilerProvider;
+
+    impl AgentProvider for CopilotTaskReconcilerProvider {
+        fn id(&self) -> &str {
+            "copilot"
+        }
+
+        fn name(&self) -> &str {
+            "GitHub Copilot"
+        }
+
+        fn spawn_config(&self) -> SpawnConfig {
+            SpawnConfig {
+                command: "copilot".to_string(),
+                args: Vec::new(),
+                env: HashMap::new(),
+            }
+        }
+
+        fn uses_task_reconciler(&self) -> bool {
+            true
+        }
+    }
+
+    fn make_task_tool_call(id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: id.to_string(),
+                name: "Task".to_string(),
+                arguments: ToolArguments::Think {
+                    description: Some("Explain the codebase".to_string()),
+                    prompt: Some("Explore the repository and summarize it.".to_string()),
+                    subagent_type: Some("explore".to_string()),
+                    skill: None,
+                    skill_args: None,
+                    raw: None,
+                },
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Task),
+                title: Some("Explain the codebase".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn make_parentless_child_tool_call(id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: id.to_string(),
+                name: "Read".to_string(),
+                arguments: ToolArguments::Read {
+                    file_path: Some("/repo/README.md".to_string()),
+                },
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Read),
+                title: Some("Read README".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    #[test]
+    fn copilot_parentless_child_is_attached_to_single_active_task() {
+        let reconciler = StdArc::new(Mutex::new(TaskReconciler::new()));
+        let provider = CopilotTaskReconcilerProvider;
+
+        let parent_outputs = process_through_reconciler(
+            &make_task_tool_call("task-1"),
+            &reconciler,
+            AgentType::Copilot,
+            Some(&provider),
+        );
+        assert_eq!(parent_outputs.len(), 1);
+
+        let child_outputs = process_through_reconciler(
+            &make_parentless_child_tool_call("child-1"),
+            &reconciler,
+            AgentType::Copilot,
+            Some(&provider),
+        );
+
+        assert_eq!(child_outputs.len(), 1);
+        match &child_outputs[0] {
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                assert_eq!(tool_call.id, "task-1");
+                let children = tool_call
+                    .task_children
+                    .as_ref()
+                    .expect("task children should be attached");
+                assert_eq!(children.len(), 1);
+                assert_eq!(children[0].id, "child-1");
+            }
+            other => panic!("expected parent task tool call, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn copilot_parentless_child_is_not_attached_when_multiple_tasks_are_active() {
+        let reconciler = StdArc::new(Mutex::new(TaskReconciler::new()));
+        let provider = CopilotTaskReconcilerProvider;
+
+        process_through_reconciler(
+            &make_task_tool_call("task-1"),
+            &reconciler,
+            AgentType::Copilot,
+            Some(&provider),
+        );
+        process_through_reconciler(
+            &make_task_tool_call("task-2"),
+            &reconciler,
+            AgentType::Copilot,
+            Some(&provider),
+        );
+
+        let child_outputs = process_through_reconciler(
+            &make_parentless_child_tool_call("child-1"),
+            &reconciler,
+            AgentType::Copilot,
+            Some(&provider),
+        );
+
+        assert_eq!(child_outputs.len(), 1);
+        match &child_outputs[0] {
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                assert_eq!(tool_call.id, "child-1");
+                assert!(tool_call.task_children.is_none());
+            }
+            other => panic!("expected standalone child tool call, got {:?}", other),
+        }
     }
 }

@@ -10,6 +10,7 @@
 use indexmap::IndexMap;
 use std::collections::HashMap;
 
+use super::parsers::AgentType;
 use super::session_update::{
     ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
 };
@@ -70,6 +71,23 @@ impl TaskReconciler {
     ///
     /// Returns outputs to emit to the frontend.
     pub fn handle_tool_call(&mut self, tool_call: ToolCallData) -> Vec<ReconcilerOutput> {
+        self.handle_tool_call_with_options(tool_call, false)
+    }
+
+    /// Process an incoming tool call with agent-specific behavior enabled.
+    pub fn handle_tool_call_for_agent(
+        &mut self,
+        tool_call: ToolCallData,
+        agent_type: AgentType,
+    ) -> Vec<ReconcilerOutput> {
+        self.handle_tool_call_with_options(tool_call, agent_type == AgentType::Copilot)
+    }
+
+    fn handle_tool_call_with_options(
+        &mut self,
+        tool_call: ToolCallData,
+        infer_implicit_child_parent: bool,
+    ) -> Vec<ReconcilerOutput> {
         if self.active_tool_calls.contains_key(&tool_call.id) {
             let (merged_tool_call, should_cleanup) = {
                 let existing = self
@@ -97,6 +115,12 @@ impl TaskReconciler {
         // Case 2: This is a parent task (has subagent characteristics)
         if self.is_task_tool(&tool_call) {
             return self.handle_parent_task(tool_call);
+        }
+
+        if infer_implicit_child_parent {
+            if let Some(parent_id) = self.infer_implicit_parent_id(&tool_call) {
+                return self.handle_child_tool_call(parent_id, tool_call);
+            }
         }
 
         // Case 3: Regular tool call with no explicit parent - pass through unchanged
@@ -292,6 +316,21 @@ impl TaskReconciler {
             } => subagent_type.is_some() || prompt.is_some(),
             _ => false,
         }
+    }
+
+    fn infer_implicit_parent_id(&self, tool_call: &ToolCallData) -> Option<String> {
+        if !matches!(tool_call.status, ToolCallStatus::Pending | ToolCallStatus::InProgress) {
+            return None;
+        }
+
+        let mut active_task_ids = self.active_tasks.keys();
+        let parent_id = active_task_ids.next()?.clone();
+
+        if active_task_ids.next().is_some() {
+            return None;
+        }
+
+        Some(parent_id)
     }
 
     /// Cleanup a completed task and its child mappings.

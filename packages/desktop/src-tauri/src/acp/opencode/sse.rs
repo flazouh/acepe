@@ -3,10 +3,12 @@ use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
+use task_hydrator::OpenCodeTaskHydrator;
 
 mod conversion;
 mod routing;
 mod stream;
+mod task_hydrator;
 
 use stream::{connect_and_process_stream, reconnect_delay};
 
@@ -48,6 +50,7 @@ pub async fn subscribe_to_events(
     let dispatcher = AcpUiEventDispatcher::new(Some(app_handle), DispatchPolicy::default());
     let handle = tokio::spawn(async move {
         let mut reconnect_attempt = 0u32;
+        let mut task_hydrator = OpenCodeTaskHydrator::default();
 
         loop {
             if cancel_token.is_cancelled() {
@@ -57,7 +60,9 @@ pub async fn subscribe_to_events(
 
             clear_all_message_roles();
 
-            match connect_and_process_stream(&url, &dispatcher, &cancel_token).await {
+            match connect_and_process_stream(&url, &dispatcher, &cancel_token, &mut task_hydrator)
+                .await
+            {
                 Ok(()) => {
                     if cancel_token.is_cancelled() {
                         tracing::info!("SSE subscription cancelled");

@@ -4,6 +4,7 @@ use specta::Type;
 use super::{QuestionItem, TodoItem};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::get_parser;
+use crate::acp::parsers::kind::canonical_name_for_kind;
 use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
 
 /// Tool kind for routing to appropriate UI components.
@@ -277,6 +278,143 @@ pub struct ToolCallData {
     pub plan_approval_request_id: Option<u64>,
 }
 
+fn is_unknown_tool_name(name: &str) -> bool {
+    let trimmed = name.trim();
+    trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown")
+}
+
+fn unwrap_serialized_other_arguments(arguments: &serde_json::Value) -> serde_json::Value {
+    let Some(object) = arguments.as_object() else {
+        return arguments.clone();
+    };
+
+    let wrapper_kind = object.get("kind").and_then(|value| value.as_str());
+    let wrapped_raw = object.get("raw");
+
+    if wrapper_kind == Some("other") {
+        return wrapped_raw.cloned().unwrap_or_else(|| arguments.clone());
+    }
+
+    arguments.clone()
+}
+
+fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option<ToolKind> {
+    let object = arguments.as_object()?;
+
+    if object.contains_key("questions") {
+        return Some(ToolKind::Question);
+    }
+
+    if object.contains_key("todos") {
+        return Some(ToolKind::Todo);
+    }
+
+    if object.contains_key("task_id") || object.contains_key("taskId") {
+        return Some(ToolKind::TaskOutput);
+    }
+
+    if object.contains_key("skill")
+        || object.contains_key("skill_name")
+        || object.contains_key("skillName")
+        || object.contains_key("skill_args")
+        || object.contains_key("skillArgs")
+    {
+        return Some(ToolKind::Skill);
+    }
+
+    if object.contains_key("description")
+        || object.contains_key("prompt")
+        || object.contains_key("agent_type")
+        || object.contains_key("agentType")
+        || object.contains_key("subagent_type")
+        || object.contains_key("subagentType")
+    {
+        return Some(ToolKind::Task);
+    }
+
+    if object.contains_key("from")
+        || object.contains_key("to")
+        || object.contains_key("source")
+        || object.contains_key("destination")
+    {
+        return Some(ToolKind::Move);
+    }
+
+    let has_edit_markers = object.contains_key("old_string")
+        || object.contains_key("oldString")
+        || object.contains_key("oldText")
+        || object.contains_key("new_string")
+        || object.contains_key("newString")
+        || object.contains_key("newText")
+        || (object.contains_key("content")
+            && (object.contains_key("file_path")
+                || object.contains_key("filePath")
+                || object.contains_key("path")));
+    if has_edit_markers {
+        return Some(ToolKind::Edit);
+    }
+
+    if object.contains_key("query") || object.contains_key("pattern") {
+        return Some(ToolKind::Search);
+    }
+
+    if object.contains_key("command") || object.contains_key("cmd") {
+        return Some(ToolKind::Execute);
+    }
+
+    if object.contains_key("url") {
+        return Some(ToolKind::Fetch);
+    }
+
+    if object.contains_key("file_path")
+        || object.contains_key("filePath")
+        || object.contains_key("path")
+        || object.contains_key("uri")
+    {
+        return Some(ToolKind::Read);
+    }
+
+    None
+}
+
+fn resolve_serialized_tool_kind(
+    raw_name: &str,
+    raw_kind: Option<ToolKind>,
+    title: Option<&str>,
+    locations: Option<&[ToolCallLocation]>,
+    arguments: &serde_json::Value,
+) -> ToolKind {
+    let parser = get_parser(current_agent());
+
+    if let Some(kind) = raw_kind.filter(|kind| *kind != ToolKind::Other) {
+        return kind;
+    }
+
+    if !is_unknown_tool_name(raw_name) {
+        let detected = parser.detect_tool_kind(raw_name);
+        if detected != ToolKind::Other {
+            return detected;
+        }
+    }
+
+    if let Some(kind) = infer_kind_from_serialized_arguments(arguments) {
+        return kind;
+    }
+
+    if locations.is_some_and(|entries| !entries.is_empty()) {
+        return ToolKind::Read;
+    }
+
+    if let Some(title_value) = title {
+        let lower = title_value.trim().to_ascii_lowercase();
+        if lower.starts_with("viewing ") || lower.starts_with("view ") || lower.starts_with("read ") {
+            return ToolKind::Read;
+        }
+    }
+
+    ToolKind::Other
+}
+
 // Custom deserialization to handle arguments based on tool kind
 impl<'de> serde::Deserialize<'de> for ToolCallData {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -307,22 +445,52 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
         }
 
         let raw = Raw::deserialize(deserializer)?;
-        let kind = raw.kind.unwrap_or(ToolKind::Other);
+        let normalized_arguments = unwrap_serialized_other_arguments(&raw.arguments);
+        let kind = resolve_serialized_tool_kind(
+            &raw.name,
+            raw.kind,
+            raw.title.as_deref(),
+            raw.locations.as_deref(),
+            &normalized_arguments,
+        );
+        let name = if is_unknown_tool_name(&raw.name) && kind != ToolKind::Other {
+            canonical_name_for_kind(kind).to_string()
+        } else {
+            raw.name.clone()
+        };
         let parser = get_parser(current_agent());
         let arguments = parser
-            .parse_typed_tool_arguments(Some(&raw.name), &raw.arguments, Some(kind.as_str()))
-            .unwrap_or(ToolArguments::Other {
-                raw: raw.arguments.clone(),
+            .parse_typed_tool_arguments(
+                if is_unknown_tool_name(&name) {
+                    None
+                } else {
+                    Some(name.as_str())
+                },
+                &normalized_arguments,
+                if kind == ToolKind::Other {
+                    None
+                } else {
+                    Some(kind.as_str())
+                },
+            )
+            .unwrap_or_else(|| {
+                if kind == ToolKind::Other {
+                    ToolArguments::Other {
+                        raw: normalized_arguments.clone(),
+                    }
+                } else {
+                    ToolArguments::from_raw(kind, normalized_arguments.clone())
+                }
             });
 
         let (derived_questions, derived_todos) =
-            derive_normalized_questions_and_todos(&raw.name, &raw.arguments, current_agent());
+            derive_normalized_questions_and_todos(&name, &normalized_arguments, current_agent());
         let normalized_questions = raw.normalized_questions.or(derived_questions);
         let normalized_todos = raw.normalized_todos.or(derived_todos);
 
         Ok(ToolCallData {
             id: raw.id,
-            name: raw.name,
+            name,
             arguments,
             status: raw.status,
             kind: Some(kind),

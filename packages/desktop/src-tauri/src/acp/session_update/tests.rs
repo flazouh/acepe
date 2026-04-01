@@ -1582,6 +1582,123 @@ fn parses_parent_task_and_children_from_tool_call() {
     assert_eq!(children[0].id, "child-1");
 }
 
+#[test]
+fn replays_serialized_copilot_task_tool_call_from_event_hub() {
+    crate::acp::agent_context::with_agent(crate::acp::parsers::AgentType::Copilot, || {
+        let json = json!({
+            "type": "toolCall",
+            "session_id": "copilot-replay-session",
+            "tool_call": {
+                "id": "toolu_vrtx_018JbChzpCamF48QXLBn8fyA",
+                "name": "unknown",
+                "arguments": {
+                    "kind": "other",
+                    "raw": {
+                        "agent_type": "explore",
+                        "description": "Explain codebase overview",
+                        "prompt": "Explore the repository and summarize it."
+                    }
+                },
+                "status": "pending",
+                "kind": "other",
+                "title": "Explain codebase overview"
+            }
+        });
+
+        let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        match result.unwrap() {
+            SessionUpdate::ToolCall {
+                tool_call,
+                session_id,
+            } => {
+                assert_eq!(session_id.as_deref(), Some("copilot-replay-session"));
+                assert_eq!(tool_call.name, "Task");
+                assert_eq!(tool_call.kind, Some(ToolKind::Task));
+                match tool_call.arguments {
+                    ToolArguments::Think {
+                        description,
+                        prompt,
+                        subagent_type,
+                        raw,
+                        ..
+                    } => {
+                        assert_eq!(description.as_deref(), Some("Explain codebase overview"));
+                        assert_eq!(prompt.as_deref(), Some("Explore the repository and summarize it."));
+                        assert_eq!(subagent_type.as_deref(), Some("explore"));
+                        assert!(raw.is_some(), "expected raw payload to be preserved");
+                    }
+                    other => panic!("Expected Think arguments, got {:?}", other),
+                }
+            }
+            other => panic!("Expected ToolCall, got {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn replays_serialized_copilot_read_tool_call_data_from_event_hub() {
+    crate::acp::agent_context::with_agent(crate::acp::parsers::AgentType::Copilot, || {
+        let json = json!({
+            "id": "tooluse_gUVhTYrqJnLirn08ln2wxu",
+            "name": "unknown",
+            "arguments": {
+                "kind": "other",
+                "raw": {
+                    "path": "/tmp/example.rs"
+                }
+            },
+            "status": "pending",
+            "kind": "other",
+            "title": "Viewing /tmp/example.rs"
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = serde_json::from_value(json);
+
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.name, "Read");
+        assert_eq!(tool_call.kind, Some(ToolKind::Read));
+        match tool_call.arguments {
+            ToolArguments::Read {
+                file_path: Some(file_path),
+            } => {
+                assert_eq!(file_path, "/tmp/example.rs");
+            }
+            other => panic!("Expected Read arguments, got {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn replays_serialized_tool_call_update_from_event_hub() {
+    let json = json!({
+        "type": "toolCallUpdate",
+        "session_id": "copilot-replay-session",
+        "update": {
+            "toolCallId": "tooluse_gUVhTYrqJnLirn08ln2wxu",
+            "status": "completed",
+            "result": {
+                "content": "example"
+            }
+        }
+    });
+
+    let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    match result.unwrap() {
+        SessionUpdate::ToolCallUpdate { update, session_id } => {
+            assert_eq!(session_id.as_deref(), Some("copilot-replay-session"));
+            assert_eq!(update.tool_call_id, "tooluse_gUVhTYrqJnLirn08ln2wxu");
+            assert_eq!(update.status, Some(ToolCallStatus::Completed));
+            assert_eq!(update.result, Some(json!({ "content": "example" })));
+        }
+        other => panic!("Expected ToolCallUpdate, got {:?}", other),
+    }
+}
+
 mod parse_tool_call_update_from_acp {
     use super::*;
     use crate::acp::agent_context::with_agent;

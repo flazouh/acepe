@@ -31,10 +31,9 @@ fn normalize_opencode_serve_args(cached_args: Vec<String>) -> Vec<String> {
         .filter(|arg| !arg.is_empty())
         .collect::<Vec<_>>();
 
-    if args.is_empty() {
-        vec!["serve".to_string()]
-    } else {
-        args
+    match args.first().map(String::as_str) {
+        None | Some("acp") => vec!["serve".to_string()],
+        _ => args,
     }
 }
 
@@ -137,5 +136,13 @@ mod tests {
     #[test]
     fn normalize_serve_args_defaults_to_serve() {
         assert_eq!(normalize_opencode_serve_args(Vec::new()), vec!["serve"]);
+    }
+
+    #[test]
+    fn normalize_serve_args_rewrites_cached_acp_mode_to_serve() {
+        assert_eq!(
+            normalize_opencode_serve_args(vec!["acp".to_string()]),
+            vec!["serve"]
+        );
     }
 }

@@ -74,6 +74,10 @@ impl AgentProvider for CopilotProvider {
         AgentType::Copilot
     }
 
+    fn uses_task_reconciler(&self) -> bool {
+        true
+    }
+
     fn authenticate_request_params(&self, auth_methods: &[Value]) -> AcpResult<Option<Value>> {
         let has_copilot_login = auth_methods.iter().any(|method| {
             method
@@ -223,6 +227,13 @@ mod tests {
         let provider = CopilotProvider;
 
         assert_eq!(provider.parser_agent_type(), AgentType::Copilot);
+    }
+
+    #[test]
+    fn provider_uses_task_reconciler_for_subagent_tool_graphs() {
+        let provider = CopilotProvider;
+
+        assert!(provider.uses_task_reconciler());
     }
 
     #[test]

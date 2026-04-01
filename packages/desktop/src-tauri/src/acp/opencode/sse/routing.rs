@@ -11,8 +11,13 @@ use super::conversion::{
     convert_session_idle_to_session_update, convert_session_status_to_session_update,
     EventEnvelope, MultiplexedEventEnvelope, PartConversionResult,
 };
+use super::task_hydrator::OpenCodeTaskHydrator;
 
-pub(super) fn handle_sse_event(raw: &str, dispatcher: &AcpUiEventDispatcher) -> Result<()> {
+pub(super) fn handle_sse_event(
+    raw: &str,
+    dispatcher: &AcpUiEventDispatcher,
+    task_hydrator: &mut OpenCodeTaskHydrator,
+) -> Result<()> {
     // Try to parse as multiplexed event first
     if let Ok(multiplexed) = serde_json::from_str::<MultiplexedEventEnvelope>(raw) {
         // Log raw SSE data for debugging (dev only)
@@ -21,7 +26,7 @@ pub(super) fn handle_sse_event(raw: &str, dispatcher: &AcpUiEventDispatcher) -> 
                 log_streaming_event(&session_id, &json_value);
             }
         }
-        return handle_event_envelope(multiplexed.payload, dispatcher);
+        return handle_event_envelope(multiplexed.payload, dispatcher, task_hydrator);
     }
 
     // Fall back to regular event envelope
@@ -32,7 +37,7 @@ pub(super) fn handle_sse_event(raw: &str, dispatcher: &AcpUiEventDispatcher) -> 
                 log_streaming_event(&session_id, &json_value);
             }
         }
-        return handle_event_envelope(envelope, dispatcher);
+        return handle_event_envelope(envelope, dispatcher, task_hydrator);
     }
 
     tracing::error!(
@@ -65,6 +70,7 @@ pub(super) fn extract_session_id_from_envelope(envelope: &EventEnvelope) -> Opti
 pub(super) fn handle_event_envelope(
     envelope: EventEnvelope,
     dispatcher: &AcpUiEventDispatcher,
+    task_hydrator: &mut OpenCodeTaskHydrator,
 ) -> Result<()> {
     let session_id = extract_session_id_from_envelope(&envelope);
     match envelope.event_type.as_str() {
@@ -79,7 +85,13 @@ pub(super) fn handle_event_envelope(
 
             match convert_message_part_to_session_update(&envelope.properties) {
                 PartConversionResult::Converted(update) => {
-                    dispatcher.enqueue(AcpUiEvent::session_update(*update));
+                    let update = *update;
+                    dispatcher.enqueue(AcpUiEvent::session_update(update.clone()));
+                    for synthetic_update in
+                        task_hydrator.apply_message_part_update(&envelope.properties, &update)
+                    {
+                        dispatcher.enqueue(AcpUiEvent::session_update(synthetic_update));
+                    }
                 }
                 PartConversionResult::Filtered(reason) => {
                     tracing::trace!(
@@ -124,6 +136,7 @@ pub(super) fn handle_event_envelope(
 
         "session.status" => {
             if let Some(update) = convert_session_status_to_session_update(&envelope.properties) {
+                task_hydrator.apply_session_update(&update);
                 dispatcher.enqueue(AcpUiEvent::session_update(update));
             }
         }
@@ -145,12 +158,14 @@ pub(super) fn handle_event_envelope(
 
         "session.idle" => {
             if let Some(update) = convert_session_idle_to_session_update(&envelope.properties) {
+                task_hydrator.apply_session_update(&update);
                 dispatcher.enqueue(AcpUiEvent::session_update(update));
             }
         }
 
         // Session lifecycle events
         "session.created" => {
+            task_hydrator.apply_session_created(&envelope.properties);
             dispatcher.enqueue(AcpUiEvent::json_event(
                 "acp-session-created",
                 envelope.properties,
