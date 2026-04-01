@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { FilePathBadge, ToolTally } from "@acepe/ui";
 	import ShieldWarning from "phosphor-svelte/lib/ShieldWarning";
 	import { getPermissionStore } from "../../store/permission-store.svelte.js";
 	import { getSessionStore } from "../../store/session-store.svelte.js";
 	import type { PermissionRequest } from "../../types/permission.js";
-	import { makeWorkspaceRelative } from "../../utils/path-utils.js";
+	import { Colors, COLOR_NAMES } from "../../utils/colors.js";
+	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 	import { shouldHidePermissionBarForExitPlan } from "./exit-plan-helpers.js";
 	import PermissionActionBar from "./permission-action-bar.svelte";
-	import { extractPermissionCommand, extractPermissionFilePath } from "./permission-display.js";
+	import { extractPermissionCommand, extractPermissionToolKind } from "./permission-display.js";
 
  	interface Props {
 		sessionId: string;
@@ -52,68 +52,47 @@
 		return extractPermissionCommand(permission);
 	}
 
-	function extractFilePath(permission: PermissionRequest): string | null {
-		const path = extractPermissionFilePath(permission);
-		if (!path) return null;
-		const basePath = projectPath ? projectPath : "";
-		return makeWorkspaceRelative(path, basePath);
-	}
-
-	function extractVerb(
-		permission: PermissionRequest,
-		filePath: string | null,
-		command: string | null
-	): string {
-		if (filePath || command) {
-			const firstWord = permission.permission.split(" ")[0];
-			return firstWord ? firstWord : permission.permission;
-		}
-		return permission.permission;
+	function extractVerb(permission: PermissionRequest): string {
+		return extractPermissionToolKind(permission);
 	}
 </script>
 
 
 {#if currentPermission}
 	{@const command = extractCommand(currentPermission)}
-	{@const filePath = extractFilePath(currentPermission)}
-	{@const verb = extractVerb(currentPermission, filePath, command)}
-	<div class="w-full px-5">
-		<div class="permission-card">
-			<!-- Header: fixed h-7 embedded row -->
-			<div class="flex h-7 items-center justify-between gap-2 border-b border-border/50 px-2.5">
-				<div class="flex min-w-0 flex-1 items-center gap-1.5">
-					<ShieldWarning weight="fill" class="size-3 text-primary shrink-0" />
-					<span class="text-xs font-medium text-muted-foreground shrink-0">{verb}</span>
-					{#if filePath}
-						<div class="min-w-0 flex-1">
-							<FilePathBadge {filePath} iconBasePath="/svgs/icons" interactive={false} />
-						</div>
-					{/if}
-				</div>
+	{@const verb = extractVerb(currentPermission)}
+	{@const purpleColor = Colors[COLOR_NAMES.PURPLE]}
+	<div class="mx-auto w-full max-w-[320px] px-3">
+		<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1 permission-card-enter">
+			<!-- Header row: verb + progress only -->
+			<div class="flex min-w-0 items-center gap-1.5">
+				<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
+				<span class="text-[10px] font-mono font-medium text-muted-foreground shrink-0">{verb}</span>
 				{#if sessionProgress}
-					<div class="shrink-0">
-						<ToolTally
-							mode="progress"
-							totalCount={sessionProgress.total}
-							filledCount={sessionProgress.completed}
+					<div class="shrink-0 ml-auto">
+						<VoiceDownloadProgress
 							ariaLabel={progressLabel}
-							inline={true}
+							compact={true}
+							label=""
+							percent={sessionProgress.total > 0 ? Math.round(((sessionProgress.completed + 1) / sessionProgress.total) * 100) : 0}
+							segmentCount={sessionProgress.total}
+							showPercent={false}
 						/>
 					</div>
 				{/if}
 			</div>
 
-			<!-- Content: height-limited command display -->
+			<!-- Command display (file path is visible inside the command) -->
 			{#if command}
-				<div class="max-h-[72px] overflow-y-auto border-b border-border/50 px-2.5 py-1.5">
-					<code class="block min-w-0 whitespace-pre-wrap break-all font-mono text-xs text-foreground/80"
+				<div class="max-h-[72px] overflow-y-auto rounded-sm bg-accent/40 px-2 py-1">
+					<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70"
 						>$ {command}</code
 					>
 				</div>
 			{/if}
 
-			<!-- Footer: action buttons right-aligned -->
-			<div class="flex items-center justify-end px-2.5 py-1.5">
+			<!-- Action buttons: full width -->
+			<div class="flex items-center">
 				<PermissionActionBar permission={currentPermission} />
 			</div>
 		</div>
@@ -121,11 +100,7 @@
 {/if}
 
 <style>
-	.permission-card {
-		overflow: hidden;
-		border-radius: 6px;
-		border: 1px solid var(--border);
-		background: color-mix(in srgb, var(--accent) 50%, var(--card) 50%);
+	.permission-card-enter {
 		animation: slideUp 0.2s ease-out;
 	}
 

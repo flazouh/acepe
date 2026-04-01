@@ -1,3 +1,4 @@
+import { okAsync } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
 
 const openUrlMock = vi.fn();
@@ -60,6 +61,8 @@ function createState(options?: {
 	focusedPanelProjectPath?: string | null;
 	focusedViewProjectPath?: string | null;
 	projects?: Array<{ path: string; name: string }>;
+	selectedAgentIds?: string[];
+	setSelectedAgentIds?: ReturnType<typeof vi.fn>;
 }) {
 	const agentPanel = createAgentPanel(null);
 	const focusedTopLevelPanel = options?.focusedPanelProjectPath
@@ -80,6 +83,7 @@ function createState(options?: {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
 		isPanelInReviewMode: vi.fn(() => false),
+		setPanelAgent: vi.fn(),
 		focusedTopLevelPanel,
 		focusedPanel: options?.focusedPanelProjectPath
 			? { projectPath: options.focusedPanelProjectPath }
@@ -116,6 +120,13 @@ function createState(options?: {
 		projectCount: options?.projects ? options.projects.length : 0,
 	} as Partial<ProjectManager>;
 
+	const agentPreferencesStore = {
+		selectedAgentIds: options?.selectedAgentIds ? options.selectedAgentIds : [],
+		setSelectedAgentIds: options?.setSelectedAgentIds
+			? options.setSelectedAgentIds
+			: vi.fn(() => okAsync(undefined)),
+	} as Partial<AgentPreferencesStore>;
+
 	const selectorRegistry = {
 		toggleFocused: vi.fn(),
 		cycleFocused: vi.fn(),
@@ -134,14 +145,14 @@ function createState(options?: {
 		{} as ConnectionStore,
 		workspaceStore as WorkspaceStore,
 		projectManager as ProjectManager,
-		{} as AgentPreferencesStore,
+		agentPreferencesStore as AgentPreferencesStore,
 		keybindingsService as KeybindingsService,
 		selectorRegistry as SelectorRegistry,
 		{} as WorktreeDefaultStore,
 		preconnectionAgentSkillsStore as PreconnectionAgentSkillsStore
 	);
 
-	return { state, workspaceStore, panelStore, projectManager };
+	return { state, workspaceStore, panelStore, projectManager, agentPreferencesStore };
 }
 
 describe("MainAppViewState file explorer", () => {
@@ -205,6 +216,32 @@ describe("MainAppViewState file explorer", () => {
 		expect(panelStore.focusPanel).toHaveBeenCalledWith("terminal-1");
 		expect(panelStore.setViewMode).toHaveBeenCalledWith("single");
 		expect(panelStore.viewMode).toBe("single");
+	});
+
+	it("persists an unselected panel agent so install-on-send agents stay visible", () => {
+		const setSelectedAgentIds = vi.fn(() => okAsync(undefined));
+		const { state, panelStore } = createState({
+			selectedAgentIds: ["claude-code"],
+			setSelectedAgentIds,
+		});
+
+		state.handlePanelAgentChange("panel-1", "cursor");
+
+		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("panel-1", "cursor");
+		expect(setSelectedAgentIds).toHaveBeenCalledWith(["claude-code", "cursor"]);
+	});
+
+	it("does not rewrite selected agents when the panel agent is already selected", () => {
+		const setSelectedAgentIds = vi.fn(() => okAsync(undefined));
+		const { state, panelStore } = createState({
+			selectedAgentIds: ["claude-code", "cursor"],
+			setSelectedAgentIds,
+		});
+
+		state.handlePanelAgentChange("panel-1", "cursor");
+
+		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("panel-1", "cursor");
+		expect(setSelectedAgentIds).not.toHaveBeenCalled();
 	});
 
 	it("opens issue drafts with the system browser opener", () => {

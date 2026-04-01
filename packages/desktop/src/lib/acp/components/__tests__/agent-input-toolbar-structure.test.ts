@@ -43,4 +43,13 @@ describe("agent input toolbar structure", () => {
 		expect(voiceRecordingOverlaySource).toContain(".voice-bar {");
 		expect(voiceRecordingOverlaySource).toContain(".voice-meter {");
 	});
+
+	it("styles the embedded submit button as a circular foreground pill", () => {
+		expect(agentInputSource).not.toContain("const buttonColor = $derived.by(() => {");
+		expect(agentInputSource).not.toContain('style="background-color: {buttonColor};"');
+		expect(agentInputSource).toContain(
+			'class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"'
+		);
+		expect(agentInputSource).not.toContain('bg-background text-foreground');
+	});
 });

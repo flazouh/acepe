@@ -10,11 +10,16 @@ import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import * as m from "$lib/paraglide/messages.js";
+import { toast } from "svelte-sonner";
 
 import {
 	attachSessionToEmptyStatePanel,
 	ensureEmptyStatePanelContext,
 } from "./logic/empty-state-panel-context.js";
+import {
+	ensureSpawnableAgentSelected,
+	getSpawnableSessionAgents,
+} from "../../logic/spawnable-agents.js";
 import {
 	canSendWithoutSession,
 	EMPTY_STATE_PANEL_ID,
@@ -46,7 +51,9 @@ let activeWorktreePath: string | null = $state(null);
 let worktreePending = $state(false);
 
 // Derived
-const availableAgents = $derived(agentPreferencesStore.getPanelSelectableAgents(agentStore.agents));
+const availableAgents = $derived(
+	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds)
+);
 const projects = $derived(projectManager.projects);
 const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 
@@ -121,6 +128,30 @@ function handleBrowseProject() {
 	projectManager.importProject();
 }
 
+function persistSelectedAgent(agentId: string) {
+	const agentIsSelected = agentPreferencesStore.selectedAgentIds.includes(agentId);
+	if (agentIsSelected) {
+		return;
+	}
+
+	const nextSelectedAgentIds = ensureSpawnableAgentSelected(
+		agentPreferencesStore.selectedAgentIds,
+		agentId
+	);
+
+	void agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
+		() => undefined,
+		(error) => {
+			toast.error(error.message);
+			logger.error("[EmptyStateAgents] Failed to persist selected agents", {
+				agentId,
+				error,
+				projectPath,
+			});
+		}
+	);
+}
+
 function handleWillSend() {
 	if (!projectPath || !effectiveAgentId) {
 		logger.warn("[worktree-debug] empty-state handleWillSend aborted", {
@@ -131,6 +162,8 @@ function handleWillSend() {
 		});
 		return;
 	}
+
+	persistSelectedAgent(effectiveAgentId);
 
 	logger.info("[worktree-debug] empty-state handleWillSend", {
 		projectPath,

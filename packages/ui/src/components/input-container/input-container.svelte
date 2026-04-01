@@ -34,7 +34,7 @@
 		{/if}
 	</div>
 	{#if footer}
-		<div class="flex items-center justify-between gap-2 h-7 border-t border-border/50">
+		<div class="flex items-center justify-between gap-2 h-7 border-t border-border/50 overflow-hidden rounded-b-[inherit]">
 			{@render footer()}
 		</div>
 	{/if}

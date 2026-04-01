@@ -32,18 +32,22 @@ import type {
 	ViewMode,
 } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
+import { createLogger } from "$lib/acp/utils/logger.js";
 import { CHANGELOG, type ChangelogEntry } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getSqlStudioStore } from "$lib/sql-studio/index.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../types/create-session-options.js";
+import { ensureSpawnableAgentSelected } from "./spawnable-agents.js";
 
 import { InitializationManager } from "./managers/initialization-manager.js";
 import { KeybindingManager } from "./managers/keybinding-manager.js";
 import { PanelHandler } from "./managers/panel-handler.js";
 import { ProjectHandler } from "./managers/project-handler.js";
 import { SessionHandler } from "./managers/session-handler.js";
+
+const logger = createLogger({ id: "main-app-view-state", name: "MainAppViewState" });
 
 /**
  * Main app view state class.
@@ -92,6 +96,11 @@ export class MainAppViewState {
 	 * Whether the file explorer modal is open.
 	 */
 	fileExplorerOpen = $state(false);
+
+	/**
+	 * Whether the design system overlay is open (DEV only).
+	 */
+	designSystemOpen = $state(false);
 
 	/**
 	 * Whether the skills manager is open.
@@ -726,6 +735,13 @@ export class MainAppViewState {
 	}
 
 	/**
+	 * Toggles the design system overlay open/closed (DEV only).
+	 */
+	toggleDesignSystem(): void {
+		this.designSystemOpen = !this.designSystemOpen;
+	}
+
+	/**
 	 * Opens the file explorer modal.
 	 */
 	openFileExplorer(): void {
@@ -869,5 +885,26 @@ export class MainAppViewState {
 	handlePanelAgentChange(panelId: string, agentId: string): void {
 		// Update panel state only. Session creation is deferred until first send.
 		this.panelStore.setPanelAgent(panelId, agentId);
+
+		const agentIsSelected = this.agentPreferencesStore.selectedAgentIds.includes(agentId);
+		if (agentIsSelected) {
+			return;
+		}
+
+		const nextSelectedAgentIds = ensureSpawnableAgentSelected(
+			this.agentPreferencesStore.selectedAgentIds,
+			agentId
+		);
+
+		void this.agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
+			() => undefined,
+			(error) => {
+				logger.error("[SpawnableAgents] Failed to persist selected agents", {
+					agentId,
+					error,
+					panelId,
+				});
+			}
+		);
 	}
 }

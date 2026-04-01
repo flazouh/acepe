@@ -252,18 +252,6 @@ const autonomousTooltip = $derived.by(() => {
 	return "Autonomous will auto-approve new permissions for this session.";
 });
 
-// Derive submit button fill from the same tokens as mode icons (plan / build mint in dark)
-const buttonColor = $derived.by(() => {
-	switch (effectiveCurrentModeId) {
-		case CanonicalModeId.PLAN:
-			return "var(--plan-icon)";
-		case CanonicalModeId.BUILD:
-			return "var(--build-icon)";
-		default:
-			return "var(--build-icon)";
-	}
-});
-
 // Fallback: session capabilities → persisted cache
 const effectiveAvailableModels = $derived.by(() => {
 	const sessionModels = sessionCapabilities?.availableModels ?? [];
@@ -1876,8 +1864,7 @@ async function handleCancel() {
 										size="icon"
 										onclick={handlePrimaryButtonClick}
 										disabled={primaryButtonDisabled}
-										class="h-7 w-7 cursor-pointer shrink-0 rounded-md"
-										style="background-color: {buttonColor};"
+										class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 									>
 										{#if primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
 											<Stop weight="fill" class="h-3.5 w-3.5" />

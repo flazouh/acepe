@@ -9,6 +9,7 @@ import {
 	getUpdaterPrimaryAction,
 	getUpdaterActionLabel,
 	getUpdaterStatusLabel,
+	shouldShowUpdateAvailableOverlay,
 } from "../logic/updater-state.js";
 
 describe("updater-state", () => {
@@ -34,11 +35,17 @@ describe("updater-state", () => {
 		expect(getUpdaterStatusLabel(progressed)).toBe("Downloading 25%");
 	});
 
-	it("represents install-in-progress as a completed download", () => {
+	it("keeps install-in-progress out of the fullscreen updater overlay", () => {
 		const installing = createInstallingUpdaterState("1.2.3");
 
+		expect(installing.kind).toBe("installing");
 		expect(getUpdaterActionLabel(installing)).toBe("Updating 1.2.3");
-		expect(getUpdaterStatusLabel(installing)).toBe("Downloading 100%");
+		expect(getUpdaterStatusLabel(installing)).toBe("Installing update...");
+		expect(shouldShowUpdateAvailableOverlay(installing)).toBe(false);
+	});
+
+	it("shows the fullscreen updater overlay while the download is still in progress", () => {
+		expect(shouldShowUpdateAvailableOverlay(createDownloadingUpdaterState("1.2.3"))).toBe(true);
 	});
 
 	it("uses the dev simulation action when no update payload exists", () => {

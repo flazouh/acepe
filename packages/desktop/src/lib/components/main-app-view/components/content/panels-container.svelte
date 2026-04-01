@@ -20,6 +20,7 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import * as m from "$lib/paraglide/messages.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
 
 import { groupAllPanelsByProject } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
@@ -247,9 +248,10 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				{@const project = projectPath
 					? (projectManager.projects.find((p) => p.path === projectPath) ?? null)
 					: null}
-				{@const availableAgents = agentPreferencesStore
-					.getPanelSelectableAgents(agentStore.agents)
-					.map((a) => ({
+				{@const availableAgents = getSpawnableSessionAgents(
+					agentStore.agents,
+					agentPreferencesStore.selectedAgentIds
+				).map((a) => ({
 						id: a.id,
 						name: a.name,
 						icon: a.icon,
@@ -486,9 +488,10 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							{@const project = projectPath
 								? (projectManager.projects.find((p) => p.path === projectPath) ?? null)
 								: null}
-							{@const availableAgents = agentPreferencesStore
-								.getPanelSelectableAgents(agentStore.agents)
-								.map((a) => ({
+							{@const availableAgents = getSpawnableSessionAgents(
+								agentStore.agents,
+								agentPreferencesStore.selectedAgentIds
+							).map((a) => ({
 									id: a.id,
 									name: a.name,
 									icon: a.icon,

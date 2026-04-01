@@ -51,12 +51,18 @@ const panelStore = getPanelStore();
 const UPDATE_BUTTON_SEGMENT_COUNT = 16;
 
 const updateDownloadPercent = $derived(
-	updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+	updaterState?.kind === "installing"
+		? 100
+		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
 		? Math.min(
 				Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100),
 				100
 			)
 		: 0
+);
+
+const updateActionText = $derived(
+	updaterState?.kind === "installing" ? m.update_installing() : "Updating"
 );
 
 const viewModes: { value: ViewMode; label: string; color: string }[] = [
@@ -88,15 +94,17 @@ const viewModes: { value: ViewMode; label: string; color: string }[] = [
 				{/snippet}
 			</PillButton>
 			</div>
-		{:else if updaterState?.kind === "downloading"}
+		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
 			<div class="flex items-center pl-2">
 			<PillButton variant="invert" size="xs" disabled>
 				{#snippet children()}
 					<div class="flex items-center gap-2">
-						<span>Updating</span>
+						<span>{updateActionText}</span>
 						<div class="w-[52px]">
 							<VoiceDownloadProgress
-								ariaLabel={m.update_downloading()}
+								ariaLabel={updaterState?.kind === "installing"
+									? m.update_installing()
+									: m.update_downloading()}
 								compact={true}
 								label=""
 								percent={updateDownloadPercent}

@@ -83,6 +83,7 @@ import {
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
 	getUpdaterPrimaryAction,
+	shouldShowUpdateAvailableOverlay,
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
 import {
@@ -665,7 +666,12 @@ onMount(async () => {
 		await checkForAppUpdate();
 		updatePollTimer = setInterval(
 			() => {
-				if (updaterState.kind === "downloading" || showUpdateAvailable || availableUpdate !== null) {
+				if (
+					updaterState.kind === "downloading" ||
+					updaterState.kind === "installing" ||
+					showUpdateAvailable ||
+					availableUpdate !== null
+				) {
 					return;
 				}
 				void checkForAppUpdate();
@@ -1068,12 +1074,16 @@ onDestroy(() => {
 	{/if}
 
 	<!-- Auto-update overlay (shows during checking, downloading, error) -->
-	{#if showUpdateAvailable && updaterState.kind !== "idle"}
+	{#if showUpdateAvailable && shouldShowUpdateAvailableOverlay(updaterState)}
 		<div
 			class="fixed inset-0 z-[9998]"
 			role="dialog"
 			aria-modal="true"
-			aria-label={m.update_downloading()}
+			aria-label={updaterState.kind === "checking"
+				? m.update_checking()
+				: updaterState.kind === "error"
+					? m.update_error()
+					: m.update_downloading()}
 		>
 			<UpdateAvailablePage
 				updaterState={updaterState}

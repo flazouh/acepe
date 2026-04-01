@@ -18,7 +18,7 @@
 	import * as m from "$lib/paraglide/messages.js";
 	import logo from "../../../../../../assets/logo.svg?url";
 
-	const UPDATE_PROGRESS_SEGMENT_COUNT = 72;
+	const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 
 	interface Props {
 		updaterState: UpdaterBannerState;
@@ -32,7 +32,9 @@
 	let shaderMountRef: ShaderMount | null = null;
 
 	const downloadPercent = $derived(
-		updaterState.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+		updaterState.kind === "installing"
+			? 100
+			: updaterState.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
 			? Math.min(
 					Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100),
 					100
@@ -40,7 +42,9 @@
 			: null
 	);
 
-	const isInstalling = $derived(downloadPercent !== null && downloadPercent >= 100);
+	const isInstalling = $derived(
+		updaterState.kind === "installing" || (downloadPercent !== null && downloadPercent >= 100)
+	);
 
 	function formatBytes(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
@@ -133,7 +137,7 @@
 					<img src={logo} alt="Acepe Logo" class="w-8 h-8" />
 					<span class="text-lg font-semibold tracking-wider text-foreground">ACEPE</span>
 				</div>
-				{#if updaterState.kind === "available" || updaterState.kind === "downloading"}
+				{#if updaterState.kind === "available" || updaterState.kind === "downloading" || updaterState.kind === "installing"}
 					<span class="font-mono text-[11px] text-muted-foreground/50 bg-muted/40 px-2.5 py-0.5 rounded-full">
 						v{updaterState.version}
 					</span>
@@ -149,7 +153,7 @@
 						<span class="text-xs text-muted-foreground/50">{m.update_checking_description()}</span>
 					</div>
 				</div>
-			{:else if updaterState.kind === "downloading"}
+			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
 				<div class="flex flex-col gap-5">
 					<div class="flex items-baseline justify-between">
 						<TextShimmer class="text-[15px] font-medium text-foreground">
@@ -165,19 +169,25 @@
 						compact={false}
 						fillWidth={true}
 						label=""
-						percent={downloadPercent ? downloadPercent : 0}
+						percent={downloadPercent !== null ? downloadPercent : 0}
 						segmentCount={UPDATE_PROGRESS_SEGMENT_COUNT}
 						showPercent={false}
 					/>
 
-					<div class="flex items-center justify-between text-xs text-muted-foreground/40">
-						<span class="tabular-nums">
-							{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
-						</span>
-						{#if downloadPercent !== null && downloadPercent >= 100}
+					{#if updaterState.kind === "downloading"}
+						<div class="flex items-center justify-between text-xs text-muted-foreground/40">
+							<span class="tabular-nums">
+								{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
+							</span>
+							{#if downloadPercent !== null && downloadPercent >= 100}
+								<span>{m.update_installing()}</span>
+							{/if}
+						</div>
+					{:else}
+						<div class="flex items-center justify-end text-xs text-muted-foreground/40">
 							<span>{m.update_installing()}</span>
-						{/if}
-					</div>
+						</div>
+					{/if}
 				</div>
 			{:else if updaterState.kind === "error"}
 				<div class="flex flex-col gap-3">

@@ -6,6 +6,7 @@ export type UpdaterBannerState =
 	| { kind: "checking" }
 	| { kind: "available"; version: string }
 	| { kind: "downloading"; version: string; downloadedBytes: number; totalBytes: number | undefined }
+	| { kind: "installing"; version: string }
 	| { kind: "error"; message: string };
 
 export type UpdaterPrimaryAction = "install" | "simulate";
@@ -37,11 +38,13 @@ export function createDownloadingUpdaterState(version: string): UpdaterBannerSta
 
 export function createInstallingUpdaterState(version: string): UpdaterBannerState {
 	return {
-		kind: "downloading",
+		kind: "installing",
 		version,
-		downloadedBytes: 1,
-		totalBytes: 1,
 	};
+}
+
+export function shouldShowUpdateAvailableOverlay(state: UpdaterBannerState): boolean {
+	return state.kind === "checking" || state.kind === "downloading" || state.kind === "error";
 }
 
 export function applyUpdaterDownloadEvent(
@@ -79,6 +82,9 @@ export function getUpdaterStatusLabel(state: UpdaterBannerState): string | null 
 		}
 		return "Downloading update...";
 	}
+	if (state.kind === "installing") {
+		return "Installing update...";
+	}
 	if (state.kind === "error") {
 		return "Update check failed";
 	}
@@ -89,7 +95,7 @@ export function getUpdaterActionLabel(state: UpdaterBannerState): string | null 
 	if (state.kind === "available") {
 		return `Update ${state.version}`;
 	}
-	if (state.kind === "downloading") {
+	if (state.kind === "downloading" || state.kind === "installing") {
 		return `Updating ${state.version}`;
 	}
 	return null;

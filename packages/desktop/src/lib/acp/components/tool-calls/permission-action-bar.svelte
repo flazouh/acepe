@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Button } from "@acepe/ui/button";
 import CheckCircle from "phosphor-svelte/lib/CheckCircle";
 import ShieldCheck from "phosphor-svelte/lib/ShieldCheck";
 import XCircle from "phosphor-svelte/lib/XCircle";
@@ -34,51 +35,21 @@ const redColor = Colors[COLOR_NAMES.RED];
 const purpleColor = Colors[COLOR_NAMES.PURPLE];
 </script>
 
-<div
-	class="permission-actions"
-	style="--permission-green: {greenColor}; --permission-red: {redColor}; --permission-purple: {purpleColor};"
->
-	<button type="button" class="permission-btn deny" onclick={handleReject}>
-		<XCircle weight="fill" class="size-3.5 shrink-0" style="color: {redColor}" />
+<div class="flex w-full items-center gap-1">
+	<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleReject}>
+		<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
 		<span>{m.permission_deny()}</span>
-	</button>
+	</Button>
 
-	<button type="button" class="permission-btn allow" onclick={handleAllowOnce}>
-		<CheckCircle weight="fill" class="size-3.5 shrink-0" style="color: {greenColor}" />
+	<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleAllowOnce}>
+		<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {greenColor}" />
 		<span>{m.permission_allow()}</span>
-	</button>
+	</Button>
 
 	{#if hasAlwaysOption}
-		<button type="button" class="permission-btn always" onclick={handleAlwaysAllow}>
-			<ShieldCheck weight="fill" class="size-3.5 shrink-0" style="color: {purpleColor}" />
+		<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleAlwaysAllow}>
+			<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
 			<span>{m.permission_always_allow()}</span>
-		</button>
+		</Button>
 	{/if}
 </div>
-
-<style>
-	.permission-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.permission-btn {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 10px;
-		font: inherit;
-		font-size: 0.6875rem;
-		color: var(--foreground);
-		background: color-mix(in srgb, var(--muted) 30%, transparent);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		cursor: pointer;
-		transition: background 0.15s ease;
-	}
-
-	.permission-btn:hover {
-		background: var(--muted);
-	}
-</style>

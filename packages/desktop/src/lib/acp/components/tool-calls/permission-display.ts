@@ -43,6 +43,36 @@ function extractPathFromPermissionLabel(label: string): string | null {
 	return looksLikePath ? normalized : null;
 }
 
+const TOOL_KIND_LABELS: Record<string, string> = {
+	read: "Read",
+	edit: "Edit",
+	execute: "Execute",
+	search: "Search",
+	glob: "Glob",
+	fetch: "Fetch",
+	webSearch: "Web Search",
+	think: "Think",
+	taskOutput: "Task Output",
+	move: "Move",
+	delete: "Delete",
+	planMode: "Plan",
+	toolSearch: "Tool Search",
+};
+
+export function extractPermissionToolKind(permission: PermissionRequest): string {
+	const metadata = getMetadata(permission);
+	const parsed = metadata?.parsedArguments;
+	if (parsed && parsed.kind !== "other") {
+		const label = TOOL_KIND_LABELS[parsed.kind];
+		if (label) return label;
+	}
+
+	// Fallback: use the permission label, but take just the first word
+	// to avoid showing full strings like "Write /tmp/file.ts"
+	const firstWord = permission.permission.split(" ")[0];
+	return firstWord ? firstWord : permission.permission;
+}
+
 export function extractPermissionCommand(permission: PermissionRequest): string | null {
 	const metadata = getMetadata(permission);
 

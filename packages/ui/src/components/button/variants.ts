@@ -21,11 +21,14 @@ export const buttonVariants = tv({
       ghost:
         "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
       link: "text-primary underline-offset-4 hover:underline",
+      toolbar:
+        "border border-border/50 bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors",
     },
     size: {
       default: "h-9 px-4 py-2 has-[>svg]:px-3",
       sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
       lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+      toolbar: "h-auto gap-1 rounded px-2 py-0.5 text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
       icon: "size-9",
       "icon-sm": "size-8",
       "icon-lg": "size-10",
