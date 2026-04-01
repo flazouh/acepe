@@ -105,6 +105,7 @@ enum PendingPermissionResponder {
 struct PermissionBridgeState {
     pending: HashMap<u64, PendingPermissionRequest>,
     approval_groups: HashMap<String, Vec<u64>>,
+    resolved_approval_results: HashMap<String, Value>,
 }
 
 #[derive(Debug)]
@@ -174,20 +175,53 @@ impl PermissionBridge {
         pending_request: PendingPermissionRequest,
         receiver: oneshot::Receiver<T>,
     ) -> PendingPermissionRegistration<T> {
+        let mut pending_request = Some(pending_request);
+        let mut immediate_resolution = None;
         let mut state = self.state.lock().await;
-        let should_emit_ui = if let Some(group_key) = pending_request.approval_group_key.as_ref() {
-            if let Some(existing_request_ids) = state.approval_groups.get_mut(group_key) {
+        let should_emit_ui = if let Some(group_key) = pending_request
+            .as_ref()
+            .and_then(|request| request.approval_group_key.as_ref())
+        {
+            if let Some(resolved_result) = state.resolved_approval_results.get(group_key) {
+                immediate_resolution = Some(resolved_result.clone());
+                false
+            } else if let Some(existing_request_ids) = state.approval_groups.get_mut(group_key) {
                 existing_request_ids.push(id);
+                state.pending.insert(
+                    id,
+                    pending_request
+                        .take()
+                        .expect("pending permission request should exist"),
+                );
                 false
             } else {
                 state.approval_groups.insert(group_key.clone(), vec![id]);
+                state.pending.insert(
+                    id,
+                    pending_request
+                        .take()
+                        .expect("pending permission request should exist"),
+                );
                 true
             }
         } else {
+            state.pending.insert(
+                id,
+                pending_request
+                    .take()
+                    .expect("pending permission request should exist"),
+            );
             true
         };
 
-        state.pending.insert(id, pending_request);
+        drop(state);
+
+        if let Some(result) = immediate_resolution {
+            Self::resolve_pending_request_from_ui_result(
+                pending_request.expect("pending permission request should exist"),
+                &result,
+            );
+        }
 
         PendingPermissionRegistration {
             receiver,
@@ -218,6 +252,22 @@ impl PermissionBridge {
         Some(requests)
     }
 
+    fn resolve_pending_request_from_ui_result(
+        pending_request: PendingPermissionRequest,
+        result: &Value,
+    ) {
+        match pending_request.sender {
+            PendingPermissionResponder::Tool(sender) => {
+                let permission_result = permission_result_from_ui_result(&pending_request.kind, result);
+                let _ = sender.send(permission_result);
+            }
+            PendingPermissionResponder::Hook(sender) => {
+                let hook_output = hook_output_from_ui_result(&pending_request.kind, result);
+                let _ = sender.send(hook_output);
+            }
+        }
+    }
+
     #[cfg(test)]
     async fn resolve(&self, id: u64, result: cc_sdk::PermissionResult) {
         let pending = {
@@ -240,22 +290,18 @@ impl PermissionBridge {
     ) -> Option<PendingPermissionKind> {
         let pending_requests = {
             let mut state = self.state.lock().await;
-            Self::take_request_bundle(&mut state, id)?
+            let pending_requests = Self::take_request_bundle(&mut state, id)?;
+            if let Some(group_key) = pending_requests[0].approval_group_key.clone() {
+                state
+                    .resolved_approval_results
+                    .insert(group_key, result.clone());
+            }
+            pending_requests
         };
         let kind = pending_requests[0].kind.clone();
 
         for pending_request in pending_requests {
-            match pending_request.sender {
-                PendingPermissionResponder::Tool(sender) => {
-                    let permission_result =
-                        permission_result_from_ui_result(&pending_request.kind, result);
-                    let _ = sender.send(permission_result);
-                }
-                PendingPermissionResponder::Hook(sender) => {
-                    let hook_output = hook_output_from_ui_result(&pending_request.kind, result);
-                    let _ = sender.send(hook_output);
-                }
-            }
+            Self::resolve_pending_request_from_ui_result(pending_request, result);
         }
 
         Some(kind)
@@ -303,6 +349,7 @@ impl PermissionBridge {
         let pending_requests = {
             let mut state = self.state.lock().await;
             state.approval_groups.clear();
+            state.resolved_approval_results.clear();
             state
                 .pending
                 .drain()
@@ -1031,7 +1078,6 @@ impl CcSdkClaudeClient {
             approval_callback_tracker,
             task_reconciler,
             pending_questions,
-            sdk_client,
             provider,
             db,
         };
@@ -1284,7 +1330,6 @@ struct StreamingBridgeContext {
     approval_callback_tracker: Arc<ApprovalCallbackTracker>,
     task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
     pending_questions: Arc<Mutex<HashMap<String, PendingQuestionState>>>,
-    sdk_client: Arc<Mutex<cc_sdk::ClaudeSDKClient>>,
     provider: Arc<dyn AgentProvider>,
     db: Option<DbConn>,
 }
@@ -1369,7 +1414,6 @@ async fn run_streaming_bridge(
         approval_callback_tracker,
         task_reconciler,
         pending_questions,
-        sdk_client,
         provider,
         db,
     } = context;
@@ -1636,19 +1680,6 @@ async fn run_streaming_bridge(
                         .await
                     {
                         continue;
-                    }
-                    if should_interrupt_for_stream_only_question_request(
-                        &pending_questions,
-                        &session_id,
-                        &update,
-                    )
-                    .await
-                    {
-                        tracing::info!(
-                            session_id = %session_id,
-                            "cc-sdk bridge: interrupting cli after stream-only question request"
-                        );
-                        let _ = sdk_client.lock().await.interrupt().await;
                     }
                     if should_suppress_update_while_awaiting_stream_only_question(
                         &pending_questions,
@@ -2021,6 +2052,59 @@ fn build_question_reply_text(questions: &[QuestionItem], answers: &[Vec<String>]
     format!("The user answered the questions:\n{}", lines.join("\n"))
 }
 
+fn question_request_binding_grace_duration() -> Duration {
+    if cfg!(test) {
+        Duration::from_millis(25)
+    } else {
+        Duration::from_millis(250)
+    }
+}
+
+fn question_request_binding_poll_interval() -> Duration {
+    if cfg!(test) {
+        Duration::from_millis(5)
+    } else {
+        Duration::from_millis(25)
+    }
+}
+
+async fn wait_for_question_request_binding(
+    pending_questions: &Arc<Mutex<HashMap<String, PendingQuestionState>>>,
+    question_id: &str,
+) -> Option<PendingQuestionState> {
+    let mut remaining = question_request_binding_grace_duration();
+
+    loop {
+        let state = pending_questions.lock().await.get(question_id).cloned();
+
+        match state {
+            Some(state) if state.request_id != 0 => return Some(state),
+            Some(state) if remaining.is_zero() => return Some(state),
+            Some(_) => {
+                let sleep_for = question_request_binding_poll_interval().min(remaining);
+                tokio::time::sleep(sleep_for).await;
+                remaining = remaining.saturating_sub(sleep_for);
+            }
+            None => return None,
+        }
+    }
+}
+
+async fn take_stream_only_question_state(
+    pending_questions: &Arc<Mutex<HashMap<String, PendingQuestionState>>>,
+    question_id: &str,
+) -> Option<PendingQuestionState> {
+    let mut pending_questions = pending_questions.lock().await;
+    let state = pending_questions.get(question_id).cloned()?;
+
+    if state.request_id != 0 {
+        return None;
+    }
+
+    pending_questions.remove(question_id);
+    Some(state)
+}
+
 async fn has_pending_stream_only_question(
     pending_questions: &Arc<Mutex<HashMap<String, PendingQuestionState>>>,
     session_id: &str,
@@ -2030,23 +2114,6 @@ async fn has_pending_stream_only_question(
         .await
         .values()
         .any(|state| state.session_id == session_id && state.request_id == 0)
-}
-
-async fn should_interrupt_for_stream_only_question_request(
-    pending_questions: &Arc<Mutex<HashMap<String, PendingQuestionState>>>,
-    session_id: &str,
-    update: &SessionUpdate,
-) -> bool {
-    let SessionUpdate::QuestionRequest { question, .. } = update else {
-        return false;
-    };
-
-    pending_questions
-        .lock()
-        .await
-        .get(&question.id)
-        .map(|state| state.session_id == session_id && state.request_id == 0)
-        .unwrap_or(false)
 }
 
 async fn should_suppress_update_while_awaiting_stream_only_question(
@@ -2439,10 +2506,8 @@ impl AgentClient for CcSdkClaudeClient {
         request_id: String,
         answers: Vec<Vec<String>>,
     ) -> AcpResult<bool> {
-        let pending_question = {
-            let pending_questions = self.pending_questions.lock().await;
-            pending_questions.get(&request_id).cloned()
-        };
+        let pending_question =
+            wait_for_question_request_binding(&self.pending_questions, &request_id).await;
 
         let Some(pending_question) = pending_question else {
             tracing::warn!(question_id = %request_id, "cc-sdk question reply ignored because no pending question metadata was found");
@@ -2455,8 +2520,12 @@ impl AgentClient for CcSdkClaudeClient {
         };
 
         if question_answers_are_empty(&answers) {
-            if pending_question.request_id == 0 {
-                self.pending_questions.lock().await.remove(&request_id);
+            if let Some(stream_only_question) =
+                take_stream_only_question_state(&self.pending_questions, &request_id).await
+            {
+                if let Some(sdk_client) = &self.sdk_client {
+                    let _ = sdk_client.lock().await.interrupt().await;
+                }
 
                 tracing::info!(
                     question_id = %request_id,
@@ -2470,12 +2539,12 @@ impl AgentClient for CcSdkClaudeClient {
                             failure_reason: Some("Question cancelled by user".to_string()),
                             ..Default::default()
                         },
-                        session_id: Some(pending_question.session_id.clone()),
+                        session_id: Some(stream_only_question.session_id.clone()),
                     },
                 ));
                 self.dispatcher
                     .enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
-                        session_id: Some(pending_question.session_id),
+                        session_id: Some(stream_only_question.session_id),
                     }));
                 return Ok(true);
             }
@@ -2491,9 +2560,14 @@ impl AgentClient for CcSdkClaudeClient {
             return Ok(true);
         }
 
-        if pending_question.request_id == 0 {
+        if let Some(stream_only_question) =
+            take_stream_only_question_state(&self.pending_questions, &request_id).await
+        {
             let reply_text = build_question_reply_text(&questions, &answers);
-            self.pending_questions.lock().await.remove(&request_id);
+
+            if let Some(sdk_client) = &self.sdk_client {
+                let _ = sdk_client.lock().await.interrupt().await;
+            }
 
             tracing::info!(
                 question_id = %request_id,
@@ -2508,7 +2582,7 @@ impl AgentClient for CcSdkClaudeClient {
                         status: Some(ToolCallStatus::Completed),
                         ..Default::default()
                     },
-                    session_id: Some(pending_question.session_id),
+                    session_id: Some(stream_only_question.session_id),
                 }));
             return Ok(true);
         }
@@ -3136,6 +3210,81 @@ mod tests {
         assert_eq!(decision["behavior"], "allow");
         assert_eq!(decision["updatedPermissions"][0]["type"], "addRules");
         assert_eq!(decision["updatedPermissions"][0]["destination"], "session");
+    }
+
+    #[tokio::test]
+    async fn permission_bridge_reuses_resolved_group_for_late_hook_registration() {
+        let bridge = PermissionBridge::new();
+        let initial_id = bridge.next_id();
+        let initial_registration = bridge
+            .register(
+                initial_id,
+                PendingPermissionKind::Tool {
+                    tool_call_id: "toolu_shared_permission".to_string(),
+                    tool_name: "Write".to_string(),
+                    permission_suggestions: Vec::new(),
+                },
+            )
+            .await;
+
+        assert!(initial_registration.should_emit_ui);
+
+        let resolved_kind = bridge
+            .resolve_from_ui_result(
+                initial_id,
+                &serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": "allow" }
+                }),
+            )
+            .await;
+
+        assert!(matches!(
+            resolved_kind,
+            Some(PendingPermissionKind::Tool { .. })
+        ));
+        assert!(matches!(
+            initial_registration
+                .receiver
+                .await
+                .expect("initial permission resolution"),
+            cc_sdk::PermissionResult::Allow(_)
+        ));
+
+        let late_hook_id = bridge.next_id();
+        let late_hook_registration = bridge
+            .register_hook(
+                late_hook_id,
+                PendingPermissionKind::Hook {
+                    tool_call_id: "toolu_shared_permission".to_string(),
+                    tool_name: "Write".to_string(),
+                    original_input: serde_json::json!({
+                        "file_path": "/tmp/color.txt",
+                        "content": "blue"
+                    }),
+                    permission_suggestions: Vec::new(),
+                },
+            )
+            .await;
+
+        assert!(!late_hook_registration.should_emit_ui);
+
+        let resolved_hook = timeout(Duration::from_millis(50), late_hook_registration.receiver)
+            .await
+            .expect("late hook should resolve without another UI prompt")
+            .expect("late hook channel closed");
+        let cc_sdk::HookJSONOutput::Sync(output) = resolved_hook else {
+            panic!("expected sync hook output");
+        };
+        let serialized = serde_json::to_value(output).expect("serialize hook output");
+
+        assert_eq!(
+            serialized["hookSpecificOutput"]["decision"]["behavior"],
+            "allow"
+        );
+        assert_eq!(
+            serialized["hookSpecificOutput"]["decision"]["updatedInput"]["file_path"],
+            "/tmp/color.txt"
+        );
     }
 
     #[tokio::test]
@@ -3912,44 +4061,100 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn interrupts_for_stream_only_question_requests() {
-        let pending_questions = Arc::new(Mutex::new(HashMap::from([(
+    async fn reply_question_waits_for_late_request_binding() {
+        let mut client = make_test_client();
+        let pending_questions = client.pending_questions.clone();
+        let bridge = client.permission_bridge.clone();
+        let questions = vec![QuestionItem {
+            question: "Which branch should I use?".to_string(),
+            header: "Branch".to_string(),
+            options: vec![],
+            multi_select: false,
+        }];
+
+        pending_questions.lock().await.insert(
             "toolu_question_existing".to_string(),
             PendingQuestionState {
                 request_id: 0,
                 session_id: "session-ask".to_string(),
-                questions: Some(vec![QuestionItem {
-                    question: "Which branch should I use?".to_string(),
-                    header: "Branch".to_string(),
-                    options: vec![],
-                    multi_select: false,
-                }]),
+                questions: Some(questions.clone()),
                 ui_emitted: true,
             },
-        )])));
+        );
 
-        let should_interrupt = should_interrupt_for_stream_only_question_request(
-            &pending_questions,
-            "session-ask",
-            &SessionUpdate::QuestionRequest {
-                question: QuestionData {
-                    id: "toolu_question_existing".to_string(),
-                    session_id: "session-ask".to_string(),
-                    json_rpc_request_id: None,
-                    questions: vec![QuestionItem {
-                        question: "Which branch should I use?".to_string(),
-                        header: "Branch".to_string(),
-                        options: vec![],
-                        multi_select: false,
-                    }],
-                    tool: None,
-                },
-                session_id: Some("session-ask".to_string()),
-            },
-        )
-        .await;
+        let binding_task = tokio::spawn({
+            let pending_questions = pending_questions.clone();
+            let bridge = bridge.clone();
+            let questions = questions.clone();
 
-        assert!(should_interrupt);
+            async move {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+
+                let request_id = bridge.next_id();
+                let registration = bridge
+                    .register(
+                        request_id,
+                        PendingPermissionKind::Question {
+                            tool_call_id: "toolu_question_existing".to_string(),
+                            original_input: serde_json::json!({
+                                "questions": [{
+                                    "question": "Which branch should I use?",
+                                    "header": "Branch",
+                                    "options": [],
+                                    "multiSelect": false
+                                }]
+                            }),
+                        },
+                    )
+                    .await;
+
+                pending_questions.lock().await.insert(
+                    "toolu_question_existing".to_string(),
+                    PendingQuestionState {
+                        request_id,
+                        session_id: "session-ask".to_string(),
+                        questions: Some(questions),
+                        ui_emitted: true,
+                    },
+                );
+
+                let resolved = timeout(Duration::from_millis(50), registration.receiver)
+                    .await
+                    .expect("late question binding should resolve")
+                    .expect("question resolution channel closed");
+
+                match resolved {
+                    cc_sdk::PermissionResult::Allow(allow) => allow.updated_input,
+                    other => panic!("expected allow result, got {:?}", other),
+                }
+            }
+        });
+
+        assert!(client
+            .reply_question(
+                "toolu_question_existing".to_string(),
+                vec![vec!["main".to_string()]],
+            )
+            .await
+            .expect("reply_question should bind to the late request"));
+
+        let updated_input = binding_task.await.expect("binding task should complete");
+
+        assert_eq!(
+            updated_input,
+            Some(serde_json::json!({
+                "questions": [{
+                    "question": "Which branch should I use?",
+                    "header": "Branch",
+                    "options": [],
+                    "multiSelect": false
+                }],
+                "answers": {
+                    "Which branch should I use?": "main"
+                }
+            }))
+        );
+        assert!(pending_questions.lock().await.is_empty());
     }
 
     #[tokio::test]
@@ -4424,11 +4629,6 @@ mod tests {
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
-            sdk_client: Arc::new(Mutex::new(cc_sdk::ClaudeSDKClient::new(
-                cc_sdk::ClaudeCodeOptions::builder()
-                    .cwd(PathBuf::from("/tmp"))
-                    .build(),
-            ))),
             provider,
             db: None,
         };
