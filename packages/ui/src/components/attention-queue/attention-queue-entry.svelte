@@ -21,7 +21,7 @@ import type {
 } from "./types.js";
 
 interface Props {
-	latestTaskSubagentTool: {
+	latestTaskSubagentTool?: {
 		id: string;
 		kind?: AgentToolKind;
 		title: string;
@@ -79,7 +79,7 @@ interface Props {
 
 let {
 	selected = false,
-	latestTaskSubagentTool,
+	latestTaskSubagentTool = null,
 	onSelect,
 	mode,
 	title,
