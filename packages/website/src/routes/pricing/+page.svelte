@@ -290,6 +290,11 @@
 								{m.nav_pricing()}
 							</a>
 						</li>
+						<li>
+							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
+								{m.nav_compare()}
+							</a>
+						</li>
 						{#if data.featureFlags?.roadmapEnabled}
 							<li>
 								<a href="/roadmap" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">

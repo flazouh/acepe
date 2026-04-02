@@ -120,5 +120,18 @@
 	"blog_reading_time": "{minutes} min de lectura",
 	"blog_back_to_index": "Volver al Blog",
 	"landing_feature_focus_title": "Enfoque cuando lo necesitas",
-	"landing_feature_focus_description": "Expande cualquier sesión a ancho completo. Las pestañas mantienen tu otro trabajo accesible. Colapsa la barra lateral, maximiza la salida. Modo de trabajo profundo para tareas complejas."
+"landing_feature_focus_description": "Expande cualquier sesión a ancho completo. Las pestañas mantienen tu otro trabajo accesible. Colapsa la barra lateral, maximiza la salida. Modo de trabajo profundo para tareas complejas.",
+        "nav_compare": "Comparar",
+        "compare_badge": "comparación",
+        "compare_cta_download": "Descargar Acepe",
+        "compare_cta_pricing": "Ver precios",
+        "compare_table_title": "Función por función",
+        "compare_table_feature": "Función",
+        "compare_differentiators_title": "Por qué los desarrolladores eligen Acepe",
+        "compare_faq_title": "Preguntas frecuentes",
+        "compare_cta_title": "¿Listo para probar Acepe?",
+        "compare_cta_description": "Gratis para siempre para individuos. Una descarga, cada agente, control total.",
+        "compare_index_title": "Compara Acepe",
+        "compare_index_description": "Descubre cómo Acepe se compara con otras herramientas de desarrollo, función por función.",
+        "landing_cta_compare": "Mira cómo se compara Acepe →"
 }

@@ -120,5 +120,18 @@
 	"footer_resources": "Resources",
 	"footer_legal": "Legal",
 	"footer_privacy": "Privacy",
-	"footer_terms": "Terms"
+	"footer_terms": "Terms",
+	"nav_compare": "Compare",
+	"compare_badge": "comparison",
+	"compare_cta_download": "Download Acepe",
+	"compare_cta_pricing": "See pricing",
+	"compare_table_title": "Feature by feature",
+	"compare_table_feature": "Feature",
+	"compare_differentiators_title": "Why developers choose Acepe",
+	"compare_faq_title": "Frequently asked questions",
+	"compare_cta_title": "Ready to try Acepe?",
+	"compare_cta_description": "Free forever for individuals. One download, every agent, full control.",
+	"compare_index_title": "Compare Acepe",
+	"compare_index_description": "See how Acepe stacks up against other developer tools, feature by feature.",
+	"landing_cta_compare": "See how Acepe compares →"
 }
