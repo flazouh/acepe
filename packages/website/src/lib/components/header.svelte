@@ -48,7 +48,7 @@
 	}
 
 	const desktopNavLinkClass =
-		'rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/70 hover:text-foreground';
+		'rounded-full px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/70 hover:text-foreground';
 	const mobileNavLinkClass =
 		'flex min-h-11 min-w-11 items-center rounded-full px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-card/70 hover:text-foreground';
 </script>
@@ -68,7 +68,7 @@
 		</div>
 
 		<!-- Desktop nav: centered links -->
-		<div class="absolute left-1/2 -translate-x-1/2 hidden items-center gap-3 md:flex">
+		<div class="absolute left-1/2 -translate-x-1/2 hidden items-center gap-1 md:flex">
 			<a href="/blog" class={desktopNavLinkClass}>
 				{m.nav_blog()}
 			</a>
