@@ -1,7 +1,8 @@
 {
 	"build": {
 		"builder": "NIXPACKS",
-		"buildCommand": "bun install --frozen-lockfile && NODE_OPTIONS=--max-old-space-size=6144 bun run --cwd packages/website build"
+		"installCommand": "bun install --frozen-lockfile",
+		"buildCommand": "NODE_OPTIONS=--max-old-space-size=6144 bun run --cwd packages/website build"
 	},
 	"deploy": {
 		"startCommand": "cd packages/website && node build",

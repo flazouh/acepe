@@ -1,0 +1,14 @@
+# Only packages/website + shared packages are needed for the Railway build.
+# Exclude heavy desktop/Tauri/Rust code and other irrelevant packages.
+packages/desktop/src-tauri/
+packages/desktop/src/
+packages/desktop/static/
+packages/acps/
+packages/analytics/
+packages/changelog/
+docs/
+todos/
+assets/
+nested/
+.worktrees/
+.git/
