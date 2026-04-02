@@ -83,6 +83,9 @@
 			<a href="/pricing" class={desktopNavLinkClass}>
 				{m.nav_pricing()}
 			</a>
+			<a href="/compare/cursor" class={desktopNavLinkClass}>
+				{m.nav_compare()}
+			</a>
 		</div>
 
 		<!-- Desktop nav: right-side icons -->
@@ -224,8 +227,9 @@
 							</a>
 							<a href="/pricing" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
 								{m.nav_pricing()}
-							</a>
-							{#if showDownload}
+							</a>						<a href="/compare/cursor" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
+							{m.nav_compare()}
+						</a>							{#if showDownload}
 								<a
 									href="/download"
 									class="theme-invert-btn group mt-2 flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 pr-1 pl-4 text-sm font-medium"
