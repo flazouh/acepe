@@ -91,6 +91,59 @@
 			</div>
 		</section>
 
+		<!-- Verification -->
+		<section class="mx-auto max-w-4xl px-4 pb-16 md:px-6 md:pb-20">
+			<div class="rounded-2xl border border-border/50 bg-card/20 p-6 md:p-8">
+				<div class="grid gap-8 md:grid-cols-[220px_1fr]">
+					<div>
+						<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+							{m.compare_verification_title()}
+						</p>
+						<p class="mt-3 max-w-[260px] text-sm leading-relaxed text-muted-foreground">
+							{m.compare_verification_description()}
+						</p>
+					</div>
+
+					<div class="grid gap-6 md:grid-cols-[160px_1fr]">
+						<div>
+							<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+								{m.compare_verification_last_verified()}
+							</p>
+							{#if comparison.lastVerifiedOn}
+								<p class="mt-3 text-sm font-medium text-foreground">
+									{comparison.lastVerifiedOn}
+								</p>
+							{/if}
+						</div>
+
+						<div>
+							<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+								{m.compare_verification_sources()}
+							</p>
+							<div class="mt-3 flex flex-col gap-3">
+								{#each comparison.sourceNotes as source}
+									<div class="rounded-xl border border-border/40 bg-background/40 p-4">
+										<a
+											href={source.url}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="inline-flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-muted-foreground"
+										>
+											<span class="break-all">{source.url}</span>
+											<ArrowRight class="h-3.5 w-3.5 shrink-0" />
+										</a>
+										<p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+											{source.note}
+										</p>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+
 		<!-- Comparison Table -->
 		<section class="mx-auto max-w-4xl px-4 pb-20 md:px-6">
 			<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">

@@ -131,6 +131,10 @@
         "compare_faq_title": "Preguntas frecuentes",
         "compare_cta_title": "¿Listo para probar Acepe?",
         "compare_cta_description": "Gratis para siempre para individuos. Una descarga, cada agente, control total.",
+		"compare_verification_title": "Verificación con fuentes públicas",
+		"compare_verification_description": "Esta página solo publica afirmaciones respaldadas por materiales públicos del producto o evidencia pública del repositorio.",
+		"compare_verification_last_verified": "Última verificación",
+		"compare_verification_sources": "Fuentes",
         "compare_index_title": "Compara Acepe",
         "compare_index_description": "Descubre cómo Acepe se compara con otras herramientas de desarrollo, función por función.",
         "landing_cta_compare": "Mira cómo se compara Acepe →"

@@ -1,0 +1,1 @@
+<div data-testid="header-stub"></div>

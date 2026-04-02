@@ -5,23 +5,9 @@
 	import { Check, ArrowRight, Terminal } from '@lucide/svelte';
 	import { GithubLogo } from 'phosphor-svelte';
 	import logo from '$lib/assets/favicon.svg';
+	import { pricingFaqItems } from './faq.js';
 
 	let { data } = $props();
-	const faqItems = [
-		{ q: 'Is the free plan really free?', a: "Yes. The desktop app, local agent sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are all free. No trial, no time limit." },
-		{ q: 'What are cloud agents?', a: 'They let you run coding sessions on remote machines. Queue up work, close your laptop, check results later. Your local Acepe app connects to them automatically.' },
-		{ q: 'When will Premium launch?', a: "We're building the cloud infrastructure now. We'll announce Premium availability on the site, changelog, and GitHub releases." },
-		{ q: 'Do I need a separate subscription?', a: "No. Acepe works with agents you already have. If you have a Claude Code or Cursor subscription, just connect it. Acepe picks up your existing authentication automatically." },
-		{ q: 'Which agents does Acepe support?', a: "Claude Code, Codex, Cursor Agent, and OpenCode. You can run any of them side by side, or all at once." },
-		{ q: 'Can I use Acepe with my own custom agent?', a: "If your agent runs in a terminal, it works in Acepe. We plan to add a plugin system for deeper integrations." },
-		{ q: 'Does Acepe store my code or send it anywhere?', a: "No. Everything runs locally on your machine. Acepe never sees your code. The agents you connect handle their own data policies." },
-		{ q: 'How is Acepe better than Superset?', a: "Superset only shows you terminals. No attention queue, no side-by-side channels, no skills management, no SQL editor. Acepe gives you a full environment with color-coded sessions, checkpoints, and a dedicated UI for each agent." },
-		{ q: 'How is Acepe different from 1Code?', a: "1Code lacks an attention queue, side-by-side channels, skills management, and a built-in SQL editor. Acepe gives you a richer environment with color-coded sessions, checkpoints, and dedicated UI for managing multiple agents at once." },
-		{ q: 'How does Acepe compare to T3?', a: "T3 is an interface for Claude Code and Codex. Acepe supports those plus Cursor and OpenCode, all running in parallel. T3 has no attention queue, no side-by-side channels, no skills management, and no SQL editor. The design is minimal by comparison, with no color coding or visual session context." },
-		{ q: 'How is this different from just using multiple terminals?', a: "Terminals don't track what each agent is doing, snapshot file changes, or tell you which session needs your attention. Acepe does." },
-		{ q: 'What operating systems are supported?', a: "macOS right now. Linux is next, Windows after that." },
-		{ q: 'Is Acepe open source?', a: "Yes. The full source is on GitHub. You can inspect it, fork it, or contribute." },
-	];
 </script>
 
 <svelte:head>
@@ -241,12 +227,21 @@
 					</h2>
 				</div>
 				<div class="flex flex-col gap-0">
-					{#each faqItems as item}
+					{#each pricingFaqItems as item}
 						<div class="border-t border-border/30 py-5">
 							<h3 class="mb-2 text-sm font-medium text-foreground">{item.q}</h3>
 							<p class="text-[13px] leading-relaxed text-muted-foreground">
 								{item.a}
 							</p>
+							{#if item.comparisonLink !== null}
+								<a
+									href={item.comparisonLink.href}
+									class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground transition-colors hover:text-primary"
+								>
+									{item.comparisonLink.label}
+									<ArrowRight class="h-3.5 w-3.5" />
+								</a>
+							{/if}
 						</div>
 					{/each}
 				</div>

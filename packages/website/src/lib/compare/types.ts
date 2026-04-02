@@ -15,10 +15,20 @@ export interface ComparisonFaq {
 	readonly answer: string;
 }
 
+export interface ComparisonSourceNote {
+	readonly url: string;
+	readonly note: string;
+}
+
+export type ComparisonVerificationStatus = 'verified' | 'draft';
+
 export interface ComparisonData {
 	readonly slug: string;
 	readonly competitorName: string;
 	readonly competitorUrl: string;
+	readonly verificationStatus: ComparisonVerificationStatus;
+	readonly lastVerifiedOn: string | null;
+	readonly sourceNotes: readonly ComparisonSourceNote[];
 	readonly heroTagline: string;
 	readonly heroDescription: string;
 	readonly features: readonly ComparisonFeatureRow[];

@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
 import { baseLocale, locales } from '$lib/paraglide/runtime';
+import { getAllComparisonSlugs } from '$lib/compare/data.js';
 
 const baseUrl = 'https://acepe.dev';
 
@@ -11,9 +12,19 @@ interface Route {
 
 const publicRoutes: Route[] = [
 	{ path: '/', priority: '1.0', changefreq: 'weekly' },
+	{ path: '/blog', priority: '0.7', changefreq: 'weekly' },
+	{ path: '/changelog', priority: '0.7', changefreq: 'weekly' },
 	{ path: '/download', priority: '0.8', changefreq: 'weekly' },
+	{ path: '/pricing', priority: '0.8', changefreq: 'weekly' },
+	{ path: '/compare', priority: '0.8', changefreq: 'weekly' },
 	{ path: '/roadmap', priority: '0.7', changefreq: 'daily' }
-];
+].concat(
+	getAllComparisonSlugs().map((slug) => ({
+		path: `/compare/${slug}`,
+		priority: '0.8',
+		changefreq: 'weekly',
+	}))
+);
 
 interface SitemapEntry {
 	loc: string;

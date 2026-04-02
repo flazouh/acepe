@@ -4,63 +4,75 @@ export const cursorComparison: ComparisonData = {
 	slug: "cursor",
 	competitorName: "Cursor",
 	competitorUrl: "https://cursor.com",
+	verificationStatus: 'verified',
+	lastVerifiedOn: '2026-04-02',
+	sourceNotes: [
+		{
+			url: 'https://cursor.com/product',
+			note: 'Verified Cursor product positioning, parallel subagents, plan mode, checkpoints, skills, CLI, and multi-surface support on 2026-04-02.',
+		},
+		{
+			url: 'https://cursor.com/pricing',
+			note: 'Verified Hobby free tier, paid plans, cloud agents in Pro, and usage-limited free access on 2026-04-02.',
+		},
+	],
 	heroTagline: "Acepe vs Cursor",
 	heroDescription:
-		"Cursor is a code editor with built-in AI. Acepe is an agentic developer environment that orchestrates any agent — including Cursor Agent — in parallel sessions with full visibility and control.",
+		"Cursor is an AI-native coding product that spans editor, CLI, cloud agents, and other surfaces. Acepe is an agentic developer environment focused on orchestrating multiple agents side by side with stronger session visibility and control.",
 	features: [
 		{
 			category: "Agents",
 			feature: "Multi-agent support",
 			acepe: "Claude Code, Codex, Cursor Agent, OpenCode — all side by side",
-			competitor: "Cursor Agent only",
+			competitor: 'Cursor spans multiple models and surfaces inside the Cursor ecosystem',
 		},
 		{
 			category: "Agents",
 			feature: "Agent protocol",
 			acepe: "ACP (Agent Client Protocol) — open standard",
-			competitor: "Proprietary",
+			competitor: 'Proprietary Cursor platform',
 		},
 		{
 			category: "Agents",
 			feature: "Parallel sessions",
 			acepe: true,
-			competitor: false,
+			competitor: 'Cursor publicly documents subagents and cloud agents running in parallel',
 		},
 		{
 			category: "Workflow",
 			feature: "Attention queue",
 			acepe: "Surfaces which sessions need you — permissions, questions, completions",
-			competitor: false,
+			competitor: 'Not highlighted as a dedicated product surface in public Cursor materials',
 		},
 		{
 			category: "Workflow",
 			feature: "Kanban view",
 			acepe: "Bird's-eye view of all agent sessions by state",
-			competitor: false,
+			competitor: 'Not documented publicly',
 		},
 		{
 			category: "Workflow",
 			feature: "Plan mode UI",
 			acepe: "Rendered markdown with copy, download, and preview",
-			competitor: "Plain text in editor",
+			competitor: 'Cursor publicly documents planning mode inside its agent workflow',
 		},
 		{
 			category: "Safety",
 			feature: "Checkpoints",
 			acepe: "File snapshots after every tool run, revert per-file or per-session",
-			competitor: "Manual git commits",
+			competitor: 'Cursor publicly documents Git and checkpoints inside the product',
 		},
 		{
 			category: "Safety",
 			feature: "Worktree isolation",
 			acepe: "One-click Git worktree per session",
-			competitor: false,
+			competitor: 'Not highlighted in public Cursor product pages',
 		},
 		{
 			category: "Tools",
 			feature: "SQL editor",
 			acepe: "Built-in SQL Studio with schema browser",
-			competitor: false,
+			competitor: 'Not highlighted in public Cursor product pages',
 		},
 		{
 			category: "Tools",
@@ -78,7 +90,7 @@ export const cursorComparison: ComparisonData = {
 			category: "Pricing",
 			feature: "Free tier",
 			acepe: "Free forever — all local features included",
-			competitor: "Free tier with usage limits",
+			competitor: 'Hobby plan is free with limited Agent requests and limited Tab completions',
 		},
 		{
 			category: "Pricing",
@@ -109,17 +121,17 @@ export const cursorComparison: ComparisonData = {
 		{
 			title: "Orchestrate multiple agents at once",
 			description:
-				"Cursor runs one agent in one editor. Acepe runs Claude Code, Codex, Cursor Agent, and OpenCode in parallel sessions — each with its own project context, worktree, and checkpoint trail. Assign different agents to different tasks and monitor them all from one window.",
+				"Cursor supports a broad set of AI workflows inside the Cursor ecosystem. Acepe differentiates by letting you orchestrate several external agents side by side in one operator surface, with project context, worktrees, and a unified queue across sessions.",
 		},
 		{
 			title: "The attention queue tells you what needs you",
 			description:
-				"When you have multiple agents running, the hard problem is knowing which one needs your input. Acepe's attention queue surfaces permissions, questions, and completions so you can triage across sessions instead of polling each one.",
+				"When multiple coding sessions are moving at once, Acepe gives you a dedicated queue for permissions, questions, and completions. That operator layer is the clearest product difference in day-to-day use.",
 		},
 		{
 			title: "Checkpoints you can actually revert",
 			description:
-				"Acepe snapshots your files after every tool run. If an agent goes sideways, revert a single file or the entire session to any checkpoint. No manual git-stash ceremony — the safety net is automatic.",
+				"Acepe snapshots your files after every tool run and keeps that history attached to the session. If an agent goes sideways, you can revert a file or a whole session without reconstructing the context yourself.",
 		},
 	],
 	faqs: [
@@ -151,5 +163,5 @@ export const cursorComparison: ComparisonData = {
 	],
 	metaTitle: "Acepe vs Cursor — Multi-Agent Orchestration vs AI Code Editor",
 	metaDescription:
-		"Compare Acepe and Cursor side by side. Acepe orchestrates Claude Code, Codex, Cursor Agent, and OpenCode in parallel. Cursor is an AI-native code editor. See which fits your workflow.",
+		"Compare Acepe and Cursor side by side. Cursor spans editor, CLI, cloud agents, and multiple AI workflows. Acepe focuses on multi-agent orchestration, attention queue, checkpoints, and operator visibility.",
 };
