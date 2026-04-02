@@ -83,7 +83,7 @@
 			<a href="/pricing" class={desktopNavLinkClass}>
 				{m.nav_pricing()}
 			</a>
-			<a href="/compare/cursor" class={desktopNavLinkClass}>
+			<a href="/compare" class={desktopNavLinkClass}>
 				{m.nav_compare()}
 			</a>
 		</div>
@@ -227,7 +227,7 @@
 							</a>
 							<a href="/pricing" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
 								{m.nav_pricing()}
-							</a>						<a href="/compare/cursor" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
+							</a>						<a href="/compare" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
 							{m.nav_compare()}
 						</a>							{#if showDownload}
 								<a

@@ -641,6 +641,12 @@ const features = [
 						<ArrowRightIcon size="lg" />
 					{/snippet}
 				</PillButton>
+				<a
+					href="/compare/cursor"
+					class="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+				>
+					{m.landing_cta_compare()}
+				</a>
 			</div>
 		</section>
 	</main>
@@ -679,6 +685,11 @@ const features = [
 						<li>
 							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
 								{m.nav_pricing()}
+							</a>
+						</li>
+						<li>
+							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
+								{m.nav_compare()}
 							</a>
 						</li>
 						{#if data.featureFlags?.roadmapEnabled}
