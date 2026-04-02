@@ -34,12 +34,6 @@ export interface KanbanColumnGroup {
 	readonly items: readonly KanbanCardData[];
 }
 
-export interface KanbanPermissionData {
-	readonly label: string;
-	readonly command: string | null;
-	readonly filePath: string | null;
-}
-
 export interface KanbanQuestionOption {
 	readonly label: string;
 	readonly selected: boolean;

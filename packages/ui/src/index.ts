@@ -172,7 +172,6 @@ export { Input, Root as InputRoot } from "./components/input/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
-	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
 	KanbanToolData,
@@ -181,7 +180,6 @@ export {
 	KanbanBoard,
 	KanbanCard,
 	KanbanColumn,
-	KanbanPermissionFooter,
 	KanbanQuestionFooter,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";

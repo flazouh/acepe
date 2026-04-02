@@ -3,7 +3,6 @@
 	import AgentToolRow from "../agent-panel/agent-tool-row.svelte";
 	import ToolTally from "../agent-panel/tool-tally.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { BuildIcon, PlanIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { SegmentedProgress } from "../segmented-progress/index.js";
 	import { TextShimmer } from "../text-shimmer/index.js";
@@ -19,8 +18,6 @@
 
 	const title = $derived(card.title ? card.title : "Untitled session");
 	const hasDiff = $derived(card.diffInsertions > 0 || card.diffDeletions > 0);
-	const isPlan = $derived(card.modeId === "plan");
-	const accentColor = $derived(isPlan ? "var(--plan-icon)" : "var(--build-icon)");
 	const hasFooterContent = $derived(
 		hasDiff || card.todoProgress !== null || card.toolCalls.length > 0
 	);
@@ -33,37 +30,17 @@
 	onclick={onclick}
 	data-testid="kanban-card"
 >
-	<!-- Header: project badge, agent icon, title, mode icon -->
+	<!-- Header: project badge, agent icon, title, time -->
 	<div class="flex items-center gap-1.5 px-2 py-1.5" data-testid="kanban-card-header">
-		<div
-			class="w-0.5 shrink-0 self-stretch rounded-full"
-			style="background-color: {accentColor}"
-			data-testid="kanban-card-accent"
-		></div>
 		<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} class="shrink-0" />
 		<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
 		<span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{title}</span>
 		<span class="shrink-0 text-[10px] text-muted-foreground">{card.timeAgo}</span>
-		{#if isPlan}
-			<PlanIcon size="sm" />
-		{:else}
-			<BuildIcon size="sm" />
-		{/if}
 	</div>
 
-	<!-- Content: activity text + latest tool -->
-	{#if card.activityText || card.latestTool || card.errorText}
+	<!-- Content: activity text + latest tool (never both) -->
+	{#if card.latestTool || (card.activityText && !card.latestTool) || card.errorText}
 		<div class="flex flex-col gap-1 border-t border-border/40 px-2 py-1.5">
-			{#if card.activityText}
-				<div class="font-mono text-[10px] text-muted-foreground">
-					{#if card.isStreaming}
-						<TextShimmer class="block truncate">{card.activityText}</TextShimmer>
-					{:else}
-						<span class="block truncate">{card.activityText}</span>
-					{/if}
-				</div>
-			{/if}
-
 			{#if card.latestTool}
 				<AgentToolRow
 					title={card.latestTool.title}
@@ -72,6 +49,14 @@
 					kind={card.latestTool.kind}
 					iconBasePath="/svgs/icons"
 				/>
+			{:else if card.activityText}
+				<div class="font-mono text-[10px] text-muted-foreground">
+					{#if card.isStreaming}
+						<TextShimmer class="block truncate">{card.activityText}</TextShimmer>
+					{:else}
+						<span class="block truncate">{card.activityText}</span>
+					{/if}
+				</div>
 			{/if}
 
 			{#if card.errorText}

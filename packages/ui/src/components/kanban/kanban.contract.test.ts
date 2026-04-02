@@ -8,7 +8,6 @@ const rootUiIndexPath = resolve(kanbanDir, "../../index.ts");
 const kanbanCardPath = resolve(kanbanDir, "./kanban-card.svelte");
 const kanbanBoardPath = resolve(kanbanDir, "./kanban-board.svelte");
 const kanbanColumnPath = resolve(kanbanDir, "./kanban-column.svelte");
-const permissionFooterPath = resolve(kanbanDir, "./kanban-permission-footer.svelte");
 const questionFooterPath = resolve(kanbanDir, "./kanban-question-footer.svelte");
 const kanbanTypesPath = resolve(kanbanDir, "./types.ts");
 
@@ -17,7 +16,6 @@ describe("kanban UI contract", () => {
 		expect(existsSync(kanbanCardPath)).toBe(true);
 		expect(existsSync(kanbanBoardPath)).toBe(true);
 		expect(existsSync(kanbanColumnPath)).toBe(true);
-		expect(existsSync(permissionFooterPath)).toBe(true);
 		expect(existsSync(questionFooterPath)).toBe(true);
 		expect(existsSync(kanbanTypesPath)).toBe(true);
 		expect(existsSync(kanbanIndexPath)).toBe(true);
@@ -34,7 +32,6 @@ describe("kanban UI contract", () => {
 		expect(kanbanIndexSource).toContain("KanbanBoard");
 		expect(kanbanIndexSource).toContain("KanbanCard");
 		expect(kanbanIndexSource).toContain("KanbanColumn");
-		expect(kanbanIndexSource).toContain("KanbanPermissionFooter");
 		expect(kanbanIndexSource).toContain("KanbanQuestionFooter");
 		expect(rootUiIndexSource).toContain("KanbanBoard");
 		expect(rootUiIndexSource).toContain("KanbanCardData");
@@ -47,15 +44,12 @@ describe("kanban UI contract", () => {
 		const cardSource = readFileSync(kanbanCardPath, "utf8");
 
 		expect(cardSource).toContain("ProjectLetterBadge");
-		expect(cardSource).toContain("PlanIcon");
-		expect(cardSource).toContain("BuildIcon");
 		expect(cardSource).toContain("SegmentedProgress");
 		expect(cardSource).toContain("DiffPill");
 		expect(cardSource).toContain("AgentToolRow");
 		expect(cardSource).toContain("ToolTally");
 		expect(cardSource).toContain("TextShimmer");
 		expect(cardSource).toContain('data-testid="kanban-card"');
-		expect(cardSource).toContain('data-testid="kanban-card-accent"');
 		expect(cardSource).toContain('data-testid="kanban-card-header"');
 		expect(cardSource).toContain('data-testid="kanban-card-tally"');
 	});
