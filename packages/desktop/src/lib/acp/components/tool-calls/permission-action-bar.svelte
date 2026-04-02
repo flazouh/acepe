@@ -10,9 +10,10 @@ import { COLOR_NAMES, Colors } from "../../utils/colors.js";
 
 interface Props {
 	permission: PermissionRequest;
+	compact?: boolean;
 }
 
-let { permission }: Props = $props();
+let { permission, compact = false }: Props = $props();
 
 const permissionStore = getPermissionStore();
 
@@ -38,18 +39,18 @@ const purpleColor = Colors[COLOR_NAMES.PURPLE];
 <div class="flex w-full items-center gap-1">
 	<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleReject}>
 		<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
-		<span>{m.permission_deny()}</span>
+		{#if !compact}<span>{m.permission_deny()}</span>{/if}
 	</Button>
 
 	<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleAllowOnce}>
 		<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {greenColor}" />
-		<span>{m.permission_allow()}</span>
+		{#if !compact}<span>{m.permission_allow()}</span>{/if}
 	</Button>
 
 	{#if hasAlwaysOption}
 		<Button variant="toolbar" size="toolbar" class="flex-1 justify-center" onclick={handleAlwaysAllow}>
 			<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
-			<span>{m.permission_always_allow()}</span>
+			{#if !compact}<span>{m.permission_always_allow()}</span>{/if}
 		</Button>
 	{/if}
 </div>

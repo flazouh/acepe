@@ -84,7 +84,13 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 		source: "default",
 	},
 	{
-		key: "$mod+.",
+		key: "$mod+Period",
+		command: KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE,
+		when: "!settingsOpen && !modalOpen",
+		source: "default",
+	},
+	{
+		key: "$mod+Shift+.",
 		command: KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE,
 		when: "!settingsOpen && !modalOpen",
 		source: "default",

@@ -36,12 +36,21 @@ describe("default keybindings", () => {
 		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).not.toContain(
 			"!inputFocused"
 		);
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.key).toBe("$mod+Period");
 		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
 			"!settingsOpen"
 		);
 		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
 			"!modalOpen"
 		);
+	});
+
+	it("adds a shifted dot fallback for layouts where period requires Shift", () => {
+		const modeBindings = DEFAULT_KEYBINDINGS.filter(
+			(entry) => entry.command === KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE
+		).map((entry) => entry.key);
+
+		expect(modeBindings).toContain("$mod+Shift+.");
 	});
 
 	it("does not include legacy sequence-style shortcuts", () => {

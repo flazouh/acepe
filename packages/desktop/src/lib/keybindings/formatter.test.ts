@@ -9,6 +9,11 @@ describe("keybinding formatter", () => {
 		expect(formatKeyString("g c")).toBe("g c");
 		expect(formatKeyStringToArray("g c")).toEqual(["g c"]);
 	});
+
+	it("formats physical punctuation key codes using their visible glyphs", () => {
+		expect(formatKeyStringToArray("$mod+Period").at(-1)).toBe(".");
+		expect(formatKeyString("$mod+Period").endsWith(".")).toBe(true);
+	});
 });
 
 describe("keybinding registry", () => {

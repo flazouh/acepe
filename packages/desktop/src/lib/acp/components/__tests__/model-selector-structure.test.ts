@@ -15,9 +15,11 @@ describe("model selector structure", () => {
 		expect(modelSelectorSource).toContain("handleCodexEffortSelect");
 	});
 
-	it("wraps the selector in tooltip props without making the tooltip the interactive trigger", () => {
-		expect(modelSelectorSource).toContain("{#snippet child({ props: tooltipProps })}");
-		expect(modelSelectorSource).toContain("<div {...tooltipProps}>");
+	it("removes the model trigger tooltip while keeping the reasoning-effort help", () => {
+		expect(modelSelectorSource).not.toContain("m.model_selector_tooltip_label()");
+		expect(modelSelectorSource).not.toContain("const shortcutKeys");
+		expect(modelSelectorSource).not.toContain("KEYBINDING_ACTIONS.SELECTOR_MODEL_TOGGLE");
+		expect(modelSelectorSource).toContain("m.model_selector_reasoning_effort_tooltip()");
 		expect(modelSelectorSource).toContain("<Selector");
 	});
 

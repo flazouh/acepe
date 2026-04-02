@@ -763,6 +763,7 @@ $effect(() => {
 });
 
 onMount(() => {
+	const container = inputState.containerRef;
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
 			isShiftPressed = true;
@@ -792,6 +793,7 @@ onMount(() => {
 	};
 	window.addEventListener("keydown", handleWindowKeyDown);
 	window.addEventListener("keyup", handleWindowKeyUp);
+	container?.addEventListener("keydown", handleInputContainerKeyDown);
 
 	inputState.initialize();
 	// Restore initial draft from PanelStore if panelId is provided
@@ -850,6 +852,7 @@ onMount(() => {
 	return () => {
 		window.removeEventListener("keydown", handleWindowKeyDown);
 		window.removeEventListener("keyup", handleWindowKeyUp);
+		container?.removeEventListener("keydown", handleInputContainerKeyDown);
 	};
 });
 
@@ -1364,6 +1367,41 @@ function cycleModeOnTab(event: KeyboardEvent): boolean {
 	return true;
 }
 
+function cycleModeOnShortcut(event: KeyboardEvent): boolean {
+	if (
+		(event.code !== "Period" && event.key !== ".") ||
+		!(event.metaKey || event.ctrlKey) ||
+		(event.shiftKey && event.key !== ".") ||
+		event.altKey ||
+		visibleModes.length === 0
+	) {
+		return false;
+	}
+
+	event.preventDefault();
+	event.stopPropagation();
+	const currentIndex = visibleModes.findIndex((m) => m.id === effectiveCurrentModeId);
+	const nextIndex =
+		currentIndex === -1 ? 1 % visibleModes.length : (currentIndex + 1) % visibleModes.length;
+	const nextMode = visibleModes[nextIndex];
+	if (nextMode && nextMode.id !== effectiveCurrentModeId) {
+		handleModeChange(nextMode.id);
+	}
+	return true;
+}
+
+function handleInputContainerKeyDown(event: KeyboardEvent): void {
+	if (event.defaultPrevented) {
+		return;
+	}
+	if (event.target === editorRef) {
+		return;
+	}
+	if (cycleModeOnShortcut(event)) {
+		return;
+	}
+}
+
 function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	const currentVoiceState = voiceState;
 	if (!shouldStartVoiceHold(event)) {
@@ -1399,6 +1437,10 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	) {
 		event.preventDefault();
 		void handleCancel();
+		return;
+	}
+
+	if (cycleModeOnShortcut(event)) {
 		return;
 	}
 

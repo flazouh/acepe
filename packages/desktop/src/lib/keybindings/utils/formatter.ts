@@ -65,6 +65,7 @@ const MAC_SYMBOLS: Record<string, string> = {
 	Home: "↖",
 	End: "↘",
 	CapsLock: "⇪",
+	Period: ".",
 };
 
 /**
@@ -96,6 +97,7 @@ const OTHER_SYMBOLS: Record<string, string> = {
 	Home: "Home",
 	End: "End",
 	CapsLock: "CapsLock",
+	Period: ".",
 };
 
 /**

@@ -5,10 +5,8 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ResultAsync } from "neverthrow";
 import Brain from "phosphor-svelte/lib/Brain";
 import { onDestroy, onMount } from "svelte";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import type { HTMLButtonAttributes } from "svelte/elements";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
-import { getKeybindingsService } from "$lib/keybindings/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
 import type { ModelsForDisplay } from "../../services/acp-types.js";
@@ -76,13 +74,6 @@ const logger = createLogger({
 	id: LOGGER_IDS.MODEL_SELECTOR,
 	name: "Model Selector",
 });
-
-const kb = getKeybindingsService();
-
-const shortcutKeys = $derived.by(() => {
-	return kb.getShortcutArray(KEYBINDING_ACTIONS.SELECTOR_MODEL_TOGGLE) ?? ["⌘", "/"];
-});
-
 const registry = getSelectorRegistry();
 let unregister: (() => void) | null = null;
 
@@ -279,84 +270,68 @@ function handleCodexEffortOpenChange(open: boolean) {
 
 {#if usesReasoningEffortPicker}
 	<div class="flex items-center h-7">
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props: tooltipProps })}
-					<div {...tooltipProps}>
-						<Selector
-							bind:open={isCodexModelOpen}
-							disabled={isLoading}
-							onOpenChange={handleCodexModelOpenChange}
-							variant="ghost"
-						>
-							{#snippet renderButton()}
-								{#if isLoading}
-									<TextShimmer class="text-[11px] font-medium text-muted-foreground">
-										Loading models...
-									</TextShimmer>
-								{:else}
-									<span class="text-xs truncate">{codexModelDisplayName}</span>
-								{/if}
-							{/snippet}
+		<Selector
+			bind:open={isCodexModelOpen}
+			disabled={isLoading}
+			onOpenChange={handleCodexModelOpenChange}
+			variant="ghost"
+		>
+			{#snippet renderButton()}
+				{#if isLoading}
+					<TextShimmer class="text-[11px] font-medium text-muted-foreground">
+						Loading models...
+					</TextShimmer>
+				{:else}
+					<span class="text-xs truncate">{codexModelDisplayName}</span>
+				{/if}
+			{/snippet}
 
-							<div
-								class="overflow-y-auto max-h-[250px] scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
-							>
-								{#each codexBaseGroups as group (group.baseModelId)}
-									<ModelSelectorRow
-										modelId={group.baseModelId}
-										modelName={group.baseModelName}
-										currentModelId={selectedCodexVariant?.baseModelId ?? null}
-										onSelect={() => handleCodexBaseSelect(group.baseModelId)}
-									>
-										{#snippet actions()}
-											{#if agentId}
-												{@const preferredVariantId = getPreferredVariantId(group.baseModelId)}
-												{@const isPlanDefault = isDefaultForBase(planDefaultId, group.baseModelId)}
-												{@const isBuildDefault = isDefaultForBase(
-													buildDefaultId,
-													group.baseModelId
-												)}
-												{@const showModeBar = isPlanDefault || isBuildDefault}
-												{#if preferredVariantId}
-													<ModelSelectorModeBar
-														{showModeBar}
-														{isPlanDefault}
-														{isBuildDefault}
-														onSetPlan={() =>
-															preferencesStore.setDefaultModel(
-																agentId,
-																CanonicalModeId.PLAN,
-																preferredVariantId
-															)}
-														onSetBuild={() =>
-															preferencesStore.setDefaultModel(
-																agentId,
-																CanonicalModeId.BUILD,
-																preferredVariantId
-															)}
-													/>
-												{/if}
-											{/if}
-										{/snippet}
-									</ModelSelectorRow>
-								{/each}
-							</div>
-						</Selector>
-					</div>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content>
-				<div class="flex items-center gap-2">
-					<span>{m.model_selector_tooltip_label()}</span>
-					<KbdGroup>
-						{#each shortcutKeys as key (key)}
-							<Kbd>{key}</Kbd>
-						{/each}
-					</KbdGroup>
-				</div>
-			</Tooltip.Content>
-		</Tooltip.Root>
+			<div
+				class="overflow-y-auto max-h-[250px] scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+			>
+				{#each codexBaseGroups as group (group.baseModelId)}
+					<ModelSelectorRow
+						modelId={group.baseModelId}
+						modelName={group.baseModelName}
+						currentModelId={selectedCodexVariant?.baseModelId ?? null}
+						onSelect={() => handleCodexBaseSelect(group.baseModelId)}
+					>
+						{#snippet actions()}
+							{#if agentId}
+								{@const preferredVariantId = getPreferredVariantId(group.baseModelId)}
+								{@const isPlanDefault = isDefaultForBase(planDefaultId, group.baseModelId)}
+								{@const isBuildDefault = isDefaultForBase(
+									buildDefaultId,
+									group.baseModelId
+								)}
+								{@const showModeBar = isPlanDefault || isBuildDefault}
+								{#if preferredVariantId}
+									<ModelSelectorModeBar
+										{showModeBar}
+										{isPlanDefault}
+										{isBuildDefault}
+										onSetPlan={() =>
+											preferencesStore.setDefaultModel(
+												agentId,
+												CanonicalModeId.PLAN,
+												preferredVariantId
+											)
+										}
+										onSetBuild={() =>
+											preferencesStore.setDefaultModel(
+												agentId,
+												CanonicalModeId.BUILD,
+												preferredVariantId
+											)
+										}
+									/>
+								{/if}
+							{/if}
+						{/snippet}
+					</ModelSelectorRow>
+				{/each}
+			</div>
+		</Selector>
 		<div class="h-full w-px bg-border/50"></div>
 		<DropdownMenu.Root bind:open={isCodexEffortOpen} onOpenChange={handleCodexEffortOpenChange}>
 			<Tooltip.Root>
@@ -364,7 +339,7 @@ function handleCodexEffortOpenChange(open: boolean) {
 					{#snippet child({ props: tooltipProps })}
 						<div {...tooltipProps}>
 							<DropdownMenu.Trigger disabled={isLoading || !selectedCodexBaseGroup}>
-								{#snippet child({ props: triggerProps })}
+								{#snippet child({ props: triggerProps }: { props: HTMLButtonAttributes })}
 									<button
 										{...triggerProps}
 										type="button"
@@ -410,48 +385,30 @@ function handleCodexEffortOpenChange(open: boolean) {
 	</div>
 {:else}
 	<div class="flex items-center gap-0">
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props: tooltipProps })}
-					<div {...tooltipProps}>
-						<Selector
-							bind:open={isOpen}
-							disabled={isLoading || availableModels.length === 0}
-							onOpenChange={handleOpenChange}
-							variant="ghost"
-						>
-							{#snippet renderButton()}
-								{#if isLoading}
-									<TextShimmer class="text-[11px] font-medium text-muted-foreground">
-										Loading models...
-									</TextShimmer>
-								{:else}
-									<span class="text-xs truncate">{displayName}</span>
-								{/if}
-							{/snippet}
+		<Selector
+			bind:open={isOpen}
+			disabled={isLoading || availableModels.length === 0}
+			onOpenChange={handleOpenChange}
+			variant="ghost"
+		>
+			{#snippet renderButton()}
+				{#if isLoading}
+					<TextShimmer class="text-[11px] font-medium text-muted-foreground">
+						Loading models...
+					</TextShimmer>
+				{:else}
+					<span class="text-xs truncate">{displayName}</span>
+				{/if}
+			{/snippet}
 
-							<ModelSelectorContent
-								{availableModels}
-								{currentModelId}
-								{modelsDisplay}
-								{isOpen}
-								agentId={agentId ?? null}
-								onModelChange={handleModelChange}
-							/>
-						</Selector>
-					</div>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content>
-				<div class="flex items-center gap-2">
-					<span>{m.model_selector_tooltip_label()}</span>
-					<KbdGroup>
-						{#each shortcutKeys as key (key)}
-							<Kbd>{key}</Kbd>
-						{/each}
-					</KbdGroup>
-				</div>
-			</Tooltip.Content>
-		</Tooltip.Root>
+			<ModelSelectorContent
+				{availableModels}
+				{currentModelId}
+				{modelsDisplay}
+				{isOpen}
+				agentId={agentId ?? null}
+				onModelChange={handleModelChange}
+			/>
+		</Selector>
 	</div>
 {/if}

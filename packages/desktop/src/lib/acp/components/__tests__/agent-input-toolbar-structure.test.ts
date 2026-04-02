@@ -52,4 +52,19 @@ describe("agent input toolbar structure", () => {
 		);
 		expect(agentInputSource).not.toContain('bg-background text-foreground');
 	});
+
+	it("cycles modes from the composer when Cmd+. is pressed in the focused editor", () => {
+		expect(agentInputSource).toContain("function cycleModeOnShortcut(event: KeyboardEvent): boolean {");
+		expect(agentInputSource).toContain('event.code !== "Period"');
+		expect(agentInputSource).toContain("event.metaKey || event.ctrlKey");
+		expect(agentInputSource).toContain("handleModeChange(nextMode.id);");
+		expect(agentInputSource).toContain("if (cycleModeOnShortcut(event)) {");
+	});
+
+	it("cycles modes from the wider input container when modal-local controls have focus", () => {
+		expect(agentInputSource).toContain("function handleInputContainerKeyDown(event: KeyboardEvent): void {");
+		expect(agentInputSource).toContain("if (event.target === editorRef) {");
+		expect(agentInputSource).toContain("if (cycleModeOnShortcut(event)) {");
+		expect(agentInputSource).toContain('container?.addEventListener("keydown", handleInputContainerKeyDown);');
+	});
 });
