@@ -37,6 +37,20 @@ describe("kanban UI contract", () => {
 		expect(rootUiIndexSource).toContain("KanbanCardData");
 	});
 
+	it("removes conversation preview content from the shared kanban card contract", () => {
+		expect(existsSync(kanbanCardPath)).toBe(true);
+		expect(existsSync(kanbanTypesPath)).toBe(true);
+		if (!existsSync(kanbanCardPath) || !existsSync(kanbanTypesPath)) return;
+
+		const cardSource = readFileSync(kanbanCardPath, "utf8");
+		const typesSource = readFileSync(kanbanTypesPath, "utf8");
+
+		expect(typesSource).not.toContain("previewMarkdown");
+		expect(cardSource).not.toContain("MarkdownDisplay");
+		expect(cardSource).not.toContain("card.previewMarkdown");
+		expect(cardSource).not.toContain("kanban-markdown-preview");
+	});
+
 	it("keeps the kanban card aligned with the shared queue visual language", () => {
 		expect(existsSync(kanbanCardPath)).toBe(true);
 		if (!existsSync(kanbanCardPath)) return;
@@ -47,7 +61,6 @@ describe("kanban UI contract", () => {
 		expect(cardSource).toContain("EmbeddedPanelHeader");
 		expect(cardSource).toContain("HeaderCell");
 		expect(cardSource).toContain("HeaderTitleCell");
-		expect(cardSource).toContain("MarkdownDisplay");
 		expect(cardSource).toContain("SegmentedProgress");
 		expect(cardSource).toContain("DiffPill");
 		expect(cardSource).toContain("AgentToolRow");
@@ -57,10 +70,10 @@ describe("kanban UI contract", () => {
 		expect(cardSource).toContain("hover:bg-accent/45");
 		expect(cardSource).toContain("hover:translate-x-px");
 		expect(cardSource).not.toContain("hover:-translate-y-px");
-		expect(cardSource).toContain("kanban-markdown-preview");
-		expect(cardSource).toContain(
-			'<MarkdownDisplay content={card.previewMarkdown} scrollable={true} class="kanban-markdown-preview text-[10px]" />'
-		);
+		expect(cardSource).toContain("card.taskCard ||");
+		expect(cardSource).toContain("card.latestTool ||");
+		expect(cardSource).toContain("card.activityText ||");
+		expect(cardSource).not.toContain("card.previewMarkdown");
 		expect(cardSource).toContain('<EmbeddedPanelHeader class="bg-card/50">');
 		expect(cardSource).toContain('<HeaderCell withDivider={false}>');
 		expect(cardSource).toContain('<HeaderTitleCell compactPadding>');
@@ -69,12 +82,6 @@ describe("kanban UI contract", () => {
 		expect(cardSource).not.toContain('class="flex flex-col gap-1 border-t border-border/40 px-1"');
 		expect(cardSource).not.toContain('class="flex flex-col gap-1 border-t border-border/40 px-1 py-1.5"');
 		expect(cardSource).not.toContain('class="flex flex-col gap-1 border-t border-border/40 py-1.5"');
-		expect(cardSource).not.toContain(
-			'kanban-markdown-preview overflow-hidden rounded-sm border border-border/40 bg-background/40'
-		);
-		expect(cardSource).toContain("padding: 0 0.5rem;");
-		expect(cardSource).toContain("max-height: 4.5rem;");
-		expect(cardSource).not.toContain("overflow: hidden;");
 		expect(cardSource).toContain('data-testid="kanban-card"');
 		expect(cardSource).toContain('data-testid="kanban-card-header"');
 		expect(cardSource).toContain('data-testid="kanban-card-tally"');

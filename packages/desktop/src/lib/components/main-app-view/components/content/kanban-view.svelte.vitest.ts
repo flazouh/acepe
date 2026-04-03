@@ -212,20 +212,23 @@ describe("kanban empty-column contract", () => {
 		expect(source).not.toContain('import { toast } from "$lib/components/ui/sonner/index.js"');
 	});
 
-	it("builds full conversation markdown for kanban card previews", () => {
+	it("renders only active tool or subagent context and falls back to Thinking during live work", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("function getKanbanPreviewMarkdown(");
-		expect(source).toContain('entry.type === "user"');
-		expect(source).toContain('entry.type === "assistant"');
-		expect(source).not.toContain("KANBAN_PREVIEW_MAX_LINES");
-		expect(source).not.toContain("KANBAN_PREVIEW_MAX_CHARS");
-		expect(source).not.toContain("truncateKanbanPreview");
-		expect(source).toContain("const previewMarkdown = getKanbanPreviewMarkdown(");
-		expect(source).toContain("previewMarkdown,");
+		expect(source).not.toContain("function getKanbanPreviewMarkdown(");
+		expect(source).not.toContain("previewMarkdown");
+		expect(source).toContain(
+			'const isWorking = item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";'
+		);
+		expect(source).toContain("lastToolCall: null,");
+		expect(source).toContain("lastToolKind: null,");
+		expect(source).toContain('currentToolDisplay.toolKind === "think"');
+		expect(source).toContain("if (!isWorking) return null;");
+		expect(source).toContain("if (toolDisplay) return null;");
+		expect(source).toContain('return "Thinking…";');
 	});
 
 	it("preserves todo labels for kanban card tally context", () => {
@@ -237,13 +240,16 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("label: item.todoProgress.label");
 	});
 
-	it("suppresses stale historical task and tool summaries for idle cards", () => {
+	it("ignores stale completed tool history when mapping kanban card activity", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain('const showHistoricalActivity = item.status !== "idle";');
-		expect(source).toContain("if (!showHistoricalActivity) return null;");
+		expect(source).toContain("currentStreamingToolCall: item.currentStreamingToolCall,");
+		expect(source).toContain("currentToolKind: item.currentToolKind,");
+		expect(source).toContain("lastToolCall: null,");
+		expect(source).toContain("lastToolKind: null,");
+		expect(source).not.toContain("showHistoricalActivity");
 	});
 });

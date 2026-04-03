@@ -3,7 +3,6 @@
 	import AgentToolRow from "../agent-panel/agent-tool-row.svelte";
 	import QueueSubagentCard from "../attention-queue/attention-queue-subagent-card.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { MarkdownDisplay } from "../markdown/index.js";
 	import {
 		EmbeddedPanelHeader,
 		HeaderActionCell,
@@ -41,15 +40,7 @@
 	const title = $derived(card.title ? card.title : "Untitled session");
 	const hasDiff = $derived(card.diffInsertions > 0 || card.diffDeletions > 0);
 	const isInteractive = $derived(Boolean(onclick));
-	const showBody = $derived(
-		Boolean(
-			card.previewMarkdown ||
-			card.taskCard ||
-			card.latestTool ||
-			(card.activityText && !card.latestTool) ||
-			card.errorText
-		)
-	);
+	const showBody = $derived(Boolean(card.taskCard || card.latestTool || card.activityText || card.errorText));
 	const hasFooterContent = $derived(hasDiff || card.todoProgress !== null || showTally);
 
 	function handleKeydown(event: KeyboardEvent): void {
@@ -103,10 +94,6 @@
 	<!-- Content: task card, activity text, or latest tool -->
 	{#if showBody}
 		<div class="flex flex-col gap-1 px-1">
-			{#if card.previewMarkdown}
-				<MarkdownDisplay content={card.previewMarkdown} scrollable={true} class="kanban-markdown-preview text-[10px]" />
-			{/if}
-
 			{#if card.taskCard}
 				<QueueSubagentCard
 					summary={card.taskCard.summary}
@@ -202,50 +189,3 @@
 		{/if}
 	{/if}
 </div>
-
-<style>
-	:global(.kanban-markdown-preview) {
-		max-height: 4.5rem;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content),
-	:global(.kanban-markdown-preview .markdown-loading) {
-		padding: 0 0.5rem;
-		font-size: 0.625rem;
-		line-height: 1.35;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content > :first-child) {
-		margin-top: 0;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content > :last-child) {
-		margin-bottom: 0;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content h1),
-	:global(.kanban-markdown-preview .markdown-content h2),
-	:global(.kanban-markdown-preview .markdown-content h3),
-	:global(.kanban-markdown-preview .markdown-content h4),
-	:global(.kanban-markdown-preview .markdown-content p),
-	:global(.kanban-markdown-preview .markdown-content ul),
-	:global(.kanban-markdown-preview .markdown-content ol),
-	:global(.kanban-markdown-preview .markdown-content blockquote),
-	:global(.kanban-markdown-preview .markdown-content pre) {
-		margin-top: 0.2rem;
-		margin-bottom: 0.2rem;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content h1),
-	:global(.kanban-markdown-preview .markdown-content h2),
-	:global(.kanban-markdown-preview .markdown-content h3),
-	:global(.kanban-markdown-preview .markdown-content h4) {
-		font-size: 0.7rem;
-		line-height: 1.3;
-	}
-
-	:global(.kanban-markdown-preview .markdown-content code),
-	:global(.kanban-markdown-preview .markdown-loading code) {
-		font-size: 0.6rem;
-	}
-</style>

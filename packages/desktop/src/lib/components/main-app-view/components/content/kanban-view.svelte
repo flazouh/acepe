@@ -23,7 +23,6 @@
 	import { onDestroy, onMount } from "svelte";
 	import { SvelteMap } from "svelte/reactivity";
 	import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
-	import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
 	import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 	import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 	import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
@@ -279,31 +278,6 @@
 	// thin i18n wrappers that cannot be extracted without coupling the store
 	// layer to Paraglide runtime. Duplication is acceptable here.
 
-	function getKanbanPreviewMarkdown(entries: readonly SessionEntry[]): string | null {
-		const parts: string[] = [];
-
-		for (const entry of entries) {
-			if (entry.type === "user") {
-				const text = entry.message.content.type === "text" ? entry.message.content.text.trim() : "";
-				if (text.length > 0) {
-					parts.push(`**You:** ${text}`);
-				}
-			} else if (entry.type === "assistant") {
-				const text = entry.message.chunks
-					.flatMap((chunk) =>
-						chunk.type === "message" && chunk.block.type === "text" ? [chunk.block.text] : []
-					)
-					.join("")
-					.trim();
-				if (text.length > 0) {
-					parts.push(text);
-				}
-			}
-		}
-
-		return parts.length > 0 ? parts.join("\n\n---\n\n") : null;
-	}
-
 	function capitalizeTitle(text: string): string {
 		return text
 			.split(/\s+/)
@@ -444,41 +418,39 @@
 	const threadBoard = $derived.by(() => buildThreadBoard(threadBoardSources));
 
 	function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
-		const showHistoricalActivity = item.status !== "idle";
+		const isWorking = item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";
 
-		const toolDisplay = getQueueItemToolDisplay({
-			activityKind: item.state.activity.kind,
-			currentStreamingToolCall: item.currentStreamingToolCall,
-			currentToolKind: item.currentToolKind,
-			lastToolCall: item.lastToolCall,
-			lastToolKind: item.lastToolKind,
-		});
+		const toolDisplay = (() => {
+			const currentToolDisplay = getQueueItemToolDisplay({
+				activityKind: item.state.activity.kind,
+				currentStreamingToolCall: item.currentStreamingToolCall,
+				currentToolKind: item.currentToolKind,
+				lastToolCall: null,
+				lastToolKind: null,
+			});
 
-		const activityText: string | null = (() => {
-			if (!showHistoricalActivity) return null;
-			if (item.state.activity.kind === "thinking") return "Thinking…";
-			if (toolDisplay) {
-				return getToolCompactDisplayText(
-					toolDisplay.toolKind,
-					toolDisplay.toolCall,
-					toolDisplay.turnState
-				);
+			if (!currentToolDisplay || currentToolDisplay.toolKind === "think") {
+				return null;
 			}
-			return null;
+
+			return currentToolDisplay;
 		})();
 
-		const isStreaming =
-			item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";
+		const activityText: string | null = (() => {
+			if (!isWorking) return null;
+			if (toolDisplay) return null;
+			return "Thinking…";
+		})();
+
+		const isStreaming = isWorking;
 		const normalizedTitle = normalizeTitleForDisplay(item.title ? item.title : "");
 		const timeAgo = formatTimeAgo(item.lastActivityAt);
-		const previewMarkdown = getKanbanPreviewMarkdown(sessionStore.getEntries(item.sessionId));
 		const taskDisplay = getQueueItemTaskDisplay(
 			toolDisplay ? toolDisplay.toolCall : null,
 			toolDisplay ? toolDisplay.toolKind : null,
 			toolDisplay ? toolDisplay.turnState : undefined,
 		);
 		const taskCard: KanbanTaskCardData | null = (() => {
-			if (!showHistoricalActivity) return null;
 			if (!taskDisplay.showTaskSubagentList || taskDisplay.taskSubagentTools.length === 0) {
 				return null;
 			}
@@ -499,7 +471,6 @@
 		})();
 
 		const latestTool: KanbanToolData | null = (() => {
-			if (!showHistoricalActivity) return null;
 			if (taskCard) return null;
 			if (!toolDisplay) return null;
 			const tc = toolDisplay.toolCall;
@@ -533,7 +504,6 @@
 			projectName: item.projectName,
 			projectColor: item.projectColor,
 			timeAgo: timeAgo ? timeAgo : "",
-			previewMarkdown,
 			activityText,
 			isStreaming,
 			modeId: item.currentModeId,
