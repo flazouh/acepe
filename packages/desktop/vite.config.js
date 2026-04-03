@@ -5,6 +5,18 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
+const ignoredDevWatchPaths = [
+	"**/src-tauri/**",
+	"**/__tests__/**",
+	"**/*.test.{js,ts}",
+	"**/*.spec.{js,ts}",
+	"**/*.vitest.{js,ts}",
+	"**/.svelte-kit/**",
+	"**/src/lib/paraglide/**",
+	"**/build/**",
+	"**/dist/**",
+	"**/coverage/**",
+];
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -60,8 +72,8 @@ export default defineConfig({
 				}
 			: undefined,
 		watch: {
-			// 3. tell Vite to ignore watching `src-tauri`
-			ignored: ["**/src-tauri/**"],
+			// 3. ignore backend sources, generated outputs, and test-only files that should never reload the app UI
+			ignored: ignoredDevWatchPaths,
 		},
 		fs: {
 			// Allow serving files from src-tauri/packages for tauri-plugin-mcp guest-js

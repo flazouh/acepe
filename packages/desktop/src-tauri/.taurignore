@@ -1,2 +1,4 @@
+target/**
+logs/**
 **/.git/**
 **/node_modules/**

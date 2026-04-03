@@ -1,0 +1,9 @@
+# Desktop frontend changes should stay on Vite HMR.
+src/**
+build/**
+dist/**
+.svelte-kit/**
+
+# Ignore local dependency installs and transient artifacts.
+node_modules/**
+coverage/**

@@ -1,0 +1,14 @@
+# Shared frontend packages should stay on Vite HMR instead of restarting Tauri.
+desktop/src/**
+desktop/build/**
+desktop/dist/**
+desktop/.svelte-kit/**
+ui/**
+analytics/**
+changelog/**
+website/**
+acps/**
+
+# Noise that should never trigger a Rust rebuild.
+**/.git/**
+**/node_modules/**
