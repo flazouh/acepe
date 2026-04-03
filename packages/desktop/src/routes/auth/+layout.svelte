@@ -13,7 +13,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 			<div class="absolute inset-0 z-10 flex flex-col justify-center px-12 text-white">
 				<div class="flex max-w-lg flex-col gap-8">
 					<div class="mb-4 flex items-center gap-3">
-						<Logo class="h-10 w-8 text-white" />
+						<Logo class="h-10 w-10" />
 						<h1 class="font-sans text-2xl font-medium tracking-tight">Acepe</h1>
 					</div>
 					<div class="space-y-6">

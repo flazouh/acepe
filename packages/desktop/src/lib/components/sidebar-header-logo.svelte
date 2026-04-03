@@ -1,4 +1,5 @@
 <script lang="ts">
+import Logo from "$lib/components/logo.svelte";
 import { SidebarHeader, SidebarTrigger, useSidebar } from "$lib/components/ui/sidebar/index.js";
 
 const sidebar = useSidebar();
@@ -27,35 +28,11 @@ function handleExpand(e: MouseEvent) {
 					}
 				}}
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="32"
-					height="32"
-					viewBox="0 0 32 32"
-					fill="none"
-					class="h-6 w-6 flex-shrink-0"
-				>
-					<!-- Acepe Logo - L4-V2: Orange gradient, light to dark -->
-					<rect x="5" y="5" width="6" height="22" rx="2" fill="#F77E2C" fill-opacity="0.3" />
-					<rect x="13" y="5" width="6" height="22" rx="2" fill="#F77E2C" fill-opacity="0.6" />
-					<rect x="21" y="5" width="6" height="22" rx="2" fill="#F77E2C" />
-				</svg>
+				<Logo class="h-6 w-6" />
 			</div>
 		{:else}
 			<div class="flex items-center gap-1">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="32"
-					height="32"
-					viewBox="0 0 32 32"
-					fill="none"
-					class="h-6 w-6 flex-shrink-0"
-				>
-					<!-- Acepe Logo - L4-V2: Orange gradient, light to dark -->
-					<rect x="5" y="5" width="6" height="22" rx="2" fill="#F77E2C" fill-opacity="0.3" />
-					<rect x="13" y="5" width="6" height="22" rx="2" fill="#F77E2C" fill-opacity="0.6" />
-					<rect x="21" y="5" width="6" height="22" rx="2" fill="#F77E2C" />
-				</svg>
+				<Logo class="h-6 w-6" />
 				<h1 class="font-sans text-lg font-semibold text-sidebar-foreground">Acepe</h1>
 			</div>
 		{/if}
