@@ -25,7 +25,13 @@ describe("desktop logo branding", () => {
 		expect(sidebarSource).toContain("<Logo class=\"h-6 w-6\" />");
 		expect(sidebarSource).not.toContain("Acepe Logo - L4-V2");
 		expect(assetSource).toContain('viewBox="0 0 140 140"');
-		expect(assetSource).toContain("pattern0_");
+		expect(assetSource).toContain('rx="26"');
+		expect(assetSource).toContain("pattern0_62_9");
+		expect(assetSource).toContain(
+			'transform="matrix(0.00198783 0 0 0.00198679 -0.0987395 -0.0326784)"'
+		);
+		expect(assetSource).not.toContain('rx="28"');
+		expect(assetSource).not.toContain("pattern0_52_7");
 		expect(assetSource).not.toContain("Three bars");
 	});
 
