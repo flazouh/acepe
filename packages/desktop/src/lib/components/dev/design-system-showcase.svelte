@@ -17,6 +17,7 @@
 		KanbanQuestionFooter,
 		PillButton,
 		ProjectLetterBadge,
+		type AgentToolEntry,
 		type KanbanCardData,
 		type KanbanQuestionData,
 	} from "@acepe/ui";
@@ -54,13 +55,15 @@
 		projectName: "acepe",
 		projectColor: "#9858FF",
 		timeAgo: "2m",
+		previewMarkdown: null,
 		activityText: null,
 		isStreaming: false,
 		modeId: "build",
 		diffInsertions: 42,
 		diffDeletions: 8,
 		errorText: null,
-		todoProgress: { current: 3, total: 5 },
+		todoProgress: { current: 3, total: 5, label: "Implement" },
+		taskCard: null,
 		latestTool: null,
 		toolCalls: [],
 	};
@@ -73,6 +76,7 @@
 		projectName: "web",
 		projectColor: "#3B82F6",
 		timeAgo: "now",
+		previewMarkdown: "## Planning\n\n- Audit the current locale pipeline\n- Wire missing message keys\n- Verify desktop and website parity",
 		activityText: "Thinking…",
 		isStreaming: true,
 		modeId: "plan",
@@ -80,6 +84,7 @@
 		diffDeletions: 0,
 		errorText: null,
 		todoProgress: null,
+		taskCard: null,
 		latestTool: null,
 		toolCalls: [],
 	};
@@ -92,6 +97,7 @@
 		projectName: "acepe",
 		projectColor: "#9858FF",
 		timeAgo: "5m",
+		previewMarkdown: "## Login redirect\n\nUsers coming back from OAuth now land on the workspace they started from instead of the global home route.",
 		activityText: null,
 		isStreaming: false,
 		modeId: "build",
@@ -99,6 +105,7 @@
 		diffDeletions: 3,
 		errorText: null,
 		todoProgress: null,
+		taskCard: null,
 		latestTool: {
 			id: "tool-1",
 			kind: "edit",
@@ -117,6 +124,7 @@
 		projectName: "infra",
 		projectColor: "#EF4444",
 		timeAgo: "12m",
+		previewMarkdown: null,
 		activityText: null,
 		isStreaming: false,
 		modeId: "build",
@@ -124,6 +132,58 @@
 		diffDeletions: 0,
 		errorText: "Connection error",
 		todoProgress: null,
+		taskCard: null,
+		latestTool: null,
+		toolCalls: [],
+	};
+
+	const demoSubagentToolCalls: readonly AgentToolEntry[] = [
+		{
+			id: "subagent-tool-1",
+			type: "tool_call",
+			kind: "search",
+			title: "Search",
+			subtitle: "queue reconciliation",
+			status: "done",
+		},
+		{
+			id: "subagent-tool-2",
+			type: "tool_call",
+			kind: "edit",
+			title: "Edit",
+			filePath: "src/lib/acp/store/queue-reducer.ts",
+			status: "done",
+		},
+	];
+
+	const demoCardSubagent: KanbanCardData = {
+		id: "demo-5",
+		title: "Inspect queue reconciliation",
+		agentIconSrc: "/svgs/icons/claude.svg",
+		agentLabel: "claude",
+		projectName: "desktop",
+		projectColor: "#22C55E",
+		timeAgo: "1m",
+		previewMarkdown: "## Subagent findings\n\n- Dedup the update key before enqueue\n- Preserve latest child metadata per session\n- Re-run focused queue tests",
+		activityText: null,
+		isStreaming: false,
+		modeId: "build",
+		diffInsertions: 9,
+		diffDeletions: 2,
+		errorText: null,
+		todoProgress: { current: 2, total: 3, label: "Inspect" },
+		taskCard: {
+			summary: "Inspect queue reconciliation",
+			isStreaming: false,
+			latestTool: {
+				id: "subagent-tool-2",
+				kind: "edit",
+				title: "Edit",
+				filePath: "src/lib/acp/store/queue-reducer.ts",
+				status: "done",
+			},
+			toolCalls: demoSubagentToolCalls,
+		},
 		latestTool: null,
 		toolCalls: [],
 	};
@@ -181,7 +241,7 @@
 
 {#if open}
 	<div
-		class="fixed inset-0 z-[9997] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
+		class="fixed inset-0 z-[var(--app-modal-z)] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Design System"
@@ -464,6 +524,16 @@
 									</div>
 								</div>
 
+								<!-- With subagent task -->
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										With Subagent Task
+									</div>
+									<div class="mx-auto w-full max-w-[260px]">
+										<KanbanCard card={demoCardSubagent} />
+									</div>
+								</div>
+
 								<!-- Error state -->
 								<div>
 									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
@@ -480,9 +550,9 @@
 										Permission Footer (Command + Always)
 									</div>
 									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardStreaming}>
+										<KanbanCard card={demoCardStreaming} showFooter={true}>
 											{#snippet footer()}
-												<PermissionActionBar permission={demoPermissionReq} compact />
+												<PermissionActionBar permission={demoPermissionReq} compact projectPath="/Users/alex/Documents/acepe" />
 											{/snippet}
 										</KanbanCard>
 									</div>
@@ -494,9 +564,9 @@
 										Permission Footer (File Path)
 									</div>
 									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardWithTool}>
+										<KanbanCard card={demoCardWithTool} showFooter={true}>
 											{#snippet footer()}
-												<PermissionActionBar permission={demoPermissionFileReq} compact />
+												<PermissionActionBar permission={demoPermissionFileReq} compact projectPath="/Users/alex/Documents/acepe" />
 											{/snippet}
 										</KanbanCard>
 									</div>
@@ -508,7 +578,7 @@
 										Question Footer
 									</div>
 									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardBase}>
+										<KanbanCard card={demoCardBase} showFooter={true}>
 											{#snippet footer()}
 												<KanbanQuestionFooter
 													question={demoQuestion}
@@ -574,7 +644,7 @@
 												<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
 												<span class="text-[10px] font-mono font-medium text-muted-foreground shrink-0">Edit</span>
 												<div class="min-w-0 flex-1">
-													<FilePathBadge filePath="packages/ui/src/index.ts" iconBasePath="/svgs/icons" interactive={false} size="sm" />
+													<FilePathBadge filePath="packages/ui/src/index.ts" interactive={false} size="sm" />
 												</div>
 												<div class="shrink-0 ml-auto">
 													<VoiceDownloadProgress ariaLabel="Permission 2 of 2" compact={true} label="" percent={100} segmentCount={2} showPercent={false} />

@@ -11,6 +11,8 @@ export function sectionColor(id: SectionedFeedSectionId): string {
 			return "var(--build-icon)";
 		case "finished":
 			return "var(--success-reference)";
+		case "idle":
+			return Colors.pink;
 		case "error":
 			return Colors.red;
 	}

@@ -13,4 +13,12 @@ describe("design system showcase contract", () => {
 		expect(source).toContain('<Button variant="header" size="header">');
 		expect(source).toContain('<Button variant="toolbar" size="toolbar">');
 	});
+
+	it("shows a kanban card specimen with a subagent task", () => {
+		expect(source).toContain("const demoCardSubagent: KanbanCardData = {");
+		expect(source).toContain("taskCard: {");
+		expect(source).toContain('title: "Inspect queue reconciliation"');
+		expect(source).toContain("With Subagent Task");
+		expect(source).toContain("<KanbanCard card={demoCardSubagent} />");
+	});
 });

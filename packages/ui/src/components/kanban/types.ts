@@ -9,6 +9,13 @@ export interface KanbanToolData {
 	readonly status: "pending" | "running" | "done" | "error";
 }
 
+export interface KanbanTaskCardData {
+	readonly summary: string;
+	readonly isStreaming: boolean;
+	readonly latestTool: KanbanToolData | null;
+	readonly toolCalls: readonly AgentToolEntry[];
+}
+
 export interface KanbanCardData {
 	readonly id: string;
 	readonly title: string | null;
@@ -17,13 +24,15 @@ export interface KanbanCardData {
 	readonly projectName: string;
 	readonly projectColor: string;
 	readonly timeAgo: string;
+	readonly previewMarkdown: string | null;
 	readonly activityText: string | null;
 	readonly isStreaming: boolean;
 	readonly modeId: string | null;
 	readonly diffInsertions: number;
 	readonly diffDeletions: number;
 	readonly errorText: string | null;
-	readonly todoProgress: { current: number; total: number } | null;
+	readonly todoProgress: { current: number; total: number; label: string } | null;
+	readonly taskCard: KanbanTaskCardData | null;
 	readonly latestTool: KanbanToolData | null;
 	readonly toolCalls: readonly AgentToolEntry[];
 }

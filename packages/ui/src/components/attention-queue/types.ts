@@ -3,6 +3,7 @@ export type SectionedFeedSectionId =
   | "working"
   | "planning"
   | "finished"
+  | "idle"
   | "error";
 
 export interface SectionedFeedGroup<TItem> {
