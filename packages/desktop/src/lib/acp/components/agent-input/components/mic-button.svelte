@@ -7,8 +7,8 @@
   States:
   - idle: subtle mic icon, scales up on hover
   - downloading_model: circular progress ring
-  - loading_model / checking_permission / transcribing: Spinner (LoadingIcon)
-  - recording: red filled circle with rounded stop square, soft pulsing glow
+	- loading_model / transcribing: Spinner (LoadingIcon)
+	- checking_permission / recording: red filled circle with rounded stop square, soft pulsing glow
 -->
 <script lang="ts">
 import Microphone from "phosphor-svelte/lib/Microphone";

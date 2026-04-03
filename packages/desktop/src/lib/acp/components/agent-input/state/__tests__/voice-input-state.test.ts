@@ -358,6 +358,51 @@ describe("VoiceInputState", () => {
 		vi.useRealTimers();
 	});
 
+	it("cancels click-to-toggle startup on a second click before recording begins", async () => {
+		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		getModelStatusMock.mockReturnValue(
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+		);
+
+		const state = new VoiceInputState({ sessionId: "session-click-startup" });
+
+		state.onMicPointerDown(createPointerEvent());
+		state.onMicPointerUp();
+		await flushAsync();
+
+		expect(state.phase).toBe("checking_permission");
+
+		state.onMicPointerDown(createPointerEvent());
+		state.onMicPointerUp();
+		await flushAsync();
+
+		expect(cancelRecordingMock).toHaveBeenCalledWith("session-click-startup");
+		expect(state.phase).toBe("idle");
+
+		pendingModelStatus.resolve({ is_downloaded: true, is_loaded: true });
+		await flushAsync();
+
+		expect(startRecordingMock).not.toHaveBeenCalled();
+	});
+
+	it("primes the waveform before the first live amplitude event arrives", async () => {
+		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		getModelStatusMock.mockReturnValue(
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+		);
+
+		const state = new VoiceInputState({ sessionId: "session-waveform-prime" });
+
+		state.onKeyboardHoldStart();
+		await flushAsync();
+
+		expect(state.phase).toBe("checking_permission");
+		expect(state.waveform.meterLevels.some((level) => level > 0)).toBe(true);
+
+		pendingModelStatus.resolve({ is_downloaded: true, is_loaded: true });
+		await flushAsync();
+	});
+
 	it("plays the start sound before voice startup work begins for keyboard hold", () => {
 		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
 

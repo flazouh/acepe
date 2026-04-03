@@ -10,8 +10,8 @@ describe("getMicButtonVisualState", () => {
 		expect(getMicButtonVisualState(phase)).toBe("spinner");
 	});
 
-	it("keeps the mic icon during permission checks", () => {
-		expect(getMicButtonVisualState("checking_permission")).toBe("mic");
+	it("shows the stop state during permission checks", () => {
+		expect(getMicButtonVisualState("checking_permission")).toBe("stop");
 	});
 
 	it("returns download progress while downloading", () => {

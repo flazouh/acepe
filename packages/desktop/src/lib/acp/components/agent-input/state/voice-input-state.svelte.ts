@@ -312,6 +312,9 @@ export class VoiceInputState {
 			log("click-to-toggle: stopping recording");
 			playSound(SoundEffect.DictationStop);
 			this.stopRecording();
+		} else if (canCancelVoiceInteraction(this.phase)) {
+			log("click-to-toggle: cancelling startup");
+			this.cancelRecording();
 		}
 	}
 
@@ -389,6 +392,7 @@ export class VoiceInputState {
 		const selectedModelId = this.getSelectedModelId();
 		log("startRecording()", { selectedModelId, sessionId: this.sessionId });
 		this.transitionTo("checking_permission");
+		this.waveform.primeStartup();
 
 		log("calling tauriClient.voice.getModelStatus", { modelId: selectedModelId });
 		tauriClient.voice.getModelStatus(selectedModelId).match(

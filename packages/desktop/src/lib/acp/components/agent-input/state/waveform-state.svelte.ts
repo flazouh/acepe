@@ -21,6 +21,7 @@ export class WaveformState {
 	static readonly METER_BAR_COUNT = DEFAULT_METER_BAR_COUNT;
 	static readonly MIN_LEVEL = MIN_LEVEL;
 	static readonly MAX_LEVEL = MAX_LEVEL;
+	static readonly STARTUP_PLACEHOLDER_LEVEL = 0.08;
 
 	readonly barCount: number;
 
@@ -42,6 +43,10 @@ export class WaveformState {
 		this.smoothedLevel = smooth(this.smoothedLevel, toMeterLevel(values));
 		this.currentLevel = this.smoothedLevel;
 		this.meterLevels = buildMeterLevels(this.smoothedLevel, this.barCount);
+	}
+
+	primeStartup(): void {
+		this.meterLevels = buildMeterLevels(WaveformState.STARTUP_PLACEHOLDER_LEVEL, this.barCount);
 	}
 
 	/** Reset the live meter to silence. */

@@ -42,7 +42,11 @@ import PastedTextOverlay from "./components/pasted-text-overlay.svelte";
 import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
 import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
-import { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
+import {
+	canCancelVoiceInteraction,
+	canStartVoiceInteraction,
+	shouldShowVoiceOverlay,
+} from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
 	findInlineArtefactRangeAtPosition,
@@ -2090,7 +2094,7 @@ async function handleCancel() {
 							{/if}
 							<MicButton
 								voiceState={currentVoiceState}
-								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}
+								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
 							/>
 						</div>
 					{:else}
@@ -2124,7 +2128,7 @@ async function handleCancel() {
 								<VoiceModelMenu {voiceSettingsStore} />
 							<MicButton
 								voiceState={currentVoiceState}
-								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}
+								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
 							/>
 							</div>
 						{/if}

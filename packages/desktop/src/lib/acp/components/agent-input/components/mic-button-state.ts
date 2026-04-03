@@ -14,7 +14,7 @@ export function getMicButtonVisualState(phase: VoiceInputPhase): MicButtonVisual
 		return "spinner";
 	}
 
-	if (phase === "recording") {
+	if (phase === "checking_permission" || phase === "recording") {
 		return "stop";
 	}
 

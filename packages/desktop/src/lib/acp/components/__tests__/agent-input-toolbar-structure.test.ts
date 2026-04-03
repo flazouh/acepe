@@ -44,6 +44,16 @@ describe("agent input toolbar structure", () => {
 		expect(voiceRecordingOverlaySource).toContain(".voice-meter {");
 	});
 
+	it("keeps the startup voice control actionable while recording startup can still be cancelled", () => {
+		expect(agentInputSource).toContain("canCancelVoiceInteraction");
+		expect(agentInputSource).not.toContain(
+			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}'
+		);
+		expect(agentInputSource).toContain(
+			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}'
+		);
+	});
+
 	it("styles the embedded submit button as a circular foreground pill", () => {
 		expect(agentInputSource).not.toContain("const buttonColor = $derived.by(() => {");
 		expect(agentInputSource).not.toContain('style="background-color: {buttonColor};"');
