@@ -175,4 +175,24 @@ describe("SessionRepository merge placeholder titles", () => {
 
 		expect(sessions[0]?.title).toBe("Real Restored Title");
 	});
+
+	it("keeps the derived first user message when scan still reports a generated session title", () => {
+		const state: SessionStoreState = {
+			sessions: [createSession({ title: "Session 24745d00" })],
+			preloadedSessionIds: new Set(["session-12345678"]),
+		};
+
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			createEntryManager(state.preloadedSessionIds),
+			connectionManager
+		);
+
+		repository.refreshSessionsFromScan(state.sessions, [
+			createHistoryEntry({ display: "Session 24745d00" }),
+		]);
+
+		expect(state.sessions[0]?.title).toBe("Real Restored Title");
+	});
 });

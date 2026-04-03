@@ -20,7 +20,11 @@ import type { AppError } from "../../errors/app-error.js";
 import { processInChunks } from "../../utils/chunked-processor.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
-import { deriveSessionTitleFromUserInput } from "../session-title-policy.js";
+import {
+	deriveSessionTitleFromUserInput,
+	isFallbackSessionTitle,
+	stripArtifactsFromTitle,
+} from "../session-title-policy.js";
 import type { SessionCold, SessionEntry } from "../types.js";
 import type {
 	IConnectionManager,
@@ -45,6 +49,52 @@ function deriveTitleFromFirstUserMessage(entries: readonly SessionEntry[]): stri
 		.join("\n");
 
 	return textContent ? deriveSessionTitleFromUserInput(textContent) : null;
+}
+
+function isReplaceableSessionTitle(title: string | null | undefined): boolean {
+	if (title === null || title === undefined) {
+		return true;
+	}
+
+	const trimmedTitle = title.trim();
+	if (trimmedTitle === "") {
+		return true;
+	}
+
+	if (isFallbackSessionTitle(trimmedTitle)) {
+		return true;
+	}
+
+	const strippedTitle = stripArtifactsFromTitle(trimmedTitle).trim();
+	return strippedTitle === "" && trimmedTitle !== "";
+}
+
+function resolveSessionTitle(
+	derivedTitle: string | null,
+	scannedTitle: string | null,
+	existingTitle: string | null
+): string | null {
+	if (derivedTitle !== null && derivedTitle !== "") {
+		return derivedTitle;
+	}
+
+	if (scannedTitle !== null && scannedTitle !== undefined && !isReplaceableSessionTitle(scannedTitle)) {
+		return scannedTitle;
+	}
+
+	if (existingTitle !== null && existingTitle !== undefined && !isReplaceableSessionTitle(existingTitle)) {
+		return existingTitle;
+	}
+
+	if (scannedTitle !== null && scannedTitle !== undefined && scannedTitle !== "") {
+		return scannedTitle;
+	}
+
+	if (existingTitle !== null && existingTitle !== undefined && existingTitle !== "") {
+		return existingTitle;
+	}
+
+	return null;
 }
 
 /**
@@ -193,10 +243,19 @@ export class SessionRepository {
 			const existingSession = existingSessionsMap.get(scannedSession.id);
 
 			if (existingSession) {
+				const derivedTitle = this.entryManager.isPreloaded(scannedSession.id)
+					? deriveTitleFromFirstUserMessage(this.entryManager.getEntries(scannedSession.id))
+					: null;
+				const title = resolveSessionTitle(
+					derivedTitle,
+					scannedSession.title,
+					existingSession.title
+				);
+
 				// Merge with existing session - update metadata from scan
 				mergedSessions.push({
 					...existingSession,
-					title: scannedSession.title,
+					title,
 					updatedAt: scannedSession.updatedAt,
 					sourcePath: scannedSession.sourcePath ?? existingSession.sourcePath,
 					sessionLifecycleState: scannedSession.sessionLifecycleState
@@ -516,11 +575,11 @@ export class SessionRepository {
 				const derivedTitle = deriveTitleFromFirstUserMessage(
 					this.entryManager.getEntries(existingSession.id)
 				);
-				const title: string | undefined =
-					derivedTitle ??
-					(historySession.title != null && historySession.title !== ""
-						? (historySession.title as string)
-						: (existingSession.title ?? undefined));
+				const title = resolveSessionTitle(
+					derivedTitle,
+					historySession.title,
+					existingSession.title
+				);
 				mergedSessions.push({
 					...existingSession,
 					// Propagate worktreePath from scan if the loading shell was created without it
@@ -528,14 +587,16 @@ export class SessionRepository {
 					// Preserve any existing value; fall back to what the scan found.
 					// Matches the pattern in refreshSessionsFromScan (line 194).
 					worktreePath: existingSession.worktreePath ?? historySession.worktreePath,
-					title: title ?? null,
+					title,
 					updatedAt: historySession.updatedAt,
 				});
 				existingSessionsMap.delete(historySession.id);
 			} else if (existingSession) {
+				const title = resolveSessionTitle(null, historySession.title, existingSession.title);
 				// Session exists but not preloaded - use history metadata
 				mergedSessions.push({
 					...historySession,
+					title,
 				});
 				existingSessionsMap.delete(historySession.id);
 			} else {

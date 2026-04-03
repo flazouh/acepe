@@ -1,4 +1,5 @@
 const FALLBACK_SESSION_TITLES = new Set(["New Thread", "New session", "New Session", "Loading..."]);
+const GENERATED_SESSION_TITLE_PATTERN = /^Session [a-f0-9-]{6,}$/i;
 const MAX_DERIVED_TITLE_CHARS = 100;
 
 /**
@@ -38,7 +39,10 @@ export function normalizeTitleForDisplay(title: string): string {
  * Returns true when a title is still a placeholder and safe to replace.
  */
 export function isFallbackSessionTitle(title: string): boolean {
-	return FALLBACK_SESSION_TITLES.has(title.trim());
+	const trimmedTitle = title.trim();
+	return (
+		FALLBACK_SESSION_TITLES.has(trimmedTitle) || GENERATED_SESSION_TITLE_PATTERN.test(trimmedTitle)
+	);
 }
 
 /**

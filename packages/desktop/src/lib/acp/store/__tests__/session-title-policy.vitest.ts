@@ -13,7 +13,9 @@ describe("session-title-policy", () => {
 		expect(isFallbackSessionTitle("New Thread")).toBe(true);
 		expect(isFallbackSessionTitle("New session")).toBe(true);
 		expect(isFallbackSessionTitle("Loading...")).toBe(true);
+		expect(isFallbackSessionTitle("Session 24745d00")).toBe(true);
 		expect(isFallbackSessionTitle("Real title")).toBe(false);
+		expect(isFallbackSessionTitle("Session planning")).toBe(false);
 	});
 
 	it("derives title from first meaningful line", () => {
@@ -31,6 +33,9 @@ describe("session-title-policy", () => {
 		expect(getTitleUpdateFromUserMessage("New Thread", "Implement auth flow")).toBe(
 			"Implement auth flow"
 		);
+		expect(
+			getTitleUpdateFromUserMessage("Session 24745d00", "Investigate kanban crash")
+		).toBe("Investigate kanban crash");
 		expect(getTitleUpdateFromUserMessage("Real title", "Implement auth flow")).toBeNull();
 	});
 
