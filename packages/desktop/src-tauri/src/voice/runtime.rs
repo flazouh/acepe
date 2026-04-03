@@ -180,6 +180,7 @@ enum WorkerState {
 /// messages and callbacks cross the thread boundary.
 pub struct VoiceRuntimeHandle {
     tx: SyncSender<WorkerMessage>,
+    worker: Option<thread::JoinHandle<()>>,
 }
 
 impl VoiceRuntimeHandle {
@@ -187,11 +188,14 @@ impl VoiceRuntimeHandle {
     pub fn spawn(engine: Box<dyn TranscriptionEngine>) -> anyhow::Result<Self> {
         let (tx, rx) = mpsc::sync_channel(8);
         let worker_tx = tx.clone();
-        thread::Builder::new()
+        let worker = thread::Builder::new()
             .name("acepe-voice-worker".to_string())
             .spawn(move || worker_loop(rx, worker_tx, engine))
             .context("Failed to spawn voice worker thread")?;
-        Ok(Self { tx })
+        Ok(Self {
+            tx,
+            worker: Some(worker),
+        })
     }
 
     /// Load a whisper model into the engine.  Must be called before the first
@@ -272,6 +276,11 @@ impl VoiceRuntimeHandle {
 impl Drop for VoiceRuntimeHandle {
     fn drop(&mut self) {
         let _ = self.tx.send(WorkerMessage::Shutdown);
+        if let Some(worker) = self.worker.take() {
+            if worker.join().is_err() {
+                tracing::warn!("voice worker thread panicked during shutdown");
+            }
+        }
     }
 }
 
@@ -490,6 +499,15 @@ fn worker_loop(
 
             Ok(WorkerMessage::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
                 tracing::info!("worker: shutting down");
+                if let WorkerState::Recording(mut session) =
+                    std::mem::replace(&mut state, WorkerState::Idle)
+                {
+                    drop(session.stream);
+                    session.accumulated.zeroize();
+                }
+                if loaded_model_path.take().is_some() {
+                    engine.unload_model();
+                }
                 break;
             }
 
@@ -744,13 +762,15 @@ mod tests {
     use super::*;
 
     use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
 
-    struct CountingEngine {
+    struct TrackingEngine {
         loads: Arc<Mutex<Vec<PathBuf>>>,
+        unloads: Arc<AtomicUsize>,
     }
 
-    impl super::super::engine::TranscriptionEngine for CountingEngine {
+    impl super::super::engine::TranscriptionEngine for TrackingEngine {
         fn transcribe(
             &self,
             _audio: &[f32],
@@ -771,13 +791,19 @@ mod tests {
                 .push(path.to_path_buf());
             Ok(())
         }
+
+        fn unload_model(&mut self) {
+            self.unloads.fetch_add(1, Ordering::SeqCst);
+        }
     }
 
     #[tokio::test]
     async fn skips_reloading_the_same_model_path() {
         let loads = Arc::new(Mutex::new(Vec::new()));
-        let runtime = VoiceRuntimeHandle::spawn(Box::new(CountingEngine {
+        let unloads = Arc::new(AtomicUsize::new(0));
+        let runtime = VoiceRuntimeHandle::spawn(Box::new(TrackingEngine {
             loads: Arc::clone(&loads),
+            unloads: Arc::clone(&unloads),
         }))
         .expect("spawn runtime");
         let model_path = PathBuf::from("/tmp/small.en.bin");
@@ -800,8 +826,10 @@ mod tests {
     #[tokio::test]
     async fn reloads_when_model_path_changes() {
         let loads = Arc::new(Mutex::new(Vec::new()));
-        let runtime = VoiceRuntimeHandle::spawn(Box::new(CountingEngine {
+        let unloads = Arc::new(AtomicUsize::new(0));
+        let runtime = VoiceRuntimeHandle::spawn(Box::new(TrackingEngine {
             loads: Arc::clone(&loads),
+            unloads: Arc::clone(&unloads),
         }))
         .expect("spawn runtime");
         let first_model_path = PathBuf::from("/tmp/small.en.bin");
@@ -910,6 +938,26 @@ mod tests {
         let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
             .expect("spawn runtime");
         drop(handle);
+    }
+
+    #[tokio::test]
+    async fn dropping_loaded_runtime_unloads_model_before_returning() {
+        let loads = Arc::new(Mutex::new(Vec::new()));
+        let unloads = Arc::new(AtomicUsize::new(0));
+        let handle = VoiceRuntimeHandle::spawn(Box::new(TrackingEngine {
+            loads: Arc::clone(&loads),
+            unloads: Arc::clone(&unloads),
+        }))
+        .expect("spawn runtime");
+
+        handle
+            .load_model(PathBuf::from("/tmp/small.en.bin"))
+            .await
+            .expect("load model succeeds");
+
+        drop(handle);
+
+        assert_eq!(unloads.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
