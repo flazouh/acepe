@@ -1,6 +1,6 @@
 <script lang="ts">
 	import CheckCircle from "phosphor-svelte/lib/CheckCircle";
-	import Clock from "phosphor-svelte/lib/Clock";
+	import Eye from "phosphor-svelte/lib/Eye";
 	import Keyboard from "phosphor-svelte/lib/Keyboard";
 	import Warning from "phosphor-svelte/lib/Warning";
 	import type { SectionedFeedSectionId } from "./types.js";
@@ -25,10 +25,10 @@
 			<BuildIcon size="sm" class="shrink-0" />
 		{:else if sectionId === "planning"}
 			<PlanIcon size="sm" />
-		{:else if sectionId === "finished"}
-			<CheckCircle class="size-3 shrink-0" weight="fill" style="color: {color}" />
+		{:else if sectionId === "needs_review"}
+			<Eye class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "idle"}
-			<Clock class="size-3 shrink-0" weight="fill" style="color: {color}" />
+			<CheckCircle class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "error"}
 			<Warning class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{/if}

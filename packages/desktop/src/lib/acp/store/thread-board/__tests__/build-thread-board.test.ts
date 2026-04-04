@@ -134,12 +134,12 @@ describe("classifyThreadBoardStatus", () => {
 		expect(classifyThreadBoardStatus(source)).toBe("error");
 	});
 
-	it("maps an unseen completed thread to finished", () => {
+	it("maps an unseen completed thread to needs_review", () => {
 		const source = makeSource({
 			state: makeState({ activityKind: "idle", hasUnseenCompletion: true }),
 		});
 
-		expect(classifyThreadBoardStatus(source)).toBe("finished");
+		expect(classifyThreadBoardStatus(source)).toBe("needs_review");
 	});
 
 	it("maps a seen completed thread to idle", () => {
@@ -177,8 +177,8 @@ describe("buildThreadBoard", () => {
 				state: makeState({ activityKind: "streaming", modeId: "build" }),
 			}),
 			makeSource({
-				panelId: "panel-finished",
-				state: makeState({ hasUnseenCompletion: true }),
+				panelId: "panel-needs-review",
+				state: makeState({ activityKind: "idle", hasUnseenCompletion: true }),
 			}),
 			makeSource({
 				panelId: "panel-idle",
@@ -195,7 +195,7 @@ describe("buildThreadBoard", () => {
 			"answer_needed",
 			"planning",
 			"working",
-			"finished",
+			"needs_review",
 			"idle",
 			"error",
 		]);
@@ -209,8 +209,8 @@ describe("buildThreadBoard", () => {
 		expect(groups.find((group) => group.status === "working")?.items[0]?.panelId).toBe(
 			"panel-working"
 		);
-		expect(groups.find((group) => group.status === "finished")?.items[0]?.panelId).toBe(
-			"panel-finished"
+		expect(groups.find((group) => group.status === "needs_review")?.items[0]?.panelId).toBe(
+			"panel-needs-review"
 		);
 		expect(groups.find((group) => group.status === "idle")?.items[0]?.panelId).toBe(
 			"panel-idle"
@@ -225,16 +225,16 @@ describe("buildThreadBoard", () => {
 			makeSource({
 				panelId: "panel-old",
 				lastActivityAt: 1000,
-				state: makeState({ hasUnseenCompletion: true }),
+				state: makeState({ activityKind: "idle", hasUnseenCompletion: true }),
 			}),
 			makeSource({
 				panelId: "panel-new",
 				lastActivityAt: 2000,
-				state: makeState({ hasUnseenCompletion: true }),
+				state: makeState({ activityKind: "idle", hasUnseenCompletion: true }),
 			}),
 		]);
 
-		expect(groups.find((group) => group.status === "finished")?.items.map((item) => item.panelId)).toEqual([
+		expect(groups.find((group) => group.status === "needs_review")?.items.map((item) => item.panelId)).toEqual([
 			"panel-new",
 			"panel-old",
 		]);

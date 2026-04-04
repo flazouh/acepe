@@ -11,7 +11,7 @@ import type { QueueItem } from "./types.js";
  * Section IDs for the queue display.
  * Order matches display order in the UI.
  */
-export type QueueSectionId = "answer_needed" | "planning" | "working" | "finished" | "error";
+export type QueueSectionId = "answer_needed" | "planning" | "working" | "needs_review" | "error";
 
 /**
  * A grouped section of queue items for display.
@@ -26,16 +26,16 @@ const SECTION_ORDER: readonly QueueSectionId[] = [
 	"answer_needed",
 	"planning",
 	"working",
-	"finished",
+	"needs_review",
 	"error",
 ];
 
 /**
- * A session is "finished attention" only when:
+ * A session needs review only when:
  * - The LLM turn has reached ready state
  * - The completion is still unseen by the user
  */
-export function isFinishedAttention(item: Pick<QueueItem, "status" | "state">): boolean {
+export function isNeedsReview(item: Pick<QueueItem, "status" | "state">): boolean {
 	return item.status === "ready" && item.state.attention.hasUnseenCompletion;
 }
 
@@ -68,14 +68,14 @@ export function classifyItem(item: QueueItem): QueueSectionId {
 
 	// Priority 5: Unseen completions (only when idle)
 	if (state.activity.kind === "idle" && state.attention.hasUnseenCompletion) {
-		return "finished";
+		return "needs_review";
 	}
 
 	// Priority 6: Paused treated as working
 	if (state.activity.kind === "paused") return "working";
 
 	// Default: idle sessions not in queue (but if we get here, treat as finished)
-	return "finished";
+	return "needs_review";
 }
 
 /**

@@ -42,7 +42,7 @@ export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoar
 	}
 
 	if (source.state.attention.hasUnseenCompletion) {
-		return "finished";
+		return "needs_review";
 	}
 
 	return "idle";
@@ -80,7 +80,7 @@ export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonl
 	const answerNeeded: ThreadBoardItem[] = [];
 	const planning: ThreadBoardItem[] = [];
 	const working: ThreadBoardItem[] = [];
-	const finished: ThreadBoardItem[] = [];
+	const needsReview: ThreadBoardItem[] = [];
 	const idle: ThreadBoardItem[] = [];
 	const error: ThreadBoardItem[] = [];
 
@@ -100,8 +100,8 @@ export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonl
 			working.push(item);
 			continue;
 		}
-		if (status === "finished") {
-			finished.push(item);
+		if (status === "needs_review") {
+			needsReview.push(item);
 			continue;
 		}
 		if (status === "idle") {
@@ -114,7 +114,7 @@ export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonl
 	sortByLastActivityDesc(answerNeeded);
 	sortByLastActivityDesc(planning);
 	sortByLastActivityDesc(working);
-	sortByLastActivityDesc(finished);
+	sortByLastActivityDesc(needsReview);
 	sortByLastActivityDesc(idle);
 	sortByLastActivityDesc(error);
 
@@ -122,7 +122,7 @@ export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonl
 	groupsByStatus.set("answer_needed", answerNeeded);
 	groupsByStatus.set("planning", planning);
 	groupsByStatus.set("working", working);
-	groupsByStatus.set("finished", finished);
+	groupsByStatus.set("needs_review", needsReview);
 	groupsByStatus.set("idle", idle);
 	groupsByStatus.set("error", error);
 

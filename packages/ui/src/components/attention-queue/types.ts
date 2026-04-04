@@ -2,7 +2,7 @@ export type SectionedFeedSectionId =
   | "answer_needed"
   | "working"
   | "planning"
-  | "finished"
+  | "needs_review"
   | "idle"
   | "error";
 

@@ -11,7 +11,7 @@ const SECTION_LABELS: Record<QueueSectionId, () => string> = {
 	answer_needed: () => m.queue_group_answer_needed(),
 	planning: () => m.queue_group_planning(),
 	working: () => m.queue_group_working(),
-	finished: () => m.queue_group_finished(),
+	needs_review: () => "Needs Review",
 	error: () => m.queue_group_error(),
 };
 

@@ -22,7 +22,7 @@ import type { QueueItem } from "./types.js";
 export {
 	classifyItem,
 	groupIntoSections,
-	isFinishedAttention,
+	isNeedsReview,
 	type QueueSectionGroup,
 	type QueueSectionId,
 } from "./queue-section-utils.js";

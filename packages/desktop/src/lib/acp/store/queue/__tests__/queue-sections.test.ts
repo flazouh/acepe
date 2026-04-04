@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionState } from "../../session-state.js";
-import { classifyItem, groupIntoSections, isFinishedAttention } from "../queue-section-utils.js";
+import { classifyItem, groupIntoSections, isNeedsReview } from "../queue-section-utils.js";
 import type { QueueItem } from "../types.js";
 
 /**
@@ -141,18 +141,18 @@ function makeItem(
 }
 
 describe("classifyItem", () => {
-	it("should treat ready + unseen as finished attention", () => {
+	it("should treat ready + unseen as needs review", () => {
 		expect(
-			isFinishedAttention({
+			isNeedsReview({
 				status: "ready",
 				state: makeState({ hasUnseenCompletion: true }),
 			})
 		).toBe(true);
 	});
 
-	it("should not treat ready without unseen as finished attention", () => {
+	it("should not treat ready without unseen as needs review", () => {
 		expect(
-			isFinishedAttention({
+			isNeedsReview({
 				status: "ready",
 				state: makeState({ hasUnseenCompletion: false }),
 			})
@@ -209,13 +209,13 @@ describe("classifyItem", () => {
 		expect(classifyItem(item)).toBe("answer_needed");
 	});
 
-	it("should classify plan mode + idle + unseen completion as finished", () => {
+	it("should classify plan mode + idle + unseen completion as needs_review", () => {
 		const item = makeItem({
 			state: makeState({ activityKind: "idle", modeId: "plan", hasUnseenCompletion: true }),
 			currentModeId: "plan",
 			status: "ready",
 		});
-		expect(classifyItem(item)).toBe("finished");
+		expect(classifyItem(item)).toBe("needs_review");
 	});
 
 	it("should classify plan mode + paused as working", () => {
@@ -226,8 +226,8 @@ describe("classifyItem", () => {
 		expect(classifyItem(item)).toBe("working");
 	});
 
-	it("should classify ready status as finished", () => {
-		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe("finished");
+	it("should classify ready status as needs_review", () => {
+		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe("needs_review");
 	});
 
 	it("should prioritize answer_needed over error", () => {
@@ -306,7 +306,7 @@ describe("groupIntoSections", () => {
 		expect(sections[0].items).toHaveLength(1);
 		expect(sections[1].id).toBe("working");
 		expect(sections[1].items).toHaveLength(1);
-		expect(sections[2].id).toBe("finished");
+		expect(sections[2].id).toBe("needs_review");
 		expect(sections[2].items).toHaveLength(1);
 		expect(sections[3].id).toBe("error");
 		expect(sections[3].items).toHaveLength(1);
@@ -330,7 +330,7 @@ describe("groupIntoSections", () => {
 
 		const sections = groupIntoSections(items);
 		expect(sections).toHaveLength(1);
-		expect(sections[0].id).toBe("finished");
+		expect(sections[0].id).toBe("needs_review");
 		expect(sections[0].items).toHaveLength(2);
 	});
 
