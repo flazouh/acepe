@@ -36,8 +36,8 @@ describe("kanban new-session dialog contract", () => {
 		expect(source).toContain('<span class="truncate text-foreground">New Agent</span>');
 		expect(source).toContain('What do you want to build?');
 		expect(source).toContain('font-sans text-[1.9rem] font-semibold tracking-tight text-foreground');
-		expect(source).toContain('variant="outline"');
-		expect(source).toContain('size="header"');
+		expect(source).toContain('variant="headerAction"');
+		expect(source).toContain('size="headerAction"');
 		expect(source).not.toContain('IconSparkles');
 		expect(source).toContain('<span>New Agent</span>');
 		expect(source).not.toContain('<span>New session</span>');
