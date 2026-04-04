@@ -28,7 +28,7 @@
 
 	interface DemoItem {
 		readonly id: string;
-		readonly sectionId: 'answer_needed' | 'working' | 'planning' | 'finished' | 'error';
+		readonly sectionId: 'answer_needed' | 'working' | 'planning' | 'needs_review' | 'error';
 		readonly title: string;
 		readonly mode: ActivityEntryMode;
 		readonly timeAgo: string;
@@ -155,7 +155,7 @@
 		// Finished
 		{
 			id: 'db-migration',
-			sectionId: 'finished',
+			sectionId: 'needs_review',
 			title: 'Database migration',
 			mode: null,
 			timeAgo: '12m',
@@ -206,14 +206,14 @@
 		answer_needed: 'Input Needed',
 		working: 'Working',
 		planning: 'Planning',
-		finished: 'Finished',
+		needs_review: 'Needs Review',
 		error: 'Error'
 	};
 
 	const groups = $derived<readonly SectionedFeedGroup<DemoItem>[]>(
-		['answer_needed', 'working', 'planning', 'finished', 'error']
+		['answer_needed', 'working', 'planning', 'needs_review', 'error']
 			.map((id) => ({
-				id: id as 'answer_needed' | 'working' | 'planning' | 'finished' | 'error',
+				id: id as 'answer_needed' | 'working' | 'planning' | 'needs_review' | 'error',
 				label: SECTION_LABELS[id],
 				items: demoItems.filter((item) => item.sectionId === id)
 			}))

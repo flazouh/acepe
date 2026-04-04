@@ -378,7 +378,7 @@
 			groups.push({ id: 'working', label: 'Working', items: working });
 		}
 		if (finished.length > 0) {
-			groups.push({ id: 'finished', label: 'Finished', items: finished });
+			groups.push({ id: 'needs_review', label: 'Needs Review', items: finished });
 		}
 		return groups;
 	});

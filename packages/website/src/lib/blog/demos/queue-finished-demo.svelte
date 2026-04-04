@@ -50,8 +50,8 @@
 
 	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
 		{
-			id: 'finished',
-			label: 'Finished',
+			id: 'needs_review',
+			label: 'Needs Review',
 			items: [demoItem]
 		}
 	];

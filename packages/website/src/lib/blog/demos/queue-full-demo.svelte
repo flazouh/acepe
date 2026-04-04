@@ -176,8 +176,8 @@
 			items: [planningItem]
 		},
 		{
-			id: 'finished',
-			label: 'Finished',
+			id: 'needs_review',
+			label: 'Needs Review',
 			items: [finishedItem]
 		}
 	];

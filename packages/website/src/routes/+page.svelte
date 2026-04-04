@@ -11,7 +11,8 @@ import { SqlStudioDataGrid } from "@acepe/ui/sql-studio";
 import { SectionedFeed, ActivityEntry } from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
-import logo from "$lib/assets/favicon.svg";
+import logo from "$lib/assets/logo.svg";
+import logoLight from "$lib/assets/logo-light.svg";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 import {
 	Stack,
@@ -191,8 +192,8 @@ const mockQueueGroups = [
 		],
 	},
 	{
-		id: "finished" as const,
-		label: "Finished",
+		id: "needs_review" as const,
+		label: "Needs Review",
 		items: [
 			{ mode: "plan", title: "Write API docs", timeAgo: null, insertions: 0, deletions: 0, isStreaming: false, fileToolDisplayText: null, statusText: null, todoProgress: { current: 3, total: 3, label: "sections" } },
 		],
@@ -364,12 +365,19 @@ const features = [
 
 		<!-- Demo Screenshot Section -->
 		<section class="mx-auto max-w-6xl px-4 pb-24 md:px-6 md:pb-32">
-			<div class="overflow-hidden rounded-xl border border-border/50 bg-card/10">
+			<div class="relative overflow-hidden rounded-md border border-border/50 bg-card/10">
 				<img
-					src="/images/landing/hero-demo-screenshot.png"
-					alt="Acepe main app view"
-					class="h-auto w-full"
+					src="/images/landing/acepe-background.webp"
+					alt=""
+					class="absolute inset-0 h-full w-full object-cover grayscale"
 				/>
+				<div class="relative p-4 md:p-6">
+					<img
+						src="/images/landing/acepe-working-view.png"
+						alt="Acepe main app view"
+						class="h-auto w-full"
+					/>
+				</div>
 			</div>
 		</section>
 
@@ -658,7 +666,8 @@ const features = [
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<img src={logo} alt="" class="h-5 w-5" />
+						<img src={logo} alt="" class="h-6 w-6 dark:hidden" />
+						<img src={logoLight} alt="" class="hidden h-6 w-6 dark:block" />
 						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
