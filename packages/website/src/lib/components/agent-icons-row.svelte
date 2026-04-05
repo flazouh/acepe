@@ -25,6 +25,12 @@
 			sizeMultiplier: 0.88
 		},
 		{
+			id: 'copilot',
+			alt: 'Copilot',
+			iconPath: (theme) => `/svgs/agents/copilot/copilot-icon-${theme}.svg`,
+			sizeMultiplier: 0.88
+		},
+		{
 			id: 'opencode',
 			alt: 'OpenCode',
 			iconPath: (theme) => `/svgs/agents/opencode/opencode-logo-${theme}.svg`,
