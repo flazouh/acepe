@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "bun:test";
 
 const logoComponentPath = resolve(import.meta.dir, "./lib/components/logo.svelte");
-const sidebarHeaderLogoPath = resolve(import.meta.dir, "./lib/components/sidebar-header-logo.svelte");
+const sidebarHeaderLogoPath = resolve(
+	import.meta.dir,
+	"./lib/components/sidebar-header-logo.svelte"
+);
 const sharedLogoPath = resolve(import.meta.dir, "../../../assets/logo.svg");
 const sharedDarkLogoPath = resolve(import.meta.dir, "../../../assets/logo-dark.svg");
 const iconScriptPath = resolve(import.meta.dir, "../scripts/generate-icons.sh");
@@ -11,10 +14,19 @@ const websiteLogoPath = resolve(import.meta.dir, "../../website/src/lib/assets/l
 const websiteFaviconPath = resolve(import.meta.dir, "../../website/src/lib/assets/favicon.svg");
 const websiteLayoutPath = resolve(import.meta.dir, "../../website/src/routes/+layout.svelte");
 const websiteLayoutCssPath = resolve(import.meta.dir, "../../website/src/routes/layout.css");
-const websiteHeaderPath = resolve(import.meta.dir, "../../website/src/lib/components/header.svelte");
+const websiteHeaderPath = resolve(
+	import.meta.dir,
+	"../../website/src/lib/components/header.svelte"
+);
 const websiteHomePath = resolve(import.meta.dir, "../../website/src/routes/+page.svelte");
-const websiteDownloadPath = resolve(import.meta.dir, "../../website/src/routes/download/+page.svelte");
-const websitePricingPath = resolve(import.meta.dir, "../../website/src/routes/pricing/+page.svelte");
+const websiteDownloadPath = resolve(
+	import.meta.dir,
+	"../../website/src/routes/download/+page.svelte"
+);
+const websitePricingPath = resolve(
+	import.meta.dir,
+	"../../website/src/routes/pricing/+page.svelte"
+);
 const websiteLoginPath = resolve(import.meta.dir, "../../website/src/routes/login/+page.svelte");
 
 function getEmbeddedPngDimensions(svgSource: string): { width: number; height: number } | null {
@@ -46,7 +58,7 @@ describe("desktop logo branding", () => {
 		expect(componentSource).toContain("src={logo}");
 		expect(componentSource).not.toContain("<svg");
 		expect(sidebarSource).toContain('import Logo from "$lib/components/logo.svelte";');
-		expect(sidebarSource).toContain("<Logo class=\"h-6 w-6\" />");
+		expect(sidebarSource).toContain('<Logo class="h-6 w-6" />');
 		expect(sidebarSource).not.toContain("Acepe Logo - L4-V2");
 		expect(assetSource).toContain('viewBox="0 0 140 140"');
 		expect(assetSource).toContain('rx="26"');
@@ -68,7 +80,7 @@ describe("desktop logo branding", () => {
 		expect(darkAssetSource).toContain('fill="#1A1A1A"');
 		expect(darkAssetSource).toContain('fill="#EBCB8B"');
 		expect(darkAssetSource).toContain('mask="url(#mark-mask)"');
-		expect(darkAssetSource).toContain('data:image/png;base64,');
+		expect(darkAssetSource).toContain("data:image/png;base64,");
 		expect(darkAssetSource).not.toContain('fill="url(#pattern0_62_9)"');
 	});
 
@@ -114,29 +126,24 @@ describe("desktop logo branding", () => {
 		expect(websiteFaviconSource).toContain('rx="26"');
 		expect(websiteLayoutSource).toContain("import logo from '$lib/assets/favicon.svg';");
 		expect(websiteLayoutCssSource).toContain("@custom-variant dark (&:is([data-theme='dark'] *));");
-		expect(websiteHeaderSource).toContain("import logo from '$lib/assets/logo.svg';");
-		expect(websiteHeaderSource).toContain("import logoDark from '../../../../../assets/logo-dark.svg';");
-		expect(websiteHeaderSource).not.toContain("$lib/assets/logo-light.svg");
+		expect(websiteHeaderSource).toContain('import logoLight from "$lib/assets/logo-light.svg";');
+		expect(websiteHeaderSource).toContain('import logoDark from "../../../../../assets/logo-dark.svg";');
 		expect(websiteHeaderSource).toContain('class="h-6 w-6 dark:hidden"');
 		expect(websiteHeaderSource).toContain('class="hidden h-6 w-6 dark:block"');
-		expect(websiteHomeSource).toContain('import logo from "$lib/assets/logo.svg";');
+		expect(websiteHomeSource).toContain('import logoLight from "$lib/assets/logo-light.svg";');
 		expect(websiteHomeSource).toContain('import logoDark from "../../../../assets/logo-dark.svg";');
-		expect(websiteHomeSource).not.toContain('$lib/assets/logo-light.svg');
 		expect(websiteHomeSource).toContain('class="h-6 w-6 dark:hidden"');
 		expect(websiteHomeSource).toContain('class="hidden h-6 w-6 dark:block"');
-		expect(websiteDownloadSource).toContain("import logo from '$lib/assets/logo.svg';");
-		expect(websiteDownloadSource).toContain("import logoDark from '../../../../../assets/logo-dark.svg';");
-		expect(websiteDownloadSource).not.toContain("$lib/assets/logo-light.svg");
+		expect(websiteDownloadSource).toContain('import logoLight from "$lib/assets/logo-light.svg";');
+		expect(websiteDownloadSource).toContain('import logoDark from "../../../../../assets/logo-dark.svg";');
 		expect(websiteDownloadSource).toContain('class="h-6 w-6 dark:hidden"');
 		expect(websiteDownloadSource).toContain('class="hidden h-6 w-6 dark:block"');
-		expect(websitePricingSource).toContain("import logo from '$lib/assets/logo.svg';");
-		expect(websitePricingSource).toContain("import logoDark from '../../../../../assets/logo-dark.svg';");
-		expect(websitePricingSource).not.toContain("$lib/assets/logo-light.svg");
+		expect(websitePricingSource).toContain('import logoLight from "$lib/assets/logo-light.svg";');
+		expect(websitePricingSource).toContain('import logoDark from "../../../../../assets/logo-dark.svg";');
 		expect(websitePricingSource).toContain('class="h-6 w-6 dark:hidden"');
 		expect(websitePricingSource).toContain('class="hidden h-6 w-6 dark:block"');
-		expect(websiteLoginSource).toContain("import logo from '$lib/assets/logo.svg';");
-		expect(websiteLoginSource).toContain("import logoDark from '../../../../../assets/logo-dark.svg';");
-		expect(websiteLoginSource).not.toContain("$lib/assets/logo-light.svg");
+		expect(websiteLoginSource).toContain('import logoLight from "$lib/assets/logo-light.svg";');
+		expect(websiteLoginSource).toContain('import logoDark from "../../../../../assets/logo-dark.svg";');
 		expect(websiteLoginSource).toContain('class="h-7 w-7 dark:hidden"');
 		expect(websiteLoginSource).toContain('class="hidden h-7 w-7 dark:block"');
 		expect(websiteLoginSource).not.toContain('<rect x="5" y="5" width="6" height="22"');
@@ -144,7 +151,9 @@ describe("desktop logo branding", () => {
 		expect(websiteLogoPngDimensions).not.toBeNull();
 		if (sharedLogoPngDimensions !== null && websiteLogoPngDimensions !== null) {
 			expect(websiteLogoPngDimensions.width).toBeGreaterThanOrEqual(sharedLogoPngDimensions.width);
-			expect(websiteLogoPngDimensions.height).toBeGreaterThanOrEqual(sharedLogoPngDimensions.height);
+			expect(websiteLogoPngDimensions.height).toBeGreaterThanOrEqual(
+				sharedLogoPngDimensions.height
+			);
 		}
 	});
 
@@ -165,9 +174,9 @@ describe("desktop logo branding", () => {
 		expect(scriptSource).toContain('cat > "$WEBSITE_ASSETS/logo.svg" <<EOF');
 		expect(scriptSource).toContain('cat > "$WEBSITE_ASSETS/logo-light.svg" <<EOF');
 		expect(scriptSource).toContain('base64 < "$LOGO_DARK_MASK_PNG"');
-		expect(scriptSource).not.toContain('resize 280x280');
+		expect(scriptSource).not.toContain("resize 280x280");
 		expect(scriptSource).not.toContain('cat > "$ASSETS_DIR/logo.svg"');
 		expect(scriptSource).not.toContain('cp "$SOURCE_LOGO" "$SOURCE_LOGO_DARK"');
-		expect(scriptSource).not.toContain('roundrectangle 100,100 923,923');
+		expect(scriptSource).not.toContain("roundrectangle 100,100 923,923");
 	});
 });
