@@ -1,4 +1,12 @@
-import { readdirSync, readFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	readdirSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "bun:test";
@@ -31,7 +39,7 @@ const IGNORED_DIRECTORY_NAMES = new Set([
 const LEGACY_PACKAGE_PATTERN = LEGACY_PACKAGE_NAMES.join("|");
 const LEGACY_IMPORT_PATTERN =
 	new RegExp(
-		`from\\s+["'](${LEGACY_PACKAGE_PATTERN})["']|import\\s*\\(\\s*["'](${LEGACY_PACKAGE_PATTERN})["']\\s*\\)|require\\s*\\(\\s*["'](${LEGACY_PACKAGE_PATTERN})["']\\s*\\)`
+		`from\\s+["'](?:${LEGACY_PACKAGE_PATTERN})["']|import\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)|require\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)`
 	);
 
 type PackageJson = {
@@ -70,6 +78,31 @@ function collectSourceFilePaths(directoryPath: string): string[] {
 }
 
 describe("legacy icon package cleanup", () => {
+	it("collects only source files outside ignored directories", () => {
+		const tempDirectoryPath = mkdtempSync(resolve(tmpdir(), "acepe-legacy-icon-cleanup-"));
+
+		try {
+			const nestedSourcePath = resolve(tempDirectoryPath, "src/lib/example.ts");
+			const nestedSveltePath = resolve(tempDirectoryPath, "src/routes/+page.svelte");
+			const ignoredPath = resolve(tempDirectoryPath, "node_modules/ignored.ts");
+			const unsupportedPath = resolve(tempDirectoryPath, "README.md");
+
+			mkdirSync(resolve(tempDirectoryPath, "src/lib"), { recursive: true });
+			mkdirSync(resolve(tempDirectoryPath, "src/routes"), { recursive: true });
+			mkdirSync(resolve(tempDirectoryPath, "node_modules"), { recursive: true });
+			writeFileSync(nestedSourcePath, "export const example = true;\n");
+			writeFileSync(nestedSveltePath, "<script lang=\"ts\"></script>\n");
+			writeFileSync(ignoredPath, "export const ignored = true;\n");
+			writeFileSync(unsupportedPath, "# ignored\n");
+
+			expect(collectSourceFilePaths(tempDirectoryPath).sort()).toEqual(
+				[nestedSveltePath, nestedSourcePath].sort()
+			);
+		} finally {
+			rmSync(tempDirectoryPath, { force: true, recursive: true });
+		}
+	});
+
 	it("removes the unused legacy dependencies from package manifests", () => {
 		const rootPackageJson = readPackageJson(ROOT_PACKAGE_JSON_PATH);
 		const desktopPackageJson = readPackageJson(DESKTOP_PACKAGE_JSON_PATH);
