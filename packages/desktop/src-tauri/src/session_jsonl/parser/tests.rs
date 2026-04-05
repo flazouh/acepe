@@ -1527,9 +1527,8 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
         ),
     )
     .unwrap();
-    drop(lock);
-
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
     invalidate_cache().await;
 
     let mut emitted_ids = Vec::new();
@@ -1580,9 +1579,8 @@ async fn test_find_session_file_direct_path_no_scanning() {
         // Write invalid content - if these are scanned, they would cause errors
         fs::write(&other_file, "INVALID_JSON_SHOULD_NOT_BE_PARSED").unwrap();
     }
-    drop(lock);
-
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
 
     // Call find_session_file - it should return immediately without scanning agent-* files
     let result = find_session_file(session_id, project_path).await;
@@ -1631,9 +1629,8 @@ async fn test_parse_converted_session_single_file_read() {
         ));
         fs::write(&other_file, "INVALID").unwrap();
     }
-    drop(lock);
-
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
 
     // Call parse_converted_session
     let result = parse_converted_session(session_id, project_path).await;
@@ -1671,9 +1668,8 @@ async fn test_parse_converted_session_merges_fragmented_assistant_response() {
         session_id, session_id, session_id, session_id, session_id
     );
     fs::write(&session_file, content).unwrap();
-    drop(lock);
-
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
     let result = parse_converted_session(session_id, project_path).await;
 
     assert!(
