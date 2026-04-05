@@ -9,10 +9,19 @@ import { AppTabBar, AppSessionItem as AppSessionItemComponent } from "@acepe/ui/
 import type { AppTab, AppSessionItemType } from "@acepe/ui/app-layout";
 import { SqlStudioDataGrid } from "@acepe/ui/sql-studio";
 import { SectionedFeed, ActivityEntry } from "@acepe/ui/attention-queue";
+import type {
+	ActivityEntryMode,
+	ActivityEntryQuestion,
+	ActivityEntryQuestionOption,
+	ActivityEntryQuestionProgress,
+	ActivityEntryTodoProgress,
+	SectionedFeedGroup,
+	SectionedFeedItemData,
+} from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
 import logo from "$lib/assets/logo.svg";
-import logoLight from "$lib/assets/logo-light.svg";
+import logoDark from "../../../../assets/logo-dark.svg";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 import {
 	Stack,
@@ -165,9 +174,28 @@ const mockSessions: AppSessionItemType[] = [
 	},
 ];
 
+interface MockQueueItem {
+	readonly mode: ActivityEntryMode;
+	readonly title: string;
+	readonly timeAgo: string | null;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly statusText: string | null;
+	readonly showToolShimmer?: boolean;
+	readonly todoProgress?: ActivityEntryTodoProgress;
+	readonly currentQuestion?: ActivityEntryQuestion;
+	readonly totalQuestions?: number;
+	readonly hasMultipleQuestions?: boolean;
+	readonly currentQuestionIndex?: number;
+	readonly questionProgress?: readonly ActivityEntryQuestionProgress[];
+	readonly currentQuestionOptions?: readonly ActivityEntryQuestionOption[];
+}
+
 const mockQueueGroups = [
 	{
-		id: "answer_needed" as const,
+		id: "answer_needed",
 		label: "Needs answer",
 		items: [
 			{
@@ -185,14 +213,14 @@ const mockQueueGroups = [
 		],
 	},
 	{
-		id: "working" as const,
+		id: "working",
 		label: "Working",
 		items: [
 			{ mode: "build", title: "Database migration", timeAgo: null, insertions: 0, deletions: 0, isStreaming: true, fileToolDisplayText: "db/migrate/add_users.sql", statusText: null, showToolShimmer: true, todoProgress: { current: 2, total: 5, label: "migrations" } },
 		],
 	},
 	{
-		id: "needs_review" as const,
+		id: "idle",
 		label: "Needs Review",
 		items: [
 			{ mode: "plan", title: "Write API docs", timeAgo: null, insertions: 0, deletions: 0, isStreaming: false, fileToolDisplayText: null, statusText: null, todoProgress: { current: 3, total: 3, label: "sections" } },
@@ -573,10 +601,10 @@ const features = [
 											<div class="queue-showcase">
 											<SectionedFeed
 												totalCount={3}
-												groups={mockQueueGroups}
+												groups={mockQueueGroups as readonly SectionedFeedGroup<SectionedFeedItemData>[]}
 											>
-												{#snippet itemRenderer(item)}
-													{@const entry = item as any}
+												{#snippet itemRenderer(item: SectionedFeedItemData)}
+													{@const entry = item as MockQueueItem}
 													<ActivityEntry
 														onSelect={() => {}}
 														mode={entry.mode}
@@ -667,7 +695,7 @@ const features = [
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
 						<img src={logo} alt="" class="h-6 w-6 dark:hidden" />
-						<img src={logoLight} alt="" class="hidden h-6 w-6 dark:block" />
+						<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
 						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">

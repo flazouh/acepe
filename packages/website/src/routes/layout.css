@@ -2,6 +2,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@custom-variant dark (&:is([data-theme='dark'] *));
+
 /* Acepe custom font - font files in static/fonts/ */
 @font-face {
 	font-family: 'Acepe';
@@ -25,7 +27,7 @@
 	--card-foreground: #ffffff;
 	--popover: #272727;
 	--popover-foreground: #ffffff;
-	--primary: #d97757;
+	--primary: #ffc799;
 	--primary-foreground: #191c22;
 	--secondary: #565656;
 	--secondary-foreground: #ececec;
@@ -50,7 +52,7 @@
 	--chart-5: #b48ead;
 	--sidebar: #141414;
 	--sidebar-foreground: #cccccc;
-	--sidebar-primary: #d97757;
+	--sidebar-primary: #ffc799;
 	--sidebar-primary-foreground: #191c22;
 	--sidebar-accent: #2a2a2a;
 	--sidebar-accent-foreground: #ffffff;
