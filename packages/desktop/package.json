@@ -70,7 +70,6 @@
 		"clsx": "^2.1.1",
 		"codemirror": "^6.0.2",
 		"lru-cache": "^11.2.4",
-		"lucide-svelte": "^0.575.0",
 		"markdown-it": "^14.1.0",
 		"mermaid": "^11.12.2",
 		"neverthrow": "^8.2.0",
