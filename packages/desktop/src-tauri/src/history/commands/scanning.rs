@@ -83,7 +83,7 @@ pub async fn scan_project_sessions(
 pub async fn get_startup_sessions(
     app: AppHandle,
     session_ids: Vec<String>,
-) -> Result<Vec<HistoryEntry>, String> {
+) -> Result<crate::session_jsonl::types::StartupSessionsResponse, String> {
     let db = app
         .try_state::<DbConn>()
         .map(|state| state.inner().clone())
@@ -93,12 +93,44 @@ pub async fn get_startup_sessions(
         .await
         .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
 
-    let startup_order = session_ids
+    // Build a set of requested IDs for O(1) lookup when detecting alias matches.
+    let requested_ids: std::collections::HashSet<String> =
+        session_ids.iter().cloned().collect();
+
+    // Build the ordering map keyed by requested session ID -> original position.
+    let startup_order: std::collections::HashMap<String, usize> = session_ids
         .into_iter()
         .enumerate()
         .map(|(index, session_id)| (session_id, index))
-        .collect::<std::collections::HashMap<_, _>>();
-    indexed.sort_by_key(|row| startup_order.get(&row.id).copied().unwrap_or(usize::MAX));
+        .collect();
+
+    // Sort respecting alias matches: look up the row's canonical ID first,
+    // then fall back to its provider_session_id (the alias the caller used).
+    indexed.sort_by_key(|row| {
+        startup_order
+            .get(&row.id)
+            .or_else(|| {
+                row.provider_session_id
+                    .as_ref()
+                    .and_then(|pid| startup_order.get(pid))
+            })
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
+
+    // Detect alias matches: rows where the canonical `id` differs from the
+    // requested ID because the DB matched via `provider_session_id`.
+    let mut alias_remaps = std::collections::HashMap::new();
+    for row in &indexed {
+        if !requested_ids.contains(&row.id) {
+            // The canonical ID was not in the request — this row was matched by alias.
+            if let Some(ref pid) = row.provider_session_id {
+                if requested_ids.contains(pid) {
+                    alias_remaps.insert(pid.clone(), row.id.clone());
+                }
+            }
+        }
+    }
 
     let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
     for session in indexed {
@@ -126,7 +158,10 @@ pub async fn get_startup_sessions(
         });
     }
 
-    Ok(entries)
+    Ok(crate::session_jsonl::types::StartupSessionsResponse {
+        entries,
+        alias_remaps,
+    })
 }
 
 async fn scan_project_sessions_inner(

@@ -1,6 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
-import type { HistoryEntry } from "../../services/claude-history-types.js";
+import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type {
 	ConvertedSession,
 	SessionPlanResponse,
@@ -44,7 +44,7 @@ export const history = {
 		});
 	},
 
-	getStartupSessions: (sessionIds: string[]): ResultAsync<HistoryEntry[], AppError> => {
+	getStartupSessions: (sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> => {
 		return invokeAsync(CMD.history.get_startup_sessions, { sessionIds });
 	},
 

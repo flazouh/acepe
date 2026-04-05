@@ -170,7 +170,7 @@ fn session_metadata_context_from_cwd_returns_base_project_for_git_worktree() {
 
     let (project_path, resolved_worktree_path) = session_metadata_context_from_cwd(&worktree_path);
 
-    assert_eq!(project_path, repo_path.to_string_lossy());
+    assert_eq!(project_path, canonicalize_or_original_for_test(&repo_path));
     assert_eq!(
         resolved_worktree_path,
         Some(canonicalize_or_original_for_test(&worktree_path))
@@ -207,7 +207,7 @@ async fn persist_session_metadata_for_cwd_inserts_created_worktree_session() {
         .expect("load row")
         .expect("row should exist");
 
-    assert_eq!(row.project_path, repo_path.to_string_lossy());
+    assert_eq!(row.project_path, canonicalize_or_original_for_test(&repo_path));
     assert_eq!(
         row.worktree_path,
         Some(canonicalize_or_original_for_test(&worktree_path))

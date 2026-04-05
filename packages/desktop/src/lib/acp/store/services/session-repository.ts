@@ -287,13 +287,18 @@ export class SessionRepository {
 
 	/**
 	 * Load startup sessions (hydrate sessions that should be open at startup).
+	 *
+	 * Returns the list of missing session IDs and an alias remap map.
+	 * The alias remap maps requested alias IDs (provider_session_id values)
+	 * to their canonical Acepe session IDs, enabling the caller to rewrite
+	 * panel session references before validation.
 	 */
 	loadStartupSessions(
 		existingSessions: SessionCold[],
 		sessionIds: string[]
-	): ResultAsync<{ missing: string[] }, AppError> {
+	): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
 		if (sessionIds.length === 0) {
-			return okAsync({ missing: [] });
+			return okAsync({ missing: [], aliasRemaps: {} });
 		}
 
 		logger.debug("Loading startup sessions", { sessionIds });
@@ -303,21 +308,35 @@ export class SessionRepository {
 
 		if (sessionIdsToFetch.length === 0) {
 			logger.debug("All startup sessions already loaded");
-			return okAsync({ missing: [] });
+			return okAsync({ missing: [], aliasRemaps: {} });
 		}
 
-		return api.getStartupSessions(sessionIdsToFetch).map((entries) => {
-			const mergedSessions = this.mergeHistoryWithExisting(entries, existingSessions);
+		return api.getStartupSessions(sessionIdsToFetch).map((response) => {
+			const mergedSessions = this.mergeHistoryWithExisting(response.entries, existingSessions);
 			this.stateWriter.setSessions(mergedSessions);
 
+			// Build alias remaps from the response, filtering out null values from Partial<>.
+			const aliasRemaps: Record<string, string> = {};
+			for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
+				if (canonicalId !== undefined && canonicalId !== null) {
+					aliasRemaps[aliasId] = canonicalId;
+				}
+			}
+
 			const foundIds = new Set(mergedSessions.map((session) => session.id));
-			const missing = sessionIds.filter((id) => !foundIds.has(id));
+			// A session matched by alias will have its canonical ID in foundIds.
+			// The original alias ID should not be reported as missing.
+			const aliasedIds = new Set(Object.keys(aliasRemaps));
+			const missing = sessionIds.filter((id) => !foundIds.has(id) && !aliasedIds.has(id));
 
 			if (missing.length > 0) {
 				logger.debug("Startup sessions not found (likely deleted)", { missing });
 			}
+			if (Object.keys(aliasRemaps).length > 0) {
+				logger.debug("Startup sessions matched by alias", { aliasRemaps });
+			}
 
-			return { missing };
+			return { missing, aliasRemaps };
 		});
 	}
 

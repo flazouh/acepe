@@ -39,14 +39,11 @@ impl AgentClient for OpenCodeHttpClient {
     }
 
     async fn new_session(&mut self, cwd: String) -> AcpResult<NewSessionResponse> {
-        // Store the working directory
-        self.current_directory = Some(cwd.clone());
-
         let base_url = self.base_url().await?;
         let url = format!("{}/session", base_url);
 
         let body = json!({
-            "directory": cwd,
+            "directory": self.runtime_root,
         });
 
         let response = self
@@ -66,6 +63,7 @@ impl AgentClient for OpenCodeHttpClient {
         tracing::info!(
             session_id = %session.id,
             requested_cwd = %cwd,
+            runtime_root = %self.runtime_root,
             manager_project_key = %self.manager_project_key,
             opencode_directory = %session.directory,
             opencode_project_id = %session.project_id,
@@ -114,12 +112,10 @@ impl AgentClient for OpenCodeHttpClient {
         session_id: String,
         cwd: String,
     ) -> AcpResult<ResumeSessionResponse> {
-        // Store the working directory
-        self.current_directory = Some(cwd.clone());
-
         tracing::info!(
             session_id = %session_id,
             requested_cwd = %cwd,
+            runtime_root = %self.runtime_root,
             manager_project_key = %self.manager_project_key,
             "Resuming OpenCode session"
         );
@@ -203,7 +199,7 @@ impl AgentClient for OpenCodeHttpClient {
 
         tracing::info!(
             session_id = %request.session_id,
-            requested_cwd = ?self.current_directory,
+            runtime_root = %self.runtime_root,
             manager_project_key = %self.manager_project_key,
             provider_id = %provider_id,
             model_id = %model_id,
@@ -213,7 +209,7 @@ impl AgentClient for OpenCodeHttpClient {
 
         // Convert ACP prompt request to OpenCode format
         let body = json!({
-            "directory": self.current_directory,
+            "directory": self.runtime_root,
             "model": {
                 "providerID": provider_id,
                 "modelID": model_id
@@ -240,14 +236,8 @@ impl AgentClient for OpenCodeHttpClient {
         let base_url = self.base_url().await?;
         let url = format!("{}/session/{}/abort", base_url, session_id);
 
-        // Ensure current_directory is set (same guard as send_prompt)
-        let directory = self
-            .current_directory
-            .clone()
-            .ok_or_else(|| AcpError::InvalidState("current_directory not set".to_string()))?;
-
         let body = json!({
-            "directory": directory,
+            "directory": self.runtime_root,
         });
 
         self.http_client

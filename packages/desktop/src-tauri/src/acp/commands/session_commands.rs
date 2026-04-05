@@ -68,37 +68,31 @@ async fn reset_resumed_session_execution_profile(
     .map_err(SerializableAcpError::from)
 }
 
-fn git_main_repo_from_worktree_path(worktree_path: &std::path::Path) -> Option<std::path::PathBuf> {
-    let git_file_path = worktree_path.join(".git");
-    let git_file_content = std::fs::read_to_string(&git_file_path).ok()?;
-    let git_dir_path = git_file_content.strip_prefix("gitdir: ")?.trim();
-    let git_dir = std::path::Path::new(git_dir_path);
-    let resolved_git_dir = if git_dir.is_absolute() {
-        git_dir.to_path_buf()
-    } else {
-        worktree_path.join(git_dir)
-    };
-
-    resolved_git_dir
-        .parent()
-        .and_then(|path| path.parent())
-        .and_then(|path| path.parent())
-        .map(std::path::Path::to_path_buf)
-}
-
 pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
-    let canonical_cwd = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
+    // Use the runtime root resolver to walk up from cwd and find the
+    // actual repo/worktree root.  This fixes the bug where a subdirectory
+    // like /repo/src/components/ was persisted as the project_path.
+    match crate::acp::opencode::runtime_root::resolve(cwd) {
+        Ok(resolved) => {
+            let main_repo = resolved.project_root.to_string_lossy().into_owned();
+            let runtime = resolved.runtime_root.to_string_lossy().into_owned();
 
-    if canonical_cwd.join(".git").is_file() {
-        if let Some(base_project_path) = git_main_repo_from_worktree_path(&canonical_cwd) {
-            return (
-                base_project_path.to_string_lossy().into_owned(),
-                Some(canonical_cwd.to_string_lossy().into_owned()),
-            );
+            if main_repo != runtime {
+                // Worktree: project_path is the main repo, worktree_path is the worktree root.
+                (main_repo, Some(runtime))
+            } else {
+                // Regular repo or non-git directory: project_path is the resolved root.
+                (runtime, None)
+            }
+        }
+        Err(_) => {
+            // Fallback: resolver failed (e.g. path doesn't exist).
+            // Use the canonical cwd as-is, preserving the old behavior for
+            // edge cases like non-existent paths passed during cleanup.
+            let canonical_cwd = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
+            (canonical_cwd.to_string_lossy().into_owned(), None)
         }
     }
-
-    (canonical_cwd.to_string_lossy().into_owned(), None)
 }
 
 pub(crate) async fn persist_session_metadata_for_cwd(

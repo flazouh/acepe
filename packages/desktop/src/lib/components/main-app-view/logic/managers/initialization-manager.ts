@@ -379,7 +379,7 @@ export class InitializationManager {
 
 		return this.sessionStore
 			.loadStartupSessions(restoredSessionIds)
-			.map(() => undefined)
+			.map((result) => result.aliasRemaps)
 			.mapErr(
 				(error) =>
 					new InitializationError(
@@ -387,7 +387,10 @@ export class InitializationManager {
 						error instanceof Error ? error : new Error(String(error))
 					)
 			)
-			.andThen(() => this.validateRestoredSessions())
+			.andThen((aliasRemaps) => {
+				this.remapAliasedPanelSessionIds(aliasRemaps);
+				return this.validateRestoredSessions();
+			})
 			.map(() => {
 				this.earlyPreloadPanelSessions();
 				this.triggerBackgroundScan(this.getKnownProjectPaths());
@@ -427,6 +430,30 @@ export class InitializationManager {
 		}
 
 		return Array.from(paths);
+	}
+
+	/**
+	 * Rewrites panel session IDs from alias (provider_session_id) to canonical
+	 * (Acepe session ID) before validation runs, preventing panels from being
+	 * cleared as orphaned when their stored ID was a provider alias.
+	 */
+	private remapAliasedPanelSessionIds(aliasRemaps: Record<string, string>): void {
+		const remapEntries = Object.entries(aliasRemaps);
+		if (remapEntries.length === 0) {
+			return;
+		}
+
+		for (const panel of this.panelStore.panels) {
+			if (panel.sessionId && panel.sessionId in aliasRemaps) {
+				const canonicalId = aliasRemaps[panel.sessionId];
+				logger.debug("Remapping panel session ID from alias to canonical", {
+					panelId: panel.id,
+					aliasId: panel.sessionId.substring(0, 8),
+					canonicalId: canonicalId.substring(0, 8),
+				});
+				this.panelStore.updatePanelSession(panel.id, canonicalId);
+			}
+		}
 	}
 
 	/**

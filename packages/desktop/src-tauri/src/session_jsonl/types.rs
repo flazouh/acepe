@@ -418,6 +418,20 @@ impl ConvertedSession {
     }
 }
 
+/// Response wrapper for get_startup_sessions.
+///
+/// Carries the hydrated session entries plus a mapping from any requested
+/// alias IDs (provider_session_id values) to their canonical Acepe session IDs.
+/// This allows the frontend to remap panel session references before validation.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupSessionsResponse {
+    pub entries: Vec<HistoryEntry>,
+    /// Maps requested alias ID -> canonical session ID for sessions that were
+    /// matched by `provider_session_id` rather than the primary `id`.
+    pub alias_remaps: std::collections::HashMap<String, String>,
+}
+
 /// Response for session plan request.
 /// Returned by get_session_plan, get_plan_by_slug, list_plans commands.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

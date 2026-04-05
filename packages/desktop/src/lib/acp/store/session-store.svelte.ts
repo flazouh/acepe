@@ -504,7 +504,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Load startup sessions (hydrate sessions that should be open at startup).
 	 */
-	loadStartupSessions(sessionIds: string[]): ResultAsync<{ missing: string[] }, AppError> {
+	loadStartupSessions(sessionIds: string[]): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
 		return this.repository.loadStartupSessions(this.sessions, sessionIds);
 	}
 

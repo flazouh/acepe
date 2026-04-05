@@ -6,7 +6,7 @@
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
-import type { HistoryEntry } from "../../services/claude-history-types";
+import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData, ConvertedSession } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
 
@@ -168,8 +168,11 @@ export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[]
 /**
  * Load only the metadata for specific restored session IDs.
  * Used on startup to hydrate open panels without blocking on a full sidebar scan.
+ *
+ * Returns the hydrated entries plus a mapping from any requested alias IDs
+ * (provider_session_id values) to their canonical Acepe session IDs.
  */
-export function getStartupSessions(sessionIds: string[]): ResultAsync<HistoryEntry[], AppError> {
+export function getStartupSessions(sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> {
 	return tauriClient.history.getStartupSessions(sessionIds);
 }
 

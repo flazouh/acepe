@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
-import type { HistoryEntry } from "../../../../services/claude-history-types.js";
+import type { HistoryEntry, StartupSessionsResponse } from "../../../../services/claude-history-types.js";
 import type { SessionCold } from "../../types.js";
 import type {
 	IConnectionManager,
@@ -9,7 +9,9 @@ import type {
 	ISessionStateWriter,
 } from "../interfaces/index.js";
 
-const getStartupSessionsMock = mock(() => okAsync([] as HistoryEntry[]));
+const getStartupSessionsMock = mock(() =>
+	okAsync({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
+);
 
 mock.module("../../api.js", () => ({
 	api: {
@@ -146,7 +148,9 @@ const connectionManager: IConnectionManager = {
 describe("SessionRepository.loadStartupSessions", () => {
 	beforeEach(() => {
 		getStartupSessionsMock.mockClear();
-		getStartupSessionsMock.mockImplementation(() => okAsync([] as HistoryEntry[]));
+		getStartupSessionsMock.mockImplementation(() =>
+			okAsync({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
+		);
 	});
 
 	it("hydrates requested startup session metadata and reports missing ids", async () => {
@@ -158,7 +162,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			connectionManager
 		);
 
-		getStartupSessionsMock.mockImplementation(() => okAsync([createHistoryEntry()]));
+		getStartupSessionsMock.mockImplementation(() =>
+			okAsync({ entries: [createHistoryEntry()], aliasRemaps: {} })
+		);
 
 		const result = await repository.loadStartupSessions(state.sessions, [
 			"session-123",
@@ -199,5 +205,68 @@ describe("SessionRepository.loadStartupSessions", () => {
 			expect(result.value.missing).toEqual([]);
 		}
 		expect(state.sessions).toHaveLength(1);
+	});
+
+	it("returns alias remaps when sessions are matched by provider_session_id", async () => {
+		const state: SessionStoreState = { sessions: [] };
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		// Backend returns the session under its canonical ID, with an alias remap
+		getStartupSessionsMock.mockImplementation(() =>
+			okAsync({
+				entries: [
+					createHistoryEntry({
+						id: "acepe-uuid",
+						sessionId: "acepe-uuid",
+					}),
+				],
+				aliasRemaps: { "claude-session": "acepe-uuid" },
+			})
+		);
+
+		const result = await repository.loadStartupSessions(state.sessions, [
+			"claude-session",
+		]);
+
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			// The alias should not be reported as missing
+			expect(result.value.missing).toEqual([]);
+			// The alias remap should be passed through
+			expect(result.value.aliasRemaps).toEqual({ "claude-session": "acepe-uuid" });
+		}
+		// Session is stored under its canonical ID
+		expect(state.sessions[0]?.id).toBe("acepe-uuid");
+	});
+
+	it("returns empty alias remaps when all sessions match by canonical id", async () => {
+		const state: SessionStoreState = { sessions: [] };
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		getStartupSessionsMock.mockImplementation(() =>
+			okAsync({
+				entries: [createHistoryEntry()],
+				aliasRemaps: {},
+			})
+		);
+
+		const result = await repository.loadStartupSessions(state.sessions, [
+			"session-123",
+		]);
+
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.aliasRemaps).toEqual({});
+		}
 	});
 });

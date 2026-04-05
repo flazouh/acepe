@@ -83,7 +83,7 @@ describe("InitializationManager", () => {
 		mockSessionStore = {
 			initializeSessionUpdates: mock(() => okAsync(undefined)),
 			loadSessions: mock(() => okAsync([])),
-			loadStartupSessions: mock(() => okAsync({ missing: [] })),
+			loadStartupSessions: mock(() => okAsync({ missing: [], aliasRemaps: {} })),
 			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
 			loadSessionById: mock(() =>
 				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
@@ -279,7 +279,7 @@ describe("InitializationManager", () => {
 
 			mockSessionStore.loadStartupSessions = mock(() => {
 				callOrder.push("startup");
-				return okAsync({ missing: [] });
+				return okAsync({ missing: [], aliasRemaps: {} });
 			}) as SessionStore["loadStartupSessions"];
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
@@ -614,6 +614,91 @@ describe("InitializationManager", () => {
 				"Feature thread"
 			);
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
+		});
+
+		it("remaps aliased panel session ids before validation", async () => {
+			mockProjectManager.projects = [
+				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
+			];
+			// Panel was persisted with a provider alias ID
+			mockWorkspaceStore.restore = mock(
+				() => ["claude-session"]
+			) as WorkspaceStore["restore"];
+			let currentPanels: TestPanel[] = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "claude-session",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "opencode",
+					projectPath: "/project1",
+					agentId: "opencode",
+					sessionTitle: "Aliased Session",
+					sourcePath: "/opencode/storage/session/acepe-uuid.json",
+				},
+			];
+
+			Object.defineProperty(mockPanelStore, "panels", {
+				configurable: true,
+				get: () => currentPanels,
+			});
+
+			mockPanelStore.updatePanelSession = mock((panelId: string, sessionId: string | null) => {
+				currentPanels = currentPanels.map((panel) =>
+					panel.id === panelId
+						? {
+							id: panel.id,
+							kind: panel.kind,
+							ownerPanelId: panel.ownerPanelId,
+							sessionId,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sessionTitle: panel.sessionTitle,
+							sourcePath: panel.sourcePath,
+							worktreePath: panel.worktreePath,
+						}
+						: panel
+				);
+			});
+
+			// Backend returns the session under its canonical ID with an alias remap
+			const canonicalSession = buildSession("acepe-uuid", "opencode", "/project1", "Aliased Session");
+			mockSessionStore.loadStartupSessions = mock(() => {
+				return okAsync({
+					missing: [],
+					aliasRemaps: { "claude-session": "acepe-uuid" },
+				});
+			}) as SessionStore["loadStartupSessions"];
+			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+				sessionId === "acepe-uuid" ? canonicalSession : undefined
+			) as SessionStore["getSessionCold"];
+			mockSessionStore.loadSessionById = mock(() =>
+				okAsync(canonicalSession)
+			) as SessionStore["loadSessionById"];
+			mockSessionStore.connectSession = mock(() =>
+				okAsync(canonicalSession)
+			) as SessionStore["connectSession"];
+
+			await manager.initialize();
+
+			// Panel should be remapped from alias to canonical ID
+			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", "acepe-uuid");
+			// Panel should NOT be cleared as orphaned
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
+			// Session should be preloaded using the canonical ID
+			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
+				"acepe-uuid",
+				"/project1",
+				"opencode",
+				"/opencode/storage/session/acepe-uuid.json",
+				undefined,
+				"Aliased Session"
+			);
 		});
 
 		it("should handle initialization errors", async () => {

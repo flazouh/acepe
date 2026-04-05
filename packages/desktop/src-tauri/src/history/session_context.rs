@@ -157,8 +157,10 @@ mod tests {
         )
         .await;
 
+        let canonical_repo_path = repo_path.canonicalize().expect("canonical repo path");
+
         assert_eq!(context.history_session_id, "session-worktree");
-        assert_eq!(context.project_path, repo_path.to_string_lossy());
+        assert_eq!(context.project_path, canonical_repo_path.to_string_lossy());
         assert_eq!(
             context.worktree_path.as_deref(),
             Some(canonical_worktree_path.to_string_lossy().as_ref())

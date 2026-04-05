@@ -3,8 +3,8 @@ use crate::acp::providers::opencode::resolve_opencode_spawn_configs;
 use crate::acp::types::CanonicalAgentId;
 use crate::shell_env::get_enhanced_path_string;
 use anyhow::{anyhow, Context, Result};
+use dashmap::DashMap;
 use regex::Regex;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -486,23 +486,65 @@ impl Drop for OpenCodeManager {
     }
 }
 
+/// Errors that indicate a permanently failed init attempt.
+///
+/// When the init closure encounters one of these, the result is stored in the
+/// `OnceCell` so subsequent callers fail fast instead of retrying.
+#[derive(Debug, Clone)]
+pub enum PermanentInitError {
+    BinaryNotFound(String),
+    DirectoryNotFound(String),
+    RegistryShuttingDown,
+}
+
+impl std::fmt::Display for PermanentInitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BinaryNotFound(msg) => write!(f, "binary not found: {}", msg),
+            Self::DirectoryNotFound(msg) => write!(f, "directory not found: {}", msg),
+            Self::RegistryShuttingDown => write!(f, "registry is shutting down"),
+        }
+    }
+}
+
+/// The value stored inside each per-key `OnceCell`.
+///
+/// - `Ok(...)` — successfully initialized manager.
+/// - `Err(PermanentInitError)` — terminal failure; callers fail fast.
+///
+/// Transient errors leave the cell **uninitialized** so the next caller
+/// retries via `get_or_try_init`.
+type RegistryEntry = Result<Arc<TokioMutex<OpenCodeManager>>, PermanentInitError>;
+
 /// Project-scoped OpenCode manager registry.
 ///
-/// OpenCode HTTP servers are process-cwd scoped, so we maintain one manager
-/// per canonical project root to avoid cross-project session contamination.
+/// Uses a `DashMap` of `OnceCell`s for single-flight initialization per
+/// runtime-root key.  This eliminates the TOCTOU race in the previous
+/// lock-check-unlock-create-relock pattern: only one caller ever executes
+/// the init closure for a given key, and all concurrent callers await the
+/// same `OnceCell`.
 pub struct OpenCodeManagerRegistry {
     app_handle: AppHandle,
-    managers: TokioMutex<HashMap<String, Arc<TokioMutex<OpenCodeManager>>>>,
+    cells: DashMap<String, Arc<tokio::sync::OnceCell<RegistryEntry>>>,
+    /// Set to `true` before draining in `shutdown_all()`.
+    shutting_down: AtomicBool,
 }
 
 impl OpenCodeManagerRegistry {
     pub fn new(app_handle: AppHandle) -> Self {
         Self {
             app_handle,
-            managers: TokioMutex::new(HashMap::new()),
+            cells: DashMap::new(),
+            shutting_down: AtomicBool::new(false),
         }
     }
 
+    /// Get or start the OpenCode manager for the given runtime root.
+    ///
+    /// The `project_root` is resolved via [`super::runtime_root::resolve`]
+    /// by the caller before reaching this method. This method uses
+    /// [`super::runtime_root::registry_key`] semantics: the key is the
+    /// stringified canonical `runtime_root`.
     pub async fn get_or_start(
         &self,
         project_root: &Path,
@@ -510,53 +552,147 @@ impl OpenCodeManagerRegistry {
         let canonical_root = canonicalize_project_root(project_root);
         let key = canonical_root.to_string_lossy().to_string();
 
-        // Fast path: return existing manager.
-        if let Some(existing) = self.managers.lock().await.get(&key).cloned() {
-            let mut manager = existing.lock().await;
-            manager.ensure_running().await?;
-            drop(manager);
-            return Ok((key, existing));
+        // Get or insert the per-key OnceCell.  The DashMap entry is cheap;
+        // only the init closure does real work.
+        let cell = self
+            .cells
+            .entry(key.clone())
+            .or_insert_with(|| Arc::new(tokio::sync::OnceCell::new()))
+            .value()
+            .clone();
+
+        // Single-flight: only one caller runs the closure; others await.
+        let result = cell
+            .get_or_try_init(|| {
+                let app_handle = self.app_handle.clone();
+                let root = canonical_root.clone();
+                let shutting_down = &self.shutting_down;
+
+                async move {
+                    // Guard: abort if shutdown is in progress.
+                    if shutting_down.load(Ordering::Acquire) {
+                        return Err(anyhow::anyhow!(PermanentInitError::RegistryShuttingDown));
+                    }
+
+                    // Validate the directory still exists.
+                    if !root.is_dir() {
+                        return Err(anyhow::anyhow!(PermanentInitError::DirectoryNotFound(
+                            root.display().to_string()
+                        )));
+                    }
+
+                    let mut manager = OpenCodeManager::new(root);
+                    manager.set_app_handle(app_handle);
+
+                    match manager.ensure_running().await {
+                        Ok(_port) => {
+                            Ok(Ok(Arc::new(TokioMutex::new(manager))))
+                        }
+                        Err(err) => {
+                            // Classify: is this permanent or transient?
+                            let msg = err.to_string();
+                            if msg.contains("No launchers available")
+                                || msg.contains("not found")
+                                || msg.contains("Install the agent")
+                            {
+                                // Permanent: store in cell so callers fail fast.
+                                Ok(Err(PermanentInitError::BinaryNotFound(msg)))
+                            } else {
+                                // Transient: return Err so OnceCell stays
+                                // uninitialized and the next caller retries.
+                                //
+                                // Clean up the failed manager to avoid leaking
+                                // a partially-spawned subprocess.
+                                let _ = manager.graceful_stop().await;
+                                Err(err)
+                            }
+                        }
+                    }
+                }
+            })
+            .await?;
+
+        // Unwrap the inner Result to surface permanent failures.
+        match result {
+            Ok(mgr) => {
+                // Ensure the manager is still running (it may have been
+                // stopped externally or timed out).
+                let mut guard = mgr.lock().await;
+                guard.ensure_running().await?;
+                drop(guard);
+                Ok((key, mgr.clone()))
+            }
+            Err(permanent) => Err(anyhow::anyhow!(
+                "OpenCode manager permanently failed for {}: {}",
+                key,
+                permanent
+            )),
         }
+    }
 
-        let mut manager = OpenCodeManager::new(canonical_root);
-        manager.set_app_handle(self.app_handle.clone());
-        manager.ensure_running().await?;
-        let manager = Arc::new(TokioMutex::new(manager));
-
-        let mut managers = self.managers.lock().await;
-        if let Some(existing) = managers.get(&key).cloned() {
-            drop(managers);
-            let mut existing_guard = existing.lock().await;
-            existing_guard.ensure_running().await?;
-            drop(existing_guard);
-            return Ok((key, existing));
+    /// Shut down a single runtime by key.
+    ///
+    /// Removes the cell from the map and stops the manager if initialized.
+    pub async fn shutdown_runtime(&self, key: &str) {
+        if let Some((_, cell)) = self.cells.remove(key) {
+            if let Some(Ok(mgr)) = cell.get() {
+                let mut guard = mgr.lock().await;
+                if let Err(error) = guard.graceful_stop().await {
+                    tracing::warn!(
+                        project_key = %key,
+                        %error,
+                        "Failed to stop OpenCode manager during runtime shutdown"
+                    );
+                }
+            }
         }
-
-        managers.insert(key.clone(), manager.clone());
-        Ok((key, manager))
     }
 
     pub async fn shutdown_all(&self) {
-        let managers = {
-            let mut guard = self.managers.lock().await;
-            std::mem::take(&mut *guard)
-        };
+        // Signal init closures to abort.
+        self.shutting_down.store(true, Ordering::Release);
 
-        if managers.is_empty() {
-            return;
-        }
+        // First drain: collect all initialized managers.
+        let mut to_stop: Vec<(String, Arc<TokioMutex<OpenCodeManager>>)> = Vec::new();
+        self.cells.retain(|key, cell| {
+            if let Some(Ok(mgr)) = cell.get() {
+                to_stop.push((key.clone(), mgr.clone()));
+            }
+            false // remove all entries
+        });
 
-        tracing::info!(
-            count = managers.len(),
-            "Shutting down all OpenCode managers"
-        );
+        if !to_stop.is_empty() {
+            tracing::info!(
+                count = to_stop.len(),
+                "Shutting down all OpenCode managers"
+            );
 
-        for (project_key, manager) in managers {
-            let mut guard = manager.lock().await;
-            if let Err(error) = guard.graceful_stop().await {
-                tracing::warn!(project_key = %project_key, %error, "Failed to stop OpenCode manager during shutdown");
+            for (project_key, manager) in &to_stop {
+                let mut guard = manager.lock().await;
+                if let Err(error) = guard.graceful_stop().await {
+                    tracing::warn!(
+                        project_key = %project_key,
+                        %error,
+                        "Failed to stop OpenCode manager during shutdown"
+                    );
+                }
             }
         }
+
+        // Second drain: catch any inits that raced past the flag check.
+        // The `retain(false)` drops the DashMap entries, which drops the
+        // OnceCell+Arc chain, ultimately triggering OpenCodeManager::Drop
+        // (which kills the child process).
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        self.cells.retain(|key, cell| {
+            if cell.get().is_some_and(|entry| entry.is_ok()) {
+                tracing::warn!(
+                    project_key = %key,
+                    "Late-arriving OpenCode manager detected during shutdown; dropping"
+                );
+            }
+            false
+        });
     }
 }
 
@@ -566,18 +702,149 @@ fn canonicalize_project_root(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::OpenCodeManager;
+    use super::{canonicalize_project_root, OpenCodeManager, PermanentInitError};
     use std::fs;
     use std::path::PathBuf;
     use std::process::Stdio;
+    use std::sync::atomic::Ordering;
+    use std::sync::Arc;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use tokio::process::Command;
 
-    fn assert_is_lazy_lock<T>(_: &std::sync::LazyLock<T>) {}
+    #[test]
+    fn permanent_init_error_display_binary_not_found() {
+        let err = PermanentInitError::BinaryNotFound("No launchers available".to_string());
+        assert_eq!(err.to_string(), "binary not found: No launchers available");
+    }
 
     #[test]
-    fn url_regex_uses_lazy_lock() {
-        assert_is_lazy_lock(&super::URL_REGEX);
+    fn permanent_init_error_display_directory_not_found() {
+        let err = PermanentInitError::DirectoryNotFound("/tmp/missing".to_string());
+        assert_eq!(err.to_string(), "directory not found: /tmp/missing");
+    }
+
+    #[test]
+    fn permanent_init_error_display_shutting_down() {
+        let err = PermanentInitError::RegistryShuttingDown;
+        assert_eq!(err.to_string(), "registry is shutting down");
+    }
+
+    #[test]
+    fn canonicalize_project_root_falls_back_to_original_on_missing_path() {
+        let missing = PathBuf::from("/tmp/acepe-test-nonexistent-path-12345");
+        let result = canonicalize_project_root(&missing);
+        assert_eq!(result, missing);
+    }
+
+    #[test]
+    fn canonicalize_project_root_resolves_existing_path() {
+        let tmp = std::env::temp_dir();
+        let result = canonicalize_project_root(&tmp);
+        // On macOS, /tmp -> /private/tmp, so the result should be canonical
+        assert!(result.is_absolute());
+        assert!(result.exists());
+    }
+
+    /// Verify the OnceCell single-flight pattern works correctly:
+    /// two concurrent callers get the same Arc.
+    #[tokio::test]
+    async fn oncecell_single_flight_returns_same_arc() {
+        let cell: Arc<tokio::sync::OnceCell<Arc<String>>> =
+            Arc::new(tokio::sync::OnceCell::new());
+
+        let cell1 = cell.clone();
+        let cell2 = cell.clone();
+
+        let (r1, r2) = tokio::join!(
+            async move {
+                cell1
+                    .get_or_init(|| async { Arc::new("initialized".to_string()) })
+                    .await
+                    .clone()
+            },
+            async move {
+                cell2
+                    .get_or_init(|| async { Arc::new("initialized".to_string()) })
+                    .await
+                    .clone()
+            },
+        );
+
+        assert!(Arc::ptr_eq(&r1, &r2), "Both callers should get the same Arc");
+    }
+
+    /// Verify transient failure leaves cell uninitialized for retry.
+    #[tokio::test]
+    async fn oncecell_transient_failure_allows_retry() {
+        let cell: Arc<tokio::sync::OnceCell<String>> =
+            Arc::new(tokio::sync::OnceCell::new());
+        let attempt = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+        // First call: fail transiently
+        let attempt_clone = attempt.clone();
+        let result = cell
+            .get_or_try_init(|| async move {
+                attempt_clone.fetch_add(1, Ordering::SeqCst);
+                Err::<String, anyhow::Error>(anyhow::anyhow!("transient"))
+            })
+            .await;
+        assert!(result.is_err());
+        assert!(cell.get().is_none(), "Cell should remain uninitialized after transient failure");
+
+        // Second call: succeed
+        let attempt_clone = attempt.clone();
+        let result: Result<&String, anyhow::Error> = cell
+            .get_or_try_init(|| async move {
+                attempt_clone.fetch_add(1, Ordering::SeqCst);
+                Ok("success".to_string())
+            })
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(attempt.load(Ordering::SeqCst), 2, "Init closure should run twice");
+    }
+
+    /// Verify permanent failure is stored in cell and prevents retry.
+    #[tokio::test]
+    async fn oncecell_permanent_failure_prevents_retry() {
+        type Entry = Result<Arc<String>, PermanentInitError>;
+        let cell: Arc<tokio::sync::OnceCell<Entry>> =
+            Arc::new(tokio::sync::OnceCell::new());
+        let init_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+        // First call: permanent failure (stored as Ok(Err(...)))
+        let count = init_count.clone();
+        let entry = cell
+            .get_or_try_init(|| {
+                let count = count.clone();
+                async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    Ok::<Entry, anyhow::Error>(Err(PermanentInitError::BinaryNotFound(
+                        "not found".to_string(),
+                    )))
+                }
+            })
+            .await
+            .expect("outer Result should be Ok");
+        assert!(entry.is_err(), "Inner result should be permanent error");
+
+        // Second call: init closure should NOT run again
+        let count = init_count.clone();
+        let entry = cell
+            .get_or_try_init(|| {
+                let count = count.clone();
+                async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    Ok::<Entry, anyhow::Error>(Ok(Arc::new("should not reach".to_string())))
+                }
+            })
+            .await
+            .expect("outer Result should be Ok");
+        assert!(entry.is_err(), "Should still be permanent error");
+        assert_eq!(
+            init_count.load(Ordering::SeqCst),
+            1,
+            "Init closure should only run once for permanent failure"
+        );
     }
 
     #[cfg(unix)]

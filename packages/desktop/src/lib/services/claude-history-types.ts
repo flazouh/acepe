@@ -43,3 +43,17 @@ prNumber?: number | null;
  * Whether the worktree path stored for this session no longer exists on disk.
  */
 worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null }
+
+/**
+ * Response wrapper for get_startup_sessions.
+ * 
+ * Carries the hydrated session entries plus a mapping from any requested
+ * alias IDs (provider_session_id values) to their canonical Acepe session IDs.
+ * This allows the frontend to remap panel session references before validation.
+ */
+export type StartupSessionsResponse = { entries: HistoryEntry[]; 
+/**
+ * Maps requested alias ID -> canonical session ID for sessions that were
+ * matched by `provider_session_id` rather than the primary `id`.
+ */
+aliasRemaps: Partial<{ [key in string]: string }> }

@@ -174,10 +174,10 @@ impl OpenCodeHttpClient {
         };
 
         let url = format!("{}/command", base_url);
-        let mut request = self.http_client.get(&url);
-        if let Some(directory) = &self.current_directory {
-            request = request.query(&[("directory", directory)]);
-        }
+        let request = self
+            .http_client
+            .get(&url)
+            .query(&[("directory", &self.runtime_root)]);
 
         let response = match request.send().await {
             Ok(response) => response,

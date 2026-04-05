@@ -95,9 +95,13 @@ fn trim_trailing_separators(path: &Path) -> PathBuf {
 }
 
 pub fn validate_project_directory(path: &Path) -> Result<PathBuf, ProjectPathSafetyError> {
+    // Canonicalize first so /tmp/foo and /private/tmp/foo hit the same
+    // cache entry, preventing duplicate TCC prompts on macOS.
+    let cache_key = canonicalize_or_original(path);
+
     // Fast path: return cached result without touching the filesystem.
     if let Ok(cache) = validation_cache().lock() {
-        if let Some(result) = cache.get(path) {
+        if let Some(result) = cache.get(&cache_key) {
             return result.clone();
         }
     }
@@ -107,7 +111,7 @@ pub fn validate_project_directory(path: &Path) -> Result<PathBuf, ProjectPathSaf
 
     // Cache the result (both Ok and Err) to prevent repeat TCC prompts.
     if let Ok(mut cache) = validation_cache().lock() {
-        cache.insert(path.to_path_buf(), result.clone());
+        cache.insert(cache_key, result.clone());
     }
 
     result
@@ -402,7 +406,11 @@ mod tests {
         let resolved =
             resolve_write_path_within_project(&project_root, &target_path).expect("resolve path");
 
-        assert_eq!(resolved, target_path);
+        // resolve_write_path canonicalizes existing path components, so the
+        // result uses the canonical prefix (e.g. /private/var on macOS).
+        let canonical_project = canonicalize_or_original(&project_root);
+        let expected = canonical_project.join("src").join("nested").join("file.txt");
+        assert_eq!(resolved, expected);
     }
 
     #[test]

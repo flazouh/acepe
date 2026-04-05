@@ -36,8 +36,14 @@ pub struct OpenCodeHttpClient {
     manager_project_key: String,
     /// HTTP client for API calls
     http_client: reqwest::Client,
-    /// Current working directory
-    current_directory: Option<String>,
+    /// Resolved runtime root directory, bound at construction.
+    ///
+    /// This is the canonical repo/worktree root used for all `"directory"`
+    /// fields in OpenCode API calls.  It replaces the old per-call
+    /// `current_directory` mutation, ensuring a single consistent identity
+    /// for the OpenCode runtime regardless of which subdirectory the caller
+    /// originated from.
+    runtime_root: String,
     /// Current model selection (provider + model)
     current_model: Option<OpenCodeModel>,
     /// Current mode selection (build/plan)
@@ -57,9 +63,9 @@ impl OpenCodeHttpClient {
 
         Ok(Self {
             manager,
-            manager_project_key,
+            manager_project_key: manager_project_key.clone(),
             http_client,
-            current_directory: None,
+            runtime_root: manager_project_key,
             current_model: None,
             current_mode: None,
         })
@@ -127,9 +133,8 @@ impl OpenCodeHttpClient {
 
     pub async fn list_preconnection_commands(
         &mut self,
-        directory: String,
+        _directory: String,
     ) -> AcpResult<Vec<crate::acp::session_update::AvailableCommand>> {
-        self.current_directory = Some(directory);
         self.start().await?;
         Ok(self.fetch_available_commands().await)
     }
