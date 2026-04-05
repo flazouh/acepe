@@ -7,6 +7,6 @@
 		".": "./src/index.ts"
 	},
 	"devDependencies": {
-		"typescript": "~5.6.2"
+		"typescript": "^5.9.3"
 	}
 }
