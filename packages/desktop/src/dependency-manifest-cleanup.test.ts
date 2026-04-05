@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "bun:test";
 
 const REPO_ROOT = resolve(import.meta.dir, "../../..");
+const CURRENT_TEST_FILE_PATH = import.meta.filename;
 const ROOT_PACKAGE_JSON_PATH = resolve(REPO_ROOT, "package.json");
 const DESKTOP_PACKAGE_JSON_PATH = resolve(REPO_ROOT, "packages/desktop/package.json");
 const BUN_LOCK_PATH = resolve(REPO_ROOT, "bun.lock");
@@ -26,6 +27,8 @@ const IGNORED_DIRECTORY_NAMES = new Set([
 	"node_modules",
 	"target",
 ]);
+const LEGACY_IMPORT_PATTERN =
+	/from\s+["'](lucide-svelte|phosphor-icons-svelte)["']|import\s*\(\s*["'](lucide-svelte|phosphor-icons-svelte)["']\s*\)|require\s*\(\s*["'](lucide-svelte|phosphor-icons-svelte)["']\s*\)/;
 
 type PackageJson = {
 	dependencies?: Record<string, string>;
@@ -75,16 +78,13 @@ describe("legacy icon package cleanup", () => {
 		const sourceFilePaths = collectSourceFilePaths(REPO_ROOT);
 
 		for (const sourceFilePath of sourceFilePaths) {
-			if (sourceFilePath === resolve(import.meta.dir, "dependency-manifest-cleanup.test.ts")) {
+			if (sourceFilePath === CURRENT_TEST_FILE_PATH) {
 				continue;
 			}
 
 			const source = readFileSync(sourceFilePath, "utf8");
 
-			expect(source).not.toContain('from "lucide-svelte"');
-			expect(source).not.toContain("from 'lucide-svelte'");
-			expect(source).not.toContain('from "phosphor-icons-svelte"');
-			expect(source).not.toContain("from 'phosphor-icons-svelte'");
+			expect(source).not.toMatch(LEGACY_IMPORT_PATTERN);
 		}
 	});
 
