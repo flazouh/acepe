@@ -1,7 +1,7 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
-import logoLight from "$lib/assets/logo-light.svg";
-import logoDark from "../../../../../assets/logo-dark.svg";
+import logoForLight from "$lib/assets/logo.svg";
+import logoForDark from "$lib/assets/logo-light-bg.svg";
 import { browser } from "$app/environment";
 import { page } from "$app/stores";
 import { Download, Menu, Moon, Sun } from "@lucide/svelte";
@@ -70,8 +70,8 @@ const mobileNavLinkClass =
 				href="/"
 				class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 			>
-				<img src={logoLight} alt="" class="h-6 w-6 dark:hidden" />
-				<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
+				<img src={logoForLight} alt="" class="h-6 w-6 dark:hidden" />
+				<img src={logoForDark} alt="" class="hidden h-6 w-6 dark:block" />
 				<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 			</a>
 		</div>
@@ -179,8 +179,8 @@ const mobileNavLinkClass =
 								class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 								onclick={() => (drawerOpen = false)}
 							>
-							<img src={logoLight} alt="" class="h-6 w-6 dark:hidden" />
-							<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
+							<img src={logoForLight} alt="" class="h-6 w-6 dark:hidden" />
+							<img src={logoForDark} alt="" class="hidden h-6 w-6 dark:block" />
 								<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 							</a>
 							<div class="flex items-center gap-2">
