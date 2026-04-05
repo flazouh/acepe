@@ -1,6 +1,6 @@
 <script lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getContext } from "svelte";
+import { getContext, untrack } from "svelte";
 import * as m from "$lib/paraglide/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import {
@@ -36,6 +36,16 @@ const STREAMING_SYNC_RESULT = {
 	fromCache: false,
 	needsAsync: false,
 } satisfies SyncRenderResult;
+
+/** How often (ms) to re-render markdown while streaming. */
+const STREAMING_RENDER_INTERVAL_MS = 150;
+
+/**
+ * Throttled markdown HTML produced during streaming.
+ * Leading edge: rendered immediately when streaming starts.
+ * Trailing: re-rendered every STREAMING_RENDER_INTERVAL_MS via setInterval.
+ */
+let streamingRenderedHtml = $state<string | null>(null);
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -116,6 +126,35 @@ $effect(() => {
 			);
 		})();
 	}
+});
+
+// Throttled markdown rendering during streaming.
+// Leading edge: render immediately when streaming starts.
+// Trailing: re-render at fixed intervals so we don't parse markdown on every chunk.
+// The effect only depends on `isStreaming`; `text` is read via untrack / prop getter
+// inside the interval so chunk arrivals don't re-run the effect itself.
+$effect(() => {
+	if (!isStreaming) {
+		if (streamingRenderedHtml !== null) {
+			streamingRenderedHtml = null;
+		}
+		return;
+	}
+
+	// Leading edge: render the current text right away
+	const leadingResult = renderMarkdownSync(untrack(() => text));
+	streamingRenderedHtml = leadingResult.html;
+
+	// Re-render at a fixed cadence while streaming continues
+	const interval = setInterval(() => {
+		const result = renderMarkdownSync(text);
+		const nextHtml = result.html;
+		if (nextHtml !== null && nextHtml !== streamingRenderedHtml) {
+			streamingRenderedHtml = nextHtml;
+		}
+	}, STREAMING_RENDER_INTERVAL_MS);
+
+	return () => clearInterval(interval);
 });
 
 // Try sync rendering first (eliminates flicker for most messages)
@@ -384,6 +423,17 @@ function handleKeydown(event: KeyboardEvent) {
 			{@html visibleHtml}
 		</div>
 	{/if}
+{:else if isStreaming && streamingRenderedHtml}
+	<!-- Streaming markdown: rendered at throttled intervals, without badges or special blocks -->
+	<div
+		class="markdown-content text-sm text-foreground leading-relaxed"
+		role="button"
+		tabindex="0"
+		onclick={handleClick}
+		onkeydown={handleKeydown}
+	>
+		{@html streamingRenderedHtml}
+	</div>
 {:else if isLoading || isStreaming}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
 	<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap leading-relaxed">

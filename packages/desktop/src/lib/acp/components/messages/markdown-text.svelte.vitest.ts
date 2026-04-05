@@ -356,6 +356,58 @@ describe("MarkdownText", () => {
 		expect(renderMarkdownMock).toHaveBeenCalledTimes(2);
 	});
 
+	it("renders markdown during streaming with throttled sync rendering", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "# Hello streaming",
+			isStreaming: true,
+		});
+
+		// Should render markdown content during streaming (not plain text)
+		await waitFor(() => {
+			expect(view.container.querySelector(".markdown-content")).not.toBeNull();
+			expect(view.container.querySelector(".markdown-loading")).toBeNull();
+		});
+
+		// renderMarkdownSync should have been called during streaming
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith("# Hello streaming");
+
+		// File/GitHub badges should NOT be mounted during streaming
+		expect(mountFileBadgesMock).not.toHaveBeenCalled();
+		expect(mountGitHubBadgesMock).not.toHaveBeenCalled();
+	});
+
+	it("falls back to plain text during streaming when sync renderer returns null", async () => {
+		renderMarkdownSyncMock.mockImplementation(() => ({
+			html: null,
+			fromCache: false,
+			needsAsync: true,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "# Large streaming content",
+			isStreaming: true,
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		// Sync renderer was called but returned null (e.g. renderer not ready or text too large)
+		expect(renderMarkdownSyncMock).toHaveBeenCalled();
+
+		// Should fall back to plain text
+		expect(view.container.querySelector(".markdown-content")).toBeNull();
+		expect(view.container.querySelector(".markdown-loading")).not.toBeNull();
+		expect(view.container.textContent).toContain("Large streaming content");
+
+		// Async rendering should NOT be triggered during streaming
+		expect(renderMarkdownMock).not.toHaveBeenCalled();
+	});
+
 	it("defers rich markdown rendering until streaming stops", async () => {
 		const chunk = "# Streaming title\n\n" + "alpha ".repeat(2500);
 
@@ -397,7 +449,7 @@ describe("MarkdownText", () => {
 		});
 	});
 
-	it("defers repo-context and markdown work until streaming settles", async () => {
+	it("defers repo-context and async markdown work until streaming settles", async () => {
 		const chunk = "# Streaming title\n\nSee abcdef1\n\n" + "alpha ".repeat(2500);
 		const repoContext = { owner: "acepe", repo: "desktop" };
 
@@ -422,9 +474,12 @@ describe("MarkdownText", () => {
 
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		// Sync rendering IS attempted during streaming (throttled), but returns null for large text
+		expect(renderMarkdownSyncMock).toHaveBeenCalled();
+		// Async rendering and repo-context fetch are still deferred until streaming settles
 		expect(renderMarkdownMock).not.toHaveBeenCalled();
 		expect(getRepoContextMock).not.toHaveBeenCalled();
+		// Falls back to plain text since sync returned null
 		expect(view.container.querySelector(".markdown-loading")?.textContent).toContain("abcdef1");
 
 		await view.rerender({
@@ -434,7 +489,6 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(renderMarkdownSyncMock).toHaveBeenCalled();
 			expect(getRepoContextMock).toHaveBeenCalledWith("/repo");
 		});
 
