@@ -727,8 +727,8 @@ const features = [
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<img src={logoDark} alt="" class="h-6 w-6 dark:hidden" />
-						<img src={logoLight} alt="" class="hidden h-6 w-6 dark:block" />
+						<img src={logoLight} alt="" class="h-6 w-6 dark:hidden" />
+						<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
 						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">

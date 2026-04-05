@@ -17,8 +17,8 @@ import logoDark from "../../../../../assets/logo-dark.svg";
 		href="/"
 		class="absolute top-6 left-6 z-20 flex items-center gap-3 transition-opacity hover:opacity-80"
 	>
-		<img src={logoDark} alt="" class="h-7 w-7 dark:hidden" />
-		<img src={logoLight} alt="" class="hidden h-7 w-7 dark:block" />
+		<img src={logoLight} alt="" class="h-7 w-7 dark:hidden" />
+		<img src={logoDark} alt="" class="hidden h-7 w-7 dark:block" />
 		<span class="text-lg font-semibold tracking-wider text-foreground">{m.app_name()}</span>
 	</a>
 

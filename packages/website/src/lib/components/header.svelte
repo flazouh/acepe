@@ -70,8 +70,8 @@ const mobileNavLinkClass =
 				href="/"
 				class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 			>
-				<img src={logoDark} alt="" class="h-6 w-6 dark:hidden" />
-				<img src={logoLight} alt="" class="hidden h-6 w-6 dark:block" />
+				<img src={logoLight} alt="" class="h-6 w-6 dark:hidden" />
+				<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
 				<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 			</a>
 		</div>
@@ -179,8 +179,8 @@ const mobileNavLinkClass =
 								class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 								onclick={() => (drawerOpen = false)}
 							>
-							<img src={logoDark} alt="" class="h-6 w-6 dark:hidden" />
-							<img src={logoLight} alt="" class="hidden h-6 w-6 dark:block" />
+							<img src={logoLight} alt="" class="h-6 w-6 dark:hidden" />
+							<img src={logoDark} alt="" class="hidden h-6 w-6 dark:block" />
 								<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 							</a>
 							<div class="flex items-center gap-2">
