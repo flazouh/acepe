@@ -13,7 +13,6 @@
 	},
 	"engines": { "node": "20.x" },
 	"dependencies": {
-		"phosphor-icons-svelte": "^2.1.0",
 		"vaul-svelte": "^1.0.0-next.7"
 	},
 	"devDependencies": {
