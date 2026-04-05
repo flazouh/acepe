@@ -39,7 +39,7 @@ pub(crate) async fn route_backend_inbound_request(
 ) -> InboundRoutingDecision {
     match method {
         "fs/read_text_file" => fs_handlers::handle_fs_read_text_file(params).await,
-        "fs/write_text_file" => fs_handlers::handle_fs_write_text_file(params).await,
+        "fs/write_text_file" => fs_handlers::handle_fs_write_text_file(app_handle, params).await,
         "session/request_permission" => {
             permission_handlers::handle_session_request_permission(params, agent_type).await
         }
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handles_fs_write_text_file_and_returns_empty_object() {
+    async fn returns_request_error_for_fs_write_without_app_handle() {
         let temp = tempdir().expect("create tempdir");
         let file_path = temp.path().join("write-me.txt");
 
@@ -370,17 +370,18 @@ mod tests {
 
         match decision {
             InboundRoutingDecision::Handle(result) => {
-                assert_eq!(result, json!({}));
+                assert_eq!(
+                    result,
+                    json!({
+                        "error": {
+                            "code": -32000,
+                            "message": "App handle unavailable for session-scoped file writes"
+                        }
+                    })
+                );
             }
-            _ => {
-                panic!("Expected fs/write_text_file to be handled in backend");
-            }
+            _ => panic!("Expected fs/write_text_file to be rejected without app handle"),
         }
-
-        let content = tokio::fs::read_to_string(&file_path)
-            .await
-            .expect("read written file");
-        assert_eq!(content, "hello");
     }
 
     #[tokio::test]

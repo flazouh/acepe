@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,6 +197,52 @@ pub fn validate_path_segment(segment: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn resolve_write_path(path: &Path) -> Result<PathBuf, String> {
+    if !path.is_absolute() {
+        return Err(format!("Path must be absolute: {}", path.display()));
+    }
+
+    let mut resolved = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => resolved.push(prefix.as_os_str()),
+            Component::RootDir => resolved.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let _ = resolved.pop();
+            }
+            Component::Normal(segment) => {
+                resolved.push(segment);
+                if resolved.exists() {
+                    resolved = std::fs::canonicalize(&resolved)
+                        .map_err(|error| format!("Cannot access path: {}", error))?;
+                }
+            }
+        }
+    }
+
+    Ok(resolved)
+}
+
+pub fn resolve_write_path_within_project(
+    project_root: &Path,
+    path: &Path,
+) -> Result<PathBuf, String> {
+    let canonical_project_root = validate_project_directory(project_root)
+        .map_err(|error| error.message_for(project_root))?;
+    let resolved_path = resolve_write_path(path)?;
+
+    if !resolved_path.starts_with(&canonical_project_root) {
+        return Err(format!(
+            "Path is outside project directory: {}",
+            path.display()
+        ));
+    }
+
+    Ok(resolved_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,5 +382,75 @@ mod tests {
         assert!(validate_path_segment("..", "id").is_err());
         assert!(validate_path_segment(".", "id").is_err());
         assert!(validate_path_segment("", "id").is_err());
+    }
+
+    #[test]
+    fn resolve_write_path_within_project_allows_nested_write_inside_project() {
+        let temp = tempdir().expect("temp dir");
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).expect("create project root");
+
+        let target_path = project_root.join("src").join("nested").join("file.txt");
+
+        let resolved =
+            resolve_write_path_within_project(&project_root, &target_path).expect("resolve path");
+
+        assert_eq!(resolved, target_path);
+    }
+
+    #[test]
+    fn resolve_write_path_within_project_rejects_parent_dir_traversal() {
+        let temp = tempdir().expect("temp dir");
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).expect("create project root");
+
+        let target_path = project_root
+            .join("src")
+            .join("..")
+            .join("..")
+            .join("outside.txt");
+
+        let error = resolve_write_path_within_project(&project_root, &target_path)
+            .expect_err("path traversal should be rejected");
+
+        assert!(error.contains("outside project directory"));
+    }
+
+    #[test]
+    fn resolve_write_path_within_project_rejects_absolute_path_outside_project() {
+        let temp = tempdir().expect("temp dir");
+        let project_root = temp.path().join("project");
+        let outside_root = temp.path().join("outside");
+        std::fs::create_dir_all(&project_root).expect("create project root");
+        std::fs::create_dir_all(&outside_root).expect("create outside root");
+
+        let target_path = outside_root.join("file.txt");
+
+        let error = resolve_write_path_within_project(&project_root, &target_path)
+            .expect_err("outside path should be rejected");
+
+        assert!(error.contains("outside project directory"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_write_path_within_project_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().expect("temp dir");
+        let project_root = temp.path().join("project");
+        let outside_root = temp.path().join("outside");
+        std::fs::create_dir_all(&project_root).expect("create project root");
+        std::fs::create_dir_all(&outside_root).expect("create outside root");
+
+        let link_path = project_root.join("escape-link");
+        symlink(&outside_root, &link_path).expect("create symlink");
+
+        let target_path = link_path.join("file.txt");
+
+        let error = resolve_write_path_within_project(&project_root, &target_path)
+            .expect_err("symlink escape should be rejected");
+
+        assert!(error.contains("outside project directory"));
     }
 }
