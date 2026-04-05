@@ -15,6 +15,7 @@ export type NewSessionResponse = {
 	 * Unique identifier for the newly created session.
 	 */
 	sessionId: SessionId;
+	sequenceId?: number | null;
 
 	/**
 	 * Model state for this session.

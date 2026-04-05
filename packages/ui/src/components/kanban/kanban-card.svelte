@@ -4,6 +4,7 @@
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentToolRow from "../agent-panel/agent-tool-row.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
+	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import {
 		EmbeddedIconButton,
 		EmbeddedPanelHeader,
@@ -45,7 +46,7 @@
 		menu,
 	}: Props = $props();
 
-	const title = $derived(card.title ? card.title : "Untitled session");
+	const title = $derived(card.title ? capitalizeLeadingCharacter(card.title) : "Untitled session");
 	const hasDiff = $derived(card.diffInsertions > 0 || card.diffDeletions > 0);
 	const isInteractive = $derived(Boolean(onclick));
 	const showBody = $derived(Boolean(card.taskCard || card.latestTool || card.activityText || card.errorText));
@@ -80,6 +81,9 @@
 		<EmbeddedPanelHeader class="bg-card/50">
 			<HeaderCell withDivider={false}>
 				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} class="shrink-0" />
+				{#if card.sequenceId !== null}
+					<span class="font-mono text-[10px] text-muted-foreground/70">#{card.sequenceId}</span>
+				{/if}
 			</HeaderCell>
 			<HeaderCell>
 				<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
@@ -100,7 +104,7 @@
 				</div>
 			</HeaderTitleCell>
 			{#if hasDiff}
-				<HeaderActionCell withDivider={headerDiffDivider}>
+				<HeaderActionCell withDivider={headerDiffDivider} class="px-1">
 					<div class="flex h-7 items-center justify-center">
 						<DiffPill insertions={card.diffInsertions} deletions={card.diffDeletions} variant="plain" class="text-[10px]" />
 					</div>
@@ -129,7 +133,7 @@
 		</EmbeddedPanelHeader>
 	</div>
 
-	<div class="border-t border-border/40 px-1.5 py-1" data-testid="kanban-card-title">
+	<div class="border-b border-border/40 px-1.5 py-1" data-testid="kanban-card-title">
 		<div class="min-w-0">
 			<span class="block text-xs font-medium leading-tight text-foreground">{title}</span>
 		</div>
@@ -137,7 +141,7 @@
 
 	<!-- Content: task card, activity text, or latest tool -->
 	{#if showBody}
-		<div class="flex flex-col gap-1 px-1">
+		<div class="flex flex-col gap-1 px-1 pt-1 pb-1">
 			{#if card.taskCard}
 				<AgentToolTask
 					description={card.taskCard.summary}

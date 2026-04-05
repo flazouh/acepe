@@ -1387,6 +1387,7 @@ fn test_process_cached_entry_for_project_corrects_mismatch() {
         pr_number: None,
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
+            sequence_id: None,
     };
 
     let expected_project = "/Users/test/Documents/project"; // Correct - from database
@@ -1426,6 +1427,7 @@ fn test_process_cached_entry_for_project_no_change_when_matching() {
         pr_number: None,
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
+            sequence_id: None,
     };
 
     let result = process_cached_entry_for_project(cached_entry.clone(), project_path);

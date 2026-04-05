@@ -157,6 +157,7 @@ setSessionListHighlightContext(highlightContext);
 				worktreeDeleted: row.item.worktreeDeleted,
 				prNumber: row.item.prNumber,
 				prState: row.item.prState,
+				sequenceId: row.item.sequenceId,
 			}}
 			selected={selectedSessionId === row.item.id}
 			isOpen={row.item.isOpen}

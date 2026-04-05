@@ -376,7 +376,7 @@ const highlightCtx = getSessionListHighlightContext();
 					slidingHighlight={!!highlightCtx}
 					compactPadding={!!highlightCtx}
 					mode={null}
-					title={getSessionDisplayName(session)}
+					title={session.sequenceId != null ? `#${session.sequenceId} ${getSessionDisplayName(session)}` : getSessionDisplayName(session)}
 					timeAgo={queueTimeAgo}
 					insertions={session.insertions ?? 0}
 					deletions={session.deletions ?? 0}

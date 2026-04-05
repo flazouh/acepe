@@ -586,6 +586,8 @@ pub struct SessionMetadataRow {
     pub provider_session_id: Option<String>,
     pub worktree_path: Option<String>,
     pub pr_number: Option<i32>,
+    pub is_acepe_managed: bool,
+    pub sequence_id: Option<i32>,
 }
 
 impl SessionMetadataRow {
@@ -657,6 +659,33 @@ impl SessionMetadataRepository {
 
     fn created_session_file_path(session_id: &str) -> String {
         format!("__session_registry__/{session_id}")
+    }
+
+    fn is_acepe_managed_file_path(file_path: &str) -> bool {
+        file_path.starts_with("__session_registry__/")
+            && !file_path["__session_registry__/".len()..].contains('/')
+    }
+
+    fn merged_acepe_managed_flag(existing_managed: i32, file_path: &str) -> i32 {
+        if existing_managed != 0 || Self::is_acepe_managed_file_path(file_path) {
+            1
+        } else {
+            0
+        }
+    }
+
+    async fn next_sequence_id_for_project(db: &impl sea_orm::ConnectionTrait, project_path: &str) -> Result<i32> {
+        let max_seq: Option<i32> = SessionMetadata::find()
+            .select_only()
+            .column_as(session_metadata::Column::SequenceId.max(), "max_seq")
+            .filter(session_metadata::Column::ProjectPath.eq(project_path))
+            .filter(session_metadata::Column::IsAcepeManaged.eq(1))
+            .into_tuple::<Option<i32>>()
+            .one(db)
+            .await?
+            .flatten();
+
+        Ok(max_seq.map_or(1, |max| max + 1))
     }
 
     fn is_non_persisted_session_file_path(file_path: &str) -> bool {
@@ -750,43 +779,123 @@ impl SessionMetadataRepository {
             .add(session_metadata::Column::ProviderSessionId.eq(session_id))
     }
 
+    /// Insert a new native session and assign the next per-project sequence ID.
+    /// Returns the assigned sequence_id.
     async fn insert_created_session(
         db: &DbConn,
         session_id: &str,
         project_path: &str,
         agent_id: &str,
         worktree_path: Option<&str>,
-    ) -> Result<()> {
-        let now = Utc::now();
-        let preview_len = 8usize.min(session_id.len());
-        let display = format!("Session {}", &session_id[..preview_len]);
+    ) -> Result<i32> {
+        for _attempt in 0..5 {
+            let txn = db.begin().await?;
+            let now = Utc::now();
+            let preview_len = 8usize.min(session_id.len());
+            let display = format!("Session {}", &session_id[..preview_len]);
 
-        let model = session_metadata::ActiveModel {
-            id: Set(session_id.to_string()),
-            display: Set(display),
-            timestamp: Set(now.timestamp_millis()),
-            project_path: Set(project_path.to_string()),
-            agent_id: Set(agent_id.to_string()),
-            file_path: Set(Self::created_session_file_path(session_id)),
-            file_mtime: Set(0),
-            file_size: Set(0),
-            provider_session_id: Set(None),
-            worktree_path: Set(worktree_path.map(|path| path.to_string())),
-            pr_number: sea_orm::ActiveValue::NotSet,
-            created_at: Set(now),
-            updated_at: Set(now),
+            let next_sequence_id = Self::next_sequence_id_for_project(&txn, project_path).await?;
+
+            let model = session_metadata::ActiveModel {
+                id: Set(session_id.to_string()),
+                display: Set(display),
+                timestamp: Set(now.timestamp_millis()),
+                project_path: Set(project_path.to_string()),
+                agent_id: Set(agent_id.to_string()),
+                file_path: Set(Self::created_session_file_path(session_id)),
+                file_mtime: Set(0),
+                file_size: Set(0),
+                provider_session_id: Set(None),
+                worktree_path: Set(worktree_path.map(|path| path.to_string())),
+                pr_number: sea_orm::ActiveValue::NotSet,
+                is_acepe_managed: Set(1),
+                sequence_id: Set(Some(next_sequence_id)),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+
+            match SessionMetadata::insert(model).exec(&txn).await {
+                Ok(_) => {
+                    txn.commit().await?;
+                    tracing::info!(
+                        session_id = %session_id,
+                        project_path = %project_path,
+                        agent_id = %agent_id,
+                        worktree_path = ?worktree_path,
+                        sequence_id = next_sequence_id,
+                        "Session metadata inserted for created session without persisted transcript"
+                    );
+                    return Ok(next_sequence_id);
+                }
+                Err(error) => {
+                    let message = error.to_string();
+                    if message.contains("idx_session_metadata_project_sequence")
+                        || message.contains("session_metadata.project_path, session_metadata.sequence_id")
+                    {
+                        continue;
+                    }
+                    return Err(error.into());
+                }
+            }
+        }
+
+        anyhow::bail!("Failed to allocate a unique sequence_id after retries");
+    }
+
+    async fn mark_session_as_acepe_managed(
+        db: &DbConn,
+        existing_model: session_metadata::Model,
+    ) -> Result<bool> {
+        if existing_model.is_acepe_managed != 0 {
+            return Ok(false);
+        }
+
+        for _attempt in 0..5 {
+            let txn = db.begin().await?;
+            let latest_model = SessionMetadata::find_by_id(&existing_model.id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Session metadata disappeared during promotion"))?;
+
+            if latest_model.is_acepe_managed != 0 {
+                txn.rollback().await?;
+                return Ok(false);
+            }
+
+            let next_sequence_id =
+                Self::next_sequence_id_for_project(&txn, &latest_model.project_path).await?;
+            let mut active: session_metadata::ActiveModel = latest_model.into();
+            active.is_acepe_managed = Set(1);
+            active.sequence_id = Set(Some(next_sequence_id));
+            active.updated_at = Set(Utc::now());
+
+            match active.update(&txn).await {
+                Ok(_) => {
+                    txn.commit().await?;
+                    return Ok(true);
+                }
+                Err(error) => {
+                    let message = error.to_string();
+                    if message.contains("idx_session_metadata_project_sequence_managed")
+                        || message.contains("session_metadata.project_path, session_metadata.sequence_id")
+                    {
+                        continue;
+                    }
+                    return Err(error.into());
+                }
+            }
+        }
+
+        anyhow::bail!("Failed to allocate a unique sequence_id after retries")
+    }
+
+    pub async fn mark_as_acepe_managed(db: &DbConn, session_id: &str) -> Result<bool> {
+        let model = SessionMetadata::find_by_id(session_id).one(db).await?;
+        let Some(existing_model) = model else {
+            return Ok(false);
         };
 
-        SessionMetadata::insert(model).exec(db).await?;
-        tracing::info!(
-            session_id = %session_id,
-            project_path = %project_path,
-            agent_id = %agent_id,
-            worktree_path = ?worktree_path,
-            "Session metadata inserted for created session without persisted transcript"
-        );
-
-        Ok(())
+        Self::mark_session_as_acepe_managed(db, existing_model).await
     }
 
     /// Get all sessions for given project paths, ordered by timestamp DESC.
@@ -896,6 +1005,9 @@ impl SessionMetadataRepository {
 
         if let Some(existing_model) = existing {
             let project_path = Self::project_path_for_update(&existing_model, project_path);
+            let existing_is_acepe_managed = existing_model.is_acepe_managed;
+            let next_is_acepe_managed =
+                Self::merged_acepe_managed_flag(existing_is_acepe_managed, &file_path);
 
             // Check if file has changed (mtime + size comparison)
             if existing_model.file_mtime == file_mtime
@@ -920,9 +1032,16 @@ impl SessionMetadataRepository {
             active.file_mtime = Set(file_mtime);
             active.file_size = Set(file_size);
             active.provider_session_id = Set(provider_session_id);
+            active.is_acepe_managed = Set(next_is_acepe_managed);
             active.updated_at = Set(now);
             active.update(db).await?;
         } else {
+            let is_acepe_managed = if Self::is_acepe_managed_file_path(&file_path) {
+                1
+            } else {
+                0
+            };
+
             // Insert new record
             let model = session_metadata::ActiveModel {
                 id: Set(session_id.clone()),
@@ -936,6 +1055,8 @@ impl SessionMetadataRepository {
                 provider_session_id: Set(None),
                 worktree_path: sea_orm::ActiveValue::NotSet,
                 pr_number: sea_orm::ActiveValue::NotSet,
+                is_acepe_managed: Set(is_acepe_managed),
+                sequence_id: sea_orm::ActiveValue::NotSet,
                 created_at: Set(now),
                 updated_at: Set(now),
             };
@@ -1003,6 +1124,8 @@ impl SessionMetadataRepository {
         {
             if let Some(existing_model) = existing_map.get(&session_id) {
                 let project_path = Self::project_path_for_update(existing_model, project_path);
+                let next_is_acepe_managed =
+                    Self::merged_acepe_managed_flag(existing_model.is_acepe_managed, &file_path);
 
                 // Check if file has changed (skip if mtime+size match).
                 // Non-Claude agents use mtime=0/size=0 sentinel — always refresh those.
@@ -1028,10 +1151,17 @@ impl SessionMetadataRepository {
                     active.agent_id.as_ref(),
                     &session_id,
                 ));
+                active.is_acepe_managed = Set(next_is_acepe_managed);
                 active.updated_at = Set(now);
                 active.update(&txn).await?;
                 updated_count += 1;
             } else {
+                let is_acepe_managed = if Self::is_acepe_managed_file_path(&file_path) {
+                    1
+                } else {
+                    0
+                };
+
                 // Insert new
                 let model = session_metadata::ActiveModel {
                     id: Set(session_id),
@@ -1045,6 +1175,8 @@ impl SessionMetadataRepository {
                     provider_session_id: Set(None),
                     worktree_path: sea_orm::ActiveValue::NotSet,
                     pr_number: sea_orm::ActiveValue::NotSet,
+                    is_acepe_managed: Set(is_acepe_managed),
+                    sequence_id: sea_orm::ActiveValue::NotSet,
                     created_at: Set(now),
                     updated_at: Set(now),
                 };
@@ -1071,8 +1203,8 @@ impl SessionMetadataRepository {
         tracing::debug!(session_id = %session_id, "Ensuring session metadata exists");
 
         let model = SessionMetadata::find_by_id(session_id).one(db).await?;
-        if model.is_some() {
-            return Ok(false);
+        if let Some(existing_model) = model {
+            return Self::mark_session_as_acepe_managed(db, existing_model).await;
         }
 
         Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path).await?;
@@ -1106,14 +1238,27 @@ impl SessionMetadataRepository {
             let context_agent_id = agent_id.ok_or_else(|| {
                 anyhow::anyhow!("Session not found in metadata index and agent_id was not provided")
             })?;
-            Self::insert_created_session(
-                db,
-                session_id,
-                context_project_path,
-                context_agent_id,
-                Some(worktree_path),
-            )
-            .await?;
+            let now = Utc::now();
+            let preview_len = 8usize.min(session_id.len());
+            let display = format!("Session {}", &session_id[..preview_len]);
+            let model = session_metadata::ActiveModel {
+                id: Set(session_id.to_string()),
+                display: Set(display),
+                timestamp: Set(now.timestamp_millis()),
+                project_path: Set(context_project_path.to_string()),
+                agent_id: Set(context_agent_id.to_string()),
+                file_path: Set(Self::created_session_file_path(session_id)),
+                file_mtime: Set(0),
+                file_size: Set(0),
+                provider_session_id: Set(None),
+                worktree_path: Set(Some(worktree_path.to_string())),
+                pr_number: sea_orm::ActiveValue::NotSet,
+                is_acepe_managed: Set(0),
+                sequence_id: sea_orm::ActiveValue::NotSet,
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+            SessionMetadata::insert(model).exec(db).await?;
         }
 
         Ok(())
@@ -1295,6 +1440,8 @@ impl SessionMetadataRepository {
             provider_session_id: m.provider_session_id,
             worktree_path: m.worktree_path,
             pr_number: m.pr_number,
+            is_acepe_managed: m.is_acepe_managed != 0,
+            sequence_id: m.sequence_id,
         }
     }
 
