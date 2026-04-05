@@ -8,6 +8,7 @@ const CURRENT_TEST_FILE_PATH = import.meta.filename;
 const ROOT_PACKAGE_JSON_PATH = resolve(REPO_ROOT, "package.json");
 const DESKTOP_PACKAGE_JSON_PATH = resolve(REPO_ROOT, "packages/desktop/package.json");
 const BUN_LOCK_PATH = resolve(REPO_ROOT, "bun.lock");
+const LEGACY_PACKAGE_NAMES = ["lucide-svelte", "phosphor-icons-svelte"];
 const SOURCE_FILE_EXTENSIONS = new Set([
 	".cjs",
 	".cts",
@@ -27,8 +28,11 @@ const IGNORED_DIRECTORY_NAMES = new Set([
 	"node_modules",
 	"target",
 ]);
+const LEGACY_PACKAGE_PATTERN = LEGACY_PACKAGE_NAMES.join("|");
 const LEGACY_IMPORT_PATTERN =
-	/from\s+["'](lucide-svelte|phosphor-icons-svelte)["']|import\s*\(\s*["'](lucide-svelte|phosphor-icons-svelte)["']\s*\)|require\s*\(\s*["'](lucide-svelte|phosphor-icons-svelte)["']\s*\)/;
+	new RegExp(
+		`from\\s+["'](${LEGACY_PACKAGE_PATTERN})["']|import\\s*\\(\\s*["'](${LEGACY_PACKAGE_PATTERN})["']\\s*\\)|require\\s*\\(\\s*["'](${LEGACY_PACKAGE_PATTERN})["']\\s*\\)`
+	);
 
 type PackageJson = {
 	dependencies?: Record<string, string>;
@@ -84,7 +88,10 @@ describe("legacy icon package cleanup", () => {
 
 			const source = readFileSync(sourceFilePath, "utf8");
 
-			expect(source).not.toMatch(LEGACY_IMPORT_PATTERN);
+			expect(
+				source,
+				`File ${sourceFilePath} contains a legacy icon package import`
+			).not.toMatch(LEGACY_IMPORT_PATTERN);
 		}
 	});
 
