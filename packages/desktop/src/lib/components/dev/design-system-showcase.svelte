@@ -348,9 +348,9 @@
 		],
 	};
 	const demoQuestionOptions: readonly ActivityEntryQuestionOption[] = [
-		{ label: "Vitest", selected: true },
-		{ label: "Jest", selected: false },
-		{ label: "Bun", selected: false },
+		{ label: "Vitest", selected: true, color: "#22C55E" },
+		{ label: "Jest", selected: false, color: "#9858FF" },
+		{ label: "Bun", selected: false, color: "#FF8D20" },
 	];
 	const demoQuestionProgress: readonly ActivityEntryQuestionProgress[] = [
 		{ questionIndex: 0, answered: true },

@@ -85,6 +85,7 @@ export interface SessionStoreCallbacks {
 	onQuestionRequest?: (question: QuestionRequest) => void;
 	onPlanUpdate?: (sessionId: string, planData: PlanData) => void;
 	onTurnComplete?: (sessionId: string) => void;
+	onTurnInterrupted?: (sessionId: string) => void;
 	onTurnError?: (sessionId: string) => void;
 	/** Called when a PR number is discovered in agent messages (e.g. Claude created a PR autonomously). */
 	onPrNumberFound?: (sessionId: string, prNumber: number) => void;
@@ -640,7 +641,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Cancel streaming for a session.
 	 */
 	cancelStreaming(sessionId: string): ResultAsync<void, AppError> {
-		return this.connectionMgr.cancelStreaming(sessionId);
+		return this.connectionMgr.cancelStreaming(sessionId).map(() => {
+			this.callbacks.onTurnInterrupted?.(sessionId);
+			return undefined;
+		});
 	}
 
 	// ============================================
