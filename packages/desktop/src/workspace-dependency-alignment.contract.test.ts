@@ -17,6 +17,17 @@ function readFile(relativePath: string): string {
 	return readFileSync(resolve(import.meta.dir, relativePath), "utf8");
 }
 
+function getWorkspaceSection(source: string, workspaceName: string): string {
+	const pattern = new RegExp(`"${workspaceName}": \\{([\\s\\S]*?)\\n    \\},`, "m");
+	const match = source.match(pattern);
+
+	if (match === null) {
+		throw new Error(`Could not find workspace section for ${workspaceName}`);
+	}
+
+	return match[1];
+}
+
 describe("workspace dependency alignment", () => {
 	it("keeps shared dependency versions aligned across workspace packages", () => {
 		const desktopPackageJson = readPackageJson("../package.json");
@@ -42,15 +53,21 @@ describe("workspace dependency alignment", () => {
 
 	it("keeps the Bun lockfile workspace selectors aligned with the package manifests", () => {
 		const bunLockSource = readFile("../../../bun.lock");
+		const analyticsWorkspace = getWorkspaceSection(bunLockSource, "packages/analytics");
+		const desktopWorkspace = getWorkspaceSection(bunLockSource, "packages/desktop");
+		const uiWorkspace = getWorkspaceSection(bunLockSource, "packages/ui");
+		const websiteWorkspace = getWorkspaceSection(bunLockSource, "packages/website");
 
-		expect(bunLockSource).toContain('"packages/analytics": {');
-		expect(bunLockSource).toContain('"typescript": "^5.9.3"');
-		expect(bunLockSource).toContain('"@sveltejs/kit": "^2.49.1"');
-		expect(bunLockSource).toContain('"@sveltejs/vite-plugin-svelte": "^6.2.1"');
-		expect(bunLockSource).toContain('"shiki": "^3.22.0"');
-		expect(bunLockSource).toContain('"svelte": "^5.45.6"');
-		expect(bunLockSource).toContain('"vite": "^7.2.6"');
-		expect(bunLockSource).toContain('"@lucide/svelte": "^0.562.0"');
-		expect(bunLockSource).toContain('"phosphor-svelte": "^3.1.0"');
+		expect(analyticsWorkspace).toContain('"typescript": "^5.9.3"');
+		expect(desktopWorkspace).toContain('"@sveltejs/kit": "^2.49.1"');
+		expect(desktopWorkspace).toContain('"@sveltejs/vite-plugin-svelte": "^6.2.1"');
+		expect(desktopWorkspace).toContain('"shiki": "^3.22.0"');
+		expect(desktopWorkspace).toContain('"svelte": "^5.45.6"');
+		expect(desktopWorkspace).toContain('"typescript": "^5.9.3"');
+		expect(desktopWorkspace).toContain('"vite": "^7.2.6"');
+		expect(desktopWorkspace).toContain('"phosphor-svelte": "^3.1.0"');
+		expect(uiWorkspace).toContain('"@lucide/svelte": "^0.562.0"');
+		expect(uiWorkspace).toContain('"phosphor-svelte": "^3.1.0"');
+		expect(websiteWorkspace).toContain('"@lucide/svelte": "^0.562.0"');
 	});
 });
