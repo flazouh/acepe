@@ -1,11 +1,11 @@
 #!/bin/sh
 
-# Frontend typecheck + svelte-check + tests
-(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bun test) &
+# Frontend typecheck + svelte-check + lint + tests
+(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bunx biome check . && bun test) &
 FRONTEND_PID=$!
 
-# Website typecheck + tests
-(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run test) &
+# Website typecheck + lint + tests
+(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bunx biome check . && bun run test) &
 WEBSITE_PID=$!
 
 # Backend check + tests
