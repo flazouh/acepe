@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 import { portal } from "./portal.js";
 
@@ -12,17 +11,9 @@ function createPortaledNode(): { host: HTMLDivElement; node: HTMLDivElement } {
 }
 
 describe("portal action", () => {
-	beforeEach(async () => {
-		await GlobalRegistrator.register();
-	});
-
 	afterEach(() => {
 		document.body.innerHTML = "";
 		document.body.removeAttribute("style");
-	});
-
-	afterEach(async () => {
-		await GlobalRegistrator.unregister();
 	});
 
 	it("keeps a portaled node interactive when a modal disables pointer events on body", () => {

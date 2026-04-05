@@ -32,8 +32,9 @@ describe("modified-files-header structure", () => {
 		expect(source).toContain("m.review_applied()");
 		expect(source).toContain("<CheckCircle");
 		expect(source).toContain(
-			'class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-100"'
+			'<Button variant="headerAction" size="headerAction" disabled class="disabled:opacity-100">'
 		);
+		expect(source).toContain('<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />');
 		expect(source).not.toContain("border-success/30 bg-success/10");
 	});
 

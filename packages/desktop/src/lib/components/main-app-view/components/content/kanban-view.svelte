@@ -1,7 +1,6 @@
 <script lang="ts">
 	import IconDotsVertical from "@tabler/icons-svelte/icons/dots-vertical";
 	import {
-		Button,
 		CloseAction,
 		Dialog,
 		DialogContent,
@@ -726,19 +725,6 @@
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-	<div class="flex shrink-0 items-center justify-end px-2 pt-2">
-		<Button
-			variant="headerAction"
-			size="headerAction"
-			class="gap-2"
-			onclick={() => handleNewSessionOpenChange(true)}
-			disabled={createDisabled}
-		>
-			<Robot weight="fill" class="h-3.5 w-3.5" style="color: {Colors.purple}" />
-			<span>New Agent</span>
-		</Button>
-	</div>
-
 	<Dialog bind:open={newSessionOpen} onOpenChange={handleNewSessionOpenChange}>
 		<DialogContent
 			bind:ref={newSessionDialogRef}

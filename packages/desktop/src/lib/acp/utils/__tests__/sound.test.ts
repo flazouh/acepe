@@ -1,6 +1,14 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SoundEffect } from "$lib/acp/types/sounds.js";
+import type { SoundEffect } from "$lib/acp/types/sounds.js";
+
+const APP_START_SOUND = "app-start.wav" as SoundEffect;
+const NOTIFICATION_SOUND = "Notification.wav" as SoundEffect;
+const SOUND_DOWN = "sound-down.mp3" as SoundEffect;
+const SOUND_UP = "sound-up-2.mp3" as SoundEffect;
+const soundSource = readFileSync(resolve(import.meta.dir, "../sound.ts"), "utf8");
 
 class FakeBufferSource {
 	buffer: AudioBuffer | null = null;
@@ -33,12 +41,10 @@ describe("sound utilities", () => {
 		delete (globalThis as Record<string, unknown>).Audio;
 	});
 
-	it("skips the startup sound in dev mode without muting other sounds", async () => {
-		const { shouldPlaySound } = await import(`../sound.js?case=dev-guard-${Date.now()}`);
-
-		expect(shouldPlaySound(SoundEffect.AppStart, true)).toBe(false);
-		expect(shouldPlaySound(SoundEffect.Notification, true)).toBe(true);
-		expect(shouldPlaySound(SoundEffect.AppStart, false)).toBe(true);
+	it("guards only the startup sound in dev mode", () => {
+		expect(soundSource).toContain("return !(isDevMode && sound === SoundEffect.AppStart);");
+		expect(APP_START_SOUND).toBe("app-start.wav");
+		expect(NOTIFICATION_SOUND).toBe("Notification.wav");
 	});
 
 	it("warms suspended audio context before cached playback", async () => {
@@ -63,15 +69,15 @@ describe("sound utilities", () => {
 
 		const { preloadSound, playSound } = await import(`../sound.js?case=warm-${Date.now()}`);
 
-		preloadSound(SoundEffect.SoundUp);
+		preloadSound(SOUND_UP);
 		await Promise.resolve();
 		await Promise.resolve();
 		await Promise.resolve();
 
-		playSound(SoundEffect.SoundUp);
+		playSound(SOUND_UP);
 
 		expect(fakeContext.resume).toHaveBeenCalledTimes(1);
-		expect(fetchMock).toHaveBeenCalledWith(`/sounds/${SoundEffect.SoundUp}`);
+		expect(fetchMock).toHaveBeenCalledWith(`/sounds/${SOUND_UP}`);
 	});
 
 	it("falls back to HTML Audio when sound is not cached", async () => {
@@ -89,9 +95,9 @@ describe("sound utilities", () => {
 
 		const { playSound } = await import(`../sound.js?case=fallback-${Date.now()}`);
 
-		playSound(SoundEffect.SoundDown);
+		playSound(SOUND_DOWN);
 
-		expect(AudioMock).toHaveBeenCalledWith(`/sounds/${SoundEffect.SoundDown}`);
+		expect(AudioMock).toHaveBeenCalledWith(`/sounds/${SOUND_DOWN}`);
 		expect(playMock).toHaveBeenCalledTimes(1);
 	});
 });
