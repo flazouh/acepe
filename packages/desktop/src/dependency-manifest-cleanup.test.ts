@@ -75,6 +75,10 @@ describe("legacy icon package cleanup", () => {
 		const sourceFilePaths = collectSourceFilePaths(REPO_ROOT);
 
 		for (const sourceFilePath of sourceFilePaths) {
+			if (sourceFilePath === resolve(import.meta.dir, "dependency-manifest-cleanup.test.ts")) {
+				continue;
+			}
+
 			const source = readFileSync(sourceFilePath, "utf8");
 
 			expect(source).not.toContain('from "lucide-svelte"');
