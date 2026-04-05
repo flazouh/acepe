@@ -210,7 +210,14 @@ pub fn resolve_write_path(path: &Path) -> Result<PathBuf, String> {
             Component::RootDir => resolved.push(component.as_os_str()),
             Component::CurDir => {}
             Component::ParentDir => {
-                let _ = resolved.pop();
+                if resolved.as_os_str().is_empty() || resolved.parent().is_some() {
+                    let popped = resolved.pop();
+                    if !popped {
+                        return Err(format!("Cannot resolve path: {}", path.display()));
+                    }
+                } else {
+                    return Err(format!("Cannot resolve path: {}", path.display()));
+                }
             }
             Component::Normal(segment) => {
                 resolved.push(segment);

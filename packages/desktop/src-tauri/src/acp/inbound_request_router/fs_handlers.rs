@@ -61,7 +61,7 @@ pub(super) async fn handle_fs_write_text_file(
         }
     };
 
-    match acp_write_text_file(app_handle, path, content, Some(session_id)).await {
+    match acp_write_text_file(app_handle, path, content, session_id).await {
         Ok(()) => InboundRoutingDecision::Handle(json!({})),
         Err(error) => request_error(error.to_string()),
     }

@@ -174,8 +174,12 @@ function handleHunkAccept(hunkIndex: number): void {
 
 function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 	if (!selectedFile) return;
+	if (!sessionId) {
+		toast.error(m.hunk_revert_failed({ error: "Missing session id" }));
+		return;
+	}
 
-	tauriClient.fs.writeTextFile(selectedFile.filePath, revertedContent).match(
+	tauriClient.fs.writeTextFile(selectedFile.filePath, revertedContent, sessionId).match(
 		() => {
 			toast.success(m.hunk_revert_success({ filePath: selectedFile.fileName }));
 			recordResolvedAction(selectedFile, hunkIndex, "reject");

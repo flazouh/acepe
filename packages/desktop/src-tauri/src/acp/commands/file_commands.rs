@@ -1,12 +1,13 @@
 use super::*;
 use crate::db::repository::{SessionMetadataRepository, SessionMetadataRow};
-use crate::path_safety::{
-    resolve_write_path, resolve_write_path_within_project, validate_project_directory_from_str,
-};
+use crate::path_safety::{resolve_write_path_within_project, validate_project_directory_from_str};
 use sea_orm::DbConn;
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 
+/// Prefer the worktree root for session-scoped writes so agents launched from a
+/// worktree cannot escape back into the base repository. Fall back to the
+/// canonical project root for non-worktree sessions.
 fn session_write_scope_root(metadata: &SessionMetadataRow) -> &str {
     match metadata.worktree_path.as_deref() {
         Some(worktree_path) => worktree_path,
@@ -134,12 +135,12 @@ pub async fn acp_write_text_file(
     app: AppHandle,
     path: String,
     content: String,
-    session_id: Option<String>,
+    session_id: String,
 ) -> Result<(), SerializableAcpError> {
     tracing::debug!(
         path = %path,
         content_len = content.len(),
-        session_id = ?session_id,
+        session_id = %session_id,
         "acp_write_text_file called"
     );
 
@@ -154,11 +155,7 @@ pub async fn acp_write_text_file(
         });
     }
 
-    let resolved_path = match session_id.as_deref() {
-        Some(session_id) => resolve_session_scoped_write_path(&app, session_id, file_path).await?,
-        None => resolve_write_path(file_path)
-            .map_err(|message| SerializableAcpError::InvalidState { message })?,
-    };
+    let resolved_path = resolve_session_scoped_write_path(&app, &session_id, file_path).await?;
 
     // Create parent directories if they don't exist
     if let Some(parent) = resolved_path.parent() {
