@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function capitalizeLeadingCharacter(value: string): string {
+  if (value.length === 0) {
+    return value;
+  }
+
+  return `${value[0].toUpperCase()}${value.slice(1)}`;
+}
+
 export type WithoutChild<T> = T extends { child?: unknown }
   ? Omit<T, "child">
   : T;

@@ -47,7 +47,7 @@ export type {
 } from "./components/attention-queue/index.js";
 export {
 	ActivityEntry,
-	AttentionQueueSubagentCard,
+	AttentionQueueQuestionCard,
 	FeedItem,
 	PermissionFeedItem,
 	SectionedFeed,
@@ -264,4 +264,4 @@ export type {
 	WithoutChildrenOrChild,
 } from "./lib/utils";
 // Re-export utilities
-export { cn } from "./lib/utils";
+export { capitalizeLeadingCharacter, cn } from "./lib/utils";

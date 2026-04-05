@@ -1,6 +1,8 @@
 <script lang="ts">
 	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
+	import IconDotsVertical from "@tabler/icons-svelte/icons/dots-vertical";
 	import { Button } from "@acepe/ui/button";
+	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import {
 		CloseAction,
 		EmbeddedIconButton,
@@ -10,20 +12,22 @@
 		HeaderTitleCell,
 	} from "@acepe/ui/panel-header";
 	import {
+		AttentionQueueQuestionCard,
 		AgentToolTask,
+		type ActivityEntryQuestion,
+		type ActivityEntryQuestionOption,
+		type ActivityEntryQuestionProgress,
 		DiffPill,
 		FilePathBadge,
 		GitBranchBadge,
 		GitHubBadge,
 		InlineArtefactBadge,
 		KanbanCard,
-		KanbanQuestionFooter,
 		PillButton,
 		ProjectLetterBadge,
 		type AgentToolEntry,
 		type AnyAgentEntry,
 		type KanbanCardData,
-		type KanbanQuestionData,
 	} from "@acepe/ui";
 	import CheckCircle from "phosphor-svelte/lib/CheckCircle";
 	import X from "phosphor-svelte/lib/X";
@@ -36,7 +40,7 @@
 	import Tag from "phosphor-svelte/lib/Tag";
 	import XCircle from "phosphor-svelte/lib/XCircle";
 
-	import PermissionActionBar from "$lib/acp/components/tool-calls/permission-action-bar.svelte";
+	import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 	import type { PermissionRequest } from "$lib/acp/types/permission.js";
 
 	interface Props {
@@ -140,6 +144,32 @@
 		taskCard: null,
 		latestTool: null,
 		hasUnseenCompletion: false,
+	};
+
+	const demoCardNeedsReview: KanbanCardData = {
+		id: "demo-4b",
+		title: "Review kanban status transitions",
+		agentIconSrc: "/svgs/icons/claude.svg",
+		agentLabel: "claude",
+		projectName: "desktop",
+		projectColor: "#4AD0FF",
+		timeAgo: "8m",
+		activityText: null,
+		isStreaming: false,
+		modeId: "build",
+		diffInsertions: 7,
+		diffDeletions: 1,
+		errorText: null,
+		todoProgress: null,
+		taskCard: null,
+		latestTool: {
+			id: "tool-review-1",
+			kind: "execute",
+			title: "Ran kanban contract tests",
+			filePath: undefined,
+			status: "done",
+		},
+		hasUnseenCompletion: true,
 	};
 
 	const demoSubagentToolCalls: readonly AgentToolEntry[] = [
@@ -250,6 +280,46 @@
 		hasUnseenCompletion: false,
 	};
 
+	const demoCardPermission: KanbanCardData = {
+		id: "demo-7",
+		title: "Approve workspace command",
+		agentIconSrc: "/svgs/icons/claude.svg",
+		agentLabel: "claude",
+		projectName: "acepe",
+		projectColor: "#9858FF",
+		timeAgo: "now",
+		activityText: "Thinking…",
+		isStreaming: true,
+		modeId: "build",
+		diffInsertions: 0,
+		diffDeletions: 0,
+		errorText: null,
+		todoProgress: null,
+		taskCard: null,
+		latestTool: null,
+		hasUnseenCompletion: false,
+	};
+
+	const demoCardQuestion: KanbanCardData = {
+		id: "demo-8",
+		title: "Choose the migration runner",
+		agentIconSrc: "/svgs/icons/claude.svg",
+		agentLabel: "claude",
+		projectName: "desktop",
+		projectColor: "#22C55E",
+		timeAgo: "3m",
+		activityText: null,
+		isStreaming: false,
+		modeId: "plan",
+		diffInsertions: 4,
+		diffDeletions: 0,
+		errorText: null,
+		todoProgress: { current: 1, total: 2, label: "Decide" },
+		taskCard: null,
+		latestTool: null,
+		hasUnseenCompletion: false,
+	};
+
 	const demoPermissionReq: PermissionRequest = {
 		id: "demo-perm-1",
 		sessionId: "demo-session",
@@ -268,15 +338,23 @@
 		always: [],
 	};
 
-	const demoQuestion: KanbanQuestionData = {
-		questionText: "Which test runner do you prefer?",
+	const demoQuestion: ActivityEntryQuestion = {
+		question: "Which test runner do you prefer?",
+		multiSelect: false,
 		options: [
-			{ label: "Vitest", selected: true },
-			{ label: "Jest", selected: false },
-			{ label: "Bun", selected: false },
+			{ label: "Vitest" },
+			{ label: "Jest" },
+			{ label: "Bun" },
 		],
-		canSubmit: true,
 	};
+	const demoQuestionOptions: readonly ActivityEntryQuestionOption[] = [
+		{ label: "Vitest", selected: true },
+		{ label: "Jest", selected: false },
+		{ label: "Bun", selected: false },
+	];
+	const demoQuestionProgress: readonly ActivityEntryQuestionProgress[] = [
+		{ questionIndex: 0, answered: true },
+	];
 	const demoTaskToolCalls: AnyAgentEntry[] = [
 		{ id: "t1", type: "tool_call", kind: "read", title: "Read", filePath: "src/lib/auth.ts", status: "done" },
 		{ id: "t2", type: "tool_call", kind: "search", title: "Search", subtitle: "user session handler", status: "done" },
@@ -307,6 +385,11 @@
 			close();
 		}
 	}
+
+	function handleShowcaseCardAction(): void {}
+
+	const kanbanMenuTriggerClass =
+		"shrink-0 inline-flex h-3 w-4 items-center justify-center text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
 </script>
 
 {#if open}
@@ -629,112 +712,380 @@
 						{:else if activeSection === "kanban-card"}
 							<div class="mb-1 text-xs font-semibold text-foreground/80">Kanban Card</div>
 							<p class="mb-6 max-w-[420px] text-[11px] text-muted-foreground/60">
-								Compact session card used in the kanban board. Shows robot icon, project badge, agent icon, title, time, tool activity, todo progress, diff stats, and nested subagent task states. Supports permission and question footer slots.
+								Rebuilt from the inside out: first the small header and footer building blocks, then full kanban cards across the states the desktop app actually needs to render.
 							</p>
 
-							<div class="flex flex-col gap-6">
-								<!-- Basic card with todo + diff -->
+							<div class="flex flex-col gap-8">
 								<div>
 									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										With Todo Progress + Diff
+										Header Anatomy
 									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardBase} />
+									<div class="grid gap-4 lg:grid-cols-2">
+										<div class="ds-specimen mx-auto w-full max-w-[320px] p-2">
+											<div class="overflow-hidden rounded-sm border border-border/60 bg-accent/30">
+												<EmbeddedPanelHeader class="bg-card/50">
+													<HeaderCell withDivider={false}>
+														<ProjectLetterBadge name={demoCardBase.projectName} color={demoCardBase.projectColor} size={14} class="shrink-0" />
+													</HeaderCell>
+													<HeaderCell>
+														<img src={demoCardBase.agentIconSrc} alt={demoCardBase.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+													</HeaderCell>
+													<HeaderTitleCell compactPadding>
+														<div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+															<span class="shrink-0 font-mono text-[10px] text-muted-foreground/70">{demoCardBase.timeAgo}</span>
+														</div>
+													</HeaderTitleCell>
+													<HeaderActionCell withDivider={true}>
+														<div class="flex h-7 items-center justify-center px-1">
+															<DiffPill insertions={demoCardBase.diffInsertions} deletions={demoCardBase.diffDeletions} variant="plain" class="text-[10px]" />
+														</div>
+													</HeaderActionCell>
+													<HeaderActionCell withDivider={true}>
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Example action</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													</HeaderActionCell>
+													<HeaderActionCell withDivider={false}>
+														<EmbeddedIconButton title="Close" ariaLabel="Close" class="border-l border-border/40">
+															<X class="size-3" />
+														</EmbeddedIconButton>
+													</HeaderActionCell>
+												</EmbeddedPanelHeader>
+												<div class="px-1.5 py-1">
+													<span class="block text-xs font-medium leading-tight text-foreground">{demoCardBase.title}</span>
+												</div>
+											</div>
+										</div>
+										<div class="ds-specimen mx-auto flex w-full max-w-[320px] flex-col gap-2 p-2">
+											<div class="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50">
+												Title + metadata stack
+											</div>
+											<div class="overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+												<div class="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+													<ProjectLetterBadge name={demoCardBase.projectName} color={demoCardBase.projectColor} size={14} class="shrink-0" />
+													<span class="font-mono">{demoCardBase.agentLabel}</span>
+													<span class="ml-auto font-mono">{demoCardBase.timeAgo}</span>
+												</div>
+												<div class="mt-1 text-xs font-medium leading-tight text-foreground">
+													{demoCardBase.title}
+												</div>
+											</div>
+										</div>
 									</div>
 								</div>
 
-								<!-- Streaming / thinking -->
 								<div>
 									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										Streaming (Thinking)
+										Footer Building Blocks
 									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardStreaming} />
+									<div class="grid gap-4 lg:grid-cols-2">
+										<div class="ds-specimen mx-auto w-full max-w-[320px] p-2">
+											<div class="mb-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50">
+												Pending permission card
+											</div>
+											<PermissionBar
+												sessionId={demoPermissionReq.sessionId}
+												permission={demoPermissionReq}
+												projectPath="/Users/alex/Documents/acepe"
+											/>
+										</div>
+										<div class="ds-specimen mx-auto w-full max-w-[320px] p-2">
+											<div class="mb-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50">
+												Queue question card
+											</div>
+											<AttentionQueueQuestionCard
+												currentQuestion={demoQuestion}
+												totalQuestions={1}
+												hasMultipleQuestions={false}
+												currentQuestionIndex={0}
+												questionId="demo-question"
+												questionProgress={demoQuestionProgress}
+												currentQuestionAnswered={false}
+												currentQuestionOptions={demoQuestionOptions}
+												otherText=""
+												otherPlaceholder="Other"
+												showOtherInput={false}
+												showSubmitButton={true}
+												canSubmit={true}
+												submitLabel="Submit"
+												onOptionSelect={() => {}}
+												onOtherInput={() => {}}
+												onOtherKeydown={() => {}}
+												onSubmitAll={() => {}}
+												onPrevQuestion={() => {}}
+												onNextQuestion={() => {}}
+											/>
+										</div>
 									</div>
 								</div>
 
-								<!-- With tool row -->
 								<div>
 									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										With Latest Tool
+										Full Card States
 									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardWithTool} />
-									</div>
-								</div>
-
-								<!-- With subagent task -->
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										With Subagent Task
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardSubagent} />
-									</div>
-								</div>
-
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										With Multiple Current Subagents
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardMultiSubagent} />
-									</div>
-								</div>
-
-								<!-- Error state -->
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										Error State
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardError} />
-									</div>
-								</div>
-
-								<!-- With permission footer (command + always) -->
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										Permission Footer (Command + Always)
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardStreaming} showFooter={true}>
-											{#snippet footer()}
-												<PermissionActionBar permission={demoPermissionReq} compact projectPath="/Users/alex/Documents/acepe" />
-											{/snippet}
-										</KanbanCard>
-									</div>
-								</div>
-
-								<!-- With permission footer (file, no always) -->
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										Permission Footer (File Path)
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardWithTool} showFooter={true}>
-											{#snippet footer()}
-												<PermissionActionBar permission={demoPermissionFileReq} compact projectPath="/Users/alex/Documents/acepe" />
-											{/snippet}
-										</KanbanCard>
-									</div>
-								</div>
-
-								<!-- With question footer -->
-								<div>
-									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
-										Question Footer
-									</div>
-									<div class="mx-auto w-full max-w-[260px]">
-										<KanbanCard card={demoCardBase} showFooter={true}>
-											{#snippet footer()}
-												<KanbanQuestionFooter
-													question={demoQuestion}
-													onSelectOption={() => {}}
-													onSubmit={() => {}}
-												/>
-											{/snippet}
-										</KanbanCard>
+									<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Ready / Todo Progress
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardBase} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Planning / Thinking
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardStreaming} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Working / Latest Tool
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardWithTool} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Subagent Task
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardSubagent} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Multi-Subagent Task
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardMultiSubagent} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Review / Unread Completion
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardNeedsReview} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Error State
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardError} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Permission Required
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardPermission} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction} showFooter={true}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+													{#snippet footer()}
+														<PermissionBar
+															sessionId={demoPermissionFileReq.sessionId}
+															permission={demoPermissionFileReq}
+															projectPath="/Users/alex/Documents/acepe"
+														/>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
+										<div>
+											<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+												Question Required
+											</div>
+											<div class="mx-auto w-full max-w-[280px]">
+												<KanbanCard card={demoCardQuestion} onclick={handleShowcaseCardAction} onClose={handleShowcaseCardAction} showFooter={true}>
+													{#snippet menu()}
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class={kanbanMenuTriggerClass}
+																aria-label="More actions"
+																title="More actions"
+																onclick={(event) => event.stopPropagation()}
+															>
+																<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content align="end" class="min-w-[160px]">
+																<DropdownMenu.Item class="cursor-pointer">Open session</DropdownMenu.Item>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													{/snippet}
+													{#snippet todoSection()}
+														<div class="flex items-center justify-between px-1.5 py-1 text-[10px] font-mono text-muted-foreground">
+															<span>Todo Header</span>
+															<span>1/2</span>
+														</div>
+													{/snippet}
+													{#snippet footer()}
+														<AttentionQueueQuestionCard
+															currentQuestion={demoQuestion}
+															totalQuestions={1}
+															hasMultipleQuestions={false}
+															currentQuestionIndex={0}
+															questionId="demo-question"
+															questionProgress={demoQuestionProgress}
+															currentQuestionAnswered={false}
+															currentQuestionOptions={demoQuestionOptions}
+															otherText=""
+															otherPlaceholder="Other"
+															showOtherInput={false}
+															showSubmitButton={true}
+															canSubmit={true}
+															submitLabel="Submit"
+															onOptionSelect={() => {}}
+															onOtherInput={() => {}}
+															onOtherKeydown={() => {}}
+															onSubmitAll={() => {}}
+															onPrevQuestion={() => {}}
+															onNextQuestion={() => {}}
+														/>
+													{/snippet}
+												</KanbanCard>
+											</div>
+										</div>
 									</div>
 								</div>
 							</div>
