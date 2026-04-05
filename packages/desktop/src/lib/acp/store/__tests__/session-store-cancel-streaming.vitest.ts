@@ -16,31 +16,27 @@ describe("SessionStore cancelStreaming", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("notifies interruption callbacks after a successful cancel", async () => {
-		const onTurnInterrupted = vi.fn();
-		store.setCallbacks({ onTurnInterrupted });
-
-		vi.spyOn(SessionConnectionManager.prototype, "cancelStreaming").mockReturnValue(
-			okAsync(undefined)
-		);
+	it("delegates cancel requests to the connection manager", async () => {
+		const cancelStreaming = vi
+			.spyOn(SessionConnectionManager.prototype, "cancelStreaming")
+			.mockReturnValue(okAsync(undefined));
 
 		const result = await store.cancelStreaming("session-123");
 
 		expect(result.isOk()).toBe(true);
-		expect(onTurnInterrupted).toHaveBeenCalledWith("session-123");
+		expect(cancelStreaming).toHaveBeenCalledWith("session-123");
 	});
 
-	it("does not notify interruption callbacks when cancel fails", async () => {
-		const onTurnInterrupted = vi.fn();
-		store.setCallbacks({ onTurnInterrupted });
-
-		vi.spyOn(SessionConnectionManager.prototype, "cancelStreaming").mockReturnValue(
-			errAsync(new AgentError("cancelStreaming", new Error("network error")))
-		);
+	it("returns connection manager errors unchanged", async () => {
+		const cancelError = new AgentError("cancelStreaming", new Error("network error"));
+		const cancelStreaming = vi
+			.spyOn(SessionConnectionManager.prototype, "cancelStreaming")
+			.mockReturnValue(errAsync(cancelError));
 
 		const result = await store.cancelStreaming("session-123");
 
 		expect(result.isErr()).toBe(true);
-		expect(onTurnInterrupted).not.toHaveBeenCalled();
+		expect(result._unsafeUnwrapErr()).toBe(cancelError);
+		expect(cancelStreaming).toHaveBeenCalledWith("session-123");
 	});
 });
