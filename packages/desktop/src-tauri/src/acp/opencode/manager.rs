@@ -3,13 +3,12 @@ use crate::acp::providers::opencode::resolve_opencode_spawn_configs;
 use crate::acp::types::CanonicalAgentId;
 use crate::shell_env::get_enhanced_path_string;
 use anyhow::{anyhow, Context, Result};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -27,8 +26,8 @@ const READY_CHECK_TIMEOUT_MS: u64 = 15000;
 const READY_CHECK_INTERVAL_MS: u64 = 200;
 
 /// Regex to extract port and API prefix from OpenCode serve output
-static URL_REGEX: Lazy<Option<Regex>> =
-    Lazy::new(
+static URL_REGEX: LazyLock<Option<Regex>> =
+    LazyLock::new(
         || match Regex::new(r#"https?://[^:\s]+:(?P<port>\d+)(?P<path>/[^\s"']*)?"#) {
             Ok(regex) => Some(regex),
             Err(error) => {
@@ -573,6 +572,13 @@ mod tests {
     use std::process::Stdio;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use tokio::process::Command;
+
+    fn assert_is_lazy_lock<T>(_: &std::sync::LazyLock<T>) {}
+
+    #[test]
+    fn url_regex_uses_lazy_lock() {
+        assert_is_lazy_lock(&super::URL_REGEX);
+    }
 
     #[cfg(unix)]
     async fn wait_for_pid_file(pid_file: &PathBuf) -> u32 {

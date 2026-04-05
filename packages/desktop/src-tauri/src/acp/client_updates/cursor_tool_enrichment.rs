@@ -5,9 +5,9 @@ use crate::acp::session_update::{
 };
 use crate::session_jsonl::types::{ContentBlock, FullSession};
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,7 +23,8 @@ struct SessionToolUseCache {
     tool_uses: HashMap<String, PersistedToolUse>,
 }
 
-static CURSOR_TOOL_USE_CACHE: Lazy<DashMap<String, SessionToolUseCache>> = Lazy::new(DashMap::new);
+static CURSOR_TOOL_USE_CACHE: LazyLock<DashMap<String, SessionToolUseCache>> =
+    LazyLock::new(DashMap::new);
 
 fn build_persisted_tool_use_index(
     session: &FullSession,
@@ -423,6 +424,13 @@ mod tests {
     use crate::acp::session_update::{ToolCallStatus, ToolKind};
     use crate::session_jsonl::types::{OrderedMessage, SessionStats};
     use serde_json::json;
+
+    fn assert_is_lazy_lock<T>(_: &std::sync::LazyLock<T>) {}
+
+    #[test]
+    fn cursor_tool_use_cache_uses_lazy_lock() {
+        assert_is_lazy_lock(&CURSOR_TOOL_USE_CACHE);
+    }
 
     fn make_session_with_tool_use() -> FullSession {
         FullSession {

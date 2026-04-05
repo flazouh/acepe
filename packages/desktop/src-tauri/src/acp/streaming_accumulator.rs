@@ -7,7 +7,7 @@
 //! concurrent access.
 
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::time::Instant;
 
 use super::partial_json::parse_partial_json;
@@ -217,8 +217,8 @@ impl SessionStreamingState {
 }
 
 /// Global session streaming states, keyed by session ID.
-static SESSION_STREAMING_STATES: Lazy<DashMap<String, SessionStreamingState>> =
-    Lazy::new(DashMap::new);
+static SESSION_STREAMING_STATES: LazyLock<DashMap<String, SessionStreamingState>> =
+    LazyLock::new(DashMap::new);
 
 /// Get or create streaming state for a session.
 pub fn get_session_streaming_state(
@@ -284,7 +284,8 @@ pub struct PlanStreamingState {
 }
 
 /// Global plan streaming states, keyed by session ID.
-static PLAN_STREAMING_STATES: Lazy<DashMap<String, PlanStreamingState>> = Lazy::new(DashMap::new);
+static PLAN_STREAMING_STATES: LazyLock<DashMap<String, PlanStreamingState>> =
+    LazyLock::new(DashMap::new);
 
 /// Codex Plan Mode wrapper tags.
 const CODEX_PLAN_OPEN_TAG: &str = "<proposed_plan>";
@@ -315,7 +316,8 @@ impl Default for CodexPlanTagState {
 }
 
 /// Global Codex wrapper parsing states, keyed by session ID.
-static CODEX_PLAN_STATES: Lazy<DashMap<String, CodexPlanTagState>> = Lazy::new(DashMap::new);
+static CODEX_PLAN_STATES: LazyLock<DashMap<String, CodexPlanTagState>> =
+    LazyLock::new(DashMap::new);
 
 fn floor_char_boundary(s: &str, idx: usize) -> usize {
     if idx >= s.len() {
@@ -670,6 +672,15 @@ pub fn has_tool_state(session_id: &str, tool_call_id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_is_lazy_lock<T>(_: &std::sync::LazyLock<T>) {}
+
+    #[test]
+    fn global_streaming_caches_use_lazy_lock() {
+        assert_is_lazy_lock(&SESSION_STREAMING_STATES);
+        assert_is_lazy_lock(&PLAN_STREAMING_STATES);
+        assert_is_lazy_lock(&CODEX_PLAN_STATES);
+    }
 
     #[test]
     fn test_accumulate_basic() {
