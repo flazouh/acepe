@@ -1,4 +1,45 @@
 use super::*;
+use crate::db::repository::{SessionMetadataRepository, SessionMetadataRow};
+use crate::path_safety::{resolve_write_path_within_project, validate_project_directory_from_str};
+use sea_orm::DbConn;
+use std::path::Path;
+use tauri::{AppHandle, Manager};
+
+/// Prefer the worktree root for session-scoped writes so agents launched from a
+/// worktree cannot escape back into the base repository. Fall back to the
+/// canonical project root for non-worktree sessions.
+fn session_write_scope_root(metadata: &SessionMetadataRow) -> &str {
+    match metadata.worktree_path.as_deref() {
+        Some(worktree_path) => worktree_path,
+        None => metadata.project_path.as_str(),
+    }
+}
+
+async fn resolve_session_scoped_write_path(
+    app: &AppHandle,
+    session_id: &str,
+    path: &Path,
+) -> Result<std::path::PathBuf, SerializableAcpError> {
+    let db = app.state::<DbConn>();
+    let metadata = SessionMetadataRepository::get_by_id(db.inner(), session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!("Failed to load session metadata: {}", error),
+        })?
+        .ok_or_else(|| SerializableAcpError::SessionNotFound {
+            session_id: session_id.to_string(),
+        })?;
+    let scope_root = session_write_scope_root(&metadata);
+    let canonical_scope_root =
+        validate_project_directory_from_str(scope_root).map_err(|error| {
+            SerializableAcpError::InvalidState {
+                message: error.message_for(Path::new(scope_root)),
+            }
+        })?;
+
+    resolve_write_path_within_project(&canonical_scope_root, path)
+        .map_err(|message| SerializableAcpError::InvalidState { message })
+}
 
 /// Read text content from a file (for ACP fs/read_text_file protocol)
 ///
@@ -91,10 +132,17 @@ pub async fn acp_read_text_file(
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_write_text_file(
+    app: AppHandle,
     path: String,
     content: String,
+    session_id: String,
 ) -> Result<(), SerializableAcpError> {
-    tracing::debug!(path = %path, content_len = content.len(), "acp_write_text_file called");
+    tracing::debug!(
+        path = %path,
+        content_len = content.len(),
+        session_id = %session_id,
+        "acp_write_text_file called"
+    );
 
     // Normalize path to fix potential duplicate cwd issues from ACP subprocess
     let path = normalize_acp_path(&path);
@@ -107,8 +155,10 @@ pub async fn acp_write_text_file(
         });
     }
 
+    let resolved_path = resolve_session_scoped_write_path(&app, &session_id, file_path).await?;
+
     // Create parent directories if they don't exist
-    if let Some(parent) = file_path.parent() {
+    if let Some(parent) = resolved_path.parent() {
         if !parent.exists() {
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
                 tracing::warn!(path = %path, error = %e, "Failed to create parent directories");
@@ -120,7 +170,7 @@ pub async fn acp_write_text_file(
     }
 
     // Write the file content
-    if let Err(e) = tokio::fs::write(&path, &content).await {
+    if let Err(e) = tokio::fs::write(&resolved_path, &content).await {
         tracing::warn!(path = %path, error = %e, "Failed to write file");
         return Err(SerializableAcpError::InvalidState {
             message: format!("Failed to write file: {}", e),

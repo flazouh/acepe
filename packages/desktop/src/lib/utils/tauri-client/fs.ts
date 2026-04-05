@@ -9,7 +9,7 @@ export const fs = {
 		return invokeAsync(CMD.fs.read_text_file, { path, line, limit });
 	},
 
-	writeTextFile: (path: string, content: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fs.write_text_file, { path, content });
+	writeTextFile: (path: string, content: string, sessionId: string): ResultAsync<void, AppError> => {
+		return invokeAsync(CMD.fs.write_text_file, { path, content, sessionId });
 	},
 };
