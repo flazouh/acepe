@@ -34,6 +34,7 @@ current_locale = "0.1"
 rfd = "0.15"
 sea-orm = { version = "0.12", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "0.12", features = ["sqlx-sqlite"] }
+# SQL Studio connects to remote Postgres/MySQL databases via sqlx, so those drivers stay enabled.
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "mysql", "json", "chrono"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
