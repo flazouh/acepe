@@ -71,4 +71,19 @@ describe("modified-files-header structure", () => {
 		expect(prSettingsPopoverSource).not.toContain("<Cpu");
 		expect(prSettingsPopoverSource).toContain("Model");
 	});
+
+	it("renders a merge split button with strategy picker when onMerge is provided", () => {
+		// The merge button group lives in modified-files-header, not in the PR status card.
+		expect(source).toContain("onMerge");
+		expect(source).toContain("mergeStrategyStore.strategy");
+		expect(source).toContain("m.pr_card_merge()");
+		expect(source).toContain("m.pr_card_squash_merge()");
+		expect(source).toContain("m.pr_card_merge_commit()");
+		expect(source).toContain("m.pr_card_rebase_merge()");
+	});
+
+	it("shows the merged badge when prState is MERGED", () => {
+		expect(source).toContain('prState === "MERGED"');
+		expect(source).toContain("m.pr_card_merged()");
+	});
 });

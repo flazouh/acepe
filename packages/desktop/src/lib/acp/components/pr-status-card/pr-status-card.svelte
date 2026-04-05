@@ -3,27 +3,25 @@
 
   Matches modified-files-header visual style (bg-accent bar).
   Left: PR icon + #N — clicking opens PR in browser.
-  Right: DiffPill + Merge button group (with strategy picker) + chevron.
+  Right: DiffPill + chevron.
   Click bar: expand/collapse with markdown description + commit list above.
 
   During AI generation the card auto-opens and streams the PR title and
   description live via the `streamingData` prop.
+
+  The merge button lives in ModifiedFilesHeader, not here.
 
   Fully presentational — all data is passed in as props.
 -->
 <script lang="ts">
 	import { DiffPill, GitHubBadge } from "@acepe/ui";
 	import "@acepe/ui/markdown-prose.css";
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import { Result } from "neverthrow";
-	import GitMerge from "phosphor-svelte/lib/GitMerge";
 	import GitPullRequest from "phosphor-svelte/lib/GitPullRequest";
 	import { Spinner } from "$lib/components/ui/spinner/index.js";
 	import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
 	import * as m from "$lib/paraglide/messages.js";
-	import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
-	import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 	import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 	import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 	import { renderMarkdownSync } from "../../utils/markdown-renderer.js";
@@ -36,8 +34,6 @@
 		isCreating: boolean;
 		prDetails: PrDetails | null;
 		fetchError: string | null;
-		onMerge?: (strategy: MergeStrategy) => void;
-		merging?: boolean;
 		/** Live streaming data from AI generation — shown before the PR is created. */
 		streamingData?: ShipCardData | null;
 	}
@@ -48,8 +44,6 @@
 		isCreating,
 		prDetails,
 		fetchError,
-		onMerge,
-		merging = false,
 		streamingData = null,
 	}: Props = $props();
 
@@ -169,7 +163,7 @@
 				{/if}
 			</div>
 
-			<!-- Right: DiffPill + Merge button group + chevron -->
+			<!-- Right: DiffPill + chevron -->
 			{#if prDetails}
 				<div class="flex items-center gap-2 shrink-0">
 					<DiffPill
@@ -177,74 +171,6 @@
 						deletions={prDetails.deletions}
 						variant="plain"
 					/>
-
-					<!-- Merge button group -->
-					{#if prDetails.state === "MERGED"}
-						<div
-							class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60"
-						>
-							<PrStateIcon state="MERGED" size={11} />
-							{m.pr_card_merged()}
-						</div>
-					{:else if onMerge}
-						<DropdownMenu.Root>
-							<div
-								class="flex items-center rounded border border-border/50 bg-muted overflow-hidden"
-								onclick={(e) => e.stopPropagation()}
-								role="none"
-							>
-								<!-- Primary merge action (squash) -->
-								<button
-									type="button"
-									disabled={merging}
-									onclick={() => onMerge(mergeStrategyStore.strategy)}
-									class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-								>
-									{#if merging}
-										<span class="flex items-center gap-1">
-											<Spinner class="size-[11px]" />
-											{m.pr_card_merge()}
-										</span>
-									{:else}
-										<span class="flex items-center gap-1">
-											<GitMerge size={11} weight="fill" />
-											{m.pr_card_merge()}
-										</span>
-									{/if}
-								</button>
-								<!-- Strategy picker chevron -->
-								<DropdownMenu.Trigger
-									class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 outline-none"
-									disabled={merging}
-									onclick={(e) => e.stopPropagation()}
-								>
-									<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-										<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-									</svg>
-								</DropdownMenu.Trigger>
-							</div>
-							<DropdownMenu.Content align="end" class="min-w-[150px]">
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{m.pr_card_squash_merge()}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("merge"); onMerge("merge"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{m.pr_card_merge_commit()}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("rebase"); onMerge("rebase"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{m.pr_card_rebase_merge()}
-								</DropdownMenu.Item>
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
-					{/if}
 
 					{#if hasExpandedContent}
 						<AnimatedChevron isOpen={isExpanded} class="size-3.5 text-muted-foreground" />

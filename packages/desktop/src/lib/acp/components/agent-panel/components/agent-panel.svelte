@@ -1719,8 +1719,6 @@ function handleCheckpointRevertComplete() {
 												isCreating={createPrRunning}
 												prDetails={prDetails}
 												fetchError={prFetchError}
-												onMerge={(strategy) => void handleMergePr(strategy)}
-												merging={mergePrRunning}
 												streamingData={streamingShipData}
 											/>
 										{/key}
@@ -1737,9 +1735,14 @@ function handleCheckpointRevertComplete() {
 											onOpenFullscreenReview={onOpenFullscreenReview && sessionId
 												? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
 												: undefined}
-											onCreatePr={createdPr || createPrRunning ? undefined : (config) => void handleCreatePr(config)}
+											onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
 											createPrLoading={createPrRunning}
 											{createPrLabel}
+											onMerge={createdPr && prDetails && prDetails.state !== "MERGED"
+												? (strategy) => void handleMergePr(strategy)
+												: undefined}
+											merging={mergePrRunning}
+											prState={prDetails ? prDetails.state : null}
 											{availableAgents}
 											currentAgentId={sessionAgentId ? sessionAgentId : selectedAgentId}
 											currentModelId={sessionCurrentModelId}

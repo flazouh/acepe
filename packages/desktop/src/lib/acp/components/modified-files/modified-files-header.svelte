@@ -7,12 +7,16 @@ import Check from "phosphor-svelte/lib/Check";
 import CheckCircle from "phosphor-svelte/lib/CheckCircle";
 import DotsThreeVertical from "phosphor-svelte/lib/DotsThreeVertical";
 import FileCode from "phosphor-svelte/lib/FileCode";
+import GitMerge from "phosphor-svelte/lib/GitMerge";
 import GitPullRequest from "phosphor-svelte/lib/GitPullRequest";
 import NotePencil from "phosphor-svelte/lib/NotePencil";
 import Robot from "phosphor-svelte/lib/Robot";
 import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
+import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
+import PrStateIcon from "../pr-state-icon.svelte";
 import type { Model } from "../../application/dto/model.js";
 import { getAgentIcon } from "../../constants/thread-list-constants.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
@@ -67,6 +71,12 @@ interface Props {
 	createPrLoading?: boolean;
 	/** Label to display on the Create PR button during loading (e.g. "Staging...", "Pushing...") */
 	createPrLabel?: string | null;
+	/** Optional: when provided, shows Merge button (after PR is created) */
+	onMerge?: (strategy: MergeStrategy) => void;
+	/** Disables the Merge button when true (e.g. while merge in flight) */
+	merging?: boolean;
+	/** PR state used to decide between merge button and merged badge */
+	prState?: "OPEN" | "CLOSED" | "MERGED" | null;
 	/** Available agents for PR generation selection */
 	availableAgents?: AgentInfo[];
 	/** Current/default agent ID for PR generation */
@@ -85,6 +95,9 @@ let {
 	onCreatePr,
 	createPrLoading = false,
 	createPrLabel = null,
+	onMerge,
+	merging = false,
+	prState = null,
 	availableAgents = [],
 	currentAgentId = null,
 	currentModelId = null,
@@ -561,6 +574,81 @@ function handlePromptResetClick(): void {
 							</div>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
+				{/if}
+
+				<!-- Merge split button: shown after PR is created -->
+				{#if !onCreatePr && onMerge}
+					{#if prState === "MERGED"}
+						<div
+							class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
+							onclick={(e: MouseEvent) => e.stopPropagation()}
+							role="none"
+						>
+							<PrStateIcon state="MERGED" size={11} />
+							{m.pr_card_merged()}
+						</div>
+					{:else}
+						<DropdownMenu.Root>
+							<div
+								class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
+								onclick={(e: MouseEvent) => e.stopPropagation()}
+								role="none"
+							>
+								<button
+									type="button"
+									disabled={merging}
+									onclick={() => onMerge(mergeStrategyStore.strategy)}
+									class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									{#if merging}
+										<span class="flex items-center gap-1">
+											<Spinner class="size-[11px]" />
+											{m.pr_card_merge()}
+										</span>
+									{:else}
+										<span class="flex items-center gap-1">
+											<GitMerge size={11} weight="fill" />
+											{m.pr_card_merge()}
+										</span>
+									{/if}
+								</button>
+								<DropdownMenu.Trigger
+									class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 outline-none"
+									disabled={merging}
+									onclick={(e: MouseEvent) => e.stopPropagation()}
+								>
+									<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
+										<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+									</svg>
+								</DropdownMenu.Trigger>
+							</div>
+							<DropdownMenu.Content align="start" class="min-w-[150px]">
+								<DropdownMenu.Item
+									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
+									class="cursor-pointer text-[0.6875rem]"
+								>
+									{m.pr_card_squash_merge()}
+								</DropdownMenu.Item>
+								<DropdownMenu.Item
+									onSelect={() => { void mergeStrategyStore.set("merge"); onMerge("merge"); }}
+									class="cursor-pointer text-[0.6875rem]"
+								>
+									{m.pr_card_merge_commit()}
+								</DropdownMenu.Item>
+								<DropdownMenu.Item
+									onSelect={() => { void mergeStrategyStore.set("rebase"); onMerge("rebase"); }}
+									class="cursor-pointer text-[0.6875rem]"
+								>
+									{m.pr_card_rebase_merge()}
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/if}
+				{/if}
+
+				<!-- DiffPill when no create-PR button (PR already exists) -->
+				{#if !onCreatePr && modifiedFilesState}
+					<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
 				{/if}
 			</div>
 
