@@ -9,14 +9,9 @@ describe('ParallelSessionsShowcase', () => {
 			'utf8'
 		);
 
-		expect(source).toContain("import { AppTabBar, type AppTab } from '@acepe/ui/app-layout';");
-		expect(source).toContain("import { ProjectCard } from '@acepe/ui/project-card';");
-		expect(source).toContain(
-			"import { AgentPanelLayout, type AnyAgentEntry } from '@acepe/ui/agent-panel';"
-		);
-		expect(source).toContain("const PROJECT_NAME = 'acepe';");
-		expect(source).toContain("title: 'Migrate auth to JWT'");
-		expect(source).toContain("title: 'Fix N+1 queries'");
+		expect(source).toContain('<AppTabBar');
+		expect(source).toContain('<ProjectCard');
+		expect(source.match(/<AgentPanelLayout/gm)).toHaveLength(2);
 		expect(source).not.toContain('SESSION 1');
 		expect(source).not.toContain('SESSION 2');
 		expect(source).not.toContain('h-1.5 w-full rounded-full');
