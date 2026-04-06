@@ -10,8 +10,10 @@
 		size?: number;
 		/** Override font size in px (default: size * 0.55) */
 		fontSize?: number;
-		/** Per-project sequence ID. When provided, renders N to the left of the badge. */
+		/** Per-project sequence ID. When provided, renders N to the right of the badge. */
 		sequenceId?: number | null;
+		/** Whether to show the project letter. Set to false to show only the sequence number. */
+		showLetter?: boolean;
 		/** Additional CSS classes */
 		class?: string;
 	}
@@ -22,6 +24,7 @@
 		size = 20,
 		fontSize: fontSizeProp,
 		sequenceId,
+		showLetter = true,
 		class: className = "",
 	}: Props = $props();
 
@@ -34,30 +37,32 @@
 </script>
 
 <span class="inline-flex items-center {className}" style="gap: 0px;">
-	<div
-		class="flex items-center justify-center shrink-0"
-		style="
-			background-color: {displayColor};
-			width: {size}px;
-			height: {size}px;
-			border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
-		"
-	>
-		<span
-			class="font-black leading-none"
-			style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
+	{#if showLetter}
+		<div
+			class="flex items-center justify-center shrink-0"
+			style="
+				background-color: {displayColor};
+				width: {size}px;
+				height: {size}px;
+				border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
+			"
 		>
-			{letter}
-		</span>
-	</div>
+			<span
+				class="font-black leading-none"
+				style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
+			>
+				{letter}
+			</span>
+		</div>
+	{/if}
 	{#if hasSequenceId}
 		<span
 			class="inline-flex items-center justify-center shrink-0"
 			style="
 				height: {size}px;
 				padding: 0 {size * 0.25}px;
-				border-left: 1px solid color-mix(in srgb, {displayColor} 30%, black);
-				border-radius: 0 {radius}px {radius}px 0;
+				{showLetter ? `border-left: 1px solid color-mix(in srgb, ${displayColor} 30%, black);` : ''}
+				border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
 				background-color: {displayColor};
 			"
 		>

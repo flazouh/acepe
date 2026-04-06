@@ -64,9 +64,9 @@
 	{@const filePath = compactDisplay.filePath}
 	{@const verb = compactDisplay.label}
 	{@const purpleColor = Colors[COLOR_NAMES.PURPLE]}
-	<div class="mx-auto w-full max-w-[320px] px-3">
-		<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm bg-accent/30 px-1.5 py-1 permission-card-enter">
-			<EmbeddedPanelHeader class="!border-b-0 bg-transparent">
+	<div class="w-full">
+		<div class="overflow-hidden rounded-md border border-border bg-muted/30 permission-card-enter">
+			<EmbeddedPanelHeader class={command ? "bg-transparent" : "!border-b-0 bg-transparent"}>
 				<HeaderTitleCell compactPadding>
 					<div class="flex min-w-0 items-center gap-1.5 w-full">
 						<span
@@ -106,7 +106,7 @@
 					</div>
 				</HeaderActionCell>
 				{#if sessionProgress}
-					<HeaderActionCell>
+					<HeaderActionCell withDivider={false}>
 						<div class="flex items-center px-1.5">
 							<VoiceDownloadProgress
 								ariaLabel={progressLabel}
@@ -123,7 +123,7 @@
 
 			<!-- Command display for execute permissions -->
 			{#if command}
-				<div class="max-h-[72px] overflow-y-auto rounded-sm bg-accent/40 px-2 py-1">
+				<div class="max-h-[72px] overflow-y-auto border-t border-border/50 bg-muted/30 px-2 py-1">
 					<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70"
 						>$ {command}</code
 					>

@@ -76,8 +76,25 @@ const selectionReader: QuestionSelectionReader = {
 	},
 };
 
-const hasPendingQuestion = $derived(item.state.pendingInput.kind === "question");
-const hasPendingPermission = $derived(item.state.pendingInput.kind === "permission");
+const pendingQuestion = $derived.by(() => {
+	if (!item.pendingQuestion) {
+		return null;
+	}
+
+	return questionStore.pending.get(item.pendingQuestion.id) ?? null;
+});
+const hasPendingQuestion = $derived(pendingQuestion !== null);
+
+const pendingPermission = $derived.by(() => {
+	const snapshotPermission =
+		item.state.pendingInput.kind === "permission" ? item.state.pendingInput.request : null;
+	if (!snapshotPermission) {
+		return null;
+	}
+
+	return permissionStore.pending.get(snapshotPermission.id) ?? null;
+});
+const hasPendingPermission = $derived(pendingPermission !== null);
 
 // Detect ExitPlanMode permissions for custom plan card rendering
 const isExitPlanMode = $derived.by(() => {
@@ -94,16 +111,13 @@ const exitPlanDisplayTitle = $derived.by(() => {
 
 // Detect plan approval questions (Approve/Reject from cursor/create_plan)
 const isPlanApproval = $derived.by(() => {
-	if (!hasPendingQuestion || !item.pendingQuestion) return false;
-	const questions = item.pendingQuestion.questions;
+	if (!hasPendingQuestion || !pendingQuestion) return false;
+	const questions = pendingQuestion.questions;
 	if (questions.length !== 1) return false;
 	const opts = questions[0]?.options;
 	if (!opts || opts.length !== 2) return false;
 	return opts[0]?.label === "Approve" && opts[1]?.label === "Reject";
 });
-const pendingPermission = $derived(
-	item.state.pendingInput.kind === "permission" ? item.state.pendingInput.request : null
-);
 const permissionCommand = $derived.by(() => {
 	if (!pendingPermission) return null;
 	return extractPermissionCommand(pendingPermission);
@@ -124,13 +138,13 @@ const displayTitle = $derived(
 	normalizeTitleForDisplay(item.title || "") || m.agent_panel_new_thread()
 );
 
-const questionId = $derived(item.pendingQuestion?.tool?.callID ?? item.pendingQuestion?.id ?? "");
+const questionId = $derived(pendingQuestion?.tool?.callID ?? pendingQuestion?.id ?? "");
 
 let currentQuestionIndex = $state(0);
 let lastQuestionId = "";
 
 $effect(() => {
-	const pendingQuestionId = item.pendingQuestion?.id;
+	const pendingQuestionId = pendingQuestion?.id;
 
 	if (!pendingQuestionId) {
 		lastQuestionId = "";
@@ -147,7 +161,7 @@ $effect(() => {
 
 const questionUiState = $derived.by(() =>
 	buildQueueItemQuestionUiState({
-		pendingQuestion: item.pendingQuestion,
+		pendingQuestion,
 		questionId,
 		currentQuestionIndex,
 		questionColors: QUESTION_COLORS,
@@ -305,15 +319,15 @@ function handleSelect() {
 }
 
 function handlePlanApprove() {
-	if (!item.pendingQuestion) return;
+	if (!pendingQuestion) return;
 	const answers = [{ questionIndex: 0, answers: ["Approve"] }];
-	questionStore.reply(item.pendingQuestion.id, answers, item.pendingQuestion.questions);
+	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
 }
 
 function handlePlanReject() {
-	if (!item.pendingQuestion) return;
+	if (!pendingQuestion) return;
 	const answers = [{ questionIndex: 0, answers: ["Reject"] }];
-	questionStore.reply(item.pendingQuestion.id, answers, item.pendingQuestion.questions);
+	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
 }
 
 function handleExitPlanBuild() {
@@ -329,19 +343,19 @@ function handleExitPlanCancel() {
 const redColor = Colors[COLOR_NAMES.RED];
 
 function submitAllAnswers() {
-	if (!item.pendingQuestion || !questionId) return;
+	if (!pendingQuestion || !questionId) return;
 
-	const answers = item.pendingQuestion.questions.map((q, questionIndex) => ({
+	const answers = pendingQuestion.questions.map((q, questionIndex) => ({
 		questionIndex,
 		answers: selectionStore.getAnswers(questionId, questionIndex, q.multiSelect),
 	}));
 
 	selectionStore.clearQuestion(questionId);
-	questionStore.reply(item.pendingQuestion.id, answers, item.pendingQuestion.questions);
+	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
 }
 
 function handleOptionSelect(optionLabel: string) {
-	if (!item.pendingQuestion || !questionId || !currentQuestion) return;
+	if (!pendingQuestion || !questionId || !currentQuestion) return;
 
 	if (currentQuestion.multiSelect) {
 		selectionStore.toggleOption(questionId, currentQuestionIndex, optionLabel);
@@ -383,7 +397,7 @@ function handleOtherKeydown(key: string) {
 
 	const otherValue = selectionStore.getOtherText(questionId, currentQuestionIndex).trim();
 
-	if (key === "Enter" && otherValue && item.pendingQuestion) {
+	if (key === "Enter" && otherValue && pendingQuestion) {
 		if (totalQuestions === 1) {
 			submitAllAnswers();
 		} else if (currentQuestionIndex < totalQuestions - 1) {
@@ -503,7 +517,7 @@ function handleNextQuestion() {
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>
-						{item.pendingQuestion?.questions[0]?.question ?? m.tool_create_plan_running()}
+						{pendingQuestion?.questions[0]?.question ?? m.tool_create_plan_running()}
 					</span>
 				</HeaderTitleCell>
 				<HeaderActionCell withDivider={false}>

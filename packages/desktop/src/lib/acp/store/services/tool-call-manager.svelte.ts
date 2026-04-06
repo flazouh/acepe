@@ -315,6 +315,10 @@ export class ToolCallManager implements IToolCallManager {
 				(data.normalizedQuestions?.length ?? 0) > 0
 					? data.kind
 					: (existingToolCall.kind ?? data.kind);
+			const nextAwaitingPlanApproval = data.awaitingPlanApproval;
+			const nextPlanApprovalRequestId = nextAwaitingPlanApproval
+				? (data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId)
+				: null;
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
 				name: data.name,
@@ -330,8 +334,8 @@ export class ToolCallManager implements IToolCallManager {
 				parentToolUseId: data.parentToolUseId ?? existingToolCall.parentToolUseId,
 				// Backend sends pre-assembled taskChildren - use incoming if present, else keep existing
 				taskChildren: data.taskChildren ?? existingToolCall.taskChildren,
-				awaitingPlanApproval: data.awaitingPlanApproval || existingToolCall.awaitingPlanApproval,
-				planApprovalRequestId: data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId,
+				awaitingPlanApproval: nextAwaitingPlanApproval,
+				planApprovalRequestId: nextPlanApprovalRequestId,
 				startedAtMs,
 				completedAtMs,
 			};

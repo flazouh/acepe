@@ -379,6 +379,14 @@ fn merge_replay_edit_entries(
 }
 
 fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallData {
+    let next_plan_approval_request_id = if incoming.awaiting_plan_approval {
+        incoming
+            .plan_approval_request_id
+            .or(current.plan_approval_request_id)
+    } else {
+        None
+    };
+
     ToolCallData {
         id: current.id,
         name: incoming.name,
@@ -397,9 +405,7 @@ fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> Tool
         task_children: incoming.task_children.or(current.task_children),
         question_answer: incoming.question_answer.or(current.question_answer),
         awaiting_plan_approval: incoming.awaiting_plan_approval,
-        plan_approval_request_id: incoming
-            .plan_approval_request_id
-            .or(current.plan_approval_request_id),
+        plan_approval_request_id: next_plan_approval_request_id,
     }
 }
 

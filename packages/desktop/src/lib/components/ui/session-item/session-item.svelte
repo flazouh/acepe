@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ActivityEntry } from "@acepe/ui";
+import { ActivityEntry, ProjectLetterBadge } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconChevronDown } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
@@ -212,11 +212,7 @@ const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const isStreaming = $derived(session.activity?.isStreaming ?? false);
-const displayTitle = $derived(
-	session.sequenceId != null
-		? `#${session.sequenceId} ${getSessionDisplayName(session)}`
-		: getSessionDisplayName(session)
-);
+const displayTitle = $derived(getSessionDisplayName(session));
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
 let isRowHovered = $state(false);
@@ -290,18 +286,27 @@ const highlightCtx = getSessionListHighlightContext();
 			{/if}
 
 			<div class="flex-1 min-w-0">
-				{#snippet agentBadge()}
-					{#if isStreaming}
-						<Spinner class="{getAgentIconClass()} m-0.5" />
-					{:else}
-						<img
-							src={getThemedAgentIcon(session.agentId)}
-							alt={m.alt_agent_icon()}
-							class="{getAgentIconClass()} shrink-0 m-0.5"
-							width="12"
-							height="12"
-						/>
-					{/if}
+			{#snippet agentBadge()}
+				{#if isStreaming}
+					<Spinner class="{getAgentIconClass()} m-0.5" />
+				{:else}
+					<img
+						src={getThemedAgentIcon(session.agentId)}
+						alt={m.alt_agent_icon()}
+						class="{getAgentIconClass()} shrink-0 m-0.5"
+						width="12"
+						height="12"
+					/>
+				{/if}
+				{#if session.sequenceId != null}
+					<ProjectLetterBadge
+						name={session.projectName}
+						color={session.projectColor ?? "#6B7280"}
+						size={11}
+						sequenceId={session.sequenceId}
+						showLetter={false}
+					/>
+				{/if}
 					{#if session.worktreePath}
 						<Tree
 							size={12}

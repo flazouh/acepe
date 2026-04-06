@@ -552,21 +552,21 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
             }
         }
 
-        match timeout(Duration::from_secs(60), rx).await {
-            Ok(Ok(result)) => result,
-            other => {
+        match rx.await {
+            Ok(result) => result,
+            Err(error) => {
                 tracing::warn!(
                     session_id = %self.session_id,
                     request_id = request_id,
                     tool_name = %tool_name,
-                    timeout_or_error = ?other,
-                    "cc-sdk permission request denied or timed out"
+                    receiver_error = ?error,
+                    "cc-sdk permission request receiver closed"
                 );
                 self.bridge
-                    .clear_request(request_id, "Permission denied or timed out")
+                    .clear_request(request_id, "Permission request was cancelled")
                     .await;
                 cc_sdk::PermissionResult::Deny(cc_sdk::PermissionResultDeny {
-                    message: "Permission denied or timed out".to_string(),
+                    message: "Permission request was cancelled".to_string(),
                     interrupt: true,
                 })
             }
@@ -724,22 +724,22 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
             }
         }
 
-        match timeout(Duration::from_secs(60), rx).await {
-            Ok(Ok(result)) => Ok(result),
-            other => {
+        match rx.await {
+            Ok(result) => Ok(result),
+            Err(error) => {
                 tracing::warn!(
                     session_id = %self.session_id,
                     request_id = request_id,
                     tool_name = %request.tool_name,
-                    timeout_or_error = ?other,
-                    "cc-sdk PermissionRequest hook denied or timed out"
+                    receiver_error = ?error,
+                    "cc-sdk PermissionRequest hook receiver closed"
                 );
                 self.bridge
-                    .clear_request(request_id, "Permission denied or timed out")
+                    .clear_request(request_id, "Permission request was cancelled")
                     .await;
                 Ok(build_denied_hook_output(
                     &hook_request,
-                    "Permission denied or timed out",
+                    "Permission request was cancelled",
                 ))
             }
         }

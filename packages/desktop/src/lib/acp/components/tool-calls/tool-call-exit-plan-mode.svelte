@@ -3,7 +3,7 @@
  * Tool Call Exit Plan Mode Component
  *
  * Renders ExitPlanMode (exit_plan_mode kind) tool calls.
- * In inline mode: shows PlanCard with plan preview and Build/Review/Deepen actions.
+ * In inline mode: shows PlanCard with plan preview and Build/Cancel actions.
  * In sidebar mode: shows embedded header bar; plan content in the sidebar panel.
  */
 import { AgentToolCard } from "@acepe/ui/agent-panel";
@@ -23,7 +23,6 @@ import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore } from "../../store/panel-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getPlanPreferenceStore } from "../../store/plan-preference-store.svelte.js";
-import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { findExitPlanPermission, getExitPlanDisplayPlan } from "./exit-plan-helpers.js";
@@ -42,18 +41,10 @@ let localOutcome = $state<"building" | "rejected" | null>(null);
 const permissionStore = getPermissionStore();
 const panelStore = getPanelStore();
 const planPrefs = getPlanPreferenceStore();
-const sessionStore = getSessionStore();
 const sessionContext = useSessionContext();
 
 const inline = usePlanInline({
 	getTurnState: () => turnState,
-	getAgentId: () => {
-		const sid = sessionContext?.sessionId;
-		if (!sid) return undefined;
-		return sessionStore.getSessionCold(sid)?.agentId;
-	},
-	// exit_plan_mode doesn't use create_plan approval flow
-	getPlanApprovalRequestId: () => undefined,
 	getAwaitingPlanApproval: () => false,
 });
 
@@ -160,12 +151,9 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 		title={displayTitle}
 		status={cardStatus}
 		actionsDisabled={!inline.canAct}
-		skillsMissing={inline.planSkills.loaded && (!inline.planSkills.hasReview || !inline.planSkills.hasDeepen)}
 		onViewFull={inline.handleViewFull}
 		onBuild={pendingPermission ? handleBuildManual : undefined}
 		onCancel={pendingPermission ? handleCancelManual : undefined}
-		onReview={inline.handleReview}
-		onDeepen={inline.handleDeepen}
 	>
 		{#snippet headerExtra()}
 			{#if elapsedLabel}

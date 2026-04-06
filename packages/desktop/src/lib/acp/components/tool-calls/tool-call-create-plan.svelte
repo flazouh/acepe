@@ -15,7 +15,6 @@ import type { AcpError } from "../../errors/index.js";
 import { usePlanInline } from "../../hooks/use-plan-inline.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
-import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { COLOR_NAMES, Colors } from "../../utils/colors.js";
@@ -32,7 +31,6 @@ interface Props {
 let { toolCall, turnState }: Props = $props();
 
 const sessionContext = useSessionContext();
-const sessionStore = getSessionStore();
 
 // Local state to track approval decision after responding (optimistic update).
 // `null` = not yet answered, `true` = approved, `false` = rejected.
@@ -40,13 +38,6 @@ let localApproval = $state<boolean | null>(null);
 
 const inline = usePlanInline({
 	getTurnState: () => turnState,
-	getAgentId: () => {
-		const sid = sessionContext?.sessionId;
-		if (!sid) return undefined;
-		return sessionStore.getSessionCold(sid)?.agentId;
-	},
-	getPlanApprovalRequestId: () =>
-		toolCall.planApprovalRequestId != null ? toolCall.planApprovalRequestId : undefined,
 	getAwaitingPlanApproval: () => toolCall.awaitingPlanApproval && localApproval === null,
 });
 
@@ -153,12 +144,9 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 			title={inline.plan?.title || "Plan"}
 			status={cardStatus}
 			actionsDisabled={!inline.canAct}
-			skillsMissing={inline.planSkills.loaded && (!inline.planSkills.hasReview || !inline.planSkills.hasDeepen)}
 			onViewFull={inline.handleViewFull}
 			onBuild={isInteractive ? handleApprove : undefined}
 			onCancel={isInteractive ? handleReject : undefined}
-			onReview={inline.handleReview}
-			onDeepen={inline.handleDeepen}
 		/>
 	{/if}
 

@@ -4,8 +4,9 @@
    *
    * Purely presentational: no Tauri coupling. All behavior via callback props.
    * Used by both create_plan and exit_plan_mode tool call components.
-   */
+  */
   import type { Snippet } from "svelte";
+  import type { PlanCardStatus } from "./types.js";
 
   import { MarkdownDisplay } from "../markdown/index.js";
   import {
@@ -16,34 +17,15 @@
   import { PlanIcon, BuildIcon, LoadingIcon } from "../icons/index.js";
   import { XCircle } from "phosphor-svelte";
   import { ArrowsOut } from "phosphor-svelte";
-  import { ArrowSquareOut } from "phosphor-svelte";
-  import { MagnifyingGlass } from "phosphor-svelte";
-  import { Lightning } from "phosphor-svelte";
-  import { DownloadSimple } from "phosphor-svelte";
-
-  export type PlanCardStatus =
-    | "streaming"
-    | "interactive"
-    | "approved"
-    | "rejected"
-    | "building";
 
   interface Props {
     content: string;
     title?: string;
     status: PlanCardStatus;
     actionsDisabled?: boolean;
-    /** Whether skills (Review/Deepen) are missing and need to be installed */
-    skillsMissing?: boolean;
-    /** GitHub repo URLs for skills (shown as links when skills are missing) */
-    reviewRepoUrl?: string;
-    deepenRepoUrl?: string;
-    onInstallSkills?: () => void;
     onViewFull?: () => void;
     onBuild?: () => void;
     onCancel?: () => void;
-    onReview?: () => void;
-    onDeepen?: () => void;
     headerExtra?: Snippet;
     class?: string;
   }
@@ -53,15 +35,9 @@
     title = "Plan",
     status,
     actionsDisabled = false,
-    skillsMissing = false,
-    reviewRepoUrl,
-    deepenRepoUrl,
-    onInstallSkills,
     onViewFull,
     onBuild,
     onCancel,
-    onReview,
-    onDeepen,
     headerExtra,
     class: className = "",
   }: Props = $props();
@@ -120,71 +96,7 @@
   <!-- Footer actions -->
   {#if showActions}
     <div class="plan-footer">
-      <div class="plan-footer-left">
-        {#if skillsMissing && reviewRepoUrl}
-          <a
-            href={reviewRepoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="plan-footer-btn plan-footer-link"
-            title="View Review skill on GitHub"
-          >
-            <MagnifyingGlass weight="bold" class="size-3 shrink-0" />
-            Review
-            <ArrowSquareOut weight="bold" class="size-2.5 shrink-0 opacity-50" />
-          </a>
-        {:else if onReview}
-          <button
-            type="button"
-            class="plan-footer-btn"
-            onclick={onReview}
-            {disabled}
-            title="Reject plan and run /ce:review"
-          >
-            <MagnifyingGlass weight="bold" class="size-3 shrink-0" />
-            Review
-          </button>
-        {/if}
-
-        {#if skillsMissing && deepenRepoUrl}
-          <a
-            href={deepenRepoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="plan-footer-btn plan-footer-link"
-            title="View Deepen skill on GitHub"
-          >
-            <Lightning weight="fill" class="size-3 shrink-0" />
-            Deepen
-            <ArrowSquareOut weight="bold" class="size-2.5 shrink-0 opacity-50" />
-          </a>
-        {:else if onDeepen}
-          <button
-            type="button"
-            class="plan-footer-btn"
-            onclick={onDeepen}
-            {disabled}
-            title="Reject plan and run /deepen-plan"
-          >
-            <Lightning weight="fill" class="size-3 shrink-0" />
-            Deepen
-          </button>
-        {/if}
-      </div>
-
       <div class="plan-footer-right">
-        {#if skillsMissing && onInstallSkills}
-          <button
-            type="button"
-            class="plan-footer-btn plan-footer-btn--install"
-            onclick={onInstallSkills}
-            {disabled}
-          >
-            <DownloadSimple weight="bold" class="size-3 shrink-0" />
-            Install skills
-          </button>
-        {/if}
-
         {#if showBuild && onCancel}
           <button
             type="button"
@@ -239,13 +151,12 @@
   .plan-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 1px;
     border-top: 1px solid var(--border);
     background: color-mix(in srgb, var(--accent) 50%, transparent);
   }
 
-  .plan-footer-left,
   .plan-footer-right {
     display: flex;
     align-items: center;
@@ -279,29 +190,6 @@
   .plan-footer-btn:disabled {
     opacity: 0.4;
     pointer-events: none;
-  }
-
-
-  .plan-footer-link {
-    text-decoration: none;
-  }
-
-  .plan-footer-link:hover {
-    color: var(--foreground);
-    background: color-mix(in srgb, var(--accent) 50%, transparent);
-  }
-
-  .plan-footer-link:hover :global(.opacity-50) {
-    opacity: 1;
-  }
-
-  .plan-footer-btn--install {
-    opacity: 0.6;
-  }
-
-  .plan-footer-btn--install:hover:not(:disabled) {
-    color: var(--foreground);
-    opacity: 1;
   }
 
   .plan-action-btn {

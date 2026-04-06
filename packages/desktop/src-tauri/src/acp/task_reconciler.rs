@@ -436,6 +436,14 @@ fn tool_call_to_update(tool_call: &ToolCallData) -> ToolCallUpdateData {
 }
 
 fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallData {
+    let next_plan_approval_request_id = if incoming.awaiting_plan_approval {
+        incoming
+            .plan_approval_request_id
+            .or(current.plan_approval_request_id)
+    } else {
+        None
+    };
+
     ToolCallData {
         id: current.id,
         name: incoming.name,
@@ -454,9 +462,7 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
         task_children: incoming.task_children.or(current.task_children),
         question_answer: incoming.question_answer.or(current.question_answer),
         awaiting_plan_approval: incoming.awaiting_plan_approval,
-        plan_approval_request_id: incoming
-            .plan_approval_request_id
-            .or(current.plan_approval_request_id),
+        plan_approval_request_id: next_plan_approval_request_id,
     }
 }
 
@@ -890,6 +896,55 @@ mod tests {
             }
             other => panic!("Expected EmitToolCallUpdate, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn merge_tool_call_clears_resolved_plan_approval_state() {
+        let current = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "CreatePlan".to_string(),
+            arguments: ToolArguments::Other {
+                raw: serde_json::Value::Null,
+            },
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: None,
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: true,
+            plan_approval_request_id: Some(77),
+        };
+        let incoming = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "CreatePlan".to_string(),
+            arguments: ToolArguments::Other {
+                raw: serde_json::Value::Null,
+            },
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: None,
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let merged = merge_tool_call(current, incoming);
+
+        assert!(!merged.awaiting_plan_approval);
+        assert_eq!(merged.plan_approval_request_id, None);
     }
 
     #[test]

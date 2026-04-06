@@ -385,6 +385,7 @@ sessionStore.setCallbacks({
 	},
 	onTurnError: (sessionId: string) => {
 		messageQueueStore.pause(sessionId);
+		clearPendingTurnInputs(sessionId);
 	},
 	onPrNumberFound: (sessionId: string, prNumber: number) => {
 		void tauriClient.history.setSessionPrNumber(sessionId, prNumber);

@@ -305,6 +305,13 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
         } else {
             incoming.status.clone()
         };
+    let next_plan_approval_request_id = if incoming.awaiting_plan_approval {
+        incoming
+            .plan_approval_request_id
+            .or(current.plan_approval_request_id)
+    } else {
+        None
+    };
 
     ToolCallData {
         id: current.id,
@@ -323,10 +330,8 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
         parent_tool_use_id: incoming.parent_tool_use_id.or(current.parent_tool_use_id),
         task_children: incoming.task_children.or(current.task_children),
         question_answer: incoming.question_answer.or(current.question_answer),
-        awaiting_plan_approval: incoming.awaiting_plan_approval || current.awaiting_plan_approval,
-        plan_approval_request_id: incoming
-            .plan_approval_request_id
-            .or(current.plan_approval_request_id),
+        awaiting_plan_approval: incoming.awaiting_plan_approval,
+        plan_approval_request_id: next_plan_approval_request_id,
     }
 }
 

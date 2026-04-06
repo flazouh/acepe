@@ -421,6 +421,45 @@ describe("ToolCallManager", () => {
 			}
 		});
 
+		it("clears stale plan approval state when replayed create data resolves approval", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "CreatePlan",
+					status: "in_progress",
+					arguments: { kind: "other", raw: {} },
+					awaitingPlanApproval: true,
+					planApprovalRequestId: 77,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const resolvedData = createToolCallData("tc-1", {
+				status: "in_progress",
+				awaitingPlanApproval: false,
+				planApprovalRequestId: null,
+			});
+			const result = manager.createEntry("s1", resolvedData);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.awaitingPlanApproval).toBe(false);
+				expect(updatedEntry.message.planApprovalRequestId).toBeNull();
+			}
+		});
+
 		it("does NOT clear streaming arguments on create (deferred to completion)", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
