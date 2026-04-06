@@ -52,7 +52,10 @@ impl ForwardedPermissionRequest {
             .and_then(|value| value.as_str())
             .is_some_and(|current| current != session_id);
 
-        params.insert("sessionId".to_string(), Value::String(session_id.to_string()));
+        params.insert(
+            "sessionId".to_string(),
+            Value::String(session_id.to_string()),
+        );
         changed
     }
 
@@ -61,7 +64,10 @@ impl ForwardedPermissionRequest {
             return false;
         };
 
-        tool_call.insert("toolCallId".to_string(), Value::String(tool_call_id.to_string()));
+        tool_call.insert(
+            "toolCallId".to_string(),
+            Value::String(tool_call_id.to_string()),
+        );
         true
     }
 

@@ -7,12 +7,12 @@
 
 use serde_json::Value;
 
-use crate::acp::agent_context::with_agent;
+use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
-use crate::acp::session_update::SessionUpdate;
+use crate::acp::session_update::{parse_session_update_with_agent, SessionUpdate};
 
 pub fn parse_session_update_notification_with_agent(agent: AgentType, json: &Value) -> ParseResult {
-    with_agent(agent, || parse_session_update_notification(json))
+    parse_session_update_notification_for_agent(agent, json)
 }
 
 /// Result of parsing a session update notification.
@@ -79,6 +79,10 @@ fn is_session_update_method(method: &str) -> bool {
 ///
 /// This is the main entry point that combines normalization, parsing, and error handling.
 pub fn parse_session_update_notification(json: &Value) -> ParseResult {
+    parse_session_update_notification_for_agent(current_agent(), json)
+}
+
+fn parse_session_update_notification_for_agent(agent: AgentType, json: &Value) -> ParseResult {
     // Check for method field - notifications have method but no id
     let method = match json.get("method").and_then(|v| v.as_str()) {
         Some(m) => m,
@@ -123,7 +127,7 @@ pub fn parse_session_update_notification(json: &Value) -> ParseResult {
     };
 
     // Parse into typed SessionUpdate
-    match serde_json::from_value::<SessionUpdate>(normalized.clone()) {
+    match parse_session_update_with_agent::<serde_json::Error>(&normalized, agent) {
         Ok(update) => {
             // Log successful parsing of tool calls specifically
             if session_update_type == "tool_call" || session_update_type == "toolCall" {

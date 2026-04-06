@@ -26,6 +26,7 @@ pub(crate) fn process_through_reconciler(
                     sid,
                     &tool_call.id,
                     &tool_call.name,
+                    agent_type,
                 );
             }
             let outputs =

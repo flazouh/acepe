@@ -1,5 +1,4 @@
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::provider::AgentProvider;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallLocation, ToolCallUpdateData, ToolKind,
 };
@@ -68,15 +67,7 @@ fn enrich_tool_call_from_index(
     }
 }
 
-pub(super) async fn enrich_cursor_session_update(
-    update: SessionUpdate,
-    agent_type: AgentType,
-    provider: Option<&dyn AgentProvider>,
-) -> SessionUpdate {
-    if !is_cursor_update(agent_type, provider) {
-        return update;
-    }
-
+pub(crate) async fn enrich_cursor_session_update(update: SessionUpdate) -> SessionUpdate {
     match &update {
         SessionUpdate::TurnComplete { session_id }
         | SessionUpdate::TurnError { session_id, .. } => {
@@ -121,10 +112,6 @@ pub(super) async fn enrich_cursor_session_update(
         }
         _ => update,
     }
-}
-
-fn is_cursor_update(agent_type: AgentType, provider: Option<&dyn AgentProvider>) -> bool {
-    agent_type == AgentType::Cursor || provider.is_some_and(|current| current.id() == "cursor")
 }
 
 fn tool_call_needs_enrichment(arguments: &ToolArguments) -> bool {
@@ -388,7 +375,7 @@ async fn load_session_tool_use_cache(session_id: &str) -> Option<SessionToolUseC
 }
 
 #[cfg(test)]
-pub(super) fn seed_test_tool_use_cache(
+pub(crate) fn seed_test_tool_use_cache(
     session_id: &str,
     tool_call_id: &str,
     name: &str,
@@ -406,7 +393,7 @@ pub(super) fn seed_test_tool_use_cache(
     CURSOR_TOOL_USE_CACHE.insert(
         session_id.to_string(),
         SessionToolUseCache {
-            store_db_path: PathBuf::from("/tmp/test-cursor-store.db"),
+            store_db_path: PathBuf::from("cursor-test-store.db"),
             modified_at: SystemTime::UNIX_EPOCH,
             tool_uses,
         },
@@ -414,7 +401,7 @@ pub(super) fn seed_test_tool_use_cache(
 }
 
 #[cfg(test)]
-pub(super) fn clear_test_tool_use_cache(session_id: &str) {
+pub(crate) fn clear_test_tool_use_cache(session_id: &str) {
     CURSOR_TOOL_USE_CACHE.remove(session_id);
 }
 

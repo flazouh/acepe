@@ -11,12 +11,10 @@ use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::{ReconcilerOutput, TaskReconciler};
 use crate::acp::types::ContentBlock;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, AcpUiEventPriority};
-use cursor_tool_enrichment::enrich_cursor_session_update;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc as StdArc;
 
-mod cursor_tool_enrichment;
 mod plan;
 mod reconciler;
 
@@ -40,7 +38,10 @@ pub(crate) async fn handle_session_update_notification(
 ) {
     match parse_session_update_notification_with_agent(agent_type, json) {
         ParseResult::Typed(update) => {
-            let update = enrich_cursor_session_update(*update, agent_type, provider).await;
+            let update = match provider {
+                Some(provider) => provider.enrich_session_update(*update).await,
+                None => *update,
+            };
             // Log raw streaming data for debugging (dev only)
             if let Some(session_id) = update.session_id() {
                 log_streaming_event(session_id, json);
@@ -181,16 +182,26 @@ pub(crate) async fn handle_session_update_notification(
 mod tests {
     use super::*;
     use crate::acp::providers::cursor::CursorProvider;
+    use crate::acp::providers::cursor_session_update_enrichment;
     use crate::acp::session_update::ToolArguments;
     use crate::acp::ui_event_dispatcher::AcpUiEventPayload;
     use serde_json::json;
+
+    #[test]
+    fn shared_update_processing_delegates_session_enrichment_to_provider() {
+        let source = include_str!("mod.rs");
+        let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+        assert!(production_source.contains(".enrich_session_update("));
+        assert!(!production_source.contains("cursor_tool_enrichment"));
+    }
 
     #[tokio::test]
     async fn live_cursor_tool_call_update_is_enriched_before_dispatch() {
         let expected_session_id = "cursor-live-session";
         let tool_call_id = "tool-edit-1";
 
-        cursor_tool_enrichment::seed_test_tool_use_cache(
+        cursor_session_update_enrichment::seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -265,7 +276,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_tool_enrichment::clear_test_tool_use_cache(expected_session_id);
+        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -273,7 +284,7 @@ mod tests {
         let expected_session_id = "cursor-live-sequence";
         let tool_call_id = "tool-edit-sequence";
 
-        cursor_tool_enrichment::seed_test_tool_use_cache(
+        cursor_session_update_enrichment::seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -407,7 +418,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_tool_enrichment::clear_test_tool_use_cache(expected_session_id);
+        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -415,7 +426,7 @@ mod tests {
         let expected_session_id = "cursor-live-read-sequence";
         let tool_call_id = "tool-read-sequence";
 
-        cursor_tool_enrichment::seed_test_tool_use_cache(
+        cursor_session_update_enrichment::seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Read",
@@ -546,6 +557,6 @@ mod tests {
         }
 
         drop(captured);
-        cursor_tool_enrichment::clear_test_tool_use_cache(expected_session_id);
+        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
     }
 }

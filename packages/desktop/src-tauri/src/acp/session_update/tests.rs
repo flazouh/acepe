@@ -1,4 +1,6 @@
-use super::deserialize::{extract_update_type, parser_error_to_de_error};
+use super::deserialize::{
+    extract_update_type, parse_session_update_with_agent, parser_error_to_de_error,
+};
 use super::tool_calls::{parse_tool_call_from_acp, parse_tool_call_update_from_acp};
 use super::*;
 use crate::acp::parsers::get_parser;
@@ -243,6 +245,65 @@ mod available_commands_format {
             }
             other => panic!("Expected ConfigOptionUpdate, got {:?}", other),
         }
+    }
+}
+
+mod explicit_agent_parsing {
+    use super::*;
+    use crate::acp::agent_context::{current_agent, with_agent};
+    use crate::acp::parsers::AgentType;
+
+    #[test]
+    fn parse_session_update_with_agent_uses_explicit_agent_for_codex_tool_calls() {
+        with_agent(AgentType::ClaudeCode, || {
+            let data = json!({
+                "sessionId": "sess-codex",
+                "toolCallId": "tool-search-1",
+                "title": "Search branch:main|branch: in desktop",
+                "kind": "search",
+                "status": "running"
+            });
+
+            let result: Result<SessionUpdate, serde_json::Error> =
+                parse_session_update_with_agent(&data, AgentType::Codex);
+
+            match result.expect("should parse codex tool call") {
+                SessionUpdate::ToolCall { tool_call, .. } => {
+                    assert_eq!(tool_call.id, "tool-search-1");
+                    assert_eq!(tool_call.name, "Search");
+                    assert_eq!(tool_call.kind, Some(ToolKind::Search));
+                    assert!(matches!(tool_call.status, ToolCallStatus::InProgress));
+                }
+                other => panic!("expected ToolCall, got {:?}", other),
+            }
+
+            assert_eq!(current_agent(), AgentType::ClaudeCode);
+        });
+    }
+
+    #[test]
+    fn parse_session_update_with_agent_uses_explicit_agent_for_codex_usage_updates() {
+        with_agent(AgentType::ClaudeCode, || {
+            let data = json!({
+                "sessionId": "sess-codex-usage",
+                "size": 258400,
+                "used": 32451
+            });
+
+            let result: Result<SessionUpdate, serde_json::Error> =
+                parse_session_update_with_agent(&data, AgentType::Codex);
+
+            match result.expect("should parse codex usage update") {
+                SessionUpdate::UsageTelemetryUpdate { data } => {
+                    assert_eq!(data.session_id, "sess-codex-usage");
+                    assert_eq!(data.tokens.total, Some(32451));
+                    assert_eq!(data.context_window_size, Some(258400));
+                }
+                other => panic!("expected UsageTelemetryUpdate, got {:?}", other),
+            }
+
+            assert_eq!(current_agent(), AgentType::ClaudeCode);
+        });
     }
 }
 
@@ -2158,7 +2219,7 @@ mod parse_tool_call_update_from_acp {
             let tool_call_id = "plan-seed-tool";
 
             cleanup_session_streaming(session_id);
-            seed_tool_name(session_id, tool_call_id, "Write");
+            seed_tool_name(session_id, tool_call_id, "Write", AgentType::ClaudeCode);
 
             let data = json!({
                 "toolCallId": tool_call_id,

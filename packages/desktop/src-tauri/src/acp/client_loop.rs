@@ -5,7 +5,7 @@ use crate::acp::client_transport::{
     InboundRequestResponder,
 };
 use crate::acp::client_updates::handle_session_update_notification;
-use crate::acp::cursor_extensions::{is_cursor_extension_pre_tool, CursorResponseAdapter};
+use crate::acp::cursor_extensions::CursorResponseAdapter;
 use crate::acp::inbound_request_router::{
     remap_forwarded_web_search_tool_call_id, route_backend_inbound_request,
     ForwardedPermissionRequest, InboundRoutingDecision,
@@ -545,13 +545,15 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     }
                                 }
                             }
-                            // Skip Cursor pre-tool notifications that precede extension
-                            // method requests. These create phantom UI cards that the
-                            // extension handler will replace with proper events.
-                            if ctx.provider.as_ref().is_some_and(|p| p.id() == "cursor")
-                                && is_cursor_extension_pre_tool(&json)
+                            // Skip provider-owned notifications that should be hidden from
+                            // generic UI handling because a provider-specific adapter will
+                            // replace them with richer events.
+                            if ctx
+                                .provider
+                                .as_ref()
+                                .is_some_and(|provider| provider.should_suppress_notification(&json))
                             {
-                                tracing::debug!("Suppressing Cursor pre-tool notification");
+                                tracing::debug!("Suppressing provider-owned notification");
                                 continue;
                             }
 
@@ -686,13 +688,103 @@ pub(crate) fn spawn_death_monitor(
 mod tests {
     use super::*;
     use crate::acp::parsers::AgentType;
+    use crate::acp::provider::SpawnConfig;
+    use crate::acp::providers::cursor::CursorProvider;
     use crate::acp::ui_event_dispatcher::AcpUiEventDispatcher;
+    use serde_json::json;
     use std::collections::HashMap;
     use std::sync::atomic::AtomicBool;
     use tokio::process::Command;
     use tokio::sync::{oneshot, Mutex};
     use tokio::time::{sleep, Duration};
     use tokio_util::sync::CancellationToken;
+
+    struct CursorNamedTestProvider;
+
+    impl AgentProvider for CursorNamedTestProvider {
+        fn id(&self) -> &str {
+            "cursor"
+        }
+
+        fn name(&self) -> &str {
+            "Cursor Named Test Provider"
+        }
+
+        fn spawn_config(&self) -> SpawnConfig {
+            SpawnConfig {
+                command: "true".to_string(),
+                args: Vec::new(),
+                env: HashMap::new(),
+            }
+        }
+    }
+
+    fn cursor_pre_tool_notification() -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "sessionId": "cursor-session",
+                "update": {
+                    "sessionUpdate": "tool_call",
+                    "rawInput": { "_toolName": "createPlan" },
+                    "kind": "other",
+                    "status": "pending",
+                    "title": "Create Plan",
+                    "toolCallId": "tool_abc"
+                }
+            }
+        })
+    }
+
+    async fn capture_stdout_events(
+        notification: Value,
+        provider: Option<StdArc<dyn AgentProvider>>,
+    ) -> Vec<crate::acp::ui_event_dispatcher::AcpUiEvent> {
+        let notification_line = notification.to_string();
+        let mut child = Command::new("python3")
+            .args([
+                "-u",
+                "-c",
+                &format!("import sys; sys.stdout.write({notification_line:?} + '\\n')"),
+            ])
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("child should spawn");
+        let stdout = child.stdout.take().expect("stdout should be piped");
+
+        let pending = StdArc::new(Mutex::new(HashMap::new()));
+        let (dispatcher, captured) = AcpUiEventDispatcher::test_sink();
+        let cancel = CancellationToken::new();
+
+        spawn_stdout_reader(
+            stdout,
+            StdoutLoopContext {
+                process_generation: 1,
+                pending,
+                stdin_writer: StdArc::new(Mutex::new(None)),
+                prompt_sessions: StdArc::new(Mutex::new(HashMap::new())),
+                app_handle: None,
+                dispatcher,
+                permission_tracker: StdArc::new(std::sync::Mutex::new(PermissionTracker::new())),
+                web_search_dedup: StdArc::new(std::sync::Mutex::new(WebSearchDedup::new())),
+                active_session_id: StdArc::new(std::sync::Mutex::new(None)),
+                inbound_response_adapters: StdArc::new(std::sync::Mutex::new(HashMap::new())),
+                is_replay_active: StdArc::new(AtomicBool::new(false)),
+                provider,
+                agent_type: AgentType::Cursor,
+                max_logged_line_bytes: 512,
+                stderr_buffer: new_stderr_buffer(),
+                cancel,
+            },
+        );
+
+        child.wait().await.expect("child should exit cleanly");
+        sleep(Duration::from_millis(50)).await;
+
+        let events = captured.lock().expect("captured events lock").clone();
+        events
+    }
 
     #[tokio::test]
     async fn cancelled_stdout_reader_does_not_drain_pending_requests_on_eof() {
@@ -780,5 +872,27 @@ mod tests {
         assert!(new_rx.try_recv().is_err());
         assert!(pending.lock().await.contains_key(&2));
         assert!(!pending.lock().await.contains_key(&1));
+    }
+
+    #[tokio::test]
+    async fn cursor_pre_tool_notifications_are_not_suppressed_by_provider_id_alone() {
+        let events = capture_stdout_events(
+            cursor_pre_tool_notification(),
+            Some(StdArc::new(CursorNamedTestProvider)),
+        )
+        .await;
+
+        assert_eq!(events.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn cursor_provider_still_suppresses_cursor_pre_tool_notifications() {
+        let events = capture_stdout_events(
+            cursor_pre_tool_notification(),
+            Some(StdArc::new(CursorProvider)),
+        )
+        .await;
+
+        assert!(events.is_empty());
     }
 }

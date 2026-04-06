@@ -3,8 +3,7 @@
 //! This module provides a single entry point, [`translate_cc_sdk_message`], that converts
 //! a single cc-sdk protocol message into zero or more Acepe session update events.
 
-use super::get_parser;
-use crate::acp::agent_context::current_agent;
+use super::{get_parser, AgentType};
 use crate::acp::session_update::{
     build_tool_call_from_raw, ContentChunk, QuestionData, RawToolCallInput, SessionUpdate,
     ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
@@ -25,17 +24,29 @@ pub struct CcSdkTurnStreamState {
 ///
 /// `session_id` is the Acepe session ID for this conversation. For stream events,
 /// the SDK-provided session ID is used as a fallback when `session_id` is `None`.
-pub fn translate_cc_sdk_message(msg: Message, session_id: Option<String>) -> Vec<SessionUpdate> {
-    translate_cc_sdk_message_with_turn_state(msg, session_id, CcSdkTurnStreamState::default())
+pub fn translate_cc_sdk_message(
+    agent: AgentType,
+    msg: Message,
+    session_id: Option<String>,
+) -> Vec<SessionUpdate> {
+    translate_cc_sdk_message_with_turn_state(
+        agent,
+        msg,
+        session_id,
+        CcSdkTurnStreamState::default(),
+    )
 }
 
 pub fn translate_cc_sdk_message_with_turn_state(
+    agent: AgentType,
     msg: Message,
     session_id: Option<String>,
     stream_state: CcSdkTurnStreamState,
 ) -> Vec<SessionUpdate> {
     match msg {
-        Message::Assistant { message } => translate_assistant(message, session_id, stream_state),
+        Message::Assistant { message } => {
+            translate_assistant(agent, message, session_id, stream_state)
+        }
 
         Message::StreamEvent {
             session_id: sdk_sid,
@@ -44,7 +55,7 @@ pub fn translate_cc_sdk_message_with_turn_state(
             ..
         } => {
             let effective_sid = session_id.or(Some(sdk_sid));
-            translate_stream_event(event, effective_sid, parent_tool_use_id)
+            translate_stream_event(agent, event, effective_sid, parent_tool_use_id)
         }
 
         Message::Result {
@@ -80,6 +91,7 @@ pub fn translate_cc_sdk_message_with_turn_state(
 // ---------------------------------------------------------------------------
 
 fn translate_assistant(
+    agent: AgentType,
     message: cc_sdk::AssistantMessage,
     session_id: Option<String>,
     stream_state: CcSdkTurnStreamState,
@@ -125,7 +137,7 @@ fn translate_assistant(
             }
 
             cc_sdk::ContentBlock::ToolUse(tu) => {
-                let parser = get_parser(current_agent());
+                let parser = get_parser(agent);
                 let raw = RawToolCallInput {
                     id: tu.id,
                     name: tu.name,
@@ -225,6 +237,7 @@ fn build_question_request_update(
 // ---------------------------------------------------------------------------
 
 fn translate_stream_event(
+    agent: AgentType,
     event: serde_json::Value,
     session_id: Option<String>,
     parent_tool_use_id: Option<String>,
@@ -260,7 +273,7 @@ fn translate_stream_event(
                 .unwrap_or("unknown")
                 .to_string();
 
-            let detected_kind = get_parser(current_agent()).detect_tool_kind(&name);
+            let detected_kind = get_parser(agent).detect_tool_kind(&name);
             let kind = if detected_kind != ToolKind::Other {
                 Some(detected_kind)
             } else {
@@ -613,6 +626,7 @@ mod tests {
     #[test]
     fn translates_assistant_text_when_no_stream_delta_arrived() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Assistant {
                 message: AssistantMessage {
                     content: vec![CcContentBlock::Text(TextContent {
@@ -644,6 +658,7 @@ mod tests {
     #[test]
     fn skips_assistant_text_when_stream_delta_already_arrived() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Assistant {
                 message: AssistantMessage {
                     content: vec![CcContentBlock::Text(TextContent {
@@ -669,6 +684,7 @@ mod tests {
     #[test]
     fn translates_assistant_thinking_when_no_stream_delta_arrived() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Assistant {
                 message: AssistantMessage {
                     content: vec![CcContentBlock::Thinking(ThinkingContent {
@@ -701,6 +717,7 @@ mod tests {
     #[test]
     fn translates_system_usage_update_with_context_window() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::System {
                 subtype: "usage_update".to_string(),
                 data: serde_json::json!({
@@ -728,6 +745,7 @@ mod tests {
     #[test]
     fn translates_system_usage_update_uses_fallback_session_id() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::System {
                 subtype: "usage_update".to_string(),
                 data: serde_json::json!({
@@ -752,6 +770,7 @@ mod tests {
     #[test]
     fn ignores_non_usage_update_system_messages() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::System {
                 subtype: "task_started".to_string(),
                 data: serde_json::json!({"sessionId": "ses-abc"}),
@@ -766,6 +785,7 @@ mod tests {
     #[test]
     fn handles_compaction_reset_in_usage_update() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::System {
                 subtype: "usage_update".to_string(),
                 data: serde_json::json!({
@@ -790,6 +810,7 @@ mod tests {
     #[test]
     fn result_telemetry_preserves_model_id_without_guessing_context_window() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Result {
                 subtype: "conversation_turn".to_string(),
                 duration_ms: 1000,
@@ -833,6 +854,7 @@ mod tests {
     #[test]
     fn result_telemetry_has_no_context_window_without_model() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Result {
                 subtype: "conversation_turn".to_string(),
                 duration_ms: 1000,
@@ -865,6 +887,7 @@ mod tests {
     #[test]
     fn result_telemetry_does_not_guess_context_window_from_model_id() {
         let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
             Message::Result {
                 subtype: "conversation_turn".to_string(),
                 duration_ms: 1000,
@@ -891,7 +914,10 @@ mod tests {
 
         assert_eq!(updates.len(), 2);
         if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
-            assert_eq!(data.source_model_id.as_deref(), Some("claude-sonnet-4-5-20250929"));
+            assert_eq!(
+                data.source_model_id.as_deref(),
+                Some("claude-sonnet-4-5-20250929")
+            );
             assert_eq!(data.context_window_size, None);
         } else {
             panic!("Expected UsageTelemetryUpdate");
@@ -959,6 +985,7 @@ mod tests {
     fn content_block_start_write_tool_has_edit_kind() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::StreamEvent {
                     uuid: "msg-001".to_string(),
                     session_id: "ses-test".to_string(),
@@ -996,6 +1023,7 @@ mod tests {
     fn assistant_tool_use_read_has_typed_arguments_and_kind() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::Assistant {
                     message: cc_sdk::AssistantMessage {
                         content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
@@ -1032,6 +1060,7 @@ mod tests {
     fn assistant_tool_use_bash_has_typed_arguments_and_kind() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::Assistant {
                     message: cc_sdk::AssistantMessage {
                         content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
@@ -1065,9 +1094,78 @@ mod tests {
     }
 
     #[test]
+    fn assistant_tool_use_prefers_explicit_agent_parser_over_current_agent() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                AgentType::Codex,
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_codex_exec_001".to_string(),
+                            name: "functions.exec_command".to_string(),
+                            input: serde_json::json!({"command": "ls -la"}),
+                        })],
+                        model: Some("gpt-5".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.kind, Some(ToolKind::Execute));
+                match &tool_call.arguments {
+                    ToolArguments::Execute { command } => {
+                        assert_eq!(command.as_deref(), Some("ls -la"));
+                    }
+                    other => panic!("expected Execute arguments, got {:?}", other),
+                }
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
+    fn content_block_start_prefers_explicit_agent_parser_over_current_agent() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                AgentType::Codex,
+                Message::StreamEvent {
+                    uuid: "msg-codex-001".to_string(),
+                    session_id: "ses-test".to_string(),
+                    event: serde_json::json!({
+                        "type": "content_block_start",
+                        "index": 0,
+                        "content_block": {
+                            "type": "tool_use",
+                            "id": "toolu_codex_exec_stream_001",
+                            "name": "functions.exec_command",
+                            "input": {}
+                        }
+                    }),
+                    parent_tool_use_id: None,
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
+                assert_eq!(tool_call.kind, Some(ToolKind::Execute));
+            } else {
+                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
+            }
+        });
+    }
+
+    #[test]
     fn assistant_subagent_tool_use_does_not_emit_usage_telemetry() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::Assistant {
                     message: cc_sdk::AssistantMessage {
                         content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
@@ -1118,6 +1216,7 @@ mod tests {
     fn assistant_ask_user_question_emits_tool_call_and_question_request() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::Assistant {
                     message: cc_sdk::AssistantMessage {
                         content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
@@ -1180,6 +1279,7 @@ mod tests {
     fn assistant_tool_use_with_null_input_does_not_panic() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::Assistant {
                     message: cc_sdk::AssistantMessage {
                         content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
@@ -1210,6 +1310,7 @@ mod tests {
     fn content_block_start_bash_tool_has_execute_kind() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::StreamEvent {
                     uuid: "msg-002".to_string(),
                     session_id: "ses-test".to_string(),
@@ -1247,6 +1348,7 @@ mod tests {
     fn content_block_start_preserves_parent_tool_use_id_for_subagent_tools() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
                 Message::StreamEvent {
                     uuid: "msg-003".to_string(),
                     session_id: "ses-test".to_string(),

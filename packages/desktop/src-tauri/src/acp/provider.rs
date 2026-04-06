@@ -1,14 +1,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::OnceLock;
 
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::cursor_extensions::{CursorExtensionEvent, CursorResponseAdapter};
 use crate::acp::error::AcpResult;
 use crate::acp::parsers::AgentType;
-use crate::acp::session_update::{PlanConfidence, PlanSource};
+use crate::acp::session_update::{PlanConfidence, PlanSource, SessionUpdate};
 use crate::acp::types::CanonicalAgentId;
 
 #[derive(Debug, Clone)]
@@ -169,6 +171,14 @@ pub trait AgentProvider: Send + Sync {
         }
     }
 
+    /// Provider-owned hook for enriching parsed session updates before shared processing.
+    fn enrich_session_update<'a>(
+        &'a self,
+        update: SessionUpdate,
+    ) -> Pin<Box<dyn Future<Output = SessionUpdate> + Send + 'a>> {
+        Box::pin(async move { update })
+    }
+
     /// Provider extension normalizer hook (for custom notification/request methods).
     fn normalize_extension_method(
         &self,
@@ -183,6 +193,11 @@ pub trait AgentProvider: Send + Sync {
     /// Provider extension response adapter hook.
     fn adapt_inbound_response(&self, _adapter: &CursorResponseAdapter, result: &Value) -> Value {
         result.clone()
+    }
+
+    /// Whether a raw ACP notification should be suppressed before generic handling.
+    fn should_suppress_notification(&self, _json: &Value) -> bool {
+        false
     }
 
     /// Whether this provider requires TaskReconciler pass for tool call graph assembly.

@@ -2,6 +2,7 @@ pub mod claude_code;
 pub mod codex;
 pub mod copilot;
 pub mod cursor;
+pub(crate) mod cursor_session_update_enrichment;
 pub mod custom;
 pub mod forge;
 pub mod opencode;

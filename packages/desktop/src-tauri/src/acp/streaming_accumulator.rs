@@ -79,7 +79,7 @@ impl SessionStreamingState {
 
     /// Cache tool name from initial tool_call event for use during streaming deltas.
     /// Called once when the tool_call arrives; read by subsequent accumulate_delta calls.
-    pub fn seed_tool_name(&self, tool_call_id: &str, tool_name: &str) {
+    pub fn seed_tool_name(&self, tool_call_id: &str, tool_name: &str, agent: AgentType) {
         if tool_name == "unknown" || tool_name.is_empty() {
             return;
         }
@@ -93,7 +93,7 @@ impl SessionStreamingState {
 
         // Also pre-cache tool_kind for consistency.
         // If we've already guessed `Other`, allow upgrading to a specific kind once known.
-        let detected_kind = get_parser(current_agent()).detect_tool_kind(tool_name);
+        let detected_kind = get_parser(agent).detect_tool_kind(tool_name);
         if state.tool_kind.is_none()
             || matches!(state.tool_kind, Some(ToolKind::Other))
                 && !matches!(detected_kind, ToolKind::Other)
@@ -115,6 +115,7 @@ impl SessionStreamingState {
         tool_call_id: &str,
         tool_name: &str,
         delta: &str,
+        agent: AgentType,
     ) -> Option<StreamingNormalized> {
         let mut state = self
             .tool_states
@@ -124,7 +125,7 @@ impl SessionStreamingState {
         // Enforce memory limit
         if state.accumulated.len() + delta.len() > MAX_ACCUMULATED_SIZE {
             // At limit, return last known good value
-            return self.normalize_from_cached(&state, tool_call_id);
+            return self.normalize_from_cached(&state, tool_call_id, agent);
         }
 
         state.accumulated.push_str(delta);
@@ -152,7 +153,7 @@ impl SessionStreamingState {
 
             // Cache tool kind from the resolved name.
             // If we previously cached `Other`, allow upgrade when resolved_name becomes specific.
-            let detected_kind = get_parser(current_agent()).detect_tool_kind(resolved_name);
+            let detected_kind = get_parser(agent).detect_tool_kind(resolved_name);
             if state.tool_kind.is_none()
                 || matches!(state.tool_kind, Some(ToolKind::Other))
                     && !matches!(detected_kind, ToolKind::Other)
@@ -160,7 +161,7 @@ impl SessionStreamingState {
                 state.tool_kind = Some(detected_kind);
             }
             let cached_kind = state.tool_kind;
-            return self.normalize_value(&parsed, cached_kind, resolved_name);
+            return self.normalize_value(&parsed, cached_kind, resolved_name, agent);
         }
 
         None
@@ -176,16 +177,17 @@ impl SessionStreamingState {
         &self,
         state: &dashmap::mapref::one::RefMut<String, ToolCallStreamState>,
         _tool_call_id: &str,
+        agent: AgentType,
     ) -> Option<StreamingNormalized> {
         // Use cached tool name if available, otherwise fall back to "other"
         let resolved_name = state.tool_name.as_deref().unwrap_or("other");
         let tool_kind = state
             .tool_kind
-            .or_else(|| Some(get_parser(current_agent()).detect_tool_kind(resolved_name)));
+            .or_else(|| Some(get_parser(agent).detect_tool_kind(resolved_name)));
         state
             .last_parsed
             .as_ref()
-            .and_then(|v| self.normalize_value(v, tool_kind, resolved_name))
+            .and_then(|v| self.normalize_value(v, tool_kind, resolved_name, agent))
     }
 
     /// Normalize a parsed JSON value. Produces streaming_arguments for all tool kinds.
@@ -194,8 +196,8 @@ impl SessionStreamingState {
         value: &serde_json::Value,
         tool_kind: Option<ToolKind>,
         tool_name: &str,
+        agent: AgentType,
     ) -> Option<StreamingNormalized> {
-        let agent = current_agent();
         let parser = get_parser(agent);
         let kind = tool_kind.unwrap_or_else(|| parser.detect_tool_kind(tool_name));
 
@@ -259,8 +261,8 @@ pub fn cleanup_tool_streaming(session_id: &str, tool_call_id: &str) {
 
 /// Cache tool name from initial tool_call event for use during streaming deltas.
 /// Call this when the initial tool_call arrives; read by subsequent accumulate_delta calls.
-pub fn seed_tool_name(session_id: &str, tool_call_id: &str, tool_name: &str) {
-    get_session_streaming_state_mut(session_id).seed_tool_name(tool_call_id, tool_name);
+pub fn seed_tool_name(session_id: &str, tool_call_id: &str, tool_name: &str, agent: AgentType) {
+    get_session_streaming_state_mut(session_id).seed_tool_name(tool_call_id, tool_name, agent);
 }
 
 // ============================================================================
@@ -279,6 +281,8 @@ pub struct PlanStreamingState {
     pub file_path: String,
     /// Accumulated plan content.
     pub accumulated_content: String,
+    /// Agent that owns this streaming plan.
+    pub agent_type: AgentType,
     /// Last time we emitted a plan event.
     pub last_emission: Instant,
 }
@@ -360,6 +364,7 @@ pub fn accumulate_plan_content(
     tool_call_id: &str,
     file_path: &str,
     content_delta: &str,
+    agent: AgentType,
 ) -> Option<PlanData> {
     let is_first = !PLAN_STREAMING_STATES.contains_key(session_id);
 
@@ -369,6 +374,7 @@ pub fn accumulate_plan_content(
             tool_call_id: tool_call_id.to_string(),
             file_path: file_path.to_string(),
             accumulated_content: String::with_capacity(10_240),
+            agent_type: agent,
             last_emission: Instant::now(),
         });
 
@@ -434,7 +440,7 @@ fn build_plan_data(
         title,
         source: Some(PlanSource::Deterministic),
         confidence: Some(PlanConfidence::High),
-        agent_id: Some(current_agent().as_str().to_string()),
+        agent_id: Some(state.agent_type.as_str().to_string()),
         updated_at: Some(chrono::Utc::now().timestamp_millis()),
     }
 }
@@ -453,7 +459,7 @@ fn build_plan_data_from_owned(state: PlanStreamingState, streaming: bool) -> Pla
         title,
         source: Some(PlanSource::Deterministic),
         confidence: Some(PlanConfidence::High),
-        agent_id: Some(current_agent().as_str().to_string()),
+        agent_id: Some(state.agent_type.as_str().to_string()),
         updated_at: Some(chrono::Utc::now().timestamp_millis()),
     }
 }
@@ -477,6 +483,7 @@ pub fn process_plan_streaming(
     tool_call_id: &str,
     tool_name: &str,
     streaming_delta: &str,
+    agent: AgentType,
 ) -> Option<PlanData> {
     // Only process Edit and Write tools
     if !(tool_name.eq_ignore_ascii_case("write") || tool_name.eq_ignore_ascii_case("edit")) {
@@ -493,7 +500,7 @@ pub fn process_plan_streaming(
         .and_then(|v| v.as_str())?;
 
     // Check if this is a plan file
-    if !is_plan_file_path(file_path) {
+    if !is_plan_file_path_for_agent(file_path, agent) {
         return None;
     }
 
@@ -506,7 +513,7 @@ pub fn process_plan_streaming(
         .unwrap_or("");
 
     // Accumulate and return plan data
-    accumulate_plan_content(session_id, tool_call_id, file_path, content)
+    accumulate_plan_content(session_id, tool_call_id, file_path, content, agent)
 }
 
 /// Finalize plan streaming when a tool call completes.
@@ -687,7 +694,7 @@ mod tests {
         let state = SessionStreamingState::new();
 
         // First delta - empty string does not parse
-        let result = state.accumulate_delta("tool1", "TodoWrite", "");
+        let result = state.accumulate_delta("tool1", "TodoWrite", "", AgentType::ClaudeCode);
         assert!(result.is_none());
 
         // Wait and add full valid todo JSON
@@ -696,6 +703,7 @@ mod tests {
             "tool1",
             "TodoWrite",
             r#"{"todos": [{"content": "test", "status": "pending", "activeForm": "Testing"}]}"#,
+            AgentType::ClaudeCode,
         );
         // Should have result with valid normalized todos and streaming_arguments
         assert!(result.is_some());
@@ -713,7 +721,8 @@ mod tests {
 
         // Try to exceed memory limit
         let large_delta = "x".repeat(MAX_ACCUMULATED_SIZE + 1);
-        let result = state.accumulate_delta("tool1", "TodoWrite", &large_delta);
+        let result =
+            state.accumulate_delta("tool1", "TodoWrite", &large_delta, AgentType::ClaudeCode);
 
         // Should not crash, returns None (no cached value yet)
         assert!(result.is_none());
@@ -723,7 +732,12 @@ mod tests {
     fn test_clear_tool() {
         let state = SessionStreamingState::new();
 
-        state.accumulate_delta("tool1", "TodoWrite", r#"{"todos": []}"#);
+        state.accumulate_delta(
+            "tool1",
+            "TodoWrite",
+            r#"{"todos": []}"#,
+            AgentType::ClaudeCode,
+        );
         assert!(state.tool_states.contains_key("tool1"));
 
         state.clear_tool("tool1");
@@ -737,7 +751,7 @@ mod tests {
         let state = SessionStreamingState::new();
 
         // Seed the tool name explicitly (simulating what happens when initial tool_call arrives)
-        state.seed_tool_name("tool-edit-1", "Edit");
+        state.seed_tool_name("tool-edit-1", "Edit", AgentType::ClaudeCode);
 
         // Wait for throttle
         std::thread::sleep(std::time::Duration::from_millis(160));
@@ -747,6 +761,7 @@ mod tests {
             "tool-edit-1",
             "", // No tool name provided
             r#"{"file_path": "/test.rs", "old_string": "old", "new_string": "new"}"#,
+            AgentType::ClaudeCode,
         );
 
         // Should produce Edit-typed arguments by looking up cached name
@@ -768,7 +783,12 @@ mod tests {
         // No cache_tool_name call -- no cached name available
         std::thread::sleep(std::time::Duration::from_millis(160));
 
-        let result = state.accumulate_delta("tool-1", "", r#"{"file_path": "/test.rs"}"#);
+        let result = state.accumulate_delta(
+            "tool-1",
+            "",
+            r#"{"file_path": "/test.rs"}"#,
+            AgentType::ClaudeCode,
+        );
 
         assert!(result.is_some());
         let normalized = result.unwrap();
@@ -787,7 +807,12 @@ mod tests {
         // First delta arrives before tool name is known.
         std::thread::sleep(std::time::Duration::from_millis(160));
         let first = state
-            .accumulate_delta("tool-late-seed", "", r#"{"file_path": "/tmp/test.rs"}"#)
+            .accumulate_delta(
+                "tool-late-seed",
+                "",
+                r#"{"file_path": "/tmp/test.rs"}"#,
+                AgentType::ClaudeCode,
+            )
             .expect("first delta should parse");
 
         match first.streaming_arguments.expect("streaming args expected") {
@@ -796,12 +821,12 @@ mod tests {
         }
 
         // Later, initial tool_call arrives and seeds the real name.
-        state.seed_tool_name("tool-late-seed", "Edit");
+        state.seed_tool_name("tool-late-seed", "Edit", AgentType::ClaudeCode);
 
         // Next emission should upgrade from Other -> Edit.
         std::thread::sleep(std::time::Duration::from_millis(160));
         let second = state
-            .accumulate_delta("tool-late-seed", "", "")
+            .accumulate_delta("tool-late-seed", "", "", AgentType::ClaudeCode)
             .expect("second delta should emit");
 
         match second.streaming_arguments.expect("streaming args expected") {
@@ -818,8 +843,8 @@ mod tests {
         let state = SessionStreamingState::new();
 
         // Two tool calls in same session - seed the names
-        state.seed_tool_name("tool-write", "Write");
-        state.seed_tool_name("tool-read", "Read");
+        state.seed_tool_name("tool-write", "Write", AgentType::ClaudeCode);
+        state.seed_tool_name("tool-read", "Read", AgentType::ClaudeCode);
 
         std::thread::sleep(std::time::Duration::from_millis(160));
 
@@ -828,10 +853,16 @@ mod tests {
             "tool-write",
             "",
             r#"{"file_path": "/file.rs", "content": "data"}"#,
+            AgentType::ClaudeCode,
         );
 
         // Read tool with empty tool_name (uses seeded name)
-        let read_result = state.accumulate_delta("tool-read", "", r#"{"file_path": "/file.rs"}"#);
+        let read_result = state.accumulate_delta(
+            "tool-read",
+            "",
+            r#"{"file_path": "/file.rs"}"#,
+            AgentType::ClaudeCode,
+        );
 
         // Each should resolve to correct type based on seeded name
         assert!(write_result.is_some());
@@ -851,7 +882,7 @@ mod tests {
     fn test_cleanup_removes_cached_name() {
         let state = SessionStreamingState::new();
 
-        state.seed_tool_name("tool-1", "Edit");
+        state.seed_tool_name("tool-1", "Edit", AgentType::ClaudeCode);
         assert!(state.tool_states.contains_key("tool-1"));
 
         state.clear_tool("tool-1");
@@ -936,6 +967,7 @@ mod tests {
             "tool-1",
             "/home/user/.claude/plans/test.md",
             "# My Plan\n\nStep 1",
+            AgentType::ClaudeCode,
         );
 
         // First call should emit (no throttle yet, Instant::now() elapsed > 0)
@@ -964,7 +996,13 @@ mod tests {
         );
 
         // Start streaming
-        accumulate_plan_content(&session_id, "tool-2", "/path/plan.md", "# Test\n\ncontent");
+        accumulate_plan_content(
+            &session_id,
+            "tool-2",
+            "/path/plan.md",
+            "# Test\n\ncontent",
+            AgentType::ClaudeCode,
+        );
 
         assert!(has_plan_streaming(&session_id));
 

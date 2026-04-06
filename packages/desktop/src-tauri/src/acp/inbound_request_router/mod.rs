@@ -3,8 +3,8 @@ use crate::acp::session_update::ToolCallData;
 use serde_json::Value;
 use tauri::AppHandle;
 
-mod fs_handlers;
 mod forwarded_permission_request;
+mod fs_handlers;
 mod helpers;
 mod permission_handlers;
 mod terminal_handlers;
@@ -680,9 +680,7 @@ mod tests {
             tool_call_data: crate::acp::session_update::ToolCallData {
                 id: "web_search_0".to_string(),
                 name: "WebSearch".to_string(),
-                arguments: crate::acp::session_update::ToolArguments::Other {
-                    raw: json!({}),
-                },
+                arguments: crate::acp::session_update::ToolArguments::Other { raw: json!({}) },
                 status: crate::acp::session_update::ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(crate::acp::session_update::ToolKind::WebSearch),

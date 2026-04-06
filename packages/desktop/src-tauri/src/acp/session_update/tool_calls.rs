@@ -4,7 +4,7 @@ use super::types::{
     ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind,
 };
 use crate::acp::agent_context::current_agent;
-use crate::acp::parsers::{get_parser, AgentParser};
+use crate::acp::parsers::{get_parser, AgentParser, AgentType};
 use serde_json::json;
 
 /// Raw tool call update input used only for conversion to ToolCallUpdateData.
@@ -41,12 +41,22 @@ pub(crate) fn parse_tool_call_from_acp<E>(data: &serde_json::Value) -> Result<To
 where
     E: serde::de::Error,
 {
+    parse_tool_call_from_acp_with_agent(data, current_agent())
+}
+
+pub(crate) fn parse_tool_call_from_acp_with_agent<E>(
+    data: &serde_json::Value,
+    agent: AgentType,
+) -> Result<ToolCallData, E>
+where
+    E: serde::de::Error,
+{
     tracing::debug!(
         raw_data = %data,
         "Parsing tool_call from ACP format"
     );
 
-    let parser = get_parser(current_agent());
+    let parser = get_parser(agent);
     let tool_call = parser
         .parse_tool_call(data)
         .map_err(parser_error_to_de_error::<E>)?;
@@ -75,7 +85,17 @@ pub(crate) fn parse_tool_call_update_from_acp<E>(
 where
     E: serde::de::Error,
 {
-    let agent = current_agent();
+    parse_tool_call_update_from_acp_with_agent(data, session_id, current_agent())
+}
+
+pub(crate) fn parse_tool_call_update_from_acp_with_agent<E>(
+    data: &serde_json::Value,
+    session_id: Option<&str>,
+    agent: AgentType,
+) -> Result<ToolCallUpdateData, E>
+where
+    E: serde::de::Error,
+{
     let parser = get_parser(agent);
     parser
         .parse_tool_call_update(data, session_id)
@@ -89,6 +109,7 @@ pub(crate) fn build_tool_call_update_from_raw(
     raw: RawToolCallUpdateInput,
     session_id: Option<&str>,
 ) -> ToolCallUpdateData {
+    let agent = parser.agent_type();
     let session_key = session_id.unwrap_or(raw.id.as_str());
     let tool_call_id = &raw.id;
     let provided_tool_name = raw.tool_name.as_deref().unwrap_or("");
@@ -115,7 +136,7 @@ pub(crate) fn build_tool_call_update_from_raw(
         };
 
         let session_state = get_session_streaming_state_mut(session_key);
-        let normalized = session_state.accumulate_delta(tool_call_id, tool_name, delta);
+        let normalized = session_state.accumulate_delta(tool_call_id, tool_name, delta, agent);
         let (todos, questions, streaming_args) = normalized
             .as_ref()
             .map(|n| {
@@ -134,7 +155,8 @@ pub(crate) fn build_tool_call_update_from_raw(
 
         // Use the effective tool name (seeded from initial tool_call when omitted in deltas)
         // so plan detection still works for .claude/plans writes.
-        let plan = process_plan_streaming(session_key, tool_call_id, effective_tool_name, delta);
+        let plan =
+            process_plan_streaming(session_key, tool_call_id, effective_tool_name, delta, agent);
 
         // Drop the DashMap RefMut before cleanup_tool_streaming, which calls
         // SESSION_STREAMING_STATES.get() on the same key. Holding the write lock
@@ -491,8 +513,14 @@ pub fn tool_call_status_from_str(status_str: &str) -> ToolCallStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::agent_context::with_agent;
+    use crate::acp::client_updates::process_through_reconciler;
     use crate::acp::parsers::{CodexParser, CursorParser};
+    use crate::acp::session_update::SessionUpdate;
+    use crate::acp::streaming_accumulator::cleanup_session_streaming;
+    use crate::acp::task_reconciler::TaskReconciler;
     use serde_json::json;
+    use std::sync::{Arc as StdArc, Mutex};
 
     /// Helper: build a tool call from raw input with the given kind hint and title.
     fn build_with_kind_and_title(kind: &str, title: Option<&str>) -> ToolCallData {
@@ -702,5 +730,132 @@ mod tests {
     #[test]
     fn backtick_command_empty_between_backticks() {
         assert_eq!(extract_backtick_command("``"), None);
+    }
+
+    fn seed_tool_name_via_reconciler(session_id: &str, tool_call_id: &str, tool_name: &str) {
+        let reconciler = StdArc::new(Mutex::new(TaskReconciler::new()));
+        let update = SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: tool_call_id.to_string(),
+                name: tool_name.to_string(),
+                arguments: ToolArguments::Other { raw: json!({}) },
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Other),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some(session_id.to_string()),
+        };
+
+        let _ = process_through_reconciler(&update, &reconciler, AgentType::Codex, None);
+    }
+
+    #[test]
+    fn codex_streaming_update_prefers_explicit_agent_seed_over_current_agent() {
+        with_agent(AgentType::ClaudeCode, || {
+            let session_id = "codex-streaming-explicit-agent";
+            let tool_call_id = "tool-codex-exec";
+            cleanup_session_streaming(session_id);
+            seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");
+
+            let update = build_tool_call_update_from_raw(
+                get_parser(AgentType::Codex),
+                RawToolCallUpdateInput {
+                    id: tool_call_id.to_string(),
+                    status: Some(ToolCallStatus::InProgress),
+                    result: None,
+                    content: None,
+                    title: None,
+                    locations: None,
+                    streaming_input_delta: Some(r#"{"command":"ls -la"}"#.to_string()),
+                    tool_name: None,
+                    raw_input: None,
+                    kind: Some(ToolKind::Execute),
+                },
+                Some(session_id),
+            );
+
+            match update
+                .streaming_arguments
+                .expect("streaming arguments should use the Codex parser")
+            {
+                ToolArguments::Execute { command } => {
+                    assert_eq!(command.as_deref(), Some("ls -la"));
+                }
+                other => panic!("expected Execute arguments, got {:?}", other),
+            }
+
+            cleanup_session_streaming(session_id);
+        });
+    }
+
+    #[test]
+    fn codex_streaming_overflow_reuses_cached_value_with_explicit_agent() {
+        with_agent(AgentType::ClaudeCode, || {
+            let session_id = "codex-streaming-explicit-agent-overflow";
+            let tool_call_id = "tool-codex-exec-overflow";
+            cleanup_session_streaming(session_id);
+            seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");
+
+            let first = build_tool_call_update_from_raw(
+                get_parser(AgentType::Codex),
+                RawToolCallUpdateInput {
+                    id: tool_call_id.to_string(),
+                    status: Some(ToolCallStatus::InProgress),
+                    result: None,
+                    content: None,
+                    title: None,
+                    locations: None,
+                    streaming_input_delta: Some(r#"{"command":"pwd"}"#.to_string()),
+                    tool_name: None,
+                    raw_input: None,
+                    kind: Some(ToolKind::Execute),
+                },
+                Some(session_id),
+            );
+
+            assert!(matches!(
+                first.streaming_arguments,
+                Some(ToolArguments::Execute { .. })
+            ));
+
+            let overflow = build_tool_call_update_from_raw(
+                get_parser(AgentType::Codex),
+                RawToolCallUpdateInput {
+                    id: tool_call_id.to_string(),
+                    status: Some(ToolCallStatus::InProgress),
+                    result: None,
+                    content: None,
+                    title: None,
+                    locations: None,
+                    streaming_input_delta: Some("x".repeat(1_048_576)),
+                    tool_name: None,
+                    raw_input: None,
+                    kind: Some(ToolKind::Execute),
+                },
+                Some(session_id),
+            );
+
+            match overflow
+                .streaming_arguments
+                .expect("cached streaming arguments should stay Execute")
+            {
+                ToolArguments::Execute { command } => {
+                    assert_eq!(command.as_deref(), Some("pwd"));
+                }
+                other => panic!("expected cached Execute arguments, got {:?}", other),
+            }
+
+            cleanup_session_streaming(session_id);
+        });
     }
 }

@@ -3,14 +3,17 @@
 //! This provider spawns Cursor CLI's native ACP server via `agent acp`.
 
 use super::super::provider::{command_exists, AgentProvider, ModelFallbackCandidate, SpawnConfig};
+use super::cursor_session_update_enrichment::enrich_cursor_session_update;
 use crate::acp::cursor_extensions::{
-    adapt_cursor_response, cursor_extension_kind, normalize_cursor_extension, CursorExtensionEvent,
-    CursorResponseAdapter,
+    adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
+    normalize_cursor_extension, CursorExtensionEvent, CursorResponseAdapter,
 };
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::session_update::PlanSource;
+use crate::acp::session_update::{PlanSource, SessionUpdate};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 
 /// Cursor ACP Agent Provider
 ///
@@ -144,6 +147,13 @@ impl AgentProvider for CursorProvider {
         PlanSource::Deterministic
     }
 
+    fn enrich_session_update<'a>(
+        &'a self,
+        update: SessionUpdate,
+    ) -> Pin<Box<dyn Future<Output = SessionUpdate> + Send + 'a>> {
+        Box::pin(async move { enrich_cursor_session_update(update).await })
+    }
+
     fn uses_task_reconciler(&self) -> bool {
         true
     }
@@ -164,6 +174,10 @@ impl AgentProvider for CursorProvider {
 
     fn adapt_inbound_response(&self, adapter: &CursorResponseAdapter, result: &Value) -> Value {
         adapt_cursor_response(adapter, result)
+    }
+
+    fn should_suppress_notification(&self, json: &Value) -> bool {
+        is_cursor_extension_pre_tool(json)
     }
 }
 
@@ -344,5 +358,13 @@ mod tests {
         assert_eq!(provider.map_outbound_mode_id("build"), "agent");
         assert_eq!(provider.normalize_mode_id("agent"), "build");
         assert_eq!(provider.normalize_mode_id("ask"), "build");
+    }
+
+    #[test]
+    fn cursor_provider_owns_session_update_enrichment_hook() {
+        let source = include_str!("cursor.rs");
+        let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+        assert!(production_source.contains("fn enrich_session_update<'a>("));
     }
 }
