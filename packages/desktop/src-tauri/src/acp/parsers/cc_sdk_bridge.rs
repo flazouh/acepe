@@ -479,41 +479,6 @@ fn translate_system_message(
 }
 
 // ---------------------------------------------------------------------------
-// Model → context window size mapping
-// ---------------------------------------------------------------------------
-
-const CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE: u64 = 200_000;
-const CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE: u64 = 1_000_000;
-
-/// Returns the context window size (in tokens) for a given Claude model ID.
-///
-/// Returns `None` for unrecognized model IDs.
-fn context_window_for_model(model_id: &str) -> Option<u64> {
-    let normalized = model_id.to_lowercase();
-
-    if normalized.contains("claude-opus-4-6") {
-        return Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE);
-    }
-
-    // Short alias used by cc-sdk for the current Opus family.
-    if normalized == "opus" {
-        return Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE);
-    }
-
-    // Other Claude 3.5+ / 4+ models currently exposed here use 200k context windows.
-    if normalized.contains("claude") {
-        return Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE);
-    }
-
-    // Short aliases used by cc-sdk
-    if normalized == "haiku" || normalized == "sonnet" {
-        return Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE);
-    }
-
-    None
-}
-
-// ---------------------------------------------------------------------------
 // Usage telemetry helpers
 // ---------------------------------------------------------------------------
 
@@ -600,7 +565,9 @@ fn build_result_telemetry(
         },
         source_model_id: model_id.map(|m| m.to_string()),
         timestamp_ms: None,
-        context_window_size: model_id.and_then(context_window_for_model),
+        // Claude Code emits authoritative context-window size in usage_update system
+        // messages. Avoid duplicating or hard-coding model-size knowledge here.
+        context_window_size: None,
     }
 }
 
@@ -798,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn result_telemetry_includes_context_window_when_model_is_known() {
+    fn result_telemetry_keeps_source_model_without_context_window_fallback() {
         let updates = translate_cc_sdk_message_with_turn_state(
             Message::Result {
                 subtype: "conversation_turn".to_string(),
@@ -827,7 +794,7 @@ mod tests {
         // Should have UsageTelemetryUpdate + TurnComplete
         assert_eq!(updates.len(), 2);
         if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
-            assert_eq!(data.context_window_size, Some(200_000));
+            assert_eq!(data.context_window_size, None);
             assert_eq!(
                 data.source_model_id,
                 Some("claude-sonnet-4-5-20250929".to_string())
@@ -870,36 +837,6 @@ mod tests {
         } else {
             panic!("Expected UsageTelemetryUpdate");
         }
-    }
-
-    #[test]
-    fn context_window_for_all_claude_models() {
-        use super::context_window_for_model;
-
-        // Full model IDs
-        assert_eq!(
-            context_window_for_model("claude-sonnet-4-5-20250929"),
-            Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE)
-        );
-        assert_eq!(
-            context_window_for_model("claude-opus-4-6"),
-            Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE)
-        );
-        assert_eq!(
-            context_window_for_model("claude-haiku-4-5-20251001"),
-            Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE)
-        );
-
-        // Short aliases
-        assert_eq!(context_window_for_model("sonnet"), Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE));
-        assert_eq!(
-            context_window_for_model("opus"),
-            Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE)
-        );
-        assert_eq!(context_window_for_model("haiku"), Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE));
-
-        // Unknown model
-        assert_eq!(context_window_for_model("gpt-4o"), None);
     }
 
     #[test]
