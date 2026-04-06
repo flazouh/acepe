@@ -395,7 +395,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				/>
 			{/if}
 		{:else if viewModeState.layout === "kanban"}
-			<KanbanView {projectManager} {state} />
+			<KanbanView {projectManager} />
 		{:else}
 			<!-- Project/Multi mode: panels grouped by project; hide inactive in focused view so they stay mounted -->
 		{#each allGroups as group (group.projectPath)}
@@ -563,7 +563,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						? [...viewModeState.focusedModeAllProjects]
 						: undefined}
 					activeProjectPath={viewModeState.activeProjectPath}
-					onSelectProject={(path: string) => panelStore.setFocusedViewProjectPath(path)}
+					onSelectProject={(path) => panelStore.setFocusedViewProjectPath(path)}
 				>
 					{@render groupPanels()}
 				</ProjectCard>

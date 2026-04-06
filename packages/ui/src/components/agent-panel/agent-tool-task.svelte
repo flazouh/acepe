@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
-	import { CaretRight, Robot } from "phosphor-svelte";
+	import IconCircleCheckFilled from "@tabler/icons-svelte/icons/circle-check-filled";
+	import CaretRight from "phosphor-svelte/lib/CaretRight";
+	import Robot from "phosphor-svelte/lib/Robot";
 	import { Colors } from "../../lib/colors.js";
 	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentToolStatus, AnyAgentEntry, AgentToolEntry } from "./types.js";
@@ -12,10 +13,9 @@
 		description: string | null;
 		prompt?: string | null;
 		resultText?: string | null;
-		children?: readonly AnyAgentEntry[];
+		children?: AnyAgentEntry[];
 		status?: AgentToolStatus;
 		showDoneIcon?: boolean;
-		compact?: boolean;
 		durationLabel?: string;
 		iconBasePath?: string;
 		runningFallback?: string;
@@ -30,7 +30,6 @@
 		children = [],
 		status = "done",
 		showDoneIcon = false,
-		compact = false,
 		durationLabel,
 		iconBasePath = "",
 		runningFallback = "Running task…",
@@ -44,7 +43,7 @@
 	const isPending = $derived(status === "pending" || status === "running");
 	const isDone = $derived(status === "done");
 
-	const taskChildren = $derived(Array.from(children));
+	const taskChildren = $derived(children);
 
 	/** Child tool entries only (tool_call type) for the Tool calls section. */
 	const toolCallChildren = $derived(
@@ -61,46 +60,18 @@
 
 	const hasBorder = $derived(hasPrompt || hasResult);
 	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
-	const cardClass = $derived(compact ? "bg-accent/30 border-border/60" : "");
-	const headerClass = $derived(compact
-		? "flex min-w-0 items-center justify-between gap-1 px-1 py-0.5 text-[10px]"
-		: "flex h-7 items-center justify-between gap-1 px-2 text-xs");
-	const headerBorderClass = $derived(hasBorder
-		? compact
-			? "border-b border-border/60"
-			: "border-b border-border"
-		: "");
-	const headerContentClass = $derived(compact
-		? "flex min-w-0 flex-1 items-center justify-start gap-1"
-		: "flex min-w-0 flex-1 items-center justify-start gap-2");
-	const titleClass = $derived(compact ? "font-mono text-[10px]" : "font-mono text-[11px]");
-	const promptButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
-	const promptBodyClass = $derived(compact ? "px-1 pb-0.5" : "px-3 pb-2");
-	const promptContentClass = $derived(compact
-		? "text-[10px] text-muted-foreground whitespace-pre-wrap break-words leading-relaxed"
-		: "text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed");
-	const resultSectionClass = $derived(compact ? "border-t border-border/60" : "border-t border-border");
-	const resultButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
-	const resultBodyClass = $derived(compact ? "px-1 pb-1" : "px-3 pb-3");
-	const resultContentClass = $derived(compact
-		? "text-[10px] bg-muted/30 rounded-sm p-1 whitespace-pre-wrap break-words leading-relaxed"
-		: "text-xs bg-muted/30 rounded-md p-3 whitespace-pre-wrap break-words leading-relaxed");
-	const rowSectionClass = $derived(compact ? "border-t border-border/60 py-0.5" : "border-t border-border py-1.5");
-	const showLiveToolRow = $derived(!compact && hasChildren && lastToolCall !== null);
-	const tallyInline = $derived(false);
-	const tallyWrapperClass = $derived("");
 </script>
 
-<AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
+<AgentToolCard>
 	<!-- Header: fixed h-7 height -->
-	<div class="{headerClass} {headerBorderClass}">
-		<div class={headerContentClass}>
+	<div
+		class="flex h-7 items-center justify-between gap-1 px-2 text-xs"
+		class:border-b={hasBorder}
+		class:border-border={hasBorder}
+	>
+		<div class="flex min-w-0 flex-1 justify-start items-center gap-2">
 			<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
-			<span class={titleClass}>
+			<span class="font-mono text-[11px]">
 				{#if isPending}
 					<TextShimmer class="font-medium text-muted-foreground">
 						{description ?? runningFallback}
@@ -127,7 +98,7 @@
 		<button
 			type="button"
 			onclick={() => { isPromptCollapsed = !isPromptCollapsed; }}
-			class={promptButtonClass}
+			class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
 		>
 			<CaretRight
 				size={10}
@@ -140,8 +111,8 @@
 		</button>
 
 		{#if !isPromptCollapsed}
-			<div class={promptBodyClass}>
-				<div class={promptContentClass}>
+			<div class="px-3 pb-2">
+				<div class="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
 					{prompt}
 				</div>
 			</div>
@@ -150,11 +121,11 @@
 
 	<!-- Result section (collapsible) -->
 	{#if hasResult && resultText}
-		<div class={resultSectionClass}>
+		<div class="border-t border-border">
 			<button
 				type="button"
 				onclick={() => { isResultCollapsed = !isResultCollapsed; }}
-				class={resultButtonClass}
+				class="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
 			>
 				<CaretRight
 					size={10}
@@ -170,8 +141,8 @@
 			</button>
 
 			{#if !isResultCollapsed}
-				<div class={resultBodyClass}>
-					<div class={resultContentClass}>
+				<div class="px-3 pb-3">
+					<div class="text-xs bg-muted/30 rounded-md p-3 whitespace-pre-wrap break-words leading-relaxed">
 						{resultText}
 					</div>
 				</div>
@@ -180,8 +151,8 @@
 	{/if}
 
 	<!-- Last tool used + tool tally strip -->
-	{#if showLiveToolRow && lastToolCall}
-		<div class={rowSectionClass}>
+	{#if hasChildren && lastToolCall}
+		<div class="border-t border-border py-1.5">
 			<AgentToolRow
 				title={lastToolCall.title}
 				subtitle={lastToolCall.subtitle}
@@ -191,11 +162,7 @@
 				{iconBasePath}
 			/>
 		</div>
-	{/if}
-	{#if hasChildren}
-		<div class={tallyWrapperClass}>
-			<ToolTally toolCalls={toolCallChildren} inline={tallyInline} compact={compact} />
-		</div>
+		<ToolTally toolCalls={toolCallChildren} />
 	{/if}
 
 </AgentToolCard>

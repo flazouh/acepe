@@ -160,6 +160,10 @@
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
       "default": "./src/components/user-message-container/index.ts"
+    },
+    "./design-system": {
+      "svelte": "./src/components/design-system/index.ts",
+      "default": "./src/components/design-system/index.ts"
     }
   },
   "peerDependencies": {

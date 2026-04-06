@@ -356,28 +356,6 @@ export class PermissionStore {
 			})
 		).map(() => undefined);
 	}
-
-	cancelForSession(sessionId: string): ResultAsyncType<void, AppError> {
-		const pendingPermissions = this.getForSession(sessionId);
-		if (pendingPermissions.length === 0) {
-			return okAsync(undefined);
-		}
-
-		return ResultAsync.combine(
-			pendingPermissions.map((permission) => {
-				if (!this.pending.has(permission.id)) {
-					return okAsync(undefined);
-				}
-
-				logger.info("Cancelling pending permission for interrupted turn", {
-					permissionId: permission.id,
-					sessionId: permission.sessionId,
-					tool: permission.permission,
-				});
-				return this.reply(permission.id, "reject");
-			})
-		).map(() => undefined);
-	}
 }
 
 /**

@@ -6,11 +6,10 @@ import {
 	createCheckingUpdaterState,
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
-	isUpdaterInstallInProgress,
 	getUpdaterPrimaryAction,
 	getUpdaterActionLabel,
 	getUpdaterStatusLabel,
-	shouldShowBlockingUpdaterOverlay,
+	shouldShowUpdateAvailableOverlay,
 } from "../logic/updater-state.js";
 
 describe("updater-state", () => {
@@ -36,32 +35,17 @@ describe("updater-state", () => {
 		expect(getUpdaterStatusLabel(progressed)).toBe("Downloading 25%");
 	});
 
-	it("keeps startup update blocking active through install", () => {
+	it("keeps install-in-progress out of the fullscreen updater overlay", () => {
 		const installing = createInstallingUpdaterState("1.2.3");
 
 		expect(installing.kind).toBe("installing");
 		expect(getUpdaterActionLabel(installing)).toBe("Updating 1.2.3");
 		expect(getUpdaterStatusLabel(installing)).toBe("Installing update...");
-		expect(shouldShowBlockingUpdaterOverlay(installing)).toBe(true);
+		expect(shouldShowUpdateAvailableOverlay(installing)).toBe(false);
 	});
 
-	it("shows the blocking startup updater overlay while checking and downloading", () => {
-		expect(shouldShowBlockingUpdaterOverlay(createCheckingUpdaterState())).toBe(true);
-		expect(shouldShowBlockingUpdaterOverlay(createDownloadingUpdaterState("1.2.3"))).toBe(true);
-	});
-
-	it("does not treat a completed download as installing before install starts", () => {
-		const started = applyUpdaterDownloadEvent(createDownloadingUpdaterState("1.2.3"), {
-			event: "Started",
-			data: { contentLength: 100 },
-		});
-		const completedDownload = applyUpdaterDownloadEvent(started, {
-			event: "Progress",
-			data: { chunkLength: 100 },
-		});
-
-		expect(isUpdaterInstallInProgress(completedDownload)).toBe(false);
-		expect(isUpdaterInstallInProgress(createInstallingUpdaterState("1.2.3"))).toBe(true);
+	it("shows the fullscreen updater overlay while the download is still in progress", () => {
+		expect(shouldShowUpdateAvailableOverlay(createDownloadingUpdaterState("1.2.3"))).toBe(true);
 	});
 
 	it("uses the dev simulation action when no update payload exists", () => {

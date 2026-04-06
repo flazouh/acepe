@@ -32,9 +32,8 @@ describe("modified-files-header structure", () => {
 		expect(source).toContain("m.review_applied()");
 		expect(source).toContain("<CheckCircle");
 		expect(source).toContain(
-			'<Button variant="headerAction" size="headerAction" disabled class="disabled:opacity-100">'
+			'class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-100"'
 		);
-		expect(source).toContain('<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />');
 		expect(source).not.toContain("border-success/30 bg-success/10");
 	});
 
@@ -70,20 +69,5 @@ describe("modified-files-header structure", () => {
 		expect(source).not.toContain('from "phosphor-svelte/lib/Cpu"');
 		expect(prSettingsPopoverSource).not.toContain("<Cpu");
 		expect(prSettingsPopoverSource).toContain("Model");
-	});
-
-	it("renders a merge split button with strategy picker when onMerge is provided", () => {
-		// The merge button group lives in modified-files-header, not in the PR status card.
-		expect(source).toContain("onMerge");
-		expect(source).toContain("mergeStrategyStore.strategy");
-		expect(source).toContain("m.pr_card_merge()");
-		expect(source).toContain("m.pr_card_squash_merge()");
-		expect(source).toContain("m.pr_card_merge_commit()");
-		expect(source).toContain("m.pr_card_rebase_merge()");
-	});
-
-	it("shows the merged badge when prState is MERGED", () => {
-		expect(source).toContain('prState === "MERGED"');
-		expect(source).toContain("m.pr_card_merged()");
 	});
 });

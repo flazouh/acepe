@@ -44,16 +44,6 @@ describe("agent input toolbar structure", () => {
 		expect(voiceRecordingOverlaySource).toContain(".voice-meter {");
 	});
 
-	it("keeps the startup voice control actionable while recording startup can still be cancelled", () => {
-		expect(agentInputSource).toContain("canCancelVoiceInteraction");
-		expect(agentInputSource).not.toContain(
-			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}'
-		);
-		expect(agentInputSource).toContain(
-			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}'
-		);
-	});
-
 	it("styles the embedded submit button as a circular foreground pill", () => {
 		expect(agentInputSource).not.toContain("const buttonColor = $derived.by(() => {");
 		expect(agentInputSource).not.toContain('style="background-color: {buttonColor};"');
@@ -61,20 +51,5 @@ describe("agent input toolbar structure", () => {
 			'class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"'
 		);
 		expect(agentInputSource).not.toContain('bg-background text-foreground');
-	});
-
-	it("cycles modes from the composer when Cmd+. is pressed in the focused editor", () => {
-		expect(agentInputSource).toContain("function cycleModeOnShortcut(event: KeyboardEvent): boolean {");
-		expect(agentInputSource).toContain('event.code !== "Period"');
-		expect(agentInputSource).toContain("event.metaKey || event.ctrlKey");
-		expect(agentInputSource).toContain("handleModeChange(nextMode.id);");
-		expect(agentInputSource).toContain("if (cycleModeOnShortcut(event)) {");
-	});
-
-	it("cycles modes from the wider input container when modal-local controls have focus", () => {
-		expect(agentInputSource).toContain("function handleInputContainerKeyDown(event: KeyboardEvent): void {");
-		expect(agentInputSource).toContain("if (event.target === editorRef) {");
-		expect(agentInputSource).toContain("if (cycleModeOnShortcut(event)) {");
-		expect(agentInputSource).toContain('container?.addEventListener("keydown", handleInputContainerKeyDown);');
 	});
 });

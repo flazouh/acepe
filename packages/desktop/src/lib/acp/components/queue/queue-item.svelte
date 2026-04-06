@@ -249,7 +249,6 @@ const taskDisplay = $derived.by(() =>
 );
 const taskDescription = $derived(taskDisplay.taskDescription);
 const taskSubagentSummaries = $derived(taskDisplay.taskSubagentSummaries);
-const taskSubagentTools = $derived(taskDisplay.taskSubagentTools);
 const latestTaskSubagentTool = $derived(taskDisplay.latestTaskSubagentTool);
 const showTaskSubagentList = $derived(taskDisplay.showTaskSubagentList);
 
@@ -476,7 +475,7 @@ function handleNextQuestion() {
 		{agentBadge}
 	>
 		{#snippet actionBar()}
-			<PermissionActionBar permission={pendingPermission} compact />
+			<PermissionActionBar permission={pendingPermission} />
 		{/snippet}
 	</PermissionFeedItem>
 {:else if isPlanApproval}
@@ -535,7 +534,6 @@ function handleNextQuestion() {
 		isStreaming={displayedToolIsStreaming}
 		{taskDescription}
 		{taskSubagentSummaries}
-		{taskSubagentTools}
 		{latestTaskSubagentTool}
 		{showTaskSubagentList}
 		{fileToolDisplayText}

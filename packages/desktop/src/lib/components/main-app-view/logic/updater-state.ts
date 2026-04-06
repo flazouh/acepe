@@ -43,17 +43,8 @@ export function createInstallingUpdaterState(version: string): UpdaterBannerStat
 	};
 }
 
-export function isUpdaterInstallInProgress(state: UpdaterBannerState): boolean {
-	return state.kind === "installing";
-}
-
-export function shouldShowBlockingUpdaterOverlay(state: UpdaterBannerState): boolean {
-	return (
-		state.kind === "checking" ||
-		state.kind === "downloading" ||
-		state.kind === "installing" ||
-		state.kind === "error"
-	);
+export function shouldShowUpdateAvailableOverlay(state: UpdaterBannerState): boolean {
+	return state.kind === "checking" || state.kind === "downloading" || state.kind === "error";
 }
 
 export function applyUpdaterDownloadEvent(

@@ -3,7 +3,15 @@ import type { Agent, AgentAvailabilityKind } from "$lib/acp/store/types.js";
 function isInstallableButNotInstalled(
 	availabilityKind: AgentAvailabilityKind | undefined
 ): boolean {
-	return availabilityKind ? availabilityKind.installed === false : false;
+	if (!availabilityKind) {
+		return false;
+	}
+
+	if (availabilityKind.kind !== "installable") {
+		return false;
+	}
+
+	return availabilityKind.installed === false;
 }
 
 export function getSpawnableSessionAgents(

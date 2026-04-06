@@ -47,7 +47,7 @@ export type {
 } from "./components/attention-queue/index.js";
 export {
 	ActivityEntry,
-	AttentionQueueQuestionCard,
+	AttentionQueueSubagentCard,
 	FeedItem,
 	PermissionFeedItem,
 	SectionedFeed,
@@ -75,12 +75,6 @@ export {
 	CheckpointFileRow,
 	CheckpointTimeline,
 } from "./components/checkpoint/index.js";
-export {
-	ChipShell,
-	buildChipShellClassName,
-	type ChipShellDensity,
-	type ChipShellSize,
-} from "./components/chip/index.js";
 export {
 	Close as DialogCloseRaw,
 	Content as DialogContentRaw,
@@ -173,27 +167,21 @@ export {
 	PlanIcon,
 	RevertIcon,
 } from "./components/icons/index.js";
-export {
-	InlineArtefactBadge,
-	buildInlineArtefactIconClassName,
-	buildInlineArtefactLabelClassName,
-	INLINE_ARTEFACT_CLIPBOARD_PATH,
-	INLINE_ARTEFACT_PACKAGE_PATH,
-} from "./components/inline-artefact-badge/index.js";
+export { InlineArtefactBadge } from "./components/inline-artefact-badge/index.js";
 export { Input, Root as InputRoot } from "./components/input/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
+	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
-	KanbanTaskCardData,
 	KanbanToolData,
 } from "./components/kanban/index.js";
 export {
 	KanbanBoard,
 	KanbanCard,
 	KanbanColumn,
-	KanbanCompactComposer,
+	KanbanPermissionFooter,
 	KanbanQuestionFooter,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";
@@ -264,4 +252,4 @@ export type {
 	WithoutChildrenOrChild,
 } from "./lib/utils";
 // Re-export utilities
-export { capitalizeLeadingCharacter, cn } from "./lib/utils";
+export { cn } from "./lib/utils";
