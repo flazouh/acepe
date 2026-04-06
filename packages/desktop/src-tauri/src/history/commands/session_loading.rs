@@ -639,7 +639,22 @@ pub async fn set_session_worktree_path(
             "Failed to persist worktree path to DB"
         );
         format!("Failed to set worktree path: {}", e)
-    })
+    })?;
+
+    if let (Some(_project_path), Some(_agent_id)) = (project_path.as_deref(), agent_id.as_deref()) {
+        SessionMetadataRepository::mark_as_acepe_managed(&db, &session_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to promote session to Acepe-managed state"
+                );
+                format!("Failed to set worktree path: {}", e)
+            })?;
+    }
+
+    Ok(())
 }
 
 /// Persist the PR number associated with a session.

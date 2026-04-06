@@ -27,6 +27,8 @@ fn default_json_object() -> Value {
 #[serde(rename_all = "camelCase")]
 pub struct NewSessionResponse {
     pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence_id: Option<i32>,
     #[serde(default = "default_session_model_state")]
     pub models: SessionModelState,
     #[serde(

@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { IconCheck, IconHelpCircle } from "@tabler/icons-svelte";
-	import { CaretLeft, CaretRight } from "phosphor-svelte";
+	import IconSquare from "@tabler/icons-svelte/icons/square";
+	import IconCheck from "@tabler/icons-svelte/icons/check";
+	import IconHelpCircleFilled from "@tabler/icons-svelte/icons/help-circle-filled";
+	import CaretRight from "phosphor-svelte/lib/CaretRight";
+	import CaretLeft from "phosphor-svelte/lib/CaretLeft";
 
 	import type {
 		ActivityEntryQuestion,
@@ -59,8 +62,8 @@
 
 <div class="mt-2 flex flex-col overflow-hidden rounded-md border border-border/60 bg-muted/20 shadow-sm">
 	<div class="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2 py-1.5">
-		<IconHelpCircle class={`size-3.5 shrink-0 ${questionIconClassName}`} />
-		<div class="min-w-0 flex-1 text-xs font-medium leading-tight text-foreground">
+		<IconHelpCircleFilled class={`size-3.5 shrink-0 ${questionIconClassName}`} />
+		<div class="min-w-0 flex-1 text-xs leading-tight font-medium text-foreground">
 			{currentQuestion.question}
 		</div>
 
@@ -95,9 +98,7 @@
 			<div class="ml-1 flex shrink-0 gap-0.5">
 				{#each questionProgress as dot (dot.questionIndex)}
 					<div
-						class="h-1.5 w-1.5 rounded-full {questionId && dot.answered
-							? 'bg-primary'
-							: 'bg-muted-foreground/30'}"
+						class="h-1.5 w-1.5 rounded-full {questionId && dot.answered ? 'bg-primary' : 'bg-muted-foreground/30'}"
 					></div>
 				{/each}
 			</div>
@@ -105,7 +106,7 @@
 	</div>
 
 	<div class="flex flex-col divide-y divide-border/40 bg-background/20">
-		{#if currentQuestion.options && currentQuestion.options.length > 0}
+		{#if currentQuestion.options.length > 0}
 			{#each currentQuestionOptions as option, i (`${option.label}-${i}`)}
 				<button
 					type="button"
@@ -124,6 +125,14 @@
 							</div>
 						{:else}
 							<div class="size-3 shrink-0 rounded-sm border border-border/80 bg-background/50"></div>
+						{/if}
+					{:else}
+						{#if option.selected}
+							<div class="flex size-3 shrink-0 items-center justify-center rounded-sm border border-transparent bg-primary text-primary-foreground">
+								<IconCheck class="size-2.5" />
+							</div>
+						{:else}
+							<IconSquare class="size-3 shrink-0 text-muted-foreground/60" />
 						{/if}
 					{/if}
 					<span>{option.label}</span>

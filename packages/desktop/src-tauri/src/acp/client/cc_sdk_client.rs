@@ -2397,6 +2397,7 @@ impl AgentClient for CcSdkClaudeClient {
         );
         Ok(NewSessionResponse {
             session_id,
+            sequence_id: None,
             models,
             modes: default_modes(),
             available_commands: vec![],
@@ -2486,6 +2487,7 @@ impl AgentClient for CcSdkClaudeClient {
             .await?;
         Ok(NewSessionResponse {
             session_id: new_session_id,
+            sequence_id: None,
             models,
             modes: default_modes(),
             available_commands: vec![],

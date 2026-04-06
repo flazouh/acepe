@@ -285,6 +285,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			prNumber: session.prNumber,
 			prState: session.prState,
 			worktreeDeleted: session.worktreeDeleted,
+			sequenceId: session.sequenceId,
 		};
 	}
 
@@ -551,6 +552,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		title: string,
 		agentId: string,
 		sourcePath?: string,
+		sequenceId?: number,
 		worktreePath?: string
 	): ResultAsync<SessionCold, AppError> {
 		return this.repository.loadHistoricalSession(
@@ -559,6 +561,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			title,
 			agentId,
 			sourcePath,
+			sequenceId,
 			undefined,
 			worktreePath
 		);

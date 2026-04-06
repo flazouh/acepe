@@ -530,6 +530,12 @@ const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
 });
 
+const sequenceId = $derived(
+	sessionMetadata
+		? (sessionMetadata.sequenceId ?? null)
+		: null
+);
+
 // Session menu: display title (cleaned, with fallback) and stats for header dropdown
 function capitalizeTitle(text: string): string {
 	return text
@@ -1501,6 +1507,7 @@ function handleCheckpointRevertComplete() {
 			{agentName}
 			{isFullscreen}
 			{hideProjectBadge}
+			{sequenceId}
 			sessionStatus={mappedSessionStatus}
 			projectName={displayProjectName}
 			{projectColor}
@@ -1709,7 +1716,7 @@ function handleCheckpointRevertComplete() {
 									</div>
 								</div>
 							{/if}
-							{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
+							{#if effectivePathForGit && (createdPr || hasStreamingPreviewContent(streamingShipData))}
 								<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 									<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
 										{#key prCardRenderKey}

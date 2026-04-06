@@ -5,7 +5,7 @@
 #[cfg(test)]
 mod session_metadata_tests {
     use crate::db::repository::SessionMetadataRepository;
-    use sea_orm::{Database, DbConn};
+    use sea_orm::{ConnectionTrait, Database, DbConn, Statement};
     use sea_orm_migration::MigratorTrait;
     use tempfile::tempdir;
 
@@ -1054,6 +1054,148 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_ensure_exists_assigns_sequence_id_for_new_acepe_created_session() {
+        let db = setup_test_db().await;
+
+        let created = SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-seq-1",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(created);
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-seq-1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.sequence_id, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_ensure_exists_assigns_incrementing_sequence_ids_per_project() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-seq-1",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .unwrap();
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-seq-2",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .unwrap();
+
+        let first = SessionMetadataRepository::get_by_id(&db, "session-seq-1")
+            .await
+            .unwrap()
+            .unwrap();
+        let second = SessionMetadataRepository::get_by_id(&db, "session-seq-2")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(first.sequence_id, Some(1));
+        assert_eq!(second.sequence_id, Some(2));
+    }
+
+    #[tokio::test]
+    async fn test_scanned_session_does_not_receive_sequence_id_until_acepe_adopts_it() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "scanned-session".to_string(),
+            "Scanned Session".to_string(),
+            1704067200000,
+            "/project".to_string(),
+            "claude-code".to_string(),
+            "/project/scanned-session.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let scanned = SessionMetadataRepository::get_by_id(&db, "scanned-session")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(scanned.sequence_id, None);
+
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            "scanned-session",
+            "/project/.worktrees/feature-a",
+            Some("/project"),
+            Some("claude-code"),
+        )
+        .await
+        .unwrap();
+        SessionMetadataRepository::mark_as_acepe_managed(&db, "scanned-session")
+            .await
+            .unwrap();
+
+        let adopted = SessionMetadataRepository::get_by_id(&db, "scanned-session")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(adopted.sequence_id, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_legacy_worktree_placeholder_can_be_promoted_without_losing_sequence_id() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-placeholder",
+            "/project",
+            "claude-code",
+            Some("/project/.worktrees/feature-a"),
+        )
+        .await
+        .unwrap();
+
+        db.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            "UPDATE session_metadata SET file_path = '__worktree__/legacy-session', sequence_id = 1 WHERE id = 'session-placeholder'".to_string(),
+        ))
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-placeholder",
+            "/project",
+            "claude-code",
+            Some("/project/.worktrees/feature-a"),
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-placeholder")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.sequence_id, Some(1));
+        assert!(session.is_acepe_managed);
+    }
+
+    #[tokio::test]
     async fn test_ensure_exists_preserves_existing_session_metadata() {
         let db = setup_test_db().await;
 
@@ -1081,6 +1223,7 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
+        // Session already existed via upsert, so ensure_exists should NOT create a new row
         assert!(!created);
 
         let session = SessionMetadataRepository::get_by_id(&db, "session-existing")
