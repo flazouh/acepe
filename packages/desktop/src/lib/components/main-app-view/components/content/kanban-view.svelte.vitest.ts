@@ -213,4 +213,14 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("lastToolKind: null,");
 		expect(source).not.toContain("showHistoricalActivity");
 	});
+
+	it("hides the unseen-completion dot for needs-review cards", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
+
+		const source = readFileSync(kanbanViewPath, "utf8");
+
+		expect(source).toContain('const hasUnseenCompletion = item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;');
+		expect(source).toContain("hasUnseenCompletion,");
+	});
 });

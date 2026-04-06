@@ -414,6 +414,7 @@
 				status,
 			};
 		})();
+		const hasUnseenCompletion = item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;
 
 		return {
 			id: item.sessionId,
@@ -434,7 +435,7 @@
 				: null,
 			taskCard,
 			latestTool,
-			hasUnseenCompletion: item.state.attention.hasUnseenCompletion,
+			hasUnseenCompletion,
 			sequenceId: item.sequenceId,
 		};
 	}
