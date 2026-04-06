@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { cn } from "../../lib/utils.js";
-
-	type AgentIconsRowTheme = "light" | "dark";
+	import type { AgentIconsRowTheme } from "./types.js";
 
 	interface AgentIcon {
 		readonly id: string;

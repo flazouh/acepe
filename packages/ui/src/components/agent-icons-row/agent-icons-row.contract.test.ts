@@ -11,7 +11,7 @@ const componentSource = readFileSync(componentPath, "utf8");
 const packageIndexSource = readFileSync(packageIndexPath, "utf8");
 const rootIndexSource = readFileSync(rootIndexPath, "utf8");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-	readonly exports: Record<string, { readonly default: string; readonly svelte: string } | string>;
+	readonly exports?: Record<string, { readonly default: string; readonly svelte: string } | string>;
 	readonly scripts?: Record<string, string>;
 };
 
@@ -32,11 +32,12 @@ describe("agent icons row contract", () => {
 		expect(packageIndexSource).toContain(
 			'export { default as AgentIconsRow } from "./agent-icons-row.svelte";'
 		);
-		expect(packageIndexSource).toContain('export type AgentIconsRowTheme = "light" | "dark";');
+		expect(packageIndexSource).toContain('export type { AgentIconsRowTheme } from "./types.js";');
 		expect(rootIndexSource).toContain(
 			'export { AgentIconsRow, type AgentIconsRowTheme } from "./components/agent-icons-row/index.js";'
 		);
-		expect(packageJson.exports["./agent-icons-row"]).toEqual({
+		const agentIconsRowExport = packageJson.exports?.["./agent-icons-row"];
+		expect(agentIconsRowExport).toEqual({
 			svelte: "./src/components/agent-icons-row/index.ts",
 			default: "./src/components/agent-icons-row/index.ts",
 		});
