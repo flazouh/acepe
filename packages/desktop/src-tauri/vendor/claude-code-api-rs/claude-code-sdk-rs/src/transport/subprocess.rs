@@ -1334,7 +1334,9 @@ fn apply_process_user_inner(_cmd: &mut Command, _user: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CanUseTool, PermissionResult, PermissionResultAllow, ToolPermissionContext};
+    use crate::types::{
+        CanUseTool, PermissionResult, PermissionResultAllow, ToolPermissionContext,
+    };
     use std::sync::Arc;
 
     struct AllowAllTools;

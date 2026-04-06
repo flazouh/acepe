@@ -13,11 +13,10 @@ describe("update available page structure", () => {
 	});
 
 	it("keeps the update card layout compact", () => {
-		expect(source).toContain('max-w-2xl');
-		expect(source).toContain('px-5 py-8');
+		expect(source).toContain('max-w-sm');
+		expect(source).toContain('px-5 py-4');
 		expect(source).toContain('rounded-xl');
-		expect(source).toContain('gap-3 p-5 pb-4');
-		expect(source).toContain('gap-3.5');
+		expect(source).toContain('gap-2 p-4 pb-3');
 		expect(source).not.toContain('max-w-3xl');
 		expect(source).not.toContain('px-6 py-12');
 		expect(source).not.toContain('rounded-2xl');
@@ -32,8 +31,8 @@ describe("update available page structure", () => {
 		expect(source).not.toContain("{#if downloadPercent !== null && downloadPercent >= 100}");
 	});
 
-	it("uses the tracked dark logo asset on the splash background", () => {
-		expect(source).toContain('import splashLogo from "../../../../../../assets/logo-dark.svg?url";');
+	it("uses the tracked logo asset on the splash background", () => {
+		expect(source).toContain('import splashLogo from "../../../../../../assets/logo.svg?url";');
 		expect(source).toContain("<img src={splashLogo}");
 		expect(source).not.toContain('import Logo from "$lib/components/logo.svelte"');
 		expect(source).not.toContain("<Logo");

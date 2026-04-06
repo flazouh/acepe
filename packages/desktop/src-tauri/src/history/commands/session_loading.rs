@@ -130,22 +130,24 @@ pub async fn get_unified_session(
                             crate::session_converter::convert_cursor_full_session_to_entries(&fs);
                         Some(converted)
                     }
-                    Ok(None) => match crate::cursor_history::parser::find_session_by_id(&session_id).await {
-                        Ok(Some(fs)) => {
-                            let converted =
+                    Ok(None) => {
+                        match crate::cursor_history::parser::find_session_by_id(&session_id).await {
+                            Ok(Some(fs)) => {
+                                let converted =
                                 crate::session_converter::convert_cursor_full_session_to_entries(&fs);
-                            Some(converted)
+                                Some(converted)
+                            }
+                            Ok(None) => None,
+                            Err(e) => {
+                                tracing::warn!(
+                                    session_id = %session_id,
+                                    error = %e,
+                                    "Cursor session lookup failed"
+                                );
+                                None
+                            }
                         }
-                        Ok(None) => None,
-                        Err(e) => {
-                            tracing::warn!(
-                                session_id = %session_id,
-                                error = %e,
-                                "Cursor session lookup failed"
-                            );
-                            None
-                        }
-                    },
+                    }
                     Err(e) => {
                         tracing::warn!(
                             session_id = %session_id,
@@ -383,7 +385,8 @@ mod tests {
             sequence_id: Some(1),
         };
 
-        let converted = apply_session_title_metadata(make_session("Original Transcript Title"), Some(&row));
+        let converted =
+            apply_session_title_metadata(make_session("Original Transcript Title"), Some(&row));
 
         assert_eq!(converted.title, "Autonomous Mode");
     }

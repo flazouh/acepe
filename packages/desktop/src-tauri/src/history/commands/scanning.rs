@@ -75,7 +75,12 @@ async fn derive_indexed_session_title(
         )
         .await
         {
-            return resolve_indexed_session_title(session_id, display, title_overridden, Some(&session));
+            return resolve_indexed_session_title(
+                session_id,
+                display,
+                title_overridden,
+                Some(&session),
+            );
         }
     }
 
@@ -350,7 +355,9 @@ async fn scan_project_sessions_inner(
 
 #[cfg(test)]
 mod tests {
-    use super::{derive_title_from_converted_session, indexed_source_path, resolve_indexed_session_title};
+    use super::{
+        derive_title_from_converted_session, indexed_source_path, resolve_indexed_session_title,
+    };
     use crate::db::repository::SessionMetadataRow;
     use crate::session_jsonl::types::{
         ConvertedSession, SessionStats, StoredContentBlock, StoredEntry, StoredUserMessage,
@@ -418,7 +425,12 @@ mod tests {
         let converted = make_session("Original transcript title", "Original transcript title");
 
         assert_eq!(
-            resolve_indexed_session_title(&row.id, &row.display, row.title_overridden, Some(&converted)),
+            resolve_indexed_session_title(
+                &row.id,
+                &row.display,
+                row.title_overridden,
+                Some(&converted)
+            ),
             "Design changes"
         );
     }

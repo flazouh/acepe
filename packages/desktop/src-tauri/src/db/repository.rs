@@ -645,7 +645,9 @@ fn compose_session_metadata_row(
     model: session_metadata::Model,
     state: Option<&acepe_session_state::Model>,
 ) -> SessionMetadataRow {
-    let title_overridden = state.and_then(|state| state.title_override.as_ref()).is_some();
+    let title_overridden = state
+        .and_then(|state| state.title_override.as_ref())
+        .is_some();
     let display = state
         .and_then(|state| state.title_override.clone())
         .unwrap_or_else(|| model.display.clone());
@@ -1209,7 +1211,8 @@ impl SessionMetadataRepository {
             active.updated_at = Set(now);
             let state_project_path = active.project_path.as_ref().clone();
             active.update(db).await?;
-            if let Some(existing_state) = AcepeSessionState::find_by_id(&session_id).one(db).await? {
+            if let Some(existing_state) = AcepeSessionState::find_by_id(&session_id).one(db).await?
+            {
                 let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                 state_active.project_path = Set(state_project_path);
                 state_active.updated_at = Set(now);
@@ -1335,7 +1338,9 @@ impl SessionMetadataRepository {
                 active.updated_at = Set(now);
                 let state_project_path = active.project_path.as_ref().clone();
                 active.update(&txn).await?;
-                if let Some(existing_state) = AcepeSessionState::find_by_id(&session_id).one(&txn).await? {
+                if let Some(existing_state) =
+                    AcepeSessionState::find_by_id(&session_id).one(&txn).await?
+                {
                     let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                     state_active.project_path = Set(state_project_path);
                     state_active.updated_at = Set(now);

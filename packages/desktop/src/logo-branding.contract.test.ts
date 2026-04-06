@@ -98,9 +98,11 @@ describe("desktop logo branding", () => {
 		expect(sidebarSource).not.toContain("Acepe Logo - L4-V2");
 		expect(assetSource).toContain('viewBox="0 0 140 140"');
 		expect(assetSource).toContain('rx="26"');
-		expect(assetSource).toContain("pattern0_62_9");
+		expect(assetSource).toContain("mark-mask");
+		expect(assetSource).toContain("bgGrad");
+		expect(assetSource).toContain("#99FFE4");
+		expect(assetSource).toContain("#FFC799");
 		expect(assetSource).not.toContain('rx="28"');
-		expect(assetSource).not.toContain("pattern0_52_7");
 		expect(assetSource).not.toContain("Three bars");
 	});
 
@@ -284,7 +286,7 @@ describe("desktop logo branding", () => {
 			? readFileSync(welcomeScreenPath, "utf8")
 			: "";
 
-		expect(updatePageSource).toContain("logo-dark.svg");
+		expect(updatePageSource).toContain("logo.svg");
 
 		if (translationSource) {
 			expect(translationSource).toContain("logo");

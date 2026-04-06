@@ -429,7 +429,7 @@ const features = [
 				<img
 					src="/images/landing/acepe-background.webp"
 					alt=""
-					class="absolute inset-0 h-full w-full object-cover grayscale"
+					class="absolute inset-0 h-full w-full object-cover grayscale rounded-xl"
 				/>
 				<div class="relative p-4 md:p-6">
 					<img

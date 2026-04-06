@@ -14,9 +14,10 @@
     "windows": [
       {
         "title": "Acepe",
-        "width": 1512,
-        "height": 982,
-        "maximized": true,
+        "width": 720,
+        "height": 480,
+        "maximized": false,
+        "center": true,
         "decorations": true,
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",

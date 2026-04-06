@@ -1,4 +1,5 @@
 <script lang="ts">
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
@@ -500,6 +501,10 @@ async function handleOpenFolder() {
 	);
 }
 
+function maximizeWindow(): void {
+	getCurrentWindow().maximize();
+}
+
 // Update state (for forced auto-updates) - now safe to use $state since we renamed 'state' to 'viewState'
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
@@ -803,6 +808,11 @@ onMount(async () => {
 		viewState.initializationError = initResult.error;
 	}
 
+	// Maximize window if neither onboarding nor blocking update is active
+	if (viewState.showSplash !== true && !blockAppForUpdate) {
+		maximizeWindow();
+	}
+
 	// Register global keyboard handler for CMD+F
 	window.addEventListener("keydown", handleGlobalKeydown);
 });
@@ -859,6 +869,7 @@ function handleOnboardingDismiss() {
 		}
 	});
 	viewState.dismissSplash();
+	maximizeWindow();
 }
 
 // CMD+F fullscreen toggle handler

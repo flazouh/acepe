@@ -92,7 +92,7 @@ const segments = $derived(buildVoiceDownloadSegments(percent, segmentCount));
 	}
 
 	.voice-download-segment.filled {
-		background: #f9c396;
+		background: #FFC799;
 		opacity: 1;
 	}
 

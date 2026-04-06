@@ -19,7 +19,7 @@
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Spinner } from "$lib/components/ui/spinner/index.js";
 	import * as m from "$lib/paraglide/messages.js";
-	import splashLogo from "../../../../../../assets/logo-dark.svg?url";
+	import splashLogo from "../../../../../../assets/logo.svg?url";
 
 	const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 
@@ -90,10 +90,10 @@
 			{
 				u_colorBack: getShaderColorFromString("#1a1a1a"),
 				u_colors: [
-					getShaderColorFromString("#F77E2C"),
-					getShaderColorFromString("#ff8558"),
-					getShaderColorFromString("#d69d5c"),
-					getShaderColorFromString("#ffb380"),
+					getShaderColorFromString("#99FFE4"),
+					getShaderColorFromString("#FFC799"),
+					getShaderColorFromString("#99FFE4"),
+					getShaderColorFromString("#FFC799"),
 				],
 				u_colorsCount: 4,
 				u_softness: 0.3,
@@ -128,12 +128,12 @@
 
 <!-- Content layer -->
 <div
-	class="relative z-10 flex h-full w-full max-w-2xl flex-col items-center justify-center px-5 py-8"
+	class="relative z-10 mx-auto flex h-full w-full max-w-sm flex-col items-center justify-center px-5 py-4"
 >
 	<!-- Card -->
 	<div class="update-card flex w-full flex-col overflow-hidden rounded-xl bg-background">
 		<!-- Header -->
-		<div class="flex flex-col gap-3 p-5 pb-4">
+		<div class="flex flex-col gap-2 p-4 pb-3">
 			<!-- Logo + version -->
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-2.5">
@@ -149,21 +149,21 @@
 
 			<!-- State content -->
 			{#if updaterState.kind === "checking"}
-				<div class="flex flex-col gap-3">
-					<p class="text-[15px] font-medium text-foreground">{m.update_checking()}</p>
-					<div class="flex items-center gap-2.5">
-						<Spinner class="size-3.5 text-muted-foreground/40" />
-						<span class="text-xs text-muted-foreground/50">{m.update_checking_description()}</span>
+				<div class="flex flex-col gap-1.5">
+					<p class="text-[13px] font-medium text-foreground">{m.update_checking()}</p>
+					<div class="flex items-center gap-2">
+						<Spinner class="size-3 text-muted-foreground/40" />
+						<span class="text-[11px] text-muted-foreground/50">{m.update_checking_description()}</span>
 					</div>
 				</div>
 			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
-				<div class="flex flex-col gap-3.5">
+				<div class="flex flex-col gap-2">
 					<div class="flex items-baseline justify-between">
-						<TextShimmer class="text-[15px] font-medium text-foreground">
+						<TextShimmer class="text-[13px] font-medium text-foreground">
 							{isInstalling ? m.update_installing() : m.update_downloading()}
 						</TextShimmer>
 						{#if downloadPercent !== null}
-							<span class="text-xs tabular-nums text-muted-foreground/50">{downloadPercent}%</span>
+							<span class="text-[11px] tabular-nums text-muted-foreground/50">{downloadPercent}%</span>
 						{/if}
 					</div>
 
@@ -178,7 +178,7 @@
 					/>
 
 					{#if updaterState.kind === "downloading"}
-						<div class="flex items-center justify-between text-xs text-muted-foreground/40">
+						<div class="flex items-center justify-between text-[11px] text-muted-foreground/40">
 							<span class="tabular-nums">
 								{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
 							</span>
@@ -187,23 +187,23 @@
 							{/if}
 						</div>
 					{:else}
-						<div class="flex items-center justify-end text-xs text-muted-foreground/40">
+						<div class="flex items-center justify-end text-[11px] text-muted-foreground/40">
 							<span>{m.update_installing()}</span>
 						</div>
 					{/if}
 				</div>
 			{:else if updaterState.kind === "error"}
-				<div class="flex flex-col gap-3">
-					<p class="text-[15px] font-medium text-foreground">{m.update_error()}</p>
-					<p class="text-xs leading-relaxed text-muted-foreground/50">
+				<div class="flex flex-col gap-1.5">
+					<p class="text-[13px] font-medium text-foreground">{m.update_error()}</p>
+					<p class="text-[11px] leading-relaxed text-muted-foreground/50">
 						{updaterState.message}
 					</p>
-					<div class="mt-1">
+					<div>
 						<Button
 							variant="default"
 							size="sm"
 							onclick={onRetry}
-							class="group gap-1.5 h-7 px-3 text-xs"
+							class="group gap-1.5 h-6 px-2.5 text-[11px]"
 						>
 							{m.update_retry()}
 							<RefreshCw class="size-3 transition-transform duration-200 group-hover:rotate-180" />

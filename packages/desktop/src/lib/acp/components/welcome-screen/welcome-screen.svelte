@@ -229,10 +229,10 @@ async function initShader() {
 			{
 				u_colorBack: getShaderColorFromString("#1a1a1a"),
 				u_colors: [
-					getShaderColorFromString("#F77E2C"),
-					getShaderColorFromString("#ff8558"),
-					getShaderColorFromString("#d69d5c"),
-					getShaderColorFromString("#ffb380"),
+					getShaderColorFromString("#99FFE4"),
+					getShaderColorFromString("#FFC799"),
+					getShaderColorFromString("#99FFE4"),
+					getShaderColorFromString("#FFC799"),
 				],
 				u_colorsCount: 4,
 				u_softness: 0.3,
