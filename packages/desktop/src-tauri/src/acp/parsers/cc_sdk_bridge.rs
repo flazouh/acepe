@@ -482,6 +482,9 @@ fn translate_system_message(
 // Model → context window size mapping
 // ---------------------------------------------------------------------------
 
+const CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE: u64 = 200_000;
+const CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE: u64 = 1_000_000;
+
 /// Returns the context window size (in tokens) for a given Claude model ID.
 ///
 /// Returns `None` for unrecognized model IDs.
@@ -489,22 +492,22 @@ fn context_window_for_model(model_id: &str) -> Option<u64> {
     let normalized = model_id.to_lowercase();
 
     if normalized.contains("claude-opus-4-6") {
-        return Some(1_000_000);
+        return Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE);
     }
 
     // Short alias used by cc-sdk for the current Opus family.
     if normalized == "opus" {
-        return Some(1_000_000);
+        return Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE);
     }
 
     // Other Claude 3.5+ / 4+ models currently exposed here use 200k context windows.
     if normalized.contains("claude") {
-        return Some(200_000);
+        return Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE);
     }
 
     // Short aliases used by cc-sdk
     if normalized == "haiku" || normalized == "sonnet" {
-        return Some(200_000);
+        return Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE);
     }
 
     None
@@ -876,18 +879,24 @@ mod tests {
         // Full model IDs
         assert_eq!(
             context_window_for_model("claude-sonnet-4-5-20250929"),
-            Some(200_000)
+            Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE)
         );
-        assert_eq!(context_window_for_model("claude-opus-4-6"), Some(1_000_000));
+        assert_eq!(
+            context_window_for_model("claude-opus-4-6"),
+            Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE)
+        );
         assert_eq!(
             context_window_for_model("claude-haiku-4-5-20251001"),
-            Some(200_000)
+            Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE)
         );
 
         // Short aliases
-        assert_eq!(context_window_for_model("sonnet"), Some(200_000));
-        assert_eq!(context_window_for_model("opus"), Some(1_000_000));
-        assert_eq!(context_window_for_model("haiku"), Some(200_000));
+        assert_eq!(context_window_for_model("sonnet"), Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE));
+        assert_eq!(
+            context_window_for_model("opus"),
+            Some(CLAUDE_OPUS_4_6_CONTEXT_WINDOW_SIZE)
+        );
+        assert_eq!(context_window_for_model("haiku"), Some(CLAUDE_DEFAULT_CONTEXT_WINDOW_SIZE));
 
         // Unknown model
         assert_eq!(context_window_for_model("gpt-4o"), None);
