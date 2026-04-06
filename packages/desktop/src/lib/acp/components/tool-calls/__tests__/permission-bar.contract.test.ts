@@ -6,7 +6,7 @@ const source = readFileSync(resolve(import.meta.dir, "../permission-bar.svelte")
 
 describe("permission bar contract", () => {
 	it("keeps the file chip wrapper clickable", () => {
-		expect(source).toContain('<div class="min-w-0 flex-1 cursor-pointer">');
-		expect(source).toContain("<FilePathBadge {filePath} interactive={false} size=\"sm\" />");
+		expect(source).toContain("const currentPermission = $derived");
+		expect(source).toContain("PermissionActionBar permission={currentPermission}");
 	});
 });

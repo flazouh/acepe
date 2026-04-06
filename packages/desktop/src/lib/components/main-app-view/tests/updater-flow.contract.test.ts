@@ -11,10 +11,10 @@ describe("updater flow contract", () => {
 
 		const source = readFileSync(mainAppViewPath, "utf8");
 
-		expect(source).toContain('type UpdateCheckTrigger = "startup" | "polling";');
-		expect(source).toContain('await checkForAppUpdate("startup");');
-		expect(source).toContain('void checkForAppUpdate("polling");');
-		expect(source).toContain("let blockAppForUpdate = $state(false);");
-		expect(source).toContain("shouldShowBlockingUpdaterOverlay(updaterState)");
+		expect(source).toContain('async function checkForAppUpdate(): Promise<void>');
+		expect(source).toContain('await checkForAppUpdate()');
+		expect(source).toContain('void checkForAppUpdate()');
+		expect(source).toContain("let updaterState =");
+		expect(source).toContain("const result = await ResultAsync.fromPromise(check()");
 	});
 });

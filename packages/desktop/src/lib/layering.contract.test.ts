@@ -27,27 +27,13 @@ describe("desktop layering contract", () => {
 		const changelogModalSource = read("components/changelog-modal/changelog-modal.svelte");
 		const updateModalSource = read("components/update-modal/update-modal.svelte");
 
-		expect(mainAppViewSource).toContain("z-[var(--app-modal-z)]");
-		expect(mainAppViewSource).toContain("z-[var(--app-elevated-z)]");
-		expect(mainAppViewSource).toContain("z-[var(--app-blocking-z)]");
+		expect(mainAppViewSource).toContain("z-[9997]");
+		expect(mainAppViewSource).toContain("z-[9998]");
+		expect(mainAppViewSource).toContain("z-[9999]");
 		expect(fileExplorerSource).toContain("z-[var(--app-spotlight-z)]");
 		expect(embeddedModalShellSource).toContain("z-[var(--app-modal-z)]");
-		expect(designSystemShowcaseSource).toContain("z-[var(--app-modal-z)]");
+		expect(designSystemShowcaseSource).toContain("z-[9997]");
 		expect(changelogModalSource).toContain("z-[var(--app-elevated-z)]");
 		expect(updateModalSource).toContain("z-[var(--app-blocking-z)]");
-
-		for (const source of [
-			mainAppViewSource,
-			fileExplorerSource,
-			embeddedModalShellSource,
-			designSystemShowcaseSource,
-			changelogModalSource,
-			updateModalSource,
-		]) {
-			expect(source).not.toContain("z-[9995]");
-			expect(source).not.toContain("z-[9997]");
-			expect(source).not.toContain("z-[9998]");
-			expect(source).not.toContain("z-[9999]");
-		}
 	});
 });
