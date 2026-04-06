@@ -81,6 +81,13 @@ export {
 	type ChipShellDensity,
 	type ChipShellSize,
 } from "./components/chip/index.js";
+export type { PaletteItem, PaletteItemMetadata, PaletteMode } from "./components/command-palette/index.js";
+export {
+	CommandPaletteItem,
+	CommandPaletteResults,
+	CommandPaletteShell,
+	CommandPaletteTabs,
+} from "./components/command-palette/index.js";
 export {
 	Close as DialogCloseRaw,
 	Content as DialogContentRaw,

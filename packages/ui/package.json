@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "type": "module",
   "svelte": "./src/index.ts",
+  "scripts": {
+    "check": "bunx svelte-check --tsconfig ./tsconfig.json"
+  },
   "exports": {
     ".": {
       "svelte": "./src/index.ts",
@@ -156,6 +159,10 @@
     "./input-container": {
       "svelte": "./src/components/input-container/index.ts",
       "default": "./src/components/input-container/index.ts"
+    },
+    "./command-palette": {
+      "svelte": "./src/components/command-palette/index.ts",
+      "default": "./src/components/command-palette/index.ts"
     },
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
