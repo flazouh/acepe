@@ -173,6 +173,7 @@ export {
 	PlanIcon,
 	RevertIcon,
 } from "./components/icons/index.js";
+export { AgentIconsRow, type AgentIconsRowTheme } from "./components/agent-icons-row/index.js";
 export {
 	InlineArtefactBadge,
 	buildInlineArtefactIconClassName,

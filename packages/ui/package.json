@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "type": "module",
   "svelte": "./src/index.ts",
+  "scripts": {
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
   "exports": {
     ".": {
       "svelte": "./src/index.ts",
@@ -112,6 +115,10 @@
     "./agent-panel": {
       "svelte": "./src/components/agent-panel/index.ts",
       "default": "./src/components/agent-panel/index.ts"
+    },
+    "./agent-icons-row": {
+      "svelte": "./src/components/agent-icons-row/index.ts",
+      "default": "./src/components/agent-icons-row/index.ts"
     },
     "./app-layout": {
       "svelte": "./src/components/app-layout/index.ts",
