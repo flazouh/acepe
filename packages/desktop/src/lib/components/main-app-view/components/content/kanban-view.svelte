@@ -109,6 +109,7 @@
 	});
 
 	const KANBAN_NEW_SESSION_PANEL_ID = "kanban-new-session-dialog";
+	type KanbanThreadDialogMode = "inspect" | "close-panel";
 
 	let newSessionOpen = $state(false);
 	let newSessionDialogRef = $state<HTMLElement | null>(null);
@@ -117,6 +118,7 @@
 	let activeWorktreePath = $state<string | null>(null);
 	let worktreePending = $state(false);
 	let activeDialogPanelId = $state<string | null>(null);
+	let activeDialogMode = $state<KanbanThreadDialogMode>("inspect");
 	let questionIndexBySession = $state(new SvelteMap<string, { questionId: string; currentQuestionIndex: number }>());
 
 	const globalWorktreeDefault = $derived(worktreeDefaultStore.globalDefault);
@@ -471,15 +473,23 @@
 		}
 		panelStore.movePanelToFront(item.panelId);
 		panelStore.focusPanel(item.panelId);
+		activeDialogMode = "inspect";
 		activeDialogPanelId = item.panelId;
 	}
 
 	function handleCloseSession(item: ThreadBoardItem): void {
-		if (activeDialogPanelId === item.panelId) {
-			activeDialogPanelId = null;
-		}
+		activeDialogMode = "close-panel";
+		activeDialogPanelId = item.panelId;
+	}
 
-		panelStore.closePanel(item.panelId);
+	function handleDialogDismiss(): void {
+		activeDialogPanelId = null;
+		activeDialogMode = "inspect";
+	}
+
+	function handleDialogClosePanel(panelId: string): void {
+		handleDialogDismiss();
+		panelStore.closePanel(panelId);
 	}
 
 	async function handleOpenInFinder(item: ThreadBoardItem): Promise<void> {
@@ -1072,8 +1082,10 @@
 
 	<KanbanThreadDialog
 		panelId={activeDialogPanelId}
+		mode={activeDialogMode}
 		{projectManager}
-		state={appState}
-		onClose={() => (activeDialogPanelId = null)}
+		mainAppState={appState}
+		onDismiss={handleDialogDismiss}
+		onClosePanel={handleDialogClosePanel}
 	/>
 </div>

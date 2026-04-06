@@ -16,6 +16,7 @@ export { removeWorktreeAndMarkSessionWorktreeDeleted } from "./worktree-removal"
 export {
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,
+	shouldConfirmWorktreeClose,
 } from "./worktree-close-confirmation";
 export {
 	createWorktreeSetupMatchContext,

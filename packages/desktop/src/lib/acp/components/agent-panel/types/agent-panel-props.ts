@@ -85,6 +85,12 @@ export interface AgentPanelProps {
 	readonly onClose?: () => void;
 
 	/**
+	 * When true, the panel close button dismisses its host without asking to keep or remove the worktree.
+	 * Used by the Kanban dialog, which should only show the worktree confirmation on explicit card close.
+	 */
+	readonly bypassWorktreeCloseConfirmation?: boolean;
+
+	/**
 	 * Callback when a project is selected for creating a new session.
 	 */
 	readonly onCreateSessionForProject?: (project: Project) => void;

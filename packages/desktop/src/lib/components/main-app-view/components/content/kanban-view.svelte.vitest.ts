@@ -138,7 +138,11 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain('import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js"');
 		expect(source).toContain('import IconDotsVertical from "@tabler/icons-svelte/icons/dots-vertical"');
 		expect(source).toContain("function handleCloseSession(item: ThreadBoardItem)");
-		expect(source).toContain("panelStore.closePanel(item.panelId);");
+		expect(source).toContain('let activeDialogMode = $state<KanbanThreadDialogMode>("inspect");');
+		expect(source).toContain('activeDialogMode = "inspect";');
+		expect(source).toContain('activeDialogMode = "close-panel";');
+		expect(source).toContain("function handleDialogClosePanel(panelId: string): void {");
+		expect(source).toContain("panelStore.closePanel(panelId);");
 		expect(source).toContain("{#snippet menu()}");
 		expect(source).not.toContain('import { OverflowMenuTriggerAction } from "@acepe/ui/panel-header"');
 		expect(source).toContain('<DropdownMenu.Trigger');
@@ -152,6 +156,8 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("{m.thread_open_in_finder()}");
 		expect(source).toContain("{m.session_menu_export()}");
 		expect(source).not.toContain("{m.common_close()}");
+		expect(source).toContain("mode={activeDialogMode}");
+		expect(source).toContain("onClosePanel={handleDialogClosePanel}");
 	});
 
 	it("avoids dead desktop-only imports that break Vite resolution", () => {
