@@ -419,6 +419,7 @@
 			agentIconSrc: getAgentIcon(item.agentId, themeState.effectiveTheme),
 			agentLabel: item.agentId,
 			projectName: item.projectName,
+			projectPath: item.projectPath,
 			projectColor: item.projectColor,
 			timeAgo: timeAgo ? timeAgo : "",
 			activityText,

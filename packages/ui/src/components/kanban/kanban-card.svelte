@@ -57,10 +57,20 @@ import type { KanbanCardData } from "./types.js";
 	const hasMenu = $derived(menu !== undefined);
 	const hasClose = $derived(Boolean(onClose));
 	const headerDiffDivider = $derived(hasMenu ? true : hasClose);
+	const projectBadgeSource = $derived.by(() => {
+		const trimmedName = card.projectName.trim();
+		if (trimmedName !== "") {
+			return trimmedName;
+		}
+
+		const pathSegments = card.projectPath.split("/").filter((segment) => segment !== "");
+		const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : "";
+		return lastSegment !== "" ? lastSegment : "?";
+	});
 	const projectBadgeLabel = $derived(
 		card.sequenceId !== null
-			? `${card.projectName.charAt(0).toUpperCase()} #${card.sequenceId}`
-			: card.projectName.charAt(0).toUpperCase()
+			? `${projectBadgeSource.charAt(0).toUpperCase()} #${card.sequenceId}`
+			: projectBadgeSource.charAt(0).toUpperCase()
 	);
 
 	function handleKeydown(event: KeyboardEvent): void {
