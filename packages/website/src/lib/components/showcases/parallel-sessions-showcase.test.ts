@@ -11,7 +11,7 @@ describe('ParallelSessionsShowcase', () => {
 
 		expect(source).toContain('<AppTabBar');
 		expect(source).toContain('<ProjectCard');
-		expect(source.match(/<AgentPanelLayout/gm)).toHaveLength(2);
+		expect(source.match(/<AgentPanelLayout/g)).toHaveLength(2);
 		expect(source).not.toContain('SESSION 1');
 		expect(source).not.toContain('SESSION 2');
 		expect(source).not.toContain('h-1.5 w-full rounded-full');
