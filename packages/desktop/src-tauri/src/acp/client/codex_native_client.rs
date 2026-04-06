@@ -16,6 +16,7 @@ use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::write_serialized_line;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::provider::AgentProvider;
+use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::types::{ContentBlock, EmbeddedResource, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 use async_trait::async_trait;
@@ -280,7 +281,10 @@ impl AgentClient for CodexNativeClient {
                                     continue;
                                 };
 
+                                log_streaming_event(&session_id, &message);
+
                                 for update in translate_codex_native_server_message(&session_id, &message) {
+                                    log_emitted_event(&session_id, &update);
                                     dispatcher.enqueue(AcpUiEvent::session_update(update));
                                 }
                             }
