@@ -498,30 +498,30 @@ async fn persist_session_metadata_for_multiple_worktree_sessions_uses_unique_cre
 
 #[tokio::test]
 async fn persist_session_metadata_for_cwd_assigns_sequence_id_immediately_for_worktree_sessions() {
-	let db = setup_test_db().await;
-	let temp = tempdir().expect("temp dir");
-	let repo_path = temp.path().join("repo");
-	let worktree_path = temp.path().join("worktrees").join("feature-a");
-	let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let repo_path = temp.path().join("repo");
+    let worktree_path = temp.path().join("worktrees").join("feature-a");
+    let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
 
-	std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
-	std::fs::create_dir_all(&worktree_path).expect("create worktree");
-	std::fs::write(
-		worktree_path.join(".git"),
-		format!("gitdir: {}\n", gitdir_path.display()),
-	)
-	.expect("write .git file");
+    std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
+    std::fs::create_dir_all(&worktree_path).expect("create worktree");
+    std::fs::write(
+        worktree_path.join(".git"),
+        format!("gitdir: {}\n", gitdir_path.display()),
+    )
+    .expect("write .git file");
 
-	let sequence_id = persist_session_metadata_for_cwd(
-		&db,
-		"session-worktree-seq",
-		&CanonicalAgentId::ClaudeCode,
-		&worktree_path,
-	)
-	.await
-	.expect("persist startup metadata");
+    let sequence_id = persist_session_metadata_for_cwd(
+        &db,
+        "session-worktree-seq",
+        &CanonicalAgentId::ClaudeCode,
+        &worktree_path,
+    )
+    .await
+    .expect("persist startup metadata");
 
-	assert_eq!(sequence_id, Some(1));
+    assert_eq!(sequence_id, Some(1));
 }
 
 #[tokio::test]

@@ -62,7 +62,11 @@ pub struct HistoryEntry {
     pub session_lifecycle_state: Option<SessionLifecycleState>,
 
     /// Per-project sequence ID for Acepe-native sessions (None for scanned sessions).
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "sequenceId")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "sequenceId"
+    )]
     pub sequence_id: Option<i32>,
 }
 

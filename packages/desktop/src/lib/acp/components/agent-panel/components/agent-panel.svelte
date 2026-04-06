@@ -532,7 +532,7 @@ const displayProjectName = $derived.by(() => {
 
 const sequenceId = $derived(
 	sessionMetadata
-		? (sessionMetadata.sequenceId !== undefined ? sessionMetadata.sequenceId : null)
+		? (sessionMetadata.sequenceId ?? null)
 		: null
 );
 

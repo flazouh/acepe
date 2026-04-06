@@ -9,7 +9,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  * This enum represents all valid agent types in the system.
  * Parsers set the enum directly based on their context (no normalization needed).
  */
-export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | 
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | 
 /**
  * Custom agent registered by user
  */

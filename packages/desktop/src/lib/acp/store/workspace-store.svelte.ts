@@ -242,6 +242,7 @@ export function serializeWorkspacePanels(
 				sourcePath: panel.sourcePath ? panel.sourcePath : undefined,
 				worktreePath: panel.worktreePath ? panel.worktreePath : undefined,
 				sessionTitle: panel.sessionTitle ?? undefined,
+				sequenceId: panel.sequenceId ?? undefined,
 			};
 			return persisted;
 		}
@@ -331,6 +332,7 @@ export function hydratePersistedWorkspacePanels(
 				sourcePath: panel.sourcePath ? panel.sourcePath : null,
 				worktreePath: panel.worktreePath ? panel.worktreePath : null,
 				sessionTitle: panel.sessionTitle ? panel.sessionTitle : null,
+				sequenceId: panel.sequenceId ?? null,
 			};
 			return hydrated;
 		}
@@ -512,6 +514,7 @@ export class WorkspaceStore {
 						embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
 						selectedEmbeddedTerminalTabId:
 							this.panelStore.embeddedTerminals.getSelectedTabId(p.id) || undefined,
+						sequenceId: sessionMetadata?.sequenceId ?? undefined,
 					};
 				}),
 				filePanels: serializeFilePanels(this.panelStore.filePanels),
@@ -699,6 +702,7 @@ export class WorkspaceStore {
 				sourcePath: p.sourcePath ?? null,
 				worktreePath: p.worktreePath ?? null,
 				sessionTitle: p.sessionTitle ?? null,
+				sequenceId: p.sequenceId ?? null,
 			};
 		});
 

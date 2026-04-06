@@ -53,3 +53,4 @@ export type ConfigOptionData = { id: string; name: string; category: string; typ
 export type NewSessionResponse = { sessionId: string; sequenceId?: number | null; models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 
 export type ResumeSessionResponse = { models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
+

@@ -103,48 +103,19 @@ pub(crate) async fn persist_session_metadata_for_cwd(
 ) -> Result<Option<i32>, SerializableAcpError> {
     let (project_path, worktree_path) = session_metadata_context_from_cwd(cwd);
 
-    if let Some(worktree_path) = worktree_path {
-        SessionMetadataRepository::ensure_exists(
-            db,
-            session_id,
-            &project_path,
-            agent_id.as_str(),
-            Some(&worktree_path),
-        )
-        .await
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!(
-                "Failed to persist session metadata for worktree session {session_id}: {error}"
-            ),
-        })?;
-        let row = SessionMetadataRepository::get_by_id(db, session_id)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!("Failed to reload session metadata for session {session_id}: {error}"),
-            })?;
-        return Ok(row.and_then(|loaded| loaded.sequence_id));
-    } else {
-        SessionMetadataRepository::ensure_exists(
-            db,
-            session_id,
-            &project_path,
-            agent_id.as_str(),
-            None,
-        )
-        .await
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!(
-                "Failed to persist session metadata for session {session_id}: {error}"
-            ),
-        })?;
-    }
+    let sequence_id = SessionMetadataRepository::ensure_exists_and_promote(
+        db,
+        session_id,
+        &project_path,
+        agent_id.as_str(),
+        worktree_path.as_deref(),
+    )
+    .await
+    .map_err(|error| SerializableAcpError::InvalidState {
+        message: format!("Failed to persist session metadata for session {session_id}: {error}"),
+    })?;
 
-    let row = SessionMetadataRepository::get_by_id(db, session_id)
-        .await
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!("Failed to reload session metadata for session {session_id}: {error}"),
-        })?;
-    Ok(row.and_then(|loaded| loaded.sequence_id))
+    Ok(sequence_id)
 }
 
 /// Initialize the ACP connection.
@@ -257,7 +228,10 @@ pub async fn acp_new_session(
         persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
             .await?;
 
-    Ok(NewSessionResponse { sequence_id, ..result })
+    Ok(NewSessionResponse {
+        sequence_id,
+        ..result
+    })
 }
 
 /// Resume an existing ACP session.
@@ -442,7 +416,10 @@ pub async fn acp_fork_session(
     let sequence_id =
         persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
             .await?;
-    Ok(NewSessionResponse { sequence_id, ..result })
+    Ok(NewSessionResponse {
+        sequence_id,
+        ..result
+    })
 }
 
 /// Close a session and clean up its client

@@ -34,7 +34,6 @@ cargo clippy       # Rust lint (in src-tauri/)
 - ALL new UI components must be dumb/presentational and live in `packages/ui`. Keep Tauri, store, runtime, and app-specific orchestration out of those components so they can be exported from `@acepe/ui` and reused by both `packages/desktop` and `packages/website`.
 - NEVER use `$effect` in Svelte 5 components. Effects create causal loops when they read and write connected state. Use `$derived` for computed values and event handlers for actions. If an effect is unavoidable, guard writes with comparison.
 - NEVER use spread syntax (`...obj`). Explicitly enumerate properties so data flow stays obvious and TypeScript can track provenance.
-- NEVER use `??` or `||` for defaults. Use explicit ternaries so fallback behavior is unambiguous.
 
 ## Required Workflow
 

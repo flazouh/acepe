@@ -662,8 +662,20 @@ impl SessionMetadataRepository {
     }
 
     fn is_acepe_managed_file_path(file_path: &str) -> bool {
-        file_path.starts_with("__session_registry__/")
-            && !file_path["__session_registry__/".len()..].contains('/')
+        let is_registry = file_path.starts_with("__session_registry__/")
+            && !file_path["__session_registry__/".len()..].contains('/');
+        let is_worktree = file_path.starts_with("__worktree__/");
+        is_registry || is_worktree
+    }
+
+    /// Detects whether a DB error is a unique constraint violation on the
+    /// (project_path, sequence_id) pair. Uses string matching because sea_orm
+    /// wraps SQLite errors without exposing raw error codes. We check both
+    /// the index name and the column-level constraint message for resilience.
+    fn is_sequence_constraint_violation(error: &sea_orm::DbErr) -> bool {
+        let message = error.to_string();
+        message.contains("idx_session_metadata_project_sequence_managed")
+            || message.contains("UNIQUE constraint failed") && message.contains("sequence_id")
     }
 
     fn merged_acepe_managed_flag(existing_managed: i32, file_path: &str) -> i32 {
@@ -674,7 +686,10 @@ impl SessionMetadataRepository {
         }
     }
 
-    async fn next_sequence_id_for_project(db: &impl sea_orm::ConnectionTrait, project_path: &str) -> Result<i32> {
+    async fn next_sequence_id_for_project(
+        db: &impl sea_orm::ConnectionTrait,
+        project_path: &str,
+    ) -> Result<i32> {
         let max_seq: Option<i32> = SessionMetadata::find()
             .select_only()
             .column_as(session_metadata::Column::SequenceId.max(), "max_seq")
@@ -828,10 +843,7 @@ impl SessionMetadataRepository {
                     return Ok(next_sequence_id);
                 }
                 Err(error) => {
-                    let message = error.to_string();
-                    if message.contains("idx_session_metadata_project_sequence")
-                        || message.contains("session_metadata.project_path, session_metadata.sequence_id")
-                    {
+                    if Self::is_sequence_constraint_violation(&error) {
                         continue;
                     }
                     return Err(error.into());
@@ -845,9 +857,9 @@ impl SessionMetadataRepository {
     async fn mark_session_as_acepe_managed(
         db: &DbConn,
         existing_model: session_metadata::Model,
-    ) -> Result<bool> {
+    ) -> Result<Option<i32>> {
         if existing_model.is_acepe_managed != 0 {
-            return Ok(false);
+            return Ok(existing_model.sequence_id);
         }
 
         for _attempt in 0..5 {
@@ -859,7 +871,7 @@ impl SessionMetadataRepository {
 
             if latest_model.is_acepe_managed != 0 {
                 txn.rollback().await?;
-                return Ok(false);
+                return Ok(latest_model.sequence_id);
             }
 
             let next_sequence_id =
@@ -872,13 +884,10 @@ impl SessionMetadataRepository {
             match active.update(&txn).await {
                 Ok(_) => {
                     txn.commit().await?;
-                    return Ok(true);
+                    return Ok(Some(next_sequence_id));
                 }
                 Err(error) => {
-                    let message = error.to_string();
-                    if message.contains("idx_session_metadata_project_sequence_managed")
-                        || message.contains("session_metadata.project_path, session_metadata.sequence_id")
-                    {
+                    if Self::is_sequence_constraint_violation(&error) {
                         continue;
                     }
                     return Err(error.into());
@@ -889,10 +898,10 @@ impl SessionMetadataRepository {
         anyhow::bail!("Failed to allocate a unique sequence_id after retries")
     }
 
-    pub async fn mark_as_acepe_managed(db: &DbConn, session_id: &str) -> Result<bool> {
+    pub async fn mark_as_acepe_managed(db: &DbConn, session_id: &str) -> Result<Option<i32>> {
         let model = SessionMetadata::find_by_id(session_id).one(db).await?;
         let Some(existing_model) = model else {
-            return Ok(false);
+            return Ok(None);
         };
 
         Self::mark_session_as_acepe_managed(db, existing_model).await
@@ -1192,7 +1201,8 @@ impl SessionMetadataRepository {
     }
 
     /// Ensure a canonical session row exists so foreign-keyed records can be created safely.
-    /// Returns true when a new created-session row was inserted, false when the row already existed.
+    /// Does NOT promote existing sessions to Acepe-managed state.
+    /// Returns true when a new row was inserted, false when the row already existed.
     pub async fn ensure_exists(
         db: &DbConn,
         session_id: &str,
@@ -1203,12 +1213,35 @@ impl SessionMetadataRepository {
         tracing::debug!(session_id = %session_id, "Ensuring session metadata exists");
 
         let model = SessionMetadata::find_by_id(session_id).one(db).await?;
-        if let Some(existing_model) = model {
-            return Self::mark_session_as_acepe_managed(db, existing_model).await;
+        if model.is_some() {
+            return Ok(false);
         }
 
         Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path).await?;
         Ok(true)
+    }
+
+    /// Ensure a session row exists AND promote it to Acepe-managed with a sequence ID.
+    /// Returns the assigned sequence_id (Some for new or newly-promoted sessions,
+    /// or the existing sequence_id for already-managed sessions).
+    pub async fn ensure_exists_and_promote(
+        db: &DbConn,
+        session_id: &str,
+        project_path: &str,
+        agent_id: &str,
+        worktree_path: Option<&str>,
+    ) -> Result<Option<i32>> {
+        tracing::debug!(session_id = %session_id, "Ensuring session metadata exists and is Acepe-managed");
+
+        let model = SessionMetadata::find_by_id(session_id).one(db).await?;
+        if let Some(existing_model) = model {
+            return Self::mark_session_as_acepe_managed(db, existing_model).await;
+        }
+
+        let seq =
+            Self::insert_created_session(db, session_id, project_path, agent_id, worktree_path)
+                .await?;
+        Ok(Some(seq))
     }
 
     /// Set the worktree path on a session metadata record.

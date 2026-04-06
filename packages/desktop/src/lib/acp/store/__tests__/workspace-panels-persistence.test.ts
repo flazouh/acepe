@@ -21,6 +21,7 @@ describe("workspace panel persistence", () => {
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
+				sequenceId: 5,
 			},
 			{
 				id: "file-1",
@@ -87,6 +88,7 @@ describe("workspace panel persistence", () => {
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
+				sequenceId: 5,
 			},
 			{
 				id: "file-1",
@@ -186,12 +188,14 @@ describe("workspace panel persistence", () => {
 				width: 500,
 				ownerPanelId: null,
 				sessionId: "session-1",
+				autoCreated: undefined,
 				pendingProjectSelection: false,
 				selectedAgentId: "claude-code",
 				agentId: "claude-code",
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
+				sequenceId: null,
 			},
 		]);
 	});

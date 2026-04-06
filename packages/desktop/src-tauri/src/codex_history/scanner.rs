@@ -644,7 +644,7 @@ fn to_history_entry(metadata: &SessionMetadata) -> HistoryEntry {
         pr_number: None,
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
-            sequence_id: None,
+        sequence_id: None,
     }
 }
 
@@ -673,7 +673,7 @@ fn to_history_entry_fast(metadata: &SessionMetadataFast) -> HistoryEntry {
         pr_number: None,
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
-            sequence_id: None,
+        sequence_id: None,
     }
 }
 

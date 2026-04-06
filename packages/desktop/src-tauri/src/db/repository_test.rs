@@ -1146,8 +1146,8 @@ mod session_metadata_tests {
         .await
         .unwrap();
         SessionMetadataRepository::mark_as_acepe_managed(&db, "scanned-session")
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
         let adopted = SessionMetadataRepository::get_by_id(&db, "scanned-session")
             .await
@@ -1223,7 +1223,8 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        assert!(created);
+        // Session already existed via upsert, so ensure_exists should NOT create a new row
+        assert!(!created);
 
         let session = SessionMetadataRepository::get_by_id(&db, "session-existing")
             .await

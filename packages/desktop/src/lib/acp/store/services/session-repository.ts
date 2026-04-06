@@ -261,10 +261,10 @@ export class SessionRepository {
 					sessionLifecycleState: scannedSession.sessionLifecycleState
 						? scannedSession.sessionLifecycleState
 						: existingSession.sessionLifecycleState,
-					parentId: scannedSession.parentId !== undefined ? scannedSession.parentId : existingSession.parentId,
-					worktreePath: scannedSession.worktreePath ? scannedSession.worktreePath : existingSession.worktreePath,
-					prNumber: scannedSession.prNumber !== undefined ? scannedSession.prNumber : existingSession.prNumber,
-					sequenceId: scannedSession.sequenceId !== undefined ? scannedSession.sequenceId : existingSession.sequenceId,
+					parentId: scannedSession.parentId ?? existingSession.parentId,
+					worktreePath: scannedSession.worktreePath ?? existingSession.worktreePath,
+					prNumber: scannedSession.prNumber ?? existingSession.prNumber,
+					sequenceId: scannedSession.sequenceId ?? existingSession.sequenceId,
 				});
 
 				existingSessionsMap.delete(scannedSession.id);
@@ -608,8 +608,8 @@ export class SessionRepository {
 					// (earlyPreloadPanelSessions doesn't have worktreePath in panel state).
 					// Preserve any existing value; fall back to what the scan found.
 					// Matches the pattern in refreshSessionsFromScan (line 194).
-					worktreePath: existingSession.worktreePath ? existingSession.worktreePath : historySession.worktreePath,
-					sequenceId: existingSession.sequenceId !== undefined ? existingSession.sequenceId : historySession.sequenceId,
+					worktreePath: existingSession.worktreePath ?? historySession.worktreePath,
+					sequenceId: existingSession.sequenceId ?? historySession.sequenceId,
 					title,
 					updatedAt: historySession.updatedAt,
 				});
