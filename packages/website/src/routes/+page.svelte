@@ -5,9 +5,7 @@ import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
 import type { AgentGridItem } from "@acepe/ui/agent-panel";
-import { AppTabBar, AppSessionItem as AppSessionItemComponent } from "@acepe/ui/app-layout";
 import type { AppTab, AppSessionItemType } from "@acepe/ui/app-layout";
-import { SqlStudioDataGrid } from "@acepe/ui/sql-studio";
 import { SectionedFeed, ActivityEntry } from "@acepe/ui/attention-queue";
 import type {
 	ActivityEntryMode,
@@ -18,6 +16,11 @@ import type {
 	SectionedFeedGroup,
 	SectionedFeedItemData,
 } from "@acepe/ui/attention-queue";
+import CommandPaletteShell from "$lib/components/showcases/command-palette-shell.svelte";
+import MainAppShowcase from "$lib/components/showcases/main-app-showcase.svelte";
+import ParallelSessionsShowcase from "$lib/components/showcases/parallel-sessions-showcase.svelte";
+import SessionListPanel from "$lib/components/showcases/session-list-panel.svelte";
+import SqlStudioHomepageShowcase from "$lib/components/showcases/sql-studio-homepage-showcase.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
 import logoForLight from "$lib/assets/logo.svg";
@@ -33,7 +36,6 @@ import {
 	ClockCounterClockwise,
 	Lightning,
 	Check,
-	MagnifyingGlass,
 	GithubLogo,
 } from "phosphor-svelte";
 
@@ -99,6 +101,27 @@ const mockTabs: AppTab[] = [
 		isFocused: false,
 	},
 ];
+
+const parallelSessions = [
+	{
+		id: "parallel-session-1",
+		label: "SESSION 1",
+		lines: [
+			{ width: 100, tone: "muted" },
+			{ width: 75, tone: "muted" },
+			{ width: 83, tone: "primary" },
+		],
+	},
+	{
+		id: "parallel-session-2",
+		label: "SESSION 2",
+		lines: [
+			{ width: 100, tone: "muted" },
+			{ width: 67, tone: "success" },
+			{ width: 80, tone: "muted" },
+		],
+	},
+] as const;
 
 const mockPlanContent = `Implementation Plan
 
@@ -173,6 +196,14 @@ const mockSessions: AppSessionItemType[] = [
 		isActive: false,
 	},
 ];
+
+const commandPaletteCommands = [
+	{ id: "new-session", label: "New Session", shortcut: "\u2318N" },
+	{ id: "switch-agent", label: "Switch Agent", shortcut: "\u2318L" },
+	{ id: "change-model", label: "Change Model", shortcut: "\u2318/" },
+	{ id: "command-palette", label: "Command Palette", shortcut: "\u2318K" },
+	{ id: "toggle-sidebar", label: "Toggle Sidebar", shortcut: "\u2318B" },
+] as const;
 
 interface MockQueueItem {
 	readonly mode: ActivityEntryMode;
@@ -276,13 +307,6 @@ const sqlRows = [
 		cells: ["3", "carol@ops.net", "viewer", "2024-03-17", "false"],
 	},
 ];
-const sqlIsCellDirty = (_rowIndex: number, _columnName: string) => false;
-const sqlGetCellValue = (rowIndex: number, columnName: string) => {
-	const colIdx = sqlColumns.indexOf(columnName as (typeof sqlColumns)[number]);
-	return sqlRows[rowIndex]?.cells[colIdx] ?? "";
-};
-const sqlNoOp = () => {};
-const sqlNoOpCell = (_row: number, _col: string) => {};
 
 const features = [
 	{
@@ -426,19 +450,8 @@ const features = [
 
 		<!-- Demo Screenshot Section -->
 		<section class="mx-auto max-w-6xl px-4 pb-24 md:px-6 md:pb-32">
-			<div class="relative overflow-hidden rounded-md border border-border/50 bg-card/10">
-				<img
-					src="/images/landing/acepe-background.webp"
-					alt=""
-					class="absolute inset-0 h-full w-full object-cover grayscale"
-				/>
-				<div class="relative p-4 md:p-6">
-					<img
-						src="/images/landing/acepe-working-view.png"
-						alt="Acepe main app view"
-						class="h-auto w-full"
-					/>
-				</div>
+			<div class="relative overflow-hidden rounded-md border border-border/50 bg-card/10 p-4 md:p-6">
+				<MainAppShowcase />
 			</div>
 		</section>
 
@@ -550,29 +563,7 @@ const features = [
 										{#if feature.id === "multi-agent"}
 											<AgentSelectionGrid agents={mockGridAgents} selectedAgentId="claude-code" />
 										{:else if feature.id === "parallel"}
-											<div class="space-y-2">
-												<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
-													<AppTabBar tabs={mockTabs} />
-												</div>
-												<div class="grid grid-cols-2 gap-1 rounded-lg border border-border/50 bg-card/30 p-2">
-													<div class="rounded-md border border-border/30 bg-background/50 p-2">
-														<div class="mb-1.5 font-mono text-[9px] text-muted-foreground/60">SESSION 1</div>
-														<div class="space-y-1">
-															<div class="h-1.5 w-full rounded-full bg-muted-foreground/10"></div>
-															<div class="h-1.5 w-3/4 rounded-full bg-muted-foreground/10"></div>
-															<div class="h-1.5 w-5/6 rounded-full bg-primary/20"></div>
-														</div>
-													</div>
-													<div class="rounded-md border border-border/30 bg-background/50 p-2">
-														<div class="mb-1.5 font-mono text-[9px] text-muted-foreground/60">SESSION 2</div>
-														<div class="space-y-1">
-															<div class="h-1.5 w-full rounded-full bg-muted-foreground/10"></div>
-															<div class="h-1.5 w-2/3 rounded-full bg-success/20"></div>
-															<div class="h-1.5 w-4/5 rounded-full bg-muted-foreground/10"></div>
-														</div>
-													</div>
-												</div>
-											</div>
+											<ParallelSessionsShowcase tabs={mockTabs} sessions={parallelSessions} />
 										{:else if feature.id === "plan-mode"}
 											<div class="plan-showcase">
 												<PlanCard content={mockPlanContent} title="Plan" status="interactive" />
@@ -582,54 +573,16 @@ const features = [
 												<CheckpointTimeline checkpoints={mockCheckpoints} showRevertButtons={false} />
 											</div>
 										{:else if feature.id === "sessions"}
-											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
-												<div class="flex h-7 items-center border-b border-border/50 px-2.5">
-													<div class="flex flex-1 items-center gap-2 rounded-md bg-muted/30 px-2 py-0.5">
-														<MagnifyingGlass size={10} class="text-muted-foreground/50" />
-														<span class="font-mono text-[10px] text-muted-foreground/50">Search sessions...</span>
-													</div>
-												</div>
-												<div class="p-1">
-													{#each mockSessions as session}
-														<AppSessionItemComponent {session} />
-													{/each}
-												</div>
-											</div>
+											<SessionListPanel sessions={mockSessions} />
 										{:else if feature.id === "keyboard"}
-											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30 shadow-lg">
-												<div class="flex items-center gap-2 border-b border-border/50 px-3 py-2">
-													<MagnifyingGlass size={12} class="text-muted-foreground/50" />
-													<span class="font-mono text-[11px] text-muted-foreground/50">Type a command...</span>
-												</div>
-												{#each [{ label: "New Session", kbd: "\u2318N" }, { label: "Switch Agent", kbd: "\u2318L" }, { label: "Change Model", kbd: "\u2318/" }, { label: "Command Palette", kbd: "\u2318K" }, { label: "Toggle Sidebar", kbd: "\u2318B" }] as cmd}
-													<div class="flex items-center justify-between px-3 py-1.5 first:bg-muted/30">
-														<span class="font-mono text-[11px] text-foreground">{cmd.label}</span>
-														<kbd class="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">{cmd.kbd}</kbd>
-													</div>
-												{/each}
-											</div>
+											<CommandPaletteShell commands={commandPaletteCommands} />
 										{:else if feature.id === "sql-studio"}
-											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
-												<div class="flex h-7 items-center gap-2 border-b border-border/50 px-2.5">
-													<HardDrives size={10} class="text-muted-foreground/60" />
-													<span class="font-mono text-[10px] text-foreground">users</span>
-													<span class="ml-auto font-mono text-[9px] text-muted-foreground/40">PostgreSQL</span>
-												</div>
-												<SqlStudioDataGrid
-													columns={sqlColumns}
-													rows={sqlRows}
-													sortColumn={null}
-													sortDirection="asc"
-													readOnly={true}
-													isCellDirty={sqlIsCellDirty}
-													getCellValue={sqlGetCellValue}
-													onSortChange={sqlNoOp}
-													onCellClick={sqlNoOpCell}
-												/>
-												<div class="flex items-center justify-between border-t border-border/30 px-2.5 py-1">
-													<span class="font-mono text-[9px] text-muted-foreground/40">3 rows</span>
-												</div>
-											</div>
+											<SqlStudioHomepageShowcase
+												columns={sqlColumns}
+												rows={sqlRows}
+												tableLabel="users"
+												engineLabel="PostgreSQL"
+											/>
 										{:else if feature.id === "queue"}
 											<div class="queue-showcase">
 											<SectionedFeed
