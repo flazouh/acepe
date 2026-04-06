@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { okAsync, Result, ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
+import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { ProjectIndex } from "../../../../services/converted-session-types.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
@@ -256,18 +257,25 @@ export class AgentInputState {
 
 	/**
 	 * Checks if a position is within the container element's bounds.
-	 * Uses generous padding to handle any coordinate system offsets.
+	 * Native Tauri drag coordinates are reported in logical window pixels, so
+	 * the DOM rect must be scaled out of CSS pixels before hit-testing.
 	 */
 	private isPositionInBounds(position: { x: number; y: number }): boolean {
 		if (!this.containerRef) return false;
 		const rect = this.containerRef.getBoundingClientRect();
-		// Add padding to be more forgiving with coordinate mismatches
-		const padding = 50;
+		const zoomLevel = getZoomService().zoomLevel;
+		const normalizedZoomLevel =
+			Number.isFinite(zoomLevel) && zoomLevel > 0 ? zoomLevel : 1;
+		const left = rect.left * normalizedZoomLevel;
+		const right = rect.right * normalizedZoomLevel;
+		const top = rect.top * normalizedZoomLevel;
+		const bottom = rect.bottom * normalizedZoomLevel;
+
 		return (
-			position.x >= rect.left - padding &&
-			position.x <= rect.right + padding &&
-			position.y >= rect.top - padding &&
-			position.y <= rect.bottom + padding
+			position.x >= left &&
+			position.x <= right &&
+			position.y >= top &&
+			position.y <= bottom
 		);
 	}
 
