@@ -213,6 +213,13 @@ export function getConvertedSession(
 	return getSession(sessionId, projectPath, "claude-code");
 }
 
+/**
+ * Persist a user-renamed session title.
+ */
+export function setSessionTitle(sessionId: string, title: string): ResultAsync<void, AppError> {
+	return tauriClient.history.setSessionTitle(sessionId, title);
+}
+
 // ============================================
 // WORKSPACE PERSISTENCE API
 // ============================================
@@ -299,6 +306,7 @@ export const api = {
 	getStartupSessions,
 	getSession,
 	getConvertedSession,
+	setSessionTitle,
 
 	// Workspace
 	saveWorkspaceState,

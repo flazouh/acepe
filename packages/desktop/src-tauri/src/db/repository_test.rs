@@ -934,6 +934,35 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_set_title_updates_existing_session() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-existing".to_string(),
+            "Existing Session".to_string(),
+            1704067200000,
+            "/project".to_string(),
+            "claude-code".to_string(),
+            "/project/session-existing.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::set_title(&db, "session-existing", "Renamed Session")
+            .await
+            .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "session-existing")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.display, "Renamed Session");
+    }
+
+    #[tokio::test]
     async fn test_set_worktree_path_inserts_placeholder_when_session_missing() {
         let db = setup_test_db().await;
 

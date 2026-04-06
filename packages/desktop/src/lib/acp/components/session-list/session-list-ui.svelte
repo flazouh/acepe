@@ -93,6 +93,8 @@ interface Props {
 	onOpenPr?: (item: SessionListItem) => void;
 	/** Called when user archives a session from the sidebar */
 	onArchiveSession?: (session: SessionDisplayItem) => void | Promise<void>;
+	/** Called when user renames a session from the sidebar */
+	onRenameSession?: (sessionId: string, title: string) => void | Promise<void>;
 	/** Called when user exports session as markdown */
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	/** Called when user exports session as JSON */
@@ -128,6 +130,7 @@ let {
 	onOpenGitPanel,
 	onOpenPr,
 	onArchiveSession,
+	onRenameSession,
 	onExportMarkdown,
 	onExportJson,
 }: Props = $props();
@@ -989,6 +992,7 @@ function openCreateBranchDialog(projectPath: string): void {
 										onSelectSession={handleSessionSelect}
 										{onOpenPr}
 										onArchive={onArchiveSession}
+										onRename={onRenameSession}
 										{onExportMarkdown}
 										{onExportJson}
 									/>

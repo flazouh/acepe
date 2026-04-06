@@ -43,6 +43,7 @@ export const CMD = {
 		get_session_plan: "get_session_plan",
 		get_plan_by_slug: "get_plan_by_slug",
 		list_plans: "list_plans",
+		set_session_title: "set_session_title",
 		set_session_worktree_path: "set_session_worktree_path",
 		set_session_pr_number: "set_session_pr_number",
 	} as const,

@@ -920,6 +920,7 @@ pub fn run() {
             reindex_sessions,
             history::commands::session_loading::get_unified_session,
             history::commands::session_loading::audit_session_load_timing,
+            history::commands::session_loading::set_session_title,
             history::commands::session_loading::set_session_worktree_path,
             history::commands::session_loading::set_session_pr_number,
             history::commands::plans::get_unified_plan,

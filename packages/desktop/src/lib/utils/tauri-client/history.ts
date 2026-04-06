@@ -132,4 +132,11 @@ export const history = {
 			agentId,
 		});
 	},
+
+	setSessionTitle: (sessionId: string, title: string): ResultAsync<void, AppError> => {
+		return invokeAsync(CMD.history.set_session_title, {
+			sessionId,
+			title,
+		});
+	},
 };

@@ -13,15 +13,16 @@ type SessionListItem = BaseSessionListItem & {
 	worktreeDeleted?: boolean;
 };
 
-	interface Props {
-		sessions: SessionListItem[];
-		selectedSessionId: string | null;
-		onSelectSession: (item: SessionListItem) => void;
-		onOpenPr?: (item: SessionListItem) => void;
+interface Props {
+	sessions: SessionListItem[];
+	selectedSessionId: string | null;
+	onSelectSession: (item: SessionListItem) => void;
+	onOpenPr?: (item: SessionListItem) => void;
 	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
+	onRename?: (sessionId: string, title: string) => void | Promise<void>;
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	onExportJson?: (sessionId: string) => void | Promise<void>;
-	}
+}
 
 let {
 	sessions,
@@ -29,9 +30,10 @@ let {
 	onSelectSession,
 	onOpenPr,
 	onArchive,
-		onExportMarkdown,
-		onExportJson,
-	}: Props = $props();
+	onRename,
+	onExportMarkdown,
+	onExportJson,
+}: Props = $props();
 
 // Track which parent sessions are expanded
 let expandedParents = new SvelteSet<string>();
@@ -168,6 +170,7 @@ setSessionListHighlightContext(highlightContext);
 			onToggleExpand={() => handleToggleExpand(row.item.id)}
 			onOpenPr={onOpenPr ? () => onOpenPr(row.item) : undefined}
 			{onArchive}
+			{onRename}
 			{onExportMarkdown}
 			{onExportJson}
 		/>

@@ -197,6 +197,18 @@ async function handleArchiveSession(session: SessionDisplayItem) {
 		);
 }
 
+async function handleRenameSession(sessionId: string, title: string) {
+	await sessionStore.renameSession(sessionId, title).match(
+		() => {
+			toast.success("Session renamed");
+		},
+		(error) => {
+			toast.error(error.message);
+			logger.error("[RenameSession] Failed", { error, sessionId, title });
+		}
+	);
+}
+
 // Agent dropdown data for session creation
 const availableAgents = $derived(
 	getProjectHeaderAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map((a) => ({
@@ -262,6 +274,7 @@ const visibleSessions = $derived.by(() => {
 			onOpenGitPanel={handleOpenGitPanel}
 			onOpenPr={handleOpenPr}
 			onArchiveSession={handleArchiveSession}
+			onRenameSession={handleRenameSession}
 			onExportMarkdown={handleExportMarkdown}
 			onExportJson={handleExportJson}
 		/>

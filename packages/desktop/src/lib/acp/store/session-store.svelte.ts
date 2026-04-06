@@ -52,7 +52,7 @@ import type {
 } from "./types.js";
 import "../errors/app-error.js";
 import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
-import { SessionNotFoundError } from "../errors/app-error.js";
+import { SessionNotFoundError, ValidationError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type { PrDetails } from "../../utils/tauri-client/git.js";
@@ -64,7 +64,7 @@ import { SessionCapabilitiesStore } from "./session-capabilities-store.svelte.js
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { SessionHotStateStore } from "./session-hot-state-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
-import "./api.js";
+import { api } from "./api.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -427,6 +427,26 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		for (const cb of this.onRemoveCallbacks) {
 			cb(sessionId);
 		}
+	}
+
+	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {
+		const session = this.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+
+		const trimmedTitle = title.trim();
+		if (trimmedTitle === "") {
+			return errAsync(new ValidationError("Session title cannot be empty", "title"));
+		}
+
+		if (session.title === trimmedTitle) {
+			return okAsync(undefined);
+		}
+
+		return api.setSessionTitle(sessionId, trimmedTitle).map(() => {
+			this.updateSession(sessionId, { title: trimmedTitle });
+		});
 	}
 
 	/**

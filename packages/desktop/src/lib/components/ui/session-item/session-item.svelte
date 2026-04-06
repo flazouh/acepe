@@ -20,6 +20,9 @@ import { getPanelStore } from "$lib/acp/store/index.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
+import { Button } from "$lib/components/ui/button/index.js";
+import * as Dialog from "$lib/components/ui/dialog/index.js";
+import { Input } from "$lib/components/ui/input/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
@@ -45,9 +48,10 @@ type SessionDisplayItem = BaseSessionDisplayItem & {
 		isExpanded?: boolean;
 		onToggleExpand?: () => void;
 		onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	onExportJson?: (sessionId: string) => void | Promise<void>;
-	onOpenPr?: () => void;
+		onRename?: (sessionId: string, title: string) => void | Promise<void>;
+		onExportMarkdown?: (sessionId: string) => void | Promise<void>;
+		onExportJson?: (sessionId: string) => void | Promise<void>;
+		onOpenPr?: () => void;
 	}
 
 let {
@@ -60,10 +64,11 @@ let {
 	isExpanded = false,
 	onToggleExpand,
 	onArchive,
+	onRename,
 	onExportMarkdown,
 	onExportJson,
-		onOpenPr,
-	}: Props = $props();
+	onOpenPr,
+}: Props = $props();
 
 const themeState = useTheme();
 const panelStore = getPanelStore();
@@ -136,6 +141,31 @@ async function handleExportJson() {
 	await onExportJson?.(session.id);
 }
 
+function openRenameDialog(): void {
+	if (!onRename) {
+		return;
+	}
+
+	renameDraft = session.title;
+	renameDialogOpen = true;
+}
+
+async function handleRenameSubmit(): Promise<void> {
+	if (!onRename) {
+		renameDialogOpen = false;
+		return;
+	}
+
+	const trimmedTitle = renameDraft.trim();
+	if (trimmedTitle === "" || trimmedTitle === session.title) {
+		renameDialogOpen = false;
+		return;
+	}
+
+	await onRename(session.id, trimmedTitle);
+	renameDialogOpen = false;
+}
+
 async function handleOpenStreamingLog() {
 	await tauriClient.shell
 		.openStreamingLog(session.id)
@@ -158,6 +188,8 @@ const isStreaming = $derived(session.activity?.isStreaming ?? false);
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
 let isRowHovered = $state(false);
 let isActionsMenuOpen = $state(false);
+let renameDialogOpen = $state(false);
+let renameDraft = $state("");
 let rowElement: HTMLDivElement | null = null;
 const actionsVisible = $derived(isRowHovered || isActionsMenuOpen);
 const _actionsVisibilityClass = $derived(
@@ -316,6 +348,11 @@ const highlightCtx = getSessionListHighlightContext();
 										size={16}
 									/>
 								</DropdownMenu.Item>
+								{#if onRename}
+									<DropdownMenu.Item onSelect={openRenameDialog} class="cursor-pointer">
+										{m.file_list_rename()}
+									</DropdownMenu.Item>
+								{/if}
 								<DropdownMenu.Item onSelect={handleOpenRawFile} class="cursor-pointer">
 									{m.session_menu_open_raw_file()}
 								</DropdownMenu.Item>
@@ -416,3 +453,32 @@ const highlightCtx = getSessionListHighlightContext();
 		{getSessionDisplayName(session)}
 	</Tooltip.Content>
 </Tooltip.Root>
+
+<Dialog.Root bind:open={renameDialogOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>{m.file_list_rename()}</Dialog.Title>
+			<Dialog.Description>Choose a new name for this session.</Dialog.Description>
+		</Dialog.Header>
+		<div class="py-4">
+			<Input
+				bind:value={renameDraft}
+				autofocus
+				aria-label="Rename session"
+				onkeydown={(event: KeyboardEvent) => {
+					if (event.key !== "Enter") {
+						return;
+					}
+					event.preventDefault();
+					void handleRenameSubmit();
+				}}
+			/>
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (renameDialogOpen = false)}>
+				{m.common_cancel()}
+			</Button>
+			<Button onclick={() => void handleRenameSubmit()}>{m.common_save()}</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

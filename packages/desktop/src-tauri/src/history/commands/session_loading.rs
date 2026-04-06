@@ -657,6 +657,43 @@ pub async fn set_session_worktree_path(
     Ok(())
 }
 
+/// Persist a user-edited title for a session.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_session_title(
+    app: AppHandle,
+    session_id: String,
+    title: String,
+) -> Result<(), String> {
+    tracing::info!(
+        session_id = %session_id,
+        title = %title,
+        "Persisting title for session"
+    );
+
+    let trimmed_title = title.trim().to_string();
+    if trimmed_title.is_empty() {
+        return Err("Session title cannot be empty".to_string());
+    }
+
+    let db = app
+        .try_state::<DbConn>()
+        .ok_or("Database not available")?
+        .inner()
+        .clone();
+
+    SessionMetadataRepository::set_title(&db, &session_id, &trimmed_title)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                session_id = %session_id,
+                error = %e,
+                "Failed to persist title to DB"
+            );
+            format!("Failed to set session title: {}", e)
+        })
+}
+
 /// Persist the PR number associated with a session.
 /// Called by the frontend when a PR number is discovered in session entries.
 #[tauri::command]

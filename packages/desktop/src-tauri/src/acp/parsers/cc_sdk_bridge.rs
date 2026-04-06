@@ -484,18 +484,26 @@ fn translate_system_message(
 
 /// Returns the context window size (in tokens) for a given Claude model ID.
 ///
-/// All current Claude models (Haiku, Sonnet, Opus) have 200k context windows.
 /// Returns `None` for unrecognized model IDs.
 fn context_window_for_model(model_id: &str) -> Option<u64> {
     let normalized = model_id.to_lowercase();
 
-    // All Claude 3.5+ / 4+ models have 200k context windows
+    if normalized.contains("claude-opus-4-6") {
+        return Some(1_000_000);
+    }
+
+    // Short alias used by cc-sdk for the current Opus family.
+    if normalized == "opus" {
+        return Some(1_000_000);
+    }
+
+    // Other Claude 3.5+ / 4+ models currently exposed here use 200k context windows.
     if normalized.contains("claude") {
         return Some(200_000);
     }
 
     // Short aliases used by cc-sdk
-    if normalized == "haiku" || normalized == "sonnet" || normalized == "opus" {
+    if normalized == "haiku" || normalized == "sonnet" {
         return Some(200_000);
     }
 
@@ -870,7 +878,7 @@ mod tests {
             context_window_for_model("claude-sonnet-4-5-20250929"),
             Some(200_000)
         );
-        assert_eq!(context_window_for_model("claude-opus-4-6"), Some(200_000));
+        assert_eq!(context_window_for_model("claude-opus-4-6"), Some(1_000_000));
         assert_eq!(
             context_window_for_model("claude-haiku-4-5-20251001"),
             Some(200_000)
@@ -878,7 +886,7 @@ mod tests {
 
         // Short aliases
         assert_eq!(context_window_for_model("sonnet"), Some(200_000));
-        assert_eq!(context_window_for_model("opus"), Some(200_000));
+        assert_eq!(context_window_for_model("opus"), Some(1_000_000));
         assert_eq!(context_window_for_model("haiku"), Some(200_000));
 
         // Unknown model

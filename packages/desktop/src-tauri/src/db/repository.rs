@@ -1297,6 +1297,23 @@ impl SessionMetadataRepository {
         Ok(())
     }
 
+    pub async fn set_title(db: &DbConn, session_id: &str, title: &str) -> Result<()> {
+        tracing::debug!(session_id = %session_id, title = %title, "Setting session title");
+
+        let model = SessionMetadata::find_by_id(session_id).one(db).await?;
+        let Some(model) = model else {
+            anyhow::bail!("Session metadata not found: {}", session_id);
+        };
+
+        let mut active: session_metadata::ActiveModel = model.into();
+        active.display = Set(title.to_string());
+        active.updated_at = Set(Utc::now());
+        active.update(db).await?;
+
+        tracing::info!(session_id = %session_id, "Session title set");
+        Ok(())
+    }
+
     pub async fn set_provider_session_id(
         db: &DbConn,
         session_id: &str,
