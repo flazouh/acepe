@@ -46,7 +46,7 @@
 		</div>
 	</div>
 
-	<div class="flex-1 min-h-0 overflow-auto p-1">
+	<div class="min-h-0 flex-1 overflow-auto p-1">
 		{#if totalSessions === 0}
 			<div class="px-2 py-3 text-xs text-muted-foreground">{emptyMessage}</div>
 		{:else}
