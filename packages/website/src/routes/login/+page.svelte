@@ -2,7 +2,8 @@
 import * as m from "$lib/paraglide/messages.js";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
-import Logo from "$lib/components/logo.svelte";
+import logoForLight from "$lib/assets/logo.svg";
+import logoForDark from "$lib/assets/logo-light-bg.svg";
 </script>
 
 <div class="fixed inset-0 flex items-center justify-center">
@@ -16,7 +17,8 @@ import Logo from "$lib/components/logo.svelte";
 		href="/"
 		class="absolute top-6 left-6 z-20 flex items-center gap-3 transition-opacity hover:opacity-80"
 	>
-		<Logo class="h-7 w-7" />
+		<img src={logoForLight} alt="" class="h-7 w-7 dark:hidden" />
+		<img src={logoForDark} alt="" class="hidden h-7 w-7 dark:block" />
 		<span class="text-lg font-semibold tracking-wider text-foreground">{m.app_name()}</span>
 	</a>
 

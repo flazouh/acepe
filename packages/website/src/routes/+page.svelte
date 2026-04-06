@@ -20,7 +20,8 @@ import type {
 } from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
-import Logo from "$lib/components/logo.svelte";
+import logoForLight from "$lib/assets/logo.svg";
+import logoForDark from "$lib/assets/logo-light-bg.svg";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 import {
 	Stack,
@@ -59,12 +60,6 @@ const mockGridAgents: AgentGridItem[] = $derived([
 		id: "cursor",
 		name: "Cursor",
 		iconSrc: `/svgs/agents/cursor/cursor-icon-${theme}.svg`,
-		available: true,
-	},
-	{
-		id: "copilot",
-		name: "Copilot",
-		iconSrc: `/svgs/agents/copilot/copilot-icon-${theme}.svg`,
 		available: true,
 	},
 	{
@@ -732,7 +727,8 @@ const features = [
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<Logo />
+						<img src={logoForLight} alt="" class="h-6 w-6 dark:hidden" />
+						<img src={logoForDark} alt="" class="hidden h-6 w-6 dark:block" />
 						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">

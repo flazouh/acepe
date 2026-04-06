@@ -395,7 +395,7 @@
 	function handleShowcaseCardAction(): void {}
 
 	const kanbanMenuTriggerClass =
-		"shrink-0 inline-flex h-3 w-4 items-center justify-center text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
+		"shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
 </script>
 
 {#if open}

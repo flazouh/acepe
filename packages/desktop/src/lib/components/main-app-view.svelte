@@ -956,10 +956,10 @@ onDestroy(() => {
 });
 </script>
 
-<ThemeProvider class="overflow-hidden h-dvh bg-background">
-	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background">
+<ThemeProvider class="overflow-hidden h-dvh p-0.5 bg-[#FFC799]">
+	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background overflow-hidden">
 		<!-- Top bar -->
-		<div class="shrink-0 bg-card/50 border border-border rounded-lg overflow-hidden">
+		<div class="shrink-0 bg-card/50 border border-border rounded-xl overflow-hidden">
 			<TopBar
 				{viewState}
 				updaterState={updaterState}
