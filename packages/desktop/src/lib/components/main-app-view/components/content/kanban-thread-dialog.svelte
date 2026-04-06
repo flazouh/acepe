@@ -15,18 +15,27 @@
 
 	interface Props {
 		panelId: string | null;
+		mode: KanbanThreadDialogMode;
 		projectManager: ProjectManager;
-		state: MainAppViewState;
-		onClose: () => void;
+		mainAppState: MainAppViewState;
+		onDismiss: () => void;
+		onClosePanel: (panelId: string) => void;
 	}
 
-	let { panelId, projectManager, state, onClose }: Props = $props();
+	export type KanbanThreadDialogMode = "inspect" | "close-panel";
+	export type KanbanThreadDialogHandle = {
+		requestClosePanelConfirmation(): void;
+	};
+
+	let { panelId, mode, projectManager, mainAppState, onDismiss, onClosePanel }: Props = $props();
 
 	const panelStore = getPanelStore();
 	const sessionStore = getSessionStore();
 	const agentStore = getAgentStore();
 	const agentPreferencesStore = getAgentPreferencesStore();
 	const themeState = useTheme();
+	const bypassWorktreeCloseConfirmation = $derived(mode === "inspect");
+	let agentPanelRef = $state<KanbanThreadDialogHandle | null>(null);
 
 	const availableAgents = $derived.by(() =>
 		getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map(
@@ -83,19 +92,40 @@
 
 	function handleOpenChange(open: boolean): void {
 		if (!open) {
-			onClose();
+			onDismiss();
 		}
+	}
+
+	function handlePanelClose(): void {
+		if (mode === "close-panel" && panelSnapshot.panelId !== "") {
+			onClosePanel(panelSnapshot.panelId);
+			return;
+		}
+
+		onDismiss();
+	}
+
+	function handleDialogOpenAutoFocus(): void {
+		if (mode !== "close-panel") {
+			return;
+		}
+
+		requestAnimationFrame(() => {
+			agentPanelRef?.requestClosePanelConfirmation();
+		});
 	}
 </script>
 
 <Dialog.Root open={isPanelOpen} onOpenChange={handleOpenChange}>
 	<Dialog.Content
 		class="flex h-[90vh] w-fit max-w-[96vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none"
+		onOpenAutoFocus={handleDialogOpenAutoFocus}
 		portalProps={{ disabled: true }}
 		showCloseButton={false}
 	>
 		{#if isPanelOpen}
 			<AgentPanel
+				bind:this={agentPanelRef}
 				panelId={panelSnapshot.panelId}
 				sessionId={panelSnapshot.sessionId}
 				width={panelSnapshot.width}
@@ -106,24 +136,25 @@
 				project={panelSnapshot.project}
 				{selectedAgentId}
 				{availableAgents}
-				onAgentChange={(agentId) => state.handlePanelAgentChange(panelSnapshot.panelId, agentId)}
+				onAgentChange={(agentId) => mainAppState.handlePanelAgentChange(panelSnapshot.panelId, agentId)}
 				effectiveTheme={themeState.effectiveTheme}
 				isFullscreen={false}
 				isFocused={panelStore.focusedPanelId === panelSnapshot.panelId}
+				bypassWorktreeCloseConfirmation={bypassWorktreeCloseConfirmation}
 				onClose={() => {
-					onClose();
+					handlePanelClose();
 				}}
 				onCreateSessionForProject={(project) =>
-					state.handleCreateSessionForProject(panelSnapshot.panelId, project).mapErr(() => {
+					mainAppState.handleCreateSessionForProject(panelSnapshot.panelId, project).mapErr(() => {
 						// Error handling is done in the handler
 					})}
 				onSessionCreated={(sessionId) => panelStore.updatePanelSession(panelSnapshot.panelId, sessionId)}
-				onResizePanel={(currentPanelId, delta) => state.handleResizePanel(currentPanelId, delta)}
+				onResizePanel={(currentPanelId, delta) => mainAppState.handleResizePanel(currentPanelId, delta)}
 				onToggleFullscreen={() => {
-					onClose();
-					state.handleToggleFullscreen(panelSnapshot.panelId);
+					onDismiss();
+					mainAppState.handleToggleFullscreen(panelSnapshot.panelId);
 				}}
-				onFocus={() => state.handleFocusPanel(panelSnapshot.panelId)}
+				onFocus={() => mainAppState.handleFocusPanel(panelSnapshot.panelId)}
 				hideProjectBadge={false}
 				reviewMode={panelSnapshot.reviewMode}
 				reviewFilesState={panelSnapshot.reviewFilesState}
@@ -134,8 +165,8 @@
 				onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panelSnapshot.panelId, index)}
 				onOpenFullscreenReview={panelSnapshot.sessionId !== null
 					? (sessionId, fileIndex) => {
-						onClose();
-						state.openReviewFullscreen(sessionId, fileIndex);
+						onDismiss();
+						mainAppState.openReviewFullscreen(sessionId, fileIndex);
 					}
 					: undefined}
 				attachedFilePanels={panelStore.getAttachedFilePanels(panelSnapshot.panelId)}
@@ -145,7 +176,7 @@
 				onCloseAttachedFilePanel={(filePanelId) => panelStore.closeFilePanel(filePanelId)}
 				onResizeAttachedFilePanel={(filePanelId, delta) =>
 					panelStore.resizeFilePanel(filePanelId, delta)}
-				onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
+				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 			/>
 		{/if}
 	</Dialog.Content>

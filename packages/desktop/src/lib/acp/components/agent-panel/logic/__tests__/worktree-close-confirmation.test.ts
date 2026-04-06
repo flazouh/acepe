@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,
+	shouldConfirmWorktreeClose,
 } from "../worktree-close-confirmation.js";
 
 describe("worktree close confirmation", () => {
@@ -26,5 +27,23 @@ describe("worktree close confirmation", () => {
 			hasDirtyChanges: false,
 			dirtyCheckPending: false,
 		});
+	});
+
+	it("lets callers bypass worktree confirmation for dialog-only dismissals", () => {
+		expect(
+			shouldConfirmWorktreeClose({
+				bypassConfirmation: true,
+				worktreePath: "/repo/.worktrees/feature-a",
+				worktreeDeleted: false,
+			})
+		).toBe(false);
+
+		expect(
+			shouldConfirmWorktreeClose({
+				bypassConfirmation: false,
+				worktreePath: "/repo/.worktrees/feature-a",
+				worktreeDeleted: false,
+			})
+		).toBe(true);
 	});
 });

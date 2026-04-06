@@ -27,8 +27,14 @@ describe("kanban thread dialog contract", () => {
 	});
 
 	it("dismisses the kanban dialog from the panel close button without closing the live panel session", () => {
-		expect(source).toContain("onClose={() => {");
-		expect(source).toContain("onClose();");
+		expect(source).toContain('const bypassWorktreeCloseConfirmation = $derived(mode === "inspect");');
+		expect(source).toContain("bypassWorktreeCloseConfirmation={bypassWorktreeCloseConfirmation}");
+		expect(source).toContain("export type KanbanThreadDialogHandle = {");
+		expect(source).toContain("requestClosePanelConfirmation(): void;");
+		expect(source).toContain("bind:this={agentPanelRef}");
+		expect(source).toContain("agentPanelRef?.requestClosePanelConfirmation();");
+		expect(source).toContain("onClosePanel(panelSnapshot.panelId);");
+		expect(source).toContain("onDismiss();");
 		expect(source).not.toContain("state.handleClosePanel(panelSnapshot.panelId);");
 	});
 });

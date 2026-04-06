@@ -4,6 +4,12 @@ export interface WorktreeCloseConfirmationState {
 	readonly dirtyCheckPending: boolean;
 }
 
+export interface WorktreeCloseDecision {
+	readonly bypassConfirmation: boolean;
+	readonly worktreePath: string | null;
+	readonly worktreeDeleted: boolean;
+}
+
 export function createPendingWorktreeCloseConfirmationState(): WorktreeCloseConfirmationState {
 	return {
 		confirming: true,
@@ -20,4 +26,12 @@ export function createResolvedWorktreeCloseConfirmationState(
 		hasDirtyChanges,
 		dirtyCheckPending: false,
 	};
+}
+
+export function shouldConfirmWorktreeClose({
+	bypassConfirmation,
+	worktreePath,
+	worktreeDeleted,
+}: WorktreeCloseDecision): boolean {
+	return !bypassConfirmation && worktreePath !== null && !worktreeDeleted;
 }

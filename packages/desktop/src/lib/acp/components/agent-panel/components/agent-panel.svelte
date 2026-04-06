@@ -60,6 +60,7 @@ import {
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
+	shouldConfirmWorktreeClose,
 } from "../logic";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
@@ -104,6 +105,7 @@ let {
 	onAgentChange,
 	effectiveTheme,
 	onClose,
+	bypassWorktreeCloseConfirmation = false,
 	onCreateSessionForProject,
 	onSessionCreated,
 	onResizePanel,
@@ -913,7 +915,13 @@ $effect(() => {
 
 // ✅ Event handlers - can access current props directly
 async function handleClose() {
-	if (effectiveActiveWorktreePath && !worktreeDeleted) {
+	if (
+		shouldConfirmWorktreeClose({
+			bypassConfirmation: bypassWorktreeCloseConfirmation,
+			worktreePath: effectiveActiveWorktreePath,
+			worktreeDeleted,
+		})
+	) {
 		const confirmationState = createPendingWorktreeCloseConfirmationState();
 		worktreeCloseConfirming = confirmationState.confirming;
 		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
@@ -931,6 +939,10 @@ async function handleClose() {
 		return;
 	}
 	onClose?.();
+}
+
+export function requestClosePanelConfirmation(): void {
+	void handleClose();
 }
 
 function handleWorktreeCloseOnly() {
