@@ -1,14 +1,15 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 const showcaseSource = readFileSync(
-	'/home/runner/work/acepe/acepe/packages/website/src/lib/components/main-app-showcase.svelte',
+	fileURLToPath(new URL('./main-app-showcase.svelte', import.meta.url)),
 	'utf8'
 );
 
 const demoWrapperSource = readFileSync(
-	'/home/runner/work/acepe/acepe/packages/website/src/lib/components/main-app-view-demo.svelte',
+	fileURLToPath(new URL('./main-app-view-demo.svelte', import.meta.url)),
 	'utf8'
 );
 
