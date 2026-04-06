@@ -1,6 +1,6 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
-import { ArrowRightIcon, PillButton, TextShimmer } from "@acepe/ui";
+import { ArrowRightIcon, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
@@ -19,6 +19,7 @@ import type {
 	SectionedFeedItemData,
 } from "@acepe/ui/attention-queue";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
+import AppName from "$lib/components/app-name.svelte";
 import Header from "$lib/components/header.svelte";
 import Logo from "$lib/components/logo.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -414,7 +415,7 @@ const features = [
 						size="default"
 						class="h-11 py-1.5 pr-1.5 pl-5"
 					>
-						<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
+						{m.landing_hero_cta()}
 						{#snippet trailingIcon()}
 							<ArrowRightIcon size="lg" />
 						{/snippet}
@@ -425,7 +426,7 @@ const features = [
 
 		<!-- Demo Screenshot Section -->
 		<section class="mx-auto max-w-6xl px-4 pb-24 md:px-6 md:pb-32">
-			<div class="relative overflow-hidden rounded-md border border-border/50 bg-card/10">
+			<div class="relative overflow-hidden rounded-md bg-card/10">
 				<img
 					src="/images/landing/acepe-background.webp"
 					alt=""
@@ -435,7 +436,7 @@ const features = [
 					<img
 						src="/images/landing/acepe-working-view.png"
 						alt="Acepe main app view"
-						class="h-auto w-full"
+						class="h-auto w-full rounded-lg"
 					/>
 				</div>
 			</div>
@@ -704,7 +705,7 @@ const features = [
 					size="default"
 					class="h-11 py-1.5 pr-1.5 pl-5"
 				>
-					<TextShimmer>{m.landing_hero_cta()}</TextShimmer>
+					{m.landing_hero_cta()}
 					{#snippet trailingIcon()}
 						<ArrowRightIcon size="lg" />
 					{/snippet}
@@ -727,7 +728,7 @@ const features = [
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
 						<Logo class="h-6 w-6" />
-						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
+						<AppName />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
 						{m.landing_hero_title()}

@@ -1,5 +1,6 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
+import AppName from "$lib/components/app-name.svelte";
 import Logo from "$lib/components/logo.svelte";
 import { browser } from "$app/environment";
 import { page } from "$app/stores";
@@ -10,7 +11,6 @@ import {
 	DrawerOverlay,
 	DrawerPortal,
 	DrawerTrigger,
-	TextShimmer,
 } from "@acepe/ui";
 import { DiscordLogo, GithubLogo, Star } from "phosphor-svelte";
 import {
@@ -70,7 +70,7 @@ const mobileNavLinkClass =
 				class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 			>
 				<Logo class="h-6 w-6" />
-				<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
+				<AppName />
 			</a>
 		</div>
 
@@ -123,7 +123,7 @@ const mobileNavLinkClass =
 			</a>
 			<button
 				type="button"
-				class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+				class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
 				aria-label={toggleThemeLabel}
 				title={toggleThemeLabel}
 				onclick={handleThemeToggle}
@@ -139,7 +139,7 @@ const mobileNavLinkClass =
 					href="/download"
 					class="theme-invert-btn group inline-flex h-8 items-center justify-center rounded-full pr-1 pl-4 text-sm font-medium transition-all duration-200"
 				>
-					<TextShimmer>{m.nav_download()}</TextShimmer>
+					{m.nav_download()}
 					<span
 						class="theme-invert-btn-icon ml-2 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200"
 					>
@@ -178,7 +178,7 @@ const mobileNavLinkClass =
 								onclick={() => (drawerOpen = false)}
 							>
 							<Logo class="h-6 w-6" />
-								<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
+								<AppName />
 							</a>
 							<div class="flex items-center gap-2">
 							<a
@@ -207,7 +207,7 @@ const mobileNavLinkClass =
 							</a>
 								<button
 									type="button"
-									class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+									class="inline-flex h-11 min-h-11 w-11 min-w-11 cursor-pointer items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
 									aria-label={toggleThemeLabel}
 									title={toggleThemeLabel}
 									onclick={handleThemeToggle}
@@ -244,7 +244,7 @@ const mobileNavLinkClass =
 									class="theme-invert-btn group mt-2 flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 pr-1 pl-4 text-sm font-medium"
 									onclick={() => (drawerOpen = false)}
 								>
-									<TextShimmer>{m.nav_download()}</TextShimmer>
+									{m.nav_download()}
 									<span
 										class="theme-invert-btn-icon flex h-6 w-6 items-center justify-center rounded-full"
 									>

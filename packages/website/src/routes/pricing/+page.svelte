@@ -1,5 +1,6 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
+import AppName from "$lib/components/app-name.svelte";
 import { TextShimmer } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import { Check, ArrowRight, Terminal } from "@lucide/svelte";
@@ -257,7 +258,7 @@ let { data } = $props();
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
 						<Logo class="h-6 w-6" />
-						<span class="text-base font-bold tracking-wide">{m.app_name()}</span>
+						<AppName />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
 						{m.landing_hero_title()}

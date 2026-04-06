@@ -1,5 +1,6 @@
 <script lang="ts">
 import * as m from "$lib/paraglide/messages.js";
+import AppName from "$lib/components/app-name.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
 import Logo from "$lib/components/logo.svelte";
@@ -17,7 +18,7 @@ import Logo from "$lib/components/logo.svelte";
 		class="absolute top-6 left-6 z-20 flex items-center gap-3 transition-opacity hover:opacity-80"
 	>
 		<Logo class="h-7 w-7" />
-		<span class="text-lg font-semibold tracking-wider text-foreground">{m.app_name()}</span>
+		<AppName class="text-lg text-foreground" />
 	</a>
 
 	<!-- Content Card -->
