@@ -86,7 +86,7 @@
 }
 
 :root[data-theme='light'] {
-	--background: #FAFAF8;
+	--background: #F1EFE5;
 	--foreground: #0A0A09;
 	--card: #F2EFE9;
 	--card-foreground: #0A0A09;
