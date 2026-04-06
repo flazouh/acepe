@@ -83,10 +83,12 @@
 	<div data-testid="kanban-card-header">
 		<EmbeddedPanelHeader class="bg-card/50">
 			<HeaderCell withDivider={false}>
-				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} class="shrink-0" />
-				{#if card.sequenceId !== null}
-					<span class="font-mono text-[10px] text-muted-foreground/70">#{card.sequenceId}</span>
-				{/if}
+				<div class="flex items-center gap-0.5 shrink-0">
+					<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} class="shrink-0" />
+					{#if card.sequenceId !== null}
+						<span class="font-mono text-[10px] font-semibold text-muted-foreground/80">#{card.sequenceId}</span>
+					{/if}
+				</div>
 			</HeaderCell>
 			<HeaderCell>
 				<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
