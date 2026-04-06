@@ -65,7 +65,7 @@ describe("hasVisibleModelSelectorMetrics", () => {
 		expect(
 			hasVisibleModelSelectorMetrics(
 				{
-					contextWindowSize: null,
+					contextBudget: null,
 					lastTelemetryEventId: null,
 					latestStepCostUsd: null,
 					latestTokensCacheRead: null,
@@ -86,7 +86,7 @@ describe("hasVisibleModelSelectorMetrics", () => {
 		expect(
 			hasVisibleModelSelectorMetrics(
 				{
-					contextWindowSize: null,
+					contextBudget: null,
 					lastTelemetryEventId: null,
 					latestStepCostUsd: 0,
 					latestTokensCacheRead: null,
@@ -107,7 +107,12 @@ describe("hasVisibleModelSelectorMetrics", () => {
 		expect(
 			hasVisibleModelSelectorMetrics(
 				{
-					contextWindowSize: 200000,
+					contextBudget: {
+						maxTokens: 200000,
+						source: "provider-explicit",
+						scope: "turn",
+						updatedAt: 0,
+					},
 					lastTelemetryEventId: null,
 					latestStepCostUsd: null,
 					latestTokensCacheRead: null,
@@ -122,5 +127,28 @@ describe("hasVisibleModelSelectorMetrics", () => {
 				false
 			)
 		).toBe(true);
+	});
+
+	it("uses resolved context budget when deciding whether context usage is visible", () => {
+		const telemetry = {
+			contextBudget: {
+				maxTokens: 200000,
+				source: "provider-explicit" as const,
+				scope: "turn" as const,
+				updatedAt: 0,
+			},
+			lastTelemetryEventId: null,
+			latestStepCostUsd: null,
+			latestTokensCacheRead: null,
+			latestTokensCacheWrite: null,
+			latestTokensInput: null,
+			latestTokensOutput: null,
+			latestTokensReasoning: null,
+			latestTokensTotal: 50000,
+			sessionSpendUsd: 0,
+			updatedAt: 0,
+		};
+
+		expect(hasVisibleModelSelectorMetrics(telemetry, false)).toBe(true);
 	});
 });

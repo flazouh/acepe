@@ -78,6 +78,67 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateUsageTelemetry).not.toHaveBeenCalled();
 	});
 
+	it("resolves an explicit provider context budget from usage telemetry updates", () => {
+		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			currentModel: { id: "claude-sonnet-4-5-20250929" },
+			usageTelemetry: null,
+		});
+
+		const update: SessionUpdate = {
+			type: "usageTelemetryUpdate",
+			data: {
+				sessionId: "session-123",
+				scope: "turn",
+				contextWindowSize: 200000,
+				sourceModelId: "claude-sonnet-4-5-20250929",
+				tokens: { total: 50000 },
+			},
+		};
+
+		service.handleSessionUpdate(update, handler);
+
+		expect(handler.updateUsageTelemetry).toHaveBeenCalledWith(
+			"session-123",
+			expect.objectContaining({
+				contextBudget: expect.objectContaining({
+					maxTokens: 200000,
+					source: "provider-explicit",
+					scope: "turn",
+				}),
+			})
+		);
+	});
+
+	it("falls back to provider model capability when telemetry omits context size", () => {
+		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			currentModel: { id: "claude-sonnet-4-5-20250929" },
+			usageTelemetry: null,
+		});
+
+		const update: SessionUpdate = {
+			type: "usageTelemetryUpdate",
+			data: {
+				sessionId: "session-123",
+				scope: "step",
+				sourceModelId: "claude-sonnet-4-5-20250929",
+				tokens: { total: 50000 },
+			},
+		};
+
+		service.handleSessionUpdate(update, handler);
+
+		expect(handler.updateUsageTelemetry).toHaveBeenCalledWith(
+			"session-123",
+			expect.objectContaining({
+				contextBudget: expect.objectContaining({
+					maxTokens: 200000,
+					source: "provider-model-capability",
+					scope: "step",
+				}),
+			})
+		);
+	});
+
 	it("should NOT call updateChildInParent for empty string streaming delta", () => {
 		// This is the key test for the bug fix:
 		// Empty string "" is a valid streaming delta and should NOT fall through

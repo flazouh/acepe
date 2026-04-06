@@ -28,7 +28,7 @@ const usageTelemetry = $derived.by(() => {
 	return sessionStore.getHotState(sessionId).usageTelemetry ?? null;
 });
 
-const contextWindow = $derived(usageTelemetry?.contextWindowSize ?? null);
+const contextWindow = $derived(usageTelemetry?.contextBudget?.maxTokens ?? null);
 const isClaudeCode = $derived(agentId === AGENT_IDS.CLAUDE_CODE);
 
 const showChip = $derived(hasVisibleModelSelectorMetrics(usageTelemetry, isClaudeCode));

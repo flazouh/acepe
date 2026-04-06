@@ -482,6 +482,7 @@ fn translate_system_message(
 // Model → context window size mapping
 // ---------------------------------------------------------------------------
 
+#[cfg(test)]
 /// Returns the context window size (in tokens) for a given Claude model ID.
 ///
 /// All current Claude models (Haiku, Sonnet, Opus) have 200k context windows.
@@ -589,7 +590,7 @@ fn build_result_telemetry(
         },
         source_model_id: model_id.map(|m| m.to_string()),
         timestamp_ms: None,
-        context_window_size: model_id.and_then(context_window_for_model),
+        context_window_size: None,
     }
 }
 
@@ -787,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn result_telemetry_includes_context_window_when_model_is_known() {
+    fn result_telemetry_preserves_model_id_without_guessing_context_window() {
         let updates = translate_cc_sdk_message_with_turn_state(
             Message::Result {
                 subtype: "conversation_turn".to_string(),
@@ -816,7 +817,7 @@ mod tests {
         // Should have UsageTelemetryUpdate + TurnComplete
         assert_eq!(updates.len(), 2);
         if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
-            assert_eq!(data.context_window_size, Some(200_000));
+            assert_eq!(data.context_window_size, None);
             assert_eq!(
                 data.source_model_id,
                 Some("claude-sonnet-4-5-20250929".to_string())
@@ -856,6 +857,42 @@ mod tests {
         if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
             assert_eq!(data.context_window_size, None);
             assert_eq!(data.source_model_id, None);
+        } else {
+            panic!("Expected UsageTelemetryUpdate");
+        }
+    }
+
+    #[test]
+    fn result_telemetry_does_not_guess_context_window_from_model_id() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            Message::Result {
+                subtype: "conversation_turn".to_string(),
+                duration_ms: 1000,
+                duration_api_ms: 800,
+                is_error: false,
+                num_turns: 1,
+                session_id: "ses-explicit-only".to_string(),
+                total_cost_usd: Some(0.005),
+                usage: Some(serde_json::json!({
+                    "input_tokens": 1000,
+                    "output_tokens": 100,
+                })),
+                result: None,
+                structured_output: None,
+                stop_reason: None,
+            },
+            Some("ses-explicit-only".to_string()),
+            CcSdkTurnStreamState {
+                saw_text_delta: false,
+                saw_thinking_delta: false,
+                model_id: Some("claude-sonnet-4-5-20250929".to_string()),
+            },
+        );
+
+        assert_eq!(updates.len(), 2);
+        if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
+            assert_eq!(data.source_model_id.as_deref(), Some("claude-sonnet-4-5-20250929"));
+            assert_eq!(data.context_window_size, None);
         } else {
             panic!("Expected UsageTelemetryUpdate");
         }

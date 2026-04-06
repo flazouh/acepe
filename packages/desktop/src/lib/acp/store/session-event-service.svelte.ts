@@ -27,6 +27,7 @@ import type { QuestionRequest } from "../types/question";
 import { createLogger } from "../utils/logger.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
+import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
 
 const logger = createLogger({ id: "session-event-service", name: "SessionEventService" });
 
@@ -76,6 +77,56 @@ function isTerminalToolCallStatus(status: string | null | undefined): boolean {
 
 function isPendingToolCallStatus(status: string | null | undefined): boolean {
 	return status === "pending" || status === "in_progress";
+}
+
+function resolveClaudeContextWindow(modelId: string | null | undefined): number | null {
+	if (modelId == null) {
+		return null;
+	}
+
+	const normalized = modelId.toLowerCase();
+	if (normalized.includes("claude")) {
+		return 200000;
+	}
+	if (normalized === "haiku" || normalized === "sonnet" || normalized === "opus") {
+		return 200000;
+	}
+	return null;
+}
+
+function resolveContextBudget(
+	usageTelemetryData: UsageTelemetryData,
+	previous: SessionUsageTelemetry | undefined,
+	currentModelId: string | null,
+	updatedAt: number
+): SessionContextBudget | null {
+	const explicitMaxTokens = usageTelemetryData.contextWindowSize ?? null;
+	if (explicitMaxTokens != null && explicitMaxTokens > 0) {
+		return {
+			maxTokens: explicitMaxTokens,
+			source: "provider-explicit",
+			scope: usageTelemetryData.scope ?? "step",
+			updatedAt,
+		};
+	}
+
+	if (previous?.contextBudget?.source === "provider-explicit") {
+		return previous.contextBudget;
+	}
+
+	const capabilityMaxTokens = resolveClaudeContextWindow(
+		usageTelemetryData.sourceModelId ?? currentModelId
+	);
+	if (capabilityMaxTokens != null) {
+		return {
+			maxTokens: capabilityMaxTokens,
+			source: "provider-model-capability",
+			scope: usageTelemetryData.scope ?? previous?.contextBudget?.scope ?? "step",
+			updatedAt,
+		};
+	}
+
+	return previous?.contextBudget ?? null;
 }
 
 function toPermissionMetadata(value: JsonValue): Record<string, JsonValue> {
@@ -606,6 +657,11 @@ export class SessionEventService {
 				const costUsd = usageTelemetryData.costUsd ?? 0;
 				const sessionSpendUsd = (prev?.sessionSpendUsd ?? 0) + costUsd;
 				const t = usageTelemetryData.tokens;
+				const updatedAt = Date.now();
+				const currentModelId =
+					current.currentModel != null && current.currentModel.id.length > 0
+						? current.currentModel.id
+						: null;
 				handler.updateUsageTelemetry(sessionId, {
 					sessionSpendUsd,
 					latestStepCostUsd: usageTelemetryData.costUsd ?? null,
@@ -616,9 +672,13 @@ export class SessionEventService {
 					latestTokensCacheWrite: t?.cacheWrite ?? null,
 					latestTokensReasoning: t?.reasoning ?? null,
 					lastTelemetryEventId: eventId,
-					contextWindowSize:
-						usageTelemetryData.contextWindowSize ?? prev?.contextWindowSize ?? null,
-					updatedAt: Date.now(),
+					contextBudget: resolveContextBudget(
+						usageTelemetryData,
+						prev,
+						currentModelId,
+						updatedAt
+					),
+					updatedAt,
 				});
 				break;
 			}

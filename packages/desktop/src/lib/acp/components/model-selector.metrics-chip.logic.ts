@@ -84,7 +84,10 @@ export function hasVisibleModelSelectorMetrics(
 
 	const hasSpend = usageTelemetry.sessionSpendUsd > 0;
 	const hasContextUsage =
-		getContextUsagePercent(usageTelemetry.latestTokensTotal, usageTelemetry.contextWindowSize) !== null;
+		getContextUsagePercent(
+			usageTelemetry.latestTokensTotal,
+			usageTelemetry.contextBudget?.maxTokens ?? null
+		) !== null;
 
 	return hasSpend ? true : hasContextUsage;
 }

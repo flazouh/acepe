@@ -56,6 +56,19 @@ export type TurnState = "idle" | "streaming" | "completed" | "interrupted" | "er
  * Usage telemetry state for a session (adapter-agnostic).
  * Updated from UsageTelemetryUpdate session updates.
  */
+export type SessionContextBudgetSource =
+	| "provider-explicit"
+	| "provider-model-capability"
+	| "catalog-fallback"
+	| "unknown";
+
+export interface SessionContextBudget {
+	readonly maxTokens: number;
+	readonly source: SessionContextBudgetSource;
+	readonly scope: string;
+	readonly updatedAt: number;
+}
+
 export interface SessionUsageTelemetry {
 	readonly sessionSpendUsd: number;
 	readonly latestStepCostUsd: number | null;
@@ -66,7 +79,7 @@ export interface SessionUsageTelemetry {
 	readonly latestTokensCacheWrite: number | null;
 	readonly latestTokensReasoning: number | null;
 	readonly lastTelemetryEventId: string | null;
-	readonly contextWindowSize: number | null;
+	readonly contextBudget: SessionContextBudget | null;
 	readonly updatedAt: number;
 }
 
