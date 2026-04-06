@@ -7,28 +7,71 @@ const kanbanViewPath = resolve(contentDir, "./kanban-view.svelte");
 const dialogPath = resolve(contentDir, "./kanban-new-session-dialog.svelte");
 
 describe("kanban new-session dialog contract", () => {
-	it("renders a top-right new-session entry point in the kanban view", () => {
+	it("delegates the new-session entry point to the shared top bar", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
+		const violetRobotIconMarkup =
+			'<Robot weight="fill" class="h-3.5 w-3.5" style="color: {Colors.purple}" />';
+		const violetRobotIconMatches = source.match(
+			/<Robot weight="fill" class="h-3\.5 w-3\.5" style="color: \{Colors\.purple\}" \/>/g
+		);
 
-		expect(source).toContain('import KanbanNewSessionDialog from "./kanban-new-session-dialog.svelte"');
 		expect(source).toContain("projectManager: ProjectManager");
-		expect(source).toContain("<KanbanNewSessionDialog {projectManager} />");
+		expect(source).toContain('from "@acepe/ui"');
+		expect(source).toContain('class="flex h-full min-h-0 min-w-0 flex-1 flex-col"');
+		expect(source).not.toContain('class="flex shrink-0 items-center justify-end px-2 pt-2"');
+		expect(source).not.toContain('class="flex shrink-0 items-center justify-end px-2 pb-2"');
+		expect(source).toContain("<Dialog bind:open={newSessionOpen}");
+		expect(source).toContain('showCloseButton={false}');
+		expect(source).toContain('overflow-hidden max-w-[34rem]');
+		expect(source).toContain('!backdrop-blur-none');
+		expect(source).toContain('px-3 pt-4 pb-2');
+		expect(source).not.toContain('px-4 py-4');
+		expect(source).toContain('import { Colors } from "@acepe/ui/colors"');
+		expect(source).not.toContain('NEW_AGENT_BUTTON_VARIANTS');
+		expect(source).not.toContain('type ButtonVariant');
+		expect(violetRobotIconMarkup).toBeDefined();
+		expect(violetRobotIconMatches).not.toBeNull();
+		expect(violetRobotIconMatches).toHaveLength(1);
+		expect(source).toContain('<span class="truncate text-foreground">New Agent</span>');
+		expect(source).toContain('What do you want to build?');
+		expect(source).toContain('font-sans text-[1.9rem] font-semibold tracking-tight text-foreground');
+		expect(source).not.toContain('IconSparkles');
+		expect(source).not.toContain('<span>New Agent</span>');
+		expect(source).not.toContain('<span>New session</span>');
+		expect(source).toContain("EmbeddedPanelHeader");
+		expect(source).toContain("HeaderActionCell");
+		expect(source).toContain("CloseAction");
+		expect(source).toContain('handleNewSessionOpenChange(false)');
+		expect(source).toContain("<AgentInput");
+		expect(source).toContain("<AgentSelector");
+		expect(source).toContain("<ProjectSelector");
+		expect(source).toContain("<WorktreeToggleControl");
+		expect(source).toContain('<KanbanBoard {groups} emptyHint="No sessions">');
+		expect(source).not.toContain("<DialogHeader");
+		expect(source).not.toContain("<DialogTitle");
+		expect(source).not.toContain("KanbanNewSessionDialog");
 	});
 
-	it("builds the dialog around the shared agent composer flow", () => {
-		expect(existsSync(dialogPath)).toBe(true);
-		if (!existsSync(dialogPath)) return;
+	it("deletes the dedicated kanban dialog wrapper file after inlining the shared dialog", () => {
+		expect(existsSync(dialogPath)).toBe(false);
+	});
 
-		const source = readFileSync(dialogPath, "utf8");
+	it("keeps the board visible after creating a kanban session", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
 
-		expect(source).toContain("AgentInput");
-		expect(source).toContain("Dialog.Root");
-		expect(source).toContain("SelectTrigger");
-		expect(source).toContain("onSessionCreated");
-		expect(source).toContain('panelStore.setViewMode("single")');
-		expect(source).toContain("projectManager.projects");
+		const source = readFileSync(kanbanViewPath, "utf8");
+		const createdHandler = source
+			.split("function handleNewSessionCreated(sessionId: string): void {")[1]
+			?.split("function resolveQuestionId(question: QuestionRequest): string {")[0];
+
+		expect(createdHandler).toBeDefined();
+		expect(createdHandler).toContain("panelStore.openSession(sessionId, 450);");
+		expect(createdHandler).toContain("newSessionOpen = false;");
+		expect(createdHandler).not.toContain('panelStore.setViewMode("single")');
+		expect(createdHandler).not.toContain("panelStore.focusAndSwitchToPanel");
 	});
 });

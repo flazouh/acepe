@@ -1,4 +1,5 @@
 import type { AgentToolEntry } from "@acepe/ui/agent-panel";
+import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
 import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
 import { getToolKindSubtitle, getToolKindTitle } from "../../registry/tool-kind-ui-registry.js";
 import type { TurnState } from "../../store/types.js";
@@ -23,6 +24,7 @@ export interface QueueItemToolDisplay {
 export interface QueueItemTaskDisplay {
 	readonly taskDescription: string | null;
 	readonly taskSubagentSummaries: readonly string[];
+	readonly taskSubagentTools: readonly AgentToolEntry[];
 	readonly latestTaskSubagentTool: Pick<
 		AgentToolEntry,
 		"id" | "kind" | "title" | "filePath" | "status"
@@ -34,7 +36,29 @@ export function getQueueItemToolDisplay(
 	input: QueueItemToolDisplayInput
 ): QueueItemToolDisplay | null {
 	if (input.activityKind === "thinking") {
+		if (input.currentStreamingToolCall && input.currentToolKind === "task") {
+			return {
+				toolCall: input.currentStreamingToolCall,
+				toolKind: input.currentToolKind,
+				isStreaming: true,
+				turnState: "streaming",
+			};
+		}
+
 		return null;
+	}
+
+	if (
+		input.activityKind === "streaming" &&
+		input.currentStreamingToolCall &&
+		input.currentToolKind
+	) {
+		return {
+			toolCall: input.currentStreamingToolCall,
+			toolKind: input.currentToolKind,
+			isStreaming: true,
+			turnState: "streaming",
+		};
 	}
 
 	if (!input.lastToolCall || !input.lastToolKind) {
@@ -61,13 +85,13 @@ function getTaskDescription(toolCall: ToolCall): string | null {
 	if (toolCall.arguments.description) {
 		const trimmedDescription = toolCall.arguments.description.trim();
 		if (trimmedDescription.length > 0) {
-			return trimmedDescription;
+			return capitalizeLeadingCharacter(trimmedDescription);
 		}
 	}
 
 	if (toolCall.arguments.subagent_type) {
 		const trimmedSubagentType = toolCall.arguments.subagent_type.trim();
-		return trimmedSubagentType.length > 0 ? trimmedSubagentType : null;
+		return trimmedSubagentType.length > 0 ? capitalizeLeadingCharacter(trimmedSubagentType) : null;
 	}
 
 	return null;
@@ -113,6 +137,7 @@ export function getQueueItemTaskDisplay(
 		return {
 			taskDescription: null,
 			taskSubagentSummaries: [],
+			taskSubagentTools: [],
 			latestTaskSubagentTool: null,
 			showTaskSubagentList: false,
 		};
@@ -135,6 +160,7 @@ export function getQueueItemTaskDisplay(
 		return {
 			taskDescription: getTaskDescription(toolCall),
 			taskSubagentSummaries,
+			taskSubagentTools: convertedChildren,
 			latestTaskSubagentTool,
 			showTaskSubagentList: true,
 		};
@@ -143,6 +169,7 @@ export function getQueueItemTaskDisplay(
 	return {
 		taskDescription: getTaskDescription(toolCall),
 		taskSubagentSummaries: [],
+		taskSubagentTools: [],
 		latestTaskSubagentTool,
 		showTaskSubagentList: false,
 	};

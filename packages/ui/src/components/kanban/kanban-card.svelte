@@ -12,9 +12,10 @@
 		HeaderCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
-import { SegmentedProgress } from "../segmented-progress/index.js";
-import { TextShimmer } from "../text-shimmer/index.js";
-import type { KanbanCardData } from "./types.js";
+	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import { SegmentedProgress } from "../segmented-progress/index.js";
+	import { TextShimmer } from "../text-shimmer/index.js";
+	import type { KanbanCardData } from "./types.js";
 
 	interface Props {
 		card: KanbanCardData;
@@ -57,21 +58,6 @@ import type { KanbanCardData } from "./types.js";
 	const hasMenu = $derived(menu !== undefined);
 	const hasClose = $derived(Boolean(onClose));
 	const headerDiffDivider = $derived(hasMenu ? true : hasClose);
-	const projectBadgeSource = $derived.by(() => {
-		const trimmedName = card.projectName.trim();
-		if (trimmedName !== "") {
-			return trimmedName;
-		}
-
-		const pathSegments = card.projectPath.split("/").filter((segment) => segment !== "");
-		const lastSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : "";
-		return lastSegment !== "" ? lastSegment : "?";
-	});
-	const projectBadgeLabel = $derived(
-		card.sequenceId !== null
-			? `${projectBadgeSource.charAt(0).toUpperCase()}#${card.sequenceId}`
-			: projectBadgeSource.charAt(0).toUpperCase()
-	);
 
 	function handleKeydown(event: KeyboardEvent): void {
 		if (!onclick) return;
@@ -97,12 +83,10 @@ import type { KanbanCardData } from "./types.js";
 	<div data-testid="kanban-card-header">
 		<EmbeddedPanelHeader class="bg-card/50">
 			<HeaderCell withDivider={false}>
-				<span
-					class="inline-flex h-[14px] shrink-0 items-center rounded-[4px] px-1 font-mono text-[10px] font-semibold"
-					style="background-color: color-mix(in srgb, {card.projectColor} 16%, transparent); color: {card.projectColor};"
-				>
-					{projectBadgeLabel}
-				</span>
+				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} class="shrink-0" />
+				{#if card.sequenceId !== null}
+					<span class="font-mono text-[10px] text-muted-foreground/70">#{card.sequenceId}</span>
+				{/if}
 			</HeaderCell>
 			<HeaderCell>
 				<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />

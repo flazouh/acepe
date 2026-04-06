@@ -47,7 +47,7 @@ export type {
 } from "./components/attention-queue/index.js";
 export {
 	ActivityEntry,
-	AttentionQueueSubagentCard,
+	AttentionQueueQuestionCard,
 	FeedItem,
 	PermissionFeedItem,
 	SectionedFeed,
@@ -75,6 +75,12 @@ export {
 	CheckpointFileRow,
 	CheckpointTimeline,
 } from "./components/checkpoint/index.js";
+export {
+	ChipShell,
+	buildChipShellClassName,
+	type ChipShellDensity,
+	type ChipShellSize,
+} from "./components/chip/index.js";
 export {
 	Close as DialogCloseRaw,
 	Content as DialogContentRaw,
@@ -178,16 +184,16 @@ export { Input, Root as InputRoot } from "./components/input/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
-	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
+	KanbanTaskCardData,
 	KanbanToolData,
 } from "./components/kanban/index.js";
 export {
 	KanbanBoard,
 	KanbanCard,
 	KanbanColumn,
-	KanbanPermissionFooter,
+	KanbanCompactComposer,
 	KanbanQuestionFooter,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";
@@ -258,5 +264,4 @@ export type {
 	WithoutChildrenOrChild,
 } from "./lib/utils";
 // Re-export utilities
-export { cn } from "./lib/utils";
-export { buildChipShellClassName } from "./components/chip/index.js";
+export { capitalizeLeadingCharacter, cn } from "./lib/utils";

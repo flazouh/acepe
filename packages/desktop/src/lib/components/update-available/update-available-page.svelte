@@ -11,12 +11,15 @@
 	} from "@paper-design/shaders";
 	import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 	import { onDestroy, onMount } from "svelte";
-	import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
+	import {
+		isUpdaterInstallInProgress,
+		type UpdaterBannerState,
+	} from "$lib/components/main-app-view/logic/updater-state.js";
 	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Spinner } from "$lib/components/ui/spinner/index.js";
 	import * as m from "$lib/paraglide/messages.js";
-	import logo from "../../../../../../assets/logo.svg?url";
+	import splashLogo from "../../../../../../assets/logo-dark.svg?url";
 
 	const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 
@@ -43,7 +46,7 @@
 	);
 
 	const isInstalling = $derived(
-		updaterState.kind === "installing" || (downloadPercent !== null && downloadPercent >= 100)
+		isUpdaterInstallInProgress(updaterState)
 	);
 
 	function formatBytes(bytes: number): string {
@@ -125,20 +128,20 @@
 
 <!-- Content layer -->
 <div
-	class="relative z-10 flex flex-col items-center justify-center h-full w-full max-w-3xl mx-auto px-6 py-12"
+	class="relative z-10 flex h-full w-full max-w-2xl flex-col items-center justify-center px-5 py-8"
 >
 	<!-- Card -->
-	<div class="update-card flex flex-col w-full rounded-2xl bg-background/80 overflow-hidden">
+	<div class="update-card flex w-full flex-col overflow-hidden rounded-xl bg-background">
 		<!-- Header -->
-		<div class="flex flex-col gap-6 p-10 pb-8">
+		<div class="flex flex-col gap-3 p-5 pb-4">
 			<!-- Logo + version -->
 			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-3">
-					<img src={logo} alt="Acepe Logo" class="w-8 h-8" />
-					<span class="text-lg font-semibold tracking-wider text-foreground">ACEPE</span>
+				<div class="flex items-center gap-2.5">
+					<img src={splashLogo} alt="" aria-hidden="true" class="h-7 w-7 object-contain" />
+					<span class="text-[15px] font-semibold tracking-[0.18em] text-foreground">ACEPE</span>
 				</div>
 				{#if updaterState.kind === "available" || updaterState.kind === "downloading" || updaterState.kind === "installing"}
-					<span class="font-mono text-[11px] text-muted-foreground/50 bg-muted/40 px-2.5 py-0.5 rounded-full">
+					<span class="rounded-full bg-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/50">
 						v{updaterState.version}
 					</span>
 				{/if}
@@ -154,7 +157,7 @@
 					</div>
 				</div>
 			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
-				<div class="flex flex-col gap-5">
+				<div class="flex flex-col gap-3.5">
 					<div class="flex items-baseline justify-between">
 						<TextShimmer class="text-[15px] font-medium text-foreground">
 							{isInstalling ? m.update_installing() : m.update_downloading()}
@@ -166,7 +169,7 @@
 
 					<VoiceDownloadProgress
 						ariaLabel={isInstalling ? m.update_installing() : m.update_downloading()}
-						compact={false}
+						compact={true}
 						fillWidth={true}
 						label=""
 						percent={downloadPercent !== null ? downloadPercent : 0}
@@ -179,7 +182,7 @@
 							<span class="tabular-nums">
 								{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
 							</span>
-							{#if downloadPercent !== null && downloadPercent >= 100}
+							{#if isInstalling}
 								<span>{m.update_installing()}</span>
 							{/if}
 						</div>
@@ -214,7 +217,6 @@
 
 <style>
 	.update-card {
-		border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 		box-shadow:
 			0 0 0 1px rgba(0, 0, 0, 0.08),
 			0 20px 60px rgba(0, 0, 0, 0.35);

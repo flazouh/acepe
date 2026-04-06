@@ -36,10 +36,8 @@ export function normalizeTitleForDisplay(title: string): string {
 }
 
 function capitalizeTitle(text: string): string {
-	return text
-		.split(/\s+/)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(" ");
+	if (text.length === 0) return text;
+	return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**

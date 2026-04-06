@@ -200,6 +200,25 @@ describe("PermissionStore", () => {
 		});
 	});
 
+	describe("cancelForSession", () => {
+		it("rejects all pending permissions for the matching session", async () => {
+			const sessionOneFirst = createAcpPermission("session-1", "tool-1", 100);
+			const sessionOneSecond = createAcpPermission("session-1", "tool-2", 101);
+			const sessionTwoPermission = createAcpPermission("session-2", "tool-3", 102);
+
+			store.add(sessionOneFirst);
+			store.add(sessionOneSecond);
+			store.add(sessionTwoPermission);
+
+			const result = await store.cancelForSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(store.pending.has(sessionOneFirst.id)).toBe(false);
+			expect(store.pending.has(sessionOneSecond.id)).toBe(false);
+			expect(store.pending.has(sessionTwoPermission.id)).toBe(true);
+		});
+	});
+
 	describe("auto-accept", () => {
 		it("should add normally when no auto-accept is configured", () => {
 			const permission: PermissionRequest = {

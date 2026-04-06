@@ -2,7 +2,9 @@ use indexmap::IndexMap;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind};
+use crate::acp::session_update::{
+    SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
+};
 use crate::session_converter::merge_tool_call_update;
 
 #[derive(Debug, Clone)]
@@ -75,10 +77,7 @@ impl OpenCodeTaskHydrator {
                 self.track_parent_tool_call(properties, tool_call, session_id.as_deref());
                 self.synthesize_parent_from_child_tool_call(tool_call, session_id.as_deref())
             }
-            SessionUpdate::ToolCallUpdate {
-                update,
-                session_id,
-            } => {
+            SessionUpdate::ToolCallUpdate { update, session_id } => {
                 self.track_parent_tool_call_update(properties, update);
                 self.synthesize_parent_from_child_tool_update(update, session_id.as_deref())
             }
@@ -300,12 +299,12 @@ fn is_task_tool(tool_call: &ToolCallData) -> bool {
 }
 
 fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallData {
-    let next_status = if is_terminal_status(&current.status) && !is_terminal_status(&incoming.status)
-    {
-        current.status.clone()
-    } else {
-        incoming.status.clone()
-    };
+    let next_status =
+        if is_terminal_status(&current.status) && !is_terminal_status(&incoming.status) {
+            current.status.clone()
+        } else {
+            incoming.status.clone()
+        };
 
     ToolCallData {
         id: current.id,
@@ -394,7 +393,10 @@ mod tests {
         });
 
         let completed_update = convert_message_part_to_session_update(&parent_completed).unwrap();
-        assert!(matches!(completed_update, SessionUpdate::ToolCallUpdate { .. }));
+        assert!(matches!(
+            completed_update,
+            SessionUpdate::ToolCallUpdate { .. }
+        ));
         assert!(hydrator
             .apply_message_part_update(&parent_completed, &completed_update)
             .is_empty());
@@ -417,8 +419,10 @@ mod tests {
             }
         });
 
-        let child_running_update = convert_message_part_to_session_update(&child_tool_running).unwrap();
-        let synthesized = hydrator.apply_message_part_update(&child_tool_running, &child_running_update);
+        let child_running_update =
+            convert_message_part_to_session_update(&child_tool_running).unwrap();
+        let synthesized =
+            hydrator.apply_message_part_update(&child_tool_running, &child_running_update);
 
         assert_eq!(synthesized.len(), 1);
         match &synthesized[0] {
@@ -431,7 +435,10 @@ mod tests {
                 let children = tool_call.task_children.as_ref().expect("children");
                 assert_eq!(children.len(), 1);
                 assert_eq!(children[0].id, "call_child_glob");
-                assert_eq!(children[0].parent_tool_use_id.as_deref(), Some("call_task_parent"));
+                assert_eq!(
+                    children[0].parent_tool_use_id.as_deref(),
+                    Some("call_task_parent")
+                );
             }
             other => panic!("Expected synthesized parent tool call, got {:?}", other),
         }
@@ -455,8 +462,10 @@ mod tests {
             }
         });
 
-        let child_completed_update = convert_message_part_to_session_update(&child_tool_completed).unwrap();
-        let completed_parent = hydrator.apply_message_part_update(&child_tool_completed, &child_completed_update);
+        let child_completed_update =
+            convert_message_part_to_session_update(&child_tool_completed).unwrap();
+        let completed_parent =
+            hydrator.apply_message_part_update(&child_tool_completed, &child_completed_update);
 
         assert_eq!(completed_parent.len(), 1);
         match &completed_parent[0] {
@@ -522,8 +531,10 @@ mod tests {
             }
         });
 
-        let child_running_update = convert_message_part_to_session_update(&child_tool_running).unwrap();
-        let synthesized = hydrator.apply_message_part_update(&child_tool_running, &child_running_update);
+        let child_running_update =
+            convert_message_part_to_session_update(&child_tool_running).unwrap();
+        let synthesized =
+            hydrator.apply_message_part_update(&child_tool_running, &child_running_update);
 
         assert_eq!(synthesized.len(), 1);
         match &synthesized[0] {

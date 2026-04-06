@@ -1,5 +1,6 @@
 import type { ToolArguments } from "../../../services/converted-session-types.js";
 import type { PermissionRequest } from "../../types/permission.js";
+import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 
 type PermissionRawInput = {
 	command?: string | null;
@@ -59,18 +60,68 @@ const TOOL_KIND_LABELS: Record<string, string> = {
 	toolSearch: "Tool Search",
 };
 
-export function extractPermissionToolKind(permission: PermissionRequest): string {
+export type PermissionDisplayKind =
+	| "read"
+	| "edit"
+	| "execute"
+	| "search"
+	| "fetch"
+	| "web_search"
+	| "delete"
+	| "move"
+	| "other";
+
+export interface CompactPermissionDisplay {
+	readonly kind: PermissionDisplayKind;
+	readonly label: string;
+	readonly command: string | null;
+	readonly filePath: string | null;
+}
+
+function normalizePermissionDisplayKind(value: string | null | undefined): PermissionDisplayKind {
+	if (!value) {
+		return "other";
+	}
+
+	const normalized = value.trim().toLowerCase();
+
+	switch (normalized) {
+		case "read":
+			return "read";
+		case "edit":
+		case "write":
+			return "edit";
+		case "execute":
+		case "bash":
+			return "execute";
+		case "search":
+		case "glob":
+			return "search";
+		case "fetch":
+			return "fetch";
+		case "websearch":
+		case "web_search":
+			return "web_search";
+		case "delete":
+			return "delete";
+		case "move":
+			return "move";
+		default:
+			return "other";
+	}
+}
+
+export function extractPermissionToolKind(permission: PermissionRequest): PermissionDisplayKind {
 	const metadata = getMetadata(permission);
 	const parsed = metadata?.parsedArguments;
 	if (parsed && parsed.kind !== "other") {
-		const label = TOOL_KIND_LABELS[parsed.kind];
-		if (label) return label;
+		return normalizePermissionDisplayKind(parsed.kind);
 	}
 
 	// Fallback: use the permission label, but take just the first word
 	// to avoid showing full strings like "Write /tmp/file.ts"
 	const firstWord = permission.permission.split(" ")[0];
-	return firstWord ? firstWord : permission.permission;
+	return normalizePermissionDisplayKind(firstWord ? firstWord : permission.permission);
 }
 
 export function extractPermissionCommand(permission: PermissionRequest): string | null {
@@ -118,4 +169,24 @@ export function extractPermissionFilePath(permission: PermissionRequest): string
 	if (rawInputPath) return rawInputPath;
 
 	return extractPathFromPermissionLabel(permission.permission);
+}
+
+export function extractCompactPermissionDisplay(
+	permission: PermissionRequest,
+	projectPath?: string | null
+): CompactPermissionDisplay {
+	const kind = extractPermissionToolKind(permission);
+	const rawFilePath = extractPermissionFilePath(permission);
+	const filePath = rawFilePath
+		? makeWorkspaceRelative(rawFilePath, projectPath ? projectPath : "")
+		: null;
+	const rawCommand = extractPermissionCommand(permission);
+	const command = kind === "execute" ? rawCommand : null;
+
+	return {
+		kind,
+		label: TOOL_KIND_LABELS[kind] ?? "Permission",
+		command,
+		filePath,
+	};
 }

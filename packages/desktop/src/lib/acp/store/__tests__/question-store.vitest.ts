@@ -324,4 +324,38 @@ describe("QuestionStore", () => {
 		});
 	});
 
+	describe("cancelForSession", () => {
+		it("cancels all pending questions for the matching session", async () => {
+			const sessionOneFirst: QuestionRequest = {
+				id: "q-session-1-a",
+				sessionId: "session-1",
+				jsonRpcRequestId: 201,
+				questions: [],
+			};
+			const sessionOneSecond: QuestionRequest = {
+				id: "q-session-1-b",
+				sessionId: "session-1",
+				questions: [],
+			};
+			const sessionTwoQuestion: QuestionRequest = {
+				id: "q-session-2",
+				sessionId: "session-2",
+				jsonRpcRequestId: 202,
+				questions: [],
+			};
+
+			store.add(sessionOneFirst);
+			store.add(sessionOneSecond);
+			store.add(sessionTwoQuestion);
+
+			const result = await store.cancelForSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(store.pending.has("q-session-1-a")).toBe(false);
+			expect(store.pending.has("q-session-1-b")).toBe(false);
+			expect(store.pending.has("q-session-2")).toBe(true);
+			expect(mockCancelQuestion).toHaveBeenCalledWith("session-1", 201);
+			expect(mockReplyQuestion).toHaveBeenCalledWith("session-1", "q-session-1-b", []);
+		});
+	});
 });

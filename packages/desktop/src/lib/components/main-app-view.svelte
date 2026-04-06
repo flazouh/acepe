@@ -44,6 +44,7 @@ import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
+import DesignSystemShowcase from "$lib/components/dev/design-system-showcase.svelte";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import {
@@ -83,10 +84,11 @@ import {
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
 	getUpdaterPrimaryAction,
-	shouldShowUpdateAvailableOverlay,
+	shouldShowBlockingUpdaterOverlay,
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
 import {
+	downloadAndInstallUpdate,
 	installDownloadedUpdate,
 	predownloadUpdate,
 } from "./main-app-view/logic/updater-workflow.js";
@@ -177,6 +179,19 @@ panelStore.onPanelFocused = (panelId) => {
 // Get connection store (created earlier, now accessible)
 const connectionStore = getConnectionStore();
 
+function focusOrOpenSessionPanel(sessionId: string): void {
+	const existingPanel = panelStore.getPanelBySessionId(sessionId);
+	if (existingPanel) {
+		panelStore.focusPanel(existingPanel.id);
+		return;
+	}
+
+	const openedPanel = panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
+	if (openedPanel) {
+		panelStore.focusPanel(openedPanel.id);
+	}
+}
+
 function registerQuestion(question: QuestionRequest): void {
 	const backfill = getQuestionToolCallBackfill(
 		question,
@@ -186,6 +201,51 @@ function registerQuestion(question: QuestionRequest): void {
 		sessionStore.createToolCallEntry(question.sessionId, backfill);
 	}
 	questionStore.add(question);
+}
+
+function collectPendingTurnInputNotificationIds(sessionId: string): Set<string> {
+	const staleIds = new Set<string>();
+	for (const [id, permission] of permissionStore.pending) {
+		if (permission.sessionId === sessionId) staleIds.add(id);
+	}
+	for (const [id, question] of questionStore.pending) {
+		if (question.sessionId === sessionId) staleIds.add(id);
+	}
+	return staleIds;
+}
+
+function dismissPendingTurnInputNotifications(sessionId: string): void {
+	const staleIds = collectPendingTurnInputNotificationIds(sessionId);
+	if (staleIds.size === 0) return;
+	dismissWhere((notification) => staleIds.has(notification.id));
+}
+
+function clearPendingTurnInputs(sessionId: string): void {
+	dismissPendingTurnInputNotifications(sessionId);
+	questionStore.removeForSession(sessionId);
+	permissionStore.removeForSession(sessionId);
+}
+
+function cancelPendingTurnInputs(sessionId: string): void {
+	dismissPendingTurnInputNotifications(sessionId);
+	void questionStore.cancelForSession(sessionId).match(
+		() => {},
+		(error) => {
+			logger.error("Failed to cancel pending questions for interrupted turn", {
+				sessionId,
+				error,
+			});
+		}
+	);
+	void permissionStore.cancelForSession(sessionId).match(
+		() => {},
+		(error) => {
+			logger.error("Failed to cancel pending permissions for interrupted turn", {
+				sessionId,
+				error,
+			});
+		}
+	);
 }
 
 // Set up SessionStore callbacks for permission/question/plan routing
@@ -213,8 +273,7 @@ sessionStore.setCallbacks({
 				} else if (actionId === "deny") {
 					permissionStore.reply(permission.id, "reject");
 				} else if (actionId === "view") {
-					const panel = panelStore.getPanelBySessionId(permission.sessionId);
-					if (panel) panelStore.focusPanel(panel.id);
+					focusOrOpenSessionPanel(permission.sessionId);
 				}
 			},
 			{
@@ -242,8 +301,7 @@ sessionStore.setCallbacks({
 			(actionId) => {
 				if (!questionStore.pending.has(question.id)) return; // stale
 				if (actionId === "view") {
-					const panel = panelStore.getPanelBySessionId(question.sessionId);
-					if (panel) panelStore.focusPanel(panel.id);
+					focusOrOpenSessionPanel(question.sessionId);
 				}
 			},
 			{
@@ -305,7 +363,7 @@ sessionStore.setCallbacks({
 			},
 			(actionId) => {
 				if (actionId === "view") {
-					panelStore.focusPanel(panel.id);
+					focusOrOpenSessionPanel(sessionId);
 				}
 			},
 			{
@@ -314,26 +372,15 @@ sessionStore.setCallbacks({
 			}
 		);
 
-		// Dismiss stale notification popups for this session's permissions/questions
-		// Must happen before removeForSession() which clears the store entries
-		const staleIds = new Set<string>();
-		for (const [id, p] of permissionStore.pending) {
-			if (p.sessionId === sessionId) staleIds.add(id);
-		}
-		for (const [id, q] of questionStore.pending) {
-			if (q.sessionId === sessionId) staleIds.add(id);
-		}
-		if (staleIds.size > 0) {
-			dismissWhere((notif) => staleIds.has(notif.id));
-		}
-
 		// Clean up stale pending questions/permissions — if the turn completed,
 		// by definition no pending input is needed for this session.
-		questionStore.removeForSession(sessionId);
-		permissionStore.removeForSession(sessionId);
+		clearPendingTurnInputs(sessionId);
 
 		// Drain next queued message (if any)
 		messageQueueStore.drainNext(sessionId);
+	},
+	onTurnInterrupted: (sessionId: string) => {
+		cancelPendingTurnInputs(sessionId);
 	},
 	onTurnError: (sessionId: string) => {
 		messageQueueStore.pause(sessionId);
@@ -458,11 +505,13 @@ async function handleOpenFolder() {
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
 let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
-let showUpdateAvailable = $state(false);
+let blockAppForUpdate = $state(false);
 let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 let devUpdateStartTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 let devUpdateStepTimer = $state<ReturnType<typeof setInterval> | null>(null);
+
+type UpdateCheckTrigger = "startup" | "polling";
 
 const DEV_UPDATE_VERSION = "0.0.0-dev";
 const DEV_UPDATE_TOTAL_BYTES = 48 * 1024 * 1024;
@@ -483,7 +532,7 @@ function clearDevUpdateSimulation(): void {
 
 function startDevUpdateSimulation(): void {
 	clearDevUpdateSimulation();
-	showUpdateAvailable = true;
+	blockAppForUpdate = true;
 	updaterState = createCheckingUpdaterState();
 
 	devUpdateStartTimer = setTimeout(() => {
@@ -519,6 +568,7 @@ function startDevUpdateSimulation(): void {
 					clearInterval(timer);
 				}
 				devUpdateStepTimer = null;
+				updaterState = createInstallingUpdaterState(DEV_UPDATE_VERSION);
 			}
 		}, DEV_UPDATE_STEP_DELAY_MS);
 	}, DEV_UPDATE_START_DELAY_MS);
@@ -580,7 +630,8 @@ const commandPalette = useAdvancedCommandPalette({
 	},
 });
 
-async function checkForAppUpdate(): Promise<void> {
+async function checkForAppUpdate(trigger: UpdateCheckTrigger): Promise<void> {
+	blockAppForUpdate = trigger === "startup";
 	updaterState = createCheckingUpdaterState();
 	const result = await ResultAsync.fromPromise(check(), (e) => e as Error).match(
 		(update) => update,
@@ -595,13 +646,22 @@ async function checkForAppUpdate(): Promise<void> {
 		availableUpdate = null;
 		if (updaterState.kind !== "error") {
 			updaterState = createIdleUpdaterState();
-			showUpdateAvailable = false;
+		}
+		if (trigger !== "startup") {
+			blockAppForUpdate = false;
+		}
+		if (updaterState.kind === "idle") {
+			blockAppForUpdate = false;
 		}
 		return;
 	}
 
 	availableUpdate = result;
 	logger.info("Update available", { version: result.version });
+	if (trigger === "startup") {
+		await downloadAndInstallAvailableUpdate();
+		return;
+	}
 	void predownloadAvailableUpdate();
 }
 
@@ -610,7 +670,7 @@ async function predownloadAvailableUpdate(): Promise<void> {
 		return;
 	}
 
-	showUpdateAvailable = true;
+	blockAppForUpdate = false;
 	updaterState = createDownloadingUpdaterState(availableUpdate.version);
 	await predownloadUpdate(availableUpdate, (event: DownloadEvent) => {
 		updaterState = applyUpdaterDownloadEvent(updaterState, event);
@@ -618,7 +678,6 @@ async function predownloadAvailableUpdate(): Promise<void> {
 		(version) => {
 			logger.info("Update download finished", { version });
 			updaterState = createAvailableUpdaterState(version);
-			showUpdateAvailable = false;
 		},
 		(error) => {
 			availableUpdate = null;
@@ -628,12 +687,38 @@ async function predownloadAvailableUpdate(): Promise<void> {
 	);
 }
 
+async function downloadAndInstallAvailableUpdate(): Promise<void> {
+	if (!availableUpdate) {
+		return;
+	}
+
+	const update = availableUpdate;
+	updaterState = createDownloadingUpdaterState(update.version);
+	await downloadAndInstallUpdate(update, (event: DownloadEvent) => {
+		if (event.event === "Finished") {
+			updaterState = createInstallingUpdaterState(update.version);
+			return;
+		}
+
+		updaterState = applyUpdaterDownloadEvent(updaterState, event);
+	}, relaunch).match(
+		(version) => {
+			logger.info("Startup update installed", { version });
+		},
+		(error) => {
+			availableUpdate = null;
+			updaterState = createErrorUpdaterState(error.message);
+			logger.error("Startup update install failed", { error: error.message });
+		}
+	);
+}
+
 async function installAvailableUpdate(): Promise<void> {
 	if (!availableUpdate) {
 		return;
 	}
 
-	showUpdateAvailable = true;
+	blockAppForUpdate = false;
 	updaterState = createInstallingUpdaterState(availableUpdate.version);
 	await installDownloadedUpdate(availableUpdate, relaunch).match(
 		() => undefined,
@@ -663,18 +748,18 @@ onMount(async () => {
 	if (import.meta.env.DEV) {
 		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 	} else {
-		await checkForAppUpdate();
+		await checkForAppUpdate("startup");
 		updatePollTimer = setInterval(
 			() => {
 				if (
 					updaterState.kind === "downloading" ||
 					updaterState.kind === "installing" ||
-					showUpdateAvailable ||
+					blockAppForUpdate ||
 					availableUpdate !== null
 				) {
 					return;
 				}
-				void checkForAppUpdate();
+				void checkForAppUpdate("polling");
 			},
 			10 * 60 * 1000
 		);
@@ -871,10 +956,10 @@ onDestroy(() => {
 });
 </script>
 
-<ThemeProvider class="bg-primary p-1 overflow-hidden h-dvh">
-	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background rounded-lg p-0.5">
+<ThemeProvider class="overflow-hidden h-dvh p-0.5 bg-[#FFC799]">
+	<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background overflow-hidden">
 		<!-- Top bar -->
-		<div class="shrink-0 bg-card/50 border border-border rounded-lg overflow-hidden">
+		<div class="shrink-0 bg-card/50 border border-border rounded-xl overflow-hidden">
 			<TopBar
 				{viewState}
 				updaterState={updaterState}
@@ -886,10 +971,13 @@ onDestroy(() => {
 					void installAvailableUpdate();
 				}}
 				onRetryUpdateClick={() => {
-					void checkForAppUpdate();
+					void checkForAppUpdate("polling");
 				}}
 				onDevShowUpdatePage={() => {
 					startDevUpdateSimulation();
+				}}
+				onDevShowDesignSystem={() => {
+					viewState.designSystemOpen = true;
 				}}
 			>
 				{#snippet addProjectButton()}
@@ -911,7 +999,7 @@ onDestroy(() => {
 					</div>
 				{/if}
 				<main
-					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden rounded-lg transition-[border-radius,background-color] duration-200 ease-out {hasAnyPanel
+					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {hasAnyPanel
 						? ''
 						: 'justify-center items-center overflow-x-auto'}"
 				>
@@ -939,6 +1027,12 @@ onDestroy(() => {
 		{/if}
 	</div>
 	<AppOverlays state={viewState} {commandPalette} />
+	<DesignSystemShowcase
+		open={viewState.designSystemOpen}
+		onOpenChange={(open) => {
+			viewState.designSystemOpen = open;
+		}}
+	/>
 
 	<OpenProjectDialog
 		open={addProjectDialogOpen}
@@ -960,7 +1054,7 @@ onDestroy(() => {
 	<!-- Database Manager Modal -->
 	{#if viewState.sqlStudioModalOpen}
 		<div
-			class="fixed inset-0 z-[9997] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
+			class="fixed inset-0 z-[var(--app-modal-z)] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
 			role="dialog"
 			aria-modal="true"
 			aria-label="Database Manager"
@@ -990,7 +1084,7 @@ onDestroy(() => {
 	{#if viewState.reviewFullscreenSessionId}
 		{#key viewState.reviewFullscreenSessionId}
 			<div
-				class="fixed inset-0 z-[9997] bg-background"
+				class="fixed inset-0 z-[var(--app-modal-z)] bg-background"
 				role="dialog"
 				aria-modal={viewState.reviewFullscreenOpen ? "true" : undefined}
 				aria-label="Review changes"
@@ -1017,7 +1111,7 @@ onDestroy(() => {
 	<!-- Settings Modal -->
 	{#if viewState.settingsModalOpen}
 		<div
-			class="fixed inset-0 z-[9997] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
+			class="fixed inset-0 z-[var(--app-modal-z)] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
 			role="dialog"
 			aria-modal="true"
 			aria-label="Settings"
@@ -1059,7 +1153,7 @@ onDestroy(() => {
 	<!-- Onboarding Overlay (shows on first launch: splash → agents → projects → done) -->
 	{#if viewState.showSplash === true}
 		<div
-			class="fixed inset-0 z-[9999]"
+			class="fixed inset-0 z-[var(--app-blocking-z)]"
 			role="dialog"
 			aria-modal="true"
 			aria-label="Welcome to Acepe"
@@ -1073,14 +1167,16 @@ onDestroy(() => {
 		</div>
 	{/if}
 
-	<!-- Auto-update overlay (shows during checking, downloading, error) -->
-	{#if showUpdateAvailable && shouldShowUpdateAvailableOverlay(updaterState)}
+	<!-- Blocking startup update overlay (startup and dev simulation only) -->
+	{#if blockAppForUpdate && shouldShowBlockingUpdaterOverlay(updaterState)}
 		<div
-			class="fixed inset-0 z-[9998]"
+			class="fixed inset-0 z-[var(--app-elevated-z)]"
 			role="dialog"
 			aria-modal="true"
 			aria-label={updaterState.kind === "checking"
 				? m.update_checking()
+				: updaterState.kind === "installing"
+					? m.update_installing()
 				: updaterState.kind === "error"
 					? m.update_error()
 					: m.update_downloading()}
@@ -1092,11 +1188,11 @@ onDestroy(() => {
 						startDevUpdateSimulation();
 						return;
 					}
-					void checkForAppUpdate();
+					void checkForAppUpdate("startup");
 				}}
 				onDismiss={import.meta.env.DEV ? () => {
 					clearDevUpdateSimulation();
-					showUpdateAvailable = false;
+					blockAppForUpdate = false;
 					updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 				} : undefined}
 			/>

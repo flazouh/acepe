@@ -3,8 +3,11 @@ import { describe, expect, it } from "bun:test";
 import { sectionColor } from "./section-color.js";
 
 describe("sectionColor", () => {
-	it("uses the build icon token for working and semantic success for finished", () => {
+	it("uses the build icon token for working", () => {
 		expect(sectionColor("working")).toBe("var(--build-icon)");
-		expect(sectionColor("finished")).toBe("var(--success-reference)");
+	});
+
+	it("gives idle the semantic success color", () => {
+		expect(sectionColor("idle")).toBe("var(--success-reference)");
 	});
 });

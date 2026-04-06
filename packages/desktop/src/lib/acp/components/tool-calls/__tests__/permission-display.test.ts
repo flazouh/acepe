@@ -2,7 +2,11 @@ import { describe, expect, it } from "bun:test";
 
 import type { PermissionRequest } from "../../../types/permission.js";
 
-import { extractPermissionCommand, extractPermissionFilePath } from "../permission-display.js";
+import {
+	extractCompactPermissionDisplay,
+	extractPermissionCommand,
+	extractPermissionFilePath,
+} from "../permission-display.js";
 
 function createPermission(metadata: Record<string, unknown>): PermissionRequest {
 	return {
@@ -152,5 +156,42 @@ describe("permission-display", () => {
 		permission.permission = "Write articles.csv";
 
 		expect(extractPermissionFilePath(permission)).toBe("articles.csv");
+	});
+
+	it("builds compact permission display data using the toolbar extraction rules", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "edit",
+				edits: [{ filePath: "/repo/packages/ui/src/index.ts", oldString: null, newString: null, content: null }],
+			},
+		});
+		permission.permission = "Edit /repo/packages/ui/src/index.ts";
+
+		expect(extractCompactPermissionDisplay(permission, "/repo")).toEqual({
+			kind: "edit",
+			label: "Edit",
+			command: null,
+			filePath: "packages/ui/src/index.ts",
+		});
+	});
+
+	it("suppresses raw command text for file permissions when a file chip can be shown", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "edit",
+				edits: [{ filePath: "/repo/packages/ui/src/kanban-card.svelte", oldString: null, newString: null, content: null }],
+			},
+			rawInput: {
+				command: "packages/ui/src/kanban-card.svelte",
+			},
+		});
+		permission.permission = "Edit /repo/packages/ui/src/kanban-card.svelte";
+
+		expect(extractCompactPermissionDisplay(permission, "/repo")).toEqual({
+			kind: "edit",
+			label: "Edit",
+			command: null,
+			filePath: "packages/ui/src/kanban-card.svelte",
+		});
 	});
 });

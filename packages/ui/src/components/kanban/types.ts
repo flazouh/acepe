@@ -1,12 +1,23 @@
-import type { AgentToolEntry } from "../agent-panel/types.js";
+import type {
+	AgentToolEntry,
+	AgentToolKind,
+	AgentToolStatus,
+} from "../agent-panel/types.js";
 import type { SectionedFeedSectionId } from "../attention-queue/types.js";
 
 export interface KanbanToolData {
 	readonly id: string;
-	readonly kind?: string;
+	readonly kind?: AgentToolKind;
 	readonly title: string;
 	readonly filePath?: string;
-	readonly status: "pending" | "running" | "done" | "error";
+	readonly status: AgentToolStatus;
+}
+
+export interface KanbanTaskCardData {
+	readonly summary: string;
+	readonly isStreaming: boolean;
+	readonly latestTool: KanbanToolData | null;
+	readonly toolCalls: readonly AgentToolEntry[];
 }
 
 export interface KanbanCardData {
@@ -15,9 +26,7 @@ export interface KanbanCardData {
 	readonly agentIconSrc: string;
 	readonly agentLabel: string;
 	readonly projectName: string;
-	readonly projectPath: string;
 	readonly projectColor: string;
-	readonly sequenceId: number | null;
 	readonly timeAgo: string;
 	readonly activityText: string | null;
 	readonly isStreaming: boolean;
@@ -25,21 +34,17 @@ export interface KanbanCardData {
 	readonly diffInsertions: number;
 	readonly diffDeletions: number;
 	readonly errorText: string | null;
-	readonly todoProgress: { current: number; total: number } | null;
+	readonly todoProgress: { current: number; total: number; label: string } | null;
+	readonly taskCard: KanbanTaskCardData | null;
 	readonly latestTool: KanbanToolData | null;
-	readonly toolCalls: readonly AgentToolEntry[];
+	readonly hasUnseenCompletion: boolean;
+	readonly sequenceId: number | null;
 }
 
 export interface KanbanColumnGroup {
 	readonly id: SectionedFeedSectionId;
 	readonly label: string;
 	readonly items: readonly KanbanCardData[];
-}
-
-export interface KanbanPermissionData {
-	readonly label: string;
-	readonly command: string | null;
-	readonly filePath: string | null;
 }
 
 export interface KanbanQuestionOption {

@@ -14,8 +14,8 @@ describe("design system wiring contract", () => {
 
 		const source = readFileSync(topBarPath, "utf8");
 
-		expect(source).toContain('import { Button } from "@acepe/ui/button";');
-		expect(source).toContain('import * as DropdownMenu from "@acepe/ui/dropdown-menu";');
+		expect(source).toContain('import { PillButton } from "@acepe/ui";');
+		expect(source).toContain('<PillButton variant="invert" size="xs" onclick={onUpdateClick}>');
 		expect(source).toContain("onDevShowDesignSystem?: () => void;");
 		expect(source).toContain("span>Design System</span>");
 		expect(source).toContain("onclick={onDevShowDesignSystem}");
@@ -27,7 +27,10 @@ describe("design system wiring contract", () => {
 
 		const source = readFileSync(mainAppViewPath, "utf8");
 
-		expect(source).toContain('<TopBar');
-		expect(source).toContain('onDevShowUpdatePage={() => {');
+		expect(source).toContain('import DesignSystemShowcase from "$lib/components/dev/design-system-showcase.svelte";');
+		expect(source).toContain("onDevShowDesignSystem={() => {");
+		expect(source).toContain("viewState.designSystemOpen = true;");
+		expect(source).toContain("<DesignSystemShowcase");
+		expect(source).toContain("open={viewState.designSystemOpen}");
 	});
 });

@@ -25,6 +25,7 @@ import {
 	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
 	isMergedThoughtAssistantDisplayEntry,
+	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
@@ -471,7 +472,7 @@ export function scrollToTop() {
 			entryIndex={index}
 			entryKey={getKey(entry)}
 			messageId={entry.type === "user" ? entry.id : undefined}
-			observeRevealResize={getKey(entry) === getLatestRevealTargetKey(displayEntries)}
+			observeRevealResize={shouldObserveRevealResize(displayEntries, entry, isStreaming)}
 			revealEntryIndex={revealDisplayIndex}
 			{isFullscreen}
 		>

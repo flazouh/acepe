@@ -11,7 +11,7 @@
  * and responses are sent via HTTP endpoints.
  */
 
-import { errAsync, type ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
@@ -211,6 +211,33 @@ export class QuestionStore {
 		return api.replyQuestion(question.sessionId, questionId, []).map(() => {
 			logger.debug("Question cancelled via replyQuestion fallback", { questionId });
 		});
+	}
+
+	cancelForSession(sessionId: string): ResultAsyncType<void, AppError> {
+		const pendingQuestions: QuestionRequest[] = [];
+		for (const question of this.pending.values()) {
+			if (question.sessionId === sessionId) {
+				pendingQuestions.push(question);
+			}
+		}
+
+		if (pendingQuestions.length === 0) {
+			return okAsync(undefined);
+		}
+
+		return ResultAsync.combine(
+			pendingQuestions.map((question) => {
+				if (!this.pending.has(question.id)) {
+					return okAsync(undefined);
+				}
+
+				logger.info("Cancelling pending question for interrupted turn", {
+					questionId: question.id,
+					sessionId: question.sessionId,
+				});
+				return this.cancel(question.id);
+			})
+		).map(() => undefined);
 	}
 }
 

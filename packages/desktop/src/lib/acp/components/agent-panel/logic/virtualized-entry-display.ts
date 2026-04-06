@@ -108,3 +108,15 @@ export function getLatestRevealTargetKey(
 
 	return getVirtualizedDisplayEntryKey(lastEntry);
 }
+
+export function shouldObserveRevealResize(
+	displayEntries: readonly VirtualizedDisplayEntry[],
+	entry: VirtualizedDisplayEntry,
+	isStreaming: boolean
+): boolean {
+	if (!isStreaming) {
+		return false;
+	}
+
+	return getVirtualizedDisplayEntryKey(entry) === getLatestRevealTargetKey(displayEntries);
+}

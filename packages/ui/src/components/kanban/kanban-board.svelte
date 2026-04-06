@@ -12,7 +12,7 @@
 	let { groups, cardRenderer, emptyHint }: Props = $props();
 </script>
 
-<div class="flex h-full w-full min-w-0 flex-1 gap-2 overflow-x-auto p-2" data-testid="kanban-board">
+<div class="flex h-full w-full min-w-0 flex-1 gap-0.5 overflow-x-auto p-0.5" data-testid="kanban-board">
 	{#each groups as group (group.id)}
 		<KanbanColumn {group} {cardRenderer} {emptyHint} />
 	{/each}
