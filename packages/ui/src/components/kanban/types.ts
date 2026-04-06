@@ -38,7 +38,6 @@ export interface KanbanCardData {
 	readonly taskCard: KanbanTaskCardData | null;
 	readonly latestTool: KanbanToolData | null;
 	readonly hasUnseenCompletion: boolean;
-	readonly sequenceId: number | null;
 }
 
 export interface KanbanColumnGroup {

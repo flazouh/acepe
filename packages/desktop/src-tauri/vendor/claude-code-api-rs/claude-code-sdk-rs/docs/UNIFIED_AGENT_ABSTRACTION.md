@@ -18,7 +18,7 @@ Design document for a unified abstraction layer that allows the Claude Code SDK 
 
 ### Key Findings from Codex SDK Investigation
 
-After analyzing the Codex Rust codebase (`/Users/example/Work/Projects/ai/codex/codex-rs`), the following architectural patterns were identified:
+After analyzing the Codex Rust codebase (`/Users/zhangalex/Work/Projects/ai/codex/codex-rs`), the following architectural patterns were identified:
 
 **1. Submission Queue / Event Queue (SQ/EQ) Pattern**
 - **Submission Queue**: User submits operations to agent (`Op::UserInput`, `Op::Interrupt`, `Op::Shutdown`, etc.)
@@ -99,7 +99,7 @@ Based on the research, these design decisions were made for the unified abstract
 
 ## Architecture Analysis
 
-### Codex Architecture (from /Users/example/Work/Projects/ai/codex)
+### Codex Architecture (from /Users/zhangalex/Work/Projects/ai/codex)
 
 **Communication Pattern**:
 - **Submission Queue (SQ)**: User → Agent requests
@@ -1497,7 +1497,7 @@ impl TaskRouter {
 ## Implementation Plan
 
 ### Phase 0: Research & Design ✅ COMPLETED
-- [x] Analyzed Codex Rust codebase (`/Users/example/Work/Projects/ai/codex/codex-rs`)
+- [x] Analyzed Codex Rust codebase (`/Users/zhangalex/Work/Projects/ai/codex/codex-rs`)
 - [x] Identified SQ/EQ pattern and 25+ event types
 - [x] Analyzed TypeScript SDK wrapper architecture
 - [x] Documented key differences between Claude Code SDK and Codex

@@ -717,46 +717,6 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(initUpdate?.availableCommands).toEqual([{ name: "open", description: "Open file" }]);
 	});
 
-	it("stores sequenceId returned by the backend on the new cold session", async () => {
-		newSession.mockReturnValue(
-			okAsync({
-				sessionId,
-				sequenceId: 7,
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "gpt-5.2-codex",
-					availableModels: [
-						{
-							modelId: "gpt-5.2-codex/high",
-							name: "gpt-5.2-codex (high)",
-							description: null,
-						},
-					],
-				},
-				availableCommands: [],
-			})
-		);
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			hotState,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
-		result._unsafeUnwrap();
-
-		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-			SessionCold;
-		expect(addedSession.sequenceId).toBe(7);
-	});
-
 	it("honors an explicit initial mode and model before first send state is hydrated", async () => {
 		newSession.mockReturnValue(
 			okAsync({

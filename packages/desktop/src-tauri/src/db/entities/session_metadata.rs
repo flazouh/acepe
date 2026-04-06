@@ -48,12 +48,6 @@ pub struct Model {
     /// Associated pull request number (e.g. from a `gh pr create` in the session)
     pub pr_number: Option<i32>,
 
-    /// 1 when the session is managed by Acepe, 0 for scanned/imported rows.
-    pub is_acepe_managed: i32,
-
-    /// Per-project sequence ID for Acepe-native sessions (NULL for scanned sessions)
-    pub sequence_id: Option<i32>,
-
     /// Record creation timestamp
     pub created_at: DateTime<Utc>,
 

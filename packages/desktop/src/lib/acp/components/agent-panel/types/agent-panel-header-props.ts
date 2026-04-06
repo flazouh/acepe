@@ -41,7 +41,6 @@ export interface AgentPanelHeaderProps {
 	readonly sessionStatus: SessionStatusUI;
 	readonly projectName: string;
 	readonly projectColor: string;
-	readonly sequenceId?: number | null;
 	readonly hideProjectBadge?: boolean;
 	readonly debugPanelState?: unknown;
 	readonly onClose?: () => void;

@@ -82,7 +82,6 @@ impl AgentClient for OpenCodeHttpClient {
 
         Ok(NewSessionResponse {
             session_id: session.id,
-            sequence_id: None,
             models: SessionModelState {
                 available_models,
                 current_model_id,

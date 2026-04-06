@@ -25,7 +25,6 @@ export interface ThreadBoardSource {
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
 	readonly state: SessionState;
-	readonly sequenceId: number | null;
 }
 
 export interface ThreadBoardItem {
@@ -47,7 +46,6 @@ export interface ThreadBoardItem {
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
 	readonly state: SessionState;
-	readonly sequenceId: number | null;
 	readonly status: ThreadBoardStatus;
 }
 

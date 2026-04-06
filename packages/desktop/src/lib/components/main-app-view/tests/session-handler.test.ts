@@ -102,7 +102,6 @@ describe("SessionHandler", () => {
 				projectColor: "blue",
 				agentId: "agent-1",
 				sourcePath: "/tmp/session-1.store.db",
-				sequenceId: 12,
 				worktreePath: "/test/.worktrees/feature-x",
 				createdAt: new Date(),
 				updatedAt: new Date(),
@@ -120,7 +119,6 @@ describe("SessionHandler", () => {
 				"Test Session",
 				"agent-1",
 				"/tmp/session-1.store.db",
-				12,
 				"/test/.worktrees/feature-x"
 			);
 		});

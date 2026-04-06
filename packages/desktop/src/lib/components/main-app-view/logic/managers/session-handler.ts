@@ -63,7 +63,6 @@ export class SessionHandler {
 					sessionInfo.title,
 					sessionInfo.agentId,
 					sessionInfo.sourcePath,
-					sessionInfo.sequenceId,
 					sessionInfo.worktreePath
 				)
 				.mapErr(

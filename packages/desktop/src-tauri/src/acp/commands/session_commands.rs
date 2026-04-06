@@ -100,22 +100,40 @@ pub(crate) async fn persist_session_metadata_for_cwd(
     session_id: &str,
     agent_id: &CanonicalAgentId,
     cwd: &std::path::Path,
-) -> Result<Option<i32>, SerializableAcpError> {
+) -> Result<(), SerializableAcpError> {
     let (project_path, worktree_path) = session_metadata_context_from_cwd(cwd);
 
-    let sequence_id = SessionMetadataRepository::ensure_exists_and_promote(
-        db,
-        session_id,
-        &project_path,
-        agent_id.as_str(),
-        worktree_path.as_deref(),
-    )
-    .await
-    .map_err(|error| SerializableAcpError::InvalidState {
-        message: format!("Failed to persist session metadata for session {session_id}: {error}"),
-    })?;
+    if let Some(worktree_path) = worktree_path {
+        SessionMetadataRepository::set_worktree_path(
+            db,
+            session_id,
+            &worktree_path,
+            Some(&project_path),
+            Some(agent_id.as_str()),
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to persist session metadata for worktree session {session_id}: {error}"
+            ),
+        })?;
+    } else {
+        SessionMetadataRepository::ensure_exists(
+            db,
+            session_id,
+            &project_path,
+            agent_id.as_str(),
+            None,
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to persist session metadata for session {session_id}: {error}"
+            ),
+        })?;
+    }
 
-    Ok(sequence_id)
+    Ok(())
 }
 
 /// Initialize the ACP connection.
@@ -218,14 +236,9 @@ pub async fn acp_new_session(
         "New session created with dedicated client"
     );
 
-    let sequence_id =
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-            .await?;
+    persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?;
 
-    Ok(NewSessionResponse {
-        sequence_id,
-        ..result
-    })
+    Ok(result)
 }
 
 /// Resume an existing ACP session.
@@ -324,7 +337,7 @@ pub async fn acp_resume_session(
     reset_resumed_session_execution_profile(&app, &session_id, &result.modes.current_mode_id)
         .await?;
 
-    let _ = persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
+    persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
 
     Ok(result)
 }
@@ -398,13 +411,8 @@ pub async fn acp_fork_session(
         new_session_id = %result.session_id,
         "Session forked with dedicated client"
     );
-    let sequence_id =
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-            .await?;
-    Ok(NewSessionResponse {
-        sequence_id,
-        ..result
-    })
+    persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?;
+    Ok(result)
 }
 
 /// Close a session and clean up its client

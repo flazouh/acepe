@@ -257,14 +257,13 @@ export class SessionRepository {
 					...existingSession,
 					title,
 					updatedAt: scannedSession.updatedAt,
-					sourcePath: scannedSession.sourcePath ? scannedSession.sourcePath : existingSession.sourcePath,
+					sourcePath: scannedSession.sourcePath ?? existingSession.sourcePath,
 					sessionLifecycleState: scannedSession.sessionLifecycleState
 						? scannedSession.sessionLifecycleState
 						: existingSession.sessionLifecycleState,
 					parentId: scannedSession.parentId ?? existingSession.parentId,
 					worktreePath: scannedSession.worktreePath ?? existingSession.worktreePath,
 					prNumber: scannedSession.prNumber ?? existingSession.prNumber,
-					sequenceId: scannedSession.sequenceId ?? existingSession.sequenceId,
 				});
 
 				existingSessionsMap.delete(scannedSession.id);
@@ -528,7 +527,6 @@ export class SessionRepository {
 		title: string,
 		agentId: string,
 		sourcePath?: string,
-		sequenceId?: number,
 		parentId?: string | null,
 		worktreePath?: string
 	): ResultAsync<SessionCold, AppError> {
@@ -563,7 +561,6 @@ export class SessionRepository {
 			sourcePath,
 			sessionLifecycleState: "persisted",
 			parentId: parentId ?? null,
-			sequenceId,
 		};
 
 		this.stateWriter.addSession(session);
@@ -609,7 +606,6 @@ export class SessionRepository {
 					// Preserve any existing value; fall back to what the scan found.
 					// Matches the pattern in refreshSessionsFromScan (line 194).
 					worktreePath: existingSession.worktreePath ?? historySession.worktreePath,
-					sequenceId: existingSession.sequenceId ?? historySession.sequenceId,
 					title,
 					updatedAt: historySession.updatedAt,
 				});
@@ -681,7 +677,6 @@ export class SessionRepository {
 			worktreePath: entry.worktreePath === null ? undefined : entry.worktreePath,
 			worktreeDeleted: entry.worktreeDeleted === null ? undefined : entry.worktreeDeleted,
 			prNumber: entry.prNumber === null ? undefined : entry.prNumber,
-			sequenceId: entry.sequenceId === null ? undefined : entry.sequenceId,
 		};
 	}
 }

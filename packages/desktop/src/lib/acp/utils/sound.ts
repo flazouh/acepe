@@ -2,8 +2,6 @@ import { ResultAsync } from "neverthrow";
 
 import { SoundEffect } from "../types/sounds.js";
 
-const APP_START_SOUND_FILE = "app-start.wav";
-
 /**
  * Pre-decoded audio buffer cache.
  * Buffers are fetched + decoded once, then replayed instantly via Web Audio API.
@@ -34,7 +32,7 @@ export function shouldPlaySound(
 	sound: SoundEffect,
 	isDevMode: boolean = import.meta.env.DEV,
 ): boolean {
-	return !(isDevMode && sound === APP_START_SOUND_FILE);
+	return !(isDevMode && sound === SoundEffect.AppStart);
 }
 
 /**

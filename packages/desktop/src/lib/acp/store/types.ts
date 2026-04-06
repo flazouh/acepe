@@ -233,7 +233,6 @@ export interface AgentWorkspacePanel extends WorkspacePanelBase {
 	readonly sourcePath?: string | null;
 	readonly worktreePath?: string | null;
 	readonly sessionTitle: string | null;
-	readonly sequenceId?: number | null;
 }
 
 export interface FileWorkspacePanel extends WorkspacePanelBase {
@@ -329,7 +328,6 @@ export interface PersistedAgentWorkspacePanelState extends PersistedWorkspacePan
 	readonly reviewFileIndex?: number;
 	readonly embeddedTerminalDrawerOpen?: boolean;
 	readonly selectedEmbeddedTerminalTabId?: string;
-	readonly sequenceId?: number;
 }
 
 export interface PersistedFileWorkspacePanelState extends PersistedWorkspacePanelBase {
@@ -562,8 +560,6 @@ export interface PersistedPanelState {
 	readonly embeddedTerminalDrawerOpen?: boolean;
 	/** Selected embedded terminal tab ID (added in version 9) */
 	readonly selectedEmbeddedTerminalTabId?: string;
-	/** Per-project session sequence ID for instant #N display before IPC load */
-	readonly sequenceId?: number;
 }
 
 /**

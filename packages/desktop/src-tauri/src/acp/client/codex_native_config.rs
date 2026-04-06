@@ -145,7 +145,6 @@ pub fn build_codex_native_new_session_response(session_id: String) -> NewSession
     let state = default_codex_native_config_state();
     NewSessionResponse {
         session_id,
-        sequence_id: None,
         models: build_codex_native_session_model_state(),
         modes: default_modes(),
         available_commands: vec![],

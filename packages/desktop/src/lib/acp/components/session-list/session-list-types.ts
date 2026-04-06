@@ -70,8 +70,6 @@ export interface SessionListItem {
 	prNumber?: number;
 	/** Current PR state (OPEN, CLOSED, MERGED) */
 	prState?: "OPEN" | "CLOSED" | "MERGED";
-	/** Per-project sequence ID for Acepe-native sessions */
-	sequenceId?: number;
 }
 
 /**

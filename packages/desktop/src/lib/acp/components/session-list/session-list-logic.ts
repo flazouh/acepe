@@ -246,7 +246,6 @@ export function createDisplayItems(
 			worktreeDeleted: session.worktreeDeleted,
 			prNumber: session.prNumber,
 			prState: session.prState,
-			sequenceId: session.sequenceId,
 		};
 	});
 }

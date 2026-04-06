@@ -163,7 +163,6 @@ pub async fn get_opencode_sessions_for_project(
                 session_lifecycle_state: Some(
                     crate::db::repository::SessionLifecycleState::Persisted,
                 ),
-                sequence_id: None,
             }
         })
         .collect();

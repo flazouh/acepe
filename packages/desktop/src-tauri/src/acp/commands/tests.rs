@@ -394,8 +394,6 @@ fn session_metadata_created_rows_are_detected_as_pending_transcript() {
         provider_session_id: None,
         worktree_path: None,
         pr_number: None,
-        is_acepe_managed: false,
-        sequence_id: None,
     };
 
     assert!(row.is_transcript_pending());
@@ -425,8 +423,6 @@ fn session_metadata_real_rows_are_resumable() {
         provider_session_id: None,
         worktree_path: None,
         pr_number: None,
-        is_acepe_managed: false,
-        sequence_id: None,
     };
 
     assert!(!row.is_transcript_pending());
@@ -449,8 +445,6 @@ fn session_metadata_created_rows_with_worktree_context_are_resumable() {
         provider_session_id: None,
         worktree_path: Some(worktree_path),
         pr_number: None,
-        is_acepe_managed: true,
-        sequence_id: Some(1),
     };
 
     assert!(row.is_transcript_pending());
@@ -494,34 +488,6 @@ async fn persist_session_metadata_for_multiple_worktree_sessions_uses_unique_cre
     assert_eq!(second.file_path, "__session_registry__/session-worktree-b");
     assert!(first.is_transcript_pending());
     assert!(second.is_transcript_pending());
-}
-
-#[tokio::test]
-async fn persist_session_metadata_for_cwd_assigns_sequence_id_immediately_for_worktree_sessions() {
-    let db = setup_test_db().await;
-    let temp = tempdir().expect("temp dir");
-    let repo_path = temp.path().join("repo");
-    let worktree_path = temp.path().join("worktrees").join("feature-a");
-    let gitdir_path = repo_path.join(".git").join("worktrees").join("feature-a");
-
-    std::fs::create_dir_all(&gitdir_path).expect("create gitdir");
-    std::fs::create_dir_all(&worktree_path).expect("create worktree");
-    std::fs::write(
-        worktree_path.join(".git"),
-        format!("gitdir: {}\n", gitdir_path.display()),
-    )
-    .expect("write .git file");
-
-    let sequence_id = persist_session_metadata_for_cwd(
-        &db,
-        "session-worktree-seq",
-        &CanonicalAgentId::ClaudeCode,
-        &worktree_path,
-    )
-    .await
-    .expect("persist startup metadata");
-
-    assert_eq!(sequence_id, Some(1));
 }
 
 #[tokio::test]

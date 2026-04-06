@@ -25,6 +25,4 @@ export interface SessionSummary extends SessionIdentity {
 	readonly prState?: "OPEN" | "CLOSED" | "MERGED";
 	/** True when the session's recorded worktree path no longer exists. */
 	readonly worktreeDeleted?: boolean;
-	/** Per-project sequence ID for Acepe-native sessions */
-	readonly sequenceId?: number;
 }

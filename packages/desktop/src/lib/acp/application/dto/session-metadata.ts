@@ -40,9 +40,4 @@ export interface SessionMetadata {
 	 * Ephemeral — used so the UI can keep the tree icon and show it in red.
 	 */
 	readonly worktreeDeleted?: boolean;
-	/**
-	 * Per-project sequence ID for Acepe-native sessions.
-	 * Null/undefined for scanned/discovered sessions.
-	 */
-	readonly sequenceId?: number;
 }

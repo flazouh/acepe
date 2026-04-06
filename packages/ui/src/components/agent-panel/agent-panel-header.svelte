@@ -14,7 +14,6 @@
 
 	interface Props {
 		sessionTitle?: string;
-		displayTitle?: string;
 		agentIconSrc?: string;
 		sessionStatus?: AgentSessionStatus;
 		isFullscreen?: boolean;
@@ -22,7 +21,6 @@
 		pendingProjectSelection?: boolean;
 		projectName?: string;
 		projectColor?: string;
-		sequenceId?: number | null;
 		onClose?: () => void;
 		onToggleFullscreen?: () => void;
 		onScrollToTop?: () => void;
@@ -35,7 +33,6 @@
 
 	let {
 		sessionTitle,
-		displayTitle,
 		agentIconSrc,
 		sessionStatus = "empty",
 		isFullscreen = false,
@@ -43,7 +40,6 @@
 		pendingProjectSelection = false,
 		projectName,
 		projectColor,
-		sequenceId,
 		onClose,
 		onToggleFullscreen,
 		onScrollToTop,
@@ -71,9 +67,6 @@
 		{#if projectName && projectColor}
 			<HeaderCell withDivider={false}>
 				<ProjectLetterBadge name={projectName} color={projectColor} size={14} class="shrink-0" />
-				{#if sequenceId != null}
-					<span class="font-mono text-[10px] text-muted-foreground/70">#{sequenceId}</span>
-				{/if}
 			</HeaderCell>
 		{/if}
 		{#if agentIconSrc}
@@ -84,9 +77,7 @@
 		<HeaderTitleCell hoverable={Boolean(onScrollToTop)}>
 			{#snippet children()}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<span class="text-[11px] font-medium truncate"
-						>{displayTitle ? displayTitle : sessionTitle ? sessionTitle : "New thread"}</span
-					>
+					<span class="text-[11px] font-medium truncate">{sessionTitle || "New thread"}</span>
 
 					{#if statusIndicator}
 						{@render statusIndicator()}

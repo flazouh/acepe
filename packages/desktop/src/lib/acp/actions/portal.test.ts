@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+
 import { portal } from "./portal.js";
 
 function createPortaledNode(): { host: HTMLDivElement; node: HTMLDivElement } {

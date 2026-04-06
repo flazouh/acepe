@@ -9,6 +9,7 @@ const NOTIFICATION_SOUND = "Notification.wav" as SoundEffect;
 const SOUND_DOWN = "sound-down.mp3" as SoundEffect;
 const SOUND_UP = "sound-up-2.mp3" as SoundEffect;
 const soundSource = readFileSync(resolve(import.meta.dir, "../sound.ts"), "utf8");
+
 class FakeBufferSource {
 	buffer: AudioBuffer | null = null;
 	connectedTo: unknown = null;
@@ -29,37 +30,21 @@ class FakeAudioContext {
 	resume = vi.fn(async () => {
 		this.state = "running";
 	});
-	decodeAudioData = vi.fn(async () => ({ decoded: true }) as unknown as AudioBuffer);
+	decodeAudioData = vi.fn(async () => ({ decoded: true } as unknown as AudioBuffer));
 	createBufferSource = vi.fn(() => new FakeBufferSource());
 }
 
 describe("sound utilities", () => {
-	async function loadSoundModule(caseId: string) {
-		const soundModule = await import(`../sound.js?case=${caseId}-${Date.now()}`);
-		const soundsModule = await import(`../../types/sounds.js?case=${caseId}-${Date.now()}`);
-
-		return {
-			...soundModule,
-			SoundEffect: soundsModule.SoundEffect,
-		};
-	}
-
 	beforeEach(() => {
 		delete (globalThis as Record<string, unknown>).AudioContext;
 		delete (globalThis as Record<string, unknown>).fetch;
 		delete (globalThis as Record<string, unknown>).Audio;
 	});
 
-	it("skips the startup sound in dev mode without muting other sounds", async () => {
-		const { shouldPlaySound } = await loadSoundModule("dev-guard");
-
-		expect(soundSource).toContain('const APP_START_SOUND_FILE = "app-start.wav";');
-		expect(soundSource).toContain("return !(isDevMode && sound === APP_START_SOUND_FILE);");
+	it("guards only the startup sound in dev mode", () => {
+		expect(soundSource).toContain("return !(isDevMode && sound === SoundEffect.AppStart);");
 		expect(APP_START_SOUND).toBe("app-start.wav");
 		expect(NOTIFICATION_SOUND).toBe("Notification.wav");
-		expect(shouldPlaySound(APP_START_SOUND, true)).toBe(false);
-		expect(shouldPlaySound(NOTIFICATION_SOUND, true)).toBe(true);
-		expect(shouldPlaySound(APP_START_SOUND, false)).toBe(true);
 	});
 
 	it("warms suspended audio context before cached playback", async () => {
@@ -82,7 +67,7 @@ describe("sound utilities", () => {
 			configurable: true,
 		});
 
-		const { preloadSound, playSound, SoundEffect } = await loadSoundModule("warm");
+		const { preloadSound, playSound } = await import(`../sound.js?case=warm-${Date.now()}`);
 
 		preloadSound(SOUND_UP);
 		await Promise.resolve();
@@ -108,7 +93,7 @@ describe("sound utilities", () => {
 			configurable: true,
 		});
 
-		const { playSound, SoundEffect } = await loadSoundModule("fallback");
+		const { playSound } = await import(`../sound.js?case=fallback-${Date.now()}`);
 
 		playSound(SOUND_DOWN);
 

@@ -17,9 +17,9 @@ async fn main() -> Result<()> {
 
     // Example 1: Using add_dir() to add directories one by one
     let options1 = ClaudeCodeOptions::builder()
-        .cwd("/Users/example/Work/Projects/FW/rust-claude-code-api")
-        .add_dir("/Users/example/Work/Projects/FW/claude-code-sdk-python")
-        .add_dir("/Users/example/Work/Projects/FW/url-preview")
+        .cwd("/Users/zhangalex/Work/Projects/FW/rust-claude-code-api")
+        .add_dir("/Users/zhangalex/Work/Projects/FW/claude-code-sdk-python")
+        .add_dir("/Users/zhangalex/Work/Projects/FW/url-preview")
         .system_prompt("You have access to multiple project directories")
         .build();
 
@@ -28,9 +28,9 @@ async fn main() -> Result<()> {
 
     // Example 2: Using add_dirs() to add multiple directories at once
     let dirs = vec![
-        PathBuf::from("/Users/example/Work/Projects/FW/rust-claude-code-api"),
-        PathBuf::from("/Users/example/Work/Projects/FW/claude-code-sdk-python"),
-        PathBuf::from("/Users/example/Work/Projects/FW/url-preview"),
+        PathBuf::from("/Users/zhangalex/Work/Projects/FW/rust-claude-code-api"),
+        PathBuf::from("/Users/zhangalex/Work/Projects/FW/claude-code-sdk-python"),
+        PathBuf::from("/Users/zhangalex/Work/Projects/FW/url-preview"),
     ];
 
     let options2 = ClaudeCodeOptions::builder()

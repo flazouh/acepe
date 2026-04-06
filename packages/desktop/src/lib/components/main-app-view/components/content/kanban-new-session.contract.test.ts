@@ -66,7 +66,7 @@ describe("kanban new-session dialog contract", () => {
 		const source = readFileSync(kanbanViewPath, "utf8");
 		const createdHandler = source
 			.split("function handleNewSessionCreated(sessionId: string): void {")[1]
-			?.split("function resolveQuestionId(question: QuestionRequest): string {")[0];
+			?.split("function handleApprovePermission(sessionId: string) {")[0];
 
 		expect(createdHandler).toBeDefined();
 		expect(createdHandler).toContain("panelStore.openSession(sessionId, 450);");

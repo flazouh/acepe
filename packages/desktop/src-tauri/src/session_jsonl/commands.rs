@@ -111,7 +111,6 @@ pub async fn get_session_history(app: AppHandle) -> Result<Vec<HistoryEntry>, St
                 pr_number: None,
                 worktree_deleted: None,
                 session_lifecycle_state: Some(session_lifecycle_state),
-                sequence_id: s.sequence_id,
             }
         })
         .collect();

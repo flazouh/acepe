@@ -9,7 +9,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  * This enum represents all valid agent types in the system.
  * Parsers set the enum directly based on their context (no normalization needed).
  */
-export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | 
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | 
 /**
  * Custom agent registered by user
  */
@@ -39,14 +39,10 @@ worktreePath?: string | null;
  * Associated pull request number when session references a PR (e.g. from OpenCode).
  */
 prNumber?: number | null; 
-	/**
-	 * Whether the worktree path stored for this session no longer exists on disk.
-	 */
-	worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null;
-	/**
-	 * Per-project sequence ID for Acepe-native sessions.
-	 */
-	sequenceId?: number | null }
+/**
+ * Whether the worktree path stored for this session no longer exists on disk.
+ */
+worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null }
 
 /**
  * Response wrapper for get_startup_sessions.

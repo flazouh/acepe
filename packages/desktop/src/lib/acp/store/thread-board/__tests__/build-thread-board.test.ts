@@ -90,7 +90,6 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		todoProgress: overrides.todoProgress !== undefined ? overrides.todoProgress : null,
 		connectionError: overrides.connectionError !== undefined ? overrides.connectionError : null,
 		state: overrides.state !== undefined ? overrides.state : makeState(),
-		sequenceId: overrides.sequenceId !== undefined ? overrides.sequenceId : null,
 	};
 }
 
@@ -230,14 +229,12 @@ describe("buildThreadBoard", () => {
 			}),
 			makeSource({
 				panelId: "panel-new",
-				lastActivityAt: 3000,
+				lastActivityAt: 2000,
 				state: makeState({ activityKind: "idle", hasUnseenCompletion: true }),
 			}),
 		]);
 
-		expect(
-			groups.find((group) => group.status === "needs_review")?.items.map((item) => item.panelId)
-		).toEqual([
+		expect(groups.find((group) => group.status === "needs_review")?.items.map((item) => item.panelId)).toEqual([
 			"panel-new",
 			"panel-old",
 		]);

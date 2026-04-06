@@ -90,17 +90,8 @@ pub struct SubprocessTransport {
 }
 
 impl SubprocessTransport {
-    fn normalize_options(mut options: ClaudeCodeOptions) -> ClaudeCodeOptions {
-        if options.can_use_tool.is_some() && options.permission_prompt_tool_name.is_none() {
-            options.permission_prompt_tool_name = Some("stdio".to_string());
-        }
-
-        options
-    }
-
     /// Create a new subprocess transport
     pub fn new(options: ClaudeCodeOptions) -> Result<Self> {
-        let options = Self::normalize_options(options);
         let cli_path = find_claude_cli()?;
         Ok(Self {
             options,
@@ -275,7 +266,6 @@ impl SubprocessTransport {
 
     /// Create with a specific CLI path
     pub fn with_cli_path(options: ClaudeCodeOptions, cli_path: impl Into<PathBuf>) -> Self {
-        let options = Self::normalize_options(options);
         Self {
             options,
             cli_path: cli_path.into(),
@@ -299,7 +289,6 @@ impl SubprocessTransport {
     /// Create transport for simple print mode (one-shot query)
     #[allow(dead_code)]
     pub fn for_print_mode(options: ClaudeCodeOptions, _prompt: String) -> Result<Self> {
-        let options = Self::normalize_options(options);
         let cli_path = find_claude_cli()?;
         Ok(Self {
             options,
@@ -1334,25 +1323,6 @@ fn apply_process_user_inner(_cmd: &mut Command, _user: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CanUseTool, PermissionResult, PermissionResultAllow, ToolPermissionContext};
-    use std::sync::Arc;
-
-    struct AllowAllTools;
-
-    #[async_trait::async_trait]
-    impl CanUseTool for AllowAllTools {
-        async fn can_use_tool(
-            &self,
-            _tool_name: &str,
-            _input: &serde_json::Value,
-            _context: &ToolPermissionContext,
-        ) -> PermissionResult {
-            PermissionResult::Allow(PermissionResultAllow {
-                updated_input: None,
-                updated_permissions: None,
-            })
-        }
-    }
 
     #[test]
     fn test_find_claude_cli_error_message() {
@@ -1375,22 +1345,6 @@ mod tests {
 
         assert!(!transport.is_connected());
         assert_eq!(transport.state, TransportState::Disconnected);
-    }
-
-    #[test]
-    fn test_transport_auto_configures_permission_prompt_tool_for_can_use_tool() {
-        let mut options = ClaudeCodeOptions::default();
-        options.can_use_tool = Some(Arc::new(AllowAllTools));
-
-        let transport = SubprocessTransport::with_cli_path(options, "/usr/bin/true");
-        let command_debug = format!("{:?}", transport.build_command());
-
-        assert_eq!(
-            transport.options.permission_prompt_tool_name.as_deref(),
-            Some("stdio")
-        );
-        assert!(command_debug.contains("\"--permission-prompt-tool\""));
-        assert!(command_debug.contains("\"stdio\""));
     }
 
     #[test]

@@ -647,12 +647,6 @@ async function checkForAppUpdate(trigger: UpdateCheckTrigger): Promise<void> {
 		if (updaterState.kind !== "error") {
 			updaterState = createIdleUpdaterState();
 		}
-		if (trigger !== "startup") {
-			blockAppForUpdate = false;
-		}
-		if (updaterState.kind === "idle") {
-			blockAppForUpdate = false;
-		}
 		return;
 	}
 
