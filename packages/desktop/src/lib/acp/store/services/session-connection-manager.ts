@@ -172,10 +172,10 @@ export class SessionConnectionManager {
 		},
 		eventHandler: SessionEventHandler
 	): ResultAsync<SessionCold, AppError> {
-		const sessionCwd = options.worktreePath ?? options.projectPath;
+		const sessionCwd = options.worktreePath ? options.worktreePath : options.projectPath;
 		logger.info("[first-send-trace] connection manager createSession", {
 			projectPath: options.projectPath,
-			worktreePath: options.worktreePath ?? null,
+					worktreePath: options.worktreePath ? options.worktreePath : null,
 			sessionCwd,
 			agentId: options.agentId,
 		});
@@ -293,7 +293,7 @@ export class SessionConnectionManager {
 					logger.info("Claude model capabilities on session creation", {
 						sessionId,
 						agentId: options.agentId,
-						responseCurrentModelId: currentModelId ?? null,
+					responseCurrentModelId: currentModelId ? currentModelId : null,
 						availableModelIds: availableModels.map((model) => model.id),
 						cachedModelIds: preferencesStore
 							.getCachedModels(options.agentId)
@@ -305,9 +305,9 @@ export class SessionConnectionManager {
 						preferencesStore.setSessionModelForMode(
 							sessionId,
 							currentMode.id,
-							currentModel?.id ?? ""
-						);
-					}
+						currentModel?.id ? currentModel.id : ""
+					);
+				}
 
 					// Store only cold data (identity + metadata) in the sessions array
 					const sessionCold: SessionCold = {
@@ -320,6 +320,7 @@ export class SessionConnectionManager {
 						createdAt: now,
 						sessionLifecycleState: "created",
 						parentId: null,
+						sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
 					};
 
 					// Initialize hot state BEFORE adding the session to the store.
@@ -335,7 +336,9 @@ export class SessionConnectionManager {
 						currentModel,
 						availableCommands,
 						configOptions,
-						modelPerMode: currentMode ? { [currentMode.id]: currentModel?.id ?? "" } : {},
+						modelPerMode: currentMode
+							? { [currentMode.id]: currentModel?.id ? currentModel.id : "" }
+							: {},
 					});
 
 					this.stateWriter.addSession(sessionCold);

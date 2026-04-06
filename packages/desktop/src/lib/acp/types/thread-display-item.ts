@@ -96,6 +96,10 @@ export type SessionDisplayItem = {
 	 * True when the session still has a worktree path, but that worktree was deleted.
 	 */
 	worktreeDeleted?: boolean;
+	/**
+	 * Per-project sequence ID for Acepe-native sessions.
+	 */
+	sequenceId?: number;
 };
 
 /**
@@ -117,5 +121,6 @@ export function sessionSummaryToDisplayItem(session: SessionSummary): SessionDis
 		prNumber: session.prNumber,
 		prState: session.prState,
 		worktreeDeleted: session.worktreeDeleted,
+		sequenceId: session.sequenceId,
 	};
 }

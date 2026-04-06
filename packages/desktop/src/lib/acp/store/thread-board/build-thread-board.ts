@@ -68,11 +68,12 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		todoProgress: source.todoProgress,
 		connectionError: source.connectionError,
 		state: source.state,
+		sequenceId: source.sequenceId,
 		status,
 	};
 }
 
-function sortByLastActivityDesc(items: ThreadBoardItem[]): void {
+function sortItems(items: ThreadBoardItem[]): void {
 	items.sort((left, right) => right.lastActivityAt - left.lastActivityAt);
 }
 
@@ -111,12 +112,12 @@ export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonl
 		error.push(item);
 	}
 
-	sortByLastActivityDesc(answerNeeded);
-	sortByLastActivityDesc(planning);
-	sortByLastActivityDesc(working);
-	sortByLastActivityDesc(needsReview);
-	sortByLastActivityDesc(idle);
-	sortByLastActivityDesc(error);
+	sortItems(answerNeeded);
+	sortItems(planning);
+	sortItems(working);
+	sortItems(needsReview);
+	sortItems(idle);
+	sortItems(error);
 
 	const groupsByStatus = new Map<ThreadBoardStatus, readonly ThreadBoardItem[]>();
 	groupsByStatus.set("answer_needed", answerNeeded);

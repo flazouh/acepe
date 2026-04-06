@@ -155,6 +155,7 @@ pub async fn get_startup_sessions(
             worktree_deleted,
             pr_number: session.pr_number.map(|number| number as i64),
             session_lifecycle_state: Some(session_lifecycle_state),
+            sequence_id: session.sequence_id,
         });
     }
 
@@ -233,6 +234,7 @@ async fn scan_project_sessions_inner(
                 worktree_deleted,
                 pr_number: s.pr_number.map(|n| n as i64),
                 session_lifecycle_state: Some(session_lifecycle_state),
+                sequence_id: s.sequence_id,
             });
         }
         tracing::info!(

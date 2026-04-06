@@ -78,6 +78,7 @@
 		taskCard: null,
 		latestTool: null,
 		hasUnseenCompletion: false,
+		sequenceId: 1,
 	};
 
 	const demoCardStreaming: KanbanCardData = {
@@ -98,6 +99,7 @@
 		taskCard: null,
 		latestTool: null,
 		hasUnseenCompletion: false,
+		sequenceId: 2,
 	};
 
 	const demoCardWithTool: KanbanCardData = {
@@ -124,6 +126,7 @@
 			status: "running",
 		},
 		hasUnseenCompletion: false,
+		sequenceId: 3,
 	};
 
 	const demoCardError: KanbanCardData = {
@@ -144,6 +147,7 @@
 		taskCard: null,
 		latestTool: null,
 		hasUnseenCompletion: false,
+		sequenceId: null,
 	};
 
 	const demoCardNeedsReview: KanbanCardData = {
@@ -220,6 +224,7 @@
 		},
 		latestTool: null,
 		hasUnseenCompletion: false,
+		sequenceId: 4,
 	};
 
 	const demoCurrentSubagentToolCalls: readonly AgentToolEntry[] = [
@@ -278,6 +283,7 @@
 		},
 		latestTool: null,
 		hasUnseenCompletion: false,
+		sequenceId: 5,
 	};
 
 	const demoCardPermission: KanbanCardData = {
@@ -505,16 +511,16 @@
 									</Button>
 								</div>
 								<div class="ds-specimen flex items-center gap-2 md:col-span-2">
-									<Button variant="headerAction" size="headerAction">
-										<Robot weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
-										<span>New Agent</span>
-									</Button>
-									<Button variant="headerAction" size="headerAction">
-										<span>Update</span>
-									</Button>
-									<Button variant="headerAction" size="headerAction" disabled={true}>
-										<span>Updating</span>
-									</Button>
+							<Button variant="header" size="header">
+								<Robot weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
+								<span>New Agent</span>
+							</Button>
+							<Button variant="header" size="header">
+								<span>Update</span>
+							</Button>
+							<Button variant="header" size="header" disabled={true}>
+								<span>Updating</span>
+							</Button>
 								</div>
 							</div>
 						</div>

@@ -324,6 +324,9 @@
 				todoProgress: queueItem.todoProgress,
 				connectionError: snapshot.connectionError ? snapshot.connectionError : null,
 				state: queueItem.state,
+				sequenceId: metadata
+					? (metadata.sequenceId !== undefined ? metadata.sequenceId : null)
+					: null,
 			});
 		}
 
@@ -430,6 +433,7 @@
 			taskCard,
 			latestTool,
 			hasUnseenCompletion: item.state.attention.hasUnseenCompletion,
+			sequenceId: item.sequenceId,
 		};
 	}
 

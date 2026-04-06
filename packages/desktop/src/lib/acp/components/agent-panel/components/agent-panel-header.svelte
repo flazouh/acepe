@@ -34,6 +34,7 @@ let {
 	sessionStatus,
 	projectName,
 	projectColor,
+	sequenceId,
 	hideProjectBadge = false,
 	onClose,
 	onToggleFullscreen,
@@ -124,13 +125,15 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 {:else}
 	<AgentPanelHeaderLayout
 		class="bg-card/50"
-		sessionTitle={sessionTitle ?? undefined}
+		sessionTitle={sessionTitle ? sessionTitle : undefined}
+		displayTitle={displayTitle ? displayTitle : undefined}
 		{agentIconSrc}
 		{isFullscreen}
 		{isConnecting}
 		{pendingProjectSelection}
 		projectName={hideProjectBadge ? undefined : projectName}
 		projectColor={hideProjectBadge ? undefined : projectColor}
+		sequenceId={hideProjectBadge ? undefined : sequenceId}
 		{onClose}
 		{onToggleFullscreen}
 		{onScrollToTop}

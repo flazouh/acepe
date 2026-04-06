@@ -29,7 +29,7 @@ export CLAUDE_CODE__FILE_ACCESS__SKIP_PERMISSIONS=true
 通过环境变量指定允许访问的目录：
 
 ```bash
-export CLAUDE_CODE__FILE_ACCESS__ADDITIONAL_DIRS='["/Users/zhangalex/Work", "/tmp"]'
+export CLAUDE_CODE__FILE_ACCESS__ADDITIONAL_DIRS='["/Users/example/Work", "/tmp"]'
 ./target/release/claude-code-api
 ```
 
@@ -41,8 +41,8 @@ export CLAUDE_CODE__FILE_ACCESS__ADDITIONAL_DIRS='["/Users/zhangalex/Work", "/tm
 [file_access]
 skip_permissions = false
 additional_dirs = [
-    "/Users/zhangalex/Work",
-    "/Users/zhangalex/Documents",
+    "/Users/example/Work",
+    "/Users/example/Documents",
     "/tmp"
 ]
 ```
@@ -108,7 +108,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
     "model": "claude-opus-4-20250514",
     "messages": [{
       "role": "user",
-      "content": "在 /Users/zhangalex/Work 目录下搜索所有 .md 文件"
+      "content": "在 /Users/example/Work 目录下搜索所有 .md 文件"
     }]
   }'
 ```

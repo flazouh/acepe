@@ -96,6 +96,7 @@ impl MetadataParseState {
                     session_lifecycle_state: Some(
                         crate::db::repository::SessionLifecycleState::Persisted,
                     ),
+                    sequence_id: None,
                 }));
             }
             return Ok(None);
@@ -146,6 +147,7 @@ impl MetadataParseState {
             pr_number: None,
             worktree_deleted: None,
             session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
+            sequence_id: None,
         }))
     }
 }

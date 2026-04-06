@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Codex native client now routes `session/update` JSON-RPC notifications through the session update parser, enabling Codex-originated tool calls to appear in the UI
+- Config option selector shows a reasoning-effort icon indicator when reasoning level changes
+- Markdown streaming sections split and reveal progressively during agent responses instead of updating the entire block
+- Streaming log calls added to Codex native client for debugging event flow
+- Contract tests for permission bar, agent-tool-edit, config selector reasoning icon, and resolve-tool-call-edit-diffs
 - Markdown now renders during streaming with throttled 150ms sync rendering and a leading-edge first frame, instead of showing raw text until the stream finishes
 - Kanban board gains a Needs Review column (pink, eye icon) for unseen completions before they move to Done
 - Views can override Cmd+T to show a custom new-session flow such as the kanban new-agent dialog
@@ -16,7 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ACP file write path handling now canonicalizes and scope-checks write paths for security
 
 ### Changed
-- Workspace dependency versions aligned across desktop, website, ui, and analytics packages (Vite 7, SvelteKit 2.49, Svelte 5.45, TypeScript 5.9)
+- Tool call edit and permission bar components redesigned with a dedicated diff resolution layer
+- Session title formatting extracted to shared `formatSessionTitleForDisplay`, replacing duplicated capitalize-and-fallback logic across agent panel and kanban view
+- Website Logo component replaced with direct themed asset imports for simpler dark/light mode switching
+- App chrome refined with accent border and rounded corners on the main window
+- Workspace dependency versions aligned across desktop, website, and ui packages (Vite 7, SvelteKit 2.49, Svelte 5.45, TypeScript 5.9)
 - Remaining `once_cell::Lazy` statics replaced with `std::sync::LazyLock` and the direct `once_cell` dependency removed
 - Stale `lucide-svelte` and `phosphor-icons-svelte` dependencies removed from manifests and lockfile
 - Backend CI serializes Cargo steps and drops redundant `cargo check`
@@ -25,7 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Design system showcase ownership moved into the desktop package
 - Kanban inline composer removed in favor of thread dialog interaction
 
+### Removed
+- Analytics and Sentry infrastructure removed across desktop, website, and backend — `@acepe/analytics` package deleted, Sentry SDK dependencies dropped, error capture calls stripped, source map uploads disabled
+- Copilot removed from hero section agent grid on the website
+
 ### Fixed
+- Text delta whitespace preserved in Codex native streaming — leading spaces in LLM tokens (e.g. `" world"`) are no longer trimmed, fixing broken inter-word spacing
 - OpenCode runtime root resolved from the repository or worktree root instead of the raw working directory, preventing duplicate processes and leaked LSP servers
 - Open PR button stays visible with its loading spinner during PR creation instead of vanishing instantly
 - Website logo dark/light theme assets now display correctly in their respective modes

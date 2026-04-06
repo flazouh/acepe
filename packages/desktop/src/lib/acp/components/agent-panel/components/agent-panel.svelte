@@ -530,6 +530,12 @@ const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
 });
 
+const sequenceId = $derived(
+	sessionMetadata
+		? (sessionMetadata.sequenceId ?? null)
+		: null
+);
+
 const displayTitle = $derived.by(() => {
 	if (!sessionTitle && !displayProjectName) return null;
 	return formatSessionTitleForDisplay(sessionTitle, displayProjectName, "Project");
@@ -1488,6 +1494,7 @@ function handleCheckpointRevertComplete() {
 			{agentName}
 			{isFullscreen}
 			{hideProjectBadge}
+			{sequenceId}
 			sessionStatus={mappedSessionStatus}
 			projectName={displayProjectName}
 			{projectColor}

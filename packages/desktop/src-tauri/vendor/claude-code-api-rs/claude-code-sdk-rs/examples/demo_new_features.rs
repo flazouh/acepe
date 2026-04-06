@@ -72,12 +72,12 @@ fn main() {
 
     let complete_options = ClaudeCodeOptions::builder()
         // Working directory
-        .cwd("/Users/zhangalex/Work/Projects/main")
+        .cwd("/Users/example/Work/Projects/main")
         // Settings file
         .settings(settings_path.to_str().unwrap())
         // Additional directories
-        .add_dir("/Users/zhangalex/Work/Projects/lib1")
-        .add_dir("/Users/zhangalex/Work/Projects/lib2")
+        .add_dir("/Users/example/Work/Projects/lib1")
+        .add_dir("/Users/example/Work/Projects/lib2")
         // Other options
         .system_prompt("You are an expert developer")
         .model("claude-3-opus-20240229")
