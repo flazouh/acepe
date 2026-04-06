@@ -58,6 +58,7 @@ aws-credential-types = "1"
 tokio-util = { version = "0.7", features = ["io"] }
 tauri-plugin-notification = "2.3.3"
 tempfile = "3"
+toml = "0.8"
 regex = "1.10"
 urlencoding = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -98,13 +99,15 @@ nix = { version = "0.28", features = ["signal", "process"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
 objc2 = { version = "0.6", features = ["catch-all"] }
+whisper-rs = { version = "=0.16.0", features = ["metal"] }
 
 [features]
-default = ["whisper-metal"]
+default = []
 manual-test-targets = []
 # PINNED exact version: audit whisper-rs-sys/build.rs before any bump.
-# Metal stays opt-in at the package level so release builds can disable it
-# while keeping whisper available on every platform.
+# Linux CI and other non-macOS builds stay on CPU by default.
+# macOS gets Metal through the target-specific dependency above, and the
+# package feature remains available for explicit opt-in elsewhere.
 whisper-metal = ["whisper-rs/metal"]
 
 [[bin]]
