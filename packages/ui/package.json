@@ -157,6 +157,10 @@
       "svelte": "./src/components/input-container/index.ts",
       "default": "./src/components/input-container/index.ts"
     },
+    "./kbd": {
+      "svelte": "./src/components/kbd/index.ts",
+      "default": "./src/components/kbd/index.ts"
+    },
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
       "default": "./src/components/user-message-container/index.ts"

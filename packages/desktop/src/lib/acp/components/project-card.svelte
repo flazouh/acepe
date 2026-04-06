@@ -3,7 +3,7 @@ import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
 import ArrowDown from "phosphor-svelte/lib/ArrowDown";
 import ArrowUp from "phosphor-svelte/lib/ArrowUp";
 import GitBranch from "phosphor-svelte/lib/GitBranch";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
 import { capitalizeName } from "../utils/index.js";

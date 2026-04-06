@@ -2,7 +2,7 @@
 import { onDestroy, onMount } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
 import { getAgentIcon } from "../constants/thread-list-constants.js";

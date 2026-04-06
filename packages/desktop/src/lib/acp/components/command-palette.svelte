@@ -1,6 +1,6 @@
 <script lang="ts">
 import * as Dialog from "$lib/components/ui/dialog/index.js";
-import * as Kbd from "$lib/components/ui/kbd/index.js";
+import * as Kbd from "@acepe/ui/kbd";
 import * as m from "$lib/paraglide/messages.js";
 import { TIMING } from "../constants/timing.js";
 import type { UseCommandPalette } from "../hooks/use-command-palette.svelte.js";

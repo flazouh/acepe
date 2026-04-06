@@ -3,7 +3,7 @@ import IconRotateClockwise from "@tabler/icons-svelte/icons/rotate-clockwise";
 import IconSearch from "@tabler/icons-svelte/icons/search";
 import { SvelteMap } from "svelte/reactivity";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import type { Action, Keybinding } from "$lib/keybindings/types.js";
 import { formatKeyStringToArray } from "$lib/keybindings/utils/formatter.js";

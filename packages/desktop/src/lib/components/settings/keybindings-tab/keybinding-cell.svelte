@@ -2,7 +2,7 @@
 import IconPencil from "@tabler/icons-svelte/icons/pencil";
 import IconX from "@tabler/icons-svelte/icons/x";
 import { Button } from "$lib/components/ui/button/index.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import type { Keybinding } from "$lib/keybindings/types.js";
 import { formatKeyStringToArray } from "$lib/keybindings/utils/formatter.js";
 import * as m from "$lib/paraglide/messages.js";

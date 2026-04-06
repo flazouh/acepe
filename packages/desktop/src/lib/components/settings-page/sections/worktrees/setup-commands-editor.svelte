@@ -1,7 +1,7 @@
 <script lang="ts">
 import { X } from "phosphor-svelte";
 import { untrack } from "svelte";
-import { Kbd } from "$lib/components/ui/kbd/index.js";
+import { Kbd } from "@acepe/ui/kbd";
 import * as m from "$lib/paraglide/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
-import * as Kbd from "$lib/components/ui/kbd/index.js";
+import * as Kbd from "@acepe/ui/kbd";
 import AgentIcon from "../../components/agent-icon.svelte";
 import type { PaletteItem } from "../../types/palette-item.js";
 

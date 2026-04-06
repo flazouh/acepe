@@ -6,7 +6,7 @@ import Stop from "phosphor-svelte/lib/Stop";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";

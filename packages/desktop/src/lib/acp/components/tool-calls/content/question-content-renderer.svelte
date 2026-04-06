@@ -3,7 +3,7 @@ import { Colors } from "@acepe/ui/colors";
 import IconCircle from "@tabler/icons-svelte/icons/circle";
 import IconHelpCircleFilled from "@tabler/icons-svelte/icons/help-circle-filled";
 import IconSquare from "@tabler/icons-svelte/icons/square";
-import { Kbd } from "$lib/components/ui/kbd/index.js";
+import { Kbd } from "@acepe/ui/kbd";
 
 import type { QuestionContent } from "../../../schemas/tool-call-content.schema.js";
 

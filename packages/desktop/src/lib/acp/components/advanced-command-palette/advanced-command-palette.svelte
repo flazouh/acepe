@@ -1,7 +1,7 @@
 <script lang="ts">
 import MagnifyingGlass from "phosphor-svelte/lib/MagnifyingGlass";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
-import * as Kbd from "$lib/components/ui/kbd/index.js";
+import * as Kbd from "@acepe/ui/kbd";
 import { TIMING } from "../../constants/timing.js";
 import type { UseAdvancedCommandPalette } from "../../hooks/use-advanced-command-palette.svelte.js";
 import type { PaletteMode } from "../../types/palette-mode.js";

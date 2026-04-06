@@ -1,6 +1,6 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import {
 	formatKeyStringToArray,

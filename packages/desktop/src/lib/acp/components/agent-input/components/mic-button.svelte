@@ -15,7 +15,7 @@ import Microphone from "phosphor-svelte/lib/Microphone";
 import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 import * as m from "$lib/paraglide/messages.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
+import { Kbd, KbdGroup } from "@acepe/ui/kbd";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { canCancelVoiceInteraction } from "../logic/voice-ui-state.js";
 import { getMicButtonVisualState } from "./mic-button-state.js";

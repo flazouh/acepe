@@ -181,6 +181,7 @@ export {
 	INLINE_ARTEFACT_PACKAGE_PATH,
 } from "./components/inline-artefact-badge/index.js";
 export { Input, Root as InputRoot } from "./components/input/index.js";
+export { Kbd, KbdGroup } from "./components/kbd/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
