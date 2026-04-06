@@ -1311,7 +1311,8 @@ function handlePrimaryButtonClick(): void {
 
 // Handle mode change
 async function handleModeChange(modeId: string) {
-	if (props.sessionId) {
+	const sessionId = props.sessionId;
+	if (sessionId) {
 		pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
 			const shouldAnnounceForcedOff =
 				autonomousToggleActive &&
@@ -1321,7 +1322,7 @@ async function handleModeChange(modeId: string) {
 					currentUiModeId: modeId,
 					agents: agentStore.agents,
 				}).supported;
-			const result = await sessionStore.setMode(props.sessionId, modeId);
+			const result = await sessionStore.setMode(sessionId, modeId);
 			if (result.isErr()) {
 				toast.error("Failed to switch mode.");
 				return false;
@@ -1393,9 +1394,10 @@ async function handleAutonomousToggle(): Promise<void> {
 
 // Handle model change
 async function handleModelChange(modelId: string) {
-	if (props.sessionId) {
+	const sessionId = props.sessionId;
+	if (sessionId) {
 		pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
-			const result = await sessionStore.setModel(props.sessionId, modelId);
+			const result = await sessionStore.setModel(sessionId, modelId);
 			return result.isOk();
 		});
 		await pendingSessionConfigOperation;
