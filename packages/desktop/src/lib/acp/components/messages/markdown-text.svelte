@@ -22,7 +22,6 @@ import {
 	type SyncRenderResult,
 } from "../../utils/markdown-renderer.js";
 import ContentBlockRenderer from "./content-block-renderer.svelte";
-import { streamingReveal } from "./logic/streaming-reveal-action.js";
 import {
 	normalizeToProjectRelativePath,
 	resolveDiffStatsForFilePath,
@@ -66,7 +65,11 @@ interface Props {
 	projectPath?: string;
 }
 
-let { text, isStreaming = false, projectPath: propProjectPath }: Props = $props();
+let {
+	text,
+	isStreaming = false,
+	projectPath: propProjectPath,
+}: Props = $props();
 
 // Use context projectPath if no prop provided, otherwise use prop (backward compatibility)
 const projectPath = $derived(propProjectPath ?? contextProjectPath);
@@ -433,7 +436,6 @@ function handleKeydown(event: KeyboardEvent) {
 		tabindex="0"
 		onclick={handleClick}
 		onkeydown={handleKeydown}
-		use:streamingReveal={{ active: isStreaming }}
 	>
 		{#each streamingTail.sections as section (section.key)}
 			<div

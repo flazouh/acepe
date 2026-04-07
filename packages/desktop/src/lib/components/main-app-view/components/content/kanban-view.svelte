@@ -2,17 +2,20 @@
 	import { IconDotsVertical } from "@tabler/icons-svelte";
 	import {
 		AttentionQueueQuestionCard,
+		BuildIcon,
 		CloseAction,
 		Dialog,
 		DialogContent,
 		EmbeddedPanelHeader,
 		HeaderActionCell,
+		HeaderTitleCell,
 		KanbanBoard,
 		KanbanCard,
 		type KanbanCardData,
 		type KanbanColumnGroup,
 		type KanbanTaskCardData,
 		type KanbanToolData,
+		PlanIcon,
 	} from "@acepe/ui";
 	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { Colors } from "@acepe/ui/colors";
@@ -38,10 +41,14 @@
 	import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 	import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
 	import { resolveCompactToolDisplay } from "$lib/acp/components/tool-calls/tool-definition-registry.js";
-	import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
+	import {
+		deriveSessionTitleFromUserInput,
+		formatSessionTitleForDisplay,
+	} from "$lib/acp/store/session-title-policy.js";
 	import {
 		getAgentPreferencesStore,
 		getAgentStore,
+		getInteractionStore,
 		getPanelStore,
 		getPermissionStore,
 		getQuestionStore,
@@ -50,7 +57,10 @@
 	} from "$lib/acp/store/index.js";
 	import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 	import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
-	import { getPrimaryQuestionText, groupPendingQuestionsBySession } from "$lib/acp/store/question-selectors.js";
+	import {
+		buildSessionOperationInteractionSnapshot,
+	} from "$lib/acp/store/operation-association.js";
+	import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 	import { buildQueueItem, calculateSessionUrgency, type QueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
 	import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 	import type { ThreadBoardItem, ThreadBoardSource } from "$lib/acp/store/thread-board/thread-board-item.js";
@@ -62,8 +72,9 @@
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 	import { ResultAsync } from "neverthrow";
-	import { Robot } from "phosphor-svelte";
+	import { Robot, XCircle } from "phosphor-svelte";
 	import { toast } from "svelte-sonner";
+	import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 
 	import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 	import {
@@ -91,6 +102,7 @@
 	const sessionStore = getSessionStore();
 	const agentStore = getAgentStore();
 	const agentPreferencesStore = getAgentPreferencesStore();
+	const interactionStore = getInteractionStore();
 	const permissionStore = getPermissionStore();
 	const questionStore = getQuestionStore();
 	const unseenStore = getUnseenStore();
@@ -109,6 +121,11 @@
 
 	const KANBAN_NEW_SESSION_PANEL_ID = "kanban-new-session-dialog";
 	type KanbanThreadDialogMode = "inspect" | "close-panel";
+	interface OptimisticKanbanCard {
+		readonly panelId: string;
+		readonly projectPath: string;
+		readonly card: KanbanCardData;
+	}
 
 	let newSessionOpen = $state(false);
 	let newSessionDialogRef = $state<HTMLElement | null>(null);
@@ -171,24 +188,7 @@
 		return colors;
 	});
 
-	const pendingQuestionsBySession = $derived.by(() =>
-		groupPendingQuestionsBySession(questionStore.pending.values())
-	);
-
-	const pendingPermissionsBySession = $derived.by(() => {
-		const permissionsBySession = new Map<
-			string,
-			typeof permissionStore.pending extends Map<string, infer Value> ? Value : never
-		>();
-
-		for (const permission of permissionStore.pending.values()) {
-			if (!permissionsBySession.has(permission.sessionId)) {
-				permissionsBySession.set(permission.sessionId, permission);
-			}
-		}
-
-		return permissionsBySession;
-	});
+	const operationStore = sessionStore.getOperationStore();
 
 	const SECTION_LABELS: Record<ThreadBoardStatus, () => string> = {
 		answer_needed: () => m.queue_group_answer_needed(),
@@ -263,9 +263,14 @@
 			const metadata = sessionStore.getSessionMetadata(sessionId);
 			const hotState = sessionStore.getHotState(sessionId);
 			const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
-			const pendingQuestions = pendingQuestionsBySession.get(sessionId) ?? [];
-			const pendingQuestion = pendingQuestions.length > 0 ? pendingQuestions[0] : null;
-			const pendingPermission = pendingPermissionsBySession.get(sessionId) ?? null;
+			const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+				sessionId,
+				operationStore,
+				interactionStore
+			);
+			const pendingQuestion = interactionSnapshot.pendingQuestion;
+			const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
+			const pendingPermission = interactionSnapshot.pendingPermission;
 			const sessionProjectPath = identity ? identity.projectPath : panel.projectPath;
 			const sessionAgentId = identity ? identity.agentId : panel.agentId;
 
@@ -299,6 +304,7 @@
 				unseenStore.isUnseen(panel.id),
 				pendingQuestionText,
 				pendingQuestion,
+				pendingPlanApproval,
 				pendingPermission,
 				(projectPath) => {
 					const projectColor = projectColorsByPath.get(projectPath);
@@ -428,13 +434,100 @@
 		return item.state.pendingInput.request;
 	}
 
+	function getPlanApprovalRequest(item: ThreadBoardItem) {
+		if (item.state.pendingInput.kind !== "plan_approval") return null;
+		const snapshotApproval = item.state.pendingInput.request;
+		const liveApproval =
+			interactionStore.planApprovalsPending.get(snapshotApproval.id) ?? snapshotApproval;
+		return liveApproval.status === "pending" ? liveApproval : null;
+	}
+
+	function getPlanApprovalPrompt(item: ThreadBoardItem): string {
+		const approval = getPlanApprovalRequest(item);
+		if (!approval) {
+			return m.tool_create_plan_running();
+		}
+
+		const currentTool =
+			item.currentStreamingToolCall?.id === approval.tool.callID ? item.currentStreamingToolCall : null;
+		if (currentTool?.normalizedQuestions?.[0]?.question) {
+			return currentTool.normalizedQuestions[0].question;
+		}
+
+		const lastTool = item.lastToolCall?.id === approval.tool.callID ? item.lastToolCall : null;
+		return lastTool?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running();
+	}
+
+	function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
+		const cards: OptimisticKanbanCard[] = [];
+
+		for (const panel of panelStore.panels) {
+			if (panel.sessionId !== null || panel.projectPath === null || panel.selectedAgentId === null) {
+				continue;
+			}
+
+			const hotState = panelStore.getHotState(panel.id);
+			if (hotState.pendingUserEntry === null && hotState.pendingWorktreeSetup === null) {
+				continue;
+			}
+
+			const project = projects.find((candidate) => candidate.path === panel.projectPath) ?? null;
+			const entry = hotState.pendingUserEntry;
+			const pendingText =
+				entry && entry.type === "user" && entry.message.content.type === "text"
+					? entry.message.content.text
+					: "";
+			const title = formatSessionTitleForDisplay(
+				deriveSessionTitleFromUserInput(pendingText),
+				project ? project.name : null
+			);
+			const activityText =
+				hotState.pendingWorktreeSetup?.phase === "creating-worktree"
+					? "Creating worktree…"
+					: "Starting…";
+
+			cards.push({
+				panelId: panel.id,
+				projectPath: panel.projectPath,
+				card: {
+					id: panel.id,
+					title,
+					agentIconSrc: getAgentIcon(panel.selectedAgentId, themeState.effectiveTheme),
+					agentLabel: panel.selectedAgentId,
+					projectName: project ? project.name : m.project_unknown(),
+					projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
+					timeAgo: "Now",
+					activityText,
+					isStreaming: true,
+					modeId: null,
+					diffInsertions: 0,
+					diffDeletions: 0,
+					errorText: null,
+					todoProgress: null,
+					taskCard: null,
+					latestTool: null,
+					hasUnseenCompletion: false,
+					sequenceId: null,
+				},
+			});
+		}
+
+		return cards;
+	}
+
 	const groups = $derived.by((): readonly KanbanColumnGroup[] => {
+		const optimisticKanbanCards = buildOptimisticKanbanCards();
+
 		return SECTION_ORDER.map((sectionId) => {
 			const section = threadBoard.find((group) => group.status === sectionId);
+			const sectionCards = section ? section.items.map(mapItemToCard) : [];
 			return {
 				id: sectionId,
 				label: SECTION_LABELS[sectionId](),
-				items: section ? section.items.map(mapItemToCard) : [],
+				items:
+					sectionId === "working"
+						? optimisticKanbanCards.map((item) => item.card).concat(sectionCards)
+						: sectionCards,
 			};
 		});
 	});
@@ -449,9 +542,26 @@
 		return map;
 	});
 
+	const optimisticCardLookup = $derived.by(() => {
+		const map = new Map<string, OptimisticKanbanCard>();
+		for (const item of buildOptimisticKanbanCards()) {
+			map.set(item.card.id, item);
+		}
+		return map;
+	});
+
 	function handleCardClick(cardId: string) {
 		const item = itemLookup.get(cardId);
-		if (!item) return;
+		if (!item) {
+			const optimisticCard = optimisticCardLookup.get(cardId);
+			if (!optimisticCard) {
+				return;
+			}
+			panelStore.setFocusedViewProjectPath(optimisticCard.projectPath);
+			panelStore.movePanelToFront(optimisticCard.panelId);
+			panelStore.focusPanel(optimisticCard.panelId);
+			return;
+		}
 		if (item.projectPath) {
 			panelStore.setFocusedViewProjectPath(item.projectPath);
 		}
@@ -634,17 +744,45 @@
 		);
 	}
 
-	function handleNewSessionWillSend(): void {
-		if (!effectiveAgentId) {
-			return;
+	function handleNewSessionWillSend(): string | null {
+		const projectPath = selectedProject ? selectedProject.path : null;
+		if (!effectiveAgentId || !projectPath) {
+			return null;
 		}
 
 		persistSelectedAgent(effectiveAgentId);
+		const optimisticPanel = panelStore.spawnPanel({
+			projectPath,
+			selectedAgentId: effectiveAgentId,
+		});
+		newSessionOpen = false;
+		return optimisticPanel.id;
 	}
 
-	function handleNewSessionCreated(sessionId: string): void {
+	function handleNewSessionCreated(sessionId: string, panelId?: string | null): void {
+		if (panelId) {
+			panelStore.updatePanelSession(panelId, sessionId);
+			panelStore.focusPanel(panelId);
+			return;
+		}
+
 		newSessionOpen = false;
 		panelStore.openSession(sessionId, 450);
+	}
+
+	function handleNewSessionSendError(panelId: string | null): void {
+		if (!panelId) {
+			return;
+		}
+
+		const restore = panelStore.consumePendingComposerRestore(panelId);
+		if (restore !== null) {
+			panelStore.setPendingComposerRestore(KANBAN_NEW_SESSION_PANEL_ID, restore);
+			panelStore.setMessageDraft(KANBAN_NEW_SESSION_PANEL_ID, restore.draft);
+		}
+
+		panelStore.closePanel(panelId);
+		newSessionOpen = true;
 	}
 
 	function resolveQuestionId(question: QuestionRequest): string {
@@ -747,7 +885,7 @@
 		const currentQuestion = pendingQuestion.questions[currentQuestionIndex];
 		if (!currentQuestion) return;
 		const questionId = resolveQuestionId(pendingQuestion);
-		selectionStore.setOtherText(questionId, 0, value);
+		selectionStore.setOtherText(questionId, currentQuestionIndex, value);
 		if (value.trim() && !selectionStore.isOtherActive(questionId, currentQuestionIndex)) {
 			selectionStore.setOtherModeActive(questionId, currentQuestionIndex, true);
 			if (!currentQuestion.multiSelect) {
@@ -819,6 +957,78 @@
 			pendingQuestion.questions
 		);
 	}
+
+	function handleApprovePlanApproval(sessionId: string): void {
+		const item = itemLookup.get(sessionId);
+		const approval = item ? getPlanApprovalRequest(item) : null;
+		if (!approval) return;
+		interactionStore.planApprovalsPending.set(approval.id, {
+			id: approval.id,
+			kind: "plan_approval",
+			source: approval.source,
+			sessionId: approval.sessionId,
+			tool: {
+				messageID: approval.tool.messageID,
+				callID: approval.tool.callID,
+			},
+			jsonRpcRequestId: approval.jsonRpcRequestId,
+			status: "approved",
+		});
+
+		void replyToPlanApprovalRequest(approval.sessionId, approval.jsonRpcRequestId, true).match(
+			() => undefined,
+			() => {
+				interactionStore.planApprovalsPending.set(approval.id, {
+					id: approval.id,
+					kind: "plan_approval",
+					source: approval.source,
+					sessionId: approval.sessionId,
+					tool: {
+						messageID: approval.tool.messageID,
+						callID: approval.tool.callID,
+					},
+					jsonRpcRequestId: approval.jsonRpcRequestId,
+					status: "pending",
+				});
+			}
+		);
+	}
+
+	function handleRejectPlanApproval(sessionId: string): void {
+		const item = itemLookup.get(sessionId);
+		const approval = item ? getPlanApprovalRequest(item) : null;
+		if (!approval) return;
+		interactionStore.planApprovalsPending.set(approval.id, {
+			id: approval.id,
+			kind: "plan_approval",
+			source: approval.source,
+			sessionId: approval.sessionId,
+			tool: {
+				messageID: approval.tool.messageID,
+				callID: approval.tool.callID,
+			},
+			jsonRpcRequestId: approval.jsonRpcRequestId,
+			status: "rejected",
+		});
+
+		void replyToPlanApprovalRequest(approval.sessionId, approval.jsonRpcRequestId, false).match(
+			() => undefined,
+			() => {
+				interactionStore.planApprovalsPending.set(approval.id, {
+					id: approval.id,
+					kind: "plan_approval",
+					source: approval.source,
+					sessionId: approval.sessionId,
+					tool: {
+						messageID: approval.tool.messageID,
+						callID: approval.tool.callID,
+					},
+					jsonRpcRequestId: approval.jsonRpcRequestId,
+					status: "pending",
+				});
+			}
+		);
+	}
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -848,9 +1058,6 @@
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>
 			<div class="mx-auto flex w-full max-w-[30rem] flex-col px-3 pt-4 pb-2">
-				<h1 class="mb-6 text-center font-sans text-[1.9rem] font-semibold tracking-tight text-foreground sm:text-4xl">
-					What do you want to build?
-				</h1>
 				{#if canShowNewSessionInput}
 					<AgentInput
 						panelId={KANBAN_NEW_SESSION_PANEL_ID}
@@ -863,6 +1070,7 @@
 						onAgentChange={handleNewSessionAgentChange}
 						onSessionCreated={handleNewSessionCreated}
 						onWillSend={handleNewSessionWillSend}
+						onSendError={handleNewSessionSendError}
 						worktreePath={activeWorktreePath ? activeWorktreePath : undefined}
 						worktreePending={effectiveWorktreePending}
 						onWorktreeCreated={(path) => {
@@ -929,7 +1137,10 @@
 				{@const questionUiState = item ? getQuestionUiState(item) : null}
 				{@const questionId = item ? getPendingQuestionId(item) : ""}
 				{@const hotState = item ? sessionStore.getHotState(item.sessionId) : null}
-				{@const showFooter = permission !== null || questionUiState !== null}
+				{@const showFooter =
+					permission !== null ||
+					questionUiState !== null ||
+					item.state.pendingInput.kind === "plan_approval"}
 				{#if item}
 					<KanbanCard {card} onclick={() => handleCardClick(card.id)} onClose={() => handleCloseSession(item)} showFooter={showFooter}>
 						{#snippet todoSection()}
@@ -1034,6 +1245,37 @@
 										permission={permission}
 										projectPath={item.projectPath}
 									/>
+								{:else if item.state.pendingInput.kind === "plan_approval"}
+									<div class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-accent/20">
+										<EmbeddedPanelHeader class="bg-accent/30">
+											<HeaderTitleCell compactPadding>
+												<PlanIcon size="sm" class="shrink-0 mr-1" />
+												<span class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none">
+													{getPlanApprovalPrompt(item)}
+												</span>
+											</HeaderTitleCell>
+											<HeaderActionCell withDivider={false}>
+												<button
+													type="button"
+													class="plan-action-btn"
+													onclick={() => handleRejectPlanApproval(card.id)}
+												>
+													<XCircle weight="fill" class="size-3 shrink-0" style="color: {Colors.red}" />
+													Cancel
+												</button>
+											</HeaderActionCell>
+											<HeaderActionCell>
+												<button
+													type="button"
+													class="plan-action-btn"
+													onclick={() => handleApprovePlanApproval(card.id)}
+												>
+													<BuildIcon size="sm" />
+													{m.plan_sidebar_build()}
+												</button>
+											</HeaderActionCell>
+										</EmbeddedPanelHeader>
+									</div>
 								{:else if questionUiState && questionUiState.currentQuestion}
 									<AttentionQueueQuestionCard
 										currentQuestion={questionUiState.currentQuestion}

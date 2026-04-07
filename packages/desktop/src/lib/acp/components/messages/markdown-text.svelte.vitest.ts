@@ -465,6 +465,41 @@ describe("MarkdownText", () => {
 		expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not re-fade section wrappers when streaming content splits into a new block", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "Hello",
+			isStreaming: true,
+		});
+
+		await waitFor(() => {
+			expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"]')?.textContent).toContain(
+				"Hello"
+			);
+		});
+
+		await view.rerender({
+			text: "Hello\n\nNext",
+			isStreaming: true,
+		});
+
+		await waitFor(() => {
+			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')?.textContent).toContain(
+				"Hello"
+			);
+			expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent).toContain(
+				"Next"
+			);
+		});
+
+		expect(view.container.querySelector(".streaming-section.streaming-fade-in")).toBeNull();
+	});
+
 	it("renders an open fenced code block as a stable live code tail", async () => {
 		renderMarkdownSyncMock.mockImplementation(() => ({
 			html: null,

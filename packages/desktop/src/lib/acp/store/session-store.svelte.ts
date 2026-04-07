@@ -64,6 +64,7 @@ import { SessionRepository } from "./services/session-repository.js";
 import { SessionCapabilitiesStore } from "./session-capabilities-store.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { SessionHotStateStore } from "./session-hot-state-store.svelte.js";
+import { OperationStore } from "./operation-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -107,8 +108,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Capabilities store (ACP configuration - models, modes, commands)
 	private readonly capabilitiesStore = new SessionCapabilitiesStore();
 
+	// Canonical tool execution domain state
+	private readonly operationStore = new OperationStore();
+
 	// Entry store (entries + chunk aggregation)
-	private readonly entryStore = new SessionEntryStore();
+	private readonly entryStore = new SessionEntryStore(this.operationStore);
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -328,6 +332,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getEntries(sessionId: string): SessionEntry[] {
 		return this.entryStore.getEntries(sessionId);
+	}
+
+	getOperationStore(): OperationStore {
+		return this.operationStore;
 	}
 
 	/**
@@ -662,7 +670,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	setAutonomousEnabled(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
-		return this.connectionMgr.setAutonomousEnabled(sessionId, enabled);
+		return this.connectionMgr.setAutonomousEnabled(sessionId, enabled, this);
 	}
 
 	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {

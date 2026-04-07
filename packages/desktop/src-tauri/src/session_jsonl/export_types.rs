@@ -2,8 +2,8 @@
 // Run: cargo test --lib session_jsonl::export_types::tests::export_types
 
 use crate::acp::client::{
-    AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
-    SessionModes,
+    AvailableMode, AvailableModel, ExecutionProfileRequest, NewSessionResponse,
+    ResumeSessionResponse, SessionModelState, SessionModes,
 };
 use crate::acp::model_display::{DisplayModelGroup, DisplayableModel, ModelsForDisplay};
 use crate::acp::session_update::{
@@ -181,6 +181,7 @@ pub fn export_all_types() {
     export_acp_type!(SessionModes);
     export_acp_type!(ConfigOptionValue);
     export_acp_type!(ConfigOptionData);
+    export_acp_type!(ExecutionProfileRequest);
     export_acp_type!(NewSessionResponse);
     export_acp_type!(ResumeSessionResponse);
 

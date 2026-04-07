@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuestionRequest } from "../../types/question.js";
 
+import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
+import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 // Mock the API module
 const mockReplyQuestion = vi.fn(
@@ -86,6 +88,38 @@ describe("QuestionStore", () => {
 
 			expect(store.pending.get("q-2")?.jsonRpcRequestId).toBe(123);
 		});
+
+		it("returns the pending question for a canonical operation", () => {
+			const operationStore = new OperationStore();
+			const entryStore = new SessionEntryStore(operationStore);
+			entryStore.createToolCallEntry("session-1", {
+				id: "tool-question",
+				name: "question_tool",
+				arguments: { kind: "other", raw: {} },
+				status: "pending",
+				result: null,
+				kind: "question",
+				title: null,
+				locations: null,
+				skillMeta: null,
+				awaitingPlanApproval: false,
+			});
+
+			store.add({
+				id: "q-tool",
+				sessionId: "session-1",
+				questions: [],
+				tool: {
+					messageID: "",
+					callID: "tool-question",
+				},
+			});
+
+			const operation = operationStore.getByToolCallId("session-1", "tool-question");
+			const matched = operation ? store.getForOperation(operation) : undefined;
+
+			expect(matched?.id).toBe("q-tool");
+		});
 	});
 
 	describe("remove", () => {
@@ -132,6 +166,51 @@ describe("QuestionStore", () => {
 	});
 
 	describe("reply", () => {
+		it("preserves JSON-RPC reply routing when a duplicate question update omits transport metadata", async () => {
+			const initialQuestion: QuestionRequest = {
+				id: "q-duplicate-routing",
+				sessionId: "session-duplicate-routing",
+				jsonRpcRequestId: 654,
+				questions: [
+					{
+						question: "Which feature should I prioritize?",
+						header: "Priority",
+						options: [{ label: "Streaming", description: "Improve live updates" }],
+						multiSelect: false,
+					},
+				],
+				tool: {
+					messageID: "",
+					callID: "tool-question-routing",
+				},
+			};
+
+			const refreshedQuestion: QuestionRequest = {
+				id: "q-duplicate-routing",
+				sessionId: "session-duplicate-routing",
+				questions: initialQuestion.questions,
+				tool: initialQuestion.tool,
+			};
+
+			store.add(initialQuestion);
+			store.add(refreshedQuestion);
+
+			await store.reply(
+				"q-duplicate-routing",
+				[{ questionIndex: 0, answers: ["Streaming"] }],
+				initialQuestion.questions
+			);
+
+			expect(mockRespondToQuestion).toHaveBeenCalledWith(
+				"session-duplicate-routing",
+				654,
+				{
+					"Which feature should I prioritize?": "Streaming",
+				}
+			);
+			expect(mockReplyQuestion).not.toHaveBeenCalled();
+		});
+
 		it("should use HTTP endpoint for questions without jsonRpcRequestId", async () => {
 			const question: QuestionRequest = {
 				id: "q-http",

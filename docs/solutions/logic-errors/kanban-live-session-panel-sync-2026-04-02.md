@@ -97,6 +97,7 @@ The bug was not just a visual kanban issue; it was a split-brain state model. On
 
 ## Prevention
 - When a new UI surface needs to open a thread, make it reference a real panel rather than building a parallel session container.
+- When a new UI surface needs tool/interation context, make it read canonical operation/interaction association rather than scanning raw transport artifacts independently.
 - Preserve provenance for background-created state. A boolean like `autoCreated` is cheap, but it prevents incorrect close, reconnect, and persistence behavior.
 - Suppression for auto-surfaced items should be keyed to the underlying live signal, not just the session ID, so genuine state changes can resurface the panel.
 - Keep `finished` and `idle` as separate board states whenever unseen completion is part of the UX contract.

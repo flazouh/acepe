@@ -15,40 +15,74 @@ import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } f
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
-import type { QuestionItem, QuestionRequest } from "../types/question.js";
-
-/**
- * Answered question data for display in the UI.
- * Stored when a user answers a question, enabling display after submission.
- */
-export interface AnsweredQuestion {
-	/** The questions that were asked */
-	questions: QuestionItem[];
-	/** Map of question text to answer(s) - value is string for single-select, array for multi-select */
-	answers: Record<string, string | string[]>;
-	/** Timestamp when the question was answered */
-	answeredAt: number;
-	/** Whether the question was cancelled (not answered) */
-	cancelled?: boolean;
-}
+import type { Operation } from "../types/operation.js";
+import type { AnsweredQuestion, QuestionItem, QuestionRequest } from "../types/question.js";
 
 import { AgentError } from "../errors/app-error.js";
 import {
 	cancelQuestionRequest,
 	replyToQuestionRequest,
 } from "../logic/interaction-reply.js";
+import { questionMatchesOperation } from "./operation-association.js";
+import { InteractionStore } from "./interaction-store.svelte.js";
 import { createLogger } from "../utils/logger.js";
 
 const QUESTION_STORE_KEY = Symbol("question-store");
 const logger = createLogger({ id: "question-store", name: "QuestionStore" });
 
+function mergeQuestionRequest(
+	existing: QuestionRequest,
+	incoming: QuestionRequest
+): QuestionRequest {
+	const sessionId = incoming.sessionId.length > 0 ? incoming.sessionId : existing.sessionId;
+	const jsonRpcRequestId =
+		incoming.jsonRpcRequestId !== undefined
+			? incoming.jsonRpcRequestId
+			: existing.jsonRpcRequestId;
+	const questions = incoming.questions.length > 0 ? incoming.questions : existing.questions;
+	const tool = incoming.tool !== undefined ? incoming.tool : existing.tool;
+
+	return {
+		id: incoming.id,
+		sessionId,
+		jsonRpcRequestId,
+		questions,
+		tool,
+	};
+}
+
 export class QuestionStore {
-	pending = new SvelteMap<string, QuestionRequest>();
-	/**
-	 * Map of tool call ID to answered question data.
-	 * Used to display answered questions after submission.
-	 */
-	answered = new SvelteMap<string, AnsweredQuestion>();
+	private interactions = new InteractionStore();
+
+	constructor(interactions?: InteractionStore) {
+		if (interactions !== undefined) {
+			this.interactions = interactions;
+		}
+	}
+
+	get pending(): SvelteMap<string, QuestionRequest> {
+		return this.interactions.questionsPending;
+	}
+
+	get answered(): SvelteMap<string, AnsweredQuestion> {
+		return this.interactions.answeredQuestions;
+	}
+
+	getForOperation(operation: Operation): QuestionRequest | undefined {
+		for (const question of this.pending.values()) {
+			if (question.sessionId !== operation.sessionId) {
+				continue;
+			}
+
+			if (!questionMatchesOperation(question, operation)) {
+				continue;
+			}
+
+			return question;
+		}
+
+		return undefined;
+	}
 
 	/**
 	 * Index mapping sessionId → first pending QuestionRequest for O(1) lookup.
@@ -71,8 +105,13 @@ export class QuestionStore {
 	 * Add a pending question request.
 	 */
 	add(question: QuestionRequest): void {
-		this.pending.set(question.id, question);
-		logger.debug("Question request added", { questionId: question.id });
+		const existing = this.pending.get(question.id);
+		const nextQuestion = existing ? mergeQuestionRequest(existing, question) : question;
+		this.pending.set(question.id, nextQuestion);
+		logger.debug(existing ? "Question request merged" : "Question request added", {
+			questionId: question.id,
+			jsonRpcRequestId: nextQuestion.jsonRpcRequestId,
+		});
 	}
 
 	/**
@@ -222,8 +261,8 @@ export class QuestionStore {
 /**
  * Create and set the question store in Svelte context.
  */
-export function createQuestionStore(): QuestionStore {
-	const store = new QuestionStore();
+export function createQuestionStore(interactions?: InteractionStore): QuestionStore {
+	const store = new QuestionStore(interactions);
 	setContext(QUESTION_STORE_KEY, store);
 	return store;
 }

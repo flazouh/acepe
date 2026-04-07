@@ -116,13 +116,20 @@ export interface AgentInputProps {
 	 *
 	 * @param sessionId - The ID of the newly created session
 	 */
-	readonly onSessionCreated?: (sessionId: string) => void;
+	readonly onSessionCreated?: (sessionId: string, panelId?: string | null) => void;
 
 	/**
 	 * Callback fired immediately before a send/steer action starts.
-	 * Used for explicit UI intents like priming scroll reveal.
+	 * Used for explicit UI intents like priming scroll reveal or choosing the
+	 * panel that should own optimistic pre-session state.
 	 */
-	readonly onWillSend?: () => void;
+	readonly onWillSend?: () => string | null | void;
+
+	/**
+	 * Callback fired when a pre-session send fails after optimistic UI state has
+	 * been attached to a panel.
+	 */
+	readonly onSendError?: (panelId: string | null) => void;
 
 	/**
 	 * Optional agent/project picker snippet to render in the left side of the footer (empty state).

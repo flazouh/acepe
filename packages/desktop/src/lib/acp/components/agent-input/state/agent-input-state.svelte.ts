@@ -541,7 +541,7 @@ export class AgentInputState {
 		selectedAgentId?: string | null;
 		projectPath?: string | null;
 		projectName?: string | null;
-		onSessionCreated?: (sessionId: string) => void;
+		onSessionCreated?: (sessionId: string, panelId?: string | null) => void;
 		worktreePath?: string | null;
 		imageAttachments?: readonly Attachment[];
 	}): ResultAsync<void, SessionCreationError | MessageSendError> {
@@ -582,7 +582,7 @@ export class AgentInputState {
 				this.logger.info("[PERF] sendMessage: fast-path IPC resolved, calling onSessionCreated", {
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
-				onSessionCreated?.(sessionId);
+				onSessionCreated?.(sessionId, panelId ?? null);
 				this.logger.info("[PERF] sendMessage: onSessionCreated done (panel should be open)", {
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
@@ -672,7 +672,7 @@ export class AgentInputState {
 					sessionId: newSessionId,
 				});
 				// Notify parent with the canonical session ID
-				onSessionCreated?.(newSessionId);
+				onSessionCreated?.(newSessionId, panelId ?? null);
 				// Clear pending entry BEFORE sendMessage adds the real one.
 				// Both are synchronous SvelteMap.set() calls — batched into one render.
 				if (panelId) this.panelStore.clearPendingUserEntry(panelId);

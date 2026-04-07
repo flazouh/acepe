@@ -60,6 +60,13 @@ pub struct ResumeSessionResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub struct ExecutionProfileRequest {
+    pub mode_id: String,
+    pub autonomous_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionModelState {
     #[serde(default)]
     pub available_models: Vec<AvailableModel>,

@@ -1091,3 +1091,51 @@ fn test_seed_current_model_from_session_state() {
     assert_eq!(current_model.provider_id, "github-copilot");
     assert_eq!(current_model.model_id, "claude-opus-4.6");
 }
+
+#[tokio::test]
+async fn test_validate_session_binding_allows_global_project_id_when_directory_matches() {
+    let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
+        "/tmp/project",
+    ))));
+    let provider = Arc::new(OpenCodeProvider);
+    let client =
+        OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
+
+    let session = Session {
+        id: "ses_test".to_string(),
+        project_id: "global".to_string(),
+        directory: "/tmp/project".to_string(),
+        title: None,
+    };
+
+    client
+        .validate_session_binding(&session)
+        .await
+        .expect("global project ID should be accepted when directory matches");
+}
+
+#[tokio::test]
+async fn test_validate_session_binding_still_rejects_directory_mismatch() {
+    let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
+        "/tmp/project",
+    ))));
+    let provider = Arc::new(OpenCodeProvider);
+    let client =
+        OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
+
+    let session = Session {
+        id: "ses_test".to_string(),
+        project_id: "global".to_string(),
+        directory: "/tmp/other-project".to_string(),
+        title: None,
+    };
+
+    let error = client
+        .validate_session_binding(&session)
+        .await
+        .expect_err("mismatched directories should still fail");
+    assert_eq!(
+        error.to_string(),
+        "Invalid state: OpenCode session binding mismatch: expected directory /tmp/project, got /tmp/other-project"
+    );
+}

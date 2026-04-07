@@ -1,8 +1,8 @@
 //! Codex adapter for tool name normalization.
 //!
 //! Codex format is not fully specified yet.
-//! This adapter handles Codex-specific tool names and delegates
-//! to ClaudeCodeAdapter for standard tools.
+//! This adapter handles Codex-specific tool names, preserves Codex prefix
+//! stripping, and falls back to the neutral shared chat-agent vocabulary.
 //!
 //! ## Codex Tool Name Patterns
 //!
@@ -28,10 +28,10 @@
 //! - `codex.execute_command` → stripped to `execute_command`
 //! - `codex_exec_command` → stripped to `exec_command`
 //!
-//! Unknown tools delegate to `ClaudeCodeAdapter` for standard ACP tools.
+//! Shared chat-style tools are normalized via shared adapter ownership.
 
 use super::any_eq;
-use super::claude_code::ClaudeCodeAdapter;
+use super::shared_chat::normalize_shared_chat_tool_name;
 use crate::acp::session_update::ToolKind;
 
 /// Adapter for normalizing Codex tool names.
@@ -41,8 +41,8 @@ impl CodexAdapter {
     /// Normalize Codex tool names to canonical form.
     ///
     /// Codex format is not fully specified yet.
-    /// This handles known Codex-specific tool names and delegates
-    /// to ClaudeCodeAdapter for standard tools.
+    /// This handles known Codex-specific tool names and falls back
+    /// to the shared chat-agent normalization table.
     pub fn normalize(name: &str) -> ToolKind {
         let trimmed = name.trim();
         // Strip Codex namespace prefix (e.g., "codex.execute") before matching.
@@ -148,7 +148,7 @@ impl CodexAdapter {
             return ToolKind::Fetch;
         }
 
-        ClaudeCodeAdapter::normalize(without_prefix)
+        normalize_shared_chat_tool_name(without_prefix)
     }
 }
 
@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn delegates_standard_tools_to_claude_code() {
+    fn normalizes_standard_tools_via_shared_chat_vocabulary() {
         assert_eq!(CodexAdapter::normalize("Read"), ToolKind::Read);
         assert_eq!(CodexAdapter::normalize("Edit"), ToolKind::Edit);
         assert_eq!(CodexAdapter::normalize("Bash"), ToolKind::Execute);
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn handles_mcp_prefixed_tools_via_delegation() {
+    fn handles_mcp_prefixed_tools_via_shared_chat_vocabulary() {
         assert_eq!(CodexAdapter::normalize("mcp__acp__Read"), ToolKind::Read);
         assert_eq!(CodexAdapter::normalize("mcp__acp__Bash"), ToolKind::Execute);
     }

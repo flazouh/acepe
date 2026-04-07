@@ -13,6 +13,7 @@
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { tauriClient } from "../../../utils/tauri-client.js";
+import type { ExecutionProfileRequest } from "../../../utils/tauri-client/acp.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
 import type { ModeType } from "../../types/agent-model-preferences.js";
@@ -40,6 +41,10 @@ const logger = createLogger({ id: "session-connection-manager", name: "SessionCo
  * but if that fails to fire, this ensures the UI doesn't hang forever.
  */
 const CONNECTION_TIMEOUT_MS = 15_000;
+
+interface ConnectSessionOptions {
+	executionProfile?: ExecutionProfileRequest;
+}
 
 /**
  * Wrap a ResultAsync with a timeout. If the timeout fires first, the
@@ -111,6 +116,14 @@ export class SessionConnectionManager {
 		autonomousEnabled: boolean
 	): ResultAsync<void, AppError> {
 		return api.setExecutionProfile(sessionId, modeId, autonomousEnabled);
+	}
+
+	private shouldReconnectClaudeForAutonomous(
+		session: SessionCold,
+		modeId: string,
+		enabled: boolean
+	): boolean {
+		return session.agentId === "claude-code" && enabled && modeId === CanonicalModeId.BUILD;
 	}
 
 	private resolveDefaultModelForMode(
@@ -428,7 +441,8 @@ export class SessionConnectionManager {
 	 */
 	connectSession(
 		sessionId: string,
-		eventHandler: SessionEventHandler
+		eventHandler: SessionEventHandler,
+		options?: ConnectSessionOptions
 	): ResultAsync<SessionCold, AppError> {
 		const session = this.stateReader.getSessionCold(sessionId);
 		if (!session) {
@@ -436,7 +450,18 @@ export class SessionConnectionManager {
 		}
 
 		const hotState = this.stateReader.getHotState(sessionId);
-		const shouldRestoreAutonomous = hotState.autonomousEnabled;
+		const launchExecutionProfile =
+			options?.executionProfile ??
+			(hotState.autonomousEnabled &&
+			hotState.currentMode &&
+			this.shouldReconnectClaudeForAutonomous(session, hotState.currentMode.id, true)
+				? {
+						modeId: hotState.currentMode.id,
+						autonomousEnabled: true,
+					}
+				: undefined);
+		const shouldRestoreAutonomous =
+			launchExecutionProfile?.autonomousEnabled === true ? true : hotState.autonomousEnabled;
 		if (hotState.isConnected) {
 			logger.debug("Session already connected, skipping", {
 				sessionId,
@@ -490,7 +515,7 @@ export class SessionConnectionManager {
 		// case where the frontend sends a stale worktree path that has been deleted.
 		const resumeCwd = session.projectPath;
 		const connection = withTimeout(
-			api.resumeSession(sessionId, resumeCwd, session.agentId),
+			api.resumeSession(sessionId, resumeCwd, session.agentId, launchExecutionProfile),
 			CONNECTION_TIMEOUT_MS,
 			new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
 		)
@@ -605,6 +630,23 @@ export class SessionConnectionManager {
 							currentMode,
 							currentModel,
 							autonomousEnabled: shouldRestoreAutonomous,
+						});
+					}
+
+					if (
+						launchExecutionProfile &&
+						launchExecutionProfile.modeId === currentMode.id &&
+						launchExecutionProfile.autonomousEnabled === true
+					) {
+						return okAsync({
+							availableModes,
+							availableModels,
+							availableCommands,
+							configOptions,
+							modelsDisplay,
+							currentMode,
+							currentModel,
+							autonomousEnabled: true,
 						});
 					}
 
@@ -935,7 +977,11 @@ export class SessionConnectionManager {
 			});
 	}
 
-	setAutonomousEnabled(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
+	setAutonomousEnabled(
+		sessionId: string,
+		enabled: boolean,
+		eventHandler?: SessionEventHandler
+	): ResultAsync<void, AppError> {
 		const session = this.stateReader.getSessionCold(sessionId);
 		if (!session) {
 			return errAsync(new SessionNotFoundError(sessionId));
@@ -970,6 +1016,49 @@ export class SessionConnectionManager {
 		}
 
 		const previousAutonomousEnabled = hotState.autonomousEnabled;
+		if (this.shouldReconnectClaudeForAutonomous(session, currentModeId, enabled)) {
+			if (!eventHandler) {
+				return errAsync(
+					new AgentError(
+						"setAutonomousEnabled",
+						new Error("Session event handler is required to reconnect Autonomous")
+					)
+				);
+			}
+
+			this.hotStateManager.updateHotState(sessionId, {
+				autonomousEnabled: enabled,
+				autonomousTransition: enabled ? "enabling" : "disabling",
+			});
+			this.disconnectSession(sessionId);
+			return this.connectSession(sessionId, eventHandler, {
+				executionProfile: {
+					modeId: currentModeId,
+					autonomousEnabled: enabled,
+				},
+			})
+				.map(() => {
+					this.hotStateManager.updateHotState(sessionId, {
+						autonomousTransition: "idle",
+					});
+				})
+				.mapErr((error) => {
+					this.hotStateManager.updateHotState(sessionId, {
+						autonomousEnabled: previousAutonomousEnabled,
+						autonomousTransition: "idle",
+					});
+					logger.error("Failed to reconnect Autonomous, rolling back", {
+						sessionId,
+						enabled,
+						error,
+					});
+					return new AgentError(
+						"setAutonomousEnabled",
+						error instanceof Error ? error : undefined
+					);
+				});
+		}
+
 		this.hotStateManager.updateHotState(sessionId, {
 			autonomousTransition: enabled ? "enabling" : "disabling",
 		});

@@ -5,6 +5,7 @@
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import { extractTodoProgress } from "../../components/session-list/session-list-logic.js";
+import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -115,6 +116,7 @@ export function buildQueueItem(
 	hasUnseenCompletion: boolean,
 	pendingQuestionText: string | null,
 	pendingQuestion: QuestionRequest | null,
+	pendingPlanApproval: PlanApprovalInteraction | null,
 	pendingPermission: PermissionRequest | null,
 	getProjectColor?: ProjectColorLookup
 ): QueueItem {
@@ -134,6 +136,7 @@ export function buildQueueItem(
 		modeId: session.currentModeId,
 		tool: currentStreamingToolCall,
 		pendingQuestion,
+		pendingPlanApproval,
 		pendingPermission,
 		hasUnseenCompletion,
 	});
@@ -158,6 +161,7 @@ export function buildQueueItem(
 		insertions: diffStats.insertions,
 		deletions: diffStats.deletions,
 		pendingQuestion,
+		pendingPlanApproval,
 		status: session.status,
 		state,
 	};

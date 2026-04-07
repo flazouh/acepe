@@ -10,6 +10,7 @@ import {
 	createErrorState,
 	createIdleActivity,
 	createNoPendingInput,
+	createPendingPlanApproval,
 	createPausedActivity,
 	createPendingPermission,
 	createPendingQuestion,
@@ -18,6 +19,7 @@ import {
 	deriveSessionState,
 	hasAnyPendingInput,
 	hasNoPendingInput,
+	hasPendingPlanApproval,
 	hasPendingPermission,
 	hasPendingQuestion,
 	IMPOSSIBLE_STATES,
@@ -116,6 +118,22 @@ describe("PendingInput type guards", () => {
 		expect(hasPendingPermission(input)).toBe(true);
 	});
 
+	it("hasPendingPlanApproval returns true for plan approval", () => {
+		const input: PendingInput = {
+			kind: "plan_approval",
+			request: {
+				id: "plan-1",
+				kind: "plan_approval",
+				source: "create_plan",
+				sessionId: "s-1",
+				tool: { messageID: "", callID: "tool-1" },
+				jsonRpcRequestId: 7,
+				status: "pending",
+			},
+		};
+		expect(hasPendingPlanApproval(input)).toBe(true);
+	});
+
 	it("hasAnyPendingInput returns true for question or permission", () => {
 		expect(
 			hasAnyPendingInput({
@@ -197,6 +215,19 @@ describe("PendingInput factory functions", () => {
 			always: [],
 		};
 		expect(createPendingPermission(request)).toEqual({ kind: "permission", request });
+	});
+
+	it("createPendingPlanApproval returns plan approval with request", () => {
+		const request = {
+			id: "plan-1",
+			kind: "plan_approval" as const,
+			source: "create_plan" as const,
+			sessionId: "s-1",
+			tool: { messageID: "", callID: "tool-1" },
+			jsonRpcRequestId: 7,
+			status: "pending" as const,
+		};
+		expect(createPendingPlanApproval(request)).toEqual({ kind: "plan_approval", request });
 	});
 });
 
@@ -358,6 +389,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -373,6 +405,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -387,6 +420,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -401,6 +435,7 @@ describe("deriveSessionState", () => {
 			modeId: "plan",
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -419,6 +454,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: question,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -440,11 +476,35 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: permission,
 			hasUnseenCompletion: false,
 		});
 
 		expect(state.pendingInput.kind).toBe("permission");
+	});
+
+	it("derives pending plan approval state", () => {
+		const planApproval = {
+			id: "plan-1",
+			kind: "plan_approval" as const,
+			source: "create_plan" as const,
+			sessionId: "s-1",
+			tool: { messageID: "", callID: "tool-1" },
+			jsonRpcRequestId: 7,
+			status: "pending" as const,
+		};
+		const state = deriveSessionState({
+			connectionState: "ready",
+			modeId: null,
+			tool: null,
+			pendingQuestion: null,
+			pendingPlanApproval: planApproval,
+			pendingPermission: null,
+			hasUnseenCompletion: false,
+		});
+
+		expect(state.pendingInput.kind).toBe("plan_approval");
 	});
 
 	it("prioritizes question over permission", () => {
@@ -462,6 +522,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: question,
+			pendingPlanApproval: null,
 			pendingPermission: permission,
 			hasUnseenCompletion: false,
 		});
@@ -475,6 +536,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: true,
 		});
@@ -488,6 +550,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
@@ -502,6 +565,7 @@ describe("deriveSessionState", () => {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});

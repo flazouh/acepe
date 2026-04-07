@@ -36,8 +36,8 @@ describe("kanban new-session dialog contract", () => {
 		expect(violetRobotIconMatches).not.toBeNull();
 		expect(violetRobotIconMatches).toHaveLength(1);
 		expect(source).toContain('<span class="truncate text-foreground">New Agent</span>');
-		expect(source).toContain('What do you want to build?');
-		expect(source).toContain('font-sans text-[1.9rem] font-semibold tracking-tight text-foreground');
+		expect(source).not.toContain('What do you want to build?');
+		expect(source).not.toContain('font-sans text-[1.9rem] font-semibold tracking-tight text-foreground');
 		expect(source).not.toContain('IconSparkles');
 		expect(source).not.toContain('<span>New Agent</span>');
 		expect(source).not.toContain('<span>New session</span>');
@@ -64,14 +64,37 @@ describe("kanban new-session dialog contract", () => {
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
+		const willSendHandler = source
+			.split("function handleNewSessionWillSend(): string | null {")[1]
+			?.split("function handleNewSessionCreated(")[0];
 		const createdHandler = source
-			.split("function handleNewSessionCreated(sessionId: string): void {")[1]
+			.split("function handleNewSessionCreated(sessionId: string, panelId?: string | null): void {")[1]
 			?.split("function resolveQuestionId(question: QuestionRequest): string {")[0];
 
+		expect(willSendHandler).toBeDefined();
+		expect(willSendHandler).toContain("newSessionOpen = false;");
+		expect(willSendHandler).toContain("const optimisticPanel = panelStore.spawnPanel({");
+		expect(willSendHandler).toContain("return optimisticPanel.id;");
 		expect(createdHandler).toBeDefined();
+		expect(createdHandler).toContain("panelStore.updatePanelSession(panelId, sessionId);");
+		expect(createdHandler).toContain("panelStore.focusPanel(panelId);");
 		expect(createdHandler).toContain("panelStore.openSession(sessionId, 450);");
-		expect(createdHandler).toContain("newSessionOpen = false;");
 		expect(createdHandler).not.toContain('panelStore.setViewMode("single")');
 		expect(createdHandler).not.toContain("panelStore.focusAndSwitchToPanel");
+	});
+
+	it("renders optimistic working cards for session-less panels that are still creating", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
+
+		const source = readFileSync(kanbanViewPath, "utf8");
+
+		expect(source).toContain("function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {");
+		expect(source).toContain("const hotState = panelStore.getHotState(panel.id);");
+		expect(source).toContain("hotState.pendingUserEntry");
+		expect(source).toContain("hotState.pendingWorktreeSetup");
+		expect(source).toContain("const optimisticKanbanCards = buildOptimisticKanbanCards();");
+		expect(source).toContain('sectionId === "working"');
+		expect(source).toContain("optimisticKanbanCards.map((item) => item.card).concat(sectionCards)");
 	});
 });

@@ -10,13 +10,11 @@
  */
 
 import { getContext, setContext } from "svelte";
-import type { PermissionRequest } from "../types/permission.js";
-import type { QuestionRequest } from "../types/question.js";
 import { extractProjectName } from "../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
+import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
+import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { PanelStore } from "./panel-store.svelte.js";
-import type { PermissionStore } from "./permission-store.svelte.js";
-import type { QuestionStore } from "./question-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 
 import {
@@ -50,8 +48,7 @@ export class TabBarStore {
 	constructor(
 		private readonly panelStore: PanelStore,
 		private readonly sessionStore: SessionStore,
-		private readonly questionStore: QuestionStore,
-		private readonly permissionStore: PermissionStore,
+		private readonly interactions: InteractionStore,
 		private readonly unseenStore: UnseenStore
 	) {}
 
@@ -102,8 +99,17 @@ export class TabBarStore {
 		const hotState = sessionId ? this.sessionStore.getHotState(sessionId) : null;
 		const entries = sessionId ? this.sessionStore.getEntries(sessionId) : [];
 
-		const pendingQuestion = sessionId ? this.getPendingQuestionForSession(sessionId) : null;
-		const pendingPermission = sessionId ? this.getPendingPermissionForSession(sessionId) : null;
+		const interactionSnapshot =
+			sessionId !== null
+				? buildSessionOperationInteractionSnapshot(
+						sessionId,
+						this.sessionStore.getOperationStore(),
+						this.interactions
+					)
+				: null;
+		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
+		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
+		const pendingPermission = interactionSnapshot?.pendingPermission ?? null;
 		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
 		const title = sessionMetadata?.title ?? null;
 
@@ -121,6 +127,7 @@ export class TabBarStore {
 			hotState,
 			entries,
 			pendingQuestion,
+			pendingPlanApproval,
 			pendingPermission,
 			isUnseen: this.unseenStore.isUnseen(panel.id),
 			projectName,
@@ -129,27 +136,6 @@ export class TabBarStore {
 		});
 	}
 
-	/**
-	 * Get the first pending question for a session.
-	 *
-	 * Uses the O(1) `pendingBySession` index from QuestionStore rather than
-	 * iterating the full `pending` map on every panel build.
-	 */
-	private getPendingQuestionForSession(sessionId: string): QuestionRequest | null {
-		return this.questionStore.pendingBySession.get(sessionId) ?? null;
-	}
-
-	/**
-	 * Get the first pending permission for a session.
-	 */
-	private getPendingPermissionForSession(sessionId: string): PermissionRequest | null {
-		for (const permission of this.permissionStore.pending.values()) {
-			if (permission.sessionId === sessionId) {
-				return permission;
-			}
-		}
-		return null;
-	}
 }
 
 /**
@@ -158,17 +144,10 @@ export class TabBarStore {
 export function createTabBarStore(
 	panelStore: PanelStore,
 	sessionStore: SessionStore,
-	questionStore: QuestionStore,
-	permissionStore: PermissionStore,
+	interactions: InteractionStore,
 	unseenStore: UnseenStore
 ): TabBarStore {
-	const store = new TabBarStore(
-		panelStore,
-		sessionStore,
-		questionStore,
-		permissionStore,
-		unseenStore
-	);
+	const store = new TabBarStore(panelStore, sessionStore, interactions, unseenStore);
 	setContext(TAB_BAR_STORE_KEY, store);
 	return store;
 }

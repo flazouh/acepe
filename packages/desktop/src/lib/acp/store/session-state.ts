@@ -11,6 +11,7 @@
  * 4. AttentionMeta - attention metadata (unseen completion)
  */
 
+import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -85,6 +86,7 @@ export function isActiveWork(activity: ActivityState): boolean {
 export type PendingInput =
 	| { readonly kind: "none" }
 	| { readonly kind: "question"; readonly request: QuestionRequest }
+	| { readonly kind: "plan_approval"; readonly request: PlanApprovalInteraction }
 	| { readonly kind: "permission"; readonly request: PermissionRequest };
 
 /** Type guard for no pending input. */
@@ -97,6 +99,13 @@ export function hasPendingQuestion(
 	input: PendingInput
 ): input is { kind: "question"; request: QuestionRequest } {
 	return input.kind === "question";
+}
+
+/** Type guard for pending plan approval. */
+export function hasPendingPlanApproval(
+	input: PendingInput
+): input is { kind: "plan_approval"; request: PlanApprovalInteraction } {
+	return input.kind === "plan_approval";
 }
 
 /** Type guard for pending permission. */
@@ -175,6 +184,11 @@ export function createNoPendingInput(): PendingInput {
 /** Create a pending question. */
 export function createPendingQuestion(request: QuestionRequest): PendingInput {
 	return { kind: "question", request };
+}
+
+/** Create a pending plan approval. */
+export function createPendingPlanApproval(request: PlanApprovalInteraction): PendingInput {
+	return { kind: "plan_approval", request };
 }
 
 /** Create a pending permission. */
@@ -351,6 +365,8 @@ export interface DeriveSessionStateInput {
 	tool: ToolCall | null;
 	/** Pending question request */
 	pendingQuestion: QuestionRequest | null;
+	/** Pending plan approval */
+	pendingPlanApproval: PlanApprovalInteraction | null;
 	/** Pending permission request */
 	pendingPermission: PermissionRequest | null;
 	/** Whether there's an unseen completion */
@@ -364,8 +380,15 @@ export interface DeriveSessionStateInput {
  * from the various sources of truth.
  */
 export function deriveSessionState(input: DeriveSessionStateInput): SessionState {
-	const { connectionState, modeId, tool, pendingQuestion, pendingPermission, hasUnseenCompletion } =
-		input;
+	const {
+		connectionState,
+		modeId,
+		tool,
+		pendingQuestion,
+		pendingPlanApproval,
+		pendingPermission,
+		hasUnseenCompletion,
+	} = input;
 
 	// Layer 1: Connection phase
 	const connection: ConnectionPhase =
@@ -397,6 +420,8 @@ export function deriveSessionState(input: DeriveSessionStateInput): SessionState
 	let pendingInput: PendingInput;
 	if (pendingQuestion) {
 		pendingInput = { kind: "question", request: pendingQuestion };
+	} else if (pendingPlanApproval) {
+		pendingInput = { kind: "plan_approval", request: pendingPlanApproval };
 	} else if (pendingPermission) {
 		pendingInput = { kind: "permission", request: pendingPermission };
 	} else {

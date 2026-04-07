@@ -15,7 +15,9 @@ import type { AcpError } from "../../errors/index.js";
 import { usePlanInline } from "../../hooks/use-plan-inline.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
+import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
+import { buildPlanApprovalInteractionId } from "../../types/interaction.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { COLOR_NAMES, Colors } from "../../utils/colors.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
@@ -31,22 +33,54 @@ interface Props {
 let { toolCall, turnState }: Props = $props();
 
 const sessionContext = useSessionContext();
+const interactionStore = getInteractionStore();
 
 // Local state to track approval decision after responding (optimistic update).
 // `null` = not yet answered, `true` = approved, `false` = rejected.
 let localApproval = $state<boolean | null>(null);
-
-const inline = usePlanInline({
-	getTurnState: () => turnState,
-	getAwaitingPlanApproval: () => toolCall.awaitingPlanApproval && localApproval === null,
-});
 
 const thinkState = new ToolCallThinkState(
 	() => toolCall,
 	() => turnState
 );
 
-const isInteractive = $derived(toolCall.awaitingPlanApproval && localApproval === null);
+const planApprovalId = $derived.by(() => {
+	const sessionId = sessionContext?.sessionId;
+	const requestId = toolCall.planApprovalRequestId;
+	if (!sessionId || requestId == null) {
+		return null;
+	}
+
+	return buildPlanApprovalInteractionId(sessionId, toolCall.id, requestId);
+});
+const planApprovalEntry = $derived.by(() => {
+	if (!planApprovalId) {
+		return null;
+	}
+
+	return interactionStore.planApprovalsPending.get(planApprovalId) ?? null;
+});
+const pendingPlanApproval = $derived(
+	planApprovalEntry?.status === "pending" ? planApprovalEntry : null
+);
+const approvalFromStore = $derived.by((): boolean | null => {
+	if (planApprovalEntry?.status === "approved") {
+		return true;
+	}
+	if (planApprovalEntry?.status === "rejected") {
+		return false;
+	}
+	return null;
+});
+const isInteractive = $derived(
+	(localApproval === null && pendingPlanApproval !== null) ||
+		(localApproval === null && planApprovalEntry === null && toolCall.awaitingPlanApproval)
+);
+const inline = usePlanInline({
+	getTurnState: () => turnState,
+	getAwaitingPlanApproval: () =>
+		localApproval === null && (pendingPlanApproval !== null || toolCall.awaitingPlanApproval),
+});
 
 // After the tool call result arrives from the backend, read the answer from it.
 // The result field is set by the Rust adapter once the agent responds to the approval.
@@ -73,35 +107,95 @@ const resultApproved = $derived.by((): boolean | null => {
 });
 
 // Effective answer: prefer local optimistic state, fall back to result from backend.
-const effectiveApproval = $derived(localApproval != null ? localApproval : resultApproved);
+const effectiveApproval = $derived(
+	localApproval != null ? localApproval : approvalFromStore != null ? approvalFromStore : resultApproved
+);
 const isAnswered = $derived(effectiveApproval !== null && !isInteractive);
 const isApproved = $derived(effectiveApproval === true);
 
 function handleApprove() {
-	const requestId = toolCall.planApprovalRequestId;
-	const sessionId = sessionContext?.sessionId;
+	const requestId = pendingPlanApproval?.jsonRpcRequestId ?? toolCall.planApprovalRequestId;
+	const sessionId = pendingPlanApproval?.sessionId ?? sessionContext?.sessionId;
 	if (requestId == null || !sessionId) return;
+	const approval = pendingPlanApproval;
 	localApproval = true;
+	if (approval) {
+		interactionStore.planApprovalsPending.set(approval.id, {
+			id: approval.id,
+			kind: "plan_approval",
+			source: approval.source,
+			sessionId: approval.sessionId,
+			tool: {
+				messageID: approval.tool.messageID,
+				callID: approval.tool.callID,
+			},
+			jsonRpcRequestId: approval.jsonRpcRequestId,
+			status: "approved",
+		});
+	}
 	replyToPlanApprovalRequest(sessionId, requestId, true).match(
 		() => {},
 		(err: AcpError) => {
 			// Roll back optimistic update on failure
 			localApproval = null;
+			if (approval) {
+				interactionStore.planApprovalsPending.set(approval.id, {
+					id: approval.id,
+					kind: "plan_approval",
+					source: approval.source,
+					sessionId: approval.sessionId,
+					tool: {
+						messageID: approval.tool.messageID,
+						callID: approval.tool.callID,
+					},
+					jsonRpcRequestId: approval.jsonRpcRequestId,
+					status: "pending",
+				});
+			}
 			console.error("Failed to approve plan", err);
 		}
 	);
 }
 
 function handleReject() {
-	const requestId = toolCall.planApprovalRequestId;
-	const sessionId = sessionContext?.sessionId;
+	const requestId = pendingPlanApproval?.jsonRpcRequestId ?? toolCall.planApprovalRequestId;
+	const sessionId = pendingPlanApproval?.sessionId ?? sessionContext?.sessionId;
 	if (requestId == null || !sessionId) return;
+	const approval = pendingPlanApproval;
 	localApproval = false;
+	if (approval) {
+		interactionStore.planApprovalsPending.set(approval.id, {
+			id: approval.id,
+			kind: "plan_approval",
+			source: approval.source,
+			sessionId: approval.sessionId,
+			tool: {
+				messageID: approval.tool.messageID,
+				callID: approval.tool.callID,
+			},
+			jsonRpcRequestId: approval.jsonRpcRequestId,
+			status: "rejected",
+		});
+	}
 	replyToPlanApprovalRequest(sessionId, requestId, false).match(
 		() => {},
 		(err: AcpError) => {
 			// Roll back optimistic update on failure
 			localApproval = null;
+			if (approval) {
+				interactionStore.planApprovalsPending.set(approval.id, {
+					id: approval.id,
+					kind: "plan_approval",
+					source: approval.source,
+					sessionId: approval.sessionId,
+					tool: {
+						messageID: approval.tool.messageID,
+						callID: approval.tool.callID,
+					},
+					jsonRpcRequestId: approval.jsonRpcRequestId,
+					status: "pending",
+				});
+			}
 			console.error("Failed to reject plan", err);
 		}
 	);

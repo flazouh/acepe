@@ -6,6 +6,7 @@ export interface LiveSessionPanelSyncInput {
 	readonly connectionPhase: ConnectionPhase | null;
 	readonly activityPhase: ActivityPhase | null;
 	readonly pendingQuestionId: string | null;
+	readonly pendingPlanApprovalId: string | null;
 	readonly pendingPermissionId: string | null;
 }
 
@@ -16,7 +17,11 @@ export interface LiveSessionPanelSyncController {
 }
 
 export function isLiveSessionPanelCandidate(input: LiveSessionPanelSyncInput): boolean {
-	if (input.pendingQuestionId !== null || input.pendingPermissionId !== null) {
+	if (
+		input.pendingQuestionId !== null ||
+		input.pendingPlanApprovalId !== null ||
+		input.pendingPermissionId !== null
+	) {
 		return true;
 	}
 
@@ -35,6 +40,8 @@ export function buildLiveSessionPanelSignal(input: LiveSessionPanelSyncInput): s
 	const connectionPhase = input.connectionPhase !== null ? input.connectionPhase : "none";
 	const activityPhase = input.activityPhase !== null ? input.activityPhase : "none";
 	const pendingQuestionId = input.pendingQuestionId !== null ? input.pendingQuestionId : "none";
+	const pendingPlanApprovalId =
+		input.pendingPlanApprovalId !== null ? input.pendingPlanApprovalId : "none";
 	const pendingPermissionId =
 		input.pendingPermissionId !== null ? input.pendingPermissionId : "none";
 
@@ -44,6 +51,7 @@ export function buildLiveSessionPanelSignal(input: LiveSessionPanelSyncInput): s
 		connectionPhase,
 		activityPhase,
 		pendingQuestionId,
+		pendingPlanApprovalId,
 		pendingPermissionId,
 	].join("|");
 }

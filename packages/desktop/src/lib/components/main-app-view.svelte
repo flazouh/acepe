@@ -23,6 +23,7 @@ import {
 	createAgentStore,
 	createChatPreferencesStore,
 	createConnectionStore,
+	createInteractionStore,
 	createMessageQueueStore,
 	createPanelStore,
 	createPermissionStore,
@@ -39,8 +40,10 @@ import {
 	getConnectionStore,
 	gitHubDiffViewerStore,
 } from "$lib/acp/store/index.js";
+import { isToolCallEntry } from "$lib/acp/application/dto/session-entry.js";
 import { createQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
+import { buildPlanApprovalInteractionId } from "$lib/acp/types/interaction.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
@@ -93,7 +96,6 @@ import {
 	installDownloadedUpdate,
 	predownloadUpdate,
 } from "./main-app-view/logic/updater-workflow.js";
-import { getQuestionToolCallBackfill } from "./main-app-view/question-tool-sync.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
@@ -121,8 +123,9 @@ agentModelPreferencesStore.loadPersistedState();
 const agentStore = createAgentStore();
 const agentPreferencesStore = createAgentPreferencesStore();
 const sessionStore = createSessionStore();
-const permissionStore = createPermissionStore();
-const questionStore = createQuestionStore();
+const interactionStore = createInteractionStore();
+const permissionStore = createPermissionStore(interactionStore);
+const questionStore = createQuestionStore(interactionStore);
 // QuestionSelectionStore is accessed via getQuestionSelectionStore() context, no direct reference needed
 createQuestionSelectionStore();
 // QueueStore is accessed via getQueueStore() context, no direct reference needed
@@ -157,14 +160,13 @@ const panelStore = createPanelStore(sessionStore, agentStore, () => {
 workspaceStore = createWorkspaceStore(panelStore, sessionStore);
 
 // Create urgency tabs store for sorted tab display
-const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, questionStore);
+const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, interactionStore);
 
 // Create tab bar store for flat, panel-ordered tabs with mode/state/tool indicators
 const tabBarStore = createTabBarStore(
 	panelStore,
 	sessionStore,
-	questionStore,
-	permissionStore,
+	interactionStore,
 	unseenStore
 );
 
@@ -194,23 +196,97 @@ function focusOrOpenSessionPanel(sessionId: string): void {
 }
 
 function registerQuestion(question: QuestionRequest): void {
-	const backfill = getQuestionToolCallBackfill(
-		question,
-		sessionStore.getEntries(question.sessionId)
-	);
-	if (backfill) {
-		sessionStore.createToolCallEntry(question.sessionId, backfill);
+	if (isPlanApprovalQuestion(question)) {
+		registerPlanApprovalQuestion(question);
+		return;
 	}
 	questionStore.add(question);
 }
 
+function buildPlanApprovalIdFromQuestion(
+	question: QuestionRequest & {
+		jsonRpcRequestId: number;
+		tool: NonNullable<QuestionRequest["tool"]>;
+	}
+): string {
+	return buildPlanApprovalInteractionId(
+		question.sessionId,
+		question.tool.callID,
+		question.jsonRpcRequestId
+	);
+}
+
+function isPlanApprovalQuestion(
+	question: QuestionRequest
+): question is QuestionRequest & {
+	jsonRpcRequestId: number;
+	tool: NonNullable<QuestionRequest["tool"]>;
+} {
+	if (question.jsonRpcRequestId === undefined || question.tool === undefined) {
+		return false;
+	}
+
+	if (question.questions.length !== 1) {
+		return false;
+	}
+
+	const options = question.questions[0]?.options;
+	if (!options || options.length !== 2) {
+		return false;
+	}
+
+	return options[0]?.label === "Approve" && options[1]?.label === "Reject";
+}
+
+function registerPlanApprovalQuestion(
+	question: QuestionRequest & {
+		jsonRpcRequestId: number;
+		tool: NonNullable<QuestionRequest["tool"]>;
+	}
+): void {
+	const id = buildPlanApprovalIdFromQuestion(question);
+	const existing = interactionStore.planApprovalsPending.get(id);
+	interactionStore.planApprovalsPending.set(id, {
+		id,
+		kind: "plan_approval",
+		source: "create_plan",
+		sessionId: question.sessionId,
+		tool: {
+			messageID: question.tool.messageID || existing?.tool.messageID || "",
+			callID: question.tool.callID,
+		},
+		jsonRpcRequestId: question.jsonRpcRequestId,
+		status: existing?.status ?? "pending",
+	});
+}
+
+function getQuestionNotificationId(question: QuestionRequest): string {
+	if (!isPlanApprovalQuestion(question)) {
+		return question.id;
+	}
+
+	return buildPlanApprovalIdFromQuestion(question);
+}
+
+function hasPendingQuestionNotificationTarget(question: QuestionRequest): boolean {
+	if (!isPlanApprovalQuestion(question)) {
+		return interactionStore.questionsPending.has(question.id);
+	}
+
+	const approval = interactionStore.planApprovalsPending.get(buildPlanApprovalIdFromQuestion(question));
+	return approval?.status === "pending";
+}
+
 function collectPendingTurnInputNotificationIds(sessionId: string): Set<string> {
 	const staleIds = new Set<string>();
-	for (const [id, permission] of permissionStore.pending) {
+	for (const [id, permission] of interactionStore.permissionsPending) {
 		if (permission.sessionId === sessionId) staleIds.add(id);
 	}
-	for (const [id, question] of questionStore.pending) {
+	for (const [id, question] of interactionStore.questionsPending) {
 		if (question.sessionId === sessionId) staleIds.add(id);
+	}
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (approval.sessionId === sessionId && approval.status === "pending") staleIds.add(id);
 	}
 	return staleIds;
 }
@@ -225,10 +301,12 @@ function clearPendingTurnInputs(sessionId: string): void {
 	dismissPendingTurnInputNotifications(sessionId);
 	questionStore.removeForSession(sessionId);
 	permissionStore.removeForSession(sessionId);
+	removePlanApprovalsForSession(sessionId);
 }
 
 function cancelPendingTurnInputs(sessionId: string): void {
 	dismissPendingTurnInputNotifications(sessionId);
+	removePlanApprovalsForSession(sessionId);
 	void questionStore.cancelForSession(sessionId).match(
 		() => {},
 		(error) => {
@@ -249,6 +327,82 @@ function cancelPendingTurnInputs(sessionId: string): void {
 	);
 }
 
+function removePlanApprovalsForSession(sessionId: string): void {
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (approval.sessionId === sessionId && approval.source === "create_plan") {
+			interactionStore.planApprovalsPending.delete(id);
+		}
+	}
+}
+
+function shouldUpdatePlanApprovalEntry(
+	existing: (typeof interactionStore.planApprovalsPending extends Map<string, infer Value> ? Value : never) | undefined,
+	sessionId: string,
+	callId: string,
+	jsonRpcRequestId: number
+): boolean {
+	if (!existing) {
+		return true;
+	}
+
+	return (
+		existing.kind !== "plan_approval" ||
+		existing.source !== "create_plan" ||
+		existing.sessionId !== sessionId ||
+		existing.tool.callID !== callId ||
+		existing.jsonRpcRequestId !== jsonRpcRequestId
+	);
+}
+
+$effect(() => {
+	const nextPlanApprovalIds = new Set<string>();
+
+	for (const session of sessionStore.sessions) {
+		const entries = sessionStore.getEntries(session.id);
+		for (const entry of entries) {
+			if (!isToolCallEntry(entry)) {
+				continue;
+			}
+
+			const toolCall = entry.message;
+			if (!toolCall.awaitingPlanApproval || toolCall.planApprovalRequestId == null) {
+				continue;
+			}
+
+			const id = buildPlanApprovalInteractionId(
+				session.id,
+				toolCall.id,
+				toolCall.planApprovalRequestId
+			);
+			nextPlanApprovalIds.add(id);
+			const existing = interactionStore.planApprovalsPending.get(id);
+			if (shouldUpdatePlanApprovalEntry(existing, session.id, toolCall.id, toolCall.planApprovalRequestId)) {
+				interactionStore.planApprovalsPending.set(id, {
+					id,
+					kind: "plan_approval",
+					source: "create_plan",
+					sessionId: session.id,
+					tool: {
+						messageID: existing?.tool.messageID ?? "",
+						callID: toolCall.id,
+					},
+					jsonRpcRequestId: toolCall.planApprovalRequestId,
+					status: existing?.status ?? "pending",
+				});
+			}
+		}
+	}
+
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (approval.source !== "create_plan") {
+			continue;
+		}
+		if (!nextPlanApprovalIds.has(id) && approval.status !== "pending") {
+			interactionStore.planApprovalsPending.delete(id);
+		}
+	}
+});
+
 // Set up SessionStore callbacks for permission/question/plan routing
 sessionStore.setCallbacks({
 	onPermissionRequest: (permission) => {
@@ -266,7 +420,7 @@ sessionStore.setCallbacks({
 				sourceId: permission.id,
 			},
 			(actionId) => {
-				if (!permissionStore.pending.has(permission.id)) return; // stale
+				if (!interactionStore.permissionsPending.has(permission.id)) return; // stale
 				if (actionId === "allow") {
 					permissionStore.reply(permission.id, "once");
 				} else if (actionId === "allow-always") {
@@ -285,22 +439,23 @@ sessionStore.setCallbacks({
 	},
 	onQuestionRequest: (question) => {
 		registerQuestion(question);
+		const notificationId = getQuestionNotificationId(question);
 
 		// Show popup notification when app is unfocused
 		const questionText =
 			question.questions[0]?.question ?? question.questions[0]?.header ?? "Agent question";
 		showNotification(
 			{
-				id: question.id,
+				id: notificationId,
 				type: "question",
 				title: "Agent Question",
 				body: questionText,
 				actions: QUESTION_ACTIONS,
 				sessionId: question.sessionId,
-				sourceId: question.id,
+				sourceId: notificationId,
 			},
 			(actionId) => {
-				if (!questionStore.pending.has(question.id)) return; // stale
+				if (!hasPendingQuestionNotificationTarget(question)) return;
 				if (actionId === "view") {
 					focusOrOpenSessionPanel(question.sessionId);
 				}
@@ -928,6 +1083,7 @@ const hasAnyPanel = $derived(
 		panelStore.terminalPanels.length > 0 ||
 		panelStore.browserPanels.length > 0
 );
+const showPanelsContainer = $derived(hasAnyPanel || panelStore.viewMode === "kanban");
 
 // Derived: keep the sidebar mounted whenever projects exist.
 // The open state now controls width/content density instead of removing it entirely.
@@ -1011,7 +1167,7 @@ onDestroy(() => {
 					</div>
 				{/if}
 				<main
-					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {hasAnyPanel
+					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer
 						? ''
 						: 'justify-center items-center overflow-x-auto'}"
 				>
@@ -1027,7 +1183,7 @@ onDestroy(() => {
 							/>
 						</div>
 					{/if}
-					{#if hasAnyPanel}
+					{#if showPanelsContainer}
 						<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 							<PanelsContainer {projectManager} state={viewState} />
 						</div>

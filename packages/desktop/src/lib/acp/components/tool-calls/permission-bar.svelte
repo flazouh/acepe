@@ -17,7 +17,7 @@
 	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 	import PermissionActionBar from "./permission-action-bar.svelte";
 	import { extractCompactPermissionDisplay } from "./permission-display.js";
-	import { visiblePermissionsForSessionBar } from "./permission-visibility.js";
+	import { isPermissionRepresentedByToolCall, visiblePermissionsForSessionBar } from "./permission-visibility.js";
 
  	interface Props {
 		sessionId: string;
@@ -40,6 +40,18 @@
 		return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), entries);
 	});
 	const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
+	const isRepresentedByToolCall = $derived.by(() => {
+		if (!currentPermission) {
+		return false;
+		}
+
+		return isPermissionRepresentedByToolCall(
+			currentPermission,
+			sessionId,
+			sessionStore.getOperationStore(),
+			sessionStore.getEntries(sessionId)
+		);
+	});
 	const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
 	const progressLabel = $derived.by(() => {
 		if (!sessionProgress) {
@@ -59,7 +71,7 @@
 {#if currentPermission}
 	{@const compactDisplay = extractCompactPermissionDisplay(currentPermission, projectPath)}
 	{@const kind = compactDisplay.kind}
-	{@const command = compactDisplay.command}
+	{@const command = isRepresentedByToolCall ? null : compactDisplay.command}
 	{@const filePath = compactDisplay.filePath}
 	{@const verb = compactDisplay.label}
 	{@const purpleColor = Colors[COLOR_NAMES.PURPLE]}

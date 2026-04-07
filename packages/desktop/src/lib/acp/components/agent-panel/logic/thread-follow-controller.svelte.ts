@@ -96,18 +96,6 @@ export class ThreadFollowController {
 		options?: { requireLatest?: boolean }
 	): void {
 		const requireLatest = options?.requireLatest ?? true;
-		const hasPendingForcedExplicitTarget =
-			this.pendingTargetKey !== null && this.pendingForce && !this.pendingRequireLatest;
-
-		// Preserve an explicit forced target, such as the next user turn after send,
-		// against later non-forced latest-target registrations in the same frame.
-		if (hasPendingForcedExplicitTarget && !force) {
-			this.revealFramesRemaining = REVEAL_SETTLE_FRAME_BUDGET;
-			if (this.revealRafId === null) {
-				this.requestRevealFrame();
-			}
-			return;
-		}
 
 		this.pendingTargetKey = targetKey;
 		this.pendingForce = this.pendingForce || force;

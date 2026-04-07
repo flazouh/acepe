@@ -97,6 +97,7 @@ function makeItem(
 	} = overrides;
 
 	const currentModeId = rest.currentModeId ?? null;
+	const pendingPlanApproval = rest.pendingPlanApproval ?? null;
 
 	// Compute state if not provided
 	const state =
@@ -135,6 +136,7 @@ function makeItem(
 		pendingQuestion: null,
 		status: "ready",
 		...rest,
+		pendingPlanApproval,
 		state, // Always use computed or provided state
 	};
 	return item;

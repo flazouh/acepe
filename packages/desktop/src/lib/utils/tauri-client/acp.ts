@@ -6,6 +6,11 @@ import { ACP_PREFIX, CMD } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 import type { CustomAgentConfig } from "./types.js";
 
+export interface ExecutionProfileRequest {
+	modeId: string;
+	autonomousEnabled: boolean;
+}
+
 export const acp = {
 	initialize: (): ResultAsync<unknown, AppError> => {
 		return invokeAsync(CMD.acp.initialize);
@@ -28,9 +33,10 @@ export const acp = {
 	resumeSession: (
 		sessionId: string,
 		cwd: string,
-		agentId?: string
+		agentId?: string,
+		executionProfile?: ExecutionProfileRequest
 	): ResultAsync<ResumeSessionResult, AppError> => {
-		return invokeAsync(CMD.acp.resume_session, { sessionId, cwd, agentId });
+		return invokeAsync(CMD.acp.resume_session, { sessionId, cwd, agentId, executionProfile });
 	},
 
 	forkSession: (

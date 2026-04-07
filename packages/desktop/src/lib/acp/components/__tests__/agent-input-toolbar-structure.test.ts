@@ -30,10 +30,10 @@ describe("agent input toolbar structure", () => {
 		expect(agentInputSource).toContain("initialAutonomousEnabled");
 	});
 
-	it("renders the Autonomous toggle with a Phosphor shield icon that fills when enabled", () => {
+	it("renders the Autonomous toggle with a Phosphor robot icon that fills when enabled", () => {
 		expect(autonomousToggleSource).toContain('from "phosphor-svelte"');
 		expect(autonomousToggleSource).toContain('import { Colors } from "$lib/acp/utils/colors.js"');
-		expect(autonomousToggleSource).toContain("Colors.red");
+		expect(autonomousToggleSource).toContain("Colors.purple");
 		expect(autonomousToggleSource).toContain('weight={active ? "fill" : "regular"}');
 		expect(autonomousToggleSource).not.toMatch(/>\s*Autonomous\s*</);
 	});

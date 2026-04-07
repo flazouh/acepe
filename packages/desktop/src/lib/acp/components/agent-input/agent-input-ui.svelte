@@ -1100,9 +1100,11 @@ async function handleSend() {
 	if (!props.panelId) {
 		inputState.message = "";
 	}
-	props.onWillSend?.();
-	if (isPreSessionSend && props.panelId && props.projectPath && props.selectedAgentId) {
-		connectionStore.send(props.panelId, {
+	const overridePanelId = props.onWillSend?.();
+	const effectivePanelId =
+		overridePanelId !== undefined && overridePanelId !== null ? overridePanelId : props.panelId;
+	if (isPreSessionSend && effectivePanelId && props.projectPath && props.selectedAgentId) {
+		connectionStore.send(effectivePanelId, {
 			type: PanelConnectionEvent.START_CONNECTION,
 			projectPath: props.projectPath,
 			agentId: props.selectedAgentId,
@@ -1120,20 +1122,20 @@ async function handleSend() {
 		t_ms: Math.round(performance.now() - t0),
 	});
 
-	if (props.panelId && !props.sessionId) {
+	if (effectivePanelId && !props.sessionId) {
 		logger.info("[first-send-trace] setting optimistic pending entry", {
-			panelId: props.panelId,
+			panelId: effectivePanelId,
 			preview: prepared.content.slice(0, 120),
 			t_ms: Math.round(performance.now() - t0),
 		});
-		panelStore.setPendingUserEntry(props.panelId, createPendingUserEntry(prepared.content));
+		panelStore.setPendingUserEntry(effectivePanelId, createPendingUserEntry(prepared.content));
 	}
 
 	// When worktree toggle is pending, create worktree first (need the path), then run setup in background
 	let worktreePathForSend: string | undefined = props.worktreePath ?? undefined;
 	if (!worktreePathForSend && props.worktreePending && props.projectPath) {
-		if (props.panelId) {
-			panelStore.setPendingWorktreeSetup(props.panelId, {
+		if (effectivePanelId) {
+			panelStore.setPendingWorktreeSetup(effectivePanelId, {
 				projectPath: props.projectPath,
 				worktreePath: null,
 				phase: "creating-worktree",
@@ -1149,8 +1151,8 @@ async function handleSend() {
 		if (createResult.isOk()) {
 			const info = createResult.value;
 			worktreePathForSend = info.directory;
-			if (props.panelId) {
-				panelStore.setPendingWorktreeSetup(props.panelId, {
+			if (effectivePanelId) {
+				panelStore.setPendingWorktreeSetup(effectivePanelId, {
 					projectPath: props.projectPath,
 					worktreePath: info.directory,
 					phase: "running",
@@ -1177,8 +1179,8 @@ async function handleSend() {
 				}
 			);
 		} else {
-			if (props.panelId) {
-				panelStore.clearPendingWorktreeSetup(props.panelId);
+			if (effectivePanelId) {
+				panelStore.clearPendingWorktreeSetup(effectivePanelId);
 			}
 			logger.warn("Worktree creation failed", { error: createResult.error });
 			toast.error(m.worktree_create_failed());
@@ -1207,18 +1209,18 @@ async function handleSend() {
 		worktreePathForSend: worktreePathForSend ?? null,
 	});
 	const handleSessionCreated = (createdSessionId: string) => {
-		if (isPreSessionSend && props.panelId) {
-			connectionStore.send(props.panelId, {
+		if (isPreSessionSend && effectivePanelId) {
+			connectionStore.send(effectivePanelId, {
 				type: PanelConnectionEvent.CONNECTION_SUCCESS,
 				sessionId: createdSessionId,
 			});
 		}
-		props.onSessionCreated?.(createdSessionId);
+		props.onSessionCreated?.(createdSessionId, effectivePanelId ?? null);
 	};
 	inputState
 		.sendPreparedMessage({
 			content: prepared.content,
-			panelId: props.panelId,
+			panelId: effectivePanelId,
 			sessionId: props.sessionId,
 			initialAutonomousEnabled: provisionalAutonomousEnabled,
 			initialModeId: provisionalModeId,
@@ -1242,17 +1244,18 @@ async function handleSend() {
 			}
 		})
 		.mapErr((error) => {
-			if (props.panelId) {
-				panelStore.clearPendingWorktreeSetup(props.panelId);
+			if (effectivePanelId) {
+				panelStore.clearPendingWorktreeSetup(effectivePanelId);
 			}
-			if (props.panelId && isPreSessionSend && error instanceof SessionCreationError) {
-				panelStore.setPendingComposerRestore(props.panelId, restoreSnapshot);
-				panelStore.setMessageDraft(props.panelId, restoreSnapshot.draft);
+			if (effectivePanelId && isPreSessionSend && error instanceof SessionCreationError) {
+				panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
+				panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
 				lastDraftValue = restoreSnapshot.draft;
-				connectionStore.send(props.panelId, {
+				connectionStore.send(effectivePanelId, {
 					type: PanelConnectionEvent.CONNECTION_ERROR,
 					error: formatPreSessionSendFailure(error),
 				});
+				props.onSendError?.(effectivePanelId);
 			} else if (shouldClearDraftEarly && props.panelId) {
 				panelStore.setMessageDraft(props.panelId, prepared.content);
 			}

@@ -19,16 +19,33 @@ import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 
 import { replyToPermissionRequest } from "../logic/interaction-reply.js";
+import type { Operation } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
+import type { ToolCall } from "../types/tool-call.js";
+import { isExitPlanPermission } from "../utils/exit-plan-permission.js";
 import { createLogger } from "../utils/logger.js";
+import { permissionMatchesToolCall } from "../utils/permission-tool-match.js";
+import { findOperationForPermission, permissionMatchesOperation } from "./operation-association.js";
+import { InteractionStore } from "./interaction-store.svelte.js";
+import type { OperationStore } from "./operation-store.svelte.js";
 
 const PERMISSION_STORE_KEY = Symbol("permission-store");
 const logger = createLogger({ id: "permission-store", name: "PermissionStore" });
 
 export class PermissionStore {
-	pending = new SvelteMap<string, PermissionRequest>();
+	private interactions = new InteractionStore();
 	private sessionBatchTotals = new SvelteMap<string, number>();
 	private sessionBatchCompleted = new SvelteMap<string, number>();
+
+	constructor(interactions?: InteractionStore) {
+		if (interactions !== undefined) {
+			this.interactions = interactions;
+		}
+	}
+
+	get pending(): SvelteMap<string, PermissionRequest> {
+		return this.interactions.permissionsPending;
+	}
 
 	/** Callback to check if a permission should be auto-accepted (e.g. child sessions or Autonomous). */
 	private shouldAutoAccept:
@@ -145,7 +162,10 @@ export class PermissionStore {
 		this.pending.set(permission.id, permission);
 		this.notePermissionAdded(permission.sessionId, hadPendingBeforeAdd);
 
-		const autoAcceptDecision = this.shouldAutoAccept ? this.shouldAutoAccept(permission) : false;
+		const autoAcceptDecision =
+			this.shouldAutoAccept !== null && !isExitPlanPermission(permission)
+				? this.shouldAutoAccept(permission)
+				: false;
 		const autoAcceptSource =
 			autoAcceptDecision === true
 				? "auto"
@@ -177,18 +197,27 @@ export class PermissionStore {
 	/**
 	 * Get the most recent pending permission for a given session-scoped tool call.
 	 */
-	getForToolCall(sessionId: string | undefined, toolCallId: string): PermissionRequest | undefined {
+	getForToolCall(
+		sessionId: string | undefined,
+		toolCallOrId: string | ToolCall
+	): PermissionRequest | undefined {
 		if (!sessionId) {
 			return undefined;
 		}
 
+		const toolCallId = typeof toolCallOrId === "string" ? toolCallOrId : toolCallOrId.id;
 		let latest: PermissionRequest | undefined;
 		for (const permission of this.pending.values()) {
 			const permissionToolCallId = this.getToolCallId(permission);
 			if (permission.sessionId !== sessionId) {
 				continue;
 			}
-			if (permissionToolCallId !== toolCallId) {
+			const isDirectMatch = permissionToolCallId === toolCallId;
+			const isSemanticMatch =
+				!isDirectMatch &&
+				typeof toolCallOrId !== "string" &&
+				permissionMatchesToolCall(permission, toolCallOrId);
+			if (!isDirectMatch && !isSemanticMatch) {
 				continue;
 			}
 			if (this.shouldPreferPermission(permission, latest)) {
@@ -206,6 +235,34 @@ export class PermissionStore {
 			}
 		}
 		return permissions;
+	}
+
+	getForOperation(operation: Operation, operationStore: OperationStore): PermissionRequest | undefined {
+		let latest: PermissionRequest | undefined;
+		for (const permission of this.pending.values()) {
+			if (permission.sessionId !== operation.sessionId) {
+				continue;
+			}
+
+			if (!permissionMatchesOperation(permission, operation)) {
+				continue;
+			}
+
+			const permissionToolCallId = this.getToolCallId(permission);
+			const isDirectMatch = permissionToolCallId === operation.toolCallId;
+			if (!isDirectMatch) {
+				const matchedOperation = findOperationForPermission(operationStore, permission);
+				if (matchedOperation?.id !== operation.id) {
+					continue;
+				}
+			}
+
+			if (this.shouldPreferPermission(permission, latest)) {
+				latest = permission;
+			}
+		}
+
+		return latest;
 	}
 
 	getSessionProgress(sessionId: string): { total: number; completed: number } | null {
@@ -321,6 +378,9 @@ export class PermissionStore {
 				if (!this.pending.has(permission.id)) {
 					return okAsync(undefined);
 				}
+				if (isExitPlanPermission(permission)) {
+					return okAsync(undefined);
+				}
 
 				logger.info("Draining autonomous permission", {
 					permissionId: permission.id,
@@ -359,8 +419,8 @@ export class PermissionStore {
 /**
  * Create and set the permission store in Svelte context.
  */
-export function createPermissionStore(): PermissionStore {
-	const store = new PermissionStore();
+export function createPermissionStore(interactions?: InteractionStore): PermissionStore {
+	const store = new PermissionStore(interactions);
 	setContext(PERMISSION_STORE_KEY, store);
 	return store;
 }

@@ -7,6 +7,7 @@ import {
 	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
 	isMergedThoughtAssistantDisplayEntry,
+	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
 } from "../virtualized-entry-display.js";
 
@@ -73,12 +74,22 @@ describe("virtualized-entry-display", () => {
 		expect(isMergedThoughtAssistantDisplayEntry(display[1]!)).toBe(false);
 	});
 
-	it("uses the newest non-thinking entry as the reveal target when waiting trails the thread", () => {
+	it("uses the thinking indicator as the reveal target when waiting trails the thread", () => {
 		const display = buildVirtualizedDisplayEntries([
 			createMessageAssistantEntry("assistant-1", "latest reply"),
 		]);
 		display.push(THINKING_DISPLAY_ENTRY);
 
-		expect(getLatestRevealTargetKey(display)).toBe("assistant-1");
+		expect(getLatestRevealTargetKey(display)).toBe("thinking-indicator");
+	});
+
+	it("keeps observing the latest non-thinking entry for resize while waiting trails the thread", () => {
+		const display = buildVirtualizedDisplayEntries([
+			createMessageAssistantEntry("assistant-1", "latest reply"),
+		]);
+		display.push(THINKING_DISPLAY_ENTRY);
+
+		expect(shouldObserveRevealResize(display, display[0]!, true)).toBe(true);
+		expect(shouldObserveRevealResize(display, THINKING_DISPLAY_ENTRY, true)).toBe(false);
 	});
 });

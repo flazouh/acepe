@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Colors } from "$lib/acp/utils/colors.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { Shield } from "phosphor-svelte";
+import { Robot } from "phosphor-svelte";
 
 interface AutonomousToggleButtonProps {
 	readonly active: boolean;
@@ -62,7 +62,7 @@ const buttonStyle = $derived.by(() => {
 		return undefined;
 	}
 
-	return `color: ${Colors.red}; --autonomous-toggle-active-color: ${Colors.red};`;
+	return `color: ${Colors.purple}; --autonomous-toggle-active-color: ${Colors.purple};`;
 });
 
 function handleClick(): void {
@@ -87,7 +87,7 @@ function handleClick(): void {
 				class={buttonClass}
 				style={buttonStyle}
 			>
-				<Shield class={iconClass} size={14} weight={active ? "fill" : "regular"} />
+				<Robot class={iconClass} size={14} weight={active ? "fill" : "regular"} />
 			</button>
 		{/snippet}
 	</Tooltip.Trigger>

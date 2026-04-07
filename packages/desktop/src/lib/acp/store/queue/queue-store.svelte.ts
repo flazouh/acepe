@@ -12,6 +12,7 @@
  */
 
 import { getContext, setContext } from "svelte";
+import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { QueueItem } from "./types.js";
@@ -33,6 +34,7 @@ export interface QueueUpdateInput {
 	readonly hasUnseenCompletion: boolean;
 	readonly pendingQuestionText: string | null;
 	readonly pendingQuestion: QuestionRequest | null;
+	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
 }
 
@@ -173,6 +175,7 @@ export function createQueueStore(): QueueStore {
 					input.hasUnseenCompletion,
 					input.pendingQuestionText,
 					input.pendingQuestion,
+					input.pendingPlanApproval,
 					input.pendingPermission,
 					getProjectColor
 				);

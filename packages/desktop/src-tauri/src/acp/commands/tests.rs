@@ -291,8 +291,14 @@ async fn resume_or_create_reuses_existing_client() {
         .expect("existing client should be present");
     let factory_calls = Arc::new(AtomicUsize::new(0));
 
-    let result =
-        resume_or_create_session_client(&session_registry, session_id.clone(), cwd, agent_id, {
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        false,
+        None,
+        {
             let factory_calls = Arc::clone(&factory_calls);
             move || {
                 let factory_calls = Arc::clone(&factory_calls);
@@ -302,8 +308,9 @@ async fn resume_or_create_reuses_existing_client() {
                         as Box<dyn AgentClient + Send + Sync + 'static>)
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(result.is_ok(), "resume should succeed");
     assert_eq!(factory_calls.load(Ordering::SeqCst), 0);
@@ -325,8 +332,14 @@ async fn resume_or_create_builds_client_when_missing() {
     let created_state = MockClientState::new(false);
     let factory_calls = Arc::new(AtomicUsize::new(0));
 
-    let result =
-        resume_or_create_session_client(&session_registry, session_id.clone(), cwd, agent_id, {
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        false,
+        None,
+        {
             let created_state = created_state.clone();
             let factory_calls = Arc::clone(&factory_calls);
             move || {
@@ -338,8 +351,9 @@ async fn resume_or_create_builds_client_when_missing() {
                         as Box<dyn AgentClient + Send + Sync + 'static>)
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(result.is_ok(), "resume should succeed");
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
@@ -357,8 +371,14 @@ async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
     let created_state = MockClientState::new(true);
     let factory_calls = Arc::new(AtomicUsize::new(0));
 
-    let result =
-        resume_or_create_session_client(&session_registry, session_id.clone(), cwd, agent_id, {
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        false,
+        None,
+        {
             let created_state = created_state.clone();
             let factory_calls = Arc::clone(&factory_calls);
             move || {
@@ -370,8 +390,9 @@ async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
                         as Box<dyn AgentClient + Send + Sync + 'static>)
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(result.is_err(), "resume should fail");
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
@@ -550,8 +571,14 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
     let replacement_state = MockClientState::new(false);
     let factory_calls = Arc::new(AtomicUsize::new(0));
 
-    let result =
-        resume_or_create_session_client(&session_registry, session_id.clone(), cwd, agent_id, {
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        false,
+        None,
+        {
             let replacement_state = replacement_state.clone();
             let factory_calls = Arc::clone(&factory_calls);
             move || {
@@ -563,8 +590,9 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
                         as Box<dyn AgentClient + Send + Sync + 'static>)
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(result.is_ok(), "fallback resume should succeed");
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
@@ -576,6 +604,55 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
         .get(&session_id)
         .expect("replacement client should be stored");
     assert!(!Arc::ptr_eq(&initial_client_arc, &current_client_arc));
+}
+
+#[tokio::test]
+async fn resume_or_create_forces_replacement_client_and_seeds_launch_mode() {
+    let session_registry = SessionRegistry::new();
+    let session_id = "launch-profile-session".to_string();
+    let cwd = "/workspace/a".to_string();
+    let agent_id = CanonicalAgentId::ClaudeCode;
+
+    let existing_state = MockClientState::new(false);
+    session_registry.store(
+        session_id.clone(),
+        Box::new(MockAgentClient::new(existing_state.clone())),
+        agent_id.clone(),
+    );
+
+    let replacement_state = MockClientState::new(false);
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        true,
+        Some("bypassPermissions".to_string()),
+        {
+            let replacement_state = replacement_state.clone();
+            move || {
+                let replacement_state = replacement_state.clone();
+                async move {
+                    Ok(Box::new(MockAgentClient::new(replacement_state))
+                        as Box<dyn AgentClient + Send + Sync + 'static>)
+                }
+            }
+        },
+    )
+    .await;
+
+    assert!(result.is_ok(), "forced replacement resume should succeed");
+    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(existing_state.stop_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(replacement_state.resume_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        replacement_state
+            .launch_mode_ids
+            .lock()
+            .expect("launch mode ids lock")
+            .as_slice(),
+        ["bypassPermissions"]
+    );
 }
 
 #[tokio::test]
@@ -640,6 +717,7 @@ struct MockClientState {
     resume_calls: Arc<AtomicUsize>,
     stop_calls: Arc<AtomicUsize>,
     fail_resume: Arc<AtomicBool>,
+    launch_mode_ids: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 impl MockClientState {
@@ -648,6 +726,7 @@ impl MockClientState {
             resume_calls: Arc::new(AtomicUsize::new(0)),
             stop_calls: Arc::new(AtomicUsize::new(0)),
             fail_resume: Arc::new(AtomicBool::new(fail_resume)),
+            launch_mode_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 }
@@ -730,6 +809,11 @@ impl AgentClient for MockAgentClient {
     }
 
     async fn set_session_mode(&mut self, _session_id: String, _mode_id: String) -> AcpResult<()> {
+        self.state
+            .launch_mode_ids
+            .lock()
+            .expect("launch mode ids lock")
+            .push(_mode_id);
         Ok(())
     }
 

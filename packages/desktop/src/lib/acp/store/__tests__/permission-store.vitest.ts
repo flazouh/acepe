@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
-
+import { OperationStore } from "../operation-store.svelte.js";
 import { PermissionStore } from "../permission-store.svelte.js";
+import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function createAcpPermission(
 	sessionId: string,
@@ -18,6 +19,28 @@ function createAcpPermission(
 		permission: "Execute",
 		patterns: [],
 		metadata: { options: [] },
+		always: [],
+		tool: { messageID: "", callID: toolCallId },
+	};
+}
+
+function createExecutePermissionWithCommand(
+	sessionId: string,
+	toolCallId: string,
+	jsonRpcRequestId: number,
+	command: string
+): PermissionRequest {
+	return {
+		id: buildAcpPermissionId(sessionId, toolCallId, jsonRpcRequestId),
+		sessionId,
+		jsonRpcRequestId,
+		permission: "Execute",
+		patterns: [],
+		metadata: {
+			rawInput: { command },
+			parsedArguments: { kind: "execute", command },
+			options: [],
+		},
 		always: [],
 		tool: { messageID: "", callID: toolCallId },
 	};
@@ -131,6 +154,101 @@ describe("PermissionStore", () => {
 
 			expect(permission?.id).toBe(newerPermission.id);
 			expect(permission?.jsonRpcRequestId).toBe(101);
+		});
+
+		it("matches execute permissions by command when the permission anchor id differs", () => {
+			const permission = createExecutePermissionWithCommand(
+				"session-1",
+				"shell-permission",
+				101,
+				"git status"
+			);
+
+			store.add(permission);
+
+			const matched = store.getForToolCall("session-1", {
+				id: "tool-1",
+				name: "Run",
+				arguments: { kind: "execute", command: "git status" },
+				status: "pending",
+				result: null,
+				kind: "execute",
+				title: "Running command",
+				locations: null,
+				skillMeta: null,
+				normalizedQuestions: null,
+				normalizedTodos: null,
+				parentToolUseId: null,
+				taskChildren: null,
+				questionAnswer: null,
+				awaitingPlanApproval: false,
+				planApprovalRequestId: null,
+			});
+
+			expect(matched?.id).toBe(permission.id);
+			expect(matched?.tool?.callID).toBe("shell-permission");
+		});
+
+		it("returns the latest pending permission for a canonical operation", () => {
+			const operationStore = new OperationStore();
+			const entryStore = new SessionEntryStore(operationStore);
+			entryStore.createToolCallEntry("session-1", {
+				id: "tool-1",
+				name: "bash",
+				arguments: { kind: "execute", command: "git status" },
+				status: "pending",
+				result: null,
+				kind: "execute",
+				title: "Run command",
+				locations: null,
+				skillMeta: null,
+				awaitingPlanApproval: false,
+			});
+			const operation = operationStore.getByToolCallId("session-1", "tool-1");
+			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 100, "git status"));
+			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status"));
+
+			const matched = operation ? store.getForOperation(operation, operationStore) : undefined;
+
+			expect(matched?.jsonRpcRequestId).toBe(101);
+		});
+
+		it("fails closed when multiple execute operations share the same command", () => {
+			const operationStore = new OperationStore();
+			const entryStore = new SessionEntryStore(operationStore);
+			entryStore.createToolCallEntry("session-1", {
+				id: "tool-1",
+				name: "bash",
+				arguments: { kind: "execute", command: "git status" },
+				status: "pending",
+				result: null,
+				kind: "execute",
+				title: "Run command",
+				locations: null,
+				skillMeta: null,
+				awaitingPlanApproval: false,
+			});
+			entryStore.createToolCallEntry("session-1", {
+				id: "tool-2",
+				name: "bash",
+				arguments: { kind: "execute", command: "git status" },
+				status: "pending",
+				result: null,
+				kind: "execute",
+				title: "Run command",
+				locations: null,
+				skillMeta: null,
+				awaitingPlanApproval: false,
+			});
+			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status"));
+
+			const firstOperation = operationStore.getByToolCallId("session-1", "tool-1");
+			const secondOperation = operationStore.getByToolCallId("session-1", "tool-2");
+
+			expect(firstOperation ? store.getForOperation(firstOperation, operationStore) : undefined).toBeUndefined();
+			expect(
+				secondOperation ? store.getForOperation(secondOperation, operationStore) : undefined
+			).toBeUndefined();
 		});
 	});
 
@@ -327,6 +445,39 @@ describe("PermissionStore", () => {
 			store.add(permission);
 
 			expect(store.pending.size).toBe(1);
+		});
+
+		it("does not auto-accept exit-plan approvals even when autonomous auto-accept is enabled", async () => {
+			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
+
+			store.setAutoAccept(() => "autonomous-live");
+
+			const permission: PermissionRequest = {
+				id: buildAcpPermissionId("session-plan", "tool-plan", 901),
+				sessionId: "session-plan",
+				jsonRpcRequestId: 901,
+				permission: "Plan",
+				patterns: [],
+				metadata: {
+					rawInput: {
+						plan: "# Plan\n\n- [ ] Ship the fix",
+						planFilePath: "docs/plans/example.md",
+					},
+					parsedArguments: {
+						kind: "planMode",
+						mode: "default",
+					},
+					options: [{ kind: "allow_once", optionId: "allow", name: "Allow" }],
+				},
+				always: [],
+				tool: { messageID: "", callID: "tool-plan" },
+			};
+
+			store.add(permission);
+
+			expect(store.pending.get(permission.id)).toEqual(permission);
+			expect(respondToPermission).not.toHaveBeenCalled();
+			expect(mockReplyPermission).not.toHaveBeenCalled();
 		});
 	});
 

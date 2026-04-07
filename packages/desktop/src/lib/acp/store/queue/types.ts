@@ -4,6 +4,7 @@
 
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import type { TodoProgressInfo } from "../../components/session-list/session-list-types.js";
+import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
@@ -52,6 +53,8 @@ export interface QueueItem {
 	readonly deletions: number;
 	/** Full pending question data (if any) */
 	readonly pendingQuestion: QuestionRequest | null;
+	/** Full pending plan approval data (if any) */
+	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	/** Session status for filtering */
 	readonly status: SessionStatus;
 	/**

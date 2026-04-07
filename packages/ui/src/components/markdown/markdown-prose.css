@@ -283,32 +283,17 @@
 	background: color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* Streaming reveal animation — applied by the streamingReveal action to
-   newly-appearing top-level children during streaming.  Mirrors the
-   Cursor-style per-element fade-in (`chat-fade-in * { animation: fade-in .25s ease }`). */
-
-@keyframes streaming-fade-in {
-	from {
-		opacity: 0;
-	}
-}
-
+/* Streaming markdown re-renders at the section level, so per-section
+   fade-ins create a chunky block-by-block flash. Keep only a subtle
+   live-tail refresh for the actively streaming section. */
 @keyframes streaming-live-refresh {
 	from {
-		opacity: 0.72;
+		opacity: 0.9;
 	}
-}
-
-/* Streaming section wrappers are stable keyed divs that survive across
-   render cycles. Animate the wrapper itself so inner {html} replacements
-   don't restart the fade. Code block internals get animation disabled
-   to match Cursor's approach. */
-.markdown-content > .streaming-section.streaming-fade-in {
-	animation: streaming-fade-in 250ms ease;
 }
 
 .markdown-content > .streaming-section.streaming-live-refresh {
-	animation: streaming-live-refresh 160ms ease-out;
+	animation: streaming-live-refresh 120ms ease-out;
 }
 
 .markdown-content > .streaming-section .code-block-wrapper,

@@ -4,17 +4,16 @@
 	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 	import type { QueueUpdateInput } from "$lib/acp/store/index.js";
 	import {
+		getInteractionStore,
 		getPanelStore,
-		getPermissionStore,
-		getQuestionStore,
 		getQueueStore,
 		getSessionStore,
 		getUnseenStore,
 	} from "$lib/acp/store/index.js";
 	import {
 		getPrimaryQuestionText,
-		groupPendingQuestionsBySession,
 	} from "$lib/acp/store/question-selectors.js";
+	import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 	import type { QueueItem } from "$lib/acp/store/queue/types.js";
 	import type { QueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
 	import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
@@ -34,28 +33,11 @@
 	let { projectManager, state: appState }: Props = $props();
 
 	const panelStore = getPanelStore();
+	const interactionStore = getInteractionStore();
 	const sessionStore = getSessionStore();
-	const questionStore = getQuestionStore();
-	const permissionStore = getPermissionStore();
 	const unseenStore = getUnseenStore();
 	const queueStore = getQueueStore();
-
-	const pendingQuestionsBySession = $derived.by(() =>
-		groupPendingQuestionsBySession(questionStore.pending.values())
-	);
-
-	const pendingPermissionsBySession = $derived.by(() => {
-		const permissionsBySession = new SvelteMap<
-			string,
-			typeof permissionStore.pending extends Map<string, infer Value> ? Value : never
-		>();
-		for (const permission of permissionStore.pending.values()) {
-			if (!permissionsBySession.has(permission.sessionId)) {
-				permissionsBySession.set(permission.sessionId, permission);
-			}
-		}
-		return permissionsBySession;
-	});
+	const operationStore = sessionStore.getOperationStore();
 
 	const sessionToPanelMap = $derived.by(() => {
 		const map = new SvelteMap<string, string>();
@@ -85,6 +67,8 @@
 						? "connecting"
 						: runtimeState.connectionPhase === "disconnected"
 							? "idle"
+							: hotState.status === "paused"
+								? "paused"
 							: runtimeState.activityPhase === "running"
 								? "streaming"
 								: "ready";
@@ -102,12 +86,16 @@
 				connectionError: hotState?.connectionError ?? null,
 			};
 
-			const pendingQuestions = pendingQuestionsBySession.get(session.id) ?? [];
-			const hasPendingQuestion = pendingQuestions.length > 0;
-			const pendingQuestion = hasPendingQuestion ? pendingQuestions[0] : null;
+			const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+				session.id,
+				operationStore,
+				interactionStore
+			);
+			const pendingQuestion = interactionSnapshot.pendingQuestion;
+			const hasPendingQuestion = pendingQuestion !== null;
 			const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
-
-			const pendingPermission = pendingPermissionsBySession.get(session.id) ?? null;
+			const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
+			const pendingPermission = interactionSnapshot.pendingPermission;
 			const hasPendingPermission = pendingPermission !== null;
 			const hasUnseenCompletion = unseenStore.isUnseen(panelId);
 
@@ -118,6 +106,7 @@
 				hasUnseenCompletion,
 				pendingQuestionText,
 				pendingQuestion,
+				pendingPlanApproval,
 				pendingPermission,
 			});
 		}
@@ -129,9 +118,14 @@
 
 		for (const session of sessionStore.sessions) {
 			const runtimeState = sessionStore.getSessionRuntimeState(session.id);
-			const pendingQuestions = pendingQuestionsBySession.get(session.id) ?? [];
-			const pendingQuestion = pendingQuestions.length > 0 ? pendingQuestions[0] : null;
-			const pendingPermission = pendingPermissionsBySession.get(session.id) ?? null;
+			const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+				session.id,
+				operationStore,
+				interactionStore
+			);
+			const pendingQuestion = interactionSnapshot.pendingQuestion;
+			const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
+			const pendingPermission = interactionSnapshot.pendingPermission;
 
 			inputs.push({
 				sessionId: session.id,
@@ -139,6 +133,7 @@
 				connectionPhase: runtimeState ? runtimeState.connectionPhase : null,
 				activityPhase: runtimeState ? runtimeState.activityPhase : null,
 				pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
+				pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
 				pendingPermissionId: pendingPermission ? pendingPermission.id : null,
 			});
 		}

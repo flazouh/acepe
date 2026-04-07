@@ -3,6 +3,7 @@
  */
 
 import type { SessionEntry } from "../application/dto/session-entry.js";
+import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolKind } from "../types/tool-kind.js";
@@ -38,6 +39,7 @@ export interface PanelToTabInput {
 	readonly hotState: SessionHotState | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly pendingQuestion: QuestionRequest | null;
+	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
 	readonly isUnseen: boolean;
 	/** Project name for badge (from session/panel) */
@@ -217,6 +219,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		hotState,
 		entries,
 		pendingQuestion,
+		pendingPlanApproval,
 		pendingPermission,
 		isUnseen,
 		projectName,
@@ -232,6 +235,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		modeId: hotState?.currentMode?.id ?? null,
 		tool: null, // Tab bar doesn't need full tool call
 		pendingQuestion,
+		pendingPlanApproval,
 		pendingPermission,
 		hasUnseenCompletion: isUnseen,
 	});
@@ -296,6 +300,7 @@ export function nonAgentPanelToTab(input: NonAgentPanelToTabInput): TabBarTab {
 			modeId: null,
 			tool: null,
 			pendingQuestion: null,
+			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		}),

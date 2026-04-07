@@ -14,6 +14,11 @@ describe("permission bar contract", () => {
 		expect(source).toContain("visiblePermissionsForSessionBar");
 	});
 
+	it("suppresses the echoed command preview when the permission is already represented by a tool call", () => {
+		expect(source).toContain("isPermissionRepresentedByToolCall");
+		expect(source).toContain("@const command = isRepresentedByToolCall ? null : compactDisplay.command");
+	});
+
 	it("renders the permission actions inside a single header row with optional command below", () => {
 		expect(source).toContain(
 			'class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted/30 permission-card-enter'

@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::client::ExecutionProfileRequest;
 use crate::acp::session_registry::redact_session_id;
 use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
@@ -7,6 +8,38 @@ pub(crate) fn resume_path_needs_post_connect_execution_profile_reset(
     agent_id: &CanonicalAgentId,
 ) -> bool {
     !matches!(agent_id, CanonicalAgentId::ClaudeCode)
+}
+
+fn resolve_launch_execution_profile_mode_id(
+    registry: &Arc<AgentRegistry>,
+    agent_id: &CanonicalAgentId,
+    execution_profile: Option<&ExecutionProfileRequest>,
+) -> Result<Option<String>, SerializableAcpError> {
+    let Some(execution_profile) = execution_profile else {
+        return Ok(None);
+    };
+
+    let provider = registry
+        .get(agent_id)
+        .ok_or_else(|| SerializableAcpError::AgentNotFound {
+            agent_id: agent_id.as_str().to_string(),
+        })?;
+
+    let native_mode_id = provider
+        .map_execution_profile_mode_id(
+            &execution_profile.mode_id,
+            execution_profile.autonomous_enabled,
+        )
+        .ok_or_else(|| SerializableAcpError::ProtocolError {
+            message: format!(
+                "unsupported autonomous execution profile: provider={} ui_mode={} autonomous={}",
+                provider.id(),
+                execution_profile.mode_id,
+                execution_profile.autonomous_enabled
+            ),
+        })?;
+
+    Ok(Some(native_mode_id))
 }
 
 async fn reset_resumed_session_execution_profile(
@@ -240,6 +273,7 @@ pub async fn acp_resume_session(
     session_id: String,
     cwd: String,
     agent_id: Option<String>,
+    execution_profile: Option<ExecutionProfileRequest>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_resume_session called");
 
@@ -293,6 +327,12 @@ pub async fn acp_resume_session(
         .map(CanonicalAgentId::parse)
         .or_else(|| active_agent.get())
         .unwrap_or(CanonicalAgentId::ClaudeCode);
+    let launch_mode_id = resolve_launch_execution_profile_mode_id(
+        &registry,
+        &agent_id_enum,
+        execution_profile.as_ref(),
+    )?;
+    let force_new_client = launch_mode_id.is_some();
 
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
@@ -300,6 +340,8 @@ pub async fn acp_resume_session(
         session_id.clone(),
         cwd_str,
         agent_id_enum.clone(),
+        force_new_client,
+        launch_mode_id,
         || {
             let app = app.clone();
             let registry = registry.clone();

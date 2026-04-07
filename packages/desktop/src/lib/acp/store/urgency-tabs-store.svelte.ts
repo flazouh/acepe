@@ -12,8 +12,9 @@ import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { TAG_COLORS } from "../utils/colors.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
+import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
+import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { PanelStore } from "./panel-store.svelte.js";
-import type { QuestionStore } from "./question-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import type { Panel } from "./types.js";
 import {
@@ -100,7 +101,7 @@ export class UrgencyTabsStore {
 	constructor(
 		private readonly panelStore: PanelStore,
 		private readonly sessionStore: SessionStore,
-		private readonly questionStore: QuestionStore
+		private readonly interactions: InteractionStore
 	) {}
 
 	/**
@@ -197,7 +198,16 @@ export class UrgencyTabsStore {
 			: { status: "idle" as const, statusChangedAt: Date.now(), connectionError: null };
 
 		// Get pending question for this session
-		const pendingQuestion = sessionId ? this.getPendingQuestionForSession(sessionId) : null;
+		const interactionSnapshot =
+			sessionId !== null
+				? buildSessionOperationInteractionSnapshot(
+						sessionId,
+						this.sessionStore.getOperationStore(),
+						this.interactions
+					)
+				: null;
+		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
+		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
 
 		// Derive project path from session or panel
 		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
@@ -207,7 +217,7 @@ export class UrgencyTabsStore {
 		// Derive urgency
 		const urgency = deriveUrgency({
 			status: hotState.status,
-			hasPendingQuestion: pendingQuestion !== null,
+			hasPendingQuestion: pendingQuestion !== null || pendingPlanApproval !== null,
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
 			statusChangedAt: hotState.statusChangedAt,
 			connectionError: hotState.connectionError,
@@ -221,7 +231,7 @@ export class UrgencyTabsStore {
 			title,
 			urgency,
 			isFocused: panel.id === focusedPanelId,
-			hasPendingQuestion: pendingQuestion !== null,
+			hasPendingQuestion: pendingQuestion !== null || pendingPlanApproval !== null,
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
 			isStreaming: hotState.status === "streaming",
 			hasError: hotState.status === "error",
@@ -230,17 +240,6 @@ export class UrgencyTabsStore {
 		};
 	}
 
-	/**
-	 * Get pending question for a session (if any).
-	 */
-	private getPendingQuestionForSession(sessionId: string) {
-		for (const question of Array.from(this.questionStore.pending.values())) {
-			if (question.sessionId === sessionId) {
-				return question;
-			}
-		}
-		return null;
-	}
 }
 
 /**
@@ -249,9 +248,9 @@ export class UrgencyTabsStore {
 export function createUrgencyTabsStore(
 	panelStore: PanelStore,
 	sessionStore: SessionStore,
-	questionStore: QuestionStore
+	interactions: InteractionStore
 ): UrgencyTabsStore {
-	const store = new UrgencyTabsStore(panelStore, sessionStore, questionStore);
+	const store = new UrgencyTabsStore(panelStore, sessionStore, interactions);
 	setContext(URGENCY_TABS_STORE_KEY, store);
 	return store;
 }

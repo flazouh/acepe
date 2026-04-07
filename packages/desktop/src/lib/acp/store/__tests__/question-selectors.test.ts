@@ -44,6 +44,12 @@ describe("question-selectors", () => {
 
 			expect(findPendingQuestionForToolCall(pendingQuestions, "q-1")?.id).toBe("q-1");
 		});
+
+		it("does not fall back to session-wide matching when tool linkage is absent", () => {
+			const pendingQuestions = [makePendingQuestion("q-1", "s-1", [makeQuestion("A")])];
+
+			expect(findPendingQuestionForToolCall(pendingQuestions, "unrelated-tool")).toBeUndefined();
+		});
 	});
 
 	describe("resolveDisplayQuestions", () => {

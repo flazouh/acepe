@@ -1,32 +1,21 @@
-import { isToolCallEntry, type SessionEntry } from "../../application/dto/session-entry.js";
+import type { SessionEntry } from "../../application/dto/session-entry.js";
+import type { OperationStore } from "../../store/operation-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
+import { findOperationForPermission } from "../../store/operation-association.js";
 
 import { shouldHidePermissionBarForExitPlan } from "./exit-plan-helpers.js";
 
 export function isPermissionRepresentedByToolCall(
 	permission: PermissionRequest,
+	sessionId: string,
+	operationStore: OperationStore,
 	entries: ReadonlyArray<SessionEntry>
 ): boolean {
 	if (shouldHidePermissionBarForExitPlan(permission, entries)) {
 		return true;
 	}
 
-	const toolReference = permission.tool;
-	if (!toolReference) {
-		return false;
-	}
-
-	for (const entry of entries) {
-		if (!isToolCallEntry(entry)) {
-			continue;
-		}
-
-		if (entry.message.id === toolReference.callID) {
-			return true;
-		}
-	}
-
-	return false;
+	return findOperationForPermission(operationStore, permission) !== null && permission.sessionId === sessionId;
 }
 
 export function visiblePermissionsForSessionBar(

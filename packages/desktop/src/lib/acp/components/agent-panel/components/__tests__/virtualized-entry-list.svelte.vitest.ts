@@ -330,6 +330,38 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		// The test passes if no error is thrown and the component re-renders correctly
 	});
 
+	it("reveals the trailing thinking indicator after a user message is sent", async () => {
+		const view = renderList({
+			entries: [createAssistantEntry("assistant-1", "latest")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		scrollToIndexCalls.length = 0;
+
+		view.component.prepareForNextUserReveal({ force: true });
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [createAssistantEntry("assistant-1", "latest"), createUserEntry("user-1", "sent")],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.length).toBeGreaterThan(0);
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 2,
+			options: { align: "end" },
+		});
+	});
+
 	it("does not force-follow a non-user latest update after the user detached", async () => {
 		const view = renderList({
 			entries: [createAssistantEntry("assistant-1", "first")],

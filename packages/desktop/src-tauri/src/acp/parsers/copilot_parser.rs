@@ -1,9 +1,13 @@
 //! Parser for GitHub Copilot ACP events.
 
-use crate::acp::parsers::adapters::ClaudeCodeAdapter;
+use crate::acp::parsers::adapters::CopilotAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
-use crate::acp::parsers::edit_normalizers::claude_code::parse_edit_arguments;
+use crate::acp::parsers::edit_normalizers::copilot::parse_edit_arguments;
 use crate::acp::parsers::kind::{canonical_name_for_kind, infer_kind_from_payload};
+use crate::acp::parsers::shared_chat::{
+    detect_update_type, infer_tool_kind_from_raw_arguments, parse_tool_call_update,
+    parse_update_type_name, parse_usage_telemetry,
+};
 use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write, AgentParser,
     AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
@@ -13,56 +17,7 @@ use crate::acp::session_update::{
     RawToolCallInput, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
 
-use super::claude_code_parser::ClaudeCodeParser;
-
 pub struct CopilotParser;
-
-fn infer_tool_kind_from_raw_arguments(raw_arguments: &serde_json::Value) -> Option<ToolKind> {
-    let object = raw_arguments.as_object()?;
-
-    if object.contains_key("file_path")
-        || object.contains_key("filePath")
-        || object.contains_key("path")
-        || object.contains_key("command")
-        || object.contains_key("pattern")
-        || object.contains_key("url")
-    {
-        return None;
-    }
-
-    if object.contains_key("description")
-        || object.contains_key("prompt")
-        || object.contains_key("agent_type")
-        || object.contains_key("agentType")
-        || object.contains_key("subagent_type")
-        || object.contains_key("subagentType")
-    {
-        return Some(ToolKind::Task);
-    }
-
-    if object.contains_key("questions") {
-        return Some(ToolKind::Question);
-    }
-
-    if object.contains_key("todos") {
-        return Some(ToolKind::Todo);
-    }
-
-    if object.contains_key("task_id") || object.contains_key("taskId") {
-        return Some(ToolKind::TaskOutput);
-    }
-
-    if object.contains_key("skill")
-        || object.contains_key("skill_name")
-        || object.contains_key("skillName")
-        || object.contains_key("skill_args")
-        || object.contains_key("skillArgs")
-    {
-        return Some(ToolKind::Skill);
-    }
-
-    None
-}
 
 impl AgentParser for CopilotParser {
     fn agent_type(&self) -> AgentType {
@@ -70,11 +25,11 @@ impl AgentParser for CopilotParser {
     }
 
     fn parse_update_type_name(&self, update_type: &str) -> Option<UpdateType> {
-        ClaudeCodeParser.parse_update_type_name_impl(update_type)
+        parse_update_type_name(update_type)
     }
 
     fn detect_update_type(&self, data: &serde_json::Value) -> Result<UpdateType, ParseError> {
-        ClaudeCodeParser.detect_update_type_impl(data)
+        detect_update_type(data)
     }
 
     fn parse_tool_call(&self, data: &serde_json::Value) -> Result<ToolCallData, ParseError> {
@@ -87,7 +42,7 @@ impl AgentParser for CopilotParser {
         data: &serde_json::Value,
         session_id: Option<&str>,
     ) -> Result<ToolCallUpdateData, ParseError> {
-        let raw = ClaudeCodeParser.parse_tool_call_update_impl(data)?;
+        let raw = parse_tool_call_update(data, CopilotAdapter::normalize)?;
         Ok(build_tool_call_update_from_raw(self, raw, session_id))
     }
 
@@ -104,7 +59,7 @@ impl AgentParser for CopilotParser {
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {
-        ClaudeCodeAdapter::normalize(name)
+        CopilotAdapter::normalize(name)
     }
 
     fn parse_typed_tool_arguments(
@@ -151,7 +106,7 @@ impl AgentParser for CopilotParser {
         data: &serde_json::Value,
         fallback_session_id: Option<&str>,
     ) -> Result<ParsedUsageTelemetry, ParseError> {
-        ClaudeCodeParser.parse_usage_telemetry_impl(data, fallback_session_id)
+        parse_usage_telemetry(data, fallback_session_id)
     }
 
     fn extract_plan_from_raw_input(
@@ -201,7 +156,7 @@ impl CopilotParser {
 
         let kind = explicit_name
             .as_deref()
-            .map(ClaudeCodeAdapter::normalize)
+            .map(CopilotAdapter::normalize)
             .filter(|kind| *kind != ToolKind::Other)
             .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
             .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))

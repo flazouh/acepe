@@ -3,13 +3,16 @@ import { AgentToolQuestion } from "@acepe/ui/agent-panel";
 import { onMount } from "svelte";
 import * as m from "$lib/paraglide/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
-import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
+	import { getInteractionStore } from "../../store/interaction-store.svelte.js";
+	import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
+	import { getSessionStore } from "../../store/session-store.svelte.js";
+	import type { AnsweredQuestion } from "../../types/question.js";
 
 import {
 	findPendingQuestionForToolCall,
 	resolveDisplayQuestions,
 } from "../../store/question-selectors.js";
-import { type AnsweredQuestion, getQuestionStore } from "../../store/question-store.svelte.js";
+import { getQuestionStore } from "../../store/question-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
@@ -24,9 +27,11 @@ interface Props {
 
 let { toolCall, turnState, elapsedLabel }: Props = $props();
 
-const questionStore = getQuestionStore();
-const selectionStore = getQuestionSelectionStore();
-const sessionContext = useSessionContext();
+	const interactionStore = getInteractionStore();
+	const questionStore = getQuestionStore();
+	const selectionStore = getQuestionSelectionStore();
+	const sessionStore = getSessionStore();
+	const sessionContext = useSessionContext();
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
 
 // Create state manager for question data extraction
@@ -38,14 +43,21 @@ const thinkState = new ToolCallThinkState(
 // Get the question ID for selection store (use toolCall.id as the key)
 const questionId = $derived(toolCall.id);
 
-// Find the matching pending question from the store
-const pendingQuestion = $derived.by(() => {
-	return findPendingQuestionForToolCall(
-		questionStore.pending.values(),
-		toolCall.id,
-		sessionContext?.sessionId
-	);
-});
+	// Find the matching pending question from the store
+	const pendingQuestion = $derived.by(() => {
+		const sessionId = sessionContext?.sessionId;
+		if (sessionId) {
+			const operation = sessionStore.getOperationStore().getByToolCallId(sessionId, toolCall.id);
+			if (operation) {
+				const matchedQuestion = questionStore.getForOperation(operation);
+				if (matchedQuestion) {
+					return matchedQuestion;
+				}
+			}
+		}
+
+		return findPendingQuestionForToolCall(interactionStore.questionsPending.values(), toolCall.id);
+	});
 
 const displayQuestions = $derived.by(() => {
 	return (
@@ -58,6 +70,10 @@ const displayQuestions = $derived.by(() => {
 // Check if question has been answered (either from store or from history)
 const answeredQuestionFromStore = $derived.by(() => {
 	return questionStore.getAnswered(toolCall.id);
+});
+
+const answeredQuestionFromInteractions = $derived.by(() => {
+	return interactionStore.answeredQuestions.get(toolCall.id);
 });
 
 // Convert history questionAnswer to AnsweredQuestion format if needed
@@ -82,7 +98,9 @@ const answeredQuestionFromHistory = $derived.by((): AnsweredQuestion | undefined
 });
 
 // Prefer store (fresher) over history
-const answeredQuestion = $derived(answeredQuestionFromStore ?? answeredQuestionFromHistory);
+const answeredQuestion = $derived(
+	answeredQuestionFromInteractions ?? answeredQuestionFromStore ?? answeredQuestionFromHistory
+);
 
 // Determine if we're in interactive mode (question is pending in the store)
 const isInteractive = $derived(pendingQuestion !== undefined);

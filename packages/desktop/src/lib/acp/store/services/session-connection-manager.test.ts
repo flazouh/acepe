@@ -285,6 +285,57 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
+	it("launches Claude reconnects with Autonomous execution profile instead of applying it live", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath,
+			agentId: "claude-code",
+			title: "Claude Thread",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			isStreaming: false,
+			status: "idle",
+			autonomousEnabled: true,
+			autonomousTransition: "idle",
+			currentMode: { id: "build", name: "Build", description: null },
+		});
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "model-a",
+					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, "claude-code", {
+			modeId: "build",
+			autonomousEnabled: true,
+		});
+		expect(setExecutionProfile).not.toHaveBeenCalled();
+	});
+
 	it("restores stored model for current mode on connect", async () => {
 		getSessionModelForMode.mockReturnValue("model-b");
 
@@ -327,7 +378,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(resumeSession).toHaveBeenCalledWith(
 			sessionId,
 			"/tmp/project",
-			agentId
+			agentId,
+			undefined
 		);
 	});
 
@@ -1038,6 +1090,16 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 	});
 
 	it("applies Autonomous only after the execution profile succeeds", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "opencode",
+			title: "Autonomous",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+
 		const manager = createManager({
 			stateReader,
 			stateWriter,
@@ -1096,6 +1158,15 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 	});
 
 	it("rolls Autonomous state back when execution profile apply fails", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "opencode",
+			title: "Autonomous",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
 		setExecutionProfile.mockReturnValue(
 			errAsync(new AgentError("setExecutionProfile", new Error("backend failed")))
 		);
@@ -1119,6 +1190,75 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 			autonomousEnabled: false,
 			autonomousTransition: "idle",
 		});
+	});
+
+	it("reconnects Claude sessions to enable Autonomous instead of applying it live", async () => {
+		const connectedHotState = {
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+			acpSessionId: sessionId,
+			connectionError: null,
+			autonomousEnabled: false,
+			autonomousTransition: "idle" as const,
+			currentModel: null,
+			currentMode: { id: "build", name: "Build", description: null },
+			availableCommands: [],
+			modelPerMode: {},
+			statusChangedAt: Date.now(),
+		};
+		const reconnectingHotState = {
+			isConnected: false,
+			status: "idle",
+			turnState: "idle",
+			acpSessionId: null,
+			connectionError: null,
+			autonomousEnabled: true,
+			autonomousTransition: "enabling" as const,
+			currentModel: null,
+			currentMode: { id: "build", name: "Build", description: null },
+			availableCommands: [],
+			modelPerMode: {},
+			statusChangedAt: Date.now(),
+		};
+		let hotStateReadCount = 0;
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			hotStateReadCount += 1;
+			return hotStateReadCount <= 2 ? connectedHotState : reconnectingHotState;
+		});
+		closeSession.mockReturnValue(okAsync(undefined));
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "",
+					availableModels: [],
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setAutonomousEnabled(sessionId, true, createMockEventHandler());
+		expect(result.isOk()).toBe(true);
+
+		expect(closeSession).toHaveBeenCalledWith(sessionId);
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", "claude-code", {
+			modeId: "build",
+			autonomousEnabled: true,
+		});
+		expect(setExecutionProfile).not.toHaveBeenCalled();
 	});
 
 	it("forces Autonomous off when a mode change is unsupported in autonomous mode", async () => {

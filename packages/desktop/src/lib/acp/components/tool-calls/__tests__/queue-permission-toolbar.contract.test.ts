@@ -21,8 +21,12 @@ describe("queue permission toolbar contract", () => {
 	});
 
 	it("gates queue action cards on live pending interactions instead of stale queue snapshots", () => {
-		expect(queueItemSource).toContain("permissionStore.pending.get(snapshotPermission.id) ?? null");
-		expect(queueItemSource).toContain("questionStore.pending.get(item.pendingQuestion.id) ?? null");
+		expect(queueItemSource).toContain(
+			"interactionStore.permissionsPending.get(snapshotPermission.id) ?? null"
+		);
+		expect(queueItemSource).toContain(
+			"interactionStore.questionsPending.get(item.pendingQuestion.id) ?? null"
+		);
 		expect(queueItemSource).not.toContain(
 			'const pendingPermission = $derived(\n\titem.state.pendingInput.kind === "permission" ? item.state.pendingInput.request : null\n);'
 		);

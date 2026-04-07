@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
+import { tryDeserializeAcpError } from "../../acp/errors/index.js";
 
 import { AgentError } from "../../acp/errors/app-error.js";
 
@@ -10,6 +11,28 @@ const pendingInvokes = new Map<number, { cmd: string; start: number; args?: stri
 let invokeCounter = 0;
 const debugInvoke =
 	typeof import.meta.env !== "undefined" && import.meta.env?.VITE_DEBUG_INVOKE === "true";
+
+type InvokeErrorValue = Error | string | number | boolean | object | null | undefined;
+
+function normalizeInvokeError(error: InvokeErrorValue): Error {
+	if (error instanceof Error) {
+		return error;
+	}
+
+	const acpError = tryDeserializeAcpError(error);
+	if (acpError !== null) {
+		return acpError;
+	}
+
+	if (error && typeof error === "object" && "message" in error) {
+		const message = error.message;
+		if (typeof message === "string" && message.trim().length > 0) {
+			return new Error(message);
+		}
+	}
+
+	return new Error(String(error));
+}
 
 // Expose for console debugging
 if (typeof window !== "undefined") {
@@ -51,7 +74,10 @@ export function invokeAsync<T>(
 			const elapsed = Date.now() - start;
 			pendingInvokes.delete(id);
 			console.error(`[INVOKE] #${id} FAIL ${cmd} after ${elapsed}ms`, error);
-			return new AgentError(cmd, error instanceof Error ? error : new Error(String(error)));
+			return new AgentError(
+				cmd,
+				normalizeInvokeError(error as Error | string | number | boolean | object | null | undefined)
+			);
 		}
 	);
 }

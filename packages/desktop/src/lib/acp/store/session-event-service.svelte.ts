@@ -78,6 +78,36 @@ function isPendingToolCallStatus(status: string | null | undefined): boolean {
 	return status === "pending" || status === "in_progress";
 }
 
+function hasToolCallEntry(
+	handler: SessionEventHandler,
+	sessionId: string,
+	toolCallId: string
+): boolean {
+	return handler
+		.getEntries(sessionId)
+		.some((entry) => entry.type === "tool_call" && entry.message.id === toolCallId);
+}
+
+function isProcessedToolReplay(
+	handler: SessionEventHandler,
+	sessionId: string,
+	update: SessionUpdate,
+	replayCount: number
+): boolean {
+	if (replayCount <= 1) {
+		return false;
+	}
+
+	switch (update.type) {
+		case "toolCall":
+			return hasToolCallEntry(handler, sessionId, update.tool_call.id);
+		case "toolCallUpdate":
+			return hasToolCallEntry(handler, sessionId, update.update.toolCallId);
+		default:
+			return false;
+	}
+}
+
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
 	previous: SessionUsageTelemetry | undefined,
@@ -280,12 +310,33 @@ export class SessionEventService {
 			});
 			return;
 		}
+		if (isProcessedToolReplay(handler, sessionId, update, replayStats.count)) {
+			logger.warn("Dropping duplicate tool replay for existing entry", {
+				sessionId,
+				updateType: update.type,
+				duplicateCount: replayStats.count,
+				fingerprint: replayStats.fingerprint,
+			});
+			return;
+		}
 
 		// If replay suppression is active for this session, drop historical content
 		// while idle. During an active turn we allow updates to flow through, but we keep
 		// suppression armed so any later idle-time replay bursts are still blocked.
 		if (this.replaySuppressedSessionIds.has(sessionId)) {
 			const hasActiveTurn = hotState?.turnState !== undefined && hotState.turnState !== "idle";
+			if (
+				!hasActiveTurn &&
+				update.type === "toolCall" &&
+				isPendingToolCallStatus(update.tool_call.status) &&
+				hasToolCallEntry(handler, sessionId, update.tool_call.id)
+			) {
+				logger.debug("Dropping replayed pending tool call already present in session", {
+					sessionId,
+					toolCallId: update.tool_call.id,
+				});
+				return;
+			}
 			if (
 				!hasActiveTurn &&
 				this.isReplaySuppressedUpdate(update) &&

@@ -1,6 +1,6 @@
 ---
 source: src/acp/parsers/tests/cursor.rs
-assertion_line: 452
+assertion_line: 497
 expression: parsed
 ---
 ToolCallData {
@@ -11,6 +11,11 @@ ToolCallData {
             "/tmp/main.go",
         ),
     },
+    raw_input: Some(
+        Object {
+            "path": String("/tmp/main.go"),
+        },
+    ),
     status: Pending,
     result: None,
     kind: Some(

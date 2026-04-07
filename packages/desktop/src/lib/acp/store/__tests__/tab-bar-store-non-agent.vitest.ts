@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { InteractionStore } from "../interaction-store.svelte.js";
 import { TabBarStore } from "../tab-bar-store.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
@@ -16,19 +17,13 @@ function createStore(workspacePanels: WorkspacePanel[], focusedPanelId: string |
 		getEntries: vi.fn(() => []),
 	} as never;
 
-	const questionStore = {
-		pendingBySession: new Map(),
-	} as never;
-
-	const permissionStore = {
-		pending: new Map(),
-	} as never;
+	const interactions = new InteractionStore();
 
 	const unseenStore = {
 		isUnseen: vi.fn(() => false),
 	} as never;
 
-	return new TabBarStore(panelStore, sessionStore, questionStore, permissionStore, unseenStore);
+	return new TabBarStore(panelStore, sessionStore, interactions, unseenStore);
 }
 
 describe("TabBarStore non-agent tabs", () => {

@@ -3,26 +3,17 @@ import type { QuestionItem, QuestionRequest } from "../types/question.js";
 /**
  * Find a pending question associated with a tool call.
  *
- * Matches by tool call ID first, then falls back to session ID matching
- * for agents (e.g. OpenCode) where the question event has a different ID
- * than the tool invocation event.
+ * Matches by explicit tool call reference first, then by exact question ID.
+ * Session-wide fallback matching is intentionally disallowed so one pending
+ * interaction cannot attach itself to an unrelated tool row.
  */
 export function findPendingQuestionForToolCall(
 	pendingQuestions: Iterable<QuestionRequest>,
-	toolCallId: string,
-	sessionId?: string
+	toolCallId: string
 ): QuestionRequest | undefined {
 	for (const pendingQuestion of pendingQuestions) {
 		if (pendingQuestion.tool?.callID === toolCallId || pendingQuestion.id === toolCallId) {
 			return pendingQuestion;
-		}
-	}
-	// Fallback: match by session ID when IDs differ between events
-	if (sessionId) {
-		for (const pendingQuestion of pendingQuestions) {
-			if (pendingQuestion.sessionId === sessionId) {
-				return pendingQuestion;
-			}
 		}
 	}
 	return undefined;

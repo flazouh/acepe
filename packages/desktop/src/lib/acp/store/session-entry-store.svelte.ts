@@ -24,6 +24,7 @@ import type {
 } from "../../services/converted-session-types.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
+import { OperationStore } from "./operation-store.svelte.js";
 import { ChunkAggregator } from "./services/chunk-aggregator.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
 import type { IEntryStoreInternal } from "./services/interfaces/entry-store-internal.js";
@@ -43,6 +44,8 @@ const logger = createLogger({ id: "session-entry-store", name: "SessionEntryStor
  * only components reading session A re-render, not components reading session B.
  */
 export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
+	private readonly operationStore: OperationStore;
+
 	// Entries stored with SvelteMap for fine-grained per-session reactivity
 	// Only components reading a specific session re-render when that session changes
 	private entriesById = new SvelteMap<string, SessionEntry[]>();
@@ -51,13 +54,18 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	private readonly entryIndex = new EntryIndexManager();
 
 	// Extracted tool call manager for CRUD, child-parent reconciliation, and streaming args
-	private readonly toolCallManager = new ToolCallManager(this, this.entryIndex);
+	private readonly toolCallManager: ToolCallManager;
 
 	// Extracted chunk aggregator for assistant/user chunk aggregation and boundary management
 	private readonly chunkAggregator = new ChunkAggregator(this, this.entryIndex);
 
 	// Track which sessions have been preloaded
 	private preloadedIds = new Set<string>();
+
+	constructor(operationStore?: OperationStore) {
+		this.operationStore = operationStore ?? new OperationStore();
+		this.toolCallManager = new ToolCallManager(this, this.entryIndex, this.operationStore);
+	}
 
 	// ============================================
 	// IEntryStoreInternal (consumed by ToolCallManager, ChunkAggregator)
@@ -115,14 +123,63 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Store entries and build indices for O(1) lookups.
 	 */
 	storeEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
+		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
 		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
-		this.entriesById.set(sessionId, entries);
+		this.entriesById.set(sessionId, normalizedEntries);
 
 		// Build indices for O(1) lookups
-		this.entryIndex.rebuildMessageIdIndex(sessionId, entries);
-		this.entryIndex.rebuildToolCallIdIndex(sessionId, entries);
+		this.entryIndex.rebuildMessageIdIndex(sessionId, normalizedEntries);
+		this.entryIndex.rebuildToolCallIdIndex(sessionId, normalizedEntries);
+		this.operationStore.clearSession(sessionId);
+		for (const entry of normalizedEntries) {
+			if (!isToolCallEntry(entry)) {
+				continue;
+			}
+
+			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
+		}
 
 		this.preloadedIds.add(sessionId);
+	}
+
+	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
+		const seenToolCallIds = new Set<string>();
+		let hasDuplicateToolCall = false;
+		for (const entry of entries) {
+			if (!isToolCallEntry(entry)) {
+				continue;
+			}
+
+			if (seenToolCallIds.has(entry.message.id)) {
+				hasDuplicateToolCall = true;
+				break;
+			}
+
+			seenToolCallIds.add(entry.message.id);
+		}
+
+		if (!hasDuplicateToolCall) {
+			return entries;
+		}
+
+		const normalizedStore = new SessionEntryStore(new OperationStore());
+		const normalizedToolCallIds = new Set<string>();
+		for (const entry of entries) {
+			if (!isToolCallEntry(entry)) {
+				normalizedStore.addEntry(sessionId, entry);
+				continue;
+			}
+
+			if (!normalizedToolCallIds.has(entry.message.id)) {
+				normalizedToolCallIds.add(entry.message.id);
+				normalizedStore.addEntry(sessionId, entry);
+				continue;
+			}
+
+			normalizedStore.createToolCallEntry(sessionId, entry.message);
+		}
+
+		return normalizedStore.getEntries(sessionId);
 	}
 
 	/**
@@ -217,6 +274,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		// Delegate cleanup to extracted managers
 		this.chunkAggregator.clearSession(sessionId);
 		this.toolCallManager.clearSession(sessionId);
+		this.operationStore.clearSession(sessionId);
+	}
+
+	getOperationStore(): OperationStore {
+		return this.operationStore;
 	}
 
 	// ============================================

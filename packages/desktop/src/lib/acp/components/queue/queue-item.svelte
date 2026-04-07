@@ -17,10 +17,12 @@ import {
 import { XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import * as m from "$lib/paraglide/messages.js";
+import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
 import {
 	getToolCompactDisplayText,
 	getToolKindFilePath,
 } from "../../registry/tool-kind-ui-registry.js";
+import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
 import { getQuestionStore } from "../../store/question-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
@@ -35,7 +37,8 @@ import {
 	extractPermissionCommand,
 	extractPermissionFilePath,
 } from "../tool-calls/permission-display.js";
-import { isExitPlanPermission, getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
+import { getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
+import { isExitPlanPermission } from "../../utils/exit-plan-permission.js";
 import { getQueueItemTaskDisplay, getQueueItemToolDisplay } from "./queue-item-display.js";
 import {
 	buildQueueItemQuestionUiState,
@@ -57,6 +60,7 @@ interface Props {
 
 let { item, isSelected = false, onSelect }: Props = $props();
 
+const interactionStore = getInteractionStore();
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
 const permissionStore = getPermissionStore();
@@ -81,7 +85,7 @@ const pendingQuestion = $derived.by(() => {
 		return null;
 	}
 
-	return questionStore.pending.get(item.pendingQuestion.id) ?? null;
+	return interactionStore.questionsPending.get(item.pendingQuestion.id) ?? null;
 });
 const hasPendingQuestion = $derived(pendingQuestion !== null);
 
@@ -92,9 +96,22 @@ const pendingPermission = $derived.by(() => {
 		return null;
 	}
 
-	return permissionStore.pending.get(snapshotPermission.id) ?? null;
+	return interactionStore.permissionsPending.get(snapshotPermission.id) ?? null;
 });
 const hasPendingPermission = $derived(pendingPermission !== null);
+
+const pendingPlanApproval = $derived.by(() => {
+	const snapshotApproval =
+		item.state.pendingInput.kind === "plan_approval" ? item.state.pendingInput.request : null;
+	if (!snapshotApproval) {
+		return null;
+	}
+
+	const liveApproval =
+		interactionStore.planApprovalsPending.get(snapshotApproval.id) ?? snapshotApproval;
+	return liveApproval.status === "pending" ? liveApproval : null;
+});
+const hasPendingPlanApproval = $derived(pendingPlanApproval !== null);
 
 // Detect ExitPlanMode permissions for custom plan card rendering
 const isExitPlanMode = $derived.by(() => {
@@ -109,15 +126,6 @@ const exitPlanDisplayTitle = $derived.by(() => {
 	return plan ? plan.title : "Plan";
 });
 
-// Detect plan approval questions (Approve/Reject from cursor/create_plan)
-const isPlanApproval = $derived.by(() => {
-	if (!hasPendingQuestion || !pendingQuestion) return false;
-	const questions = pendingQuestion.questions;
-	if (questions.length !== 1) return false;
-	const opts = questions[0]?.options;
-	if (!opts || opts.length !== 2) return false;
-	return opts[0]?.label === "Approve" && opts[1]?.label === "Reject";
-});
 const permissionCommand = $derived.by(() => {
 	if (!pendingPermission) return null;
 	return extractPermissionCommand(pendingPermission);
@@ -198,7 +206,7 @@ const isThinking = $derived(item.state.activity.kind === "thinking");
 const hasError = $derived(item.state.connection === "error");
 
 const statusText = $derived.by(() => {
-	if (hasPendingQuestion) return null;
+	if (hasPendingQuestion || hasPendingPlanApproval) return null;
 	if (isThinking) {
 		return m.waiting_planning_next_moves();
 	}
@@ -212,7 +220,7 @@ const statusText = $derived.by(() => {
 	return null;
 });
 
-const showShimmer = $derived(isThinking && !hasPendingQuestion);
+const showShimmer = $derived(isThinking && !hasPendingQuestion && !hasPendingPlanApproval);
 
 const toolDisplay = $derived.by(() =>
 	getQueueItemToolDisplay({
@@ -226,6 +234,28 @@ const toolDisplay = $derived.by(() =>
 const displayedToolIsStreaming = $derived(toolDisplay?.isStreaming ?? false);
 const effectiveToolCall = $derived(toolDisplay?.toolCall ?? null);
 const effectiveToolKind = $derived(toolDisplay?.toolKind ?? null);
+const planApprovalToolCall = $derived.by(() => {
+	if (!pendingPlanApproval) {
+		return null;
+	}
+
+	if (effectiveToolCall?.id === pendingPlanApproval.tool.callID) {
+		return effectiveToolCall;
+	}
+
+	if (item.currentStreamingToolCall?.id === pendingPlanApproval.tool.callID) {
+		return item.currentStreamingToolCall;
+	}
+
+	if (item.lastToolCall?.id === pendingPlanApproval.tool.callID) {
+		return item.lastToolCall;
+	}
+
+	return null;
+});
+const planApprovalPrompt = $derived(
+	planApprovalToolCall?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running()
+);
 
 const toolContent = $derived.by(() => {
 	if (!toolDisplay) return null;
@@ -319,15 +349,79 @@ function handleSelect() {
 }
 
 function handlePlanApprove() {
-	if (!pendingQuestion) return;
-	const answers = [{ questionIndex: 0, answers: ["Approve"] }];
-	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
+	if (!pendingPlanApproval) return;
+	const approval = pendingPlanApproval;
+	interactionStore.planApprovalsPending.set(approval.id, {
+		id: approval.id,
+		kind: "plan_approval",
+		source: approval.source,
+		sessionId: approval.sessionId,
+		tool: {
+			messageID: approval.tool.messageID,
+			callID: approval.tool.callID,
+		},
+		jsonRpcRequestId: approval.jsonRpcRequestId,
+		status: "approved",
+	});
+	void replyToPlanApprovalRequest(
+		approval.sessionId,
+		approval.jsonRpcRequestId,
+		true
+	).match(
+		() => {},
+		() => {
+			interactionStore.planApprovalsPending.set(approval.id, {
+				id: approval.id,
+				kind: "plan_approval",
+				source: approval.source,
+				sessionId: approval.sessionId,
+				tool: {
+					messageID: approval.tool.messageID,
+					callID: approval.tool.callID,
+				},
+				jsonRpcRequestId: approval.jsonRpcRequestId,
+				status: "pending",
+			});
+		}
+	);
 }
 
 function handlePlanReject() {
-	if (!pendingQuestion) return;
-	const answers = [{ questionIndex: 0, answers: ["Reject"] }];
-	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
+	if (!pendingPlanApproval) return;
+	const approval = pendingPlanApproval;
+	interactionStore.planApprovalsPending.set(approval.id, {
+		id: approval.id,
+		kind: "plan_approval",
+		source: approval.source,
+		sessionId: approval.sessionId,
+		tool: {
+			messageID: approval.tool.messageID,
+			callID: approval.tool.callID,
+		},
+		jsonRpcRequestId: approval.jsonRpcRequestId,
+		status: "rejected",
+	});
+	void replyToPlanApprovalRequest(
+		approval.sessionId,
+		approval.jsonRpcRequestId,
+		false
+	).match(
+		() => {},
+		() => {
+			interactionStore.planApprovalsPending.set(approval.id, {
+				id: approval.id,
+				kind: "plan_approval",
+				source: approval.source,
+				sessionId: approval.sessionId,
+				tool: {
+					messageID: approval.tool.messageID,
+					callID: approval.tool.callID,
+				},
+				jsonRpcRequestId: approval.jsonRpcRequestId,
+				status: "pending",
+			});
+		}
+	);
 }
 
 function handleExitPlanBuild() {
@@ -493,7 +587,7 @@ function handleNextQuestion() {
 			<PermissionActionBar permission={pendingPermission} compact hideHeader />
 		{/snippet}
 	</PermissionFeedItem>
-{:else if isPlanApproval}
+{:else if hasPendingPlanApproval && pendingPlanApproval}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
@@ -517,7 +611,7 @@ function handleNextQuestion() {
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>
-						{pendingQuestion?.questions[0]?.question ?? m.tool_create_plan_running()}
+						{planApprovalPrompt}
 					</span>
 				</HeaderTitleCell>
 				<HeaderActionCell withDivider={false}>

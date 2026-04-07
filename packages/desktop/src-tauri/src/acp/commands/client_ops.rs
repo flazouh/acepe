@@ -116,11 +116,36 @@ async fn resume_client_session(
     })
 }
 
+async fn seed_client_launch_mode(
+    client: &mut (dyn AgentClient + Send + Sync + 'static),
+    session_id: &str,
+    mode_id: String,
+    operation: &str,
+) -> Result<(), SerializableAcpError> {
+    timeout(
+        SESSION_CLIENT_OPERATION_TIMEOUT,
+        client.set_session_mode(session_id.to_string(), mode_id),
+    )
+    .await
+    .map_err(|_| {
+        tracing::error!(operation = %operation, "Seed launch mode timed out");
+        SerializableAcpError::Timeout {
+            operation: operation.to_string(),
+        }
+    })?
+    .map_err(|error| {
+        tracing::error!(operation = %operation, error = %error, "Seed launch mode failed");
+        SerializableAcpError::from(error)
+    })
+}
+
 pub(super) async fn resume_or_create_session_client<F, Fut>(
     session_registry: &SessionRegistry,
     session_id: String,
     cwd: String,
     agent_id: CanonicalAgentId,
+    force_new_client: bool,
+    launch_mode_id: Option<String>,
     create_client_fn: F,
 ) -> Result<ResumeSessionResponse, SerializableAcpError>
 where
@@ -129,37 +154,53 @@ where
         Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
     >,
 {
-    if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
-        let existing_resume_result = {
-            let mut existing_client = lock_session_client(
-                &existing_client_mutex,
-                "acp_resume_session: existing client lock",
-            )
-            .await?;
-            resume_client_session(
-                existing_client.as_mut(),
-                &session_id,
-                &cwd,
-                "resume existing session client",
-            )
-            .await
-        };
+    if !force_new_client {
+        if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
+            let existing_resume_result = {
+                let mut existing_client = lock_session_client(
+                    &existing_client_mutex,
+                    "acp_resume_session: existing client lock",
+                )
+                .await?;
+                resume_client_session(
+                    existing_client.as_mut(),
+                    &session_id,
+                    &cwd,
+                    "resume existing session client",
+                )
+                .await
+            };
 
-        if let Ok(response) = existing_resume_result {
-            tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
-            return Ok(response);
-        }
+            if let Ok(response) = existing_resume_result {
+                tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
+                return Ok(response);
+            }
 
-        if let Err(error) = existing_resume_result {
-            tracing::warn!(
-                session_id = %session_id,
-                error = %error,
-                "Existing session client resume failed, creating replacement client"
-            );
+            if let Err(error) = existing_resume_result {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Existing session client resume failed, creating replacement client"
+                );
+            }
         }
+    } else if session_registry.get(&session_id).is_ok() {
+        tracing::info!(
+            session_id = %session_id,
+            "Skipping existing session client reuse because launch mode requires a fresh client"
+        );
     }
 
     let mut client = create_client_fn().await?;
+    if let Some(mode_id) = launch_mode_id {
+        seed_client_launch_mode(
+            client.as_mut(),
+            &session_id,
+            mode_id,
+            "resume newly created session client: seed launch mode",
+        )
+        .await?;
+    }
     let result = resume_client_session(
         client.as_mut(),
         &session_id,

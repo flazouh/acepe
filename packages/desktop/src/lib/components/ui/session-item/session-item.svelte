@@ -302,7 +302,7 @@ const highlightCtx = getSessionListHighlightContext();
 					<ProjectLetterBadge
 						name={session.projectName}
 						color={session.projectColor}
-						size={11}
+						size={12}
 						sequenceId={session.sequenceId}
 						showLetter={false}
 					/>

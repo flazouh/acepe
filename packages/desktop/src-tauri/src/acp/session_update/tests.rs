@@ -624,6 +624,90 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
+    fn copilot_infers_edit_arguments_from_apply_patch_string_raw_input() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-copilot-apply-patch",
+                "kind": "edit",
+                "rawInput": "*** Begin Patch\n*** Add File: /tmp/link.txt\n+https://example.com\n*** End Patch\n",
+                "status": "pending",
+                "title": "apply_patch"
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Edit));
+            match tool_call.arguments {
+                ToolArguments::Edit { edits } => {
+                    let edit = edits.first().expect("edit entry");
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/link.txt"));
+                    assert_eq!(edit.new_string.as_deref(), Some("https://example.com"));
+                }
+                other => panic!("Expected Edit arguments, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
+    fn copilot_infers_delete_edit_arguments_from_apply_patch_string_raw_input() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-copilot-delete-patch",
+                "kind": "edit",
+                "rawInput": "*** Begin Patch\n*** Delete File: /tmp/old.txt\n old content\n*** End Patch\n",
+                "status": "pending",
+                "title": "apply_patch"
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Edit));
+            match tool_call.arguments {
+                ToolArguments::Edit { edits } => {
+                    let edit = edits.first().expect("edit entry");
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/old.txt"));
+                    assert_eq!(edit.old_string.as_deref(), Some("old content"));
+                    assert_eq!(edit.new_string, None);
+                    assert_eq!(edit.content, None);
+                }
+                other => panic!("Expected Edit arguments, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
+    fn copilot_preserves_move_destination_from_apply_patch_string_raw_input() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-copilot-move-patch",
+                "kind": "edit",
+                "rawInput": "*** Begin Patch\n*** Update File: /tmp/old.txt\n*** Move to: /tmp/new.txt\n@@\n-old\n+new\n*** End Patch\n",
+                "status": "pending",
+                "title": "apply_patch"
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Edit));
+            match tool_call.arguments {
+                ToolArguments::Edit { edits } => {
+                    let edit = edits.first().expect("edit entry");
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/new.txt"));
+                    assert_eq!(edit.old_string.as_deref(), Some("old"));
+                    assert_eq!(edit.new_string.as_deref(), Some("new"));
+                }
+                other => panic!("Expected Edit arguments, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
     fn fails_when_toolcallid_missing() {
         let data = json!({
             "_meta": {

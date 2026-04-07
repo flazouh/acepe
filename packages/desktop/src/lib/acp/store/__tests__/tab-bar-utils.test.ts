@@ -57,6 +57,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		hotState: makeHotState(),
 		entries: [],
 		pendingQuestion: null,
+		pendingPlanApproval: null,
 		pendingPermission: null,
 		isUnseen: false,
 		projectName: null,
@@ -183,6 +184,20 @@ describe("panelToTab", () => {
 			} as Parameters<typeof panelToTab>[0]["pendingPermission"];
 			const tab = panelToTab(makeInput({ pendingPermission: permission }));
 			expect(tab.state.pendingInput.kind).toBe("permission");
+		});
+
+		it("derives pending plan approval from pendingPlanApproval input", () => {
+			const planApproval = {
+				id: "plan-1",
+				kind: "plan_approval" as const,
+				source: "create_plan" as const,
+				sessionId: "s-1",
+				tool: { messageID: "", callID: "tool-1" },
+				jsonRpcRequestId: 7,
+				status: "pending" as const,
+			};
+			const tab = panelToTab(makeInput({ pendingPlanApproval: planApproval }));
+			expect(tab.state.pendingInput.kind).toBe("plan_approval");
 		});
 
 		it("question takes priority over permission in pendingInput", () => {

@@ -355,7 +355,7 @@ describe("ThreadFollowController", () => {
 			expect(currentUserHandle.reveal).not.toHaveBeenCalled();
 		});
 
-		it("keeps the forced user reveal when a later latest target registers in the same frame", () => {
+		it("lets the later latest target take over when a forced user reveal is followed by thinking", () => {
 			installQueuedRAF();
 
 			const latestTargetKey = "thinking-indicator";
@@ -376,9 +376,38 @@ describe("ThreadFollowController", () => {
 
 			flushQueuedRAF();
 
-			expect(userHandle.reveal).toHaveBeenCalledWith(true);
-			expect(thinkingHandle.reveal).not.toHaveBeenCalled();
+			expect(userHandle.reveal).not.toHaveBeenCalled();
+			expect(thinkingHandle.reveal).toHaveBeenCalledWith(true);
 			latestUserTargetKey = "entry-2";
+		});
+
+		it("does not force a later latest target after the user reveal has already flushed", () => {
+			installQueuedRAF();
+
+			const latestTargetKey = "thinking-indicator";
+			let following = true;
+			const opts = createOptions({
+				isFollowing: () => following,
+				getLatestTargetKey: () => latestTargetKey,
+				getLatestUserTargetKey: () => "entry-2",
+			});
+			const ctrl = new ThreadFollowController(opts);
+
+			ctrl.prepareForNextUserReveal({ force: true });
+
+			const userHandle = createHandle();
+			ctrl.registerTarget("entry-2", userHandle);
+			flushQueuedRAF();
+
+			expect(userHandle.reveal).toHaveBeenCalledWith(true);
+
+			following = false;
+
+			const thinkingHandle = createHandle();
+			ctrl.registerTarget("thinking-indicator", thinkingHandle);
+			flushQueuedRAF();
+
+			expect(thinkingHandle.reveal).not.toHaveBeenCalled();
 		});
 	});
 });

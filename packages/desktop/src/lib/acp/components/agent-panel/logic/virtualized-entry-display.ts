@@ -90,23 +90,26 @@ export function getVirtualizedDisplayEntryKey(entry: VirtualizedDisplayEntry): s
 export function getLatestRevealTargetKey(
 	displayEntries: readonly VirtualizedDisplayEntry[]
 ): string | null {
-	for (let i = displayEntries.length - 1; i >= 0; i -= 1) {
-		const entry = displayEntries[i];
-		if (!entry) {
-			continue;
-		}
-		if (entry.type === "thinking") {
-			continue;
-		}
-		return getVirtualizedDisplayEntryKey(entry);
-	}
-
 	const lastEntry = displayEntries.at(-1);
 	if (!lastEntry) {
 		return null;
 	}
 
 	return getVirtualizedDisplayEntryKey(lastEntry);
+}
+
+function getLatestStreamingResizeTargetKey(
+	displayEntries: readonly VirtualizedDisplayEntry[]
+): string | null {
+	for (let i = displayEntries.length - 1; i >= 0; i -= 1) {
+		const entry = displayEntries[i];
+		if (!entry || entry.type === "thinking") {
+			continue;
+		}
+		return getVirtualizedDisplayEntryKey(entry);
+	}
+
+	return null;
 }
 
 export function shouldObserveRevealResize(
@@ -118,5 +121,5 @@ export function shouldObserveRevealResize(
 		return false;
 	}
 
-	return getVirtualizedDisplayEntryKey(entry) === getLatestRevealTargetKey(displayEntries);
+	return getVirtualizedDisplayEntryKey(entry) === getLatestStreamingResizeTargetKey(displayEntries);
 }

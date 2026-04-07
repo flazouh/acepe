@@ -19,6 +19,8 @@ function makeInput(
 		activityPhase: overrides.activityPhase !== undefined ? overrides.activityPhase : "running",
 		pendingQuestionId:
 			overrides.pendingQuestionId !== undefined ? overrides.pendingQuestionId : null,
+		pendingPlanApprovalId:
+			overrides.pendingPlanApprovalId !== undefined ? overrides.pendingPlanApprovalId : null,
 		pendingPermissionId:
 			overrides.pendingPermissionId !== undefined ? overrides.pendingPermissionId : null,
 	};
@@ -95,6 +97,14 @@ describe("isLiveSessionPanelCandidate", () => {
 		expect(
 			isLiveSessionPanelCandidate(
 				makeInput({ activityPhase: "idle", pendingQuestionId: "question-1" })
+			)
+		).toBe(true);
+	});
+
+	it("treats pending plan approvals as live even when idle", () => {
+		expect(
+			isLiveSessionPanelCandidate(
+				makeInput({ activityPhase: "idle", pendingPlanApprovalId: "plan-approval-1" })
 			)
 		).toBe(true);
 	});

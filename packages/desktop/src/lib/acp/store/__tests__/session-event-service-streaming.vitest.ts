@@ -9,7 +9,18 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../utils/logger.js", () => ({
+	createLogger: () => ({
+		debug: vi.fn(),
+		info: vi.fn(),
+		isLevelEnabled: vi.fn().mockReturnValue(false),
+		warn: vi.fn(),
+		error: vi.fn(),
+	}),
+}));
+
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
+import type { SessionEntry } from "../../application/dto/session.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
@@ -884,6 +895,43 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	it("drops replayed pending tool calls when the preloaded session already has that tool id", () => {
+		const suppressedHandler = createMockHandler();
+		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+		});
+		(suppressedHandler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			{
+				id: "tool-exit-plan-1",
+				type: "tool_call",
+				message: {
+					id: "tool-exit-plan-1",
+				},
+			},
+		]);
+		service.suppressReplayForSession("session-123");
+
+		const update: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-exit-plan-1",
+				name: "Edit",
+				status: "pending",
+				kind: "edit",
+				arguments: { kind: "edit", edits: [{}] },
+				title: "apply_patch",
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(update, suppressedHandler);
+
+		expect(suppressedHandler.createToolCallEntry).not.toHaveBeenCalled();
+	});
+
 	it("allows pending tool call updates through replay suppression while idle", () => {
 		const suppressedHandler = createMockHandler();
 		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -1193,5 +1241,49 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(secondUpdate, handler);
 
 		expect(handler.updateToolCallEntry).toHaveBeenCalledTimes(2);
+	});
+
+	it("drops replayed identical pending toolCall events once the tool already exists", () => {
+		const liveHandler = createMockHandler();
+		const entriesBySession = new Map<string, SessionEntry[]>();
+		(liveHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "streaming",
+			turnState: "streaming",
+		});
+		(liveHandler.getEntries as ReturnType<typeof vi.fn>).mockImplementation((sessionId: string) => {
+			return entriesBySession.get(sessionId) ?? [];
+		});
+		(liveHandler.createToolCallEntry as ReturnType<typeof vi.fn>).mockImplementation(
+			(sessionId: string, toolCallData: Extract<SessionUpdate, { type: "toolCall" }>["tool_call"]) => {
+				const nextEntries = entriesBySession.get(sessionId)?.slice() ?? [];
+				nextEntries.push({
+					id: toolCallData.id,
+					type: "tool_call",
+					message: toolCallData,
+					timestamp: new Date(),
+				});
+				entriesBySession.set(sessionId, nextEntries);
+			}
+		);
+
+		const update: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-replay-1",
+				name: "Run",
+				status: "pending",
+				kind: "execute",
+				arguments: { kind: "execute", command: "git status" },
+				title: "Check status",
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(update, liveHandler);
+		service.handleSessionUpdate(update, liveHandler);
+
+		expect(liveHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
 	});
 });

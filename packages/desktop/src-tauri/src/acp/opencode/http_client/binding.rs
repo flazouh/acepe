@@ -24,10 +24,11 @@ impl OpenCodeHttpClient {
         }
 
         if session.project_id == "global" {
-            return Err(AcpError::InvalidState(format!(
-                "OpenCode session binding mismatch: expected project key {}, got global",
-                self.manager_project_key
-            )));
+            tracing::debug!(
+                manager_project_key = %self.manager_project_key,
+                directory = %session.directory,
+                "Accepting OpenCode session with global project ID because directory binding matched"
+            );
         }
 
         Ok(())

@@ -38,6 +38,7 @@ function makeHotState(overrides: Partial<SessionHotState> = {}): SessionHotState
 }
 
 function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
+	const pendingPlanApproval = overrides.pendingPlanApproval ?? null;
 	return {
 		panel: makePanel(),
 		focusedPanelId: null,
@@ -52,6 +53,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		projectColor: null,
 		projectPath: null,
 		...overrides,
+		pendingPlanApproval,
 	};
 }
 

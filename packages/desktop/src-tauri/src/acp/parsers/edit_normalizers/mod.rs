@@ -5,8 +5,11 @@
 
 pub(crate) mod claude_code;
 pub(crate) mod codex;
+pub(crate) mod copilot;
 pub(crate) mod cursor;
 pub(crate) mod opencode;
+pub(crate) mod patch_text;
+pub(crate) mod shared_chat;
 
 use crate::acp::parsers::arguments::extract_parser_string;
 use crate::acp::session_update::{EditEntry, ToolArguments};

@@ -5,6 +5,7 @@ vi.mock("../../utils/logger.js", () => ({
 	createLogger: () => ({
 		debug: vi.fn(),
 		info: vi.fn(),
+		isLevelEnabled: vi.fn().mockReturnValue(false),
 		warn: vi.fn(),
 		error: vi.fn(),
 	}),
@@ -454,6 +455,48 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 			const entries = store.getEntries("session1");
 			expect(entries).toHaveLength(1);
+		});
+
+		it("collapses replayed tool-call entries with the same tool id during preload", () => {
+			store.storeEntriesAndBuildIndex("session1", [
+				{
+					id: "entry-tool-1-a",
+					type: "tool_call",
+					message: {
+						id: "tool-1",
+						name: "Run",
+						arguments: { kind: "execute", command: "git status" },
+						status: "pending",
+						kind: "execute",
+						title: "Check status",
+						locations: null,
+						skillMeta: null,
+						result: null,
+						awaitingPlanApproval: false,
+					},
+					timestamp: new Date(1),
+				},
+				{
+					id: "entry-tool-1-b",
+					type: "tool_call",
+					message: {
+						id: "tool-1",
+						name: "Run",
+						arguments: { kind: "execute", command: "git status" },
+						status: "pending",
+						kind: "execute",
+						title: "Check status",
+						locations: null,
+						skillMeta: null,
+						result: null,
+						awaitingPlanApproval: false,
+					},
+					timestamp: new Date(2),
+				},
+			]);
+
+			const toolEntries = store.getEntries("session1").filter((entry) => entry.type === "tool_call");
+			expect(toolEntries).toHaveLength(1);
 		});
 
 		it("should see updates immediately", () => {

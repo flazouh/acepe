@@ -49,11 +49,25 @@ export type { ModifiedFileEntry } from "./modified-file-entry.js";
 export type { ModifiedFilesState } from "./modified-files-state.js";
 export type { NewSessionResponse } from "./new-session-response.js";
 // OpenCode-specific types
+export type {
+	Interaction,
+	InteractionKind,
+	InteractionToolReference,
+	PermissionInteraction,
+	PlanApprovalInteraction,
+	QuestionInteraction,
+} from "./interaction.js";
+export type { Operation, OperationKind, OperationStatus } from "./operation.js";
 export type { PermissionReply, PermissionRequest } from "./permission.js";
 export type { Plan, PlanStep } from "./plan.js";
 export type { PromptRequest } from "./prompt-request.js";
 export type { PromptResponse } from "./prompt-response.js";
-export type { QuestionAnswer, QuestionRequest, QuestionResponse } from "./question.js";
+export type {
+	AnsweredQuestion,
+	QuestionAnswer,
+	QuestionRequest,
+	QuestionResponse,
+} from "./question.js";
 // File system types
 export type { ReadTextFileParams } from "./read-text-file-params.js";
 export type { ResumeSessionResponse } from "./resume-session-response.js";

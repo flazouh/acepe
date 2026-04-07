@@ -68,6 +68,23 @@ export interface QuestionRequest {
 	};
 }
 
+export interface AnsweredQuestion {
+	questions: QuestionRequest["questions"];
+	answers: Record<string, string | string[]>;
+	answeredAt: number;
+	cancelled?: boolean;
+}
+
+/**
+ * Answered question data for display in the UI.
+ */
+export interface AnsweredQuestion {
+	questions: QuestionRequest["questions"];
+	answers: Record<string, string | string[]>;
+	answeredAt: number;
+	cancelled?: boolean;
+}
+
 /**
  * Answer to a question.
  */

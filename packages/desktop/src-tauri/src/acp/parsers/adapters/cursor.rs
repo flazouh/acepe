@@ -1,11 +1,11 @@
 //! Cursor adapter for tool name normalization.
 //!
-//! Cursor uses Anthropic API format, similar to Claude Code.
-//! This adapter handles Cursor-specific tool names and delegates
-//! to ClaudeCodeAdapter for standard tools.
+//! Cursor uses Anthropic API format plus provider-specific aliases.
+//! This adapter handles Cursor-owned names first, then falls back to the
+//! shared chat-agent vocabulary for neutral tool normalization.
 
 use super::any_eq;
-use super::claude_code::ClaudeCodeAdapter;
+use super::shared_chat::normalize_shared_chat_tool_name;
 use crate::acp::session_update::ToolKind;
 
 /// Adapter for normalizing Cursor tool names.
@@ -18,7 +18,7 @@ impl CursorAdapter {
     /// - "codebase_search" for searching the codebase
     /// - "file_editor" for editing files
     ///
-    /// For standard tools, delegates to ClaudeCodeAdapter.
+    /// Shared chat-style tool names are normalized via the neutral shared table.
     pub fn normalize(name: &str) -> ToolKind {
         if any_eq(
             name,
@@ -107,7 +107,7 @@ impl CursorAdapter {
             return ToolKind::Todo;
         }
 
-        ClaudeCodeAdapter::normalize(name)
+        normalize_shared_chat_tool_name(name)
     }
 }
 
@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn delegates_standard_tools_to_claude_code() {
+    fn normalizes_standard_tools_via_shared_chat_vocabulary() {
         assert_eq!(CursorAdapter::normalize("Read"), ToolKind::Read);
         assert_eq!(CursorAdapter::normalize("Edit"), ToolKind::Edit);
         assert_eq!(CursorAdapter::normalize("Bash"), ToolKind::Execute);
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn handles_mcp_prefixed_tools_via_delegation() {
+    fn handles_mcp_prefixed_tools_via_shared_chat_vocabulary() {
         assert_eq!(CursorAdapter::normalize("mcp__acp__Read"), ToolKind::Read);
         assert_eq!(
             CursorAdapter::normalize("mcp__acp__Bash"),

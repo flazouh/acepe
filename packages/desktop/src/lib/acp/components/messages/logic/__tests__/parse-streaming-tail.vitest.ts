@@ -1,14 +1,26 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 
 import { parseStreamingTail } from "../parse-streaming-tail.js";
 
 describe("parseStreamingTail", () => {
+	it("returns no sections for empty input", () => {
+		expect(parseStreamingTail("")).toEqual({
+			sections: [],
+		});
+	});
+
 	it("keeps the trailing paragraph live while earlier blocks are settled", () => {
 		expect(parseStreamingTail("# Title\n\nHello")).toEqual({
 			sections: [
 				{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
 				{ key: "LIVE:1", kind: "live-text", text: "Hello" },
 			],
+		});
+	});
+
+	it("returns only settled sections when trailing blank lines flush the final buffer", () => {
+		expect(parseStreamingTail("# Title\n\n")).toEqual({
+			sections: [{ key: "SETTLED:0", kind: "settled", markdown: "# Title" }],
 		});
 	});
 
@@ -20,6 +32,19 @@ describe("parseStreamingTail", () => {
 					kind: "live-code",
 					code: "const a = 1;\nconst b = 2;",
 					language: "ts",
+				},
+			],
+		});
+	});
+
+	it("keeps an open fenced code block live when no language is provided", () => {
+		expect(parseStreamingTail("```\nconst a = 1;")).toEqual({
+			sections: [
+				{
+					key: "LIVE:0",
+					kind: "live-code",
+					code: "const a = 1;",
+					language: null,
 				},
 			],
 		});

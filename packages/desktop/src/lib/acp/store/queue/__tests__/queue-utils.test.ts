@@ -68,6 +68,7 @@ describe("buildQueueItem", () => {
 			false,
 			null,
 			null,
+			null,
 			null
 		);
 
@@ -92,6 +93,7 @@ describe("buildQueueItem", () => {
 			false,
 			false,
 			false,
+			null,
 			null,
 			null,
 			null

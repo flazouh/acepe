@@ -27,7 +27,9 @@ let { tab, onSelect, onClose, hideProjectBadge = false }: Props = $props();
 const isStreaming = $derived(tab.state.activity.kind === "streaming");
 const isConnecting = $derived(tab.state.connection === "connecting");
 const hasError = $derived(tab.state.connection === "error");
-const hasPendingQuestion = $derived(tab.state.pendingInput.kind === "question");
+const hasPendingQuestion = $derived(
+	tab.state.pendingInput.kind === "question" || tab.state.pendingInput.kind === "plan_approval"
+);
 const isUnseen = $derived(
 	tab.state.activity.kind === "idle" && tab.state.attention.hasUnseenCompletion
 );

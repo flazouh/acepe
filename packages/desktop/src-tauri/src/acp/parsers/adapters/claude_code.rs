@@ -1,10 +1,11 @@
 //! Claude Code adapter for tool name normalization.
 //!
-//! Claude Code uses tool names like "Read", "Edit", "Bash", "Glob", etc.
-//! This adapter normalizes these names to `ToolKind`.
+//! Claude Code uses the shared chat-agent tool vocabulary and keeps provider
+//! ownership here while delegating the common normalization table.
 
-use super::any_eq;
 use crate::acp::session_update::ToolKind;
+
+use super::shared_chat::normalize_shared_chat_tool_name;
 
 /// Adapter for normalizing Claude Code tool names.
 pub struct ClaudeCodeAdapter;
@@ -16,96 +17,7 @@ impl ClaudeCodeAdapter {
     /// - "Read", "Edit", "Bash", "Glob"
     /// - MCP prefixed: "mcp__acp__Read", "mcp__plugin_playwright__browser_click"
     pub fn normalize(name: &str) -> ToolKind {
-        // Strip MCP prefix: "mcp__acp__Bash" -> "Bash"
-        let clean_name = if name.starts_with("mcp__") {
-            name.rsplit("__").next().unwrap_or(name)
-        } else {
-            name
-        };
-
-        if any_eq(clean_name, &["read", "readfile", "read_file"]) {
-            return ToolKind::Read;
-        }
-        if clean_name.eq_ignore_ascii_case("notebookread") {
-            return ToolKind::Read;
-        }
-        if any_eq(
-            clean_name,
-            &[
-                "edit",
-                "editfile",
-                "edit_file",
-                "str_replace_editor",
-                "str_replace",
-                "apply_patch",
-                "applypatch",
-                "apply patch",
-            ],
-        ) {
-            return ToolKind::Edit;
-        }
-        if any_eq(clean_name, &["write", "writefile", "write_file"]) {
-            return ToolKind::Edit;
-        }
-        if clean_name.eq_ignore_ascii_case("notebookedit") {
-            return ToolKind::Edit;
-        }
-        if any_eq(clean_name, &["bash", "execute", "run", "shell", "terminal"]) {
-            return ToolKind::Execute;
-        }
-        if any_eq(clean_name, &["killshell", "killbash"]) {
-            return ToolKind::Execute;
-        }
-        if any_eq(clean_name, &["glob", "ls"]) {
-            return ToolKind::Glob;
-        }
-        if any_eq(clean_name, &["grep", "search"]) {
-            return ToolKind::Search;
-        }
-        if clean_name.eq_ignore_ascii_case("find") {
-            return ToolKind::Glob;
-        }
-        if any_eq(clean_name, &["webfetch", "fetch", "http"]) {
-            return ToolKind::Fetch;
-        }
-        if any_eq(clean_name, &["websearch", "web_search", "web"]) {
-            return ToolKind::WebSearch;
-        }
-        if any_eq(clean_name, &["think", "task", "spawn", "agent", "subagent"]) {
-            return ToolKind::Task;
-        }
-        if any_eq(clean_name, &["taskoutput", "task_output"]) {
-            return ToolKind::TaskOutput;
-        }
-        if any_eq(clean_name, &["todowrite", "todo", "todoread"]) {
-            return ToolKind::Todo;
-        }
-        if any_eq(clean_name, &["askuser", "askuserquestion", "question"]) {
-            return ToolKind::Question;
-        }
-        if clean_name.eq_ignore_ascii_case("skill") {
-            return ToolKind::Skill;
-        }
-        if any_eq(clean_name, &["enterplanmode", "enter_plan_mode"]) {
-            return ToolKind::EnterPlanMode;
-        }
-        if any_eq(clean_name, &["exitplanmode", "exit_plan_mode"]) {
-            return ToolKind::ExitPlanMode;
-        }
-        if any_eq(clean_name, &["createplan", "create_plan"]) {
-            return ToolKind::CreatePlan;
-        }
-        if any_eq(clean_name, &["toolsearch", "tool_search"]) {
-            return ToolKind::ToolSearch;
-        }
-        if any_eq(clean_name, &["move", "mv", "rename"]) {
-            return ToolKind::Move;
-        }
-        if any_eq(clean_name, &["delete", "rm", "remove"]) {
-            return ToolKind::Delete;
-        }
-
-        ToolKind::Other
+        normalize_shared_chat_tool_name(name)
     }
 }
 
