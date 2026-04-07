@@ -86,10 +86,10 @@
 }
 
 :root[data-theme='light'] {
-	--background: #F1EFE5;
-	--foreground: #0A0A09;
-	--card: #F2EFE9;
-	--card-foreground: #0A0A09;
+	--background: #F0EEE6;
+	--foreground: #141413;
+	--card: #E3DACC;
+	--card-foreground: #141413;
 	--success: var(--token-success-light);
 	--success-reference: var(--token-success-light);
 	--success-foreground: #ffffff;
