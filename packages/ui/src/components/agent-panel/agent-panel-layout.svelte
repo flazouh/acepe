@@ -6,6 +6,7 @@
 	import AgentUserMessage from "./agent-user-message.svelte";
 	import AgentAssistantMessage from "./agent-assistant-message.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
+	import AgentToolRead from "./agent-tool-read.svelte";
 	import AgentToolExecute from "./agent-tool-execute.svelte";
 	import AgentToolSearch from "./agent-tool-search.svelte";
 	import AgentToolFetch from "./agent-tool-fetch.svelte";
@@ -74,7 +75,13 @@
 						{iconBasePath}
 					/>
 				{:else if entry.type === "tool_call"}
-					{#if entry.kind === "execute"}
+					{#if entry.kind === "read"}
+						<AgentToolRead
+							filePath={entry.filePath}
+							status={entry.status}
+							{iconBasePath}
+						/>
+					{:else if entry.kind === "execute"}
 						<AgentToolExecute
 							command={entry.command ?? null}
 							stdout={entry.stdout}

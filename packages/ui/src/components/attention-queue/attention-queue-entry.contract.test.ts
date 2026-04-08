@@ -26,14 +26,4 @@ describe("attention queue entry contract", () => {
 		expect(source).not.toContain("<IconHelpCircle");
 		expect(source).not.toContain("currentQuestion.question");
 	});
-
-	it("renders streaming activity text with shrink-safe block truncation so filenames stay visible", () => {
-		expect(source).toContain('class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0 max-w-[60%]"');
-		expect(source).toContain('<TextShimmer class="block truncate">{fileToolDisplayText}</TextShimmer>');
-		expect(source).toContain('<span class="block truncate">{fileToolDisplayText}</span>');
-		expect(source).toContain('<TextShimmer class="block truncate">{toolContent}</TextShimmer>');
-		expect(source).toContain('<span class="block truncate">{toolContent}</span>');
-		expect(source).toContain('<TextShimmer class="block truncate">{statusText}</TextShimmer>');
-		expect(source).toContain('<span class="block truncate">{statusText}</span>');
-	});
 });

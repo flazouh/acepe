@@ -282,7 +282,8 @@ impl PermissionBridge {
                 .as_ref()
                 .and_then(|request| request.reusable_approval_key.as_ref())
             {
-                if let Some(resolved_result) = state.resolved_reusable_approval_results.get(reusable_key)
+                if let Some(resolved_result) =
+                    state.resolved_reusable_approval_results.get(reusable_key)
                 {
                     immediate_resolution = Some(resolved_result.clone());
                     PermissionUiDispatch::ResolvedFromCache
@@ -328,7 +329,9 @@ impl PermissionBridge {
             .as_ref()
             .and_then(|request| request.reusable_approval_key.as_ref())
         {
-            if let Some(resolved_result) = state.resolved_reusable_approval_results.get(reusable_key) {
+            if let Some(resolved_result) =
+                state.resolved_reusable_approval_results.get(reusable_key)
+            {
                 immediate_resolution = Some(resolved_result.clone());
                 PermissionUiDispatch::ResolvedFromCache
             } else {
@@ -510,10 +513,7 @@ impl PermissionBridge {
                 state.terminal_deny_message =
                     Some("Permission denied or connection closed".to_string());
             }
-            state
-                .pending
-                .drain()
-                .collect::<Vec<_>>()
+            state.pending.drain().collect::<Vec<_>>()
         };
 
         let cleared_request_ids = pending_requests

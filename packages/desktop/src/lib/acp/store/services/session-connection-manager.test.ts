@@ -927,6 +927,84 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/medium");
 	});
 
+	it("keeps the created session when explicit initial mode setup fails after backend session creation", async () => {
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId,
+				modes: {
+					currentModeId: "build",
+					availableModes: [
+						{ id: "build", name: "Build", description: null },
+						{ id: "plan", name: "Plan", description: null },
+					],
+				},
+				models: {
+					currentModelId: "gpt-5.2-codex/high",
+					availableModels: [
+						{
+							modelId: "gpt-5.2-codex/high",
+							name: "gpt-5.2-codex (high)",
+							description: null,
+						},
+					],
+				},
+				availableCommands: [],
+			})
+		);
+		setMode.mockReturnValue(errAsync(new AgentError("setMode", new Error("backend failed"))));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession(
+			{
+				projectPath,
+				agentId,
+				initialModeId: "plan",
+			},
+			createMockEventHandler()
+		);
+
+		result._unsafeUnwrap();
+
+		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
+		expect(stateWriter.addSession).toHaveBeenCalled();
+		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+		expect(initUpdate?.currentMode?.id).toBe("build");
+		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/high");
+	});
+
+	it("returns the freshly created cold session even if the stateReader lookup has not caught up yet", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
+		const session = result._unsafeUnwrap();
+
+		expect(stateWriter.addSession).toHaveBeenCalled();
+		expect(session).toEqual(
+			expect.objectContaining({
+				id: sessionId,
+				projectPath,
+				agentId,
+			})
+		);
+	});
+
 	it("applies autonomous execution profile on create when requested before first send", async () => {
 		newSession.mockReturnValue(
 			okAsync({

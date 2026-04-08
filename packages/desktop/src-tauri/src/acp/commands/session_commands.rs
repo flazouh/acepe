@@ -625,11 +625,11 @@ fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::acp::session_journal::load_stored_projection;
     use crate::acp::projections::{
         InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
         SessionSnapshot, SessionTurnState,
     };
+    use crate::acp::session_journal::load_stored_projection;
     use crate::acp::session_update::{PermissionData, SessionUpdate};
     use crate::acp::types::CanonicalAgentId;
     use crate::db::migrations::Migrator;

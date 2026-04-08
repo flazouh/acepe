@@ -67,6 +67,8 @@
 	import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 	import type { PermissionRequest } from "$lib/acp/types/permission.js";
 	import type { QuestionRequest } from "$lib/acp/types/question.js";
+	import { SoundEffect } from "$lib/acp/types/sounds.js";
+	import { playSound } from "$lib/acp/utils/sound.js";
 	import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -747,6 +749,7 @@
 		}
 
 		persistSelectedAgent(effectiveAgentId);
+		playSound(SoundEffect.Paste);
 		const optimisticPanel = panelStore.spawnPanel({
 			projectPath,
 			selectedAgentId: effectiveAgentId,
@@ -1092,7 +1095,7 @@
 				{@const showFooter =
 					permission !== null ||
 					questionUiState !== null ||
-					item.state.pendingInput.kind === "plan_approval"}
+					(item && item.state.pendingInput.kind === "plan_approval")}
 				{#if item}
 					<KanbanCard {card} onclick={() => handleCardClick(card.id)} onClose={() => handleCloseSession(item)} showFooter={showFooter}>
 						{#snippet todoSection()}

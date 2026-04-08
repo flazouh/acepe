@@ -15,7 +15,7 @@ import type {
 	JsonValue,
 	PlanData,
 	SessionUpdate,
-	ToolArguments,
+	ToolCallData,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
 import type { AppError } from "../errors/app-error.js";
@@ -70,10 +70,6 @@ function getAssistantAggregationKey(
 	return update.message_id ?? undefined;
 }
 
-function isTerminalToolCallStatus(status: string | null | undefined): boolean {
-	return status === "completed" || status === "failed";
-}
-
 function isPendingToolCallStatus(status: string | null | undefined): boolean {
 	return status === "pending" || status === "in_progress";
 }
@@ -86,6 +82,54 @@ function hasToolCallEntry(
 	return handler
 		.getEntries(sessionId)
 		.some((entry) => entry.type === "tool_call" && entry.message.id === toolCallId);
+}
+
+function serializeTaskChildrenFingerprint(
+	taskChildren: ReadonlyArray<ToolCallData> | null | undefined
+): string {
+	if (!taskChildren || taskChildren.length === 0) {
+		return "none";
+	}
+
+	return taskChildren
+		.map((child) => {
+			const title = child.title ?? "";
+			const kind = child.kind ?? "none";
+			const rawInput = JSON.stringify(child.rawInput ?? null);
+			const argumentsFingerprint = JSON.stringify(child.arguments);
+			const resultFingerprint = JSON.stringify(child.result ?? null);
+			const locationsFingerprint = JSON.stringify(child.locations ?? null);
+			const skillMetaFingerprint = JSON.stringify(child.skillMeta ?? null);
+			const normalizedQuestionsFingerprint = JSON.stringify(child.normalizedQuestions ?? null);
+			const normalizedTodosFingerprint = JSON.stringify(child.normalizedTodos ?? null);
+			const parentToolUseId = child.parentToolUseId ?? "none";
+			const questionAnswerFingerprint = JSON.stringify(child.questionAnswer ?? null);
+			const planApprovalRequestId = child.planApprovalRequestId ?? "none";
+			const awaitingPlanApproval = child.awaitingPlanApproval ? "1" : "0";
+			const status = child.status ?? "none";
+			const nested = serializeTaskChildrenFingerprint(child.taskChildren);
+			return `${child.id}:${child.name}:${kind}:${status}:${title}:${rawInput}:${argumentsFingerprint}:${resultFingerprint}:${locationsFingerprint}:${skillMetaFingerprint}:${normalizedQuestionsFingerprint}:${normalizedTodosFingerprint}:${parentToolUseId}:${questionAnswerFingerprint}:${awaitingPlanApproval}:${planApprovalRequestId}:${nested}`;
+		})
+		.join(",");
+}
+
+function hashReplayFingerprint(input: string): string {
+	let hash = 2166136261;
+	for (let index = 0; index < input.length; index += 1) {
+		hash ^= input.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	return `${input.length}:${(hash >>> 0).toString(16)}`;
+}
+
+function createTaskChildrenFingerprint(
+	taskChildren: ReadonlyArray<ToolCallData> | null | undefined
+): string {
+	if (!taskChildren || taskChildren.length === 0) {
+		return "none";
+	}
+
+	return hashReplayFingerprint(serializeTaskChildrenFingerprint(taskChildren));
 }
 
 function isProcessedToolReplay(
@@ -458,16 +502,18 @@ export class SessionEventService {
 			case "permissionRequest":
 				// Permissions now converge here for session-update based agents, including
 				// cc-sdk flows that still carry a JSON-RPC reply route.
-				this.callbacks.onPermissionRequest?.(createPermissionRequest({
-					id: update.permission.id,
-					sessionId: update.permission.sessionId,
-					jsonRpcRequestId: update.permission.jsonRpcRequestId,
-					permission: update.permission.permission,
-					patterns: update.permission.patterns,
-					metadata: update.permission.metadata,
-					always: update.permission.always,
-					tool: update.permission.tool,
-				}));
+				this.callbacks.onPermissionRequest?.(
+					createPermissionRequest({
+						id: update.permission.id,
+						sessionId: update.permission.sessionId,
+						jsonRpcRequestId: update.permission.jsonRpcRequestId,
+						permission: update.permission.permission,
+						patterns: update.permission.patterns,
+						metadata: update.permission.metadata,
+						always: update.permission.always,
+						tool: update.permission.tool,
+					})
+				);
 				break;
 
 			case "questionRequest":
@@ -579,12 +625,7 @@ export class SessionEventService {
 					latestTokensCacheWrite: t?.cacheWrite ?? null,
 					latestTokensReasoning: t?.reasoning ?? null,
 					lastTelemetryEventId: eventId,
-					contextBudget: resolveContextBudget(
-						usageTelemetryData,
-						prev,
-						currentModelId,
-						updatedAt
-					),
+					contextBudget: resolveContextBudget(usageTelemetryData, prev, currentModelId, updatedAt),
 					updatedAt,
 				});
 				break;
@@ -742,8 +783,11 @@ export class SessionEventService {
 			case "toolCall": {
 				const title = update.tool_call.title ?? "";
 				const kind = update.tool_call.kind ?? "none";
-				const argumentsPreview = JSON.stringify(update.tool_call.arguments).slice(0, 160);
-				return `${sessionId}|toolCall|${update.tool_call.id}|${update.tool_call.status}|${update.tool_call.name}|${kind}|${title}|${argumentsPreview}`;
+				const argumentsPreview = hashReplayFingerprint(JSON.stringify(update.tool_call.arguments));
+				const taskChildrenFingerprint = createTaskChildrenFingerprint(
+					update.tool_call.taskChildren
+				);
+				return `${sessionId}|toolCall|${update.tool_call.id}|${update.tool_call.status}|${update.tool_call.name}|${kind}|${title}|${argumentsPreview}|${taskChildrenFingerprint}`;
 			}
 			case "toolCallUpdate": {
 				const status = update.update.status ?? "none";

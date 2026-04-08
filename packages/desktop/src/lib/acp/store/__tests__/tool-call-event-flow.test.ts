@@ -63,7 +63,9 @@ function createToolCallUpdate(
 				: kind === "edit"
 					? {
 							kind: "edit",
-							edits: [{ filePath: filePath ?? null, oldString: null, newString: null, content: null }],
+							edits: [
+								{ filePath: filePath ?? null, oldString: null, newString: null, content: null },
+							],
 						}
 					: { kind: "other", raw: {} },
 		status: "pending",
@@ -191,12 +193,14 @@ describe("Tool Call Event Flow", () => {
 					name: "mcp__acp__Edit",
 					arguments: {
 						kind: "edit",
-						edits: [{
-							filePath: "/path/to/file.ts",
-							oldString: "export function multiply",
-							newString: "export function multiply\n\nexport function subtract",
-							content: null,
-						}],
+						edits: [
+							{
+								filePath: "/path/to/file.ts",
+								oldString: "export function multiply",
+								newString: "export function multiply\n\nexport function subtract",
+								content: null,
+							},
+						],
 					},
 					status: "pending",
 					kind: "edit",
@@ -382,14 +386,16 @@ describe("Tool Call Event Flow", () => {
 					name: "mcp__acp__Edit",
 					arguments: {
 						kind: "edit",
-						edits: [{
-							filePath: "/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts",
-							oldString:
-								"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}",
-							newString:
-								"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}\n\nexport function subtract(a: number, b: number): number {\n\treturn a - b;\n}",
-							content: null,
-						}],
+						edits: [
+							{
+								filePath: "/Users/example/Documents/acepe/packages/desktop/src/lib/test-file.ts",
+								oldString:
+									"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}",
+								newString:
+									"export function multiply(a: number, b: number): number {\n\treturn a * b;\n}\n\nexport function subtract(a: number, b: number): number {\n\treturn a - b;\n}",
+								content: null,
+							},
+						],
 					},
 					status: "pending",
 					kind: "edit",
@@ -472,6 +478,65 @@ describe("Tool Call Event Flow", () => {
 			expect(tool.taskChildren?.length).toBe(1);
 			expect(tool.taskChildren?.[0]?.id).toBe("child-1");
 		});
+
+		it("updates an existing parent task when a later emission adds child tools", () => {
+			const sessionId = "sess-123";
+			const entryStore = new SessionEntryStore();
+
+			entryStore.createToolCallEntry(sessionId, {
+				id: "task-1",
+				name: "Task",
+				arguments: { kind: "think", description: "Do work" },
+				status: "in_progress",
+				kind: "task",
+				title: "Task",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				awaitingPlanApproval: false,
+				parentToolUseId: null,
+				taskChildren: null,
+			});
+
+			entryStore.createToolCallEntry(sessionId, {
+				id: "task-1",
+				name: "Task",
+				arguments: { kind: "think", description: "Do work" },
+				status: "in_progress",
+				kind: "task",
+				title: "Task",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				awaitingPlanApproval: false,
+				parentToolUseId: null,
+				taskChildren: [
+					{
+						id: "child-1",
+						name: "Read",
+						arguments: { kind: "read", file_path: "src/main.ts" },
+						status: "completed",
+						kind: "read",
+						title: "Read file",
+						locations: null,
+						skillMeta: null,
+						result: null,
+						awaitingPlanApproval: false,
+						parentToolUseId: "task-1",
+						taskChildren: null,
+					},
+				],
+			});
+
+			const entries = entryStore.getEntries(sessionId);
+			expect(entries.length).toBe(1);
+			expect(entries[0]?.type).toBe("tool_call");
+			if (entries[0]?.type !== "tool_call") return;
+
+			expect(entries[0].message.id).toBe("task-1");
+			expect(entries[0].message.taskChildren?.length).toBe(1);
+			expect(entries[0].message.taskChildren?.[0]?.id).toBe("child-1");
+		});
 	});
 
 	describe("Streaming args race condition (session 16c15e5c blank card bug)", () => {
@@ -515,7 +580,14 @@ describe("Tool Call Event Flow", () => {
 			// Step 2: Streaming deltas arrive — streaming args accumulate
 			applyStreamingArguments(entryStore, sessionId, toolCallId, {
 				kind: "edit" as const,
-				edits: [{ filePath: "/path/to/plan.md", oldString: null, newString: null, content: "# The Plan\n\nThis is the full plan content..." }],
+				edits: [
+					{
+						filePath: "/path/to/plan.md",
+						oldString: null,
+						newString: null,
+						content: "# The Plan\n\nThis is the full plan content...",
+					},
+				],
 			});
 
 			// Verify streaming args are available
@@ -528,7 +600,14 @@ describe("Tool Call Event Flow", () => {
 				name: "Write",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: "/path/to/plan.md", oldString: null, newString: null, content: "# The Plan\n\nThis is the full plan content..." }],
+					edits: [
+						{
+							filePath: "/path/to/plan.md",
+							oldString: null,
+							newString: null,
+							content: "# The Plan\n\nThis is the full plan content...",
+						},
+					],
 				},
 				status: "completed",
 				kind: "edit",
@@ -604,7 +683,14 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: "/Users/example/.claude/plans/test.md", oldString: "old", newString: "new", content: null }],
+					edits: [
+						{
+							filePath: "/Users/example/.claude/plans/test.md",
+							oldString: "old",
+							newString: "new",
+							content: null,
+						},
+					],
 				},
 				status: "pending",
 				kind: "edit",
@@ -823,7 +909,14 @@ describe("Tool Call Event Flow", () => {
 			});
 			applyStreamingArguments(entryStore, sessionId, toolCallId, {
 				kind: "edit",
-				edits: [{ filePath, oldString: "# Test Plan", newString: "# Test Plan\n\nThis is a test plan...", content: null }],
+				edits: [
+					{
+						filePath,
+						oldString: "# Test Plan",
+						newString: "# Test Plan\n\nThis is a test plan...",
+						content: null,
+					},
+				],
 			});
 
 			const streamingArgs = entryStore.getStreamingArguments(toolCallId);
@@ -838,7 +931,14 @@ describe("Tool Call Event Flow", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath, oldString: "# Test Plan", newString: "# Test Plan\n\nThis is a test plan...", content: null }],
+					edits: [
+						{
+							filePath,
+							oldString: "# Test Plan",
+							newString: "# Test Plan\n\nThis is a test plan...",
+							content: null,
+						},
+					],
 				},
 				status: "pending",
 				kind: "edit",

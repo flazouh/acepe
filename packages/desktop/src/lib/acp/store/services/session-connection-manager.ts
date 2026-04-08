@@ -195,7 +195,19 @@ export class SessionConnectionManager {
 		});
 		return api
 			.newSession(sessionCwd, options.agentId)
-			.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
+			.andThen((result) =>
+				preferencesStore
+					.ensureLoaded()
+					.orElse((error) => {
+						logger.warn("Failed to load model preferences after session creation", {
+							sessionId: result.sessionId,
+							agentId: options.agentId,
+							error,
+						});
+						return okAsync(undefined);
+					})
+					.map(() => result)
+			)
 			.andThen((result) => {
 				const sessionId = result.sessionId;
 				const now = new Date();
@@ -272,7 +284,21 @@ export class SessionConnectionManager {
 						currentModel,
 					});
 
-				return applyInitialSelection.andThen((selection) => {
+				return applyInitialSelection
+					.orElse((error) => {
+						logger.warn("Failed to apply initial mode/model after session creation", {
+							sessionId,
+							agentId: options.agentId,
+							initialModeId: options.initialModeId ?? null,
+							initialModelId: options.initialModelId ?? null,
+							error,
+						});
+						return okAsync({
+							currentMode,
+							currentModel,
+						});
+					})
+					.andThen((selection) => {
 					currentMode = selection.currentMode;
 					currentModel = selection.currentModel;
 
@@ -317,7 +343,15 @@ export class SessionConnectionManager {
 											);
 											return okAsync(false);
 										}
-										return errAsync(error);
+										logger.warn(
+											"Failed to apply initial autonomous profile after session creation",
+											{
+												sessionId,
+												modeId: currentMode ? currentMode.id : null,
+												error,
+											}
+										);
+										return okAsync(false);
 									})
 							: okAsync(false);
 
@@ -422,7 +456,7 @@ export class SessionConnectionManager {
 							sessionId,
 						});
 
-						return this.stateReader.getSessionCold(sessionId)!;
+						return sessionCold;
 					});
 				});
 			})

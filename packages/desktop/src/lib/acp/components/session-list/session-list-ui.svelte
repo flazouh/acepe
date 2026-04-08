@@ -928,6 +928,48 @@ function openCreateBranchDialog(projectPath: string): void {
 									onclick={(e) => e.stopPropagation()}
 									onkeydown={(e) => e.stopPropagation()}
 								>
+									{#if isExpanded}
+										<div class="flex shrink-0 items-center border-l border-border/50">
+											<Tooltip.Root>
+												<Tooltip.Trigger>
+													{#snippet child({ props })}
+														<button
+															{...props}
+															type="button"
+															class="inline-flex items-center justify-center h-7 w-7 cursor-pointer transition-colors {viewMode === 'sessions'
+																? 'bg-accent text-foreground'
+																: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+															title={m.sidebar_view_sessions()}
+															aria-label={m.sidebar_view_sessions()}
+															onclick={() => setProjectViewMode(group.projectPath, "sessions")}
+														>
+															<Rows class="h-3 w-3" weight="fill" />
+														</button>
+													{/snippet}
+												</Tooltip.Trigger>
+												<Tooltip.Content>{m.sidebar_view_sessions()}</Tooltip.Content>
+											</Tooltip.Root>
+											<Tooltip.Root>
+												<Tooltip.Trigger>
+													{#snippet child({ props })}
+														<button
+															{...props}
+															type="button"
+															class="inline-flex items-center justify-center h-7 w-7 cursor-pointer border-l border-border/30 transition-colors {viewMode === 'files'
+																? 'bg-accent text-foreground'
+																: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+															title={m.sidebar_view_files()}
+															aria-label={m.sidebar_view_files()}
+															onclick={() => setProjectViewMode(group.projectPath, "files")}
+														>
+															<TreeView class="h-3 w-3" weight="fill" />
+														</button>
+													{/snippet}
+												</Tooltip.Trigger>
+												<Tooltip.Content>{m.sidebar_view_files()}</Tooltip.Content>
+											</Tooltip.Root>
+										</div>
+									{/if}
 									<ProjectHeaderOverflowMenu
 										projectName={group.projectName}
 										currentColor={group.projectColor}
@@ -977,14 +1019,6 @@ function openCreateBranchDialog(projectPath: string): void {
 						</ProjectHeader>
 					{/if}
 				</div>
-
-					<!-- View mode toggle -->
-					{#if isExpanded}
-						<div class="flex justify-end border-b border-border/50">
-							<button type="button" class="flex items-center justify-center size-6 cursor-pointer transition-colors {viewMode === 'sessions' ? 'text-foreground/80' : 'text-muted-foreground/40 hover:text-muted-foreground'}" onclick={() => setProjectViewMode(group.projectPath, "sessions")}><Rows class="size-3" weight="fill" /></button>
-							<button type="button" class="flex items-center justify-center size-6 cursor-pointer transition-colors {viewMode === 'files' ? 'text-foreground/80' : 'text-muted-foreground/40 hover:text-muted-foreground'}" onclick={() => setProjectViewMode(group.projectPath, "files")}><TreeView class="size-3" weight="fill" /></button>
-						</div>
-					{/if}
 
 					<!-- Content area: Sessions OR Files (switched, not both) -->
 					{#if isExpanded}

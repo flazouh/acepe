@@ -1,4 +1,4 @@
-use crate::acp::parsers::{AgentType, get_parser};
+use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };

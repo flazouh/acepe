@@ -5,6 +5,7 @@ const requestPermissionMock = mock(
 	async (): Promise<"default" | "denied" | "granted"> => "granted"
 );
 const sendNotificationMock = mock(() => {});
+const playSoundMock = mock(() => {});
 
 async function flushAsyncNotifications(): Promise<void> {
 	await Promise.resolve();
@@ -13,11 +14,11 @@ async function flushAsyncNotifications(): Promise<void> {
 }
 
 mock.module("$lib/acp/types/sounds.js", () => ({
-	SoundEffect: { LeonardoDiCaprio: "leonardo-di-caprio" },
+	SoundEffect: { Achievement: "achievement.wav" },
 }));
 
 mock.module("$lib/acp/utils/sound.js", () => ({
-	playSound: mock(() => {}),
+	playSound: playSoundMock,
 }));
 
 mock.module("$lib/acp/utils/logger.js", () => ({
@@ -50,6 +51,7 @@ describe("notification-service", () => {
 		isPermissionGrantedMock.mockClear();
 		requestPermissionMock.mockClear();
 		sendNotificationMock.mockClear();
+		playSoundMock.mockClear();
 		resetNotificationRuntimeForTesting();
 	});
 
@@ -155,6 +157,24 @@ describe("notification-service", () => {
 		});
 
 		expect(getActiveCount()).toBe(1);
+	});
+
+	it("plays the achievement sound when a notification is shown", () => {
+		const payload: NotificationPayload = {
+			id: "perm-sound-1",
+			type: "permission",
+			title: "Permission request",
+			body: "Allow tool use",
+			actions: PERMISSION_ACTIONS,
+		};
+
+		showNotification(payload, () => {}, {
+			windowFocused: false,
+			categoryEnabled: true,
+		});
+
+		expect(playSoundMock).toHaveBeenCalledTimes(1);
+		expect(playSoundMock).toHaveBeenCalledWith("achievement.wav");
 	});
 
 	it("skips notification when window is focused", () => {

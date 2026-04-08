@@ -74,6 +74,43 @@ describe("tool definition display builders", () => {
 		});
 	});
 
+	it("builds execute entries with parsed command output for the shared agent panel", () => {
+		const entry = resolveFullToolEntry({
+			toolCall: createToolCall({
+				id: "tool-4",
+				name: "Bash",
+				kind: "execute",
+				status: "completed",
+				arguments: { kind: "execute", command: "ls -la hello-go/" },
+				result: [
+					"Chunk ID: f8d993",
+					"Wall time: 0.0523 seconds",
+					"Process exited with code 0",
+					"Original token count: 3",
+					"Output:",
+					"total 8",
+					"main.go",
+					"go.mod",
+				].join("\n"),
+			}),
+			turnState: "completed",
+		});
+
+		expect(entry).toEqual({
+			id: "tool-4",
+			type: "tool_call",
+			kind: "execute",
+			title: "Ran command",
+			subtitle: "ls -la hello-go/",
+			filePath: undefined,
+			status: "done",
+			command: "ls -la hello-go/",
+			stdout: "total 8\nmain.go\ngo.mod",
+			stderr: null,
+			exitCode: 0,
+		});
+	});
+
 	it("marks unfinished child tools as done when the parent task has completed", () => {
 		const entry = resolveFullToolEntry({
 			toolCall: createToolCall({

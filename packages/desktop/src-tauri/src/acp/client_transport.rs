@@ -359,7 +359,8 @@ pub(crate) async fn apply_interaction_response_for_request(
     adapted_result: &Value,
     source: &str,
 ) {
-    let Some(interaction) = projection_registry.interaction_for_request_id(session_id, request_id) else {
+    let Some(interaction) = projection_registry.interaction_for_request_id(session_id, request_id)
+    else {
         return;
     };
 

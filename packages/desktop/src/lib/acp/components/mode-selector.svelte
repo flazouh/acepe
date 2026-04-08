@@ -1,6 +1,8 @@
 <script lang="ts">
 import { BuildIcon, PlanIcon } from "@acepe/ui";
 import { onDestroy, onMount } from "svelte";
+import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as m from "$lib/paraglide/messages.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import type { AvailableMode } from "../types/available-mode.js";
 import { CanonicalModeId } from "../types/canonical-mode-id.js";
@@ -80,28 +82,40 @@ function isSelected(modeId: string): boolean {
 				{#if i > 0}
 					<div class="w-px self-stretch bg-border/50"></div>
 				{/if}
-				<button
-					type="button"
-					onclick={() => handleModeChange(mode.id)}
-					class="flex items-center justify-center w-7 text-[11px] font-medium transition-colors rounded-none
-						{selected
-						? 'bg-accent text-foreground'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-				>
-					{#if mode.id === CanonicalModeId.PLAN}
-						<PlanIcon
-							size="sm"
-							class="transition-colors duration-150"
-							style={selected ? `color: ${color}` : undefined}
-						/>
-					{:else}
-						<BuildIcon
-							size="sm"
-							class="transition-colors duration-150"
-							style={selected ? `color: ${color}` : undefined}
-						/>
-					{/if}
-				</button>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								type="button"
+								onclick={() => handleModeChange(mode.id)}
+								class="flex items-center justify-center w-7 text-[11px] font-medium transition-colors rounded-none
+									{selected
+									? 'bg-accent text-foreground'
+									: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
+								title={mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
+								aria-label={mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
+							>
+								{#if mode.id === CanonicalModeId.PLAN}
+									<PlanIcon
+										size="sm"
+										class="transition-colors duration-150"
+										style={selected ? `color: ${color}` : undefined}
+									/>
+								{:else}
+									<BuildIcon
+										size="sm"
+										class="transition-colors duration-150"
+										style={selected ? `color: ${color}` : undefined}
+									/>
+								{/if}
+							</button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>
+						{mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
+					</Tooltip.Content>
+				</Tooltip.Root>
 			{/each}
 		{/if}
 	</div>

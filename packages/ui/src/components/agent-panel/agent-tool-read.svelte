@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
@@ -65,29 +64,15 @@
 
 				<!-- File chip with diff stats -->
 				{#if filePath}
-					{#if isPending}
-						<TextShimmer class="text-muted-foreground" duration={1.2}>
-							<FilePathBadge
-								{filePath}
-								fileName={derivedFileName}
-								linesAdded={additions}
-								linesRemoved={deletions}
-								{iconBasePath}
-								{interactive}
-								{onSelect}
-							/>
-						</TextShimmer>
-					{:else}
-						<FilePathBadge
-							{filePath}
-							fileName={derivedFileName}
-							linesAdded={additions}
-							linesRemoved={deletions}
-							{iconBasePath}
-							{interactive}
-							{onSelect}
-						/>
-					{/if}
+					<FilePathBadge
+						{filePath}
+						fileName={derivedFileName}
+						linesAdded={additions}
+						linesRemoved={deletions}
+						{iconBasePath}
+						{interactive}
+						{onSelect}
+					/>
 				{/if}
 			</div>
 		</div>

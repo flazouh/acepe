@@ -184,11 +184,13 @@ export function getActiveCount(): number {
 export function setNotificationRuntimeForTesting(runtime: NotificationRuntime): void {
 	notificationRuntime = runtime;
 	nativeNotificationPermission = "unknown";
+	lastSoundTime = 0;
 }
 
 export function resetNotificationRuntimeForTesting(): void {
 	notificationRuntime = defaultNotificationRuntime;
 	nativeNotificationPermission = "unknown";
+	lastSoundTime = 0;
 }
 
 // ── Internal ───────────────────────────────────────────────────────────
@@ -246,7 +248,7 @@ function ensureNativeNotificationPermission(): ResultAsync<boolean, Error> {
 function maybePlaySound(): void {
 	const now = Date.now();
 	if (now - lastSoundTime > SOUND_DEBOUNCE_MS) {
-		playSound(SoundEffect.Notification);
+		playSound(SoundEffect.Achievement);
 		lastSoundTime = now;
 	}
 }

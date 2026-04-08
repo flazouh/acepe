@@ -60,6 +60,50 @@ function markHandlerTurnAsCompleted(handler: SessionEventHandler): void {
 	});
 }
 
+function createTaskReplayEntry(toolCallId: string): SessionEntry {
+	return {
+		id: `entry-${toolCallId}`,
+		type: "tool_call",
+		timestamp: new Date(),
+		message: {
+			id: toolCallId,
+			name: "Agent",
+			arguments: {
+				kind: "think",
+				subagent_type: "reviewer",
+				description: "Review the implementation",
+				prompt: "Inspect the changes",
+			},
+			status: "in_progress",
+			kind: "task",
+			title: "Agent",
+			locations: null,
+			skillMeta: null,
+			result: null,
+			taskChildren: null,
+			awaitingPlanApproval: false,
+		},
+	};
+}
+
+function createTaskReplayChild(
+	index: number
+): Extract<SessionUpdate, { type: "toolCall" }>["tool_call"] {
+	return {
+		id: `task-child-${String(index).padStart(2, "0")}-long-child-identifier`,
+		name: "Read",
+		arguments: { kind: "read", file_path: `/repo/src/task-${index}.ts` },
+		status: "completed",
+		kind: "read",
+		title: `Read file ${index}`,
+		locations: null,
+		skillMeta: null,
+		result: null,
+		taskChildren: null,
+		awaitingPlanApproval: false,
+	};
+}
+
 describe("SessionEventService streaming delta handling", () => {
 	let service: SessionEventService;
 	let handler: SessionEventHandler;
@@ -269,7 +313,14 @@ describe("SessionEventService streaming delta handling", () => {
 				locations: [{ path: "/Users/example/.claude/plans/test.md" }],
 				streamingArguments: {
 					kind: "edit",
-					edits: [{ filePath: "/Users/example/.claude/plans/test.md", oldString: null, newString: null, content: "# Plan" }],
+					edits: [
+						{
+							filePath: "/Users/example/.claude/plans/test.md",
+							oldString: null,
+							newString: null,
+							content: "# Plan",
+						},
+					],
 				},
 			},
 			session_id: "session-123",
@@ -1194,10 +1245,7 @@ describe("SessionEventService streaming delta handling", () => {
 			turnState: "streaming",
 		});
 		const nowSpy = vi.spyOn(service as unknown as { nowMs: () => number }, "nowMs");
-		nowSpy
-			.mockReturnValueOnce(1_000)
-			.mockReturnValueOnce(6_500)
-			.mockReturnValue(6_500);
+		nowSpy.mockReturnValueOnce(1_000).mockReturnValueOnce(6_500).mockReturnValue(6_500);
 
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
@@ -1243,6 +1291,295 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateToolCallEntry).toHaveBeenCalledTimes(2);
 	});
 
+	it("applies repeated parent task tool calls when child structure grows", () => {
+		markHandlerTurnAsStreaming(handler);
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			createTaskReplayEntry("task-parent-1"),
+		]);
+
+		const initialParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-1",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: null,
+				awaitingPlanApproval: false,
+			},
+		};
+		const enrichedParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-1",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: [
+					{
+						id: "task-child-1",
+						name: "Read",
+						arguments: { kind: "read", file_path: "/repo/src/task.ts" },
+						status: "completed",
+						kind: "read",
+						title: "Read file",
+						locations: null,
+						skillMeta: null,
+						result: null,
+						taskChildren: null,
+						awaitingPlanApproval: false,
+					},
+				],
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(initialParentUpdate, handler);
+		service.handleSessionUpdate(enrichedParentUpdate, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedParentUpdate.tool_call
+		);
+	});
+
+	it("applies repeated parent task tool calls when later child growth happens beyond the fingerprint prefix", () => {
+		markHandlerTurnAsStreaming(handler);
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			createTaskReplayEntry("task-parent-2"),
+		]);
+
+		const initialChildren = Array.from({ length: 12 }, (_, index) => createTaskReplayChild(index));
+		const enrichedChildren = initialChildren.concat([createTaskReplayChild(12)]);
+		const initialParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-2",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: initialChildren,
+				awaitingPlanApproval: false,
+			},
+		};
+		const enrichedParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-2",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: enrichedChildren,
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(initialParentUpdate, handler);
+		service.handleSessionUpdate(enrichedParentUpdate, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedParentUpdate.tool_call
+		);
+	});
+
+	it("applies repeated parent task tool calls when an existing child gets richer payload", () => {
+		markHandlerTurnAsStreaming(handler);
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			createTaskReplayEntry("task-parent-3"),
+		]);
+
+		const initialParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-3",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: [
+					{
+						id: "task-child-rich-1",
+						name: "Read",
+						arguments: { kind: "read", file_path: "/repo/src/task.ts" },
+						status: "completed",
+						kind: "read",
+						title: "Read file",
+						locations: null,
+						skillMeta: null,
+						result: null,
+						taskChildren: null,
+						awaitingPlanApproval: false,
+					},
+				],
+				awaitingPlanApproval: false,
+			},
+		};
+		const enrichedParentUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "task-parent-3",
+				name: "Agent",
+				arguments: {
+					kind: "think",
+					subagent_type: "reviewer",
+					description: "Review the implementation",
+					prompt: "Inspect the changes",
+				},
+				status: "in_progress",
+				kind: "task",
+				title: "Agent",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: [
+					{
+						id: "task-child-rich-1",
+						name: "Read",
+						arguments: { kind: "read", file_path: "/repo/src/task.ts" },
+						status: "completed",
+						kind: "read",
+						title: "Read file with context",
+						locations: [{ path: "/repo/src/task.ts" }],
+						skillMeta: null,
+						result: "done",
+						taskChildren: null,
+						awaitingPlanApproval: false,
+					},
+				],
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(initialParentUpdate, handler);
+		service.handleSessionUpdate(enrichedParentUpdate, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedParentUpdate.tool_call
+		);
+	});
+
+	it("applies repeated tool calls when top-level arguments only change after the preview cutoff", () => {
+		markHandlerTurnAsStreaming(handler);
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			createTaskReplayEntry("tool-long-args-1"),
+		]);
+
+		const sharedPrefix = "a".repeat(220);
+		const initialUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-long-args-1",
+				name: "Write",
+				arguments: {
+					kind: "other",
+					raw: {
+						payload: `${sharedPrefix}-initial`,
+					},
+				},
+				status: "in_progress",
+				kind: "other",
+				title: "Write file",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: null,
+				awaitingPlanApproval: false,
+			},
+		};
+		const enrichedUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-long-args-1",
+				name: "Write",
+				arguments: {
+					kind: "other",
+					raw: {
+						payload: `${sharedPrefix}-enriched`,
+					},
+				},
+				status: "in_progress",
+				kind: "other",
+				title: "Write file",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				taskChildren: null,
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(initialUpdate, handler);
+		service.handleSessionUpdate(enrichedUpdate, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedUpdate.tool_call
+		);
+	});
+
 	it("drops replayed identical pending toolCall events once the tool already exists", () => {
 		const liveHandler = createMockHandler();
 		const entriesBySession = new Map<string, SessionEntry[]>();
@@ -1255,7 +1592,10 @@ describe("SessionEventService streaming delta handling", () => {
 			return entriesBySession.get(sessionId) ?? [];
 		});
 		(liveHandler.createToolCallEntry as ReturnType<typeof vi.fn>).mockImplementation(
-			(sessionId: string, toolCallData: Extract<SessionUpdate, { type: "toolCall" }>["tool_call"]) => {
+			(
+				sessionId: string,
+				toolCallData: Extract<SessionUpdate, { type: "toolCall" }>["tool_call"]
+			) => {
 				const nextEntries = entriesBySession.get(sessionId)?.slice() ?? [];
 				nextEntries.push({
 					id: toolCallData.id,

@@ -3,6 +3,8 @@ export enum SoundEffect {
 	SoundDown = "sound-down.mp3",
 	SoundUp = "sound-up-2.mp3",
 	Notification = "Notification.wav",
+	Achievement = "achievement.wav",
+	Paste = "paste.wav",
 	DictationStart = "dictation-start.wav",
 	DictationStop = "dictation-stop.wav",
 	AnthonyHopkins = "AnthonyHopkins.wav",

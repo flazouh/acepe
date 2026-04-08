@@ -30,6 +30,7 @@ import ToolCallThink from "./tool-call-think.svelte";
 import ToolCallTodo from "./tool-call-todo.svelte";
 import ToolCallToolSearch from "./tool-call-tool-search.svelte";
 import ToolCallWebSearch from "./tool-call-web-search.svelte";
+import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import { toAgentToolKind } from "./tool-kind-to-agent-tool-kind.js";
 
 export type ToolDetailComponentProps = {
@@ -135,11 +136,39 @@ function createToolDefinition(
 	};
 }
 
+function buildExecuteFullEntry(options: ToolDisplayOptions): AgentToolEntry {
+	const baseEntry = buildDefaultFullEntry(options);
+	const parsedResult = parseToolResultWithExitCode(options.toolCall.result);
+	const command =
+		options.toolCall.arguments.kind === "execute"
+			? options.toolCall.arguments.command
+			: (baseEntry.subtitle ?? null);
+
+	return {
+		id: baseEntry.id,
+		type: baseEntry.type,
+		kind: baseEntry.kind,
+		title: baseEntry.title,
+		subtitle: baseEntry.subtitle,
+		filePath: baseEntry.filePath,
+		status: baseEntry.status,
+		command,
+		stdout: parsedResult.stdout,
+		stderr: parsedResult.stderr,
+		exitCode: parsedResult.exitCode,
+	};
+}
+
 const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 	read: createToolDefinition("read", ToolCallRead),
 	read_lints: createToolDefinition("read_lints", ToolCallReadLints),
 	edit: createToolDefinition("edit", ToolCallEdit),
-	execute: createToolDefinition("execute", ToolCallExecute),
+	execute: {
+		rendererKey: "execute",
+		component: ToolCallExecute,
+		buildFullEntry: buildExecuteFullEntry,
+		buildCompactEntry: (options) => compactToolEntry(buildExecuteFullEntry(options)),
+	},
 	search: createToolDefinition("search", ToolCallSearch),
 	glob: createToolDefinition("glob", ToolCallSearch),
 	fetch: createToolDefinition("fetch", ToolCallFetch),

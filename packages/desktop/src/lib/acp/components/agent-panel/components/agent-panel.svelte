@@ -1485,7 +1485,7 @@ function handleCheckpointRevertComplete() {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="flex h-full shrink-0 grow-0 min-h-0 bg-background rounded-lg overflow-hidden relative border border-border {isFullscreen
+	class="flex h-full shrink-0 grow-0 min-h-0 bg-card rounded-lg overflow-hidden relative border border-border {isFullscreen
 		? ''
 		: 'border-r-0'} {panelState.isDraggingEdge ? 'select-none' : ''}"
 	style={widthStyle}

@@ -23,19 +23,19 @@ use crate::acp::client_session::{
     apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
     SessionModelState,
 };
+use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
-use crate::acp::client_trait::AgentClient;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::model_display::get_transformer;
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::provider::AgentProvider;
 use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
     SessionProjectionSnapshot,
 };
+use crate::acp::provider::AgentProvider;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_update::{
     parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
@@ -212,13 +212,18 @@ impl ApprovalCallbackTracker {
             return;
         }
 
-        self.pending.lock().await.insert(
+        let mut pending = self.pending.lock().await;
+        if pending.contains_key(tool_call_id) {
+            return;
+        }
+        pending.insert(
             tool_call_id.to_string(),
             PendingApprovalCallbackDiagnostic {
                 session_id: session_id.to_string(),
                 tool_name: tool_name.to_string(),
             },
         );
+        drop(pending);
 
         tracing::info!(
             session_id = %session_id,
@@ -285,6 +290,10 @@ impl ApprovalCallbackTracker {
         }
     }
 
+    async fn clear_if_pending(&self, tool_call_id: &str) -> bool {
+        self.pending.lock().await.remove(tool_call_id).is_some()
+    }
+
     async fn log_pending_for_session(&self, session_id: &str, reason: &str) {
         let pending = self
             .pending
@@ -318,6 +327,56 @@ fn tool_name_expects_permission_callback(tool_name: &str) -> bool {
         tool_name,
         "Bash" | "Edit" | "MultiEdit" | "Write" | "NotebookEdit" | "NotebookWrite"
     )
+}
+
+fn tool_update_has_terminal_payload(update: &ToolCallUpdateData) -> bool {
+    update.result.is_some()
+        || update.raw_output.is_some()
+        || update.failure_reason.is_some()
+        || update
+            .content
+            .as_ref()
+            .is_some_and(|content| !content.is_empty())
+}
+
+async fn rewrite_empty_completed_tool_call_without_permission_callback(
+    approval_callback_tracker: &ApprovalCallbackTracker,
+    update: &mut SessionUpdate,
+) {
+    let SessionUpdate::ToolCallUpdate { update, .. } = update else {
+        return;
+    };
+
+    let status = update.status.as_ref();
+    if status != Some(&ToolCallStatus::Completed) && status != Some(&ToolCallStatus::Failed) {
+        return;
+    }
+
+    if tool_update_has_terminal_payload(update) {
+        approval_callback_tracker
+            .clear_if_pending(&update.tool_call_id)
+            .await;
+        return;
+    }
+
+    if status == Some(&ToolCallStatus::Failed) {
+        approval_callback_tracker
+            .clear_if_pending(&update.tool_call_id)
+            .await;
+        return;
+    }
+
+    if status == Some(&ToolCallStatus::Completed)
+        && approval_callback_tracker
+            .clear_if_pending(&update.tool_call_id)
+            .await
+    {
+        update.status = Some(ToolCallStatus::Failed);
+        update.failure_reason = Some(
+            "Permission callback was never received, so the command did not produce output."
+                .to_string(),
+        );
+    }
 }
 
 async fn reject_cc_sdk_interaction_request(
@@ -685,7 +744,10 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
         let hook_request = HookPermissionRequest {
             tool_call_id: tool_call_id.clone(),
             tool_name: request.tool_name.clone(),
-            reusable_approval_key: build_reusable_permission_key(&request.tool_name, &request.tool_input),
+            reusable_approval_key: build_reusable_permission_key(
+                &request.tool_name,
+                &request.tool_input,
+            ),
             original_input: request.tool_input.clone(),
             permission_suggestions: permission_suggestions.clone(),
         };
@@ -1548,6 +1610,11 @@ async fn run_streaming_bridge(
                         );
                         continue;
                     }
+                    rewrite_empty_completed_tool_call_without_permission_callback(
+                        &approval_callback_tracker,
+                        &mut update,
+                    )
+                    .await;
                     let should_defer_turn_complete =
                         matches!(update, SessionUpdate::TurnComplete { .. })
                             && has_pending_stream_only_question(&pending_questions, &session_id)
@@ -2484,7 +2551,8 @@ impl AgentClient for CcSdkClaudeClient {
             }
         }
 
-        self.update_interaction_projection(request_id, &result).await;
+        self.update_interaction_projection(request_id, &result)
+            .await;
 
         if let Some((tool_call_id, question_state)) = question_resolution {
             if !response_outcome_allows(&result) {
@@ -2933,7 +3001,10 @@ mod tests {
             )
             .await;
 
-        assert_eq!(registration.ui_dispatch, PermissionUiDispatch::ResolvedFromCache);
+        assert_eq!(
+            registration.ui_dispatch,
+            PermissionUiDispatch::ResolvedFromCache
+        );
         assert!(matches!(
             registration
                 .receiver
@@ -3327,18 +3398,18 @@ mod tests {
         client.session_id = Some("session-1".to_string());
         let projection_registry = client.projection_registry.clone();
         let permission_update = SessionUpdate::PermissionRequest {
-                permission: PermissionData {
-                    id: "permission-1".to_string(),
-                    session_id: "session-1".to_string(),
-                    json_rpc_request_id: Some(7),
-                    permission: "Read".to_string(),
-                    patterns: vec![path.to_string()],
-                    metadata: serde_json::json!({}),
-                    always: vec![],
-                    tool: None,
-                },
-                session_id: Some("session-1".to_string()),
-            };
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(7),
+                permission: "Read".to_string(),
+                patterns: vec![path.to_string()],
+                metadata: serde_json::json!({}),
+                always: vec![],
+                tool: None,
+            },
+            session_id: Some("session-1".to_string()),
+        };
         projection_registry.apply_session_update("session-1", &permission_update);
         SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
             .await
@@ -3457,9 +3528,12 @@ mod tests {
             .await
             .expect("load stored projection")
             .expect("stored projection should exist");
-        assert!(stored_projection.interactions.into_iter().any(|interaction| {
-            interaction.id == "permission-1" && interaction.state == InteractionState::Rejected
-        }));
+        assert!(stored_projection
+            .interactions
+            .into_iter()
+            .any(|interaction| {
+                interaction.id == "permission-1" && interaction.state == InteractionState::Rejected
+            }));
     }
 
     #[tokio::test]
@@ -3533,10 +3607,13 @@ mod tests {
             .await
             .expect("load stored projection")
             .expect("stored projection should exist");
-        assert!(stored_projection.interactions.into_iter().any(|interaction| {
-            interaction.id == "toolu_stream_only"
-                && interaction.state == InteractionState::Answered
-        }));
+        assert!(stored_projection
+            .interactions
+            .into_iter()
+            .any(|interaction| {
+                interaction.id == "toolu_stream_only"
+                    && interaction.state == InteractionState::Answered
+            }));
     }
 
     #[tokio::test]
@@ -4418,7 +4495,10 @@ mod tests {
                 },
             )
             .await;
-        assert_eq!(cache_probe.ui_dispatch, PermissionUiDispatch::ResolvedFromCache);
+        assert_eq!(
+            cache_probe.ui_dispatch,
+            PermissionUiDispatch::ResolvedFromCache
+        );
 
         let second = timeout(
             Duration::from_millis(50),
@@ -5565,6 +5645,128 @@ mod tests {
         assert!(
             has_completion,
             "expected assistant-only tool calls to be tracked for synthetic completion on the next message_start"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_streaming_bridge_fails_empty_bash_completion_when_callback_never_arrives() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let provider = Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider);
+        let context = StreamingBridgeContext {
+            dispatcher,
+            bridge: Arc::new(PermissionBridge::new()),
+            projection_registry: Arc::new(ProjectionRegistry::new()),
+            tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
+            approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
+            pending_questions: Arc::new(Mutex::new(HashMap::new())),
+            provider,
+            db: None,
+        };
+
+        let stream = futures::stream::iter(vec![
+            Ok(cc_sdk::Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                        id: "toolu_bash_stuck".to_string(),
+                        name: "Bash".to_string(),
+                        input: serde_json::json!({
+                            "command": "pwd"
+                        }),
+                    })],
+                    model: Some("claude-sonnet-4-6".to_string()),
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            }),
+            Ok(cc_sdk::Message::StreamEvent {
+                uuid: "message-delta-tool-use".to_string(),
+                session_id: "provider-session".to_string(),
+                event: serde_json::json!({
+                    "type": "message_delta",
+                    "delta": {
+                        "stop_reason": "tool_use",
+                        "stop_sequence": null
+                    }
+                }),
+                parent_tool_use_id: None,
+            }),
+            Ok(cc_sdk::Message::StreamEvent {
+                uuid: "message-stop-tool-use".to_string(),
+                session_id: "provider-session".to_string(),
+                event: serde_json::json!({ "type": "message_stop" }),
+                parent_tool_use_id: None,
+            }),
+            Ok(cc_sdk::Message::StreamEvent {
+                uuid: "msg-start-2".to_string(),
+                session_id: "provider-session".to_string(),
+                event: serde_json::json!({
+                    "type": "message_start",
+                    "message": {
+                        "content": [],
+                        "model": "claude-sonnet-4-6"
+                    }
+                }),
+                parent_tool_use_id: None,
+            }),
+        ]);
+
+        run_streaming_bridge(stream, "session-bridge".to_string(), context).await;
+
+        let captured = sink.lock().expect("sink lock");
+        let failure = captured.iter().find_map(|event| match &event.payload {
+            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
+                match update.as_ref() {
+                    SessionUpdate::ToolCallUpdate { update, .. }
+                        if update.tool_call_id == "toolu_bash_stuck" =>
+                    {
+                        Some(update.clone())
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        });
+
+        let failure = failure.expect("expected a terminal bash tool update");
+        assert_eq!(failure.status, Some(ToolCallStatus::Failed));
+        assert_eq!(
+            failure.failure_reason.as_deref(),
+            Some("Permission callback was never received, so the command did not produce output.")
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_completion_rewrite_preserves_real_terminal_payloads() {
+        let tracker = ApprovalCallbackTracker::new();
+        tracker
+            .note_tool_use_started("session-bridge", "Bash", "toolu_bash_with_output")
+            .await;
+
+        let mut update = SessionUpdate::ToolCallUpdate {
+            parent_entry_id: None,
+            update: ToolCallUpdateData {
+                tool_call_id: "toolu_bash_with_output".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(serde_json::json!({
+                    "stdout": "/tmp\n",
+                    "exitCode": 0
+                })),
+                ..Default::default()
+            },
+        };
+
+        rewrite_empty_completed_tool_call_without_permission_callback(&tracker, &mut update).await;
+
+        let SessionUpdate::ToolCallUpdate { update, .. } = update else {
+            panic!("expected tool call update");
+        };
+        assert_eq!(update.status, Some(ToolCallStatus::Completed));
+        assert_eq!(update.failure_reason, None);
+        assert!(
+            !tracker.clear_if_pending("toolu_bash_with_output").await,
+            "real terminal payloads should clear pending callback diagnostics"
         );
     }
 

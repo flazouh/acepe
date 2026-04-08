@@ -72,6 +72,9 @@ describe("kanban new-session dialog contract", () => {
 			?.split("function resolveQuestionId(question: QuestionRequest): string {")[0];
 
 		expect(willSendHandler).toBeDefined();
+		expect(source).toContain('import { SoundEffect } from "$lib/acp/types/sounds.js"');
+		expect(source).toContain('import { playSound } from "$lib/acp/utils/sound.js"');
+		expect(willSendHandler).toContain("playSound(SoundEffect.Paste);");
 		expect(willSendHandler).toContain("newSessionOpen = false;");
 		expect(willSendHandler).toContain("const optimisticPanel = panelStore.spawnPanel({");
 		expect(willSendHandler).toContain("return optimisticPanel.id;");
@@ -96,5 +99,7 @@ describe("kanban new-session dialog contract", () => {
 		expect(source).toContain("const optimisticKanbanCards = buildOptimisticKanbanCards();");
 		expect(source).toContain('sectionId === "working"');
 		expect(source).toContain("optimisticKanbanCards.map((item) => item.card).concat(sectionCards)");
+		expect(source).toContain("{@const item = itemLookup.get(card.id)}");
+		expect(source).toContain("item && item.state.pendingInput.kind === \"plan_approval\"");
 	});
 });

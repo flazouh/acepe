@@ -49,7 +49,8 @@ impl AcpClient {
         };
 
         self.respond(id, adapted_result.clone()).await?;
-        self.update_interaction_projection(id, &adapted_result).await;
+        self.update_interaction_projection(id, &adapted_result)
+            .await;
 
         // Check if this request was tracked as a permission
         let ctx = match self.permission_tracker.lock() {
@@ -91,7 +92,11 @@ impl AcpClient {
         Ok(())
     }
 
-    pub(super) async fn update_interaction_projection(&self, request_id: u64, adapted_result: &Value) {
+    pub(super) async fn update_interaction_projection(
+        &self,
+        request_id: u64,
+        adapted_result: &Value,
+    ) {
         let session_id = match self.active_session_id.lock() {
             Ok(active_session_id) => active_session_id.clone(),
             Err(error) => {

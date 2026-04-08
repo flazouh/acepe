@@ -1,14 +1,14 @@
 use super::*;
-use crate::acp::projections::{InteractionState, ProjectionRegistry};
-use crate::acp::session_journal::load_stored_projection;
 use crate::acp::client_session::default_modes;
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
-use crate::acp::session_update::{PermissionData, SessionUpdate};
+use crate::acp::projections::{InteractionState, ProjectionRegistry};
 use crate::acp::provider::SpawnConfig;
+use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_update::PlanSource;
+use crate::acp::session_update::{PermissionData, SessionUpdate};
 use crate::db::migrations::Migrator;
-use crate::db::repository::{SessionMetadataRepository, SessionJournalEventRepository};
+use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use std::collections::HashMap;
@@ -871,5 +871,6 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
     assert!(stored_projection
         .interactions
         .into_iter()
-        .any(|interaction| interaction.id == "permission-1" && interaction.state == InteractionState::Approved));
+        .any(|interaction| interaction.id == "permission-1"
+            && interaction.state == InteractionState::Approved));
 }
