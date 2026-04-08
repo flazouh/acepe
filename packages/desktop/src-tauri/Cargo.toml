@@ -99,15 +99,13 @@ nix = { version = "0.28", features = ["signal", "process"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
 objc2 = { version = "0.6", features = ["catch-all"] }
-whisper-rs = { version = "=0.16.0", features = ["metal"] }
 
 [features]
-default = []
+default = ["whisper-metal"]
 manual-test-targets = []
 # PINNED exact version: audit whisper-rs-sys/build.rs before any bump.
-# Linux CI and other non-macOS builds stay on CPU by default.
-# macOS gets Metal through the target-specific dependency above, and the
-# package feature remains available for explicit opt-in elsewhere.
+# Metal stays opt-in at the package level so release builds can disable it
+# with `--no-default-features` while keeping whisper available elsewhere.
 whisper-metal = ["whisper-rs/metal"]
 
 [[bin]]
