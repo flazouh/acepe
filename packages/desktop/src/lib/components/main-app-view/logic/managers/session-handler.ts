@@ -9,6 +9,7 @@ import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import {
@@ -36,7 +37,8 @@ export class SessionHandler {
 	constructor(
 		private readonly state: MainAppViewState,
 		private readonly sessionStore: SessionStore,
-		private readonly panelStore: PanelStore
+		private readonly panelStore: PanelStore,
+		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
 	) {}
 
 	/**
@@ -110,6 +112,7 @@ export class SessionHandler {
 			preloadAndConnectSession({
 				sessionId,
 				sessionStore: this.sessionStore,
+				projectionHydrator: this.projectionHydrator,
 				panelStore: this.panelStore,
 				timeoutMs: PRELOAD_TIMEOUT_MS,
 				source: "session-handler",

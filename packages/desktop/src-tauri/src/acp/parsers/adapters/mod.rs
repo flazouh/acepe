@@ -5,15 +5,15 @@
 //! classification system.
 
 mod claude_code;
-mod copilot;
 mod codex;
+mod copilot;
 mod cursor;
 mod open_code;
 mod shared_chat;
 
 pub use claude_code::ClaudeCodeAdapter;
-pub use copilot::CopilotAdapter;
 pub use codex::CodexAdapter;
+pub use copilot::CopilotAdapter;
 pub use cursor::CursorAdapter;
 pub use open_code::OpenCodeAdapter;
 

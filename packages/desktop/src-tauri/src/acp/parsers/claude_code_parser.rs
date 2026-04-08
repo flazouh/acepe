@@ -199,7 +199,6 @@ impl ClaudeCodeParser {
             task_children: None,
         })
     }
-
 }
 
 #[cfg(test)]
@@ -225,7 +224,7 @@ mod tests {
             }),
             None,
         )
-            .expect("result telemetry should parse");
+        .expect("result telemetry should parse");
 
         assert_eq!(parsed.session_id, "ses-123");
         assert_eq!(parsed.context_window_size, Some(200000));

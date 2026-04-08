@@ -669,9 +669,12 @@ async fn respond_inbound_request_uses_pending_responder_during_bootstrap() {
     let stdout = child.stdout.take().expect("cat stdout");
 
     let responder = InboundRequestResponder {
+        session_id: "bootstrap-session".to_string(),
         provider: None,
+        db: None,
         stdin_writer: Arc::new(Mutex::new(Some(stdin))),
         permission_tracker: Arc::new(std::sync::Mutex::new(Default::default())),
+        projection_registry: Arc::new(crate::acp::projections::ProjectionRegistry::new()),
         dispatcher: AcpUiEventDispatcher::new(None, DispatchPolicy::default()),
         inbound_response_adapters: Arc::new(std::sync::Mutex::new(HashMap::new())),
     };

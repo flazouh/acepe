@@ -4,10 +4,20 @@
 
 #[cfg(test)]
 mod session_metadata_tests {
+    use crate::acp::projections::{
+        InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
+        SessionSnapshot, SessionTurnState,
+    };
+    use crate::acp::session_journal::rebuild_session_projection;
+    use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
     use crate::db::entities::prelude::AcepeSessionState;
-    use crate::db::repository::SessionMetadataRepository;
+    use crate::db::repository::{
+        SessionJournalEventRepository, SessionMetadataRepository,
+        SessionProjectionSnapshotRepository,
+    };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
+    use serde_json::json;
     use tempfile::tempdir;
 
     /// Create an in-memory SQLite database with migrations applied.
@@ -57,6 +67,175 @@ mod session_metadata_tests {
         // Verify insertion
         let is_empty = SessionMetadataRepository::is_empty(&db).await.unwrap();
         assert!(!is_empty, "Database should not be empty after insert");
+    }
+
+    #[tokio::test]
+    async fn test_session_projection_snapshot_round_trips() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-projection".to_string(),
+            "Projection session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-projection.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = SessionProjectionSnapshot {
+            session: Some(SessionSnapshot {
+                session_id: "session-projection".to_string(),
+                agent_id: Some(crate::acp::types::CanonicalAgentId::ClaudeCode),
+                last_event_seq: 3,
+                turn_state: SessionTurnState::Completed,
+                message_count: 1,
+                last_agent_message_id: Some("msg-1".to_string()),
+                active_tool_call_ids: vec![],
+                completed_tool_call_ids: vec!["tool-1".to_string()],
+            }),
+            operations: vec![],
+            interactions: vec![InteractionSnapshot {
+                id: "interaction-1".to_string(),
+                session_id: "session-projection".to_string(),
+                kind: crate::acp::projections::InteractionKind::Question,
+                state: crate::acp::projections::InteractionState::Answered,
+                json_rpc_request_id: Some(7),
+                tool_reference: None,
+                responded_at_event_seq: Some(3),
+                response: Some(crate::acp::projections::InteractionResponse::Question {
+                    answers: json!({ "Proceed?": ["Yes"] }),
+                }),
+                payload: crate::acp::projections::InteractionPayload::Question(
+                    crate::acp::session_update::QuestionData {
+                        id: "interaction-1".to_string(),
+                        session_id: "session-projection".to_string(),
+                        json_rpc_request_id: Some(7),
+                        questions: vec![],
+                        tool: None,
+                    },
+                ),
+            }],
+        };
+
+        SessionProjectionSnapshotRepository::set(&db, "session-projection", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionProjectionSnapshotRepository::get(&db, "session-projection")
+            .await
+            .unwrap()
+            .expect("expected persisted projection snapshot");
+
+        assert_eq!(loaded.session.expect("session").last_event_seq, 3);
+        assert_eq!(loaded.interactions.len(), 1);
+        assert_eq!(loaded.interactions[0].id, "interaction-1");
+    }
+
+    #[tokio::test]
+    async fn test_session_journal_replays_projection_state() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-journal".to_string(),
+            "Journal session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-journal.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let permission_update = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "session-journal".to_string(),
+                json_rpc_request_id: Some(7),
+                permission: "Execute".to_string(),
+                patterns: vec![],
+                metadata: json!({ "command": "bun test" }),
+                always: vec![],
+                tool: None,
+            },
+            session_id: Some("session-journal".to_string()),
+        };
+        let question_update = SessionUpdate::QuestionRequest {
+            question: QuestionData {
+                id: "question-1".to_string(),
+                session_id: "session-journal".to_string(),
+                json_rpc_request_id: Some(8),
+                questions: vec![],
+                tool: None,
+            },
+            session_id: Some("session-journal".to_string()),
+        };
+
+        SessionJournalEventRepository::append_session_update(
+            &db,
+            "session-journal",
+            &permission_update,
+        )
+        .await
+        .unwrap();
+        SessionJournalEventRepository::append_session_update(
+            &db,
+            "session-journal",
+            &question_update,
+        )
+        .await
+        .unwrap();
+        SessionJournalEventRepository::append_interaction_transition(
+            &db,
+            "session-journal",
+            "question-1",
+            InteractionState::Answered,
+            InteractionResponse::Question {
+                answers: json!({ "Question": ["Yes"] }),
+            },
+        )
+        .await
+        .unwrap();
+
+        let journal = SessionJournalEventRepository::list(&db, "session-journal")
+            .await
+            .unwrap();
+        assert_eq!(journal.len(), 3);
+        assert_eq!(journal[0].event_seq, 1);
+        assert_eq!(journal[1].event_seq, 2);
+        assert_eq!(journal[2].event_seq, 3);
+
+        let replayed = rebuild_session_projection(
+            "session-journal",
+            Some(crate::acp::types::CanonicalAgentId::ClaudeCode),
+            &journal,
+        );
+
+        let session = replayed
+            .session
+            .expect("expected replayed session snapshot");
+        assert_eq!(
+            session.agent_id,
+            Some(crate::acp::types::CanonicalAgentId::ClaudeCode)
+        );
+        assert_eq!(session.last_event_seq, 3);
+        assert_eq!(replayed.interactions.len(), 2);
+        let answered_question = replayed
+            .interactions
+            .iter()
+            .find(|interaction| interaction.id == "question-1")
+            .expect("expected replayed question interaction");
+        assert_eq!(answered_question.state, InteractionState::Answered);
+        match answered_question.response.clone() {
+            Some(InteractionResponse::Question { answers }) => {
+                assert_eq!(answers, json!({ "Question": ["Yes"] }));
+            }
+            other => panic!("expected answered question response, got {:?}", other),
+        }
     }
 
     #[tokio::test]

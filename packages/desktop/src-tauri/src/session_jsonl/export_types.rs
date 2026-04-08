@@ -5,7 +5,13 @@ use crate::acp::client::{
     AvailableMode, AvailableModel, ExecutionProfileRequest, NewSessionResponse,
     ResumeSessionResponse, SessionModelState, SessionModes,
 };
+use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
 use crate::acp::model_display::{DisplayModelGroup, DisplayableModel, ModelsForDisplay};
+use crate::acp::projections::{
+    InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
+    InteractionState, OperationSnapshot, PlanApprovalSource, SessionProjectionSnapshot,
+    SessionSnapshot, SessionTurnState,
+};
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, CommandInput, ConfigOptionData,
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
@@ -184,6 +190,28 @@ pub fn export_all_types() {
     export_acp_type!(ExecutionProfileRequest);
     export_acp_type!(NewSessionResponse);
     export_acp_type!(ResumeSessionResponse);
+    export_acp_type!(CanonicalAgentId);
+    export_acp_type!(ToolKind);
+    export_acp_type!(ToolCallStatus);
+    export_acp_type!(EditEntry);
+    export_acp_type!(ToolArguments);
+    export_acp_type!(ToolReference);
+    export_acp_type!(QuestionOption);
+    export_acp_type!(QuestionItem);
+    export_acp_type!(PermissionData);
+    export_acp_type!(QuestionData);
+    export_acp_type!(SessionDomainEventKind);
+    export_acp_type!(SessionDomainEvent);
+    export_acp_type!(SessionTurnState);
+    export_acp_type!(SessionSnapshot);
+    export_acp_type!(OperationSnapshot);
+    export_acp_type!(InteractionKind);
+    export_acp_type!(InteractionState);
+    export_acp_type!(PlanApprovalSource);
+    export_acp_type!(InteractionPayload);
+    export_acp_type!(InteractionResponse);
+    export_acp_type!(InteractionSnapshot);
+    export_acp_type!(SessionProjectionSnapshot);
 
     let acp_path = Path::new(manifest_dir).join(ACP_TYPES_PATH);
     fs::write(&acp_path, acp_types).expect("Failed to write acp-types.ts");
@@ -210,5 +238,20 @@ mod tests {
     #[test]
     fn export_types() {
         export_all_types();
+    }
+
+    #[test]
+    fn exports_canonical_domain_event_types_to_acp_types() {
+        export_all_types();
+
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let acp_path = Path::new(manifest_dir).join(ACP_TYPES_PATH);
+        let contents =
+            fs::read_to_string(&acp_path).expect("Failed to read generated acp-types.ts");
+
+        assert!(
+            contents.contains("export type SessionDomainEvent"),
+            "expected acp-types.ts to export SessionDomainEvent, but it did not"
+        );
     }
 }

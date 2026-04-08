@@ -7,9 +7,7 @@
 use crate::acp::parsers::types::{
     parse_common_update_type_name, ParseError, ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
-use crate::acp::session_update::{
-    tool_call_status_from_str, RawToolCallUpdateInput, ToolKind,
-};
+use crate::acp::session_update::{tool_call_status_from_str, RawToolCallUpdateInput, ToolKind};
 
 pub(crate) fn infer_tool_kind_from_raw_arguments(
     raw_arguments: &serde_json::Value,

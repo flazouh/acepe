@@ -1,11 +1,17 @@
+use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_update::SessionUpdate;
+use crate::db::repository::SessionJournalEventRepository;
+use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 const TELEMETRY_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -27,6 +33,7 @@ impl AcpUiEventPriority {
 #[derive(Debug, Clone)]
 pub enum AcpUiEventPayload {
     SessionUpdate(Box<SessionUpdate>),
+    SessionDomainEvent(Box<SessionDomainEvent>),
     Json(Value),
 }
 
@@ -88,6 +95,20 @@ impl AcpUiEvent {
     }
 
     #[must_use]
+    pub fn session_domain_event(event: SessionDomainEvent) -> Self {
+        let session_id = Some(event.session_id.clone());
+
+        Self {
+            session_id,
+            event_name: "acp-session-domain-event",
+            payload: AcpUiEventPayload::SessionDomainEvent(Box::new(event)),
+            priority: AcpUiEventPriority::Normal,
+            droppable: false,
+            created_at: Instant::now(),
+        }
+    }
+
+    #[must_use]
     pub fn json_event(
         event_name: &'static str,
         payload: Value,
@@ -108,6 +129,7 @@ impl AcpUiEvent {
     fn to_json_payload(&self) -> Result<Value, serde_json::Error> {
         match &self.payload {
             AcpUiEventPayload::SessionUpdate(update) => serde_json::to_value(update.as_ref()),
+            AcpUiEventPayload::SessionDomainEvent(event) => serde_json::to_value(event.as_ref()),
             AcpUiEventPayload::Json(value) => Ok(value.clone()),
         }
     }
@@ -211,6 +233,8 @@ impl DispatcherTelemetry {
 #[derive(Clone)]
 pub struct AcpUiEventDispatcher {
     tx: Option<mpsc::UnboundedSender<AcpUiEvent>>,
+    domain_event_seq: Arc<AtomicI64>,
+    projection_registry: Arc<ProjectionRegistry>,
     #[cfg(test)]
     test_sink: Option<Arc<std::sync::Mutex<Vec<AcpUiEvent>>>>,
 }
@@ -221,14 +245,22 @@ impl AcpUiEventDispatcher {
         let Some(handle) = app_handle else {
             return Self {
                 tx: None,
+                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                projection_registry: Arc::new(ProjectionRegistry::new()),
                 #[cfg(test)]
                 test_sink: None,
             };
         };
+        let projection_registry = handle
+            .try_state::<Arc<ProjectionRegistry>>()
+            .map(|state| state.inner().clone())
+            .unwrap_or_else(|| Arc::new(ProjectionRegistry::new()));
         let Some(hub_state) = handle.try_state::<Arc<AcpEventHubState>>() else {
             tracing::warn!("ACP event hub state unavailable; UI event dispatcher disabled");
             return Self {
                 tx: None,
+                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                projection_registry,
                 #[cfg(test)]
                 test_sink: None,
             };
@@ -236,10 +268,15 @@ impl AcpUiEventDispatcher {
         let hub = hub_state.inner().clone();
 
         let (tx, rx) = mpsc::unbounded_channel();
-        tokio::spawn(run_dispatch_loop(hub, policy, rx));
+        let db = handle
+            .try_state::<DbConn>()
+            .map(|state| state.inner().clone());
+        tokio::spawn(run_dispatch_loop(hub, db, policy, rx));
 
         Self {
             tx: Some(tx),
+            domain_event_seq: Arc::new(AtomicI64::new(0)),
+            projection_registry,
             #[cfg(test)]
             test_sink: None,
         }
@@ -248,10 +285,20 @@ impl AcpUiEventDispatcher {
     #[cfg(test)]
     #[must_use]
     pub fn test_sink() -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
+        Self::test_sink_with_projection_registry(Arc::new(ProjectionRegistry::new()))
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn test_sink_with_projection_registry(
+        projection_registry: Arc<ProjectionRegistry>,
+    ) -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
         let sink = Arc::new(std::sync::Mutex::new(Vec::new()));
         (
             Self {
                 tx: None,
+                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                projection_registry,
                 test_sink: Some(Arc::clone(&sink)),
             },
             sink,
@@ -259,10 +306,23 @@ impl AcpUiEventDispatcher {
     }
 
     pub fn enqueue(&self, event: AcpUiEvent) {
+        if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
+            if let Some(session_id) = update.session_id() {
+                self.projection_registry
+                    .apply_session_update(session_id, update.as_ref());
+            }
+        }
+
+        let derived_domain_event = session_domain_event_from_update(&event.payload)
+            .map(|event| self.create_session_domain_event(&event.session_id, event.kind));
+
         #[cfg(test)]
         if let Some(sink) = &self.test_sink {
             if let Ok(mut captured) = sink.lock() {
                 captured.push(event.clone());
+                if let Some(domain_event) = derived_domain_event {
+                    captured.push(domain_event);
+                }
             }
             return;
         }
@@ -273,12 +333,87 @@ impl AcpUiEventDispatcher {
 
         if let Err(error) = tx.send(event) {
             tracing::error!(error = %error, "Failed to enqueue ACP UI event");
+            return;
+        }
+
+        if let Some(domain_event) = derived_domain_event {
+            if let Err(error) = tx.send(domain_event) {
+                tracing::error!(error = %error, "Failed to enqueue ACP session domain event");
+            }
         }
     }
+
+    pub fn enqueue_session_domain_event(&self, session_id: &str, kind: SessionDomainEventKind) {
+        let event = self.create_session_domain_event(session_id, kind);
+
+        #[cfg(test)]
+        if let Some(sink) = &self.test_sink {
+            if let Ok(mut captured) = sink.lock() {
+                captured.push(event);
+            }
+            return;
+        }
+
+        let Some(tx) = &self.tx else {
+            return;
+        };
+
+        if let Err(error) = tx.send(event) {
+            tracing::error!(error = %error, "Failed to enqueue ACP session domain event");
+        }
+    }
+
+    fn create_session_domain_event(
+        &self,
+        session_id: &str,
+        kind: SessionDomainEventKind,
+    ) -> AcpUiEvent {
+        let event = SessionDomainEvent {
+            event_id: format!("session-domain-event-{}", Uuid::new_v4()),
+            seq: self.domain_event_seq.fetch_add(1, Ordering::Relaxed) + 1,
+            session_id: session_id.to_string(),
+            provider_session_id: None,
+            occurred_at_ms: chrono::Utc::now().timestamp_millis().max(0),
+            causation_id: None,
+            kind,
+        };
+
+        AcpUiEvent::session_domain_event(event)
+    }
+}
+
+fn session_domain_event_from_update(payload: &AcpUiEventPayload) -> Option<SessionDomainEvent> {
+    let AcpUiEventPayload::SessionUpdate(update) = payload else {
+        return None;
+    };
+
+    let session_id = update.session_id()?.to_string();
+    let kind = match update.as_ref() {
+        SessionUpdate::PermissionRequest { .. } | SessionUpdate::QuestionRequest { .. } => {
+            SessionDomainEventKind::InteractionUpserted
+        }
+        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => {
+            SessionDomainEventKind::InteractionUpserted
+        }
+        SessionUpdate::TurnComplete { .. } => SessionDomainEventKind::TurnCompleted,
+        SessionUpdate::TurnError { .. } => SessionDomainEventKind::TurnFailed,
+        _ => return None,
+    };
+
+    Some(SessionDomainEvent {
+        event_id: String::new(),
+        seq: 0,
+        session_id,
+        provider_session_id: None,
+        occurred_at_ms: 0,
+        causation_id: None,
+        kind,
+    })
 }
 
 async fn run_dispatch_loop(
     hub: Arc<AcpEventHubState>,
+    db: Option<DbConn>,
     policy: DispatchPolicy,
     mut rx: mpsc::UnboundedReceiver<AcpUiEvent>,
 ) {
@@ -291,10 +426,10 @@ async fn run_dispatch_loop(
             state.enqueue(next);
         }
 
-        state.drain(&hub).await;
+        state.drain(&hub, db.as_ref()).await;
     }
 
-    state.drain(&hub).await;
+    state.drain(&hub, db.as_ref()).await;
 }
 
 struct DispatcherState {
@@ -353,7 +488,7 @@ impl DispatcherState {
         self.telemetry.enqueued += 1;
     }
 
-    async fn drain(&mut self, hub: &AcpEventHubState) {
+    async fn drain(&mut self, hub: &AcpEventHubState, db: Option<&DbConn>) {
         while self.global_backlog > 0 {
             self.refill_tokens();
             if self.tokens < 1.0 {
@@ -378,6 +513,8 @@ impl DispatcherState {
 
                 self.tokens -= 1.0;
                 self.global_backlog = self.global_backlog.saturating_sub(1);
+
+                persist_dispatch_event(db, &event).await;
 
                 if let Err(error) = event.publish(hub) {
                     tracing::error!(
@@ -533,12 +670,42 @@ impl DispatcherState {
     }
 }
 
+async fn persist_dispatch_event(db: Option<&DbConn>, event: &AcpUiEvent) {
+    let Some(db) = db else {
+        return;
+    };
+    let Some(session_id) = event.session_id.as_deref() else {
+        return;
+    };
+    let AcpUiEventPayload::SessionUpdate(update) = &event.payload else {
+        return;
+    };
+
+    if let Err(error) =
+        SessionJournalEventRepository::append_session_update(db, session_id, update.as_ref()).await
+    {
+        tracing::error!(
+            error = %error,
+            session_id,
+            event_name = event.event_name,
+            "Failed to persist ACP session update into session journal"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::session_update::{ContentChunk, SessionUpdate};
+    use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
+    use crate::acp::projections::SessionTurnState;
+    use crate::acp::session_update::{
+        ContentChunk, PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
+        ToolKind,
+    };
+    use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
     use serde_json::json;
+    use std::sync::Arc;
 
     fn chunk_update(session_id: &str, text: &str) -> SessionUpdate {
         SessionUpdate::AgentMessageChunk {
@@ -699,5 +866,157 @@ mod tests {
         }
 
         assert_eq!(order, vec!["a1", "b1", "a2", "b2"]);
+    }
+
+    #[test]
+    fn session_domain_event_uses_dedicated_event_name() {
+        let event = AcpUiEvent::session_domain_event(SessionDomainEvent {
+            event_id: "event-1".to_string(),
+            seq: 1,
+            session_id: "session-1".to_string(),
+            provider_session_id: None,
+            occurred_at_ms: 123,
+            causation_id: None,
+            kind: SessionDomainEventKind::SessionConnected,
+        });
+
+        assert_eq!(event.event_name, "acp-session-domain-event");
+        assert_eq!(event.session_id.as_deref(), Some("session-1"));
+    }
+
+    #[test]
+    fn dispatcher_enqueues_turn_complete_domain_event_after_session_update() {
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+        }));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0].event_name, "acp-session-update");
+        assert_eq!(captured[1].event_name, "acp-session-domain-event");
+
+        match &captured[1].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => {
+                assert_eq!(event.session_id, "session-1");
+                assert_eq!(event.seq, 1);
+                assert!(matches!(event.kind, SessionDomainEventKind::TurnCompleted));
+            }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn dispatcher_updates_projection_snapshot_for_session_updates() {
+        let projection_registry = Arc::new(ProjectionRegistry::new());
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::ClaudeCode);
+        let (dispatcher, _captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(Arc::clone(
+                &projection_registry,
+            ));
+
+        dispatcher.enqueue(AcpUiEvent::session_update(
+            SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "hello".to_string(),
+                    },
+                },
+                part_id: None,
+                message_id: Some("msg-1".to_string()),
+                session_id: Some("session-1".to_string()),
+            },
+        ));
+        dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+        }));
+
+        let snapshot = projection_registry
+            .snapshot_for_session("session-1")
+            .expect("expected session snapshot");
+        assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
+        assert_eq!(snapshot.message_count, 1);
+        assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
+        assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
+        assert_eq!(snapshot.last_event_seq, 2);
+    }
+
+    #[test]
+    fn dispatcher_enqueues_interaction_domain_event_for_permission_request() {
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        dispatcher.enqueue(AcpUiEvent::session_update(
+            SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-1".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(7),
+                    permission: "execute".to_string(),
+                    patterns: vec![],
+                    metadata: json!({ "command": "bun test" }),
+                    always: vec![],
+                    tool: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        ));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0].event_name, "acp-session-update");
+        assert_eq!(captured[1].event_name, "acp-session-domain-event");
+
+        match &captured[1].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => {
+                assert_eq!(event.session_id, "session-1");
+                assert!(matches!(
+                    event.kind,
+                    SessionDomainEventKind::InteractionUpserted
+                ));
+            }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn dispatcher_enqueues_interaction_domain_event_for_plan_approval_tool_call() {
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: "tool-1".to_string(),
+                name: "create_plan".to_string(),
+                arguments: ToolArguments::Other { raw: json!({}) },
+                raw_input: None,
+                kind: Some(ToolKind::CreatePlan),
+                title: Some("Create plan".to_string()),
+                status: ToolCallStatus::Pending,
+                result: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: true,
+                plan_approval_request_id: Some(9),
+            },
+            session_id: Some("session-1".to_string()),
+        }));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0].event_name, "acp-session-update");
+        assert_eq!(captured[1].event_name, "acp-session-domain-event");
+
+        match &captured[1].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => {
+                assert_eq!(event.session_id, "session-1");
+                assert!(matches!(
+                    event.kind,
+                    SessionDomainEventKind::InteractionUpserted
+                ));
+            }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
     }
 }

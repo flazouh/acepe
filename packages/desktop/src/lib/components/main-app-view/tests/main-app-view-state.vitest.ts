@@ -24,6 +24,7 @@ import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-sto
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { AgentWorkspacePanel, TerminalWorkspacePanel } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
@@ -138,6 +139,11 @@ function createState(options?: {
 		refresh: vi.fn(),
 	} as Partial<PreconnectionAgentSkillsStore>;
 
+	const projectionHydrator = {
+		hydrateSession: vi.fn(() => okAsync(undefined)),
+		clearSession: vi.fn(),
+	} as Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
+
 	const state = new MainAppViewState(
 		{} as SessionStore,
 		panelStore as PanelStore,
@@ -149,7 +155,8 @@ function createState(options?: {
 		keybindingsService as KeybindingsService,
 		selectorRegistry as SelectorRegistry,
 		{} as WorktreeDefaultStore,
-		preconnectionAgentSkillsStore as PreconnectionAgentSkillsStore
+		preconnectionAgentSkillsStore as PreconnectionAgentSkillsStore,
+		projectionHydrator
 	);
 
 	return { state, workspaceStore, panelStore, projectManager, agentPreferencesStore };

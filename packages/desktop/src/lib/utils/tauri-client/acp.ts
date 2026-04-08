@@ -1,5 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
+import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import { ACP_PREFIX, CMD } from "./commands.js";
@@ -135,6 +136,12 @@ export const acp = {
 		AppError
 	> => {
 		return invokeAsync(CMD.acp.get_event_bridge_info);
+	},
+
+	getSessionProjection: (
+		sessionId: string
+	): ResultAsync<SessionProjectionSnapshot, AppError> => {
+		return invokeAsync(CMD.acp.get_session_projection, { sessionId });
 	},
 
 	rpcCall(method: string, params: Record<string, unknown>): ResultAsync<unknown, AppError> {

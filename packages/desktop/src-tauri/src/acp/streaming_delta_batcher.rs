@@ -13,8 +13,7 @@ use std::time::{Duration, Instant};
 
 use crate::acp::session_update::{
     PlanData, QuestionItem, SessionUpdate, TodoItem, ToolArguments, ToolCallData,
-    ToolCallUpdateData,
-    TurnErrorData,
+    ToolCallUpdateData, TurnErrorData,
 };
 use crate::acp::types::ContentBlock;
 

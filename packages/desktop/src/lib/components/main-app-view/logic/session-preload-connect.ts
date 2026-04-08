@@ -2,6 +2,7 @@ import { okAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 
 const logger = createLogger({ id: "session-preload-connect", name: "SessionPreloadConnect" });
@@ -15,6 +16,7 @@ type SessionPreloadStore = Pick<
 interface SessionPreloadConnectOptions {
 	readonly sessionId: string;
 	readonly sessionStore: SessionPreloadStore;
+	readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
 	readonly panelStore: Pick<PanelStore, "closePanelBySessionId">;
 	readonly timeoutMs: number;
 	readonly source: "session-handler" | "panels-container";
@@ -29,7 +31,7 @@ interface SessionPreloadConnectOptions {
  * - Auto-connects all agents after preload succeeds
  */
 export function preloadAndConnectSession(options: SessionPreloadConnectOptions): void {
-	const { sessionId, sessionStore, timeoutMs, source } = options;
+	const { sessionId, sessionStore, projectionHydrator, timeoutMs, source } = options;
 	if (inflightSessionIds.has(sessionId)) {
 		logger.debug("Skipping duplicate preload/connect request", {
 			source,
@@ -54,6 +56,7 @@ export function preloadAndConnectSession(options: SessionPreloadConnectOptions):
 					source,
 					sessionId,
 				});
+				projectionHydrator.clearSession(sessionId);
 				sessionStore.setSessionLoaded(sessionId);
 				sessionStore.connectSession(sessionId).mapErr((error: AppError) => {
 					logger.warn("Failed to connect session after missing preload", {
@@ -65,15 +68,17 @@ export function preloadAndConnectSession(options: SessionPreloadConnectOptions):
 				return okAsync(undefined);
 			}
 
-			sessionStore.setSessionLoaded(sessionId);
-			sessionStore.connectSession(sessionId).mapErr((error: AppError) => {
-				logger.warn("Failed to connect session after preload", {
-					source,
-					sessionId,
-					error,
+			return projectionHydrator.hydrateSession(sessionId).andThen(() => {
+				sessionStore.setSessionLoaded(sessionId);
+				sessionStore.connectSession(sessionId).mapErr((error: AppError) => {
+					logger.warn("Failed to connect session after preload", {
+						source,
+						sessionId,
+						error,
+					});
 				});
+				return okAsync(undefined);
 			});
-			return okAsync(undefined);
 		})
 		.match(
 			() => undefined,

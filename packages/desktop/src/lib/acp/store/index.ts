@@ -173,3 +173,5 @@ export {
 	getWorkspaceStore,
 	WorkspaceStore,
 } from "./workspace-store.svelte.js";
+export { SessionProjectionHydrator } from "./services/session-projection-hydrator.js";
+export { LiveInteractionProjectionSync } from "./services/live-interaction-projection-sync.js";

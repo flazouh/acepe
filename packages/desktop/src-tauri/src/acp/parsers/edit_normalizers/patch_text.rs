@@ -79,10 +79,7 @@ pub(crate) fn parse_patch_text_str(patch_text: &str) -> Vec<EditEntry> {
         sections.push(section);
     }
 
-    sections
-        .into_iter()
-        .map(parse_patch_section)
-        .collect()
+    sections.into_iter().map(parse_patch_section).collect()
 }
 
 fn parse_section_header(line: &str) -> Option<PatchSectionKind> {

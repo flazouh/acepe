@@ -351,18 +351,7 @@ function handleSelect() {
 function handlePlanApprove() {
 	if (!pendingPlanApproval) return;
 	const approval = pendingPlanApproval;
-	interactionStore.planApprovalsPending.set(approval.id, {
-		id: approval.id,
-		kind: "plan_approval",
-		source: approval.source,
-		sessionId: approval.sessionId,
-		tool: {
-			messageID: approval.tool.messageID,
-			callID: approval.tool.callID,
-		},
-		jsonRpcRequestId: approval.jsonRpcRequestId,
-		status: "approved",
-	});
+	interactionStore.setPlanApprovalStatus(approval.id, "approved");
 	void replyToPlanApprovalRequest(
 		approval.sessionId,
 		approval.jsonRpcRequestId,
@@ -370,18 +359,7 @@ function handlePlanApprove() {
 	).match(
 		() => {},
 		() => {
-			interactionStore.planApprovalsPending.set(approval.id, {
-				id: approval.id,
-				kind: "plan_approval",
-				source: approval.source,
-				sessionId: approval.sessionId,
-				tool: {
-					messageID: approval.tool.messageID,
-					callID: approval.tool.callID,
-				},
-				jsonRpcRequestId: approval.jsonRpcRequestId,
-				status: "pending",
-			});
+			interactionStore.setPlanApprovalStatus(approval.id, "pending");
 		}
 	);
 }
@@ -389,18 +367,7 @@ function handlePlanApprove() {
 function handlePlanReject() {
 	if (!pendingPlanApproval) return;
 	const approval = pendingPlanApproval;
-	interactionStore.planApprovalsPending.set(approval.id, {
-		id: approval.id,
-		kind: "plan_approval",
-		source: approval.source,
-		sessionId: approval.sessionId,
-		tool: {
-			messageID: approval.tool.messageID,
-			callID: approval.tool.callID,
-		},
-		jsonRpcRequestId: approval.jsonRpcRequestId,
-		status: "rejected",
-	});
+	interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 	void replyToPlanApprovalRequest(
 		approval.sessionId,
 		approval.jsonRpcRequestId,
@@ -408,18 +375,7 @@ function handlePlanReject() {
 	).match(
 		() => {},
 		() => {
-			interactionStore.planApprovalsPending.set(approval.id, {
-				id: approval.id,
-				kind: "plan_approval",
-				source: approval.source,
-				sessionId: approval.sessionId,
-				tool: {
-					messageID: approval.tool.messageID,
-					callID: approval.tool.callID,
-				},
-				jsonRpcRequestId: approval.jsonRpcRequestId,
-				status: "pending",
-			});
+			interactionStore.setPlanApprovalStatus(approval.id, "pending");
 		}
 	);
 }

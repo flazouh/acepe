@@ -591,7 +591,10 @@ mod tests {
         run_git(&repo_dir, &["commit", "-m", "Initial commit"]);
 
         let worktree_dir_str = worktree_dir.to_string_lossy().to_string();
-        run_git(&repo_dir, &["worktree", "add", "-b", "feature", &worktree_dir_str]);
+        run_git(
+            &repo_dir,
+            &["worktree", "add", "-b", "feature", &worktree_dir_str],
+        );
 
         let nested_dir = worktree_dir.join("nested").join("deeper");
         fs::create_dir_all(&nested_dir).expect("create nested dir");

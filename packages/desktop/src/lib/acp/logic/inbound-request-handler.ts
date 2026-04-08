@@ -18,23 +18,21 @@ import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 
 import {
-	type AskUserQuestionData,
 	ErrorResponseParamsSchema,
 	type JsonRpcRequest,
 	parseInboundRequest,
-	parseRequestPermissionParams,
-	RawInputWithQuestionsSchema,
-	type RequestPermissionParams,
 } from "../schemas/inbound-request.schema.js";
 import { api } from "../store/api.js";
-import {
-	buildAcpPermissionId,
-	createPermissionRequest,
-	type PermissionRequest,
-} from "../types/permission.js";
+import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import { createLogger } from "../utils/logger.js";
 import { openAcpEventSource } from "./acp-event-bridge.js";
+import {
+	type NormalizedInboundQuestionRequest,
+	normalizeInboundInteractionRequest,
+	toPermissionRequest,
+	toQuestionRequest,
+} from "./inbound-request-normalization.js";
 
 const logger = createLogger({
 	id: "inbound-request-handler",
@@ -147,64 +145,29 @@ export class InboundRequestHandler {
 	/**
 	 * Handle a client/requestPermission request.
 	 *
-	 * This method detects if the request is actually a question request
-	 * (AskUserQuestion tool) by checking for _meta.askUserQuestion, and
-	 * routes to the appropriate callback.
+	 * This method first normalizes the transport-shaped request into the
+	 * canonical inbound interaction seam, then routes it as a permission or
+	 * question request.
 	 */
 	private handlePermissionRequest(request: JsonRpcRequest): void {
-		const paramsResult = parseRequestPermissionParams(request.params);
-		if (paramsResult.isErr()) {
-			logger.error("Invalid requestPermission params", { error: paramsResult.error });
+		const normalizedResult = normalizeInboundInteractionRequest(request);
+		if (normalizedResult.isErr()) {
+			logger.error("Invalid requestPermission params", { error: normalizedResult.error });
 			this.sendErrorResponse(request, -32602, "Invalid params");
 			return;
 		}
-		const params = paramsResult.value;
 
-		// Check if this is actually a question request (AskUserQuestion tool).
-		// Detection: either _meta.askUserQuestion (legacy fork) or tool name match with questions in rawInput.
-		const askUserQuestionData = params._meta?.askUserQuestion;
-		if (askUserQuestionData && this.onQuestionRequest) {
-			this.handleQuestionRequest(request, params, askUserQuestionData);
+		const normalizedRequest = normalizedResult.value;
+		if (normalizedRequest.kind === "question" && this.onQuestionRequest) {
+			this.handleQuestionRequest(normalizedRequest);
 			return;
 		}
 
-		// Upstream v0.18+: AskUserQuestion goes through canUseTool → requestPermission
-		// without _meta.askUserQuestion. Detect by tool name and extract questions from rawInput.
-		const toolName = params.toolCall.name !== undefined ? params.toolCall.name : params.toolCall.title;
-		const rawInputResult = RawInputWithQuestionsSchema.safeParse(params.toolCall.rawInput);
-		if (toolName === "AskUserQuestion" && rawInputResult.success && this.onQuestionRequest) {
-			this.handleQuestionRequest(request, params, {
-				questions: rawInputResult.data.questions,
-			});
-			return;
-		}
-
-		// Create a permission request with the JSON-RPC request ID
-		const permission = createPermissionRequest({
-			id: buildAcpPermissionId(params.sessionId, params.toolCall.toolCallId, request.id),
-			sessionId: params.sessionId,
-			jsonRpcRequestId: request.id,
-			permission: params.toolCall.title
-				? params.toolCall.title
-				: params.toolCall.name
-					? params.toolCall.name
-					: "Execute tool",
-			patterns: [],
-			metadata: {
-				rawInput: params.toolCall.rawInput,
-				parsedArguments: params.toolCall.parsedArguments,
-				options: params.options,
-			},
-			always: params.options.filter((o) => o.kind === "allow_always").map((o) => o.optionId),
-			tool: {
-				messageID: "",
-				callID: params.toolCall.toolCallId,
-			},
-		});
+		const permission = toPermissionRequest(normalizedRequest);
 
 		logger.debug("Created permission request from inbound request", {
 			permissionId: permission.id,
-			jsonRpcRequestId: request.id,
+			jsonRpcRequestId: normalizedRequest.jsonRpcRequestId,
 		});
 
 		// Dispatch to the registered callback
@@ -219,36 +182,12 @@ export class InboundRequestHandler {
 	 * The ACP agent's AskUserQuestion tool uses the requestPermission mechanism
 	 * with _meta.askUserQuestion containing the question data.
 	 */
-	private handleQuestionRequest(
-		request: JsonRpcRequest,
-		params: RequestPermissionParams,
-		questionData: AskUserQuestionData
-	): void {
-		// Create a question request with the JSON-RPC request ID
-		const question: QuestionRequest = {
-			id: params.toolCall.toolCallId,
-			sessionId: params.sessionId,
-			jsonRpcRequestId: request.id,
-			questions: questionData.questions.map((q) => ({
-				question: q.question,
-				header: q.header !== undefined ? q.header : "",
-				options: q.options !== undefined
-					? q.options.map((opt) => ({
-						label: opt.label,
-						description: opt.description !== undefined ? opt.description : "",
-					}))
-					: [],
-				multiSelect: q.multiSelect !== undefined ? q.multiSelect : false,
-			})),
-			tool: {
-				messageID: "",
-				callID: params.toolCall.toolCallId,
-			},
-		};
+	private handleQuestionRequest(request: NormalizedInboundQuestionRequest): void {
+		const question: QuestionRequest = toQuestionRequest(request);
 
 		logger.debug("Created question request from inbound request (AskUserQuestion)", {
 			questionId: question.id,
-			jsonRpcRequestId: request.id,
+			jsonRpcRequestId: request.jsonRpcRequestId,
 			questionCount: question.questions.length,
 		});
 

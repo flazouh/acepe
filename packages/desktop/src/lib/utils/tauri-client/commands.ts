@@ -25,6 +25,7 @@ export const CMD = {
 		close_session: "acp_close_session",
 		register_custom_agent: "acp_register_custom_agent",
 		get_event_bridge_info: "acp_get_event_bridge_info",
+		get_session_projection: "acp_get_session_projection",
 	} as const,
 
 	history: {

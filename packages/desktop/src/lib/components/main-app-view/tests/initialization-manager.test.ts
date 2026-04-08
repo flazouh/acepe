@@ -6,6 +6,7 @@ import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-sto
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
@@ -63,6 +64,7 @@ describe("InitializationManager", () => {
 	let mockAgentPreferencesStore: AgentPreferencesStore;
 	let mockKeybindingsService: KeybindingsService;
 	let mockPreconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
+	let mockProjectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
 	let manager: InitializationManager;
 
 	beforeEach(() => {
@@ -157,6 +159,11 @@ describe("InitializationManager", () => {
 			refresh: mock(() => okAsync(undefined)),
 		} as unknown as PreconnectionAgentSkillsStore;
 
+		mockProjectionHydrator = {
+			hydrateSession: mock(() => okAsync(undefined)),
+			clearSession: mock(() => {}),
+		};
+
 		manager = new InitializationManager(
 			mockState,
 			mockSessionStore,
@@ -166,7 +173,8 @@ describe("InitializationManager", () => {
 			mockProjectManager,
 			mockAgentPreferencesStore,
 			mockKeybindingsService,
-			mockPreconnectionAgentSkillsStore
+			mockPreconnectionAgentSkillsStore,
+			mockProjectionHydrator
 		);
 	});
 
@@ -226,7 +234,8 @@ describe("InitializationManager", () => {
 				mockProjectManager,
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
-				mockPreconnectionAgentSkillsStore
+				mockPreconnectionAgentSkillsStore,
+				mockProjectionHydrator
 			);
 
 			const result = await manager.initialize();
@@ -292,6 +301,10 @@ describe("InitializationManager", () => {
 				callOrder.push("connect");
 				return okAsync(restoredSession);
 			}) as SessionStore["connectSession"];
+			mockProjectionHydrator.hydrateSession = mock(() => {
+				callOrder.push("hydrate");
+				return okAsync(undefined);
+			});
 			mockSessionStore.scanSessions = mock((projectPaths: string[]) => {
 				callOrder.push(`scan:${projectPaths.join(",")}`);
 				return okAsync(undefined);
@@ -305,6 +318,7 @@ describe("InitializationManager", () => {
 				"startup",
 				"preload",
 				"scan:/project1,/project2",
+				"hydrate",
 				"connect",
 			]);
 		});
@@ -715,7 +729,8 @@ describe("InitializationManager", () => {
 				mockProjectManager,
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
-				mockPreconnectionAgentSkillsStore
+				mockPreconnectionAgentSkillsStore,
+				mockProjectionHydrator
 			);
 
 			const result = await manager.initialize();

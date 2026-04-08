@@ -1,9 +1,15 @@
 use crate::acp::client::PendingRequestEntry;
+use crate::acp::domain_events::SessionDomainEventKind;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::permission_tracker::PermissionTracker;
+use crate::acp::projections::{
+    InteractionKind, InteractionResponse, InteractionState, ProjectionRegistry,
+};
 use crate::acp::session_update::{SessionUpdate, ToolCallStatus, ToolCallUpdateData};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher};
 use crate::acp::{cursor_extensions::CursorResponseAdapter, provider::AgentProvider};
+use crate::db::repository::SessionJournalEventRepository;
+use sea_orm::DbConn;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc as StdArc;
@@ -123,9 +129,12 @@ pub(crate) async fn send_inbound_response(
 
 #[derive(Clone)]
 pub(crate) struct InboundRequestResponder {
+    pub session_id: String,
     pub provider: Option<StdArc<dyn AgentProvider>>,
+    pub db: Option<DbConn>,
     pub stdin_writer: StdArc<Mutex<Option<ChildStdin>>>,
     pub permission_tracker: StdArc<std::sync::Mutex<PermissionTracker>>,
+    pub projection_registry: StdArc<ProjectionRegistry>,
     pub dispatcher: AcpUiEventDispatcher,
     pub inbound_response_adapters: StdArc<std::sync::Mutex<HashMap<u64, CursorResponseAdapter>>>,
 }
@@ -149,6 +158,8 @@ impl InboundRequestResponder {
         };
 
         send_inbound_response(&self.stdin_writer, id, adapted_result.clone()).await?;
+        self.update_interaction_projection(id, &adapted_result)
+            .await;
 
         let ctx = match self.permission_tracker.lock() {
             Ok(mut tracker) => tracker.resolve(id),
@@ -186,5 +197,148 @@ impl InboundRequestResponder {
         }
 
         Ok(())
+    }
+
+    async fn update_interaction_projection(&self, request_id: u64, adapted_result: &Value) {
+        let Some(interaction) = self
+            .projection_registry
+            .interaction_for_request_id(&self.session_id, request_id)
+        else {
+            return;
+        };
+
+        let Some((state, domain_event_kind, response)) =
+            interaction_transition_from_result(&interaction.kind, adapted_result)
+        else {
+            tracing::warn!(
+                session_id = %self.session_id,
+                request_id,
+                interaction_id = %interaction.id,
+                interaction_kind = ?interaction.kind,
+                "Unable to derive interaction transition from inbound response"
+            );
+            return;
+        };
+
+        if self
+            .projection_registry
+            .resolve_interaction(
+                &self.session_id,
+                &interaction.id,
+                state.clone(),
+                response.clone(),
+            )
+            .is_some()
+        {
+            if let Some(db) = &self.db {
+                if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
+                    db,
+                    &self.session_id,
+                    &interaction.id,
+                    state,
+                    response,
+                )
+                .await
+                {
+                    tracing::error!(
+                        error = %error,
+                        session_id = %self.session_id,
+                        request_id,
+                        interaction_id = %interaction.id,
+                        "Failed to persist interaction transition into session journal"
+                    );
+                }
+            }
+            self.dispatcher
+                .enqueue_session_domain_event(&self.session_id, domain_event_kind);
+        }
+    }
+}
+
+fn interaction_transition_from_result(
+    interaction_kind: &InteractionKind,
+    adapted_result: &Value,
+) -> Option<(
+    InteractionState,
+    SessionDomainEventKind,
+    InteractionResponse,
+)> {
+    match interaction_kind {
+        InteractionKind::Permission => {
+            let outcome = adapted_result
+                .pointer("/outcome/outcome")
+                .and_then(Value::as_str)?;
+            let option_id = adapted_result
+                .pointer("/outcome/optionId")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+            let accepted = matches!(outcome, "allowed" | "selected");
+            let state = if accepted {
+                InteractionState::Approved
+            } else if outcome == "cancelled" {
+                InteractionState::Rejected
+            } else {
+                return None;
+            };
+            let domain_event_kind = if accepted {
+                SessionDomainEventKind::InteractionResolved
+            } else {
+                SessionDomainEventKind::InteractionCancelled
+            };
+            Some((
+                state,
+                domain_event_kind,
+                InteractionResponse::Permission {
+                    accepted,
+                    option_id,
+                    reply: None,
+                },
+            ))
+        }
+        InteractionKind::Question => {
+            let outcome = adapted_result
+                .pointer("/outcome/outcome")
+                .and_then(Value::as_str)?;
+            let cancelled = outcome == "cancelled";
+            let state = if cancelled {
+                InteractionState::Rejected
+            } else if matches!(outcome, "allowed" | "selected") {
+                InteractionState::Answered
+            } else {
+                return None;
+            };
+            let domain_event_kind = if cancelled {
+                SessionDomainEventKind::InteractionCancelled
+            } else {
+                SessionDomainEventKind::InteractionResolved
+            };
+            let answers = adapted_result
+                .pointer("/_meta/answers")
+                .cloned()
+                .unwrap_or(Value::Null);
+            Some((
+                state,
+                domain_event_kind,
+                InteractionResponse::Question { answers },
+            ))
+        }
+        InteractionKind::PlanApproval => {
+            let approved = adapted_result.get("approved").and_then(Value::as_bool)?;
+            let state = if approved {
+                InteractionState::Approved
+            } else {
+                InteractionState::Rejected
+            };
+            let domain_event_kind = if approved {
+                SessionDomainEventKind::InteractionResolved
+            } else {
+                SessionDomainEventKind::InteractionCancelled
+            };
+            Some((
+                state,
+                domain_event_kind,
+                InteractionResponse::PlanApproval { approved },
+            ))
+        }
     }
 }

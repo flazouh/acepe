@@ -15,6 +15,7 @@ use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::kind::is_web_search_id;
 use crate::acp::parsers::AgentType;
 use crate::acp::permission_tracker::{PermissionContext, PermissionTracker, WebSearchDedup};
+use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_registry::SessionRegistry;
 use crate::acp::session_update::{
@@ -25,6 +26,7 @@ use crate::acp::streaming_delta_batcher::StreamingDeltaBatcher;
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher};
+use sea_orm::DbConn;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc as StdArc;
@@ -448,15 +450,22 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                             }
                                         }
 
-                                        if let Some(session_id) = forwarded.session_id() {
-                                            if let Some(app_handle) = ctx.app_handle.as_ref() {
-                                                let registry = app_handle.state::<SessionRegistry>();
-                                                registry.store_pending_inbound_responder(
+                                            if let Some(session_id) = forwarded.session_id() {
+                                                if let Some(app_handle) = ctx.app_handle.as_ref() {
+                                                    let db = app_handle.state::<DbConn>();
+                                                    let registry = app_handle.state::<SessionRegistry>();
+                                                    let projection_registry =
+                                                        app_handle.state::<StdArc<ProjectionRegistry>>();
+                                                    let responder_session_id = session_id.to_string();
+                                                    registry.store_pending_inbound_responder(
                                                     session_id,
                                                     StdArc::new(InboundRequestResponder {
+                                                        session_id: responder_session_id,
                                                         provider: ctx.provider.clone(),
+                                                        db: Some(db.inner().clone()),
                                                         stdin_writer: ctx.stdin_writer.clone(),
                                                         permission_tracker: ctx.permission_tracker.clone(),
+                                                        projection_registry: projection_registry.inner().clone(),
                                                         dispatcher: ctx.dispatcher.clone(),
                                                         inbound_response_adapters: ctx.inbound_response_adapters.clone(),
                                                     }),

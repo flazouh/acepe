@@ -120,18 +120,7 @@ function handleApprove() {
 	const approval = pendingPlanApproval;
 	localApproval = true;
 	if (approval) {
-		interactionStore.planApprovalsPending.set(approval.id, {
-			id: approval.id,
-			kind: "plan_approval",
-			source: approval.source,
-			sessionId: approval.sessionId,
-			tool: {
-				messageID: approval.tool.messageID,
-				callID: approval.tool.callID,
-			},
-			jsonRpcRequestId: approval.jsonRpcRequestId,
-			status: "approved",
-		});
+		interactionStore.setPlanApprovalStatus(approval.id, "approved");
 	}
 	replyToPlanApprovalRequest(sessionId, requestId, true).match(
 		() => {},
@@ -139,18 +128,7 @@ function handleApprove() {
 			// Roll back optimistic update on failure
 			localApproval = null;
 			if (approval) {
-				interactionStore.planApprovalsPending.set(approval.id, {
-					id: approval.id,
-					kind: "plan_approval",
-					source: approval.source,
-					sessionId: approval.sessionId,
-					tool: {
-						messageID: approval.tool.messageID,
-						callID: approval.tool.callID,
-					},
-					jsonRpcRequestId: approval.jsonRpcRequestId,
-					status: "pending",
-				});
+				interactionStore.setPlanApprovalStatus(approval.id, "pending");
 			}
 			console.error("Failed to approve plan", err);
 		}
@@ -164,18 +142,7 @@ function handleReject() {
 	const approval = pendingPlanApproval;
 	localApproval = false;
 	if (approval) {
-		interactionStore.planApprovalsPending.set(approval.id, {
-			id: approval.id,
-			kind: "plan_approval",
-			source: approval.source,
-			sessionId: approval.sessionId,
-			tool: {
-				messageID: approval.tool.messageID,
-				callID: approval.tool.callID,
-			},
-			jsonRpcRequestId: approval.jsonRpcRequestId,
-			status: "rejected",
-		});
+		interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 	}
 	replyToPlanApprovalRequest(sessionId, requestId, false).match(
 		() => {},
@@ -183,18 +150,7 @@ function handleReject() {
 			// Roll back optimistic update on failure
 			localApproval = null;
 			if (approval) {
-				interactionStore.planApprovalsPending.set(approval.id, {
-					id: approval.id,
-					kind: "plan_approval",
-					source: approval.source,
-					sessionId: approval.sessionId,
-					tool: {
-						messageID: approval.tool.messageID,
-						callID: approval.tool.callID,
-					},
-					jsonRpcRequestId: approval.jsonRpcRequestId,
-					status: "pending",
-				});
+				interactionStore.setPlanApprovalStatus(approval.id, "pending");
 			}
 			console.error("Failed to reject plan", err);
 		}

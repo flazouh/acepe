@@ -50,6 +50,7 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -98,7 +99,8 @@ export class InitializationManager {
 		private readonly projectManager: ProjectManager,
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
-		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore
+		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
+		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
 	) {}
 
 	/**
@@ -595,6 +597,9 @@ export class InitializationManager {
 					worktreePath ?? undefined,
 					sessionTitle ?? undefined
 				)
+				.andThen(() => {
+					return this.projectionHydrator.hydrateSession(sessionId);
+				})
 				.andThen(() => {
 					return this.sessionStore.connectSession(sessionId).map(() => undefined);
 				})

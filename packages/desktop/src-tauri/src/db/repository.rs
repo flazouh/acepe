@@ -1,4 +1,11 @@
 use crate::db::entities::prelude::*;
+use crate::{
+    acp::session_journal::{
+        ProjectionJournalUpdate, SessionJournalEvent as SessionJournalRecord,
+        SessionJournalEventPayload,
+    },
+    db::entities::session_journal_event,
+};
 use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
@@ -556,6 +563,173 @@ impl SessionReviewStateRepository {
             .await?;
         tracing::info!(session_id = %session_id, "Session review state deleted");
         Ok(())
+    }
+}
+
+// ============================================================================
+// Session Projection Snapshot Repository
+// ============================================================================
+
+pub struct SessionProjectionSnapshotRepository;
+
+impl SessionProjectionSnapshotRepository {
+    pub async fn get(
+        db: &DbConn,
+        session_id: &str,
+    ) -> Result<Option<crate::acp::projections::SessionProjectionSnapshot>> {
+        tracing::debug!(session_id = %session_id, "Loading session projection snapshot");
+
+        let model =
+            crate::db::entities::session_projection_snapshot::Entity::find_by_id(session_id)
+                .one(db)
+                .await?;
+        model
+            .map(|row| {
+                serde_json::from_str::<crate::acp::projections::SessionProjectionSnapshot>(
+                    &row.snapshot_json,
+                )
+                .map_err(anyhow::Error::from)
+            })
+            .transpose()
+    }
+
+    pub async fn set(
+        db: &DbConn,
+        session_id: &str,
+        snapshot: &crate::acp::projections::SessionProjectionSnapshot,
+    ) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Saving session projection snapshot");
+
+        let snapshot_json = serde_json::to_string(snapshot)?;
+        let now = Utc::now();
+        let existing =
+            crate::db::entities::session_projection_snapshot::Entity::find_by_id(session_id)
+                .one(db)
+                .await?;
+
+        if let Some(existing_model) = existing {
+            let mut active: crate::db::entities::session_projection_snapshot::ActiveModel =
+                existing_model.into();
+            active.snapshot_json = Set(snapshot_json);
+            active.updated_at = Set(now);
+            active.update(db).await?;
+        } else {
+            let active = crate::db::entities::session_projection_snapshot::ActiveModel {
+                session_id: Set(session_id.to_string()),
+                snapshot_json: Set(snapshot_json),
+                updated_at: Set(now),
+            };
+            crate::db::entities::session_projection_snapshot::Entity::insert(active)
+                .exec(db)
+                .await?;
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Session Journal Event Repository
+// ============================================================================
+
+pub struct SessionJournalEventRepository;
+
+impl SessionJournalEventRepository {
+    pub async fn list(db: &DbConn, session_id: &str) -> Result<Vec<SessionJournalRecord>> {
+        tracing::debug!(session_id = %session_id, "Loading session journal events");
+
+        let models = crate::db::entities::session_journal_event::Entity::find()
+            .filter(session_journal_event::Column::SessionId.eq(session_id))
+            .order_by_asc(session_journal_event::Column::EventSeq)
+            .all(db)
+            .await?;
+
+        models
+            .into_iter()
+            .map(|row| {
+                let payload = serde_json::from_str::<SessionJournalEventPayload>(&row.event_json)?;
+                Ok(SessionJournalRecord {
+                    event_id: row.event_id,
+                    session_id: row.session_id,
+                    event_seq: row.event_seq,
+                    created_at_ms: row.created_at.timestamp_millis().max(0),
+                    payload,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn append_session_update(
+        db: &DbConn,
+        session_id: &str,
+        update: &crate::acp::session_update::SessionUpdate,
+    ) -> Result<Option<SessionJournalRecord>> {
+        let Some(update) = ProjectionJournalUpdate::from_session_update(update) else {
+            return Ok(None);
+        };
+
+        Self::append(
+            db,
+            session_id,
+            SessionJournalEventPayload::ProjectionUpdate {
+                update: Box::new(update),
+            },
+        )
+        .await
+        .map(Some)
+    }
+
+    pub async fn append_interaction_transition(
+        db: &DbConn,
+        session_id: &str,
+        interaction_id: &str,
+        state: crate::acp::projections::InteractionState,
+        response: crate::acp::projections::InteractionResponse,
+    ) -> Result<SessionJournalRecord> {
+        Self::append(
+            db,
+            session_id,
+            SessionJournalEventPayload::InteractionTransition {
+                interaction_id: interaction_id.to_string(),
+                state,
+                response,
+            },
+        )
+        .await
+    }
+
+    async fn append(
+        db: &DbConn,
+        session_id: &str,
+        payload: SessionJournalEventPayload,
+    ) -> Result<SessionJournalRecord> {
+        tracing::debug!(session_id = %session_id, "Appending session journal event");
+
+        let tx = db.begin().await?;
+        let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
+            .select_only()
+            .column_as(session_journal_event::Column::EventSeq.max(), "max_seq")
+            .filter(session_journal_event::Column::SessionId.eq(session_id))
+            .into_tuple::<Option<i64>>()
+            .one(&tx)
+            .await?
+            .flatten();
+        let event =
+            SessionJournalRecord::new(session_id, max_seq.map_or(1, |seq| seq + 1), payload);
+        let active = crate::db::entities::session_journal_event::ActiveModel {
+            event_id: Set(event.event_id.clone()),
+            session_id: Set(event.session_id.clone()),
+            event_seq: Set(event.event_seq),
+            event_kind: Set(event.event_kind().to_string()),
+            event_json: Set(serde_json::to_string(&event.payload)?),
+            created_at: Set(Utc::now()),
+        };
+        crate::db::entities::session_journal_event::Entity::insert(active)
+            .exec(&tx)
+            .await?;
+        tx.commit().await?;
+
+        Ok(event)
     }
 }
 

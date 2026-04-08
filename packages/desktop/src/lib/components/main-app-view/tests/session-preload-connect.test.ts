@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync, ResultAsync } from "neverthrow";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { Session } from "$lib/acp/store/types.js";
 
@@ -11,6 +12,8 @@ type SessionPreloadStore = Pick<
 	"setSessionLoading" | "setSessionLoaded" | "removeSession" | "preloadSessions" | "connectSession"
 >;
 
+type ProjectionHydrator = Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
+
 interface PreloadResult {
 	readonly loaded: Session[];
 	readonly missing: string[];
@@ -19,6 +22,7 @@ interface PreloadResult {
 describe("preloadAndConnectSession", () => {
 	let resolvePreload: ((value: PreloadResult) => void) | null;
 	let sessionStore: SessionPreloadStore;
+	let projectionHydrator: ProjectionHydrator;
 	let panelStore: Pick<PanelStore, "closePanelBySessionId">;
 
 	beforeEach(() => {
@@ -39,6 +43,11 @@ describe("preloadAndConnectSession", () => {
 			connectSession: mock(() => okAsync(mockSession)),
 		};
 
+		projectionHydrator = {
+			hydrateSession: mock(() => okAsync(undefined)),
+			clearSession: mock(() => {}),
+		};
+
 		panelStore = {
 			closePanelBySessionId: mock(() => {}),
 		};
@@ -48,6 +57,7 @@ describe("preloadAndConnectSession", () => {
 		preloadAndConnectSession({
 			sessionId: "session-1",
 			sessionStore,
+			projectionHydrator,
 			panelStore,
 			timeoutMs: 10_000,
 			source: "session-handler",
@@ -56,6 +66,7 @@ describe("preloadAndConnectSession", () => {
 		preloadAndConnectSession({
 			sessionId: "session-1",
 			sessionStore,
+			projectionHydrator,
 			panelStore,
 			timeoutMs: 10_000,
 			source: "panels-container",
@@ -77,6 +88,7 @@ describe("preloadAndConnectSession", () => {
 		preloadAndConnectSession({
 			sessionId: "session-1",
 			sessionStore,
+			projectionHydrator,
 			panelStore,
 			timeoutMs: 10_000,
 			source: "session-handler",
@@ -89,6 +101,7 @@ describe("preloadAndConnectSession", () => {
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(projectionHydrator.hydrateSession).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connectSession).toHaveBeenCalledTimes(1);
 	});
 
@@ -96,6 +109,7 @@ describe("preloadAndConnectSession", () => {
 		preloadAndConnectSession({
 			sessionId: "session-1",
 			sessionStore,
+			projectionHydrator,
 			panelStore,
 			timeoutMs: 10_000,
 			source: "session-handler",
@@ -108,6 +122,8 @@ describe("preloadAndConnectSession", () => {
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(projectionHydrator.clearSession).toHaveBeenCalledWith("session-1");
+		expect(projectionHydrator.hydrateSession).not.toHaveBeenCalled();
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connectSession).toHaveBeenCalledTimes(1);
 	});

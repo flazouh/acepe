@@ -24,6 +24,7 @@ import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-sto
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type {
 	Panel,
@@ -301,7 +302,8 @@ export class MainAppViewState {
 		private readonly keybindingsService: KeybindingsService,
 		private readonly selectorRegistry: SelectorRegistry,
 		private readonly worktreeDefaultStore: WorktreeDefaultStore,
-		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore
+		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
+		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
 	) {
 		// Initialize managers
 		this.initializationManager = new InitializationManager(
@@ -313,12 +315,14 @@ export class MainAppViewState {
 			this.projectManager,
 			this.agentPreferencesStore,
 			this.keybindingsService,
-			this.preconnectionAgentSkillsStore
+			this.preconnectionAgentSkillsStore,
+			this.projectionHydrator
 		);
 		this.sessionHandler = new SessionHandler(
 			this,
 			this.sessionStore,
-			this.panelStore
+			this.panelStore,
+			this.projectionHydrator
 		);
 		this.panelHandler = new PanelHandler(
 			this,

@@ -5,6 +5,7 @@ import type { SessionListItem } from "$lib/acp/components/session-list/session-l
 import { ConnectionError, SessionNotFoundError } from "$lib/acp/errors/app-error.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { SessionSelectionError } from "../errors/main-app-view-error.js";
@@ -16,6 +17,7 @@ describe("SessionHandler", () => {
 	let mockSessionStore: SessionStore;
 	let mockPanelStore: PanelStore;
 	let mockConnectionStore: ConnectionStore;
+	let mockProjectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
 	let handler: SessionHandler;
 	let mockSessionsArray: any[];
 
@@ -75,7 +77,17 @@ describe("SessionHandler", () => {
 			send: mock(() => {}),
 		} as unknown as ConnectionStore;
 
-		handler = new SessionHandler(mockState, mockSessionStore, mockPanelStore);
+		mockProjectionHydrator = {
+			hydrateSession: mock(() => okAsync(undefined)),
+			clearSession: mock(() => {}),
+		};
+
+		handler = new SessionHandler(
+			mockState,
+			mockSessionStore,
+			mockPanelStore,
+			mockProjectionHydrator
+		);
 	});
 
 	describe("selectSession", () => {
@@ -133,6 +145,8 @@ describe("SessionHandler", () => {
 
 			expect(result.isOk()).toBe(true);
 			expect(mockSessionStore.preloadSessions).toHaveBeenCalledWith(["session-1"]);
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenCalledWith("session-1");
 		});
 
 		it("should not preload if details are already cached", async () => {

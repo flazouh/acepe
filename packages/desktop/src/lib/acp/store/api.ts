@@ -6,6 +6,7 @@
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData, ConvertedSession } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
@@ -154,6 +155,12 @@ export function closeSession(sessionId: string): ResultAsync<void, AppError> {
 	return tauriClient.acp.closeSession(sessionId);
 }
 
+export function getSessionProjection(
+	sessionId: string
+): ResultAsync<SessionProjectionSnapshot, AppError> {
+	return tauriClient.acp.getSessionProjection(sessionId);
+}
+
 // ============================================
 // HISTORY API
 // ============================================
@@ -296,6 +303,7 @@ export const api = {
 	setConfigOption,
 	stopStreaming,
 	closeSession,
+	getSessionProjection,
 	replyPermission,
 	replyQuestion,
 	respondInboundRequest,

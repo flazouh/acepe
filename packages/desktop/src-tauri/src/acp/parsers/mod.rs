@@ -28,7 +28,9 @@ pub(crate) mod shared_chat;
 pub mod status;
 mod types;
 
-pub use adapters::{ClaudeCodeAdapter, CodexAdapter, CopilotAdapter, CursorAdapter, OpenCodeAdapter};
+pub use adapters::{
+    ClaudeCodeAdapter, CodexAdapter, CopilotAdapter, CursorAdapter, OpenCodeAdapter,
+};
 pub use claude_code_parser::ClaudeCodeParser;
 pub use codex_parser::CodexParser;
 pub use copilot_parser::CopilotParser;

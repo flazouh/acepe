@@ -34,9 +34,10 @@ use browser_webview::{
 
 use acp::active_agent::ActiveAgent;
 use acp::commands::{
-    acp_cancel, acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_initialize,
-    acp_install_agent, acp_list_agents, acp_list_preconnection_commands, acp_new_session,
-    acp_read_text_file, acp_register_custom_agent, acp_reply_permission, acp_reply_question,
+    acp_cancel, acp_close_session, acp_fork_session, acp_get_event_bridge_info,
+    acp_get_session_projection, acp_initialize, acp_install_agent, acp_list_agents,
+    acp_list_preconnection_commands, acp_new_session, acp_read_text_file,
+    acp_register_custom_agent, acp_reply_permission, acp_reply_question,
     acp_respond_inbound_request, acp_resume_session, acp_send_prompt, acp_set_config_option,
     acp_set_execution_profile, acp_set_mode, acp_set_model, acp_uninstall_agent,
     acp_write_text_file,
@@ -52,6 +53,7 @@ use acp::github_issues::{
     toggle_issue_reaction,
 };
 use acp::opencode::OpenCodeManagerRegistry;
+use acp::projections::ProjectionRegistry;
 use acp::provider::{AgentProvider, CommandAvailabilityCache};
 use acp::providers::CustomAgentConfig;
 use acp::registry::AgentRegistry;
@@ -833,6 +835,7 @@ pub fn run() {
 
             // Session client registry
             app.manage(SessionRegistry::new());
+            app.manage(Arc::new(ProjectionRegistry::new()));
 
             // Terminal manager for process spawning
             app.manage(Arc::new(terminal::TerminalManager::new()));
@@ -902,6 +905,7 @@ pub fn run() {
             acp_reply_question,
             acp_respond_inbound_request,
             acp_get_event_bridge_info,
+            acp_get_session_projection,
             acp_list_agents,
             acp_list_preconnection_commands,
             acp_install_agent,

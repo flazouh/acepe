@@ -381,9 +381,7 @@ pub async fn get_unified_session(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        apply_session_title_metadata, fallback_project_path_for_history_load,
-    };
+    use super::{apply_session_title_metadata, fallback_project_path_for_history_load};
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::SessionMetadataRow;

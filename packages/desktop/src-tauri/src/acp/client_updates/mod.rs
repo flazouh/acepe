@@ -181,6 +181,7 @@ pub(crate) async fn handle_session_update_notification(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::domain_events::SessionDomainEventKind;
     use crate::acp::providers::cursor::CursorProvider;
     use crate::acp::providers::cursor_session_update_enrichment;
     use crate::acp::session_update::ToolArguments;
@@ -194,6 +195,135 @@ mod tests {
 
         assert!(production_source.contains(".enrich_session_update("));
         assert!(!production_source.contains("cursor_tool_enrichment"));
+    }
+
+    #[tokio::test]
+    async fn turn_complete_notification_emits_canonical_domain_event() {
+        let session_id = "turn-complete-session";
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "sessionId": session_id,
+                "update": {
+                    "sessionUpdate": "turnComplete"
+                }
+            }
+        });
+
+        handle_session_update_notification(
+            &dispatcher,
+            AgentType::ClaudeCode,
+            None,
+            &message_id_tracker,
+            &assistant_text_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &notification,
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+
+        match &captured[0].payload {
+            AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                SessionUpdate::TurnComplete {
+                    session_id: emitted,
+                } => {
+                    assert_eq!(emitted.as_deref(), Some(session_id));
+                }
+                other => panic!("Expected turn complete update, got {:?}", other),
+            },
+            other => panic!("Expected session update payload, got {:?}", other),
+        }
+
+        match &captured[1].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => {
+                assert_eq!(event.session_id, session_id);
+                assert!(matches!(event.kind, SessionDomainEventKind::TurnCompleted));
+                assert_eq!(event.seq, 1);
+                assert!(!event.event_id.is_empty());
+                assert!(event.occurred_at_ms > 0);
+                assert_eq!(event.provider_session_id, None);
+                assert_eq!(event.causation_id, None);
+            }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn turn_error_notification_emits_canonical_domain_event() {
+        let session_id = "turn-error-session";
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "sessionId": session_id,
+                "update": {
+                    "sessionUpdate": "turnError",
+                    "error": {
+                        "message": "boom",
+                        "kind": "fatal",
+                        "source": "process"
+                    }
+                }
+            }
+        });
+
+        handle_session_update_notification(
+            &dispatcher,
+            AgentType::ClaudeCode,
+            None,
+            &message_id_tracker,
+            &assistant_text_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &notification,
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+
+        match &captured[0].payload {
+            AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                SessionUpdate::TurnError {
+                    session_id: emitted,
+                    ..
+                } => {
+                    assert_eq!(emitted.as_deref(), Some(session_id));
+                }
+                other => panic!("Expected turn error update, got {:?}", other),
+            },
+            other => panic!("Expected session update payload, got {:?}", other),
+        }
+
+        match &captured[1].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => {
+                assert_eq!(event.session_id, session_id);
+                assert!(matches!(event.kind, SessionDomainEventKind::TurnFailed));
+                assert_eq!(event.seq, 1);
+                assert!(!event.event_id.is_empty());
+            }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
     }
 
     #[tokio::test]

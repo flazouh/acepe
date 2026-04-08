@@ -15,6 +15,7 @@ export const LOGGER_IDS = {
 	PROJECT_SELECTOR: "project-selector",
 	ACP_CLIENT: "acp-client",
 	EVENT_SUBSCRIBER: "event-subscriber",
+	SESSION_DOMAIN_EVENT_SUBSCRIBER: "session-domain-event-subscriber",
 	AGENT_PANEL: "agent-panel",
 	AGENT_PANEL_HOOK: "agent-panel-hook",
 	SESSION_HOOK: "session-hook",

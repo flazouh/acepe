@@ -52,8 +52,8 @@ pub(crate) use session_commands::persist_session_metadata_for_cwd;
 pub(crate) use session_commands::resume_path_needs_post_connect_execution_profile_reset;
 pub(crate) use session_commands::session_metadata_context_from_cwd;
 pub use session_commands::{
-    acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_initialize,
-    acp_new_session, acp_resume_session,
+    acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_get_session_projection,
+    acp_initialize, acp_new_session, acp_resume_session,
 };
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;

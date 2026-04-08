@@ -1,5 +1,8 @@
 use super::*;
 use crate::acp::error::AcpError;
+use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
+use crate::db::repository::SessionJournalEventRepository;
+use sea_orm::DbConn;
 
 fn log_permission_reply_event(
     session_id: &str,
@@ -22,6 +25,102 @@ fn log_permission_reply_event(
     }
 
     log_streaming_event(session_id, &payload);
+}
+
+async fn update_permission_projection(
+    app: &AppHandle,
+    session_id: &str,
+    permission_id: &str,
+    reply: &str,
+    accepted: bool,
+) {
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let db = app.state::<DbConn>();
+    let state = if accepted {
+        InteractionState::Approved
+    } else {
+        InteractionState::Rejected
+    };
+    let response = InteractionResponse::Permission {
+        accepted,
+        option_id: None,
+        reply: Some(reply.to_string()),
+    };
+    if projection_registry
+        .resolve_interaction(session_id, permission_id, state.clone(), response.clone())
+        .is_none()
+    {
+        tracing::debug!(
+            session_id = %session_id,
+            permission_id = %permission_id,
+            "Permission interaction projection missing during reply"
+        );
+        return;
+    }
+
+    if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
+        db.inner(),
+        session_id,
+        permission_id,
+        state,
+        response,
+    )
+    .await
+    {
+        tracing::error!(
+            error = %error,
+            session_id = %session_id,
+            permission_id = %permission_id,
+            "Failed to persist permission reply into session journal"
+        );
+    }
+}
+
+async fn update_question_projection(
+    app: &AppHandle,
+    session_id: &str,
+    question_id: &str,
+    parsed_answers: &[Vec<String>],
+) {
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let db = app.state::<DbConn>();
+    let cancelled = parsed_answers.is_empty();
+    let state = if cancelled {
+        InteractionState::Rejected
+    } else {
+        InteractionState::Answered
+    };
+    let response = InteractionResponse::Question {
+        answers: json!(parsed_answers),
+    };
+    if projection_registry
+        .resolve_interaction(session_id, question_id, state.clone(), response.clone())
+        .is_none()
+    {
+        tracing::debug!(
+            session_id = %session_id,
+            question_id = %question_id,
+            "Question interaction projection missing during reply"
+        );
+        return;
+    }
+
+    if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
+        db.inner(),
+        session_id,
+        question_id,
+        state,
+        response,
+    )
+    .await
+    {
+        tracing::error!(
+            error = %error,
+            session_id = %session_id,
+            question_id = %question_id,
+            "Failed to persist question reply into session journal"
+        );
+    }
 }
 
 pub(super) async fn respond_inbound_request_with_registry(
@@ -115,6 +214,7 @@ pub async fn acp_reply_permission(
 
         if reply_sent {
             tracing::info!(permission_id = %permission_id, "Permission rejected via explicit reply");
+            update_permission_projection(&app, &session_id, &permission_id, &reply, false).await;
             log_permission_reply_event(&session_id, &permission_id, &reply, "sent", Some(true));
             return Ok(());
         }
@@ -137,6 +237,7 @@ pub async fn acp_reply_permission(
             operation: "acp_reply_permission: reject cancel".to_string(),
         })?
         .map_err(SerializableAcpError::from)?;
+        update_permission_projection(&app, &session_id, &permission_id, &reply, false).await;
         log_permission_reply_event(
             &session_id,
             &permission_id,
@@ -159,6 +260,7 @@ pub async fn acp_reply_permission(
 
         if result {
             tracing::info!(permission_id = %permission_id, reply = %reply, "Permission reply sent");
+            update_permission_projection(&app, &session_id, &permission_id, &reply, true).await;
             log_permission_reply_event(&session_id, &permission_id, &reply, "sent", Some(true));
             Ok(())
         } else {
@@ -224,7 +326,7 @@ pub async fn acp_reply_question(
 
     let result = timeout(
         SESSION_CLIENT_OPERATION_TIMEOUT,
-        client_guard.reply_question(question_id.clone(), parsed_answers),
+        client_guard.reply_question(question_id.clone(), parsed_answers.clone()),
     )
     .await
     .map_err(|_| SerializableAcpError::Timeout {
@@ -234,6 +336,7 @@ pub async fn acp_reply_question(
 
     if result {
         tracing::info!(question_id = %question_id, "Question reply sent");
+        update_question_projection(&app, &session_id, &question_id, &parsed_answers).await;
         Ok(())
     } else {
         Err(SerializableAcpError::ProtocolError {

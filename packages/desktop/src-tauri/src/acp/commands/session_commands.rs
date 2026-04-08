@@ -1,7 +1,12 @@
 use super::*;
 use crate::acp::client::ExecutionProfileRequest;
+use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
+use crate::acp::session_journal::rebuild_session_projection;
 use crate::acp::session_registry::redact_session_id;
-use crate::db::repository::SessionMetadataRepository;
+use crate::acp::types::CanonicalAgentId;
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
+};
 use sea_orm::DbConn;
 
 pub(crate) fn resume_path_needs_post_connect_execution_profile_reset(
@@ -183,6 +188,105 @@ pub async fn acp_get_event_bridge_info(
     })
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn acp_get_session_projection(
+    app: AppHandle,
+    session_id: String,
+) -> Result<SessionProjectionSnapshot, SerializableAcpError> {
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let runtime_projection = projection_registry.session_projection(&session_id);
+    if projection_has_runtime_state(&runtime_projection) {
+        return Ok(runtime_projection);
+    }
+
+    let db = app.state::<DbConn>();
+    let metadata = SessionMetadataRepository::get_by_id(db.inner(), &session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load session metadata for projection lookup {session_id}: {error}"
+            ),
+        })?;
+    let stored_projection = load_stored_projection(
+        db.inner(),
+        &session_id,
+        metadata
+            .as_ref()
+            .map(|row| CanonicalAgentId::parse(&row.agent_id)),
+    )
+    .await
+    .map_err(|error| SerializableAcpError::InvalidState {
+        message: format!(
+            "Failed to rebuild session projection from journal for session {session_id}: {error}"
+        ),
+    })?;
+    if let Some(stored_projection) = stored_projection {
+        if projection_has_runtime_state(&stored_projection) {
+            SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &stored_projection)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to persist journal-backed session projection for session {session_id}: {error}"
+                    ),
+                })?;
+        }
+        return Ok(stored_projection);
+    }
+
+    if let Some(persisted_projection) =
+        SessionProjectionSnapshotRepository::get(db.inner(), &session_id)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to load persisted session projection for session {session_id}: {error}"
+                ),
+            })?
+    {
+        return Ok(persisted_projection);
+    }
+
+    let Some(metadata) = metadata else {
+        return Ok(runtime_projection);
+    };
+
+    let imported_session = crate::history::commands::session_loading::get_unified_session(
+        app.clone(),
+        session_id.clone(),
+        metadata.project_path.clone(),
+        metadata.agent_id.clone(),
+        Some(metadata.file_path.clone()),
+    )
+    .await
+    .map_err(|error| SerializableAcpError::InvalidState {
+        message: format!(
+            "Failed to import legacy session {session_id} into projection view: {error}"
+        ),
+    })?;
+
+    let Some(imported_session) = imported_session else {
+        return Ok(runtime_projection);
+    };
+
+    let imported_projection = ProjectionRegistry::project_converted_session(
+        &session_id,
+        Some(CanonicalAgentId::parse(&metadata.agent_id)),
+        &imported_session,
+    );
+
+    if projection_has_runtime_state(&imported_projection) {
+        SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &imported_projection)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to persist imported projection snapshot for session {session_id}: {error}"
+                ),
+            })?;
+    }
+
+    Ok(imported_projection)
+}
+
 /// Create a new ACP session.
 ///
 /// Each session gets its own dedicated client and subprocess.
@@ -200,6 +304,7 @@ pub async fn acp_new_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let db = app.state::<DbConn>();
 
     // Determine which agent to use
@@ -250,6 +355,7 @@ pub async fn acp_new_session(
         session_id = %result.session_id,
         "New session created with dedicated client"
     );
+    projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
 
     let sequence_id =
         persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
@@ -319,6 +425,7 @@ pub async fn acp_resume_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let db = app.state::<DbConn>();
 
     // Determine which agent to use
@@ -366,6 +473,18 @@ pub async fn acp_resume_session(
     reset_resumed_session_execution_profile(&app, &session_id, &result.modes.current_mode_id)
         .await?;
 
+    let stored_projection =
+        load_stored_projection(db.inner(), &session_id, Some(agent_id_enum.clone()))
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to load stored session projection for session {session_id}: {error}"
+                ),
+            })?;
+    if let Some(stored_projection) = stored_projection {
+        projection_registry.restore_session_projection(stored_projection);
+    }
+    projection_registry.register_session(session_id.clone(), agent_id_enum.clone());
     let _ = persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
 
     Ok(result)
@@ -389,6 +508,7 @@ pub async fn acp_fork_session(
     let active_agent = app.state::<ActiveAgent>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let db = app.state::<DbConn>();
 
     // Determine which agent to use
@@ -440,6 +560,7 @@ pub async fn acp_fork_session(
         new_session_id = %result.session_id,
         "Session forked with dedicated client"
     );
+    projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
     let sequence_id =
         persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
             .await?;
@@ -458,6 +579,8 @@ pub async fn acp_close_session(
 ) -> Result<(), SerializableAcpError> {
     tracing::info!(session_id = %session_id, "acp_close_session called");
     let session_registry = app.state::<SessionRegistry>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let db = app.state::<DbConn>();
 
     let agent_id_str = session_registry
         .get_agent_id(&session_id)
@@ -481,6 +604,189 @@ pub async fn acp_close_session(
 
     // Clean up streaming accumulator state for this session
     crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
+    let runtime_projection = projection_registry.session_projection(&session_id);
+    if projection_has_runtime_state(&runtime_projection) {
+        SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &runtime_projection)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to persist projection snapshot for session {session_id}: {error}"
+                ),
+            })?;
+    }
+    projection_registry.remove_session(&session_id);
 
     Ok(())
+}
+
+fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
+    snapshot.session.is_some()
+        || !snapshot.operations.is_empty()
+        || !snapshot.interactions.is_empty()
+}
+
+async fn load_projection_from_journal(
+    db: &DbConn,
+    session_id: &str,
+    agent_id: Option<CanonicalAgentId>,
+) -> Result<Option<SessionProjectionSnapshot>, anyhow::Error> {
+    let events = SessionJournalEventRepository::list(db, session_id).await?;
+    if events.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(rebuild_session_projection(
+        session_id, agent_id, &events,
+    )))
+}
+
+async fn load_stored_projection(
+    db: &DbConn,
+    session_id: &str,
+    agent_id: Option<CanonicalAgentId>,
+) -> Result<Option<SessionProjectionSnapshot>, anyhow::Error> {
+    if let Some(journal_projection) = load_projection_from_journal(db, session_id, agent_id).await?
+    {
+        return Ok(Some(journal_projection));
+    }
+
+    SessionProjectionSnapshotRepository::get(db, session_id).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_stored_projection;
+    use crate::acp::projections::{
+        InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
+        SessionSnapshot, SessionTurnState,
+    };
+    use crate::acp::session_update::{PermissionData, SessionUpdate};
+    use crate::acp::types::CanonicalAgentId;
+    use crate::db::migrations::Migrator;
+    use crate::db::repository::{
+        SessionJournalEventRepository, SessionMetadataRepository,
+        SessionProjectionSnapshotRepository,
+    };
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+    use serde_json::json;
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory SQLite");
+        Migrator::up(&db, None)
+            .await
+            .expect("Failed to run migrations");
+        db
+    }
+
+    #[tokio::test]
+    async fn load_stored_projection_prefers_journal_over_stale_snapshot() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-priority".to_string(),
+            "Priority session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-priority.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let stale_snapshot = SessionProjectionSnapshot {
+            session: Some(SessionSnapshot {
+                session_id: "session-priority".to_string(),
+                agent_id: Some(CanonicalAgentId::ClaudeCode),
+                last_event_seq: 1,
+                turn_state: SessionTurnState::Completed,
+                message_count: 0,
+                last_agent_message_id: None,
+                active_tool_call_ids: vec![],
+                completed_tool_call_ids: vec![],
+            }),
+            operations: vec![],
+            interactions: vec![InteractionSnapshot {
+                id: "permission-1".to_string(),
+                session_id: "session-priority".to_string(),
+                kind: crate::acp::projections::InteractionKind::Permission,
+                state: InteractionState::Pending,
+                json_rpc_request_id: Some(7),
+                tool_reference: None,
+                responded_at_event_seq: None,
+                response: None,
+                payload: crate::acp::projections::InteractionPayload::Permission(PermissionData {
+                    id: "permission-1".to_string(),
+                    session_id: "session-priority".to_string(),
+                    json_rpc_request_id: Some(7),
+                    permission: "Execute".to_string(),
+                    patterns: vec![],
+                    metadata: json!({ "command": "bun test" }),
+                    always: vec![],
+                    tool: None,
+                }),
+            }],
+        };
+        SessionProjectionSnapshotRepository::set(&db, "session-priority", &stale_snapshot)
+            .await
+            .unwrap();
+
+        let permission_update = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "session-priority".to_string(),
+                json_rpc_request_id: Some(7),
+                permission: "Execute".to_string(),
+                patterns: vec![],
+                metadata: json!({ "command": "bun test" }),
+                always: vec![],
+                tool: None,
+            },
+            session_id: Some("session-priority".to_string()),
+        };
+        SessionJournalEventRepository::append_session_update(
+            &db,
+            "session-priority",
+            &permission_update,
+        )
+        .await
+        .unwrap();
+        SessionJournalEventRepository::append_interaction_transition(
+            &db,
+            "session-priority",
+            "permission-1",
+            InteractionState::Approved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: Some("allow".to_string()),
+                reply: Some("once".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        let stored_projection =
+            load_stored_projection(&db, "session-priority", Some(CanonicalAgentId::ClaudeCode))
+                .await
+                .unwrap()
+                .expect("expected stored projection");
+
+        let permission = stored_projection
+            .interactions
+            .iter()
+            .find(|interaction| interaction.id == "permission-1")
+            .expect("expected permission interaction");
+        assert_eq!(permission.state, InteractionState::Approved);
+        assert_eq!(
+            stored_projection
+                .session
+                .expect("expected session projection")
+                .last_event_seq,
+            2
+        );
+    }
 }

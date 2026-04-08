@@ -56,3 +56,111 @@ export type NewSessionResponse = { sessionId: string; sequenceId?: number | null
 
 export type ResumeSessionResponse = { models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 
+/**
+ * Canonical agent identifier enum.
+ * 
+ * This enum represents all valid agent types in the system.
+ * Parsers set the enum directly based on their context (no normalization needed).
+ */
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | 
+/**
+ * Custom agent registered by user
+ */
+{ custom: string }
+
+/**
+ * Tool kind for routing to appropriate UI components.
+ */
+export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "other"
+
+/**
+ * Tool call status.
+ */
+export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
+
+/**
+ * A single file edit entry within an Edit tool call.
+ * 
+ * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
+ * or Codex's multi-entry `changes` map). Each entry represents one file's change.
+ */
+export type EditEntry = { 
+/**
+ * Path of the file being edited.
+ */
+filePath?: string | null; 
+/**
+ * Text being replaced (None = new file or full-file write).
+ */
+oldString?: string | null; 
+/**
+ * Replacement text (standard edit).
+ */
+newString?: string | null; 
+/**
+ * Full file content (create/overwrite variant).
+ */
+content?: string | null }
+
+/**
+ * Tool arguments discriminated by tool kind.
+ * Each variant contains exactly the fields needed for that tool type.
+ */
+export type ToolArguments = { kind: "read"; file_path?: string | null } | 
+/**
+ * Edit tool arguments.
+ * 
+ * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
+ * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
+ */
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "other"; raw: JsonValue }
+
+/**
+ * Tool reference for permission/question requests.
+ */
+export type ToolReference = { messageId: string; callId: string }
+
+/**
+ * Question option.
+ */
+export type QuestionOption = { label: string; description: string }
+
+/**
+ * Question item.
+ */
+export type QuestionItem = { question: string; header: string; options: QuestionOption[]; multiSelect: boolean }
+
+/**
+ * Permission request data.
+ */
+export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
+
+/**
+ * Question request data.
+ */
+export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; questions: QuestionItem[]; tool?: ToolReference | null }
+
+export type SessionDomainEventKind = "session_identity_resolved" | "session_connected" | "session_disconnected" | "session_config_changed" | "turn_started" | "turn_completed" | "turn_failed" | "turn_cancelled" | "user_message_segment_appended" | "assistant_message_segment_appended" | "assistant_thought_segment_appended" | "operation_upserted" | "operation_child_linked" | "operation_completed" | "interaction_upserted" | "interaction_resolved" | "interaction_cancelled" | "usage_telemetry_updated" | "todo_state_updated"
+
+export type SessionDomainEvent = { event_id: string; seq: number; session_id: string; provider_session_id: string | null; occurred_at_ms: number; causation_id: string | null; kind: SessionDomainEventKind }
+
+export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
+
+export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[] }
+
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
+
+export type InteractionKind = "Permission" | "Question" | "PlanApproval"
+
+export type InteractionState = "Pending" | "Approved" | "Rejected" | "Answered"
+
+export type PlanApprovalSource = "CreatePlan" | "ExitPlanMode"
+
+export type InteractionPayload = { Permission: PermissionData } | { Question: QuestionData } | { PlanApproval: { source: PlanApprovalSource } }
+
+export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean }
+
+export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
+
+export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[] }
+
