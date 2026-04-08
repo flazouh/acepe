@@ -950,6 +950,9 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                        7,
+                    )),
                     permission: "execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),

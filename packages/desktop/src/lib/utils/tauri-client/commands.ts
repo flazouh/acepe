@@ -21,6 +21,7 @@ export const CMD = {
 		list_preconnection_commands: "acp_list_preconnection_commands",
 		reply_permission: "acp_reply_permission",
 		reply_question: "acp_reply_question",
+		reply_interaction: "acp_reply_interaction",
 		respond_inbound_request: "acp_respond_inbound_request",
 		close_session: "acp_close_session",
 		register_custom_agent: "acp_register_custom_agent",

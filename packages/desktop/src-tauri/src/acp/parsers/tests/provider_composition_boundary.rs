@@ -48,8 +48,21 @@ fn collect_violations(
         .collect()
 }
 
+fn runtime_forbidden_paths() -> Vec<String> {
+    [
+        "crate::acp::client::cc_sdk_client",
+        "crate::acp::client::codex_native_events",
+        "crate::acp::cursor_extensions",
+        "crate::acp::opencode::sse::conversion",
+        "crate::acp::commands::inbound_commands",
+    ]
+    .into_iter()
+    .map(ToOwned::to_owned)
+    .collect()
+}
+
 fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase {
-    let forbidden_paths = all
+    let mut forbidden_paths = all
         .iter()
         .filter(|family| family.adapter_module != current.adapter_module)
         .flat_map(|family| {
@@ -68,7 +81,8 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
                 format!("crate::acp::parsers::{}Adapter", family.type_prefix),
             ]
         })
-        .collect();
+        .collect::<Vec<_>>();
+    forbidden_paths.extend(runtime_forbidden_paths());
 
     BoundaryCase {
         relative_path: format!("adapters/{}.rs", current.adapter_module),
@@ -77,7 +91,7 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
 }
 
 fn edit_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase {
-    let forbidden_paths = all
+    let mut forbidden_paths = all
         .iter()
         .filter(|family| family.edit_module != current.edit_module)
         .flat_map(|family| {
@@ -90,7 +104,8 @@ fn edit_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase {
                 ),
             ]
         })
-        .collect();
+        .collect::<Vec<_>>();
+    forbidden_paths.extend(runtime_forbidden_paths());
 
     BoundaryCase {
         relative_path: format!("edit_normalizers/{}.rs", current.edit_module),
@@ -99,7 +114,7 @@ fn edit_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase {
 }
 
 fn parser_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase {
-    let forbidden_paths = all
+    let mut forbidden_paths = all
         .iter()
         .filter(|family| family.parser_module != current.parser_module)
         .flat_map(|family| {
@@ -114,7 +129,8 @@ fn parser_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase
                 ),
             ]
         })
-        .collect();
+        .collect::<Vec<_>>();
+    forbidden_paths.extend(runtime_forbidden_paths());
 
     BoundaryCase {
         relative_path: format!("{}.rs", current.parser_module),

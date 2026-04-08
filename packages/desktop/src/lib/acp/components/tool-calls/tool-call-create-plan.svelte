@@ -54,11 +54,31 @@ const planApprovalId = $derived.by(() => {
 	return buildPlanApprovalInteractionId(sessionId, toolCall.id, requestId);
 });
 const planApprovalEntry = $derived.by(() => {
-	if (!planApprovalId) {
+	if (planApprovalId) {
+		const legacyEntry = interactionStore.planApprovalsPending.get(planApprovalId);
+		if (legacyEntry !== undefined) {
+			return legacyEntry;
+		}
+	}
+
+	const sessionId = sessionContext?.sessionId;
+	if (!sessionId) {
 		return null;
 	}
 
-	return interactionStore.planApprovalsPending.get(planApprovalId) ?? null;
+	for (const approval of interactionStore.planApprovalsPending.values()) {
+		if (approval.sessionId !== sessionId) {
+			continue;
+		}
+
+		if (approval.tool.callID !== toolCall.id) {
+			continue;
+		}
+
+		return approval;
+	}
+
+	return null;
 });
 const pendingPlanApproval = $derived(
 	planApprovalEntry?.status === "pending" ? planApprovalEntry : null
@@ -114,15 +134,21 @@ const isAnswered = $derived(effectiveApproval !== null && !isInteractive);
 const isApproved = $derived(effectiveApproval === true);
 
 function handleApprove() {
-	const requestId = pendingPlanApproval?.jsonRpcRequestId ?? toolCall.planApprovalRequestId;
-	const sessionId = pendingPlanApproval?.sessionId ?? sessionContext?.sessionId;
-	if (requestId == null || !sessionId) return;
 	const approval = pendingPlanApproval;
+	const requestId = toolCall.planApprovalRequestId;
+	const sessionId = sessionContext?.sessionId;
+	if (approval == null && (requestId == null || !sessionId)) return;
 	localApproval = true;
 	if (approval) {
 		interactionStore.setPlanApprovalStatus(approval.id, "approved");
 	}
-	replyToPlanApprovalRequest(sessionId, requestId, true).match(
+
+	const replyResult =
+		approval !== null
+			? replyToPlanApprovalRequest(approval, true, false)
+			: replyToPlanApprovalRequest(sessionId, requestId, true);
+
+	replyResult.match(
 		() => {},
 		(err: AcpError) => {
 			// Roll back optimistic update on failure
@@ -136,15 +162,21 @@ function handleApprove() {
 }
 
 function handleReject() {
-	const requestId = pendingPlanApproval?.jsonRpcRequestId ?? toolCall.planApprovalRequestId;
-	const sessionId = pendingPlanApproval?.sessionId ?? sessionContext?.sessionId;
-	if (requestId == null || !sessionId) return;
 	const approval = pendingPlanApproval;
+	const requestId = toolCall.planApprovalRequestId;
+	const sessionId = sessionContext?.sessionId;
+	if (approval == null && (requestId == null || !sessionId)) return;
 	localApproval = false;
 	if (approval) {
 		interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 	}
-	replyToPlanApprovalRequest(sessionId, requestId, false).match(
+
+	const replyResult =
+		approval !== null
+			? replyToPlanApprovalRequest(approval, false, false)
+			: replyToPlanApprovalRequest(sessionId, requestId, false);
+
+	replyResult.match(
 		() => {},
 		(err: AcpError) => {
 			// Roll back optimistic update on failure

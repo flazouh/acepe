@@ -686,6 +686,9 @@ mod tests {
                 kind: crate::acp::projections::InteractionKind::Permission,
                 state: InteractionState::Pending,
                 json_rpc_request_id: Some(7),
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                    7,
+                )),
                 tool_reference: None,
                 responded_at_event_seq: None,
                 response: None,
@@ -693,6 +696,9 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-priority".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(
+                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                    ),
                     permission: "Execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
@@ -710,6 +716,9 @@ mod tests {
                 id: "permission-1".to_string(),
                 session_id: "session-priority".to_string(),
                 json_rpc_request_id: Some(7),
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                    7,
+                )),
                 permission: "Execute".to_string(),
                 patterns: vec![],
                 metadata: json!({ "command": "bun test" }),

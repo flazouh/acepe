@@ -15,6 +15,7 @@ import {
 	type PermissionRequest,
 } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
+import { createLegacyInteractionReplyHandler } from "../types/reply-handler.js";
 
 interface NormalizedInboundInteractionBase {
 	sessionId: string;
@@ -152,6 +153,10 @@ export function toPermissionRequest(
 		id: buildAcpPermissionId(request.sessionId, request.toolCallId, request.jsonRpcRequestId),
 		sessionId: request.sessionId,
 		jsonRpcRequestId: request.jsonRpcRequestId,
+		replyHandler: createLegacyInteractionReplyHandler(
+			buildAcpPermissionId(request.sessionId, request.toolCallId, request.jsonRpcRequestId),
+			request.jsonRpcRequestId
+		),
 		permission: request.toolLabel,
 		patterns: [],
 		metadata: {
@@ -172,6 +177,7 @@ export function toQuestionRequest(request: NormalizedInboundQuestionRequest): Qu
 		id: request.toolCallId,
 		sessionId: request.sessionId,
 		jsonRpcRequestId: request.jsonRpcRequestId,
+		replyHandler: createLegacyInteractionReplyHandler(request.toolCallId, request.jsonRpcRequestId),
 		questions: request.questions,
 		tool: {
 			messageID: "",

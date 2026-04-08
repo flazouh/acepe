@@ -7,34 +7,12 @@ import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
-// Mock the API module
-const mockReplyQuestion = vi.fn(
-	(_sessionId: string, _questionId: string, _answers: unknown) => okAsync(undefined)
-);
+const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => okAsync(undefined));
 
 vi.mock("../api.js", () => ({
 	api: {
-		replyQuestion: (sessionId: string, questionId: string, answers: unknown) =>
-			mockReplyQuestion(sessionId, questionId, answers),
+		replyInteraction: (request: Record<string, unknown>) => mockReplyInteraction(request),
 	},
-}));
-
-// Mock the inbound request handler's respondToQuestion and cancelQuestion
-const mockRespondToQuestion = vi.fn(
-	(_sessionId: string, _requestId: number, _answers: Record<string, string | string[]>) =>
-		okAsync(undefined)
-);
-
-const mockCancelQuestion = vi.fn((_sessionId: string, _requestId: number) => okAsync(undefined));
-
-vi.mock("../../logic/inbound-request-handler.js", () => ({
-	respondToQuestion: (
-		sessionId: string,
-		requestId: number,
-		answers: Record<string, string | string[]>
-	) => mockRespondToQuestion(sessionId, requestId, answers),
-	cancelQuestion: (sessionId: string, requestId: number) =>
-		mockCancelQuestion(sessionId, requestId),
 }));
 
 describe("QuestionStore", () => {
@@ -201,14 +179,21 @@ describe("QuestionStore", () => {
 				initialQuestion.questions
 			);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith(
-				"session-duplicate-routing",
-				654,
-				{
-					"Which feature should I prioritize?": "Streaming",
-				}
-			);
-			expect(mockReplyQuestion).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-duplicate-routing",
+				interactionId: "q-duplicate-routing",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 654,
+				},
+				payload: {
+					kind: "question",
+					answers: [{ questionIndex: 0, answers: ["Streaming"] }],
+					answerMap: {
+						"Which feature should I prioritize?": "Streaming",
+					},
+				},
+			});
 		});
 
 		it("should use HTTP endpoint for questions without jsonRpcRequestId", async () => {
@@ -230,7 +215,21 @@ describe("QuestionStore", () => {
 			const answers = [{ questionIndex: 0, answers: ["A"] }];
 			await store.reply("q-http", answers, question.questions);
 
-			expect(mockReplyQuestion).toHaveBeenCalledWith("session-http", "q-http", answers);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "q-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "q-http",
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap: {
+						"Which option?": "A",
+					},
+				},
+			});
 			expect(store.pending.size).toBe(0);
 		});
 
@@ -256,10 +255,21 @@ describe("QuestionStore", () => {
 			const answers = [{ questionIndex: 0, answers: ["Svelte"] }];
 			await store.reply("q-jsonrpc", answers, question.questions);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith("session-jsonrpc", 456, {
-				"Which framework?": "Svelte",
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: "q-jsonrpc",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 456,
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap: {
+						"Which framework?": "Svelte",
+					},
+				},
 			});
-			expect(mockReplyQuestion).not.toHaveBeenCalled();
 			expect(store.pending.size).toBe(0);
 		});
 
@@ -286,8 +296,20 @@ describe("QuestionStore", () => {
 			const answers = [{ questionIndex: 0, answers: ["TypeScript", "ESLint"] }];
 			await store.reply("q-multi", answers, question.questions);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith("session-multi", 789, {
-				"Select features:": ["TypeScript", "ESLint"],
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-multi",
+				interactionId: "q-multi",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 789,
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap: {
+						"Select features:": ["TypeScript", "ESLint"],
+					},
+				},
 			});
 		});
 
@@ -314,8 +336,20 @@ describe("QuestionStore", () => {
 			const answers = [{ questionIndex: 0, answers: ["TypeScript", "ESLint"] }];
 			await store.reply("q-multi-values", answers, question.questions);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith("session-multi-values", 790, {
-				"Select features:": ["TypeScript", "ESLint"],
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-multi-values",
+				interactionId: "q-multi-values",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 790,
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap: {
+						"Select features:": ["TypeScript", "ESLint"],
+					},
+				},
 			});
 		});
 
@@ -347,9 +381,21 @@ describe("QuestionStore", () => {
 			];
 			await store.reply("q-multiple-qs", answers, question.questions);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith("session-multiple", 101, {
-				"First question?": "A",
-				"Second question?": ["B"],
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-multiple",
+				interactionId: "q-multiple-qs",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 101,
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap: {
+						"First question?": "A",
+						"Second question?": ["B"],
+					},
+				},
 			});
 		});
 
@@ -372,7 +418,17 @@ describe("QuestionStore", () => {
 			store.add(question);
 			await store.cancel("q-cancel-jsonrpc");
 
-			expect(mockCancelQuestion).toHaveBeenCalledWith("session-cancel", 200);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-cancel",
+				interactionId: "q-cancel-jsonrpc",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 200,
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
 			expect(store.pending.size).toBe(0);
 		});
 
@@ -387,12 +443,17 @@ describe("QuestionStore", () => {
 			store.add(question);
 			await store.cancel("q-cancel-http");
 
-			expect(mockCancelQuestion).not.toHaveBeenCalled();
-			expect(mockReplyQuestion).toHaveBeenCalledWith(
-				"session-cancel-http",
-				"q-cancel-http",
-				[]
-			);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-cancel-http",
+				interactionId: "q-cancel-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "q-cancel-http",
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
 			expect(store.pending.size).toBe(0);
 		});
 
@@ -433,8 +494,28 @@ describe("QuestionStore", () => {
 			expect(store.pending.has("q-session-1-a")).toBe(false);
 			expect(store.pending.has("q-session-1-b")).toBe(false);
 			expect(store.pending.has("q-session-2")).toBe(true);
-			expect(mockCancelQuestion).toHaveBeenCalledWith("session-1", 201);
-			expect(mockReplyQuestion).toHaveBeenCalledWith("session-1", "q-session-1-b", []);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-1",
+				interactionId: "q-session-1-a",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 201,
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-1",
+				interactionId: "q-session-1-b",
+				replyHandler: {
+					kind: "http",
+					requestId: "q-session-1-b",
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
 		});
 	});
 });

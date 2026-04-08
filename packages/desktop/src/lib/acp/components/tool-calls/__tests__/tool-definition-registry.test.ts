@@ -59,6 +59,10 @@ describe("tool definition registry", () => {
 			subtitle: "git status --short",
 			filePath: undefined,
 			status: "running",
+			command: "git status --short",
+			stdout: null,
+			stderr: null,
+			exitCode: undefined,
 		});
 	});
 

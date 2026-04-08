@@ -1,5 +1,6 @@
 import type { PermissionRequest } from "./permission.js";
 import type { AnsweredQuestion, QuestionRequest } from "./question.js";
+import type { InteractionReplyHandler } from "./reply-handler.js";
 
 export type InteractionKind = "permission" | "question" | "plan_approval";
 
@@ -27,7 +28,8 @@ export interface PlanApprovalInteraction {
 	source: "create_plan" | "exit_plan_mode";
 	sessionId: string;
 	tool: InteractionToolReference;
-	jsonRpcRequestId: number;
+	jsonRpcRequestId?: number;
+	replyHandler: InteractionReplyHandler;
 	status: "pending" | "approved" | "rejected";
 }
 

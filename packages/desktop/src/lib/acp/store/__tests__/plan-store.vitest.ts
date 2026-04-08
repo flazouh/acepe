@@ -15,6 +15,8 @@ type GetUnifiedPlan = (
 const getUnifiedPlanMock = vi.fn<GetUnifiedPlan>();
 
 vi.mock("../../../utils/tauri-client.js", () => ({
+	openFileInEditor: vi.fn(),
+	revealInFinder: vi.fn(),
 	tauriClient: {
 		history: {
 			getUnifiedPlan: getUnifiedPlanMock,

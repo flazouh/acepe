@@ -623,6 +623,93 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	it("enriches an existing tool row from permission parsed arguments before notifying", () => {
+		const onPermissionRequest = vi.fn();
+		service.setCallbacks({ onPermissionRequest });
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			{
+				id: "tool-edit-1",
+				type: "tool_call",
+				message: {
+					id: "tool-edit-1",
+					name: "Edit",
+					arguments: {
+						kind: "edit",
+						edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+					},
+					status: "pending",
+					result: null,
+					kind: "edit",
+					title: "Edit",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+					startedAtMs: 1,
+				},
+				isStreaming: true,
+			} satisfies SessionEntry,
+		]);
+
+		const update: SessionUpdate = {
+			type: "permissionRequest",
+			permission: {
+				id: "perm-edit-1",
+				sessionId: "session-123",
+				permission: "Edit",
+				patterns: [],
+				metadata: {
+					rawInput: {},
+					parsedArguments: {
+						kind: "edit",
+						edits: [
+							{
+								filePath: "/tmp/example.ts",
+								oldString: "before",
+								newString: "after",
+								content: "after",
+							},
+						],
+					},
+					options: [],
+				},
+				always: [],
+				tool: {
+					messageId: "",
+					callId: "tool-edit-1",
+				},
+			},
+			session_id: "session-123",
+		};
+
+		service.handleSessionUpdate(update, handler);
+
+		expect(handler.updateToolCallEntry).toHaveBeenCalledWith("session-123", {
+			toolCallId: "tool-edit-1",
+			arguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+						content: "after",
+					},
+				],
+			},
+		});
+		expect(onPermissionRequest).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "perm-edit-1",
+			})
+		);
+	});
+
 	it("routes questionRequest updates to the question callback", () => {
 		const onQuestionRequest = vi.fn();
 		service.setCallbacks({ onQuestionRequest });
@@ -828,7 +915,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("drops replay content updates when replay suppression is enabled", () => {
+	it("drops replayed assistant text chunks when replay suppression is enabled", () => {
 		const suppressedHandler = createMockHandler();
 		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
@@ -838,21 +925,20 @@ describe("SessionEventService streaming delta handling", () => {
 		service.suppressReplayForSession("session-123");
 
 		const update: SessionUpdate = {
-			type: "toolCall",
+			type: "agentMessageChunk",
 			session_id: "session-123",
-			tool_call: {
-				id: "tool-replay-1",
-				name: "Read",
-				status: "completed",
-				kind: "read",
-				arguments: { kind: "read", file_path: "/tmp/test.txt" },
-				awaitingPlanApproval: false,
+			message_id: "msg-replay-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "This replayed transcript chunk should stay suppressed while the session is idle.",
+				},
 			},
 		};
 
 		service.handleSessionUpdate(update, suppressedHandler);
 
-		expect(suppressedHandler.createToolCallEntry).not.toHaveBeenCalled();
+		expect(suppressedHandler.aggregateAssistantChunk).not.toHaveBeenCalled();
 	});
 
 	it("still processes non-content updates while replay suppression is enabled", () => {
@@ -885,34 +971,61 @@ describe("SessionEventService streaming delta handling", () => {
 		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockImplementation(() => hotState);
 		service.suppressReplayForSession("session-123");
 
-		const update: SessionUpdate = {
-			type: "toolCall",
+		const idleUpdate: SessionUpdate = {
+			type: "agentMessageChunk",
 			session_id: "session-123",
-			tool_call: {
-				id: "tool-live-1",
-				name: "Read",
-				status: "completed",
-				kind: "read",
-				arguments: { kind: "read", file_path: "/tmp/live.txt" },
-				awaitingPlanApproval: false,
+			message_id: "msg-replay-idle-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "Idle replay content should stay suppressed before a live turn resumes.",
+				},
+			},
+		};
+		const liveUpdate: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "msg-replay-live-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "Once a live turn resumes, canonical chunks should flow through again.",
+				},
+			},
+		};
+		const secondIdleUpdate: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "msg-replay-idle-2",
+			chunk: {
+				content: {
+					type: "text",
+					text: "After the live turn ends, replay suppression should become active again.",
+				},
 			},
 		};
 
 		// While idle, replay content is dropped.
-		service.handleSessionUpdate(update, suppressedHandler);
-		expect(suppressedHandler.createToolCallEntry).not.toHaveBeenCalled();
+		service.handleSessionUpdate(idleUpdate, suppressedHandler);
+		expect(suppressedHandler.aggregateAssistantChunk).not.toHaveBeenCalled();
 
 		// Once a real turn starts, suppression is removed and updates flow through.
 		hotState.status = "streaming";
 		hotState.turnState = "streaming";
-		service.handleSessionUpdate(update, suppressedHandler);
+		service.handleSessionUpdate(liveUpdate, suppressedHandler);
 
 		// Suppression re-applies while idle after the active turn ends.
 		hotState.status = "ready";
 		hotState.turnState = "idle";
-		service.handleSessionUpdate(update, suppressedHandler);
+		service.handleSessionUpdate(secondIdleUpdate, suppressedHandler);
 
-		expect(suppressedHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
+		expect(suppressedHandler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
+		expect(suppressedHandler.aggregateAssistantChunk).toHaveBeenCalledWith(
+			"session-123",
+			liveUpdate.chunk,
+			"msg-replay-live-1",
+			false
+		);
 	});
 
 	it("allows pending tool calls through replay suppression while idle", () => {
@@ -999,6 +1112,67 @@ describe("SessionEventService streaming delta handling", () => {
 				toolCallId: "tool-exit-plan-1",
 				status: "pending",
 				title: "Ready to code?",
+			},
+		};
+
+		service.handleSessionUpdate(update, suppressedHandler);
+
+		expect(suppressedHandler.updateToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			update.update
+		);
+	});
+
+	it("allows terminal tool calls through replay suppression while idle", () => {
+		const suppressedHandler = createMockHandler();
+		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+		});
+		service.suppressReplayForSession("session-123");
+
+		const update: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-replay-completed-1",
+				name: "Read",
+				status: "completed",
+				kind: "read",
+				arguments: { kind: "read", file_path: "/tmp/test.txt" },
+				title: "Read /tmp/test.txt",
+				result: "file contents",
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(update, suppressedHandler);
+
+		expect(suppressedHandler.createToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			update.tool_call
+		);
+	});
+
+	it("allows terminal tool call updates through replay suppression while idle", () => {
+		const suppressedHandler = createMockHandler();
+		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+		});
+		service.suppressReplayForSession("session-123");
+
+		const update: SessionUpdate = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-replay-completed-1",
+				status: "completed",
+				title: "Read /tmp/test.txt",
+				result: "file contents",
+				locations: [{ path: "/tmp/test.txt" }],
 			},
 		};
 
@@ -1577,6 +1751,159 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
 			"session-123",
 			enrichedUpdate.tool_call
+		);
+	});
+
+	it("applies repeated tool calls when top-level result gets richer", () => {
+		markHandlerTurnAsStreaming(handler);
+		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			createTaskReplayEntry("tool-rich-result-1"),
+		]);
+
+		const initialUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-rich-result-1",
+				name: "Write",
+				arguments: {
+					kind: "other",
+					raw: {
+						payload: "draft",
+					},
+				},
+				status: "completed",
+				kind: "other",
+				title: "Write file",
+				locations: null,
+				skillMeta: null,
+				result: "ok",
+				taskChildren: null,
+				awaitingPlanApproval: false,
+			},
+		};
+		const enrichedUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-rich-result-1",
+				name: "Write",
+				arguments: {
+					kind: "other",
+					raw: {
+						payload: "draft",
+					},
+				},
+				status: "completed",
+				kind: "other",
+				title: "Write file",
+				locations: [{ path: "/repo/src/file.ts" }],
+				skillMeta: null,
+				result: {
+					summary: "updated",
+					linesChanged: 12,
+				},
+				taskChildren: null,
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(initialUpdate, handler);
+		service.handleSessionUpdate(enrichedUpdate, handler);
+
+		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.createToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedUpdate.tool_call
+		);
+	});
+
+	it("applies distinct toolCallUpdate events when arguments get richer", () => {
+		const initialUpdate: Extract<SessionUpdate, { type: "toolCallUpdate" }> = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-update-args-1",
+				status: "in_progress",
+				title: "Running",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "/repo/src/file.ts",
+							oldString: "before",
+							newString: null,
+							content: null,
+						},
+					],
+				},
+			},
+		};
+		const enrichedUpdate: Extract<SessionUpdate, { type: "toolCallUpdate" }> = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-update-args-1",
+				status: "in_progress",
+				title: "Running",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "/repo/src/file.ts",
+							oldString: "before",
+							newString: "after",
+							content: null,
+						},
+					],
+				},
+			},
+		};
+
+		service.handleSessionUpdate(initialUpdate, handler);
+		service.handleSessionUpdate(enrichedUpdate, handler);
+
+		expect(handler.updateToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.updateToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedUpdate.update
+		);
+	});
+
+	it("applies distinct toolCallUpdate events when long raw output changes after the preview cutoff", () => {
+		const sharedPrefix = "x".repeat(220);
+		const initialUpdate: Extract<SessionUpdate, { type: "toolCallUpdate" }> = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-update-raw-1",
+				status: "completed",
+				title: "Done",
+				rawOutput: {
+					payload: `${sharedPrefix}-initial`,
+				},
+			},
+		};
+		const enrichedUpdate: Extract<SessionUpdate, { type: "toolCallUpdate" }> = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-update-raw-1",
+				status: "completed",
+				title: "Done",
+				rawOutput: {
+					payload: `${sharedPrefix}-enriched`,
+				},
+			},
+		};
+
+		service.handleSessionUpdate(initialUpdate, handler);
+		service.handleSessionUpdate(enrichedUpdate, handler);
+
+		expect(handler.updateToolCallEntry).toHaveBeenCalledTimes(2);
+		expect(handler.updateToolCallEntry).toHaveBeenLastCalledWith(
+			"session-123",
+			enrichedUpdate.update
 		);
 	});
 

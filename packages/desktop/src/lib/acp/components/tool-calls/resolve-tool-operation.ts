@@ -1,7 +1,6 @@
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { mergePermissionArgs } from "../../utils/merge-permission-args.js";
 
 export type ToolRouteKey = ToolKind | "read_lints";
 
@@ -22,7 +21,7 @@ export function resolveToolOperation(
 	return {
 		resolvedKind,
 		routeKey,
-		toolCall: createResolvedToolCall(toolCall, pendingPermission),
+		toolCall,
 		shouldShowInlinePermissionActionBar:
 			pendingPermission !== null &&
 			pendingPermission !== undefined &&
@@ -39,30 +38,4 @@ export function resolveToolRouteKey(toolCall: ToolCall, resolvedKind: ToolKind):
 	}
 
 	return resolvedKind;
-}
-
-function createResolvedToolCall(
-	toolCall: ToolCall,
-	pendingPermission: PermissionRequest | null | undefined
-): ToolCall {
-	return {
-		id: toolCall.id,
-		name: toolCall.name,
-		arguments: mergePermissionArgs(toolCall.arguments, pendingPermission),
-		status: toolCall.status,
-		result: toolCall.result,
-		kind: toolCall.kind,
-		title: toolCall.title,
-		locations: toolCall.locations,
-		skillMeta: toolCall.skillMeta,
-		normalizedQuestions: toolCall.normalizedQuestions,
-		normalizedTodos: toolCall.normalizedTodos,
-		parentToolUseId: toolCall.parentToolUseId,
-		taskChildren: toolCall.taskChildren,
-		questionAnswer: toolCall.questionAnswer,
-		awaitingPlanApproval: toolCall.awaitingPlanApproval,
-		planApprovalRequestId: toolCall.planApprovalRequestId,
-		startedAtMs: toolCall.startedAtMs,
-		completedAtMs: toolCall.completedAtMs,
-	};
 }

@@ -90,9 +90,7 @@ function createToolCallEntry(id: string): SessionEntry {
 	};
 }
 
-function createTrackedManager(
-	initialEntries?: Array<{ sessionId: string; entry: SessionEntry }>
-): {
+function createTrackedManager(initialEntries?: Array<{ sessionId: string; entry: SessionEntry }>): {
 	manager: ToolCallManager;
 	entryStore: IEntryStoreInternal;
 	entryIndex: IEntryIndex;
@@ -429,6 +427,68 @@ describe("ToolCallManager", () => {
 			}
 		});
 
+		it("merges replayed question answers into an existing tool call", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "AskUserQuestion",
+					status: "completed",
+					arguments: { kind: "other", raw: { prompt: "Ship it?" } },
+					kind: "question",
+					title: "Ask question",
+					rawInput: null,
+					result: null,
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: false,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const replayedData = createToolCallData("tc-1", {
+				status: "completed",
+				rawInput: { prompt: "Ship it?" },
+				questionAnswer: {
+					questions: [
+						{
+							question: "Ship it?",
+							header: "Confirmation",
+							options: [],
+							multiSelect: false,
+						},
+					],
+					answers: { "Ship it?": "Yes" },
+				},
+			});
+			const result = manager.createEntry("s1", replayedData);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.rawInput).toEqual({ prompt: "Ship it?" });
+				expect(updatedEntry.message.questionAnswer).toEqual({
+					questions: [
+						{
+							question: "Ship it?",
+							header: "Confirmation",
+							options: [],
+							multiSelect: false,
+						},
+					],
+					answers: { "Ship it?": "Yes" },
+				});
+			}
+		});
+
 		it("promotes synthetic task entries to question when normalized questions arrive", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
@@ -536,7 +596,6 @@ describe("ToolCallManager", () => {
 			manager.createEntry("s1", createToolCallData("tc-1"));
 			expect(manager.getStreamingArguments("tc-1")).toBeDefined();
 		});
-
 	});
 
 	// ============================================
@@ -565,7 +624,7 @@ describe("ToolCallManager", () => {
 			const manager = new ToolCallManager(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-streaming-delta-only", {
-				streamingInputDelta: "{\"command\":\"bun",
+				streamingInputDelta: '{"command":"bun',
 			});
 			const result = manager.updateEntry("s1", update);
 

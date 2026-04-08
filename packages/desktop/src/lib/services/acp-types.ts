@@ -135,14 +135,24 @@ export type QuestionOption = { label: string; description: string }
 export type QuestionItem = { question: string; header: string; options: QuestionOption[]; multiSelect: boolean }
 
 /**
+ * Explicit reply routing metadata for a canonical interaction.
+ */
+export type InteractionReplyHandlerKind = "json_rpc" | "http"
+
+/**
+ * Backend-owned reply handler metadata for interaction replies.
+ */
+export type InteractionReplyHandler = { kind: InteractionReplyHandlerKind; requestId: string }
+
+/**
  * Permission request data.
  */
-export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
+export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
 
 /**
  * Question request data.
  */
-export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; questions: QuestionItem[]; tool?: ToolReference | null }
+export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; questions: QuestionItem[]; tool?: ToolReference | null }
 
 export type SessionDomainEventKind = "session_identity_resolved" | "session_connected" | "session_disconnected" | "session_config_changed" | "turn_started" | "turn_completed" | "turn_failed" | "turn_cancelled" | "user_message_segment_appended" | "assistant_message_segment_appended" | "assistant_thought_segment_appended" | "operation_upserted" | "operation_child_linked" | "operation_completed" | "interaction_upserted" | "interaction_resolved" | "interaction_cancelled" | "usage_telemetry_updated" | "todo_state_updated"
 
@@ -164,7 +174,7 @@ export type InteractionPayload = { Permission: PermissionData } | { Question: Qu
 
 export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean }
 
-export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
+export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
 
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[] }
 

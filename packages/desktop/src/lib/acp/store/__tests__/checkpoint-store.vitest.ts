@@ -8,6 +8,8 @@ import type { Checkpoint, RevertResult } from "../../types/checkpoint.js";
 
 // Mock the tauri-client module
 vi.mock("../../../utils/tauri-client.js", () => ({
+	openFileInEditor: vi.fn(),
+	revealInFinder: vi.fn(),
 	tauriClient: {
 		checkpoint: {
 			create: vi.fn(),

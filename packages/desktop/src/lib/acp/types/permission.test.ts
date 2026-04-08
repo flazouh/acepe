@@ -23,6 +23,7 @@ describe("createPermissionRequest", () => {
 			id: "permission-1",
 			sessionId: "session-1",
 			jsonRpcRequestId: undefined,
+			replyHandler: { kind: "http", requestId: "permission-1" },
 			permission: "ReadFile",
 			patterns: ["/Users/alex/Documents/acepe/packages/desktop/src"],
 			metadata: {
@@ -55,6 +56,7 @@ describe("createPermissionRequest", () => {
 			id: buildAcpPermissionId("session-2", "tool-2", 42),
 			sessionId: "session-2",
 			jsonRpcRequestId: 42,
+			replyHandler: { kind: "json-rpc", requestId: 42 },
 			permission: "Execute tool",
 			patterns: [],
 			metadata: {

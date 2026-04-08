@@ -13,6 +13,10 @@ import type {
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import { createPermissionRequest, type PermissionRequest } from "../types/permission.js";
 import type { AnsweredQuestion, QuestionRequest } from "../types/question.js";
+import {
+	createLegacyInteractionReplyHandler,
+	normalizeInteractionReplyHandler,
+} from "../types/reply-handler.js";
 
 const INTERACTION_STORE_KEY = Symbol("interaction-store");
 
@@ -42,6 +46,7 @@ export class InteractionStore {
 				callID: approval.tool.callID,
 			},
 			jsonRpcRequestId: approval.jsonRpcRequestId,
+			replyHandler: approval.replyHandler,
 			status,
 		});
 	}
@@ -115,6 +120,10 @@ export class InteractionStore {
 				id: payload.id,
 				sessionId: payload.sessionId,
 				jsonRpcRequestId: payload.jsonRpcRequestId,
+				replyHandler:
+					normalizeInteractionReplyHandler(interaction.reply_handler) ??
+					normalizeInteractionReplyHandler(payload.replyHandler) ??
+					createLegacyInteractionReplyHandler(payload.id, payload.jsonRpcRequestId),
 				permission: payload.permission,
 				patterns: payload.patterns,
 				metadata: payload.metadata,
@@ -125,7 +134,7 @@ export class InteractionStore {
 	}
 
 	private applyQuestionInteraction(interaction: InteractionSnapshot, payload: QuestionData): void {
-		const request = this.buildQuestionRequest(payload);
+		const request = this.buildQuestionRequest(interaction, payload);
 		if (interaction.state === "Pending") {
 			this.questionsPending.set(request.id, request);
 			return;
@@ -152,8 +161,11 @@ export class InteractionStore {
 	): void {
 		const jsonRpcRequestId = interaction.json_rpc_request_id;
 		const tool = toInteractionToolReference(interaction.tool_reference);
+		const replyHandler =
+			normalizeInteractionReplyHandler(interaction.reply_handler) ??
+			createLegacyInteractionReplyHandler(interaction.id, jsonRpcRequestId);
 		const status = mapPlanApprovalStatus(interaction.state);
-		if (jsonRpcRequestId === null || tool === undefined || status === null) {
+		if (tool === undefined || status === null) {
 			return;
 		}
 
@@ -163,16 +175,24 @@ export class InteractionStore {
 			source: source === "CreatePlan" ? "create_plan" : "exit_plan_mode",
 			sessionId: interaction.session_id,
 			tool,
-			jsonRpcRequestId,
+			jsonRpcRequestId: jsonRpcRequestId ?? undefined,
+			replyHandler,
 			status,
 		});
 	}
 
-	private buildQuestionRequest(payload: QuestionData): QuestionRequest {
+	private buildQuestionRequest(
+		interaction: InteractionSnapshot,
+		payload: QuestionData
+	): QuestionRequest {
 		return {
 			id: payload.id,
 			sessionId: payload.sessionId,
 			jsonRpcRequestId: payload.jsonRpcRequestId ?? undefined,
+			replyHandler:
+				normalizeInteractionReplyHandler(interaction.reply_handler) ??
+				normalizeInteractionReplyHandler(payload.replyHandler) ??
+				createLegacyInteractionReplyHandler(payload.id, payload.jsonRpcRequestId),
 			questions: payload.questions,
 			tool: toInteractionToolReference(payload.tool),
 		};

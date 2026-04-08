@@ -836,6 +836,7 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
             id: "permission-1".to_string(),
             session_id: "session-1".to_string(),
             json_rpc_request_id: Some(7),
+            reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(7)),
             permission: "Read".to_string(),
             patterns: vec![path.to_string()],
             metadata: json!({}),

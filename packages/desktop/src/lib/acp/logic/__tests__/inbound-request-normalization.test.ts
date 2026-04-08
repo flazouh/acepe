@@ -61,6 +61,10 @@ describe("normalizeInboundInteractionRequest", () => {
 			id: "tool-12",
 			sessionId: "session-12",
 			jsonRpcRequestId: 12,
+			replyHandler: {
+				kind: "json-rpc",
+				requestId: 12,
+			},
 			questions: [
 				{
 					question: "Choose one?",
@@ -154,6 +158,10 @@ describe("normalizeInboundInteractionRequest", () => {
 			id: "session-14\u0000tool-14\u000014",
 			sessionId: "session-14",
 			jsonRpcRequestId: 14,
+			replyHandler: {
+				kind: "json-rpc",
+				requestId: 14,
+			},
 			permission: "Bash",
 			patterns: [],
 			metadata: {

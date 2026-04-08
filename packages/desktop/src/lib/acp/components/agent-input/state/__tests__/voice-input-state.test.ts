@@ -119,6 +119,8 @@ describe("VoiceInputState", () => {
 			playSound: playSoundMock,
 		}));
 		mock.module("$lib/utils/tauri-client.js", () => ({
+			openFileInEditor: mock(() => undefined),
+			revealInFinder: mock(() => undefined),
 			tauriClient: {
 				voice: {
 					cancelRecording: (sessionId: string) =>

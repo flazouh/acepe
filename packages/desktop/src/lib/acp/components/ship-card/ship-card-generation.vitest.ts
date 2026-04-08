@@ -30,6 +30,8 @@ vi.mock("$lib/acp/logic/event-subscriber.js", () => ({
 }));
 
 vi.mock("$lib/utils/tauri-client.js", () => ({
+	openFileInEditor: vi.fn(),
+	revealInFinder: vi.fn(),
 	tauriClient: {
 		acp: {
 			closeSession: (...args: Parameters<typeof mockCloseSession>) => mockCloseSession(...args),

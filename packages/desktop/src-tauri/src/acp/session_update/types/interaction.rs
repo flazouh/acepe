@@ -9,6 +9,40 @@ pub struct ToolReference {
     pub call_id: String,
 }
 
+/// Explicit reply routing metadata for a canonical interaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum InteractionReplyHandlerKind {
+    JsonRpc,
+    Http,
+}
+
+/// Backend-owned reply handler metadata for interaction replies.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InteractionReplyHandler {
+    pub kind: InteractionReplyHandlerKind,
+    pub request_id: String,
+}
+
+impl InteractionReplyHandler {
+    #[must_use]
+    pub fn json_rpc(request_id: u64) -> Self {
+        Self {
+            kind: InteractionReplyHandlerKind::JsonRpc,
+            request_id: request_id.to_string(),
+        }
+    }
+
+    #[must_use]
+    pub fn http(request_id: impl Into<String>) -> Self {
+        Self {
+            kind: InteractionReplyHandlerKind::Http,
+            request_id: request_id.into(),
+        }
+    }
+}
+
 /// Permission request data.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +51,8 @@ pub struct PermissionData {
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_rpc_request_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_handler: Option<InteractionReplyHandler>,
     pub permission: String,
     pub patterns: Vec<String>,
     pub metadata: serde_json::Value,
@@ -51,6 +87,8 @@ pub struct QuestionData {
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_rpc_request_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_handler: Option<InteractionReplyHandler>,
     pub questions: Vec<QuestionItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<ToolReference>,

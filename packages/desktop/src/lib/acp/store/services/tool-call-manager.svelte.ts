@@ -243,12 +243,14 @@ export class ToolCallManager implements IToolCallManager {
 			const nextPlanApprovalRequestId = nextAwaitingPlanApproval
 				? (data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId)
 				: null;
-			const nextProgressiveArguments =
-				isTerminalStatus(nextStatus ?? data.status) ? undefined : existingToolCall.progressiveArguments;
+			const nextProgressiveArguments = isTerminalStatus(nextStatus ?? data.status)
+				? undefined
+				: existingToolCall.progressiveArguments;
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
 				name: data.name,
 				arguments: mergeToolArguments(existingToolCall.arguments, data.arguments),
+				rawInput: data.rawInput ?? existingToolCall.rawInput,
 				status: nextStatus ?? existingToolCall.status,
 				result: data.result ?? existingToolCall.result,
 				kind: nextKind,
@@ -260,6 +262,7 @@ export class ToolCallManager implements IToolCallManager {
 				parentToolUseId: data.parentToolUseId ?? existingToolCall.parentToolUseId,
 				// Backend sends pre-assembled taskChildren - use incoming if present, else keep existing
 				taskChildren: data.taskChildren ?? existingToolCall.taskChildren,
+				questionAnswer: data.questionAnswer ?? existingToolCall.questionAnswer,
 				awaitingPlanApproval: nextAwaitingPlanApproval,
 				planApprovalRequestId: nextPlanApprovalRequestId,
 				progressiveArguments: nextProgressiveArguments,

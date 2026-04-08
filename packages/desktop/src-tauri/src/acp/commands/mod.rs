@@ -37,7 +37,9 @@ use client_ops::{
     create_and_initialize_client, lock_session_client, resume_or_create_session_client,
 };
 pub use file_commands::{acp_read_text_file, acp_write_text_file};
-pub use inbound_commands::{acp_reply_permission, acp_reply_question, acp_respond_inbound_request};
+pub use inbound_commands::{
+    acp_reply_interaction, acp_reply_permission, acp_reply_question, acp_respond_inbound_request,
+};
 pub use install_commands::{acp_install_agent, acp_uninstall_agent};
 pub use interaction_commands::{
     acp_cancel, acp_send_prompt, acp_set_config_option, acp_set_execution_profile, acp_set_mode,

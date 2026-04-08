@@ -43,6 +43,7 @@ import {
 	getConnectionStore,
 	gitHubDiffViewerStore,
 } from "$lib/acp/store/index.js";
+import { enrichExistingToolCallFromPermission } from "$lib/acp/store/services/permission-tool-call-enricher.js";
 import { createQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { buildPlanApprovalInteractionId } from "$lib/acp/types/interaction.js";
@@ -898,6 +899,7 @@ onMount(async () => {
 	const handlerResult = await inboundRequestHandler.start(
 		(permission) => {
 			logger.debug("Permission callback invoked", { permissionId: permission.id });
+			enrichExistingToolCallFromPermission(sessionStore, permission);
 			hydrateInteractionProjection(permission.sessionId, "inbound-permission");
 		},
 		(question) => {

@@ -963,7 +963,7 @@
 		if (!approval) return;
 		interactionStore.setPlanApprovalStatus(approval.id, "approved");
 
-		void replyToPlanApprovalRequest(approval.sessionId, approval.jsonRpcRequestId, true).match(
+		void replyToPlanApprovalRequest(approval, true, false).match(
 			() => undefined,
 			() => {
 				interactionStore.setPlanApprovalStatus(approval.id, "pending");
@@ -977,7 +977,7 @@
 		if (!approval) return;
 		interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 
-		void replyToPlanApprovalRequest(approval.sessionId, approval.jsonRpcRequestId, false).match(
+		void replyToPlanApprovalRequest(approval, false, false).match(
 			() => undefined,
 			() => {
 				interactionStore.setPlanApprovalStatus(approval.id, "pending");

@@ -110,6 +110,7 @@ describe("operation association", () => {
 			sessionId: "session-1",
 			tool: { messageID: "", callID: "tool-1" },
 			jsonRpcRequestId: 10,
+			replyHandler: { kind: "json-rpc", requestId: 10 },
 			status: "pending",
 		};
 

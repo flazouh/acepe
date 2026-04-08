@@ -1,8 +1,15 @@
 use super::*;
+use crate::acp::client_transport::{
+    interaction_transition_from_result, persist_interaction_transition,
+};
 use crate::acp::error::AcpError;
+use crate::acp::projections::InteractionKind;
 use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
+use crate::acp::session_update::{InteractionReplyHandler, InteractionReplyHandlerKind};
+use crate::acp::ui_event_dispatcher::AcpUiEventDispatcher;
 use crate::db::repository::SessionJournalEventRepository;
 use sea_orm::DbConn;
+use specta::Type;
 
 fn log_permission_reply_event(
     session_id: &str,
@@ -121,6 +128,129 @@ async fn update_question_projection(
             "Failed to persist question reply into session journal"
         );
     }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalInteractionReplyRequest {
+    pub session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    pub reply_handler: InteractionReplyHandler,
+    pub payload: CanonicalInteractionReplyPayload,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, Type)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum CanonicalInteractionReplyPayload {
+    Permission { reply: String, option_id: String },
+    Question { answers: Value, answer_map: Value },
+    QuestionCancel,
+    PlanApproval { approved: bool },
+}
+
+fn parse_json_rpc_request_id(
+    reply_handler: &InteractionReplyHandler,
+) -> Result<u64, SerializableAcpError> {
+    if reply_handler.kind != InteractionReplyHandlerKind::JsonRpc {
+        return Err(SerializableAcpError::InvalidState {
+            message: "Canonical reply requires a JSON-RPC handler".to_string(),
+        });
+    }
+
+    reply_handler
+        .request_id
+        .parse::<u64>()
+        .map_err(|_| SerializableAcpError::InvalidState {
+            message: format!(
+                "Invalid JSON-RPC request id '{}'",
+                reply_handler.request_id
+            ),
+        })
+}
+
+fn interaction_kind_for_payload(payload: &CanonicalInteractionReplyPayload) -> InteractionKind {
+    match payload {
+        CanonicalInteractionReplyPayload::Permission { .. } => InteractionKind::Permission,
+        CanonicalInteractionReplyPayload::Question { .. }
+        | CanonicalInteractionReplyPayload::QuestionCancel => InteractionKind::Question,
+        CanonicalInteractionReplyPayload::PlanApproval { .. } => InteractionKind::PlanApproval,
+    }
+}
+
+fn adapted_result_from_payload(
+    payload: &CanonicalInteractionReplyPayload,
+) -> Value {
+    match payload {
+        CanonicalInteractionReplyPayload::Permission { reply, option_id } => {
+            let allowed = reply != "reject";
+            json!({
+                "outcome": {
+                    "outcome": if allowed { "selected" } else { "cancelled" },
+                    "optionId": option_id,
+                }
+            })
+        }
+        CanonicalInteractionReplyPayload::Question { answer_map, .. } => {
+            json!({
+                "outcome": {
+                    "outcome": "selected",
+                    "optionId": "allow",
+                },
+                "_meta": {
+                    "answers": answer_map,
+                }
+            })
+        }
+        CanonicalInteractionReplyPayload::QuestionCancel => {
+            json!({
+                "outcome": {
+                    "outcome": "cancelled",
+                }
+            })
+        }
+        CanonicalInteractionReplyPayload::PlanApproval { approved } => {
+            json!({ "approved": approved })
+        }
+    }
+}
+
+async fn persist_canonical_interaction_reply(
+    app: &AppHandle,
+    request: &CanonicalInteractionReplyRequest,
+    adapted_result: &Value,
+) -> Result<(), SerializableAcpError> {
+    let Some(interaction_id) = request.interaction_id.as_deref() else {
+        return Ok(());
+    };
+
+    let Some((state, domain_event_kind, response)) = interaction_transition_from_result(
+        &interaction_kind_for_payload(&request.payload),
+        adapted_result,
+    ) else {
+        return Err(SerializableAcpError::InvalidState {
+            message: "Unable to derive canonical interaction transition from reply".to_string(),
+        });
+    };
+
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let db = app.state::<DbConn>();
+    let dispatcher = app.state::<AcpUiEventDispatcher>();
+
+    persist_interaction_transition(
+        projection_registry.inner().as_ref(),
+        Some(db.inner()),
+        Some(dispatcher.inner()),
+        &request.session_id,
+        interaction_id,
+        state,
+        domain_event_kind,
+        response,
+        "acp_reply_interaction",
+    )
+    .await;
+
+    Ok(())
 }
 
 pub(super) async fn respond_inbound_request_with_registry(
@@ -342,6 +472,64 @@ pub async fn acp_reply_question(
         Err(SerializableAcpError::ProtocolError {
             message: "Question reply was not accepted".to_string(),
         })
+    }
+}
+
+/// Reply to a canonical interaction through one backend-owned command path.
+#[tauri::command]
+#[specta::specta]
+pub async fn acp_reply_interaction(
+    app: AppHandle,
+    request: CanonicalInteractionReplyRequest,
+) -> Result<(), SerializableAcpError> {
+    match request.reply_handler.kind {
+        InteractionReplyHandlerKind::Http => match &request.payload {
+            CanonicalInteractionReplyPayload::Permission { reply, .. } => {
+                let interaction_id = request
+                    .interaction_id
+                    .clone()
+                    .ok_or_else(|| SerializableAcpError::InvalidState {
+                        message: "HTTP permission replies require interactionId".to_string(),
+                    })?;
+                acp_reply_permission(app, request.session_id, interaction_id, reply.clone()).await
+            }
+            CanonicalInteractionReplyPayload::Question { answers, .. } => {
+                let interaction_id = request
+                    .interaction_id
+                    .clone()
+                    .ok_or_else(|| SerializableAcpError::InvalidState {
+                        message: "HTTP question replies require interactionId".to_string(),
+                    })?;
+                acp_reply_question(app, request.session_id, interaction_id, answers.clone()).await
+            }
+            CanonicalInteractionReplyPayload::QuestionCancel => {
+                let interaction_id = request
+                    .interaction_id
+                    .clone()
+                    .ok_or_else(|| SerializableAcpError::InvalidState {
+                        message: "HTTP question cancellation requires interactionId".to_string(),
+                    })?;
+                acp_reply_question(app, request.session_id, interaction_id, json!([])).await
+            }
+            CanonicalInteractionReplyPayload::PlanApproval { .. } => {
+                Err(SerializableAcpError::InvalidState {
+                    message: "Plan approval replies do not support HTTP routing".to_string(),
+                })
+            }
+        },
+        InteractionReplyHandlerKind::JsonRpc => {
+            let request_id = parse_json_rpc_request_id(&request.reply_handler)?;
+            let adapted_result = adapted_result_from_payload(&request.payload);
+            let session_registry = app.state::<SessionRegistry>();
+            respond_inbound_request_with_registry(
+                &session_registry,
+                &request.session_id,
+                request_id,
+                adapted_result.clone(),
+            )
+            .await?;
+            persist_canonical_interaction_reply(&app, &request, &adapted_result).await
+        }
     }
 }
 

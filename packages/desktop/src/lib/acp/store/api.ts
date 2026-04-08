@@ -6,6 +6,7 @@
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData, ConvertedSession } from "../../services/converted-session-types.js";
@@ -133,6 +134,13 @@ export function replyQuestion(
 	answers: unknown
 ): ResultAsync<void, AppError> {
 	return tauriClient.acp.replyQuestion(sessionId, questionId, answers);
+}
+
+/**
+ * Reply to a canonical interaction through one backend-owned command path.
+ */
+export function replyInteraction(request: InteractionReplyRequest): ResultAsync<void, AppError> {
+	return tauriClient.acp.replyInteraction(request);
 }
 
 /**
@@ -304,6 +312,7 @@ export const api = {
 	stopStreaming,
 	closeSession,
 	getSessionProjection,
+	replyInteraction,
 	replyPermission,
 	replyQuestion,
 	respondInboundRequest,

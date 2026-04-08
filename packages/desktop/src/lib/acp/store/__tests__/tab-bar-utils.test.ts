@@ -194,6 +194,7 @@ describe("panelToTab", () => {
 				sessionId: "s-1",
 				tool: { messageID: "", callID: "tool-1" },
 				jsonRpcRequestId: 7,
+				replyHandler: { kind: "json-rpc" as const, requestId: 7 },
 				status: "pending" as const,
 			};
 			const tab = panelToTab(makeInput({ pendingPlanApproval: planApproval }));

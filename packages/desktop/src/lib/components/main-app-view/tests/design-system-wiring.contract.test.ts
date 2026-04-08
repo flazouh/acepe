@@ -14,8 +14,9 @@ describe("design system wiring contract", () => {
 
 		const source = readFileSync(topBarPath, "utf8");
 
-		expect(source).toContain('import { PillButton } from "@acepe/ui";');
-		expect(source).toContain('<PillButton variant="invert" size="xs" onclick={onUpdateClick}>');
+		expect(source).toContain('import { Palette } from "phosphor-svelte";');
+		expect(source).toContain('{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem)}');
+		expect(source).toContain('<DropdownMenu.GroupHeading');
 		expect(source).toContain("onDevShowDesignSystem?: () => void;");
 		expect(source).toContain("span>Design System</span>");
 		expect(source).toContain("onclick={onDevShowDesignSystem}");

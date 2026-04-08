@@ -329,54 +329,24 @@ fn tool_name_expects_permission_callback(tool_name: &str) -> bool {
     )
 }
 
-fn tool_update_has_terminal_payload(update: &ToolCallUpdateData) -> bool {
-    update.result.is_some()
-        || update.raw_output.is_some()
-        || update.failure_reason.is_some()
-        || update
-            .content
-            .as_ref()
-            .is_some_and(|content| !content.is_empty())
-}
-
-async fn rewrite_empty_completed_tool_call_without_permission_callback(
+async fn clear_pending_approval_callback_diagnostic_for_terminal_update(
     approval_callback_tracker: &ApprovalCallbackTracker,
-    update: &mut SessionUpdate,
+    update: &SessionUpdate,
 ) {
     let SessionUpdate::ToolCallUpdate { update, .. } = update else {
         return;
     };
 
-    let status = update.status.as_ref();
-    if status != Some(&ToolCallStatus::Completed) && status != Some(&ToolCallStatus::Failed) {
+    if !matches!(
+        update.status,
+        Some(ToolCallStatus::Completed) | Some(ToolCallStatus::Failed)
+    ) {
         return;
     }
 
-    if tool_update_has_terminal_payload(update) {
-        approval_callback_tracker
-            .clear_if_pending(&update.tool_call_id)
-            .await;
-        return;
-    }
-
-    if status == Some(&ToolCallStatus::Failed) {
-        approval_callback_tracker
-            .clear_if_pending(&update.tool_call_id)
-            .await;
-        return;
-    }
-
-    if status == Some(&ToolCallStatus::Completed)
-        && approval_callback_tracker
-            .clear_if_pending(&update.tool_call_id)
-            .await
-    {
-        update.status = Some(ToolCallStatus::Failed);
-        update.failure_reason = Some(
-            "Permission callback was never received, so the command did not produce output."
-                .to_string(),
-        );
-    }
+    approval_callback_tracker
+        .clear_if_pending(&update.tool_call_id)
+        .await;
 }
 
 async fn reject_cc_sdk_interaction_request(
@@ -491,6 +461,11 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
                                 id: tool_call_id.clone(),
                                 session_id: self.session_id.clone(),
                                 json_rpc_request_id: Some(request_id),
+                                reply_handler: Some(
+                                    crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                                        request_id,
+                                    ),
+                                ),
                                 questions,
                                 tool: Some(ToolReference {
                                     message_id: String::new(),
@@ -1610,9 +1585,9 @@ async fn run_streaming_bridge(
                         );
                         continue;
                     }
-                    rewrite_empty_completed_tool_call_without_permission_callback(
+                    clear_pending_approval_callback_diagnostic_for_terminal_update(
                         &approval_callback_tracker,
-                        &mut update,
+                        &update,
                     )
                     .await;
                     let should_defer_turn_complete =
@@ -1755,6 +1730,9 @@ fn build_permission_request_update(
             id: request_id.to_string(),
             session_id: session_id.to_string(),
             json_rpc_request_id: Some(request_id),
+            reply_handler: Some(
+                crate::acp::session_update::InteractionReplyHandler::json_rpc(request_id),
+            ),
             permission: tool_name.to_string(),
             patterns: build_permission_patterns(raw_input),
             metadata: build_permission_metadata(tool_name, raw_input, agent_type),
@@ -2956,6 +2934,9 @@ mod tests {
                     kind: InteractionKind::Permission,
                     state: InteractionState::Approved,
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(
+                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                    ),
                     tool_reference: None,
                     responded_at_event_seq: Some(2),
                     response: Some(InteractionResponse::Permission {
@@ -2967,6 +2948,9 @@ mod tests {
                         id: "permission-1".to_string(),
                         session_id: "session-1".to_string(),
                         json_rpc_request_id: Some(7),
+                        reply_handler: Some(
+                            crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                        ),
                         permission: "Read".to_string(),
                         patterns: vec![path.to_string()],
                         metadata: serde_json::json!({}),
@@ -3402,6 +3386,9 @@ mod tests {
                 id: "permission-1".to_string(),
                 session_id: "session-1".to_string(),
                 json_rpc_request_id: Some(7),
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                    7,
+                )),
                 permission: "Read".to_string(),
                 patterns: vec![path.to_string()],
                 metadata: serde_json::json!({}),
@@ -3499,6 +3486,9 @@ mod tests {
                 id: "permission-1".to_string(),
                 session_id: "session-1".to_string(),
                 json_rpc_request_id: Some(7),
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                    7,
+                )),
                 permission: "Read".to_string(),
                 patterns: vec![path.to_string()],
                 metadata: serde_json::json!({}),
@@ -3569,6 +3559,9 @@ mod tests {
                 id: "toolu_stream_only".to_string(),
                 session_id: "session-stream".to_string(),
                 json_rpc_request_id: None,
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                    "toolu_stream_only",
+                )),
                 questions: questions.clone(),
                 tool: Some(ToolReference {
                     message_id: String::new(),
@@ -4688,6 +4681,9 @@ mod tests {
                 id: "toolu_stream_only".to_string(),
                 session_id: "session-stream".to_string(),
                 json_rpc_request_id: None,
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                    "toolu_stream_only",
+                )),
                 questions: vec![QuestionItem {
                     question: "Pick one".to_string(),
                     header: "Pick one".to_string(),
@@ -5738,14 +5734,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_completion_rewrite_preserves_real_terminal_payloads() {
+    async fn terminal_updates_clear_pending_callback_diagnostics() {
         let tracker = ApprovalCallbackTracker::new();
         tracker
             .note_tool_use_started("session-bridge", "Bash", "toolu_bash_with_output")
             .await;
 
-        let mut update = SessionUpdate::ToolCallUpdate {
-            parent_entry_id: None,
+        let update = SessionUpdate::ToolCallUpdate {
+            session_id: None,
             update: ToolCallUpdateData {
                 tool_call_id: "toolu_bash_with_output".to_string(),
                 status: Some(ToolCallStatus::Completed),
@@ -5757,13 +5753,7 @@ mod tests {
             },
         };
 
-        rewrite_empty_completed_tool_call_without_permission_callback(&tracker, &mut update).await;
-
-        let SessionUpdate::ToolCallUpdate { update, .. } = update else {
-            panic!("expected tool call update");
-        };
-        assert_eq!(update.status, Some(ToolCallStatus::Completed));
-        assert_eq!(update.failure_reason, None);
+        clear_pending_approval_callback_diagnostic_for_terminal_update(&tracker, &update).await;
         assert!(
             !tracker.clear_if_pending("toolu_bash_with_output").await,
             "real terminal payloads should clear pending callback diagnostics"

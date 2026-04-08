@@ -352,11 +352,7 @@ function handlePlanApprove() {
 	if (!pendingPlanApproval) return;
 	const approval = pendingPlanApproval;
 	interactionStore.setPlanApprovalStatus(approval.id, "approved");
-	void replyToPlanApprovalRequest(
-		approval.sessionId,
-		approval.jsonRpcRequestId,
-		true
-	).match(
+	void replyToPlanApprovalRequest(approval, true, false).match(
 		() => {},
 		() => {
 			interactionStore.setPlanApprovalStatus(approval.id, "pending");
@@ -368,11 +364,7 @@ function handlePlanReject() {
 	if (!pendingPlanApproval) return;
 	const approval = pendingPlanApproval;
 	interactionStore.setPlanApprovalStatus(approval.id, "rejected");
-	void replyToPlanApprovalRequest(
-		approval.sessionId,
-		approval.jsonRpcRequestId,
-		false
-	).match(
+	void replyToPlanApprovalRequest(approval, false, false).match(
 		() => {},
 		() => {
 			interactionStore.setPlanApprovalStatus(approval.id, "pending");

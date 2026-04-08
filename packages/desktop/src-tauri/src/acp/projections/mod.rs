@@ -1,6 +1,6 @@
 use crate::acp::session_update::{
-    PermissionData, QuestionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
-    ToolCallUpdateData, ToolKind, ToolReference,
+    InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
+    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{ConvertedSession, StoredEntry};
@@ -102,6 +102,7 @@ pub struct InteractionSnapshot {
     pub kind: InteractionKind,
     pub state: InteractionState,
     pub json_rpc_request_id: Option<u64>,
+    pub reply_handler: Option<InteractionReplyHandler>,
     pub tool_reference: Option<ToolReference>,
     pub responded_at_event_seq: Option<i64>,
     pub response: Option<InteractionResponse>,
@@ -637,6 +638,12 @@ impl ProjectionRegistry {
             kind: InteractionKind::Permission,
             state: InteractionState::Pending,
             json_rpc_request_id: permission.json_rpc_request_id,
+            reply_handler: permission.reply_handler.clone().or_else(|| {
+                permission
+                    .json_rpc_request_id
+                    .map(InteractionReplyHandler::json_rpc)
+                    .or_else(|| Some(InteractionReplyHandler::http(permission.id.clone())))
+            }),
             tool_reference: permission.tool.clone(),
             responded_at_event_seq: None,
             response: None,
@@ -652,6 +659,12 @@ impl ProjectionRegistry {
             kind: InteractionKind::Question,
             state: InteractionState::Pending,
             json_rpc_request_id: question.json_rpc_request_id,
+            reply_handler: question.reply_handler.clone().or_else(|| {
+                question
+                    .json_rpc_request_id
+                    .map(InteractionReplyHandler::json_rpc)
+                    .or_else(|| Some(InteractionReplyHandler::http(question.id.clone())))
+            }),
             tool_reference: question.tool.clone(),
             responded_at_event_seq: None,
             response: None,
@@ -681,6 +694,7 @@ impl ProjectionRegistry {
             kind: InteractionKind::PlanApproval,
             state: InteractionState::Pending,
             json_rpc_request_id: Some(plan_approval_request_id),
+            reply_handler: Some(InteractionReplyHandler::json_rpc(plan_approval_request_id)),
             tool_reference: Some(ToolReference {
                 message_id: String::new(),
                 call_id: tool_call.id.clone(),
@@ -711,6 +725,7 @@ impl ProjectionRegistry {
             id: tool_call.id.clone(),
             session_id: session_id.to_string(),
             json_rpc_request_id: None,
+            reply_handler: Some(InteractionReplyHandler::http(tool_call.id.clone())),
             questions: question_items,
             tool: Some(ToolReference {
                 message_id: String::new(),
@@ -736,6 +751,7 @@ impl ProjectionRegistry {
             kind: InteractionKind::Question,
             state,
             json_rpc_request_id: None,
+            reply_handler: question.reply_handler.clone(),
             tool_reference: question.tool.clone(),
             responded_at_event_seq,
             response,
@@ -1064,6 +1080,7 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
                     permission: "Execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
@@ -1083,6 +1100,7 @@ mod tests {
                     id: "question-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(8),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(8)),
                     questions: vec![],
                     tool: Some(ToolReference {
                         message_id: String::new(),
@@ -1149,6 +1167,7 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
                     permission: "Execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
@@ -1165,6 +1184,7 @@ mod tests {
                     id: "question-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(8),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(8)),
                     questions: vec![],
                     tool: None,
                 },
@@ -1225,6 +1245,7 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
                     permission: "Execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
@@ -1281,6 +1302,7 @@ mod tests {
                 kind: InteractionKind::Permission,
                 state: InteractionState::Approved,
                 json_rpc_request_id: Some(7),
+                reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
                 tool_reference: None,
                 responded_at_event_seq: Some(5),
                 response: Some(InteractionResponse::Permission {
@@ -1292,6 +1314,7 @@ mod tests {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
                     json_rpc_request_id: Some(7),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
                     permission: "Execute".to_string(),
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),

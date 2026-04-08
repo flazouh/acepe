@@ -42,9 +42,8 @@ describe("kanban layout wiring contract", () => {
 		expect(topBarSource).toContain("function switchLayoutFamily(nextFamily: LayoutFamily): void {");
 		expect(topBarSource).toContain('{ value: "standard", label: "Standard" }');
 		expect(topBarSource).toContain('{ value: "kanban", label: "Kanban" }');
-		expect(topBarSource).toContain("Standard keeps sessions in panels.");
-		expect(topBarSource).toContain("Kanban turns the workspace into a board.");
-		expect(topBarSource).not.toContain("{#each viewModes as mode (mode.value)}");
+		expect(topBarSource).toContain('<span class="flex-1">View</span>');
+		expect(topBarSource).toContain("{#each layoutFamilies as family (family.value)}");
 		expect(topBarSource).toContain('import { Kanban } from "phosphor-svelte"');
 	});
 
@@ -58,7 +57,7 @@ describe("kanban layout wiring contract", () => {
 			'const standardViewModes: { value: Exclude<ViewMode, "kanban">; label: string; color: string }[] = ['
 		);
 		expect(topBarSource).toContain('{#if !isKanbanView}');
-		expect(topBarSource).toContain("Choose how Standard groups panels.");
+		expect(topBarSource).toContain('<span class="flex-1">Grouping</span>');
 		expect(topBarSource).toContain('label: "Single"');
 		expect(topBarSource).toContain('label: "Project"');
 		expect(topBarSource).toContain('label: "Multi"');

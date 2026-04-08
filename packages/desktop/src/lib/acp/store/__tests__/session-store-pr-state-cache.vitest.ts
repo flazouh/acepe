@@ -18,6 +18,8 @@ vi.mock("../api.js", () => ({
 }));
 
 vi.mock("../../../utils/tauri-client.js", () => ({
+	openFileInEditor: vi.fn(),
+	revealInFinder: vi.fn(),
 	tauriClient: {
 		git: {
 			prDetails: prDetailsMock,

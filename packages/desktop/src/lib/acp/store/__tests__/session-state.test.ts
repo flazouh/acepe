@@ -128,6 +128,7 @@ describe("PendingInput type guards", () => {
 				sessionId: "s-1",
 				tool: { messageID: "", callID: "tool-1" },
 				jsonRpcRequestId: 7,
+				replyHandler: { kind: "json-rpc", requestId: 7 },
 				status: "pending",
 			},
 		};
@@ -225,6 +226,7 @@ describe("PendingInput factory functions", () => {
 			sessionId: "s-1",
 			tool: { messageID: "", callID: "tool-1" },
 			jsonRpcRequestId: 7,
+			replyHandler: { kind: "json-rpc" as const, requestId: 7 },
 			status: "pending" as const,
 		};
 		expect(createPendingPlanApproval(request)).toEqual({ kind: "plan_approval", request });
@@ -492,6 +494,7 @@ describe("deriveSessionState", () => {
 			sessionId: "s-1",
 			tool: { messageID: "", callID: "tool-1" },
 			jsonRpcRequestId: 7,
+			replyHandler: { kind: "json-rpc" as const, requestId: 7 },
 			status: "pending" as const,
 		};
 		const state = deriveSessionState({

@@ -56,4 +56,19 @@ describe("tool call canonical contract", () => {
 		expect(managerSource).not.toContain("`Delete ${path}`");
 		expect(managerSource).not.toContain("`Rename ${moveFrom} -> ${path}`");
 	});
+
+	it("keeps canonical interaction ownership on reply handlers instead of transport-id ordering", () => {
+		const permissionStoreSource = read("../permission-store.svelte.ts");
+		const interactionStoreSource = read("../interaction-store.svelte.ts");
+
+		expect(permissionStoreSource).not.toContain("candidateRequestId > currentRequestId");
+		expect(permissionStoreSource).not.toContain("jsonRpcRequestId >");
+
+		expect(interactionStoreSource).toContain(
+			"normalizeInteractionReplyHandler(interaction.reply_handler) ??"
+		);
+		expect(interactionStoreSource).not.toContain(
+			"jsonRpcRequestId === null || tool === undefined || status === null"
+		);
+	});
 });

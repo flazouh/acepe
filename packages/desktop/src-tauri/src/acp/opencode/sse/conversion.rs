@@ -1036,9 +1036,12 @@ pub(super) fn convert_question_asked_to_session_update(
 
     Some(SessionUpdate::QuestionRequest {
         question: QuestionData {
-            id: event.id,
+            id: event.id.clone(),
             session_id: session_id.clone(),
             json_rpc_request_id: None,
+            reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                event.id.clone(),
+            )),
             questions,
             tool: None,
         },
@@ -1061,9 +1064,12 @@ pub(super) fn convert_permission_asked_to_session_update(
 
     Some(SessionUpdate::PermissionRequest {
         permission: PermissionData {
-            id: event.id,
+            id: event.id.clone(),
             session_id: session_id.clone(),
             json_rpc_request_id: None,
+            reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                event.id.clone(),
+            )),
             permission: event.permission,
             patterns: event.patterns,
             metadata: event.metadata,
@@ -1072,4 +1078,64 @@ pub(super) fn convert_permission_asked_to_session_update(
         },
         session_id: Some(session_id),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn question_asked_uses_canonical_http_reply_handler() {
+        let update = convert_question_asked_to_session_update(&json!({
+            "id": "question-1",
+            "sessionID": "session-1",
+            "questions": [{
+                "question": "Continue?",
+                "header": "Continue?",
+                "options": [{ "label": "Yes", "description": "Proceed" }],
+                "multiSelect": false
+            }]
+        }))
+        .expect("question update should parse");
+
+        match update {
+            SessionUpdate::QuestionRequest { question, .. } => {
+                assert_eq!(question.id, "question-1");
+                assert_eq!(
+                    question.reply_handler,
+                    Some(crate::acp::session_update::InteractionReplyHandler::http(
+                        "question-1".to_string()
+                    ))
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn permission_asked_uses_canonical_http_reply_handler() {
+        let update = convert_permission_asked_to_session_update(&json!({
+            "id": "permission-1",
+            "sessionID": "session-1",
+            "permission": "Read README.md",
+            "patterns": ["README.md"],
+            "metadata": {},
+            "always": ["allow_always"]
+        }))
+        .expect("permission update should parse");
+
+        match update {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert_eq!(permission.id, "permission-1");
+                assert_eq!(
+                    permission.reply_handler,
+                    Some(crate::acp::session_update::InteractionReplyHandler::http(
+                        "permission-1".to_string()
+                    ))
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
 }

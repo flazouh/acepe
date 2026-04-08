@@ -1,8 +1,15 @@
 import type {
 	JsonValue,
+	InteractionReplyHandler as GeneratedInteractionReplyHandler,
 	ToolArguments,
 	ToolReference,
 } from "../../services/converted-session-types.js";
+import {
+	createLegacyInteractionReplyHandler,
+	normalizeInteractionReplyHandler,
+	type InteractionReplyHandler,
+	type InteractionReplyHandlerInput,
+} from "./reply-handler.js";
 
 /**
  * Tool-call reference used to anchor a permission request to an existing tool row.
@@ -45,7 +52,7 @@ export interface AcpPermissionMetadata extends PermissionMetadata {
  *
  * - `id` is the canonical pending-request identity used by the store.
  * - `tool.callID` is the stable UI/tool-row anchor.
- * - `jsonRpcRequestId` is the ACP reply route when present.
+ * - `replyHandler` is the explicit backend-owned reply route when available.
  */
 export interface PermissionRequest {
 	/**
@@ -64,6 +71,11 @@ export interface PermissionRequest {
 	 * Only present for ACP mode (not OpenCode HTTP mode).
 	 */
 	jsonRpcRequestId?: number;
+
+	/**
+	 * Explicit reply routing metadata for this interaction.
+	 */
+	replyHandler?: InteractionReplyHandler;
 
 	/**
 	 * The permission being requested (e.g., "ReadFile", "RunCommand").
@@ -99,17 +111,25 @@ export interface PermissionRequest {
  */
 export interface AcpPermissionRequest extends PermissionRequest {
 	jsonRpcRequestId: number;
+	replyHandler: Extract<InteractionReplyHandler, { kind: "json-rpc" }>;
 	metadata: AcpPermissionMetadata;
 	tool: PermissionToolReference;
 }
 
 type PermissionRequestMetadataInput = PermissionMetadata | JsonValue;
 type PermissionRequestToolInput = PermissionToolReference | ToolReference | null | undefined;
+type PermissionRequestReplyHandlerInput =
+	| InteractionReplyHandler
+	| InteractionReplyHandlerInput
+	| GeneratedInteractionReplyHandler
+	| null
+	| undefined;
 
 export interface PermissionRequestBuilderInput {
 	id: string;
 	sessionId: string;
 	jsonRpcRequestId?: number | null;
+	replyHandler?: PermissionRequestReplyHandlerInput;
 	permission: string;
 	patterns: string[];
 	metadata: PermissionRequestMetadataInput;
@@ -147,6 +167,9 @@ export function createPermissionRequest(input: PermissionRequestBuilderInput): P
 		id: input.id,
 		sessionId: input.sessionId,
 		jsonRpcRequestId: input.jsonRpcRequestId ?? undefined,
+		replyHandler:
+			normalizeInteractionReplyHandler(input.replyHandler) ??
+			createLegacyInteractionReplyHandler(input.id, input.jsonRpcRequestId),
 		permission: input.permission,
 		patterns: input.patterns,
 		metadata: normalizePermissionMetadata(input.metadata),

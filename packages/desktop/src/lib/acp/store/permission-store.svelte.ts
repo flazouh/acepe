@@ -142,10 +142,12 @@ export class PermissionStore {
 			return true;
 		}
 
-		const candidateRequestId = candidate.jsonRpcRequestId;
-		const currentRequestId = current.jsonRpcRequestId;
-		if (candidateRequestId !== undefined && currentRequestId !== undefined) {
-			return candidateRequestId > currentRequestId;
+		if (candidate.replyHandler !== undefined && current.replyHandler === undefined) {
+			return true;
+		}
+
+		if (candidate.replyHandler === undefined && current.replyHandler !== undefined) {
+			return false;
 		}
 
 		return true;

@@ -242,14 +242,24 @@ export type ConfigOptionData = { id: string; name: string; category: string; typ
 export type ConfigOptionValue = { name: string; value: JsonValue; description?: string | null }
 
 /**
+ * Explicit reply routing metadata for a canonical interaction.
+ */
+export type InteractionReplyHandlerKind = "json_rpc" | "http"
+
+/**
+ * Backend-owned reply handler metadata for interaction replies.
+ */
+export type InteractionReplyHandler = { kind: InteractionReplyHandlerKind; requestId: string }
+
+/**
  * Permission request data.
  */
-export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
+export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
 
 /**
  * Question request data.
  */
-export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; questions: QuestionItem[]; tool?: ToolReference | null }
+export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; questions: QuestionItem[]; tool?: ToolReference | null }
 
 /**
  * Turn error payload for compatibility during rollout.

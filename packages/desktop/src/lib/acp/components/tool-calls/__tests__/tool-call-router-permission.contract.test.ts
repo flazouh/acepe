@@ -21,4 +21,13 @@ describe("tool call router permission contract", () => {
 		expect(source).toContain("const toolDefinition = $derived(");
 		expect(source).toContain("const ToolComponent = $derived(toolDefinition.component);");
 	});
+
+	it("does not branch on provider names or transport-shaped reply fields", () => {
+		expect(source).not.toContain("jsonRpcRequestId");
+		expect(source).not.toContain("claude-code");
+		expect(source).not.toContain("cursor");
+		expect(source).not.toContain("copilot");
+		expect(source).not.toContain("codex");
+		expect(source).not.toContain("opencode");
+	});
 });

@@ -16,4 +16,13 @@ describe("plan approval ownership contract", () => {
 			expect(source).not.toContain("planApprovalsPending.set(");
 		}
 	});
+
+	it("routes renderer plan approval replies through the canonical approval object", () => {
+		for (const file of files) {
+			const source = readFileSync(file, "utf8").replaceAll(/\s+/g, "");
+			expect(source).toContain("replyToPlanApprovalRequest(approval,true,false)");
+			expect(source).toContain("replyToPlanApprovalRequest(approval,false,false)");
+			expect(source).not.toContain("approval.jsonRpcRequestId");
+		}
+	});
 });

@@ -107,9 +107,12 @@ fn translate_permission_request(
 
     vec![SessionUpdate::PermissionRequest {
         permission: PermissionData {
-            id: request_id,
+            id: request_id.clone(),
             session_id: session_id.to_string(),
             json_rpc_request_id: None,
+            reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                request_id.clone(),
+            )),
             permission: permission_label(method, params),
             patterns: permission_patterns(params),
             metadata: Value::Object(params.clone()),
@@ -147,9 +150,12 @@ fn translate_question_request(
 
     vec![SessionUpdate::QuestionRequest {
         question: QuestionData {
-            id: question_id,
+            id: question_id.clone(),
             session_id: session_id.to_string(),
             json_rpc_request_id: None,
+            reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+                question_id.clone(),
+            )),
             questions,
             tool: item_id.map(|call_id| ToolReference {
                 message_id: String::new(),
@@ -661,6 +667,12 @@ mod tests {
         match &updates[0] {
             SessionUpdate::PermissionRequest { permission, .. } => {
                 assert_eq!(permission.id, "42");
+                assert_eq!(
+                    permission.reply_handler,
+                    Some(crate::acp::session_update::InteractionReplyHandler::http(
+                        "42".to_string()
+                    ))
+                );
                 assert_eq!(permission.permission, "Read src/lib.rs");
                 assert_eq!(permission.patterns, vec!["src/lib.rs"]);
                 assert_eq!(
@@ -704,6 +716,12 @@ mod tests {
             SessionUpdate::QuestionRequest { question, .. } => {
                 assert_eq!(question.id, "7");
                 assert_eq!(question.json_rpc_request_id, None);
+                assert_eq!(
+                    question.reply_handler,
+                    Some(crate::acp::session_update::InteractionReplyHandler::http(
+                        "7".to_string()
+                    ))
+                );
                 assert_eq!(question.questions.len(), 1);
                 assert_eq!(question.questions[0].header, "Scope");
                 assert_eq!(question.questions[0].question, "Apply to?");

@@ -1,5 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
+import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
 import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
@@ -103,6 +104,20 @@ export const acp = {
 		return invokeAsync(CMD.acp.reply_question, { sessionId, questionId, answers });
 	},
 
+	replyInteraction: (
+		request: InteractionReplyRequest
+	): ResultAsync<void, AppError> => {
+		return invokeAsync(CMD.acp.reply_interaction, {
+			sessionId: request.sessionId,
+			interactionId: request.interactionId,
+			replyHandler: {
+				kind: request.replyHandler.kind,
+				requestId: request.replyHandler.requestId,
+			},
+			payload: serializeInteractionReplyPayload(request.payload),
+		});
+	},
+
 	respondInboundRequest: (
 		sessionId: string,
 		requestId: number,
@@ -149,3 +164,31 @@ export const acp = {
 		return invokeAsync(command, params);
 	},
 };
+
+function serializeInteractionReplyPayload(
+	payload: InteractionReplyRequest["payload"]
+): Record<string, unknown> {
+	switch (payload.kind) {
+		case "permission":
+			return {
+				kind: "permission",
+				reply: payload.reply,
+				optionId: payload.optionId,
+			};
+		case "question":
+			return {
+				kind: "question",
+				answers: payload.answers,
+				answerMap: payload.answerMap,
+			};
+		case "question_cancel":
+			return {
+				kind: "question_cancel",
+			};
+		case "plan_approval":
+			return {
+				kind: "plan_approval",
+				approved: payload.approved,
+			};
+	}
+}

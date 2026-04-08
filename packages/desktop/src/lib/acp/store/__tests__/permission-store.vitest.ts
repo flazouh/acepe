@@ -46,35 +46,14 @@ function createExecutePermissionWithCommand(
 	};
 }
 
-// Mock the API module
-const mockReplyPermission = vi.fn(
-	(..._args: [string, string, "once" | "always" | "reject"]): ResultAsync<void, AppError> =>
-		okAsync(undefined)
-);
-
-const mockRespondInboundRequest = vi.fn(
-	(_sessionId: string, _requestId: number, _result: object): ResultAsync<void, AppError> =>
-		okAsync(undefined)
+const mockReplyInteraction = vi.fn(
+	(_request: Record<string, unknown>): ResultAsync<void, AppError> => okAsync(undefined)
 );
 
 vi.mock("../api.js", () => ({
 	api: {
-		replyPermission: (
-			sessionId: string,
-			permissionId: string,
-			reply: "once" | "always" | "reject"
-		) => mockReplyPermission(sessionId, permissionId, reply),
-		respondInboundRequest: (sessionId: string, requestId: number, result: object) =>
-			mockRespondInboundRequest(sessionId, requestId, result),
+		replyInteraction: (request: Record<string, unknown>) => mockReplyInteraction(request),
 	},
-}));
-
-// Mock the inbound request handler's respondToPermission
-vi.mock("../../logic/inbound-request-handler.js", () => ({
-	respondToPermission: vi.fn(
-		(_sessionId: string, _requestId: number, _allowed: boolean, _optionId: string): ResultAsync<void, AppError> =>
-			okAsync(undefined)
-	),
 }));
 
 describe("PermissionStore", () => {
@@ -152,8 +131,8 @@ describe("PermissionStore", () => {
 
 			const permission = store.getForToolCall("session-1", "tool-1");
 
-			expect(permission?.id).toBe(newerPermission.id);
-			expect(permission?.jsonRpcRequestId).toBe(101);
+			expect(permission?.id).toBe(olderPermission.id);
+			expect(permission?.jsonRpcRequestId).toBe(100);
 		});
 
 		it("matches execute permissions by command when the permission anchor id differs", () => {
@@ -372,8 +351,6 @@ describe("PermissionStore", () => {
 		});
 
 		it("should auto-accept and remove from pending (ACP mode)", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			store.setAutoAccept((p) => p.sessionId === "child-session");
 
 			const permission = createAcpPermission("child-session", "tool-child", 200);
@@ -381,7 +358,19 @@ describe("PermissionStore", () => {
 			store.add(permission);
 
 			expect(store.pending.size).toBe(0);
-			expect(respondToPermission).toHaveBeenCalledWith("child-session", 200, true, "allow");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "child-session",
+				interactionId: permission.id,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 200,
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
 		});
 
 		it("should auto-accept and remove from pending (OpenCode HTTP mode)", () => {
@@ -399,12 +388,22 @@ describe("PermissionStore", () => {
 			store.add(permission);
 
 			expect(store.pending.size).toBe(0);
-			expect(mockReplyPermission).toHaveBeenCalledWith("child-session", "perm-child-http", "once");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "child-session",
+				interactionId: "perm-child-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "perm-child-http",
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
 		});
 
 		it("should resolve allow_once optionId from options when auto-accepting", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			store.setAutoAccept(() => true);
 
 			const permission: PermissionRequest = {
@@ -425,7 +424,19 @@ describe("PermissionStore", () => {
 
 			store.add(permission);
 
-			expect(respondToPermission).toHaveBeenCalledWith("child-session", 300, true, "custom_allow");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "child-session",
+				interactionId: permission.id,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 300,
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "custom_allow",
+				},
+			});
 		});
 
 		it("should stop auto-accepting after dispose is called", () => {
@@ -448,8 +459,6 @@ describe("PermissionStore", () => {
 		});
 
 		it("does not auto-accept exit-plan approvals even when autonomous auto-accept is enabled", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			store.setAutoAccept(() => "autonomous-live");
 
 			const permission: PermissionRequest = {
@@ -476,8 +485,7 @@ describe("PermissionStore", () => {
 			store.add(permission);
 
 			expect(store.pending.get(permission.id)).toEqual(permission);
-			expect(respondToPermission).not.toHaveBeenCalled();
-			expect(mockReplyPermission).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).not.toHaveBeenCalled();
 		});
 	});
 
@@ -496,26 +504,45 @@ describe("PermissionStore", () => {
 			store.add(permission);
 			await store.reply("perm-http", "once");
 
-			expect(mockReplyPermission).toHaveBeenCalledWith("session-http", "perm-http", "once");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "perm-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "perm-http",
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
 			expect(store.pending.size).toBe(0);
 		});
 
 		it("should use JSON-RPC response for permissions with jsonRpcRequestId", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			const permission = createAcpPermission("session-jsonrpc", "tool-jsonrpc", 456);
 
 			store.add(permission);
 			await store.reply(permission.id, "once");
 
-			expect(respondToPermission).toHaveBeenCalledWith("session-jsonrpc", 456, true, "allow");
-			expect(mockReplyPermission).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: permission.id,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 456,
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
 			expect(store.pending.size).toBe(0);
 		});
 
 		it("should send allow_always optionId for 'always' reply", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			const permission: PermissionRequest = {
 				id: buildAcpPermissionId("session-always", "tool-always", 789),
 				sessionId: "session-always",
@@ -530,18 +557,40 @@ describe("PermissionStore", () => {
 			store.add(permission);
 			await store.reply(permission.id, "always");
 
-			expect(respondToPermission).toHaveBeenCalledWith("session-always", 789, true, "allow_always");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-always",
+				interactionId: permission.id,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 789,
+				},
+				payload: {
+					kind: "permission",
+					reply: "always",
+					optionId: "allow_always",
+				},
+			});
 		});
 
 		it("should send reject optionId and allowed=false for 'reject' reply", async () => {
-			const { respondToPermission } = await import("../../logic/inbound-request-handler.js");
-
 			const permission = createAcpPermission("session-reject", "tool-reject", 101);
 
 			store.add(permission);
 			await store.reply(permission.id, "reject");
 
-			expect(respondToPermission).toHaveBeenCalledWith("session-reject", 101, false, "reject");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-reject",
+				interactionId: permission.id,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 101,
+				},
+				payload: {
+					kind: "permission",
+					reply: "reject",
+					optionId: "reject",
+				},
+			});
 		});
 
 		it("should return error for non-existent permission", async () => {
@@ -551,7 +600,7 @@ describe("PermissionStore", () => {
 		});
 
 		it("reinserts a permission when replying via HTTP fails", async () => {
-			mockReplyPermission.mockReturnValueOnce(
+			mockReplyInteraction.mockReturnValueOnce(
 				errAsync(new AgentError("replyPermission", new Error("network failed")))
 			);
 
@@ -620,7 +669,12 @@ describe("PermissionStore", () => {
 			const result = await store.drainPendingForSession("session-1");
 			result._unsafeUnwrap();
 
-			expect(mockReplyPermission).not.toHaveBeenCalledWith("session-1", permission.id, "once");
+			expect(mockReplyInteraction).not.toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: "session-1",
+					interactionId: permission.id,
+				})
+			);
 		});
 	});
 });

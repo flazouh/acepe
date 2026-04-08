@@ -58,10 +58,10 @@ function createPermission(overrides?: Partial<PermissionRequest>): PermissionReq
 }
 
 describe("resolveToolOperation", () => {
-	it("merges pending permission arguments into the tool call and shows inline approval", () => {
+	it("keeps canonical tool arguments and shows inline approval", () => {
 		const resolved = resolveToolOperation(createToolCall(), createPermission());
 
-		expect(resolved.toolCall.arguments).toEqual({ kind: "execute", command: "git status" });
+		expect(resolved.toolCall.arguments).toEqual({ kind: "execute", command: null });
 		expect(resolved.routeKey).toBe("execute");
 		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
 	});

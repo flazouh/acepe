@@ -359,6 +359,16 @@ fn normalize_cursor_ask_question(
                     .unwrap_or_else(|| format!("cursor-question-{request_id:?}")),
                 session_id: session_id.clone(),
                 json_rpc_request_id: request_id,
+                reply_handler: request_id
+                    .map(crate::acp::session_update::InteractionReplyHandler::json_rpc)
+                    .or_else(|| {
+                        Some(crate::acp::session_update::InteractionReplyHandler::http(
+                            parsed
+                                .tool_call_id
+                                .clone()
+                                .unwrap_or_else(|| format!("cursor-question-{request_id:?}")),
+                        ))
+                    }),
                 questions: canonical_questions,
                 tool: parsed.tool_call_id.as_ref().map(|id| ToolReference {
                     message_id: String::new(),
@@ -706,6 +716,10 @@ mod tests {
         match &event.updates[0] {
             SessionUpdate::QuestionRequest { question, .. } => {
                 assert_eq!(question.json_rpc_request_id, Some(42));
+                assert_eq!(
+                    question.reply_handler,
+                    Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(42))
+                );
                 assert_eq!(question.questions[0].question, "Select an option");
                 assert_eq!(question.questions[0].options[0].label, "Option A");
                 // tool reference must link to the streaming tool call

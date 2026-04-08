@@ -31,6 +31,8 @@ describe("VoiceSettingsStore", () => {
 		}));
 		vi.mock("runed", () => ({}));
 		vi.mock("$lib/utils/tauri-client.js", () => ({
+			openFileInEditor: vi.fn(),
+			revealInFinder: vi.fn(),
 			tauriClient: {
 				settings: {
 					get: getSettingMock,

@@ -28,9 +28,21 @@ describe("SessionProjectionHydrator", () => {
 		expect(result.isOk()).toBe(true);
 		expect(getSessionProjectionMock).toHaveBeenCalledWith("session-1");
 		expect(interactions.permissionsPending.get("permission-1")?.tool?.callID).toBe("tool-permission");
+		expect(interactions.permissionsPending.get("permission-1")).toMatchObject({
+			replyHandler: {
+				kind: "json-rpc",
+				requestId: 55,
+			},
+		});
 		expect(interactions.questionsPending.get("question-pending")?.questions[0]?.question).toBe(
 			"Choose a path"
 		);
+		expect(interactions.questionsPending.get("question-pending")).toMatchObject({
+			replyHandler: {
+				kind: "http",
+				requestId: "question-pending-http",
+			},
+		});
 		expect(interactions.answeredQuestions.get("tool-question")).toEqual({
 			questions: [
 				{
@@ -59,6 +71,10 @@ describe("SessionProjectionHydrator", () => {
 				callID: "tool-plan",
 			},
 			jsonRpcRequestId: 99,
+			replyHandler: {
+				kind: "json-rpc",
+				requestId: 99,
+			},
 			status: "approved",
 		});
 	});
@@ -74,6 +90,70 @@ describe("SessionProjectionHydrator", () => {
 		expect(interactions.questionsPending.size).toBe(0);
 		expect(interactions.answeredQuestions.size).toBe(0);
 		expect(interactions.planApprovalsPending.size).toBe(0);
+	});
+
+	it("hydrates plan approvals from canonical reply handlers even without jsonRpcRequestId", async () => {
+		getSessionProjectionMock.mockImplementation(() =>
+			okAsync({
+				session: {
+					session_id: "session-1",
+					agent_id: "copilot",
+					last_event_seq: 1,
+					turn_state: "Idle",
+					message_count: 0,
+					last_agent_message_id: null,
+					active_tool_call_ids: [],
+					completed_tool_call_ids: [],
+				},
+				operations: [],
+				interactions: [
+					{
+						id: "plan-approval-http",
+						session_id: "session-1",
+						kind: "PlanApproval",
+						state: "Pending",
+						json_rpc_request_id: null,
+						reply_handler: {
+							kind: "http",
+							requestId: "plan-approval-http-route",
+						},
+						tool_reference: {
+							messageId: "message-plan",
+							callId: "tool-plan",
+						},
+						responded_at_event_seq: null,
+						response: null,
+						payload: {
+							PlanApproval: {
+								source: "CreatePlan",
+							},
+						},
+					},
+				],
+			})
+		);
+		const interactions = new InteractionStore();
+		const hydrator = new SessionProjectionHydrator(interactions);
+
+		const result = await hydrator.hydrateSession("session-1");
+
+		expect(result.isOk()).toBe(true);
+		expect(interactions.planApprovalsPending.get("plan-approval-http")).toEqual({
+			id: "plan-approval-http",
+			kind: "plan_approval",
+			source: "create_plan",
+			sessionId: "session-1",
+			tool: {
+				messageID: "message-plan",
+				callID: "tool-plan",
+			},
+			jsonRpcRequestId: undefined,
+			replyHandler: {
+				kind: "http",
+				requestId: "plan-approval-http-route",
+			},
+			status: "pending",
+		});
 	});
 });
 
@@ -97,6 +177,10 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 				kind: "Permission",
 				state: "Pending",
 				json_rpc_request_id: 55,
+				reply_handler: {
+					kind: "json_rpc",
+					requestId: "55",
+				},
 				tool_reference: {
 					messageId: "message-permission",
 					callId: "tool-permission",
@@ -125,6 +209,10 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 				kind: "Question",
 				state: "Pending",
 				json_rpc_request_id: 77,
+				reply_handler: {
+					kind: "http",
+					requestId: "question-pending-http",
+				},
 				tool_reference: {
 					messageId: "message-question",
 					callId: "tool-question-pending",
@@ -157,6 +245,7 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 				kind: "Question",
 				state: "Answered",
 				json_rpc_request_id: 88,
+				reply_handler: null,
 				tool_reference: {
 					messageId: "message-question",
 					callId: "tool-question",
@@ -195,6 +284,10 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 				kind: "PlanApproval",
 				state: "Approved",
 				json_rpc_request_id: 99,
+				reply_handler: {
+					kind: "json_rpc",
+					requestId: "99",
+				},
 				tool_reference: {
 					messageId: "message-plan",
 					callId: "tool-plan",

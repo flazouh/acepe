@@ -1,5 +1,10 @@
 // Re-export QuestionItem from generated types for use in stores
 export type { QuestionItem, QuestionOption } from "../../services/converted-session-types.js";
+import type { InteractionReplyHandler as GeneratedInteractionReplyHandler } from "../../services/converted-session-types.js";
+import {
+	type InteractionReplyHandler,
+	type InteractionReplyHandlerInput,
+} from "./reply-handler.js";
 
 /**
  * Question request from the agent.
@@ -23,6 +28,11 @@ export interface QuestionRequest {
 	 * Only present for ACP mode (Claude Code's AskUserQuestion tool).
 	 */
 	jsonRpcRequestId?: number;
+
+	/**
+	 * Explicit reply routing metadata for this interaction.
+	 */
+	replyHandler?: InteractionReplyHandler;
 
 	/**
 	 * The questions to present to the user.
@@ -114,6 +124,13 @@ export interface QuestionResponse {
 	 */
 	answers: QuestionAnswer[];
 }
+
+export type QuestionReplyHandlerInput =
+	| InteractionReplyHandler
+	| InteractionReplyHandlerInput
+	| GeneratedInteractionReplyHandler
+	| null
+	| undefined;
 
 /**
  * Question update event from the ACP protocol.

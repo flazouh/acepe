@@ -23,10 +23,16 @@ pub struct CcSdkTurnStreamState {
     pub model_id: Option<String>,
     /// content_block_start index -> (tool_use_id, tool_name) for streamed tool input deltas.
     pub stream_tool_blocks: HashMap<u64, (String, String)>,
-    /// Pending non-question tool calls that should be auto-completed when Claude resumes a turn.
-    pub pending_tool_call_ids: VecDeque<String>,
+    /// Pending non-question tool calls that should be settled when Claude resumes a turn.
+    pub pending_tool_calls: VecDeque<PendingToolCallState>,
     /// True after Claude reports stop_reason=tool_use and before the next message_start arrives.
     pub awaiting_tool_turn_resume: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingToolCallState {
+    pub tool_call_id: String,
+    pub tool_name: String,
 }
 
 fn note_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_call: &ToolCallData) {
@@ -40,22 +46,32 @@ fn note_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_call: &T
         return;
     }
     if stream_state
-        .pending_tool_call_ids
+        .pending_tool_calls
         .iter()
-        .any(|pending_tool_call_id| pending_tool_call_id == &tool_call.id)
+        .any(|pending_tool_call| pending_tool_call.tool_call_id == tool_call.id)
     {
         return;
     }
 
     stream_state
-        .pending_tool_call_ids
-        .push_back(tool_call.id.clone());
+        .pending_tool_calls
+        .push_back(PendingToolCallState {
+            tool_call_id: tool_call.id.clone(),
+            tool_name: tool_call.name.clone(),
+        });
 }
 
 pub fn resolve_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_call_id: &str) {
     stream_state
-        .pending_tool_call_ids
-        .retain(|pending_tool_call_id| pending_tool_call_id != tool_call_id);
+        .pending_tool_calls
+        .retain(|pending_tool_call| pending_tool_call.tool_call_id != tool_call_id);
+}
+
+fn tool_name_expects_permission_callback(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "Bash" | "Edit" | "MultiEdit" | "Write" | "NotebookEdit" | "NotebookWrite"
+    )
 }
 
 fn take_synthetic_tool_completions_for_resumed_tool_turn(
@@ -64,11 +80,22 @@ fn take_synthetic_tool_completions_for_resumed_tool_turn(
 ) -> Vec<SessionUpdate> {
     let mut synthetic_updates = Vec::new();
 
-    while let Some(tool_call_id) = stream_state.pending_tool_call_ids.pop_front() {
+    while let Some(pending_tool_call) = stream_state.pending_tool_calls.pop_front() {
+        let status = if tool_name_expects_permission_callback(&pending_tool_call.tool_name) {
+            ToolCallStatus::Failed
+        } else {
+            ToolCallStatus::Completed
+        };
+        let failure_reason =
+            tool_name_expects_permission_callback(&pending_tool_call.tool_name).then_some(
+                "Permission callback was never received, so the command did not produce output."
+                    .to_string(),
+            );
         synthetic_updates.push(SessionUpdate::ToolCallUpdate {
             update: ToolCallUpdateData {
-                tool_call_id,
-                status: Some(ToolCallStatus::Completed),
+                tool_call_id: pending_tool_call.tool_call_id,
+                status: Some(status),
+                failure_reason,
                 ..Default::default()
             },
             session_id: session_id.clone(),
@@ -295,6 +322,9 @@ fn build_question_request_update(
         id: tool_call.id.clone(),
         session_id: session_id.clone().unwrap_or_default(),
         json_rpc_request_id: None,
+        reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
+            tool_call.id.clone(),
+        )),
         questions,
         tool: Some(ToolReference {
             message_id: String::new(),
@@ -1256,7 +1286,7 @@ mod tests {
     }
 
     #[test]
-    fn next_message_start_after_tool_use_emits_synthetic_completion_for_pending_tool() {
+    fn next_message_start_after_tool_use_fails_permission_gated_tool_without_callback() {
         let mut stream_state = CcSdkTurnStreamState::default();
 
         let _ = super::translate_cc_sdk_message_with_mut_turn_state(
@@ -1322,9 +1352,11 @@ mod tests {
                 update,
                 SessionUpdate::ToolCallUpdate { update, .. }
                     if update.tool_call_id == "toolu_resume_me"
-                        && update.status == Some(ToolCallStatus::Completed)
+                        && update.status == Some(ToolCallStatus::Failed)
+                        && update.failure_reason.as_deref()
+                            == Some("Permission callback was never received, so the command did not produce output.")
             )),
-            "bridge should synthesize completion for unresolved tool_use turns when the next message starts"
+            "bridge should synthesize a failed terminal update for unresolved permission-gated tool_use turns when the next message starts"
         );
     }
 

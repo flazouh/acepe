@@ -10,14 +10,7 @@ import {
 	replyToQuestionRequest,
 } from "../interaction-reply.js";
 
-const mockReplyPermission = vi.fn(
-	(_sessionId: string, _permissionId: string, _reply: "once" | "always" | "reject") =>
-		okAsync(undefined)
-);
-
-const mockReplyQuestion = vi.fn(
-	(_sessionId: string, _questionId: string, _answers: QuestionAnswer[]) => okAsync(undefined)
-);
+const mockReplyInteraction = vi.fn((_request: unknown) => okAsync(undefined));
 
 const mockRespondToPermission = vi.fn(
 	(_sessionId: string, _requestId: number, _allowed: boolean, _optionId: string) =>
@@ -36,10 +29,7 @@ const mockRespondToPlanApproval = vi.fn(
 
 vi.mock("../../store/api.js", () => ({
 	api: {
-		replyPermission: (sessionId: string, permissionId: string, reply: "once" | "always" | "reject") =>
-			mockReplyPermission(sessionId, permissionId, reply),
-		replyQuestion: (sessionId: string, questionId: string, answers: QuestionAnswer[]) =>
-			mockReplyQuestion(sessionId, questionId, answers),
+		replyInteraction: (request: unknown) => mockReplyInteraction(request),
 	},
 }));
 
@@ -67,6 +57,40 @@ describe("interaction reply", () => {
 	});
 
 	describe("replyToPermissionRequest", () => {
+		it("prefers explicit reply-handler metadata over legacy request-id inference", async () => {
+			const permission: PermissionRequest & {
+				replyHandler: { kind: "json-rpc"; requestId: number };
+			} = {
+				id: "permission-override-jsonrpc",
+				sessionId: "session-jsonrpc",
+				permission: "ReadFile",
+				patterns: [],
+				metadata: {},
+				always: [],
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 64,
+				},
+			};
+
+			await replyToPermissionRequest(permission, "once", "allow");
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: "permission-override-jsonrpc",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 64,
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
+			expect(mockRespondToPermission).not.toHaveBeenCalled();
+		});
+
 		it("routes ACP permissions through JSON-RPC responders", async () => {
 			const permission: PermissionRequest = {
 				id: "permission-1",
@@ -80,8 +104,20 @@ describe("interaction reply", () => {
 
 			await replyToPermissionRequest(permission, "once", "allow");
 
-			expect(mockRespondToPermission).toHaveBeenCalledWith("session-jsonrpc", 42, true, "allow");
-			expect(mockReplyPermission).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: "permission-1",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 42,
+				},
+				payload: {
+					kind: "permission",
+					reply: "once",
+					optionId: "allow",
+				},
+			});
+			expect(mockRespondToPermission).not.toHaveBeenCalled();
 		});
 
 		it("routes stream permissions through the HTTP reply endpoint", async () => {
@@ -96,12 +132,58 @@ describe("interaction reply", () => {
 
 			await replyToPermissionRequest(permission, "reject", "reject");
 
-			expect(mockReplyPermission).toHaveBeenCalledWith("session-http", "permission-2", "reject");
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "permission-2",
+				replyHandler: {
+					kind: "http",
+					requestId: "permission-2",
+				},
+				payload: {
+					kind: "permission",
+					reply: "reject",
+					optionId: "reject",
+				},
+			});
 			expect(mockRespondToPermission).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("replyToQuestionRequest", () => {
+		it("prefers explicit reply-handler metadata over legacy request-id inference", async () => {
+			const question: QuestionRequest & {
+				replyHandler: { kind: "http"; requestId: string };
+			} = {
+				id: "question-override-http",
+				sessionId: "session-http",
+				jsonRpcRequestId: 91,
+				questions: [],
+				replyHandler: {
+					kind: "http",
+					requestId: "question-http-route",
+				},
+			};
+			const answers: QuestionAnswer[] = [{ questionIndex: 0, answers: ["Bun"] }];
+			const answerMap = { Runtime: "Bun" };
+
+			await replyToQuestionRequest(question, answers, answerMap);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "question-override-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "question-http-route",
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap,
+				},
+			});
+			expect(mockRespondToQuestion).not.toHaveBeenCalled();
+		});
+
 		it("routes ACP questions through JSON-RPC responders", async () => {
 			const question: QuestionRequest = {
 				id: "question-1",
@@ -114,8 +196,20 @@ describe("interaction reply", () => {
 
 			await replyToQuestionRequest(question, answers, answerMap);
 
-			expect(mockRespondToQuestion).toHaveBeenCalledWith("session-jsonrpc", 99, answerMap);
-			expect(mockReplyQuestion).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: "question-1",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 99,
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap,
+				},
+			});
+			expect(mockRespondToQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes stream questions through the HTTP reply endpoint", async () => {
@@ -129,12 +223,54 @@ describe("interaction reply", () => {
 
 			await replyToQuestionRequest(question, answers, answerMap);
 
-			expect(mockReplyQuestion).toHaveBeenCalledWith("session-http", "question-2", answers);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "question-2",
+				replyHandler: {
+					kind: "http",
+					requestId: "question-2",
+				},
+				payload: {
+					kind: "question",
+					answers,
+					answerMap,
+				},
+			});
 			expect(mockRespondToQuestion).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("cancelQuestionRequest", () => {
+		it("prefers explicit reply-handler metadata for cancellations", async () => {
+			const question: QuestionRequest & {
+				replyHandler: { kind: "http"; requestId: string };
+			} = {
+				id: "question-cancel-http",
+				sessionId: "session-http",
+				jsonRpcRequestId: 123,
+				questions: [],
+				replyHandler: {
+					kind: "http",
+					requestId: "question-http-cancel",
+				},
+			};
+
+			await cancelQuestionRequest(question);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "question-cancel-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "question-http-cancel",
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
+			expect(mockCancelQuestion).not.toHaveBeenCalled();
+		});
+
 		it("routes ACP cancellations through JSON-RPC responders", async () => {
 			const question: QuestionRequest = {
 				id: "question-3",
@@ -145,8 +281,18 @@ describe("interaction reply", () => {
 
 			await cancelQuestionRequest(question);
 
-			expect(mockCancelQuestion).toHaveBeenCalledWith("session-jsonrpc", 123);
-			expect(mockReplyQuestion).not.toHaveBeenCalled();
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-jsonrpc",
+				interactionId: "question-3",
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 123,
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
+			expect(mockCancelQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes stream cancellations through the HTTP reply endpoint", async () => {
@@ -158,16 +304,74 @@ describe("interaction reply", () => {
 
 			await cancelQuestionRequest(question);
 
-			expect(mockReplyQuestion).toHaveBeenCalledWith("session-http", "question-4", []);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-http",
+				interactionId: "question-4",
+				replyHandler: {
+					kind: "http",
+					requestId: "question-4",
+				},
+				payload: {
+					kind: "question_cancel",
+				},
+			});
 			expect(mockCancelQuestion).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("replyToPlanApprovalRequest", () => {
-		it("routes plan approval replies through the shared responder", async () => {
+		it("routes plan approval replies through the canonical interaction reply command", async () => {
 			await replyToPlanApprovalRequest("session-plan", 77, true);
 
-			expect(mockRespondToPlanApproval).toHaveBeenCalledWith("session-plan", 77, true);
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-plan",
+				interactionId: undefined,
+				replyHandler: {
+					kind: "json-rpc",
+					requestId: 77,
+				},
+				payload: {
+					kind: "plan_approval",
+					approved: true,
+				},
+			});
+			expect(mockRespondToPlanApproval).not.toHaveBeenCalled();
+		});
+
+		it("routes plan approval replies through explicit reply handlers when provided", async () => {
+			await replyToPlanApprovalRequest(
+				{
+					id: "plan-http",
+					kind: "plan_approval",
+					source: "create_plan",
+					sessionId: "session-plan",
+					tool: {
+						messageID: "message-plan",
+						callID: "tool-plan",
+					},
+					replyHandler: {
+						kind: "http",
+						requestId: "plan-http-route",
+					},
+					status: "pending",
+				},
+				true,
+				false
+			);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-plan",
+				interactionId: "plan-http",
+				replyHandler: {
+					kind: "http",
+					requestId: "plan-http-route",
+				},
+				payload: {
+					kind: "plan_approval",
+					approved: true,
+				},
+			});
+			expect(mockRespondToPlanApproval).not.toHaveBeenCalled();
 		});
 	});
 });

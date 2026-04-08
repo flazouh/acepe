@@ -20,6 +20,8 @@ mock.module("$lib/acp/utils/logger.js", () => ({
 }));
 
 mock.module("$lib/utils/tauri-client.js", () => ({
+	openFileInEditor: mock(() => undefined),
+	revealInFinder: mock(() => undefined),
 	tauriClient: {
 		settings: {
 			get: getMock,

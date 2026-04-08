@@ -15,11 +15,11 @@ use crate::acp::projections::{
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, CommandInput, ConfigOptionData,
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
-    PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep, PlanStepStatus, QuestionData,
-    QuestionItem, QuestionOption, SessionUpdate, SkillMeta, TodoItem, TodoStatus, ToolArguments,
-    ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
-    TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData,
-    UsageTelemetryTokens,
+    InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
+    PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
+    SessionUpdate, SkillMeta, TodoItem, TodoStatus, ToolArguments, ToolCallData,
+    ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData,
+    TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -103,6 +103,8 @@ pub fn export_all_types() {
     export_type!(ConfigOptionUpdateData);
     export_type!(ConfigOptionData);
     export_type!(ConfigOptionValue);
+    export_type!(InteractionReplyHandlerKind);
+    export_type!(InteractionReplyHandler);
     export_type!(PermissionData);
     export_type!(QuestionData);
     export_type!(TurnErrorData);
@@ -198,6 +200,8 @@ pub fn export_all_types() {
     export_acp_type!(ToolReference);
     export_acp_type!(QuestionOption);
     export_acp_type!(QuestionItem);
+    export_acp_type!(InteractionReplyHandlerKind);
+    export_acp_type!(InteractionReplyHandler);
     export_acp_type!(PermissionData);
     export_acp_type!(QuestionData);
     export_acp_type!(SessionDomainEventKind);

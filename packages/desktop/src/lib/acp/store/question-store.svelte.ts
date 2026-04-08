@@ -35,6 +35,8 @@ function mergeQuestionRequest(
 	incoming: QuestionRequest
 ): QuestionRequest {
 	const sessionId = incoming.sessionId.length > 0 ? incoming.sessionId : existing.sessionId;
+	const replyHandler =
+		incoming.replyHandler !== undefined ? incoming.replyHandler : existing.replyHandler;
 	const jsonRpcRequestId =
 		incoming.jsonRpcRequestId !== undefined
 			? incoming.jsonRpcRequestId
@@ -46,6 +48,7 @@ function mergeQuestionRequest(
 		id: incoming.id,
 		sessionId,
 		jsonRpcRequestId,
+		replyHandler,
 		questions,
 		tool,
 	};
