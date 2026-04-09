@@ -28,14 +28,10 @@
 	}: DismissableTooltipProps = $props();
 
 	const CLOSE_DELAY_MS = 120;
-	const contentSideClassMap = {
-		top: "bottom-full left-1/2 -translate-x-1/2",
-		right: "left-full top-1/2 -translate-y-1/2",
-		bottom: "top-full left-1/2 -translate-x-1/2",
-		left: "right-full top-1/2 -translate-y-1/2",
-	} as const;
 
 	let closeTimer: ReturnType<typeof setTimeout> | null = null;
+	let triggerElement: HTMLSpanElement | null = null;
+	let contentPositionStyle = "";
 
 	function cancelClose(): void {
 		if (closeTimer === null) {
@@ -48,6 +44,7 @@
 
 	function requestOpen(): void {
 		cancelClose();
+		updateContentPosition();
 		onOpenChange?.(true);
 	}
 
@@ -74,35 +71,60 @@
 		onOpenChange?.(false);
 	}
 
-	function getContentOffsetStyle(nextSide: "top" | "right" | "bottom" | "left"): string {
-		if (nextSide === "top") {
-			return `margin-bottom: ${sideOffset}px;`;
+	function updateContentPosition(): void {
+		if (triggerElement === null) {
+			return;
 		}
 
-		if (nextSide === "right") {
-			return `margin-left: ${sideOffset}px;`;
+		const rect = triggerElement.getBoundingClientRect();
+
+		if (side === "top") {
+			contentPositionStyle = [
+				`left: ${rect.left + rect.width / 2}px`,
+				`top: ${rect.top - sideOffset}px`,
+				"transform: translate(-50%, -100%)",
+			].join("; ");
+			return;
 		}
 
-		if (nextSide === "bottom") {
-			return `margin-top: ${sideOffset}px;`;
+		if (side === "right") {
+			contentPositionStyle = [
+				`left: ${rect.right + sideOffset}px`,
+				`top: ${rect.top + rect.height / 2}px`,
+				"transform: translateY(-50%)",
+			].join("; ");
+			return;
 		}
 
-		return `margin-right: ${sideOffset}px;`;
+		if (side === "bottom") {
+			contentPositionStyle = [
+				`left: ${rect.left + rect.width / 2}px`,
+				`top: ${rect.bottom + sideOffset}px`,
+				"transform: translateX(-50%)",
+			].join("; ");
+			return;
+		}
+
+		contentPositionStyle = [
+			`left: ${rect.left - sideOffset}px`,
+			`top: ${rect.top + rect.height / 2}px`,
+			"transform: translate(-100%, -50%)",
+		].join("; ");
 	}
 </script>
 
 {#if dismissed}
 	{@render children()}
 {:else}
-	<span class={`relative ${triggerClass}`} onpointerleave={requestClose}>
+	<span bind:this={triggerElement} class={triggerClass} onpointerleave={requestClose}>
 		<span onpointermove={requestOpen}>
 			{@render children()}
 		</span>
 
 		{#if open}
 			<div
-				class={`bg-popover border-border text-foreground absolute z-[var(--overlay-z)] max-w-52 rounded-md border px-2.5 py-2 text-xs shadow-md ${contentSideClassMap[side]}`}
-				style={getContentOffsetStyle(side)}
+				class="bg-popover border-border text-foreground fixed z-[var(--overlay-z)] w-56 rounded-md border px-3 py-2 text-xs shadow-md"
+				style={contentPositionStyle}
 				onpointerenter={cancelClose}
 				onpointerleave={requestClose}
 				onkeydown={handleContentKeydown}

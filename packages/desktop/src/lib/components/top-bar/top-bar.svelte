@@ -108,7 +108,7 @@ const layoutSectionLabelClass =
 	"text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60";
 const layoutSectionHeaderClass = "flex items-center gap-1.5 px-1";
 const layoutInfoBubbleButtonClass =
-	"h-5 min-w-5 rounded-lg border border-border/50 bg-muted/80 px-1.5 text-muted-foreground/60 shadow-none hover:text-foreground";
+	"h-5 min-w-5 rounded-md px-1.5 text-muted-foreground/60 shadow-none hover:text-foreground";
 
 const layoutPillGroupClass = "flex w-full rounded-md bg-muted/50 p-0.5";
 

@@ -145,6 +145,7 @@ describe("kanban layout wiring contract", () => {
 		expect(topBarSource).toContain('aria-label="Explain tab bar"');
 		expect(topBarSource).toContain('variant="headerAction"');
 		expect(topBarSource).toContain('size="headerAction"');
+		expect(topBarSource).toContain("rounded-md px-1.5");
 	});
 
 	it("tracks section-level dismiss keys and single-open state", () => {

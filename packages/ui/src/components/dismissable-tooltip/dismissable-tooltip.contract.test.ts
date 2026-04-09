@@ -10,10 +10,11 @@ describe("dismissable-tooltip contract", () => {
 		expect(source).toContain("{@render children()}");
 	});
 
-	it("renders a local positioned tooltip shell when not dismissed", () => {
-		expect(source).toContain('class={`relative ${triggerClass}`}');
+	it("renders a fixed-position tooltip shell when not dismissed", () => {
+		expect(source).toContain("bind:this={triggerElement}");
 		expect(source).toContain("{#if open}");
-		expect(source).toContain("absolute z-[var(--overlay-z)]");
+		expect(source).toContain("fixed z-[var(--overlay-z)]");
+		expect(source).toContain("w-56");
 	});
 
 	it("opens only from pointer movement on the explicit trigger wrapper", () => {
@@ -25,7 +26,7 @@ describe("dismissable-tooltip contract", () => {
 	it("keeps the tooltip enterable and dismissable", () => {
 		expect(source).toContain("onpointerenter={cancelClose}");
 		expect(source).toContain("onpointerleave={requestClose}");
-		expect(source).toContain("function getContentOffsetStyle");
+		expect(source).toContain("function updateContentPosition()");
 		expect(source).toContain('aria-label="Dismiss this tip"');
 		expect(source).toContain("onclick={handleDismiss}");
 	});
