@@ -232,6 +232,7 @@ export {
 } from "./components/panel-header/index.js";
 export { BrandLockup } from "./components/brand-lockup/index.js";
 export { BrandShaderBackground } from "./components/brand-shader-background/index.js";
+export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
 export { PillButton } from "./components/pill-button/index.js";
 export { ProjectCard } from "./components/project-card/index.js";
 export { ProjectLetterBadge } from "./components/project-letter-badge/index.js";

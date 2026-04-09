@@ -130,4 +130,36 @@ describe("kanban layout wiring contract", () => {
 			kanbanActionsSource.indexOf("{@render layoutControl()}")
 		);
 	});
+
+	it("uses dismissable info bubbles instead of per-pill tooltips", () => {
+		expect(existsSync(topBarPath)).toBe(true);
+		if (!existsSync(topBarPath)) return;
+
+		const topBarSource = readFileSync(topBarPath, "utf8");
+
+		expect(topBarSource).toContain('import { DismissableTooltip } from "@acepe/ui"');
+		expect(topBarSource).toContain('import { getDismissedTipsStore }');
+		expect((topBarSource.match(/<DismissableTooltip/g) ?? []).length).toBe(3);
+		expect(topBarSource).toContain('aria-label="Explain view modes"');
+		expect(topBarSource).toContain('aria-label="Explain grouping modes"');
+		expect(topBarSource).toContain('aria-label="Explain tab bar"');
+		expect(topBarSource).toContain('variant="headerAction"');
+		expect(topBarSource).toContain('size="headerAction"');
+	});
+
+	it("tracks section-level dismiss keys and single-open state", () => {
+		expect(existsSync(topBarPath)).toBe(true);
+		if (!existsSync(topBarPath)) return;
+
+		const topBarSource = readFileSync(topBarPath, "utf8");
+
+		expect(topBarSource).toContain('"layout.view.info"');
+		expect(topBarSource).toContain('"layout.grouping.info"');
+		expect(topBarSource).toContain('"layout.tabbar.info"');
+		expect(topBarSource).toContain("let openHintKey = $state<string | null>(null)");
+		expect(topBarSource).toContain("function handleHintOpenChange");
+		expect(topBarSource).toContain('open={openHintKey === "layout.view.info"}');
+		expect(topBarSource).toContain('open={openHintKey === "layout.grouping.info"}');
+		expect(topBarSource).toContain('open={openHintKey === "layout.tabbar.info"}');
+	});
 });

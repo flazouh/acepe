@@ -2,6 +2,7 @@
 import { Button } from "@acepe/ui/button";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { DismissableTooltip } from "@acepe/ui";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -11,6 +12,7 @@ import { DiscordLogo } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { GithubLogo } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
+import { Info } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
@@ -30,6 +32,7 @@ import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelt
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getDismissedTipsStore } from "$lib/stores/dismissed-tips-store.svelte.js";
 
 interface Props {
 	viewState: MainAppViewState;
@@ -102,7 +105,10 @@ const activeStandardViewMode = $derived.by((): Exclude<ViewMode, "kanban"> => {
 });
 
 const layoutSectionLabelClass =
-	"px-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60";
+	"text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60";
+const layoutSectionHeaderClass = "flex items-center gap-1.5 px-1";
+const layoutInfoBubbleButtonClass =
+	"h-5 min-w-5 rounded-lg border border-border/50 bg-muted/80 px-1.5 text-muted-foreground/60 shadow-none hover:text-foreground";
 
 const layoutPillGroupClass = "flex w-full rounded-md bg-muted/50 p-0.5";
 
@@ -110,6 +116,44 @@ const layoutPillBaseClass =
 	"flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-2 h-6 text-[11px] text-muted-foreground transition-colors";
 
 const layoutPillActiveClass = "bg-background text-foreground shadow-sm";
+const dismissedTips = getDismissedTipsStore();
+
+interface HintContent {
+	title: string;
+	description: string;
+	side: "top" | "right" | "bottom" | "left";
+}
+
+const hintContentMap: Record<string, HintContent> = {
+	"layout.view.info": {
+		title: "View modes",
+		description: "Standard keeps a panel layout. Kanban turns sessions into a board.",
+		side: "right",
+	},
+	"layout.grouping.info": {
+		title: "Grouping modes",
+		description: "Single focuses one agent. Project groups related work. Multi keeps several panels visible.",
+		side: "right",
+	},
+	"layout.tabbar.info": {
+		title: "Tab Bar",
+		description: "Adds a tab row for quicker switching between open conversations.",
+		side: "top",
+	},
+};
+
+let openHintKey = $state<string | null>(null);
+
+function handleHintOpenChange(key: string, isOpen: boolean): void {
+	if (isOpen) {
+		openHintKey = key;
+		return;
+	}
+
+	if (openHintKey === key) {
+		openHintKey = null;
+	}
+}
 
 function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	if (nextFamily === "kanban") {
@@ -201,7 +245,29 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 				>
 					<div class="flex flex-col gap-2">
 						<div class="space-y-1.5">
-							<div class={layoutSectionLabelClass}>View</div>
+							<div class={layoutSectionHeaderClass}>
+								<div class={layoutSectionLabelClass}>View</div>
+								<DismissableTooltip
+									dismissed={dismissedTips.isDismissed("layout.view.info")}
+									onDismiss={() => dismissedTips.dismiss("layout.view.info")}
+									title={hintContentMap["layout.view.info"].title}
+									description={hintContentMap["layout.view.info"].description}
+									side={hintContentMap["layout.view.info"].side}
+									open={openHintKey === "layout.view.info"}
+									onOpenChange={(isOpen) => handleHintOpenChange("layout.view.info", isOpen)}
+								>
+									<Button
+										variant="headerAction"
+										size="headerAction"
+										class={layoutInfoBubbleButtonClass}
+										aria-label="Explain view modes"
+									>
+										{#snippet children()}
+											<Info class="size-3" weight="fill" />
+										{/snippet}
+									</Button>
+								</DismissableTooltip>
+							</div>
 							<div class={layoutPillGroupClass} role="radiogroup" aria-label="View mode">
 								{#each layoutFamilies as family (family.value)}
 									{@const isActive = family.value === (isKanbanView ? "kanban" : "standard")}
@@ -226,7 +292,29 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 						{#if !isKanbanView}
 							<div transition:slide={{ duration: 150 }} class="flex flex-col gap-2">
 								<div class="space-y-1.5">
-									<div class={layoutSectionLabelClass}>Grouping</div>
+									<div class={layoutSectionHeaderClass}>
+										<div class={layoutSectionLabelClass}>Grouping</div>
+										<DismissableTooltip
+											dismissed={dismissedTips.isDismissed("layout.grouping.info")}
+											onDismiss={() => dismissedTips.dismiss("layout.grouping.info")}
+											title={hintContentMap["layout.grouping.info"].title}
+											description={hintContentMap["layout.grouping.info"].description}
+											side={hintContentMap["layout.grouping.info"].side}
+											open={openHintKey === "layout.grouping.info"}
+											onOpenChange={(isOpen) => handleHintOpenChange("layout.grouping.info", isOpen)}
+										>
+											<Button
+												variant="headerAction"
+												size="headerAction"
+												class={layoutInfoBubbleButtonClass}
+												aria-label="Explain grouping modes"
+											>
+												{#snippet children()}
+													<Info class="size-3" weight="fill" />
+												{/snippet}
+											</Button>
+										</DismissableTooltip>
+									</div>
 									<div class={layoutPillGroupClass} role="radiogroup" aria-label="Grouping mode">
 										{#each standardViewModes as mode (mode.value)}
 											{@const isActive = mode.value === activeStandardViewMode}
@@ -254,6 +342,26 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 									<div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 										<Rows class="size-3" weight="fill" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
 										<span>Tab Bar</span>
+										<DismissableTooltip
+											dismissed={dismissedTips.isDismissed("layout.tabbar.info")}
+											onDismiss={() => dismissedTips.dismiss("layout.tabbar.info")}
+											title={hintContentMap["layout.tabbar.info"].title}
+											description={hintContentMap["layout.tabbar.info"].description}
+											side={hintContentMap["layout.tabbar.info"].side}
+											open={openHintKey === "layout.tabbar.info"}
+											onOpenChange={(isOpen) => handleHintOpenChange("layout.tabbar.info", isOpen)}
+										>
+											<Button
+												variant="headerAction"
+												size="headerAction"
+												class={layoutInfoBubbleButtonClass}
+												aria-label="Explain tab bar"
+											>
+												{#snippet children()}
+													<Info class="size-3" weight="fill" />
+												{/snippet}
+											</Button>
+										</DismissableTooltip>
 									</div>
 									<Switch
 										checked={viewState.topBarVisible}

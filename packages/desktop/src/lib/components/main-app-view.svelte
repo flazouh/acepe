@@ -63,6 +63,7 @@ import {
 import * as m from "$lib/paraglide/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
+import { createDismissedTipsStore } from "$lib/stores/dismissed-tips-store.svelte.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
@@ -162,6 +163,8 @@ const chatPreferencesStore = createChatPreferencesStore();
 // Notification popup stores
 const windowFocusStore = createWindowFocusStore();
 const notificationPrefsStore = createNotificationPreferencesStore();
+const dismissedTipsStore = createDismissedTipsStore();
+void dismissedTipsStore.initialize();
 
 // Create workspace store first (for persist callback)
 let workspaceStore: ReturnType<typeof createWorkspaceStore>;
