@@ -50,7 +50,7 @@ pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
     if any_eq(clean_name, &["glob", "ls"]) {
         return ToolKind::Glob;
     }
-    if any_eq(clean_name, &["grep", "search"]) {
+    if any_eq(clean_name, &["grep", "search", "rg", "ripgrep"]) {
         return ToolKind::Search;
     }
     if clean_name.eq_ignore_ascii_case("find") {

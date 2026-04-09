@@ -1,6 +1,7 @@
-use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::session_update::{build_tool_call_from_raw, RawToolCallInput, ToolCallStatus};
+use crate::acp::parsers::{AgentType, get_parser};
+use crate::acp::session_update::{RawToolCallInput, ToolCallStatus, build_tool_call_from_raw};
 use crate::acp::streaming_log::log_streaming_event;
+use crate::acp::tool_classification::{ToolClassificationHints, resolve_raw_tool_identity};
 use serde_json::Value;
 
 use super::helpers::{
@@ -19,7 +20,7 @@ pub(super) async fn handle_session_request_permission(
             return InboundRoutingDecision::ForwardToUi {
                 parsed_arguments: None,
                 synthetic_tool_call: None,
-            }
+            };
         }
     };
 
@@ -34,18 +35,34 @@ pub(super) async fn handle_session_request_permission(
             return InboundRoutingDecision::ForwardToUi {
                 parsed_arguments: None,
                 synthetic_tool_call: None,
-            }
+            };
         }
     };
 
     let parser = get_parser(agent_type);
-    let inferred_tool_name = parser.infer_tool_display_name(
-        tool_call.name.as_deref(),
-        &tool_call.raw_input,
-        tool_call.kind.as_deref(),
+    let tool_call_id = tool_call
+        .tool_call_id
+        .clone()
+        .unwrap_or_else(|| "permission-request".to_string());
+    let identity = resolve_raw_tool_identity(
+        parser,
+        &tool_call_id,
+        Some(&tool_call.raw_input),
+        ToolClassificationHints {
+            name: tool_call.name.as_deref(),
+            title: tool_call.title.as_deref(),
+            kind: tool_call
+                .kind
+                .as_deref()
+                .map(|kind| parser.detect_tool_kind(kind)),
+            kind_hint: tool_call.kind.as_deref(),
+            locations: None,
+        },
     );
     let parsed_arguments = parse_permission_tool_arguments(
+        &tool_call_id,
         tool_call.name.as_deref(),
+        tool_call.title.as_deref(),
         tool_call.raw_input.clone(),
         tool_call.kind.as_deref(),
         agent_type,
@@ -69,14 +86,12 @@ pub(super) async fn handle_session_request_permission(
         (Some(tool_call_id), Some(_)) => {
             let raw = RawToolCallInput {
                 id: tool_call_id.clone(),
-                name: inferred_tool_name,
+                name: identity.name.clone(),
                 arguments: tool_call.raw_input.clone(),
                 status: ToolCallStatus::InProgress,
-                kind: tool_call
-                    .kind
-                    .as_deref()
-                    .map(|s| parser.detect_tool_kind(s)),
+                kind: Some(identity.kind),
                 title: tool_call.title.clone(),
+                suppress_title_read_path_hint: false,
                 parent_tool_use_id: None,
                 task_children: None,
             };

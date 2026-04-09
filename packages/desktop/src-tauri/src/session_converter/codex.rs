@@ -1,4 +1,4 @@
-use crate::session_converter::AgentType;
+use crate::acp::parsers::AgentType;
 use crate::session_jsonl::types::{ConvertedSession, FullSession};
 
 #[allow(dead_code)]

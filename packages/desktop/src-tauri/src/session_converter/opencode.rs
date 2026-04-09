@@ -1,8 +1,9 @@
 use crate::acp::parsers::{AgentParser, AgentType, ClaudeCodeParser, OpenCodeParser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
-    ToolCallData, ToolKind,
+    ToolArguments, ToolCallData, parse_normalized_questions, parse_normalized_todos,
+    tool_call_status_from_str,
 };
+use crate::acp::tool_classification::{ToolClassificationHints, classify_raw_tool_call};
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
@@ -11,7 +12,7 @@ use crate::session_jsonl::types::{
 };
 use std::collections::HashMap;
 
-use super::{calculate_todo_timing, parse_tool_arguments_for_agent};
+use super::calculate_todo_timing;
 
 fn map_summary_status(status: &str) -> String {
     match status {
@@ -272,22 +273,22 @@ fn convert_opencode_assistant_message(
                         }
                     });
 
-                let detected_kind = OpenCodeParser.detect_tool_kind(name);
-                let arguments =
-                    parse_tool_arguments_for_agent(AgentType::OpenCode, name, input, detected_kind);
-                // Reconcile kind: argument parsing may upgrade (e.g. Fetch URL → WebSearch)
-                let argument_kind = arguments.tool_kind();
-                let kind =
-                    if argument_kind == ToolKind::WebSearch && detected_kind == ToolKind::Fetch {
-                        argument_kind
-                    } else if detected_kind != ToolKind::Other {
-                        detected_kind
-                    } else {
-                        argument_kind
-                    };
+                let classified = classify_raw_tool_call(
+                    &OpenCodeParser,
+                    id,
+                    input,
+                    ToolClassificationHints {
+                        name: None,
+                        title: Some(name),
+                        kind: Some(OpenCodeParser.detect_tool_kind(name)),
+                        kind_hint: None,
+                        locations: None,
+                    },
+                );
                 let normalized_questions =
-                    parse_normalized_questions(name, input, AgentType::OpenCode);
-                let normalized_todos = parse_normalized_todos(name, input, AgentType::OpenCode);
+                    parse_normalized_questions(&classified.name, input, AgentType::OpenCode);
+                let normalized_todos =
+                    parse_normalized_todos(&classified.name, input, AgentType::OpenCode);
                 let task_children = if name.to_lowercase().contains("task") {
                     parse_task_children_from_metadata(
                         id,
@@ -296,18 +297,16 @@ fn convert_opencode_assistant_message(
                 } else {
                     None
                 };
-                let display_name = crate::acp::parsers::kind::display_name_for_tool(kind, name);
-
                 tool_entries.push(StoredEntry::ToolCall {
                     id: id.clone(),
                     message: ToolCallData {
                         id: id.clone(),
-                        name: display_name.clone(),
-                        title: Some(display_name),
+                        name: classified.name.clone(),
+                        title: Some(classified.name.clone()),
                         status: tool_call_status_from_str(status),
                         result: result.map(serde_json::Value::String),
-                        kind: Some(kind),
-                        arguments,
+                        kind: Some(classified.kind),
+                        arguments: classified.arguments,
                         raw_input: None,
                         skill_meta: None, // OpenCode doesn't support skill meta yet
                         locations: None,

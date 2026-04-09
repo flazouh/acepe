@@ -4,11 +4,7 @@
 //! - claude/cursor/codex use FullSession conversion
 //! - opencode uses OpenCode message conversion
 
-use crate::acp::parsers::get_parser;
-use crate::acp::parsers::AgentType;
-use crate::acp::session_update::{
-    TodoStatus, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData,
-};
+use crate::acp::session_update::{TodoStatus, ToolCallData, ToolCallStatus, ToolCallUpdateData};
 use crate::opencode_history::types::OpenCodeMessage;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, StoredEntry};
 use std::collections::HashMap;
@@ -39,17 +35,6 @@ pub fn convert_opencode_messages_to_session(
     messages: Vec<OpenCodeMessage>,
 ) -> Result<ConvertedSession, String> {
     opencode::convert_opencode_messages_to_session(messages)
-}
-
-fn parse_tool_arguments_for_agent(
-    agent: AgentType,
-    tool_name: &str,
-    input: &serde_json::Value,
-    kind: crate::acp::session_update::ToolKind,
-) -> ToolArguments {
-    get_parser(agent)
-        .parse_typed_tool_arguments(Some(tool_name), input, Some(kind.as_str()))
-        .unwrap_or(ToolArguments::Other { raw: input.clone() })
 }
 
 fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
@@ -165,7 +150,7 @@ mod tests {
     use super::*;
     use crate::acp::parsers::AgentParser;
     use crate::acp::parsers::ClaudeCodeParser;
-    use crate::acp::session_update::{ToolCallStatus, ToolKind};
+    use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
     use crate::session_jsonl::types::{ContentBlock, OrderedMessage, SessionStats};
 
     fn create_test_full_session() -> FullSession {
@@ -360,10 +345,12 @@ mod tests {
 
         // Meta message should be skipped
         assert_eq!(converted.entries.len(), 2);
-        assert!(!converted
-            .entries
-            .iter()
-            .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "meta-1")));
+        assert!(
+            !converted
+                .entries
+                .iter()
+                .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "meta-1"))
+        );
     }
 
     #[test]
@@ -393,10 +380,12 @@ mod tests {
 
         // Empty user message should be skipped
         assert_eq!(converted.entries.len(), 2);
-        assert!(!converted
-            .entries
-            .iter()
-            .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "empty-user")));
+        assert!(
+            !converted
+                .entries
+                .iter()
+                .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "empty-user"))
+        );
     }
 
     #[test]
@@ -616,10 +605,12 @@ mod tests {
 
         // Empty user message should be skipped
         assert_eq!(converted.entries.len(), 1);
-        assert!(!converted
-            .entries
-            .iter()
-            .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "user-1")));
+        assert!(
+            !converted
+                .entries
+                .iter()
+                .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "user-1"))
+        );
     }
 
     #[test]

@@ -41,5 +41,6 @@ pub mod streaming_delta_batcher;
 pub mod streaming_log;
 pub mod task_reconciler;
 pub mod tool_call_presentation;
+pub(crate) mod tool_classification;
 pub mod types;
 pub mod ui_event_dispatcher;

@@ -3,19 +3,19 @@
 use crate::acp::parsers::adapters::ClaudeCodeAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::claude_code::parse_edit_arguments;
-use crate::acp::parsers::kind::{canonical_name_for_kind, infer_kind_from_payload};
-use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
+use crate::acp::parsers::kind::infer_kind_from_payload;
+use crate::acp::parsers::provider_capabilities::{ProviderCapabilities, provider_capabilities};
 use crate::acp::parsers::shared_chat::{
     detect_update_type, infer_tool_kind_from_raw_arguments, parse_tool_call_update,
     parse_update_type_name, parse_usage_telemetry,
 };
 use crate::acp::parsers::types::{
-    extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write, AgentParser,
-    AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
+    AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry,
+    UpdateType, extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write,
 };
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
-    RawToolCallInput, ToolArguments, ToolKind,
+    PlanData, RawToolCallInput, ToolArguments, ToolKind, build_tool_call_from_raw,
+    build_tool_call_update_from_raw, tool_call_status_from_str,
 };
 
 pub struct ClaudeCodeParser;
@@ -155,8 +155,6 @@ impl ClaudeCodeParser {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let inferred_name = self.infer_tool_display_name(None, &arguments, kind_hint);
-
         let status = tool_call_status_from_str(
             data.get("status")
                 .and_then(|v| v.as_str())
@@ -169,22 +167,11 @@ impl ClaudeCodeParser {
             .filter(|kind| *kind != ToolKind::Other)
             .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
             .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
-            .or_else(|| {
-                self.parse_typed_tool_arguments(None, &arguments, kind_hint)
-                    .map(|parsed_arguments| parsed_arguments.tool_kind())
-                    .filter(|kind| *kind != ToolKind::Other)
-            })
             .unwrap_or(ToolKind::Other);
 
-        let name = explicit_name.clone().unwrap_or_else(|| {
-            if kind != ToolKind::Other {
-                canonical_name_for_kind(kind).to_string()
-            } else if inferred_name == "Tool" {
-                "unknown".to_string()
-            } else {
-                inferred_name
-            }
-        });
+        let name = explicit_name
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
 
         let parent_tool_use_id = data
             .get("_meta")
@@ -200,6 +187,7 @@ impl ClaudeCodeParser {
             status,
             kind: Some(kind),
             title,
+            suppress_title_read_path_hint: false,
             parent_tool_use_id,
             task_children: None,
         })

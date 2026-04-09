@@ -13,15 +13,15 @@ use sea_orm::DbConn;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use uuid::Uuid;
 
 use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
 };
 use crate::acp::client_session::{
-    apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
-    SessionModelState,
+    AvailableModel, SessionModelState, apply_provider_model_fallback, default_modes,
+    default_session_model_state,
 };
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
@@ -29,9 +29,9 @@ use crate::acp::client_transport::{
 };
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::model_display::{build_models_for_display, ModelPresentationMetadata};
+use crate::acp::model_display::{ModelPresentationMetadata, build_models_for_display};
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
-use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::parsers::{AgentType, get_parser};
 use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
     SessionProjectionSnapshot,
@@ -39,20 +39,20 @@ use crate::acp::projections::{
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_update::{
-    parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
-    ToolCallUpdateData, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource,
+    QuestionData, QuestionItem, SessionUpdate, ToolCallStatus, ToolCallUpdateData, ToolReference,
+    TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource, parse_normalized_questions,
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
+use crate::acp::tool_classification::{ToolClassificationHints, classify_raw_tool_call};
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 
 mod permissions;
 
 use permissions::{
-    build_denied_hook_output, HookPermissionRequest, PermissionBridge, PermissionUiDispatch,
-    QuestionPermissionRequest, ToolPermissionRequest,
+    HookPermissionRequest, PermissionBridge, PermissionUiDispatch, QuestionPermissionRequest,
+    ToolPermissionRequest, build_denied_hook_output,
 };
 
 #[derive(Debug, Clone)]
@@ -1829,9 +1829,23 @@ fn build_reusable_permission_approval_entries(
 }
 
 fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: AgentType) -> Value {
-    let parsed_arguments = get_parser(agent_type)
-        .parse_typed_tool_arguments(Some(tool_name), raw_input, None)
-        .and_then(|arguments| serde_json::to_value(arguments).ok());
+    let parser = get_parser(agent_type);
+    let parsed_arguments = serde_json::to_value(
+        classify_raw_tool_call(
+            parser,
+            tool_name,
+            raw_input,
+            ToolClassificationHints {
+                name: Some(tool_name),
+                title: Some(tool_name),
+                kind: Some(parser.detect_tool_kind(tool_name)),
+                kind_hint: None,
+                locations: None,
+            },
+        )
+        .arguments,
+    )
+    .ok();
 
     let mut metadata = serde_json::Map::from_iter([
         ("rawInput".to_string(), raw_input.clone()),
@@ -2816,11 +2830,13 @@ mod tests {
         assert_eq!(options.model.as_deref(), Some("claude-opus-4-6"));
         assert_eq!(options.permission_mode, cc_sdk::PermissionMode::Plan);
         assert_eq!(options.session_id.as_deref(), Some("session-1"));
-        assert!(options
-            .hooks
-            .as_ref()
-            .and_then(|hooks| hooks.get("PermissionRequest"))
-            .is_some());
+        assert!(
+            options
+                .hooks
+                .as_ref()
+                .and_then(|hooks| hooks.get("PermissionRequest"))
+                .is_some()
+        );
         assert_eq!(
             options.setting_sources,
             Some(vec![
@@ -2917,8 +2933,7 @@ mod tests {
     #[tokio::test]
     async fn restore_session_permission_approvals_rehydrates_restart_safe_cache() {
         let db = setup_test_db().await;
-        let path =
-            "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
+        let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
         SessionMetadataRepository::upsert(
             &db,
             "session-1".to_string(),
@@ -3385,8 +3400,7 @@ mod tests {
         .await
         .expect("persist session metadata");
 
-        let path =
-            "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
+        let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
         let mut client = make_test_client();
         client.db = Some(db.clone());
         client.session_id = Some("session-1".to_string());
@@ -3485,8 +3499,7 @@ mod tests {
         .await
         .expect("persist session metadata");
 
-        let path =
-            "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
+        let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
         let mut client = make_test_client();
         client.db = Some(db.clone());
         client.session_id = Some("session-1".to_string());
@@ -3528,12 +3541,15 @@ mod tests {
             .await
             .expect("load stored projection")
             .expect("stored projection should exist");
-        assert!(stored_projection
-            .interactions
-            .into_iter()
-            .any(|interaction| {
-                interaction.id == "permission-1" && interaction.state == InteractionState::Rejected
-            }));
+        assert!(
+            stored_projection
+                .interactions
+                .into_iter()
+                .any(|interaction| {
+                    interaction.id == "permission-1"
+                        && interaction.state == InteractionState::Rejected
+                })
+        );
     }
 
     #[tokio::test]
@@ -3610,13 +3626,15 @@ mod tests {
             .await
             .expect("load stored projection")
             .expect("stored projection should exist");
-        assert!(stored_projection
-            .interactions
-            .into_iter()
-            .any(|interaction| {
-                interaction.id == "toolu_stream_only"
-                    && interaction.state == InteractionState::Answered
-            }));
+        assert!(
+            stored_projection
+                .interactions
+                .into_iter()
+                .any(|interaction| {
+                    interaction.id == "toolu_stream_only"
+                        && interaction.state == InteractionState::Answered
+                })
+        );
     }
 
     #[tokio::test]
@@ -3762,10 +3780,12 @@ mod tests {
             .await;
         let rx = registration.receiver;
 
-        assert!(client
-            .reply_permission(id.to_string(), "once".to_string())
-            .await
-            .expect("reply_permission failed"));
+        assert!(
+            client
+                .reply_permission(id.to_string(), "once".to_string())
+                .await
+                .expect("reply_permission failed")
+        );
 
         let resolved = rx.await.expect("channel closed");
         let cc_sdk::HookJSONOutput::Sync(output) = resolved else {
@@ -3808,10 +3828,12 @@ mod tests {
             .await;
         let rx = registration.receiver;
 
-        assert!(client
-            .reply_permission(id.to_string(), "always".to_string())
-            .await
-            .expect("reply_permission failed"));
+        assert!(
+            client
+                .reply_permission(id.to_string(), "always".to_string())
+                .await
+                .expect("reply_permission failed")
+        );
 
         let resolved = rx.await.expect("channel closed");
         let cc_sdk::HookJSONOutput::Sync(output) = resolved else {
@@ -4047,9 +4069,11 @@ mod tests {
                     .count(),
                 1
             );
-            assert!(captured
-                .iter()
-                .any(|event| event.event_name == "acp-session-domain-event"));
+            assert!(
+                captured
+                    .iter()
+                    .any(|event| event.event_name == "acp-session-domain-event")
+            );
         }
 
         let resolved_kind = bridge
@@ -4955,13 +4979,15 @@ mod tests {
             }
         });
 
-        assert!(client
-            .reply_question(
-                "toolu_question_existing".to_string(),
-                vec![vec!["main".to_string()]],
-            )
-            .await
-            .expect("reply_question should bind to the late request"));
+        assert!(
+            client
+                .reply_question(
+                    "toolu_question_existing".to_string(),
+                    vec![vec!["main".to_string()]],
+                )
+                .await
+                .expect("reply_question should bind to the late request")
+        );
 
         let updated_input = binding_task.await.expect("binding task should complete");
 
@@ -5264,12 +5290,14 @@ mod tests {
         client.reset_stream_runtime_state();
 
         assert!(client.tool_call_tracker.take("Bash").await.is_none());
-        assert!(client
-            .approval_callback_tracker
-            .pending
-            .lock()
-            .await
-            .is_empty());
+        assert!(
+            client
+                .approval_callback_tracker
+                .pending
+                .lock()
+                .await
+                .is_empty()
+        );
 
         let outputs_after_reset = collect_cc_sdk_updates_for_dispatch(
             &SessionUpdate::ToolCallUpdate {

@@ -5,12 +5,12 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use super::{get_parser, AgentType};
+use super::{AgentType, get_parser};
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, QuestionData,
-    RawToolCallInput, RawToolCallUpdateInput, SessionUpdate, ToolArguments, ToolCallData,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, UsageTelemetryData,
-    UsageTelemetryTokens,
+    ContentChunk, QuestionData, RawToolCallInput, RawToolCallUpdateInput, SessionUpdate,
+    ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
+    TurnErrorData, UsageTelemetryData, UsageTelemetryTokens, build_tool_call_from_raw,
+    build_tool_call_update_from_raw,
 };
 use crate::acp::types::ContentBlock;
 use cc_sdk::Message;
@@ -249,6 +249,7 @@ fn translate_assistant(
                     status: ToolCallStatus::InProgress,
                     kind: None,
                     title: None,
+                    suppress_title_read_path_hint: false,
                     parent_tool_use_id: parent_tool_use_id.clone(),
                     task_children: None,
                 };
@@ -806,13 +807,13 @@ fn build_result_telemetry(
 #[cfg(test)]
 mod tests {
     use super::{
-        translate_cc_sdk_message, translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState,
+        CcSdkTurnStreamState, translate_cc_sdk_message, translate_cc_sdk_message_with_turn_state,
     };
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_update::{
-        build_tool_call_update_from_raw, RawToolCallUpdateInput, SessionUpdate, ToolArguments,
-        ToolCallStatus, ToolKind,
+        RawToolCallUpdateInput, SessionUpdate, ToolArguments, ToolCallStatus, ToolKind,
+        build_tool_call_update_from_raw,
     };
     use crate::acp::types::ContentBlock;
     use cc_sdk::{

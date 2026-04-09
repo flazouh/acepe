@@ -54,7 +54,12 @@ pub fn infer_kind_from_payload(
                 return Some(ToolKind::Execute);
             }
             // Search (codebase)
-            if t == "codebase search" || t == "codebasesearch" || t == "grep" {
+            if t == "codebase search"
+                || t == "codebasesearch"
+                || t == "grep"
+                || t == "rg"
+                || t == "ripgrep"
+            {
                 return Some(ToolKind::Search);
             }
         }

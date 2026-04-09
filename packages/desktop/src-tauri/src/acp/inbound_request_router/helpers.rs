@@ -1,10 +1,11 @@
-use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::parsers::{AgentType, get_parser};
+use crate::acp::tool_classification::{ToolClassificationHints, classify_raw_tool_call};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tauri::AppHandle;
 
-use super::types::TerminalRequestParamsRaw;
 use super::InboundRoutingDecision;
+use super::types::TerminalRequestParamsRaw;
 
 pub(super) fn invalid_params(message: &str) -> InboundRoutingDecision {
     InboundRoutingDecision::Handle(json!({
@@ -91,7 +92,9 @@ pub(super) fn parse_terminal_request_params(
 
 /// Parse permission rawInput into typed ToolArguments via agent-specific parser.
 pub(super) fn parse_permission_tool_arguments(
+    tool_call_id: &str,
     tool_name: Option<&str>,
+    tool_title: Option<&str>,
     raw_input: Value,
     kind_hint: Option<&str>,
     agent_type: AgentType,
@@ -102,7 +105,20 @@ pub(super) fn parse_permission_tool_arguments(
 
     let parser = get_parser(agent_type);
     let effective_name = tool_name.map(str::trim).filter(|name| !name.is_empty());
-    let args = parser.parse_typed_tool_arguments(effective_name, &raw_input, kind_hint)?;
+    let effective_title = tool_title.map(str::trim).filter(|title| !title.is_empty());
+    let args = classify_raw_tool_call(
+        parser,
+        tool_call_id,
+        &raw_input,
+        ToolClassificationHints {
+            name: effective_name,
+            title: effective_title,
+            kind: kind_hint.map(|kind| parser.detect_tool_kind(kind)),
+            kind_hint,
+            locations: None,
+        },
+    )
+    .arguments;
     serde_json::to_value(&args)
         .inspect_err(
             |e| tracing::warn!(error = %e, "Failed to serialize parsed permission arguments"),

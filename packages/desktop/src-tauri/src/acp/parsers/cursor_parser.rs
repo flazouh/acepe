@@ -4,16 +4,16 @@ use crate::acp::parsers::adapters::CursorAdapter;
 use crate::acp::parsers::argument_enrichment::inject_path_hint;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::cursor::parse_edit_arguments;
-use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
+use crate::acp::parsers::provider_capabilities::{ProviderCapabilities, provider_capabilities};
 use crate::acp::parsers::types::{
-    extract_plan_from_raw_input_impl, parse_common_update_type_name,
-    parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
-    ParsedUsageTelemetry, UpdateType,
+    AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry,
+    UpdateType, extract_plan_from_raw_input_impl, parse_common_update_type_name,
+    parse_standard_usage_telemetry,
 };
 use crate::acp::parsers::{acp_fields, kind as kind_utils};
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
-    RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
+    PlanData, RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
+    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
 };
 
 pub struct CursorParser;
@@ -237,6 +237,7 @@ impl CursorParser {
             status: ToolCallStatus::Pending,
             kind: Some(kind),
             title: None,
+            suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
             task_children: None,
         })
@@ -266,6 +267,10 @@ impl CursorParser {
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, Some(&raw_arguments));
         let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
+        let raw_name = tool_name_ref
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
 
         // Name-derived kind is specific; payload kind is a coarse fallback.
         let name_kind = CursorAdapter::normalize(&effective_name);
@@ -277,11 +282,16 @@ impl CursorParser {
                 .unwrap_or(name_kind)
         };
 
-        if let Some(location_path) = Self::extract_first_location_path(data) {
+        let has_locations = data
+            .get(acp_fields::LOCATIONS)
+            .and_then(|value| value.as_array())
+            .is_some();
+        let location_path = Self::extract_first_location_path(data);
+        if let Some(location_path) = location_path.as_deref() {
             inject_path_hint(&mut raw_arguments, kind, &location_path);
         }
 
-        let name = kind_utils::display_name_for_tool(kind, &effective_name);
+        let name = raw_name.unwrap_or_else(|| "unknown".to_string());
 
         Ok(RawToolCallInput {
             id,
@@ -290,6 +300,7 @@ impl CursorParser {
             status,
             kind: Some(kind),
             title,
+            suppress_title_read_path_hint: has_locations && location_path.is_none(),
             parent_tool_use_id: None,
             task_children: None,
         })

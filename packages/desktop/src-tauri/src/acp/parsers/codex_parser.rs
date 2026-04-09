@@ -4,16 +4,16 @@ use crate::acp::parsers::adapters::CodexAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::codex::parse_edit_arguments;
 use crate::acp::parsers::kind as kind_utils;
-use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
+use crate::acp::parsers::provider_capabilities::{ProviderCapabilities, provider_capabilities};
 use crate::acp::parsers::status as status_utils;
 use crate::acp::parsers::types::{
-    parse_ask_user_question, parse_common_update_type_name, parse_standard_usage_telemetry,
-    parse_todo_write, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
-    ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
+    AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry,
+    ParsedUsageTokens, UpdateType, parse_ask_user_question, parse_common_update_type_name,
+    parse_standard_usage_telemetry, parse_todo_write,
 };
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
+    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
 };
 
 /// Case-insensitive substring check using ASCII lowering.
@@ -440,7 +440,11 @@ impl CodexParser {
             title.as_deref(),
             Some(&arguments),
         );
-        let name = Self::infer_name(explicit_name, &id, title.as_deref(), inferred_kind);
+        let name = explicit_name
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| "unknown".to_string());
         let kind = Some(inferred_kind);
         let mut arguments = if inferred_kind == ToolKind::Other {
             raw_arguments
@@ -473,6 +477,7 @@ impl CodexParser {
             status,
             kind,
             title,
+            suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
             task_children: None,
         })

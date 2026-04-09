@@ -514,6 +514,36 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
+    fn copilot_promotes_rg_title_to_search_when_name_is_unknown() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-rg",
+                "kind": "other",
+                "status": "pending",
+                "title": "rg",
+                "rawInput": {
+                    "query": "tool_call",
+                    "path": "/tmp"
+                }
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Search));
+            assert_eq!(tool_call.name, "Search");
+            match tool_call.arguments {
+                ToolArguments::Search { query, file_path } => {
+                    assert_eq!(query.as_deref(), Some("tool_call"));
+                    assert_eq!(file_path.as_deref(), Some("/tmp"));
+                }
+                other => panic!("Expected Search arguments, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
     fn infers_task_from_copilot_subagent_payload_without_tool_name() {
         with_agent(AgentType::Copilot, || {
             let data = json!({
@@ -1883,11 +1913,11 @@ fn parses_parent_task_and_children_from_tool_call() {
         ]
     });
 
-    let parsed: ToolCallData = crate::acp::agent_context::with_agent(
-        crate::acp::parsers::AgentType::ClaudeCode,
-        || serde_json::from_value(json),
-    )
-    .expect("tool call should parse");
+    let parsed: ToolCallData =
+        crate::acp::agent_context::with_agent(crate::acp::parsers::AgentType::ClaudeCode, || {
+            serde_json::from_value(json)
+        })
+        .expect("tool call should parse");
     assert_eq!(parsed.parent_tool_use_id.as_deref(), Some("parent-123"));
     let children = parsed.task_children.expect("children should exist");
     assert_eq!(children.len(), 1);
@@ -2512,9 +2542,9 @@ mod parse_tool_call_update_from_acp {
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             let update = result.unwrap();
             assert!(
-                    update.streaming_plan.is_some(),
-                    "streaming_plan should be produced for .claude/plans writes even when toolName is omitted"
-                );
+                update.streaming_plan.is_some(),
+                "streaming_plan should be produced for .claude/plans writes even when toolName is omitted"
+            );
 
             cleanup_session_streaming(session_id);
         });

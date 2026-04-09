@@ -1,11 +1,11 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-use crate::acp::parsers::{get_parser, AgentParser, AgentType, ClaudeCodeParser};
+use crate::acp::parsers::{AgentParser, AgentType, ClaudeCodeParser, get_parser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
-    ToolCallData,
+    ToolCallData, parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str,
 };
+use crate::acp::tool_classification::{ToolClassificationHints, classify_raw_tool_call};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
     ContentBlock, ConvertedSession, FullSession, OrderedMessage, StoredAssistantChunk,
@@ -158,23 +158,33 @@ fn convert_assistant_message(
                     "pending"
                 };
 
-                let kind = ClaudeCodeParser.detect_tool_kind(name);
-                let display_name = crate::acp::parsers::kind::display_name_for_tool(kind, name);
+                let parser = get_parser(AgentType::ClaudeCode);
+                let classified = classify_raw_tool_call(
+                    parser,
+                    id,
+                    input,
+                    ToolClassificationHints {
+                        name: None,
+                        title: Some(name),
+                        kind: Some(ClaudeCodeParser.detect_tool_kind(name)),
+                        kind_hint: None,
+                        locations: None,
+                    },
+                );
                 let normalized_questions =
-                    parse_normalized_questions(name, input, AgentType::ClaudeCode);
-                let normalized_todos = parse_normalized_todos(name, input, AgentType::ClaudeCode);
+                    parse_normalized_questions(&classified.name, input, AgentType::ClaudeCode);
+                let normalized_todos =
+                    parse_normalized_todos(&classified.name, input, AgentType::ClaudeCode);
                 tool_entries.push(StoredEntry::ToolCall {
                     id: id.clone(),
                     message: ToolCallData {
                         id: id.clone(),
-                        name: display_name.clone(),
-                        title: Some(display_name),
+                        name: classified.name.clone(),
+                        title: Some(classified.name.clone()),
                         status: tool_call_status_from_str(status),
                         result: result.map(serde_json::Value::String),
-                        kind: Some(kind),
-                        arguments: get_parser(AgentType::ClaudeCode)
-                            .parse_typed_tool_arguments(Some(name), input, Some(kind.as_str()))
-                            .unwrap_or(ToolArguments::Other { raw: input.clone() }),
+                        kind: Some(classified.kind),
+                        arguments: classified.arguments,
                         raw_input: Some(input.clone()),
                         skill_meta: None, // Skill meta is populated by session_converter
                         locations: None,

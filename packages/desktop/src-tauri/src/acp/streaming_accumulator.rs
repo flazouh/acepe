@@ -12,10 +12,11 @@ use std::time::Instant;
 
 use super::partial_json::parse_partial_json;
 use super::session_update::{
-    parse_normalized_questions, parse_normalized_todos, PlanConfidence, PlanData, PlanSource,
-    QuestionItem, TodoItem, ToolArguments, ToolKind,
+    PlanConfidence, PlanData, PlanSource, QuestionItem, TodoItem, ToolArguments, ToolKind,
+    parse_normalized_questions, parse_normalized_todos,
 };
-use crate::acp::parsers::{get_parser, AgentType};
+use super::tool_classification::{ToolClassificationHints, classify_raw_tool_call};
+use crate::acp::parsers::{AgentType, get_parser};
 
 /// Maximum accumulated size per tool call (1MB) to prevent DoS.
 const MAX_ACCUMULATED_SIZE: usize = 1_048_576;
@@ -159,8 +160,13 @@ impl SessionStreamingState {
             {
                 state.tool_kind = Some(detected_kind);
             }
-            let cached_kind = state.tool_kind;
-            return self.normalize_value(&parsed, cached_kind, resolved_name, agent);
+            return self.normalize_value(
+                tool_call_id,
+                &parsed,
+                state.tool_kind,
+                resolved_name,
+                agent,
+            );
         }
 
         None
@@ -175,7 +181,7 @@ impl SessionStreamingState {
     fn normalize_from_cached(
         &self,
         state: &dashmap::mapref::one::RefMut<String, ToolCallStreamState>,
-        _tool_call_id: &str,
+        tool_call_id: &str,
         agent: AgentType,
     ) -> Option<StreamingNormalized> {
         // Use cached tool name if available, otherwise fall back to "other"
@@ -183,36 +189,43 @@ impl SessionStreamingState {
         let tool_kind = state
             .tool_kind
             .or_else(|| Some(get_parser(agent).detect_tool_kind(resolved_name)));
-        state
-            .last_parsed
-            .as_ref()
-            .and_then(|v| self.normalize_value(v, tool_kind, resolved_name, agent))
+        state.last_parsed.as_ref().and_then(|value| {
+            self.normalize_value(tool_call_id, value, tool_kind, resolved_name, agent)
+        })
     }
 
     /// Normalize a parsed JSON value. Produces streaming_arguments for all tool kinds.
     fn normalize_value(
         &self,
+        tool_call_id: &str,
         value: &serde_json::Value,
         tool_kind: Option<ToolKind>,
         tool_name: &str,
         agent: AgentType,
     ) -> Option<StreamingNormalized> {
         let parser = get_parser(agent);
-        let kind = tool_kind.unwrap_or_else(|| parser.detect_tool_kind(tool_name));
-
-        // Produce parser-owned typed args for progressive UI (all tool kinds).
-        let streaming_arguments =
-            parser.parse_typed_tool_arguments(Some(tool_name), value, Some(kind.as_str()));
+        let classified = classify_raw_tool_call(
+            parser,
+            tool_call_id,
+            value,
+            ToolClassificationHints {
+                name: Some(tool_name),
+                title: Some(tool_name),
+                kind: tool_kind,
+                kind_hint: tool_kind.map(|kind| kind.as_str()),
+                locations: None,
+            },
+        );
 
         // Optional todos/questions for TodoWrite/AskUserQuestion
-        let todos = parse_normalized_todos(tool_name, value, agent);
-        let questions = parse_normalized_questions(tool_name, value, agent);
+        let todos = parse_normalized_todos(&classified.name, value, agent);
+        let questions = parse_normalized_questions(&classified.name, value, agent);
 
         Some(StreamingNormalized {
             todos,
             questions,
-            streaming_arguments,
-            effective_tool_name: Some(tool_name.to_string()),
+            streaming_arguments: Some(classified.arguments),
+            effective_tool_name: Some(classified.name),
         })
     }
 }

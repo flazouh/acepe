@@ -3,8 +3,12 @@ use super::normalize::derive_normalized_questions_and_todos;
 use super::types::{
     ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind,
 };
+#[cfg(test)]
 use crate::acp::agent_context::current_agent;
-use crate::acp::parsers::{get_parser, AgentParser, AgentType};
+use crate::acp::parsers::{AgentParser, AgentType, get_parser};
+use crate::acp::tool_classification::{
+    ToolClassificationHints, classify_raw_tool_call, resolve_raw_tool_identity,
+};
 use serde_json::json;
 
 /// Raw tool call update input used only for conversion to ToolCallUpdateData.
@@ -32,6 +36,7 @@ pub(crate) struct RawToolCallInput {
     pub status: ToolCallStatus,
     pub kind: Option<ToolKind>,
     pub title: Option<String>,
+    pub suppress_title_read_path_hint: bool,
     pub parent_tool_use_id: Option<String>,
     pub task_children: Option<Vec<RawToolCallInput>>,
 }
@@ -207,29 +212,36 @@ pub(crate) fn build_tool_call_update_from_raw(
         .or(raw.result.as_ref())
         .and_then(extract_content_blocks_from_value);
 
-    // Convert rawInput from tool_call_update into typed ToolArguments.
-    let arguments = raw.raw_input.as_ref().and_then(|r| {
-        parser.parse_typed_tool_arguments(
-            if tool_name.is_empty() {
-                raw.title.as_deref()
-            } else {
-                Some(tool_name)
-            },
-            r,
-            raw.kind.as_ref().map(ToolKind::as_str),
-        )
-    });
+    let identity_hints = ToolClassificationHints {
+        name: raw.tool_name.as_deref(),
+        title: raw.title.as_deref(),
+        kind: raw.kind,
+        kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+        locations: locations.as_deref(),
+    };
+    let classified_arguments = raw
+        .raw_input
+        .as_ref()
+        .map(|input| classify_raw_tool_call(parser, tool_call_id, input, identity_hints));
+    let arguments = classified_arguments
+        .as_ref()
+        .map(|classified| classified.arguments.clone());
     let result = normalize_count_only_search_result(raw.result, arguments.as_ref());
 
-    // Resolve effective kind: prefer tool_name resolution over raw kind
-    // (claude-agent-acp sends kind:"fetch" but toolName:"WebSearch" for web searches)
-    let resolved_kind = raw
-        .tool_name
-        .as_deref()
-        .filter(|n| !n.is_empty())
-        .map(|n| parser.detect_tool_kind(n))
-        .filter(|k| *k != ToolKind::Other)
-        .or(raw.kind);
+    let resolved_kind = classified_arguments
+        .as_ref()
+        .map(|classified| classified.kind)
+        .or_else(|| {
+            Some(
+                resolve_raw_tool_identity(
+                    parser,
+                    tool_call_id,
+                    raw.raw_input.as_ref(),
+                    identity_hints,
+                )
+                .kind,
+            )
+        });
 
     let result = normalize_web_search_result(result, resolved_kind.as_ref());
 
@@ -336,81 +348,45 @@ pub(crate) fn build_tool_call_from_raw(
     parser: &dyn AgentParser,
     raw: RawToolCallInput,
 ) -> ToolCallData {
-    let resolve_kind = |raw_kind: &Option<ToolKind>| -> ToolKind {
-        raw_kind
-            .filter(|k| *k != ToolKind::Other)
-            .or_else(|| {
-                if raw.name.is_empty() {
-                    None
-                } else {
-                    let d = parser.detect_tool_kind(&raw.name);
-                    if d != ToolKind::Other {
-                        Some(d)
-                    } else {
-                        None
-                    }
-                }
-            })
-            .unwrap_or(ToolKind::Other)
-    };
-
-    let arguments = parser
-        .parse_typed_tool_arguments(
-            Some(&raw.name),
-            &raw.arguments,
-            raw.kind.as_ref().map(ToolKind::as_str),
-        )
-        .unwrap_or_else(|| {
-            let kind = resolve_kind(&raw.kind);
-
-            if kind == ToolKind::Other {
-                return ToolArguments::Other {
-                    raw: raw.arguments.clone(),
-                };
-            }
-
-            let mut args = ToolArguments::from_raw(kind, raw.arguments.clone());
-
-            if let ToolArguments::Read { ref mut file_path } = args {
-                if file_path.is_none() {
-                    *file_path = raw.title.as_deref().and_then(extract_file_path_from_title);
-                }
-            }
-
-            if let ToolArguments::Execute { ref mut command } = args {
-                if command.is_none() {
-                    *command = raw.title.as_deref().and_then(extract_backtick_command);
-                }
-            }
-
-            args
-        });
-    let argument_kind = arguments.tool_kind();
-    let detected_kind = resolve_kind(&raw.kind);
-    let kind = if (argument_kind == ToolKind::WebSearch && detected_kind == ToolKind::Fetch)
-        || (detected_kind == ToolKind::Edit
-            && argument_kind != ToolKind::Edit
-            && argument_kind != ToolKind::Other)
-    {
-        argument_kind
-    } else if detected_kind != ToolKind::Other {
-        detected_kind
-    } else {
-        argument_kind
-    };
+    let classified = classify_raw_tool_call(
+        parser,
+        &raw.id,
+        &raw.arguments,
+        ToolClassificationHints {
+            name: Some(&raw.name),
+            title: raw.title.as_deref(),
+            kind: raw.kind,
+            kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+            locations: None,
+        },
+    );
+    let mut arguments = classified.arguments;
+    if let ToolArguments::Read { ref mut file_path } = arguments {
+        if file_path.is_none() && !raw.suppress_title_read_path_hint {
+            *file_path = raw.title.as_deref().and_then(extract_file_path_from_title);
+        }
+    }
+    if let ToolArguments::Execute { ref mut command } = arguments {
+        if command.is_none() {
+            *command = raw.title.as_deref().and_then(extract_backtick_command);
+        }
+    }
     let status = raw.status;
 
-    let (normalized_questions, normalized_todos) =
-        derive_normalized_questions_and_todos(&raw.name, &raw.arguments, parser.agent_type());
+    let (normalized_questions, normalized_todos) = derive_normalized_questions_and_todos(
+        &classified.name,
+        &raw.arguments,
+        parser.agent_type(),
+    );
 
     ToolCallData {
         id: raw.id.clone(),
-        name: raw.name.clone(),
+        name: classified.name,
         arguments,
         raw_input: Some(raw.arguments.clone()),
         status,
         result: None,
-        kind: Some(kind),
+        kind: Some(classified.kind),
         title: raw.title,
         locations: None,
         skill_meta: None,
@@ -543,6 +519,7 @@ mod tests {
             status: ToolCallStatus::Pending,
             kind: Some(parser.detect_tool_kind(kind)),
             title: title.map(|t| t.to_string()),
+            suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
             task_children: None,
         };
@@ -723,6 +700,7 @@ mod tests {
             status: ToolCallStatus::InProgress,
             kind: Some(ToolKind::Execute),
             title: None,
+            suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
             task_children: None,
         };
