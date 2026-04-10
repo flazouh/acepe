@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { BrandShaderBackground } from "@acepe/ui";
-	import { Kanban, GitBranch, ShieldCheck, ListChecks } from "phosphor-svelte";
+	import { Kanban, GitBranch, ShieldCheck, ListChecks, Terminal } from "phosphor-svelte";
+	import AgentPanelDemo from "./agent-panel-demo.svelte";
 	import LandingKanbanDemo from "./landing-kanban-demo.svelte";
 
 	interface Feature {
@@ -10,13 +11,14 @@
 	}
 
 	const features: Feature[] = [
+		{ id: "agent", label: "Agent Panel", icon: Terminal },
 		{ id: "kanban", label: "Kanban Board", icon: Kanban },
 		{ id: "checkpoints", label: "Checkpoints", icon: GitBranch },
 		{ id: "permissions", label: "Permissions", icon: ShieldCheck },
 		{ id: "plans", label: "Plans & Tasks", icon: ListChecks },
 	];
 
-	let activeFeature = $state("kanban");
+	let activeFeature = $state("agent");
 </script>
 
 <div class="flex flex-col gap-4">
@@ -41,7 +43,9 @@
 	<div class="relative overflow-hidden rounded-md bg-card/10">
 		<BrandShaderBackground class="rounded-xl" fallback="gradient" />
 		<div class="relative p-4 md:p-6">
-			{#if activeFeature === "kanban"}
+			{#if activeFeature === "agent"}
+				<AgentPanelDemo />
+			{:else if activeFeature === "kanban"}
 				<LandingKanbanDemo />
 			{:else}
 				<div class="flex aspect-[16/10] items-center justify-center rounded-xl border border-border/10 bg-background/50">

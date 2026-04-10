@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AgentPanelLayout, type AnyAgentEntry } from '@acepe/ui/agent-panel';
+	import { AgentPanelScene, type AnyAgentEntry } from '@acepe/ui/agent-panel';
 	import {
 		SectionedFeed,
 		FeedItem,
@@ -18,6 +18,7 @@
 	} from '@acepe/ui/app-layout';
 	import { ProjectLetterBadge, TextShimmer, DiffPill } from '@acepe/ui';
 	import { ProjectCard } from '@acepe/ui/project-card';
+	import { buildWebsiteAgentPanelScene, websiteAgentPanelDemoCallbacks } from './agent-panel-demo-scene.js';
 
 	const ACEPE_COLOR = '#7C3AED';
 	const ACEPE_NAME = 'acepe';
@@ -204,6 +205,39 @@
 	const p1Status = $derived(panelStatus(p1Count, P1_SCRIPT.length));
 	const p2Status = $derived(panelStatus(p2Count, P2_SCRIPT.length));
 	const p3Status = $derived(panelStatus(p3Count, P3_SCRIPT.length));
+	const p1Scene = $derived(
+		buildWebsiteAgentPanelScene({
+			panelId: 'main-app-demo-p1',
+			title: 'Migrate auth to JWT',
+			projectName: ACEPE_NAME,
+			projectColor: ACEPE_COLOR,
+			status: p1Status,
+			entries: p1Entries,
+			agentLabel: 'Claude Code'
+		})
+	);
+	const p2Scene = $derived(
+		buildWebsiteAgentPanelScene({
+			panelId: 'main-app-demo-p2',
+			title: 'Fix N+1 queries',
+			projectName: ACEPE_NAME,
+			projectColor: ACEPE_COLOR,
+			status: p2Status,
+			entries: p2Entries,
+			agentLabel: 'Codex'
+		})
+	);
+	const p3Scene = $derived(
+		buildWebsiteAgentPanelScene({
+			panelId: 'main-app-demo-p3',
+			title: 'TypeScript strict mode',
+			projectName: ACEPE_NAME,
+			projectColor: ACEPE_COLOR,
+			status: p3Status,
+			entries: p3Entries,
+			agentLabel: 'OpenCode'
+		})
+	);
 
 	const allDone = $derived(
 		p1Count >= P1_SCRIPT.length && p2Count >= P2_SCRIPT.length && p3Count >= P3_SCRIPT.length
@@ -505,39 +539,27 @@
 					<div
 						class="min-w-0 flex-1 overflow-hidden rounded-lg border border-border/30 bg-background"
 					>
-						<AgentPanelLayout
-							entries={p1Entries}
-							projectName={ACEPE_NAME}
-							projectColor={ACEPE_COLOR}
-							sessionTitle="Migrate auth to JWT"
-							agentIconSrc="/svgs/agents/claude/claude-icon-dark.svg"
-							sessionStatus={p1Status}
+						<AgentPanelScene
+							scene={p1Scene}
+							actionCallbacks={websiteAgentPanelDemoCallbacks}
 							iconBasePath="/svgs/icons"
 						/>
 					</div>
 					<div
 						class="min-w-0 flex-1 overflow-hidden rounded-lg border border-border/30 bg-background"
 					>
-						<AgentPanelLayout
-							entries={p2Entries}
-							projectName={ACEPE_NAME}
-							projectColor={ACEPE_COLOR}
-							sessionTitle="Fix N+1 queries"
-							agentIconSrc="/svgs/agents/codex/codex-icon-dark.svg"
-							sessionStatus={p2Status}
+						<AgentPanelScene
+							scene={p2Scene}
+							actionCallbacks={websiteAgentPanelDemoCallbacks}
 							iconBasePath="/svgs/icons"
 						/>
 					</div>
 					<div
 						class="min-w-0 flex-1 overflow-hidden rounded-lg border border-border/30 bg-background"
 					>
-						<AgentPanelLayout
-							entries={p3Entries}
-							projectName={ACEPE_NAME}
-							projectColor={ACEPE_COLOR}
-							sessionTitle="TypeScript strict mode"
-							agentIconSrc="/svgs/agents/opencode/opencode-logo-dark.svg"
-							sessionStatus={p3Status}
+						<AgentPanelScene
+							scene={p3Scene}
+							actionCallbacks={websiteAgentPanelDemoCallbacks}
 							iconBasePath="/svgs/icons"
 						/>
 					</div>

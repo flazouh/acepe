@@ -37,6 +37,7 @@
 		"directory": "packages/desktop"
 	},
 	"dependencies": {
+		"@acepe/agent-panel-contract": "workspace:*",
 		"@acepe/changelog": "workspace:*",
 		"@acepe/ui": "workspace:*",
 		"@codemirror/autocomplete": "^6.20.0",

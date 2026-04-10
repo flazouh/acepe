@@ -161,6 +161,7 @@ vi.mock("../../../tool-calls/index.js", async () => ({
 }));
 
 vi.mock("@acepe/ui", async () => ({
+	AgentPanelSceneEntry: (await import("./fixtures/user-message-stub.svelte")).default,
 	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
