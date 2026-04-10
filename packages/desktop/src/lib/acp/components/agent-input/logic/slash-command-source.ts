@@ -15,11 +15,7 @@ export function shouldShowSlashCommandDropdown(input: {
 		return false;
 	}
 
-	if (input.source.source !== "none") {
-		return true;
-	}
-
-	return input.capabilitiesAgentId ? true : false;
+	return input.source.source !== "none" && input.capabilitiesAgentId !== null;
 }
 
 export function resolveSlashCommandSource(input: {
@@ -28,10 +24,18 @@ export function resolveSlashCommandSource(input: {
 	selectedAgentId: string | null;
 	preconnectionCommands: ReadonlyArray<AvailableCommand>;
 }): SlashCommandSource {
-	if (input.hasConnectedSession && input.liveCommands.length > 0) {
+	if (input.hasConnectedSession) {
+		if (input.liveCommands.length > 0) {
+			return {
+				source: "live",
+				commands: Array.from(input.liveCommands),
+				tokenType: "command",
+			};
+		}
+
 		return {
-			source: "live",
-			commands: Array.from(input.liveCommands),
+			source: "none",
+			commands: [],
 			tokenType: "command",
 		};
 	}

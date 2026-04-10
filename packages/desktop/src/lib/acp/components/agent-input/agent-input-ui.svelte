@@ -175,6 +175,30 @@ const capabilitiesAgentId = $derived.by(() => {
 const sessionCapabilities = $derived(
 	props.sessionId ? sessionStore.getCapabilities(props.sessionId) : null
 );
+const capabilitiesAgent = $derived.by(() => {
+	if (!capabilitiesAgentId) {
+		return null;
+	}
+
+	for (const agent of agentStore.agents) {
+		if (agent.id === capabilitiesAgentId) {
+			return agent;
+		}
+	}
+
+	return null;
+});
+const capabilitiesProviderMetadata = $derived.by(() => {
+	if (sessionCapabilities?.providerMetadata) {
+		return sessionCapabilities.providerMetadata;
+	}
+
+	if (capabilitiesAgent) {
+		return capabilitiesAgent.providerMetadata;
+	}
+
+	return null;
+});
 
 // Get hot state for current mode/model
 const sessionHotState = $derived(
@@ -301,6 +325,7 @@ const preconnectionAvailableCommands = $derived.by(() => {
 	return preconnectionRemoteCommandsState.getCommands({
 		agentId: capabilitiesAgentId,
 		projectPath: filePickerProjectPath,
+		preconnectionSlashMode: capabilitiesProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 		skillCommands: preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId),
 	});
 });
@@ -646,10 +671,11 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 			if (
 				capabilitiesAgentId &&
 				!hasConnectedSession &&
+				capabilitiesProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
-				preconnectionAgentSkillsStore.ensureLoaded().mapErr((error) => {
+				preconnectionAgentSkillsStore.ensureLoaded(agentStore.agents).mapErr((error) => {
 					logger.error("Failed to warm preconnection skills", {
 						agentId: capabilitiesAgentId,
 						projectPath: filePickerProjectPath,
@@ -664,6 +690,8 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 					agentId: capabilitiesAgentId,
 					hasConnectedSession,
 					projectPath: filePickerProjectPath,
+					preconnectionSlashMode:
+						capabilitiesProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 				})
 				.mapErr((error) => {
 					logger.error("Failed to warm remote preconnection commands", {

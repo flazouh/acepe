@@ -1,11 +1,11 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import { ResultAsync, okAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { skillsApi } from "../api/skills-api.js";
-import type { AgentSkills } from "../types/index.js";
+import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const PRECONNECTION_AGENT_SKILLS_STORE_KEY = Symbol("preconnection-agent-skills-store");
 const logger = createLogger({
@@ -13,31 +13,45 @@ const logger = createLogger({
 	name: "PreconnectionAgentSkillsStore",
 });
 
-export function normalizeAgentSkillsToCommands(
-	agentSkills: AgentSkills
+interface WarmablePreconnectionAgent {
+	readonly id: string;
+	readonly providerMetadata?: ProviderMetadataProjection;
+}
+
+type FetchPreconnectionCommands = (
+	cwd: string,
+	agentId: string
+) => ResultAsync<AvailableCommand[], AppError>;
+
+export function normalizePreconnectionCommands(
+	commands: ReadonlyArray<AvailableCommand>,
+	agentId: string
 ): AvailableCommand[] {
-	const commands: AvailableCommand[] = [];
+	const normalized: AvailableCommand[] = [];
 	const seenNames = new Set<string>();
 
-	for (const skill of agentSkills.skills) {
-		const commandName = skill.name;
-		if (seenNames.has(commandName)) {
-			logger.warn("Skipping duplicate preconnection skill command", {
-				agentId: agentSkills.agentId,
-				commandName,
-				skillId: skill.id,
+	for (const command of commands) {
+		if (seenNames.has(command.name)) {
+			logger.warn("Skipping duplicate provider-owned preconnection command", {
+				agentId,
+				commandName: command.name,
 			});
 			continue;
 		}
 
-		seenNames.add(commandName);
-		commands.push({
-			name: commandName,
-			description: skill.description,
+		seenNames.add(command.name);
+		normalized.push({
+			name: command.name,
+			description: command.description,
+			input: command.input,
 		});
 	}
 
-	return commands;
+	return normalized;
+}
+
+function isStartupGlobalPreconnectionAgent(agent: WarmablePreconnectionAgent): boolean {
+	return agent.providerMetadata?.preconnectionSlashMode === "startupGlobal";
 }
 
 export class PreconnectionAgentSkillsStore {
@@ -45,24 +59,31 @@ export class PreconnectionAgentSkillsStore {
 	loaded = $state(false);
 	error = $state<string | null>(null);
 	private readonly commandsByAgent = new SvelteMap<string, AvailableCommand[]>();
+	private readonly fetchPreconnectionCommands: FetchPreconnectionCommands;
 
-	initialize(): ResultAsync<void, AppError> {
+	constructor(fetchPreconnectionCommands?: FetchPreconnectionCommands) {
+		this.fetchPreconnectionCommands = fetchPreconnectionCommands
+			? fetchPreconnectionCommands
+			: tauriClient.acp.listPreconnectionCommands;
+	}
+
+	initialize(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
 		if (this.loading || this.loaded) {
 			return okAsync(undefined);
 		}
 
-		return this.refresh();
+		return this.refresh(agents);
 	}
 
-	ensureLoaded(): ResultAsync<void, AppError> {
+	ensureLoaded(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
 		if (this.loading || this.loaded) {
 			return okAsync(undefined);
 		}
 
-		return this.refresh();
+		return this.refresh(agents);
 	}
 
-	refresh(): ResultAsync<void, AppError> {
+	refresh(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
 		if (this.loading) {
 			return okAsync(undefined);
 		}
@@ -70,10 +91,24 @@ export class PreconnectionAgentSkillsStore {
 		this.loading = true;
 		this.error = null;
 
-		return skillsApi
-			.listAgentSkills()
-			.map((agentSkills) => {
-				this.replaceCommands(agentSkills);
+		const warmableAgents = agents.filter((agent) => isStartupGlobalPreconnectionAgent(agent));
+		if (warmableAgents.length === 0) {
+			this.commandsByAgent.clear();
+			this.loading = false;
+			this.loaded = true;
+			return okAsync(undefined);
+		}
+
+		return ResultAsync.combine(
+			warmableAgents.map((agent) =>
+				this.fetchPreconnectionCommands("", agent.id).map((commands) => ({
+					agentId: agent.id,
+					commands: normalizePreconnectionCommands(commands, agent.id),
+				}))
+			)
+		)
+			.map((commandsByAgent) => {
+				this.replaceCommands(commandsByAgent);
 				this.loading = false;
 				this.loaded = true;
 			})
@@ -95,11 +130,16 @@ export class PreconnectionAgentSkillsStore {
 		return commands ? commands : [];
 	}
 
-	private replaceCommands(agentSkills: AgentSkills[]): void {
+	private replaceCommands(
+		commandsByAgent: ReadonlyArray<{
+			readonly agentId: string;
+			readonly commands: ReadonlyArray<AvailableCommand>;
+		}>
+	): void {
 		this.commandsByAgent.clear();
 
-		for (const group of agentSkills) {
-			this.commandsByAgent.set(group.agentId, normalizeAgentSkillsToCommands(group));
+		for (const group of commandsByAgent) {
+			this.commandsByAgent.set(group.agentId, Array.from(group.commands));
 		}
 	}
 }

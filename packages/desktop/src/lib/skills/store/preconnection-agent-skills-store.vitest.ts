@@ -1,178 +1,114 @@
-import { mock } from "bun:test";
 import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError } from "../../acp/errors/app-error";
-import type { AgentSkills, Skill } from "../types/index.js";
-
-const listAgentSkillsMock = vi.fn();
+import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 
 let PreconnectionAgentSkillsStore: typeof import("./preconnection-agent-skills-store.svelte.js").PreconnectionAgentSkillsStore;
-let normalizeAgentSkillsToCommands: typeof import("./preconnection-agent-skills-store.svelte.js").normalizeAgentSkillsToCommands;
+let normalizePreconnectionCommands: typeof import("./preconnection-agent-skills-store.svelte.js").normalizePreconnectionCommands;
 
-function buildSkill(options: {
-	id: string;
-	agentId: string;
-	folderName: string;
-	name: string;
-	description: string;
-}): Skill {
+function providerMetadata(preconnectionSlashMode: ProviderMetadataProjection["preconnectionSlashMode"]): ProviderMetadataProjection {
 	return {
-		id: options.id,
-		agentId: options.agentId,
-		folderName: options.folderName,
-		path: `/tmp/${options.agentId}/${options.folderName}/SKILL.md`,
-		name: options.name,
-		description: options.description,
-		content: "",
-		modifiedAt: 1,
+		providerBrand: "custom",
+		displayName: "Test",
+		displayOrder: 1,
+		supportsModelDefaults: false,
+		variantGroup: "plain",
+		defaultAlias: undefined,
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "postConnect",
+		preconnectionSlashMode,
 	};
 }
 
-function buildAgentSkills(agentId: string, skills: Skill[]): AgentSkills {
+function buildAgent(
+	id: string,
+	preconnectionSlashMode: ProviderMetadataProjection["preconnectionSlashMode"]
+): {
+	readonly id: string;
+	readonly providerMetadata: ProviderMetadataProjection;
+} {
 	return {
-		agentId,
-		skills,
+		id,
+		providerMetadata: providerMetadata(preconnectionSlashMode),
 	};
 }
 
 describe("PreconnectionAgentSkillsStore", () => {
 	beforeEach(async () => {
-		listAgentSkillsMock.mockReset();
-
-		mock.module("../api/skills-api.js", () => ({
-			skillsApi: {
-				listAgentSkills: listAgentSkillsMock,
-			},
-		}));
-
-		({ PreconnectionAgentSkillsStore, normalizeAgentSkillsToCommands } = await import(
+		({ PreconnectionAgentSkillsStore, normalizePreconnectionCommands } = await import(
 			"./preconnection-agent-skills-store.svelte.js"
 		));
 	});
 
-	it("normalizes on-disk skills by agent using frontmatter name and description", async () => {
-		listAgentSkillsMock.mockReturnValue(
-			okAsync([
-				buildAgentSkills("claude-code", [
-					buildSkill({
-						id: "skill-1",
-						agentId: "claude-code",
-						folderName: "brainstorm-feature",
-						name: "ce:brainstorm",
-						description: "Brainstorm a feature",
-					}),
-				]),
-				buildAgentSkills("cursor", []),
-			])
-		);
+	it("warms startup-global providers through the shared ACP preconnection command", async () => {
+		const fetchPreconnectionCommands = vi
+			.fn()
+			.mockReturnValueOnce(okAsync([{ name: "ce:brainstorm", description: "Brainstorm" }]));
 
-		const store = new PreconnectionAgentSkillsStore();
-		const result = await store.initialize();
+		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
+		const result = await store.initialize([
+			buildAgent("claude-code", "startupGlobal"),
+			buildAgent("copilot", "projectScoped"),
+		]);
 
 		expect(result.isOk()).toBe(true);
-		expect(store.loaded).toBe(true);
+		expect(fetchPreconnectionCommands).toHaveBeenCalledTimes(1);
+		expect(fetchPreconnectionCommands).toHaveBeenCalledWith("", "claude-code");
 		expect(store.getCommandsForAgent("claude-code")).toEqual([
 			{
 				name: "ce:brainstorm",
-				description: "Brainstorm a feature",
+				description: "Brainstorm",
+				input: undefined,
 			},
 		]);
-		expect(store.getCommandsForAgent("cursor")).toEqual([]);
+		expect(store.getCommandsForAgent("copilot")).toEqual([]);
 	});
 
-	it("drops later duplicate names within one agent deterministically", () => {
-		const commands = normalizeAgentSkillsToCommands(
-			buildAgentSkills("claude-code", [
-				buildSkill({
-					id: "skill-1",
-					agentId: "claude-code",
-					folderName: "brainstorm-first",
-					name: "ce:brainstorm",
-					description: "First description",
-				}),
-				buildSkill({
-					id: "skill-2",
-					agentId: "claude-code",
-					folderName: "brainstorm-second",
-					name: "ce:brainstorm",
-					description: "Second description",
-				}),
-			])
+	it("drops later duplicate command names deterministically", () => {
+		const commands = normalizePreconnectionCommands(
+			[
+				{ name: "ce:plan", description: "First description" },
+				{ name: "ce:plan", description: "Second description" },
+			],
+			"claude-code"
 		);
 
 		expect(commands).toEqual([
 			{
-				name: "ce:brainstorm",
+				name: "ce:plan",
 				description: "First description",
+				input: undefined,
 			},
 		]);
 	});
 
-	it("keeps the store retryable when initialization fails", async () => {
-		listAgentSkillsMock.mockReturnValue(
-			errAsync(new AgentError("skills_list_agent_skills", new Error("boom")))
-		);
+	it("keeps the store retryable when warmup fails", async () => {
+		const fetchPreconnectionCommands = vi
+			.fn()
+			.mockReturnValue(
+				errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
+			);
 
-		const store = new PreconnectionAgentSkillsStore();
-		const result = await store.initialize();
+		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
+		const result = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
 
 		expect(result.isErr()).toBe(true);
 		expect(store.loaded).toBe(false);
-		expect(store.error).toBe("Agent operation failed: skills_list_agent_skills");
+		expect(store.error).toBe("Agent operation failed: acp_list_preconnection_commands");
 		expect(store.getCommandsForAgent("claude-code")).toEqual([]);
 	});
 
 	it("can retry successfully after an initialization failure", async () => {
-		listAgentSkillsMock
-			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
+		const fetchPreconnectionCommands = vi
+			.fn()
 			.mockReturnValueOnce(
-				okAsync([
-					buildAgentSkills("claude-code", [
-						buildSkill({
-							id: "skill-1",
-							agentId: "claude-code",
-							folderName: "plan-implementation",
-							name: "ce:plan",
-							description: "Plan implementation",
-						}),
-					]),
-				])
-			);
+				errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
+			)
+			.mockReturnValueOnce(okAsync([{ name: "ce:review", description: "Review changes" }]));
 
-		const store = new PreconnectionAgentSkillsStore();
-		const firstResult = await store.initialize();
-		const secondResult = await store.initialize();
-
-		expect(firstResult.isErr()).toBe(true);
-		expect(secondResult.isOk()).toBe(true);
-		expect(store.getCommandsForAgent("claude-code")).toEqual([
-			{
-				name: "ce:plan",
-				description: "Plan implementation",
-			},
-		]);
-	});
-
-	it("ensureLoaded retries after a failed startup warmup", async () => {
-		listAgentSkillsMock
-			.mockReturnValueOnce(errAsync(new AgentError("skills_list_agent_skills", new Error("boom"))))
-			.mockReturnValueOnce(
-				okAsync([
-					buildAgentSkills("claude-code", [
-						buildSkill({
-							id: "skill-1",
-							agentId: "claude-code",
-							folderName: "review-changes",
-							name: "ce:review",
-							description: "Review changes",
-						}),
-					]),
-				])
-			);
-
-		const store = new PreconnectionAgentSkillsStore();
-		const firstResult = await store.initialize();
-		const secondResult = await store.ensureLoaded();
+		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
+		const firstResult = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
+		const secondResult = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
 
 		expect(firstResult.isErr()).toBe(true);
 		expect(secondResult.isOk()).toBe(true);
@@ -180,7 +116,18 @@ describe("PreconnectionAgentSkillsStore", () => {
 			{
 				name: "ce:review",
 				description: "Review changes",
+				input: undefined,
 			},
 		]);
+	});
+
+	it("marks warmup complete when no startup-global providers exist", async () => {
+		const fetchPreconnectionCommands = vi.fn();
+		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
+		const result = await store.initialize([buildAgent("copilot", "projectScoped")]);
+
+		expect(result.isOk()).toBe(true);
+		expect(store.loaded).toBe(true);
+		expect(fetchPreconnectionCommands).not.toHaveBeenCalled();
 	});
 });

@@ -63,6 +63,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
 		autonomousApplyStrategy: "launchProfile",
+		preconnectionSlashMode: "startupGlobal",
 	};
 
 	const cursorProviderMetadata: ProviderMetadataProjection = {
@@ -74,6 +75,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
 		autonomousApplyStrategy: "postConnect",
+		preconnectionSlashMode: "startupGlobal",
 	};
 
 	const copilotProviderMetadata: ProviderMetadataProjection = {
@@ -85,6 +87,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		autonomousApplyStrategy: "postConnect",
+		preconnectionSlashMode: "projectScoped",
 	};
 
 	const agents: Agent[] = [
@@ -141,6 +144,7 @@ describe("getAgentModelDefaultsEntries", () => {
 					defaultAlias: "auto",
 					reasoningEffortSupport: false,
 					autonomousApplyStrategy: "postConnect",
+					preconnectionSlashMode: "startupGlobal",
 				},
 			},
 		};
@@ -183,6 +187,7 @@ describe("getAgentsByProviderOrder", () => {
 						defaultAlias: "auto",
 						reasoningEffortSupport: false,
 						autonomousApplyStrategy: "postConnect",
+						preconnectionSlashMode: "startupGlobal",
 					},
 				},
 				{
@@ -202,6 +207,7 @@ describe("getAgentsByProviderOrder", () => {
 						defaultAlias: "default",
 						reasoningEffortSupport: false,
 						autonomousApplyStrategy: "launchProfile",
+						preconnectionSlashMode: "startupGlobal",
 					},
 				},
 			],
@@ -224,6 +230,7 @@ describe("getProviderDefaultLabel", () => {
 				defaultAlias: "auto",
 				reasoningEffortSupport: false,
 				autonomousApplyStrategy: "postConnect",
+				preconnectionSlashMode: "startupGlobal",
 			})
 		).toBe("Auto");
 	});
@@ -239,6 +246,7 @@ describe("getProviderDefaultLabel", () => {
 				defaultAlias: undefined,
 				reasoningEffortSupport: false,
 				autonomousApplyStrategy: "postConnect",
+				preconnectionSlashMode: "projectScoped",
 			})
 		).toBe("Agent default");
 	});

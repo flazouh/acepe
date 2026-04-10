@@ -1,19 +1,22 @@
+import { SvelteMap } from "svelte/reactivity";
 import { okAsync, type ResultAsync } from "neverthrow";
-import { getAgentCapabilities } from "$lib/acp/constants/agent-capabilities.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
+import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 
 interface EnsureLoadedInput {
 	agentId: string | null;
 	hasConnectedSession: boolean;
 	projectPath: string | null;
+	preconnectionSlashMode: ProviderMetadataProjection["preconnectionSlashMode"];
 }
 
 interface GetCommandsInput {
 	agentId: string | null;
 	projectPath: string | null;
+	preconnectionSlashMode: ProviderMetadataProjection["preconnectionSlashMode"];
 	skillCommands: ReadonlyArray<AvailableCommand>;
 }
 
@@ -27,30 +30,34 @@ const logger = createLogger({
 	name: "PreconnectionRemoteCommands",
 });
 
+function buildProjectScopedCacheKey(
+	agentId: string | null,
+	projectPath: string | null
+): string | null {
+	if (!agentId || !projectPath) {
+		return null;
+	}
+
+	return `${agentId}::${projectPath}`;
+}
+
 export function shouldLoadRemotePreconnectionCommands(input: {
 	agentId: string | null;
 	hasConnectedSession: boolean;
 	projectPath: string | null;
-	loadedProjectPath: string | null;
-	loadingProjectPath: string | null;
+	preconnectionSlashMode: ProviderMetadataProjection["preconnectionSlashMode"];
+	alreadyLoaded: boolean;
+	alreadyLoading: boolean;
 }): boolean {
-	if (!getAgentCapabilities(input.agentId).loadsRemotePreconnectionCommands) {
+	if (input.preconnectionSlashMode !== "projectScoped") {
 		return false;
 	}
 
-	if (input.hasConnectedSession) {
+	if (!input.agentId || input.hasConnectedSession || !input.projectPath) {
 		return false;
 	}
 
-	if (!input.projectPath) {
-		return false;
-	}
-
-	if (input.loadedProjectPath === input.projectPath) {
-		return false;
-	}
-
-	if (input.loadingProjectPath === input.projectPath) {
+	if (input.alreadyLoaded || input.alreadyLoading) {
 		return false;
 	}
 
@@ -58,9 +65,8 @@ export function shouldLoadRemotePreconnectionCommands(input: {
 }
 
 export class PreconnectionRemoteCommandsState {
-	loadedProjectPath = $state<string | null>(null);
-	loadingProjectPath = $state<string | null>(null);
-	private remoteCommands = $state<AvailableCommand[]>([]);
+	loadingCacheKey = $state<string | null>(null);
+	private readonly remoteCommandsByKey = new SvelteMap<string, AvailableCommand[]>();
 	private readonly fetchRemoteCommands: FetchRemoteCommands;
 
 	constructor(fetchRemoteCommands?: FetchRemoteCommands) {
@@ -69,20 +75,25 @@ export class PreconnectionRemoteCommandsState {
 	}
 
 	ensureLoaded(input: EnsureLoadedInput): ResultAsync<void, AppError> {
+		const cacheKey = buildProjectScopedCacheKey(input.agentId, input.projectPath);
+		const alreadyLoaded = cacheKey ? this.remoteCommandsByKey.has(cacheKey) : false;
+		const alreadyLoading = cacheKey !== null && this.loadingCacheKey === cacheKey;
+
 		if (
 			!shouldLoadRemotePreconnectionCommands({
 				agentId: input.agentId,
 				hasConnectedSession: input.hasConnectedSession,
 				projectPath: input.projectPath,
-				loadedProjectPath: this.loadedProjectPath,
-				loadingProjectPath: this.loadingProjectPath,
+				preconnectionSlashMode: input.preconnectionSlashMode,
+				alreadyLoaded,
+				alreadyLoading,
 			})
 		) {
 			return okAsync(undefined);
 		}
 
 		const projectPath = input.projectPath;
-		if (!projectPath) {
+		if (!projectPath || !cacheKey) {
 			return okAsync(undefined);
 		}
 
@@ -91,48 +102,53 @@ export class PreconnectionRemoteCommandsState {
 			return okAsync(undefined);
 		}
 
-		logger.info("Loading remote preconnection commands", {
+		logger.info("Loading project-scoped preconnection commands", {
 			agentId,
 			projectPath,
 		});
-		this.loadingProjectPath = projectPath;
+		this.loadingCacheKey = cacheKey;
 
 		return this.fetchRemoteCommands(projectPath, agentId)
 			.map((commands) => {
-				logger.info("Loaded remote preconnection commands", {
+				logger.info("Loaded project-scoped preconnection commands", {
 					agentId,
 					projectPath,
 					count: commands.length,
 					commandNames: commands.map((command) => command.name),
 				});
-				this.remoteCommands = commands;
-				this.loadedProjectPath = projectPath;
-				if (this.loadingProjectPath === projectPath) {
-					this.loadingProjectPath = null;
+				this.remoteCommandsByKey.set(cacheKey, commands);
+				if (this.loadingCacheKey === cacheKey) {
+					this.loadingCacheKey = null;
 				}
 			})
 			.mapErr((error) => {
-				logger.error("Failed to load remote preconnection commands", {
+				logger.error("Failed to load project-scoped preconnection commands", {
 					agentId,
 					projectPath,
 					error: error.message,
 				});
-				if (this.loadingProjectPath === projectPath) {
-					this.loadingProjectPath = null;
+				if (this.loadingCacheKey === cacheKey) {
+					this.loadingCacheKey = null;
 				}
 				return error;
 			});
 	}
 
 	getCommands(input: GetCommandsInput): AvailableCommand[] {
-		if (
-			getAgentCapabilities(input.agentId).loadsRemotePreconnectionCommands &&
-			input.projectPath &&
-			input.projectPath === this.loadedProjectPath
-		) {
-			return Array.from(this.remoteCommands);
+		if (input.preconnectionSlashMode !== "projectScoped") {
+			return Array.from(input.skillCommands);
 		}
 
-		return Array.from(input.skillCommands);
+		const cacheKey = buildProjectScopedCacheKey(input.agentId, input.projectPath);
+		if (!cacheKey) {
+			return Array.from(input.skillCommands);
+		}
+
+		const remoteCommands = this.remoteCommandsByKey.get(cacheKey);
+		if (!remoteCommands) {
+			return Array.from(input.skillCommands);
+		}
+
+		return Array.from(remoteCommands);
 	}
 }

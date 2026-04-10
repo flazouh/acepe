@@ -4,12 +4,14 @@ use super::super::provider::{
 use crate::acp::client::codex_native_config::CODEX_BUILD_FULL_ACCESS_MODE_ID;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::types::ContentBlock;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::history::session_context::SessionContext;
 use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tauri::AppHandle;
 
@@ -60,6 +62,22 @@ impl AgentProvider for CodexProvider {
 
     fn communication_mode(&self) -> CommunicationMode {
         CommunicationMode::CodexNative
+    }
+
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async move {
+            match codex_skills_root() {
+                Some(root) => crate::acp::preconnection_slash::load_preconnection_commands_from_root(
+                    &root,
+                )
+                .await,
+                None => Ok(Vec::new()),
+            }
+        })
     }
 
     fn icon(&self) -> &str {
@@ -180,6 +198,10 @@ pub(crate) fn adapt_codex_wrapper_plan_update(update: &SessionUpdate) -> Option<
 
 fn codex_env() -> std::collections::HashMap<String, String> {
     crate::shell_env::build_env(crate::shell_env::EnvStrategy::FullInherit)
+}
+
+fn codex_skills_root() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".codex").join("skills"))
 }
 
 fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConfig) {

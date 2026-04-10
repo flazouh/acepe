@@ -14,6 +14,7 @@ use crate::acp::cursor_extensions::{
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
@@ -21,6 +22,7 @@ use crate::session_jsonl::types::ConvertedSession;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tauri::AppHandle;
 
@@ -113,6 +115,22 @@ impl AgentProvider for CursorProvider {
         }
 
         Ok(Some(json!({ "methodId": "cursor_login" })))
+    }
+
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async move {
+            match cursor_skills_root() {
+                Some(root) => crate::acp::preconnection_slash::load_preconnection_commands_from_root(
+                    &root,
+                )
+                .await,
+                None => Ok(Vec::new()),
+            }
+        })
     }
 
     fn normalize_mode_id(&self, id: &str) -> String {
@@ -325,6 +343,10 @@ const ALLOWED_ENV_KEYS: &[&str] = &[
 
 fn filtered_env() -> HashMap<String, String> {
     crate::shell_env::build_env(crate::shell_env::EnvStrategy::Allowlist(ALLOWED_ENV_KEYS))
+}
+
+fn cursor_skills_root() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".cursor").join("skills"))
 }
 
 async fn list_cursor_project_paths() -> Result<Vec<String>, String> {

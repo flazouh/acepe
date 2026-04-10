@@ -287,6 +287,24 @@ export class InitializationManager {
 	 * @returns ResultAsync indicating success or error
 	 */
 	private loadBasicMetadata(): ResultAsync<void, MainAppViewError> {
+		const loadAgentsAndWarmPreconnectionCommands = this.agentStore
+			.loadAvailableAgents()
+			.mapErr(
+				(error) =>
+					new InitializationError(
+						"loadAvailableAgents",
+						error instanceof Error ? error : undefined
+					)
+			)
+			.andThen((agents) =>
+				this.preconnectionAgentSkillsStore.initialize(agents).orElse((error) => {
+					logger.warn("Failed to warm preconnection agent skills; continuing startup", {
+						error,
+					});
+					return okAsync(undefined);
+				})
+			);
+
 		return NeverthrowResultAsync.combine([
 			this.keybindingsService
 				.loadUserKeybindings()
@@ -301,15 +319,7 @@ export class InitializationManager {
 							error instanceof Error ? error : undefined
 						)
 				),
-			this.agentStore
-				.loadAvailableAgents()
-				.mapErr(
-					(error) =>
-						new InitializationError(
-							"loadAvailableAgents",
-							error instanceof Error ? error : undefined
-						)
-				),
+			loadAgentsAndWarmPreconnectionCommands,
 			this.projectManager
 				.loadProjects()
 				.mapErr(
@@ -322,12 +332,6 @@ export class InitializationManager {
 					(error) =>
 						new InitializationError("initializeZoom", error instanceof Error ? error : undefined)
 				),
-			this.preconnectionAgentSkillsStore.initialize().orElse((error) => {
-				logger.warn("Failed to warm preconnection agent skills; continuing startup", {
-					error,
-				});
-				return okAsync(undefined);
-			}),
 		]).map(() => undefined);
 	}
 

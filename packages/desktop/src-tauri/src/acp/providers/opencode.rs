@@ -5,7 +5,9 @@ use super::opencode_settings::apply_opencode_session_defaults;
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
+use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_update::AvailableCommand;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
 use crate::session_jsonl::types::ConvertedSession;
@@ -13,7 +15,9 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use tauri::AppHandle;
+use tauri::Manager;
 
 /// OpenCode HTTP Agent Provider
 /// Uses HTTP REST API + SSE instead of ACP JSON-RPC
@@ -114,6 +118,32 @@ impl AgentProvider for OpenCodeProvider {
     fn communication_mode(&self) -> CommunicationMode {
         // OpenCode uses HTTP mode for full permission/question support
         CommunicationMode::Http
+    }
+
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async move {
+            let Some(cwd) = cwd else {
+                return Ok(Vec::new());
+            };
+
+            let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+            let (project_key, manager) = opencode_manager
+                .get_or_start(cwd)
+                .await
+                .map_err(|error| error.to_string())?;
+            let provider = Arc::new(OpenCodeProvider);
+            let mut client = OpenCodeHttpClient::new(manager, project_key, provider)
+                .map_err(|error| error.to_string())?;
+
+            client
+                .list_preconnection_commands(cwd.to_string_lossy().to_string())
+                .await
+                .map_err(|error| error.to_string())
+        })
     }
 
     fn icon(&self) -> &str {

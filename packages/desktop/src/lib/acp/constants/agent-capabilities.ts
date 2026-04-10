@@ -4,12 +4,10 @@ export type OpenInFinderTargetCapability = "project-path" | "claude-session";
 
 export interface AgentCapabilities {
 	openInFinderTarget: OpenInFinderTargetCapability;
-	loadsRemotePreconnectionCommands: boolean;
 }
 
 const DEFAULT_AGENT_CAPABILITIES = {
 	openInFinderTarget: "project-path",
-	loadsRemotePreconnectionCommands: false,
 } as const satisfies AgentCapabilities;
 
 const AGENT_CAPABILITY_OVERRIDES: Readonly<
@@ -17,9 +15,6 @@ const AGENT_CAPABILITY_OVERRIDES: Readonly<
 > = {
 	[AGENT_IDS.CLAUDE_CODE]: {
 		openInFinderTarget: "claude-session",
-	},
-	[AGENT_IDS.OPENCODE]: {
-		loadsRemotePreconnectionCommands: true,
 	},
 };
 
@@ -34,8 +29,5 @@ export function getAgentCapabilities(
 	return {
 		openInFinderTarget:
 			overrides?.openInFinderTarget ?? DEFAULT_AGENT_CAPABILITIES.openInFinderTarget,
-		loadsRemotePreconnectionCommands:
-			overrides?.loadsRemotePreconnectionCommands ??
-			DEFAULT_AGENT_CAPABILITIES.loadsRemotePreconnectionCommands,
 	};
 }

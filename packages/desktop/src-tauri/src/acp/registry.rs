@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::acp::provider::{AgentProvider, AgentUiVisibility};
+use crate::acp::provider::{AgentProvider, AgentUiVisibility, FrontendProviderProjection};
 use crate::acp::providers::{
     ClaudeCodeProvider, CodexProvider, CopilotProvider, CursorProvider, CustomAgentConfig,
     ForgeProvider, OpenCodeProvider,
@@ -20,7 +20,7 @@ pub enum AgentAvailabilityKind {
 }
 
 /// Information about an available agent
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct AgentInfo {
     pub id: String,
     pub name: String,
@@ -29,6 +29,8 @@ pub struct AgentInfo {
     pub availability_kind: AgentAvailabilityKind,
     /// Visible UI modes that support wrapper-managed Autonomous execution.
     pub autonomous_supported_mode_ids: Vec<String>,
+    /// Provider-owned metadata for shared frontend surfaces.
+    pub provider_metadata: FrontendProviderProjection,
     /// Registry-owned default selection precedence for UI surfaces.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_selection_rank: Option<u16>,
@@ -140,6 +142,7 @@ impl AgentRegistry {
                         .iter()
                         .map(|mode_id| (*mode_id).to_string())
                         .collect(),
+                    provider_metadata: provider.frontend_projection(),
                     default_selection_rank: Some(index as u16),
                 });
             }
@@ -174,6 +177,7 @@ impl AgentRegistry {
                     .iter()
                     .map(|mode_id| (*mode_id).to_string())
                     .collect(),
+                provider_metadata: provider.frontend_projection(),
                 default_selection_rank: None,
             });
         }
@@ -365,6 +369,32 @@ mod tests {
 
         assert_eq!(claude.default_selection_rank, Some(0));
         assert_eq!(custom.default_selection_rank, None);
+    }
+
+    #[test]
+    fn list_all_for_ui_exposes_provider_metadata_projection() {
+        let registry = AgentRegistry::new();
+        let agents = registry.list_all_for_ui();
+        let claude = agents
+            .iter()
+            .find(|agent| agent.id == "claude-code")
+            .expect("Claude agent should exist");
+        let copilot = agents
+            .iter()
+            .find(|agent| agent.id == "copilot")
+            .expect("Copilot agent should exist");
+
+        let claude_json = serde_json::to_value(claude).expect("serialize Claude agent");
+        let copilot_json = serde_json::to_value(copilot).expect("serialize Copilot agent");
+
+        assert_eq!(
+            claude_json["provider_metadata"]["preconnectionSlashMode"],
+            serde_json::Value::String("startupGlobal".to_string())
+        );
+        assert_eq!(
+            copilot_json["provider_metadata"]["preconnectionSlashMode"],
+            serde_json::Value::String("projectScoped".to_string())
+        );
     }
 
     #[test]

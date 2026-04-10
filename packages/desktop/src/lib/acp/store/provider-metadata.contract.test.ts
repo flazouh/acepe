@@ -18,7 +18,7 @@ describe("provider metadata projection contract", () => {
 		for (const [agentId, metadata] of Object.entries(BUILTIN_PROVIDER_METADATA_BY_AGENT_ID)) {
 			expect(rustSource).toMatch(
 				new RegExp(
-					`provider_id:\\s*"${agentId}"[\\s\\S]*?frontend_projection:\\s*FrontendProviderProjection\\s*\\{[\\s\\S]*?provider_brand:\\s*"${metadata.providerBrand}"[\\s\\S]*?display_name:\\s*"${metadata.displayName}"[\\s\\S]*?display_order:\\s*${metadata.displayOrder}[\\s\\S]*?supports_model_defaults:\\s*${metadata.supportsModelDefaults}[\\s\\S]*?variant_group:\\s*FrontendVariantGroup::${metadata.variantGroup === "reasoningEffort" ? "ReasoningEffort" : "Plain"}[\\s\\S]*?default_alias:\\s*${metadata.defaultAlias ? `Some\\("${metadata.defaultAlias}"\\)` : "None"}[\\s\\S]*?reasoning_effort_support:\\s*${metadata.reasoningEffortSupport}[\\s\\S]*?autonomous_apply_strategy:\\s*AutonomousApplyStrategy::${metadata.autonomousApplyStrategy === "launchProfile" ? "LaunchProfile" : "PostConnect"}`,
+					`provider_id:\\s*"${agentId}"[\\s\\S]*?frontend_projection:\\s*FrontendProviderProjection\\s*\\{[\\s\\S]*?provider_brand:\\s*"${metadata.providerBrand}"[\\s\\S]*?display_name:\\s*"${metadata.displayName}"[\\s\\S]*?display_order:\\s*${metadata.displayOrder}[\\s\\S]*?supports_model_defaults:\\s*${metadata.supportsModelDefaults}[\\s\\S]*?variant_group:\\s*FrontendVariantGroup::${metadata.variantGroup === "reasoningEffort" ? "ReasoningEffort" : "Plain"}[\\s\\S]*?default_alias:\\s*${metadata.defaultAlias ? `Some\\("${metadata.defaultAlias}"\\)` : "None"}[\\s\\S]*?reasoning_effort_support:\\s*${metadata.reasoningEffortSupport}[\\s\\S]*?autonomous_apply_strategy:\\s*AutonomousApplyStrategy::${metadata.autonomousApplyStrategy === "launchProfile" ? "LaunchProfile" : "PostConnect"}[\\s\\S]*?preconnection_slash_mode:\\s*PreconnectionSlashMode::${metadata.preconnectionSlashMode === "startupGlobal" ? "StartupGlobal" : metadata.preconnectionSlashMode === "projectScoped" ? "ProjectScoped" : "Unsupported"}`,
 					"m"
 				)
 			);
@@ -35,6 +35,7 @@ describe("provider metadata projection contract", () => {
 			defaultAlias: undefined,
 			reasoningEffortSupport: false,
 			autonomousApplyStrategy: "postConnect",
+			preconnectionSlashMode: "unsupported",
 		});
 	});
 

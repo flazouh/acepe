@@ -5,12 +5,13 @@ use super::super::provider::{
 use super::claude_code_settings::resolve_claude_runtime_mode_id;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::history::session_context::SessionContext;
 use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tauri::AppHandle;
 
@@ -137,6 +138,22 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn resolve_runtime_mode_id(&self, requested_mode_id: Option<&str>, cwd: &Path) -> String {
         resolve_claude_runtime_mode_id(requested_mode_id, cwd)
+    }
+
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async move {
+            match claude_skills_root() {
+                Some(root) => crate::acp::preconnection_slash::load_preconnection_commands_from_root(
+                    &root,
+                )
+                .await,
+                None => Ok(Vec::new()),
+            }
+        })
     }
 
     fn uses_task_reconciler(&self) -> bool {
@@ -274,6 +291,10 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
 
 fn claude_env() -> std::collections::HashMap<String, String> {
     crate::shell_env::build_env(crate::shell_env::EnvStrategy::FullInherit)
+}
+
+fn claude_skills_root() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".claude").join("skills"))
 }
 
 async fn read_cwd_from_project_dir(project_dir: &std::path::Path) -> Option<String> {

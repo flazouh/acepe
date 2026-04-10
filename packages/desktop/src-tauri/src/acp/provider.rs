@@ -17,7 +17,7 @@ use crate::acp::parsers::provider_capabilities::{
 use crate::acp::parsers::AgentType;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_update::{PlanConfidence, PlanSource, SessionUpdate};
+use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
@@ -163,6 +163,14 @@ pub enum AutonomousApplyStrategy {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub enum PreconnectionSlashMode {
+    Unsupported,
+    StartupGlobal,
+    ProjectScoped,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct FrontendProviderProjection {
     pub provider_brand: &'static str,
     pub display_name: &'static str,
@@ -172,6 +180,7 @@ pub struct FrontendProviderProjection {
     pub default_alias: Option<&'static str>,
     pub reasoning_effort_support: bool,
     pub autonomous_apply_strategy: AutonomousApplyStrategy,
+    pub preconnection_slash_mode: PreconnectionSlashMode,
 }
 
 impl Default for FrontendProviderProjection {
@@ -185,6 +194,7 @@ impl Default for FrontendProviderProjection {
             default_alias: None,
             reasoning_effort_support: false,
             autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
+            preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
         }
     }
 }
@@ -425,6 +435,15 @@ pub trait AgentProvider: Send + Sync {
         builtin_capabilities_for_provider_id(self.id())
             .map(|capabilities| capabilities.frontend_projection)
             .unwrap_or_default()
+    }
+
+    /// Provider-owned preconnection slash entry loading before a session exists.
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async { Ok(Vec::new()) })
     }
 
     /// Provider-owned hook for enriching parsed session updates before shared processing.

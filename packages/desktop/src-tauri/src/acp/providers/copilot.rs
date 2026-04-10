@@ -4,6 +4,7 @@ use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::db::repository::SessionMetadataRepository;
@@ -91,6 +92,39 @@ impl AgentProvider for CopilotProvider {
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
         TaskReconciliationPolicy::ImplicitSingleActiveParent
+    }
+
+    fn list_preconnection_commands<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        Box::pin(async move {
+            let Some(cwd) = cwd else {
+                return Ok(Vec::new());
+            };
+
+            let agents_root = cwd.join(".agents");
+            let skills_root = agents_root.join("skills");
+            let nested_skill_commands =
+                crate::acp::preconnection_slash::load_preconnection_commands_from_root(&skills_root)
+                    .await?;
+            let nested_agent_commands =
+                crate::acp::preconnection_slash::load_preconnection_commands_from_root(&agents_root)
+                    .await?;
+            let flat_agent_commands =
+                crate::acp::preconnection_slash::load_preconnection_commands_from_flat_markdown_root(
+                    &agents_root,
+                )
+                .await?;
+
+            Ok(crate::acp::preconnection_slash::dedupe_preconnection_commands(
+                nested_skill_commands
+                    .into_iter()
+                    .chain(nested_agent_commands)
+                    .chain(flat_agent_commands),
+            ))
+        })
     }
 
     fn authenticate_request_params(&self, auth_methods: &[Value]) -> AcpResult<Option<Value>> {

@@ -8,7 +8,7 @@ use crate::acp::parsers::types::ParsedUsageTelemetry;
 use crate::acp::provider::{
     AutonomousApplyStrategy, BackendIdentityPolicy, FrontendProviderProjection,
     FrontendVariantGroup, HistoryReplayFamily, HistoryReplayPolicy, PlanAdapterPolicy,
-    SessionLifecyclePolicy,
+    PreconnectionSlashMode, SessionLifecyclePolicy,
 };
 use crate::acp::providers::CustomAgentConfig;
 use crate::acp::registry::AgentRegistry;
@@ -46,6 +46,7 @@ static FUTURE_PROVIDER_CAPABILITIES: [ProviderCapabilities; 1] = [ProviderCapabi
         default_alias: None,
         reasoning_effort_support: false,
         autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
+        preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
     },
     transport_family: TransportFamily::SharedChat,
     tool_vocabulary: ToolVocabulary::ClaudeCode,

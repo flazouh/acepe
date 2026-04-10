@@ -26,6 +26,7 @@ pub mod non_streaming_batcher;
 pub mod opencode;
 pub mod parsers;
 pub mod partial_json;
+pub mod preconnection_slash;
 pub mod permission_tracker;
 pub mod projections;
 pub mod provider;

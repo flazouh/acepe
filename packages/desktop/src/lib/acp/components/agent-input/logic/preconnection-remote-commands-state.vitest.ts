@@ -22,16 +22,15 @@ describe("PreconnectionRemoteCommandsState", () => {
 		fetchFn.mockReset();
 	});
 
-	it("loads OpenCode commands for a project before a session exists", async () => {
-		fetchFn.mockReturnValueOnce(
-			okAsync([makeCommand("compact", "compact the session")])
-		);
+	it("loads project-scoped commands before a session exists", async () => {
+		fetchFn.mockReturnValueOnce(okAsync([makeCommand("compact", "compact the session")]));
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
 		const result = await state.ensureLoaded({
 			agentId: "opencode",
 			hasConnectedSession: false,
 			projectPath: "/repo",
+			preconnectionSlashMode: "projectScoped",
 		});
 
 		expect(result.isOk()).toBe(true);
@@ -40,12 +39,13 @@ describe("PreconnectionRemoteCommandsState", () => {
 			state.getCommands({
 				agentId: "opencode",
 				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
 				skillCommands: [makeCommand("ce:brainstorm", "Brainstorm")],
 			})
 		).toEqual([makeCommand("compact", "compact the session")]);
 	});
 
-	it("falls back to skill commands for non-OpenCode agents", async () => {
+	it("falls back to startup-global commands for non-project-scoped providers", async () => {
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
 		const skillCommands = [makeCommand("ce:brainstorm", "Brainstorm")];
 
@@ -53,6 +53,7 @@ describe("PreconnectionRemoteCommandsState", () => {
 			agentId: "claude-code",
 			hasConnectedSession: false,
 			projectPath: "/repo",
+			preconnectionSlashMode: "startupGlobal",
 		});
 
 		expect(result.isOk()).toBe(true);
@@ -61,27 +62,28 @@ describe("PreconnectionRemoteCommandsState", () => {
 			state.getCommands({
 				agentId: "claude-code",
 				projectPath: "/repo",
+				preconnectionSlashMode: "startupGlobal",
 				skillCommands,
 			})
 		).toEqual(skillCommands);
 	});
 
-	it("does not refetch OpenCode commands when the same project is already loaded", async () => {
-		fetchFn.mockReturnValue(
-			okAsync([makeCommand("compact", "compact the session")])
-		);
+	it("does not refetch commands when the same agent and project are already loaded", async () => {
+		fetchFn.mockReturnValue(okAsync([makeCommand("compact", "compact the session")]));
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
 		await state.ensureLoaded({
-			agentId: "opencode",
+			agentId: "copilot",
 			hasConnectedSession: false,
 			projectPath: "/repo",
+			preconnectionSlashMode: "projectScoped",
 		});
 
 		const second = await state.ensureLoaded({
-			agentId: "opencode",
+			agentId: "copilot",
 			hasConnectedSession: false,
 			projectPath: "/repo",
+			preconnectionSlashMode: "projectScoped",
 		});
 
 		expect(second.isOk()).toBe(true);
@@ -98,22 +100,24 @@ describe("PreconnectionRemoteCommandsState", () => {
 			agentId: "opencode",
 			hasConnectedSession: false,
 			projectPath: "/repo",
+			preconnectionSlashMode: "projectScoped",
 		});
 
 		expect(result.isErr()).toBe(true);
-		expect(state.loadingProjectPath).toBeNull();
+		expect(state.loadingCacheKey).toBeNull();
 	});
 });
 
 describe("shouldLoadRemotePreconnectionCommands", () => {
-	it("only loads for OpenCode before connection when a project path is present", () => {
+	it("only loads for project-scoped providers before connection when a project path is present", () => {
 		expect(
 			shouldLoadRemotePreconnectionCommands({
 				agentId: "opencode",
 				hasConnectedSession: false,
 				projectPath: "/repo",
-				loadedProjectPath: null,
-				loadingProjectPath: null,
+				preconnectionSlashMode: "projectScoped",
+				alreadyLoaded: false,
+				alreadyLoading: false,
 			})
 		).toBe(true);
 
@@ -122,8 +126,9 @@ describe("shouldLoadRemotePreconnectionCommands", () => {
 				agentId: "opencode",
 				hasConnectedSession: true,
 				projectPath: "/repo",
-				loadedProjectPath: null,
-				loadingProjectPath: null,
+				preconnectionSlashMode: "projectScoped",
+				alreadyLoaded: false,
+				alreadyLoading: false,
 			})
 		).toBe(false);
 
@@ -132,8 +137,9 @@ describe("shouldLoadRemotePreconnectionCommands", () => {
 				agentId: "claude-code",
 				hasConnectedSession: false,
 				projectPath: "/repo",
-				loadedProjectPath: null,
-				loadingProjectPath: null,
+				preconnectionSlashMode: "startupGlobal",
+				alreadyLoaded: false,
+				alreadyLoading: false,
 			})
 		).toBe(false);
 	});
