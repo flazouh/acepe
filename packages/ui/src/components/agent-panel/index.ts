@@ -20,7 +20,43 @@ export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";
+export {
+	AgentPanelScene,
+	AgentPanelSceneComposer,
+	AgentPanelSceneConversation,
+	AgentPanelSceneEntry,
+	AgentPanelSceneHeader as AgentPanelSceneHeaderRenderer,
+	AgentPanelSceneReviewCard,
+	AgentPanelSceneSidebar,
+	AgentPanelSceneStatusStrip,
+} from "../agent-panel-scene/index.js";
 export type { AgentGridItem } from "./agent-selection-grid-types.js";
+export type {
+	AgentPanelActionCallbacks,
+	AgentPanelActionDescriptor,
+	AgentPanelActionId,
+	AgentPanelActionState,
+	AgentPanelAttachedFilePaneModel,
+	AgentPanelAttachedFileTab,
+	AgentPanelBadge,
+	AgentPanelBrowserSidebarModel,
+	AgentPanelCardModel,
+	AgentPanelChromeModel,
+	AgentPanelComposerAttachment,
+	AgentPanelComposerModel,
+	AgentPanelComposerSelectedModel,
+	AgentPanelConversationEntry as AgentPanelSceneEntryModel,
+	AgentPanelConversationModel,
+	AgentPanelHeaderModel,
+	AgentPanelMetaItem,
+	AgentPanelPlanSidebarItem,
+	AgentPanelPlanSidebarModel,
+	AgentPanelSceneModel,
+	AgentPanelSessionStatus as AgentPanelSceneStatus,
+	AgentPanelSidebarModel,
+	AgentPanelStripKind,
+	AgentPanelStripModel,
+} from "@acepe/agent-panel-contract";
 
 export type {
 	AgentSessionStatus,

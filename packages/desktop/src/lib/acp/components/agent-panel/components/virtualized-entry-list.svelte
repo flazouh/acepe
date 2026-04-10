@@ -1,17 +1,16 @@
 <script lang="ts">
-import { setIconConfig, TextShimmer } from "@acepe/ui";
+import { AgentPanelSceneEntry, setIconConfig } from "@acepe/ui";
 import { setContext, untrack } from "svelte";
 import { VList, type VListHandle } from "virtua/svelte";
-import * as m from "$lib/paraglide/messages.js";
 import type { SessionEntry } from "../../../application/dto/session.js";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import AssistantMessage from "../../messages/assistant-message.svelte";
-import ErrorMessage from "../../messages/error-message.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import UserMessage from "../../messages/user-message.svelte";
 import { ToolCallRouter } from "../../tool-calls/index.js";
+import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
 import {
 	createAutoScroll,
 	type ScrollPositionProvider,
@@ -24,11 +23,11 @@ import {
 	buildVirtualizedDisplayEntries,
 	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
-	isMergedThoughtAssistantDisplayEntry,
 	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
+import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-agent-panel-scene.js";
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
@@ -457,6 +456,11 @@ export function scrollToTop() {
 	}
 	vlistRef?.scrollToIndex(0);
 }
+
+function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool_call" }>): boolean {
+	const routeKey = resolveToolRouteKey(entry.message, entry.message.kind ?? "other");
+	return routeKey === "edit" || routeKey === "read" || routeKey === "question";
+}
 </script>
 
 <!--
@@ -468,6 +472,16 @@ export function scrollToTop() {
 -->
 <div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
 	{#snippet renderEntry(entry: VirtualizedDisplayEntry, index: number)}
+		{@const sharedEntry = mapVirtualizedDisplayEntryToConversationEntry(
+			entry,
+			turnState,
+			isStreaming &&
+				entry.type !== "thinking" &&
+				((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
+					(entry.type === "assistant_merged_thoughts" &&
+						entry.memberIds.includes(lastAssistantId ?? ""))) &&
+				index === displayEntries.length - 1
+		)}
 		<MessageWrapper
 			entryIndex={index}
 			entryKey={getKey(entry)}
@@ -486,7 +500,7 @@ export function scrollToTop() {
 						index === displayEntries.length - 1}
 					{projectPath}
 				/>
-			{:else if isMergedThoughtAssistantDisplayEntry(entry)}
+			{:else if entry.type === "assistant_merged_thoughts"}
 				<AssistantMessage
 					message={entry.message}
 					isStreaming={isStreaming &&
@@ -494,14 +508,10 @@ export function scrollToTop() {
 						index === displayEntries.length - 1}
 					{projectPath}
 				/>
-			{:else if entry.type === "tool_call"}
+			{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
 				<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />
-			{:else if entry.type === "error"}
-				<ErrorMessage message={entry.message} />
-			{:else if entry.type === "thinking"}
-				<div class="py-3 text-sm text-muted-foreground">
-					<TextShimmer>{m.waiting_planning_next_moves()}</TextShimmer>
-				</div>
+			{:else}
+				<AgentPanelSceneEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
 			{/if}
 		</MessageWrapper>
 	{/snippet}
