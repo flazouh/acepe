@@ -20,9 +20,7 @@ export interface AgentErrorIssueDraft {
 	category: "bug";
 }
 
-export function buildAgentErrorIssueDraft(
-	input: AgentErrorIssueDraftInput,
-): AgentErrorIssueDraft {
+export function buildAgentErrorIssueDraft(input: AgentErrorIssueDraftInput): AgentErrorIssueDraft {
 	const title = `[${input.agentId}] ${input.errorSummary}`;
 
 	const contextLines: string[] = [

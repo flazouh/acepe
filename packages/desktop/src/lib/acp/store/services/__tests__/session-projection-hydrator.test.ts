@@ -27,7 +27,9 @@ describe("SessionProjectionHydrator", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(getSessionProjectionMock).toHaveBeenCalledWith("session-1");
-		expect(interactions.permissionsPending.get("permission-1")?.tool?.callID).toBe("tool-permission");
+		expect(interactions.permissionsPending.get("permission-1")?.tool?.callID).toBe(
+			"tool-permission"
+		);
 		expect(interactions.permissionsPending.get("permission-1")).toMatchObject({
 			replyHandler: {
 				kind: "json-rpc",
@@ -245,10 +247,9 @@ describe("SessionProjectionHydrator", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(interactions.permissionsPending.size).toBe(1);
-		expect(interactions.permissionsPending.get("permission-1")?.members?.map((member) => member.id)).toEqual([
-			"permission-1",
-			"permission-2",
-		]);
+		expect(
+			interactions.permissionsPending.get("permission-1")?.members?.map((member) => member.id)
+		).toEqual(["permission-1", "permission-2"]);
 	});
 });
 

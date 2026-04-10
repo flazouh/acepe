@@ -100,14 +100,12 @@ async function loadProjects() {
 	pathsResult.match(
 		(projectInfos) => {
 			// Create projects with loading placeholders, filter out root directory and "global"
-			projects = projectInfos
-				.filter(shouldShowDiscoveredProject)
-				.map((info) => ({
-					path: info.path,
-					name: extractNameFromPath(info.path),
-					agentCounts: new Map(),
-					totalSessions: "loading" as const,
-				}));
+			projects = projectInfos.filter(shouldShowDiscoveredProject).map((info) => ({
+				path: info.path,
+				name: extractNameFromPath(info.path),
+				agentCounts: new Map(),
+				totalSessions: "loading" as const,
+			}));
 
 			loading = false;
 

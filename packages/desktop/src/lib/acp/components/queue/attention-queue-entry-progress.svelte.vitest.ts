@@ -1,6 +1,6 @@
-import ActivityEntry from "../../../../../../ui/src/components/attention-queue/attention-queue-entry.svelte";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import ActivityEntry from "../../../../../../ui/src/components/attention-queue/attention-queue-entry.svelte";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -118,11 +118,7 @@ describe("ActivityEntry todo progress", () => {
 			deletions: 0,
 			isStreaming: true,
 			taskDescription: "Explore GitHub endpoints",
-			taskSubagentSummaries: [
-				"github.com",
-				"raw.githubusercontent.com",
-				"api.github.com",
-			],
+			taskSubagentSummaries: ["github.com", "raw.githubusercontent.com", "api.github.com"],
 			showTaskSubagentList: true,
 			fileToolDisplayText: null,
 			toolContent: null,

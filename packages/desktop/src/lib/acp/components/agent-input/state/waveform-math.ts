@@ -66,7 +66,10 @@ export function toMeterLevel(values: [number, number, number]): number {
  * progressively more energy to activate, creating an organic spreading
  * waveform shape. At silence all bars are 0 (invisible).
  */
-export function buildMeterLevels(level: number, barCount: number = DEFAULT_METER_BAR_COUNT): number[] {
+export function buildMeterLevels(
+	level: number,
+	barCount: number = DEFAULT_METER_BAR_COUNT
+): number[] {
 	const clamped = clampLevel(level);
 	const safeBarCount = barCount < 1 ? 1 : Math.floor(barCount);
 	const center = Math.floor(safeBarCount / 2);

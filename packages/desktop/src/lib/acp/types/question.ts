@@ -1,10 +1,8 @@
 // Re-export QuestionItem from generated types for use in stores
 export type { QuestionItem, QuestionOption } from "../../services/converted-session-types.js";
+
 import type { InteractionReplyHandler as GeneratedInteractionReplyHandler } from "../../services/converted-session-types.js";
-import {
-	type InteractionReplyHandler,
-	type InteractionReplyHandlerInput,
-} from "./reply-handler.js";
+import type { InteractionReplyHandler, InteractionReplyHandlerInput } from "./reply-handler.js";
 
 /**
  * Question request from the agent.

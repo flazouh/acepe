@@ -1,13 +1,16 @@
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import { isToolCallEntry } from "../application/dto/session-entry.js";
-import type { PermissionRequest } from "../types/permission.js";
-import type { ToolCall } from "../types/tool-call.js";
 import {
 	createCompatibilityOperation,
 	permissionMatchesOperation,
 } from "../store/operation-association.js";
+import type { PermissionRequest } from "../types/permission.js";
+import type { ToolCall } from "../types/tool-call.js";
 
-export function permissionMatchesToolCall(permission: PermissionRequest, toolCall: ToolCall): boolean {
+export function permissionMatchesToolCall(
+	permission: PermissionRequest,
+	toolCall: ToolCall
+): boolean {
 	return permissionMatchesOperation(permission, createCompatibilityOperation(toolCall));
 }
 

@@ -59,23 +59,15 @@ let {
 
 const panelStore = getPanelStore();
 const UPDATE_BUTTON_SEGMENT_COUNT = 16;
-type DropdownMenuTriggerChildProps = NonNullable<
-	DropdownMenuPrimitive.TriggerProps["child"]
-> extends Snippet<[
-	infer T,
-]>
-	? T
-	: never;
+type DropdownMenuTriggerChildProps =
+	NonNullable<DropdownMenuPrimitive.TriggerProps["child"]> extends Snippet<[infer T]> ? T : never;
 
 const updateDownloadPercent = $derived(
 	updaterState?.kind === "installing"
 		? 100
 		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
-		? Math.min(
-				Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100),
-				100
-			)
-		: 0
+			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
+			: 0
 );
 
 const updateActionText = $derived(
@@ -132,7 +124,8 @@ const hintContentMap: Record<string, HintContent> = {
 	},
 	"layout.grouping.info": {
 		title: "Grouping modes",
-		description: "Single focuses one agent. Project groups related work. Multi keeps several panels visible.",
+		description:
+			"Single focuses one agent. Project groups related work. Multi keeps several panels visible.",
 		side: "left",
 	},
 	"layout.tabbar.info": {

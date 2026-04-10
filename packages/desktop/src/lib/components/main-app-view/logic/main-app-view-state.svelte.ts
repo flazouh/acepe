@@ -14,8 +14,8 @@
  * ```
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { okAsync, type ResultAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -40,13 +40,12 @@ import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnect
 import { getSqlStudioStore } from "$lib/sql-studio/index.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../types/create-session-options.js";
-import { ensureSpawnableAgentSelected } from "./spawnable-agents.js";
-
 import { InitializationManager } from "./managers/initialization-manager.js";
 import { KeybindingManager } from "./managers/keybinding-manager.js";
 import { PanelHandler } from "./managers/panel-handler.js";
 import { ProjectHandler } from "./managers/project-handler.js";
 import { SessionHandler } from "./managers/session-handler.js";
+import { ensureSpawnableAgentSelected } from "./spawnable-agents.js";
 
 const logger = createLogger({ id: "main-app-view-state", name: "MainAppViewState" });
 
@@ -225,7 +224,7 @@ export class MainAppViewState {
 
 	get fileExplorerVisible(): boolean {
 		if (!this.fileExplorerOpen) return false;
-		if (this.panelStore.focusedTopLevelPanel && this.panelStore.focusedTopLevelPanel.projectPath) {
+		if (this.panelStore.focusedTopLevelPanel?.projectPath) {
 			return true;
 		}
 		if (this.panelStore.focusedViewProjectPath) return true;
@@ -233,7 +232,7 @@ export class MainAppViewState {
 	}
 
 	private hasFileExplorerProjectContext(): boolean {
-		if (this.panelStore.focusedTopLevelPanel && this.panelStore.focusedTopLevelPanel.projectPath) {
+		if (this.panelStore.focusedTopLevelPanel?.projectPath) {
 			return true;
 		}
 		if (this.panelStore.focusedViewProjectPath) return true;
@@ -303,7 +302,10 @@ export class MainAppViewState {
 		private readonly selectorRegistry: SelectorRegistry,
 		private readonly worktreeDefaultStore: WorktreeDefaultStore,
 		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
-		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
+		private readonly projectionHydrator: Pick<
+			SessionProjectionHydrator,
+			"hydrateSession" | "clearSession"
+		>
 	) {
 		// Initialize managers
 		this.initializationManager = new InitializationManager(

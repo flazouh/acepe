@@ -75,14 +75,12 @@ const title = $derived(
 				? "Checking…"
 				: isTranscribing
 					? m.voice_transcribing()
-				: isRecording
-					? m.voice_stop_recording()
-					: m.voice_start_recording(),
+					: isRecording
+						? m.voice_stop_recording()
+						: m.voice_start_recording()
 );
 
-const hoverTitle = $derived(
-	visualState === "mic" ? "Hold Right ⌥ to talk" : title
-);
+const hoverTitle = $derived(visualState === "mic" ? "Hold Right ⌥ to talk" : title);
 
 /** Red color from design system */
 const STOP_RED = "#FF5D5A";

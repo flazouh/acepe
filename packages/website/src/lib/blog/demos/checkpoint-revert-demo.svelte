@@ -1,57 +1,57 @@
 <script lang="ts">
-	/**
-	 * Demo: Checkpoint Revert
-	 * Shows the real revert flow using CheckpointCard: hover → revert button → confirm → done.
-	 */
-	import {
-		CheckpointCard,
-		FilePathBadge,
-		type CheckpointData,
-		type CheckpointFile,
-		type FileRowState
-	} from '@acepe/ui';
-	import { SvelteMap } from 'svelte/reactivity';
+/**
+ * Demo: Checkpoint Revert
+ * Shows the real revert flow using CheckpointCard: hover → revert button → confirm → done.
+ */
+import {
+	CheckpointCard,
+	FilePathBadge,
+	type CheckpointData,
+	type CheckpointFile,
+	type FileRowState,
+} from "@acepe/ui";
+import { SvelteMap } from "svelte/reactivity";
 
-	const ICON_BASE_PATH = '/svgs/icons';
+const ICON_BASE_PATH = "/svgs/icons";
 
-	const checkpoint: CheckpointData = {
-		id: 'revert-cp',
-		number: 3,
-		message: 'Refactor payment validation',
-		timestamp: Date.now() - 10 * 60 * 1000,
-		fileCount: 3,
-		totalInsertions: 78,
-		totalDeletions: 34,
-		isAuto: true
-	};
+const checkpoint: CheckpointData = {
+	id: "revert-cp",
+	number: 3,
+	message: "Refactor payment validation",
+	timestamp: Date.now() - 10 * 60 * 1000,
+	fileCount: 3,
+	totalInsertions: 78,
+	totalDeletions: 34,
+	isAuto: true,
+};
 
-	const files: CheckpointFile[] = [
-		{ id: 'rv-1', filePath: 'src/lib/payment/service.ts', linesAdded: 42, linesRemoved: 28 },
-		{ id: 'rv-2', filePath: 'src/lib/payment/validation.ts', linesAdded: 24, linesRemoved: 6 },
-		{ id: 'rv-3', filePath: 'src/lib/payment/types.ts', linesAdded: 12, linesRemoved: 0 }
-	];
+const files: CheckpointFile[] = [
+	{ id: "rv-1", filePath: "src/lib/payment/service.ts", linesAdded: 42, linesRemoved: 28 },
+	{ id: "rv-2", filePath: "src/lib/payment/validation.ts", linesAdded: 24, linesRemoved: 6 },
+	{ id: "rv-3", filePath: "src/lib/payment/types.ts", linesAdded: 12, linesRemoved: 0 },
+];
 
-	let isExpanded = $state(true);
-	let isConfirming = $state(false);
-	let isReverting = $state(false);
-	let fileStates = $state(new SvelteMap<string, FileRowState>());
+let isExpanded = $state(true);
+let isConfirming = $state(false);
+let isReverting = $state(false);
+let fileStates = $state(new SvelteMap<string, FileRowState>());
 
-	function handleRevertClick() {
-		isConfirming = true;
-	}
+function handleRevertClick() {
+	isConfirming = true;
+}
 
-	function handleRevertConfirm() {
-		isConfirming = false;
-		isReverting = true;
+function handleRevertConfirm() {
+	isConfirming = false;
+	isReverting = true;
 
-		setTimeout(() => {
-			isReverting = false;
-		}, 1200);
-	}
+	setTimeout(() => {
+		isReverting = false;
+	}, 1200);
+}
 
-	function handleRevertCancel() {
-		isConfirming = false;
-	}
+function handleRevertCancel() {
+	isConfirming = false;
+}
 </script>
 
 <div class="demo-container">

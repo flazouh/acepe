@@ -12,10 +12,7 @@ import type { BlockParseConfig, ContentBlock } from "./types.js";
  * Note: file_path_badge and github_badge are NOT here — they use inline <span> placeholders
  * and are mounted by mountFileBadges / mountGitHubBadges so badges stay inside parent elements (li, p, etc.).
  */
-export const BLOCK_PARSE_CONFIGS: BlockParseConfig[] = [
-	mermaidBlockConfig,
-	pierreFileBlockConfig,
-];
+export const BLOCK_PARSE_CONFIGS: BlockParseConfig[] = [mermaidBlockConfig, pierreFileBlockConfig];
 
 /**
  * Get config for a block type, or undefined if not found.

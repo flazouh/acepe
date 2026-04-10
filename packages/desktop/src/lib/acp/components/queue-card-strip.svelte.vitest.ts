@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
-import { afterEach, describe, expect, it } from "vitest";
-import { vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MessageQueueStore } from "$lib/acp/store/message-queue/index.js";
 
 import QueueCardStripHarness from "./__tests__/queue-card-strip.test-harness.svelte";

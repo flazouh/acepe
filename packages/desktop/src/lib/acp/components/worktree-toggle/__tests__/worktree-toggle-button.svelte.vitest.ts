@@ -5,7 +5,10 @@ vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });

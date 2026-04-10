@@ -5,11 +5,17 @@ import type { ToolKind } from "../../types/tool-kind.js";
 import {
 	getCurrentToolKind,
 	type NonAgentPanelToTabInput,
-	type PanelToTabInput,
 	nonAgentPanelToTab,
+	type PanelToTabInput,
 	panelToTab,
 } from "../tab-bar-utils.js";
-import type { BrowserWorkspacePanel, FileWorkspacePanel, Panel, SessionHotState, TerminalWorkspacePanel } from "../types.js";
+import type {
+	BrowserWorkspacePanel,
+	FileWorkspacePanel,
+	Panel,
+	SessionHotState,
+	TerminalWorkspacePanel,
+} from "../types.js";
 
 // =============================================================================
 // panelToTab test helpers

@@ -1,96 +1,96 @@
 <script lang="ts">
-	/**
-	 * Demo: Answer Needed State
-	 * Shows a queue item with a pending question requiring user input.
-	 */
-	import { SectionedFeed, ActivityEntry, TAG_COLORS, Colors, COLOR_NAMES } from '@acepe/ui';
-	import type {
-		SectionedFeedGroup,
-		ActivityEntryQuestion,
-		ActivityEntryQuestionOption
-	} from '@acepe/ui';
+/**
+ * Demo: Answer Needed State
+ * Shows a queue item with a pending question requiring user input.
+ */
+import { SectionedFeed, ActivityEntry, TAG_COLORS, Colors, COLOR_NAMES } from "@acepe/ui";
+import type {
+	SectionedFeedGroup,
+	ActivityEntryQuestion,
+	ActivityEntryQuestionOption,
+} from "@acepe/ui";
 
-	interface DemoItem {
-		readonly id: string;
-		readonly title: string;
-		readonly mode: 'build' | 'plan' | null;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: { current: number; total: number; label: string } | null;
-		readonly question: ActivityEntryQuestion | null;
-		readonly projectName: string;
-		readonly projectColor: string;
+interface DemoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly mode: "build" | "plan" | null;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: { current: number; total: number; label: string } | null;
+	readonly question: ActivityEntryQuestion | null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
+
+const demoItem: DemoItem = {
+	id: "auth-demo",
+	title: "Implementing authentication module",
+	mode: "build",
+	timeAgo: "now",
+	insertions: 0,
+	deletions: 0,
+	isStreaming: false,
+	statusText: null,
+	showStatusShimmer: false,
+	fileToolDisplayText: null,
+	toolContent: null,
+	showToolShimmer: false,
+	taskSubagentSummaries: [],
+	showTaskSubagentList: false,
+	todoProgress: null,
+	question: {
+		question: "Which authentication strategy should I use?",
+		multiSelect: false,
+		options: [{ label: "JWT tokens" }, { label: "Session cookies" }, { label: "OAuth 2.0" }],
+	},
+	projectName: "Demo",
+	projectColor: TAG_COLORS[1],
+};
+
+const groups: readonly SectionedFeedGroup<DemoItem>[] = [
+	{
+		id: "answer_needed",
+		label: "Input Needed",
+		items: [demoItem],
+	},
+];
+
+// Interactive state
+let selectedItemId = $state<string | null>(null);
+let selectedAnswers = $state<Set<string>>(new Set());
+
+const QUESTION_COLORS = [
+	Colors[COLOR_NAMES.GREEN],
+	Colors[COLOR_NAMES.RED],
+	Colors[COLOR_NAMES.PINK],
+	Colors[COLOR_NAMES.ORANGE],
+];
+
+function getQuestionOptions(): readonly ActivityEntryQuestionOption[] {
+	if (!demoItem.question) return [];
+	return demoItem.question.options.map((opt, i) => ({
+		label: opt.label,
+		selected: selectedAnswers.has(opt.label),
+		color: QUESTION_COLORS[i % QUESTION_COLORS.length],
+	}));
+}
+
+function handleAnswerChange(answerId: string) {
+	if (selectedAnswers.has(answerId)) {
+		selectedAnswers.delete(answerId);
+	} else {
+		selectedAnswers = new Set([answerId]);
 	}
-
-	const demoItem: DemoItem = {
-		id: 'auth-demo',
-		title: 'Implementing authentication module',
-		mode: 'build',
-		timeAgo: 'now',
-		insertions: 0,
-		deletions: 0,
-		isStreaming: false,
-		statusText: null,
-		showStatusShimmer: false,
-		fileToolDisplayText: null,
-		toolContent: null,
-		showToolShimmer: false,
-		taskSubagentSummaries: [],
-		showTaskSubagentList: false,
-		todoProgress: null,
-		question: {
-			question: 'Which authentication strategy should I use?',
-			multiSelect: false,
-			options: [{ label: 'JWT tokens' }, { label: 'Session cookies' }, { label: 'OAuth 2.0' }]
-		},
-		projectName: 'Demo',
-		projectColor: TAG_COLORS[1]
-	};
-
-	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
-		{
-			id: 'answer_needed',
-			label: 'Input Needed',
-			items: [demoItem]
-		}
-	];
-
-	// Interactive state
-	let selectedItemId = $state<string | null>(null);
-	let selectedAnswers = $state<Set<string>>(new Set());
-
-	const QUESTION_COLORS = [
-		Colors[COLOR_NAMES.GREEN],
-		Colors[COLOR_NAMES.RED],
-		Colors[COLOR_NAMES.PINK],
-		Colors[COLOR_NAMES.ORANGE]
-	];
-
-	function getQuestionOptions(): readonly ActivityEntryQuestionOption[] {
-		if (!demoItem.question) return [];
-		return demoItem.question.options.map((opt, i) => ({
-			label: opt.label,
-			selected: selectedAnswers.has(opt.label),
-			color: QUESTION_COLORS[i % QUESTION_COLORS.length]
-		}));
-	}
-
-	function handleAnswerChange(answerId: string) {
-		if (selectedAnswers.has(answerId)) {
-			selectedAnswers.delete(answerId);
-		} else {
-			selectedAnswers = new Set([answerId]);
-		}
-	}
+}
 </script>
 
 <div class="demo-container">

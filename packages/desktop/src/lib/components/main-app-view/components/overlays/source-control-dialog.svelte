@@ -18,7 +18,9 @@ const project = $derived.by(() => {
 	if (gitDialog === null) {
 		return null;
 	}
-	return projectManager.projects.find((candidate) => candidate.path === gitDialog.projectPath) ?? null;
+	return (
+		projectManager.projects.find((candidate) => candidate.path === gitDialog.projectPath) ?? null
+	);
 });
 const projectName = $derived.by(() => {
 	if (project?.name) {

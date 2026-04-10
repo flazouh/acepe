@@ -13,9 +13,7 @@ interface KanbanNewSessionDefaults {
 	readonly agentId: string | null;
 }
 
-function resolveDefaultProjectPath(
-	input: ResolveKanbanNewSessionDefaultsInput
-): string | null {
+function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput): string | null {
 	if (input.focusedProjectPath) {
 		for (const project of input.projects) {
 			if (project.path === input.focusedProjectPath) {
@@ -28,9 +26,7 @@ function resolveDefaultProjectPath(
 	return firstProject ? firstProject.path : null;
 }
 
-function resolveDefaultAgentId(
-	input: ResolveKanbanNewSessionDefaultsInput
-): string | null {
+function resolveDefaultAgentId(input: ResolveKanbanNewSessionDefaultsInput): string | null {
 	for (const selectedAgentId of input.selectedAgentIds) {
 		for (const agent of input.availableAgents) {
 			if (agent.id === selectedAgentId) {

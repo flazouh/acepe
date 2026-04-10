@@ -5,22 +5,20 @@
  * Extracted for testability and reuse.
  */
 
-import type { Model } from "../application/dto/model.js";
+import { getProviderDisplayName } from "@acepe/ui";
 import {
 	getProviderMetadataFromModelsDisplay,
-	resolveProviderMetadataProjection,
 	type ProviderMetadataProjection,
+	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
-	DisplayModelGroup,
 	DisplayableModel,
+	DisplayModelGroup,
 	ModelDisplayFamily,
 	ModelsForDisplay,
 	UsageMetricsPresentation,
 } from "../../services/acp-types.js";
-import {
-	getProviderDisplayName,
-} from "@acepe/ui";
+import type { Model } from "../application/dto/model.js";
 import { AGENT_IDS } from "../types/agent-id.js";
 
 /**

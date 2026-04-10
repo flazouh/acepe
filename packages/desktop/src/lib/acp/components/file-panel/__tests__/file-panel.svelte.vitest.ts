@@ -1,20 +1,21 @@
-import { okAsync } from "neverthrow";
-
 import { cleanup, render, waitFor } from "@testing-library/svelte";
+import { okAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
 vi.mock("@acepe/ui/file-panel", async () => {
-	const FilePanelLayout =
-		(await import("./fixtures/file-panel-layout-stub.svelte")).default;
+	const FilePanelLayout = (await import("./fixtures/file-panel-layout-stub.svelte")).default;
 
 	return {
 		FilePanelLayout,
@@ -22,8 +23,7 @@ vi.mock("@acepe/ui/file-panel", async () => {
 });
 
 vi.mock("$lib/components/ui/codemirror-editor/index.js", async () => {
-	const CodeMirrorEditor =
-		(await import("./fixtures/code-mirror-editor-stub.svelte")).default;
+	const CodeMirrorEditor = (await import("./fixtures/code-mirror-editor-stub.svelte")).default;
 
 	return {
 		CodeMirrorEditor,
@@ -32,8 +32,7 @@ vi.mock("$lib/components/ui/codemirror-editor/index.js", async () => {
 });
 
 vi.mock("../file-panel-header.svelte", async () => {
-	const FilePanelHeader =
-		(await import("./fixtures/file-panel-header-stub.svelte")).default;
+	const FilePanelHeader = (await import("./fixtures/file-panel-header-stub.svelte")).default;
 
 	return {
 		default: FilePanelHeader,

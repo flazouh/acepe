@@ -106,7 +106,7 @@ const entryManager: IEntryManager = {
 		throw new Error("Not implemented for test");
 	},
 	clearStreamingAssistantEntry: () => {},
-		finalizeStreamingEntries: () => {},
+	finalizeStreamingEntries: () => {},
 };
 
 const connectionManager: IConnectionManager = {

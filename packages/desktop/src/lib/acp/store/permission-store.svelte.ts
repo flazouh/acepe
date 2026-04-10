@@ -31,8 +31,8 @@ import type { ToolCall } from "../types/tool-call.js";
 import { isExitPlanPermission } from "../utils/exit-plan-permission.js";
 import { createLogger } from "../utils/logger.js";
 import { permissionMatchesToolCall } from "../utils/permission-tool-match.js";
-import { findOperationForPermission, permissionMatchesOperation } from "./operation-association.js";
 import { InteractionStore } from "./interaction-store.svelte.js";
+import { findOperationForPermission, permissionMatchesOperation } from "./operation-association.js";
 import type { OperationStore } from "./operation-store.svelte.js";
 
 const PERMISSION_STORE_KEY = Symbol("permission-store");
@@ -267,7 +267,10 @@ export class PermissionStore {
 		return permissions;
 	}
 
-	getForOperation(operation: Operation, operationStore: OperationStore): PermissionRequest | undefined {
+	getForOperation(
+		operation: Operation,
+		operationStore: OperationStore
+	): PermissionRequest | undefined {
 		let latest: PermissionRequest | undefined;
 		for (const permission of this.pending.values()) {
 			if (permission.sessionId !== operation.sessionId) {
@@ -451,10 +454,7 @@ export class PermissionStore {
 									let mergedPermission = failedRequests[0];
 									for (let index = 1; index < failedRequests.length; index += 1) {
 										const failedRequest = failedRequests[index];
-										mergedPermission = mergePermissionRequests(
-											mergedPermission,
-											failedRequest
-										);
+										mergedPermission = mergePermissionRequests(mergedPermission, failedRequest);
 									}
 									return mergedPermission;
 								})();

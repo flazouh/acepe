@@ -27,9 +27,7 @@ const taskId = $derived.by(() => {
 // Build a description from the task_id
 const description = $derived.by(() => {
 	if (taskId) return `Task: ${taskId}`;
-	return toolStatus.isPending
-		? m.tool_task_output_running()
-		: m.tool_task_output_completed();
+	return toolStatus.isPending ? m.tool_task_output_running() : m.tool_task_output_completed();
 });
 
 // Get the result as a string

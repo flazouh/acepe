@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { errAsync, okAsync } from "neverthrow";
+import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
@@ -286,12 +286,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			const restoredSession = buildSession(
-				"session-1",
-				"claude-code",
-				"/project1",
-				"Session 1"
-			);
+			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
 			const callOrder: string[] = [];
 
 			mockSessionStore.loadStartupSessions = mock(() => {
@@ -317,21 +312,14 @@ describe("InitializationManager", () => {
 
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
-			expect(callOrder).toEqual([
-				"startup",
-				"preload",
-				"scan:/project1,/project2",
-				"clear",
-			]);
+			expect(callOrder).toEqual(["startup", "preload", "scan:/project1,/project2", "clear"]);
 		});
 
 		it("clears orphaned restored session ids before attempting startup reconnect", async () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
-			mockWorkspaceStore.restore = mock(
-				() => ["missing-session"]
-			) as WorkspaceStore["restore"];
+			mockWorkspaceStore.restore = mock(() => ["missing-session"]) as WorkspaceStore["restore"];
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -355,19 +343,19 @@ describe("InitializationManager", () => {
 				currentPanels = currentPanels.map((panel) =>
 					panel.id === panelId
 						? {
-							id: panel.id,
-							kind: panel.kind,
-							ownerPanelId: panel.ownerPanelId,
-							sessionId,
-							width: panel.width,
-							pendingProjectSelection: panel.pendingProjectSelection,
-							selectedAgentId: panel.selectedAgentId,
-							projectPath: panel.projectPath,
-							agentId: panel.agentId,
-							sessionTitle: panel.sessionTitle,
-							sourcePath: panel.sourcePath,
-							worktreePath: panel.worktreePath,
-						}
+								id: panel.id,
+								kind: panel.kind,
+								ownerPanelId: panel.ownerPanelId,
+								sessionId,
+								width: panel.width,
+								pendingProjectSelection: panel.pendingProjectSelection,
+								selectedAgentId: panel.selectedAgentId,
+								projectPath: panel.projectPath,
+								agentId: panel.agentId,
+								sessionTitle: panel.sessionTitle,
+								sourcePath: panel.sourcePath,
+								worktreePath: panel.worktreePath,
+							}
 						: panel
 				);
 			});
@@ -384,9 +372,7 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
-			mockWorkspaceStore.restore = mock(
-				() => ["recoverable-session"]
-			) as WorkspaceStore["restore"];
+			mockWorkspaceStore.restore = mock(() => ["recoverable-session"]) as WorkspaceStore["restore"];
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -412,19 +398,19 @@ describe("InitializationManager", () => {
 				currentPanels = currentPanels.map((panel) =>
 					panel.id === panelId
 						? {
-							id: panel.id,
-							kind: panel.kind,
-							ownerPanelId: panel.ownerPanelId,
-							sessionId,
-							width: panel.width,
-							pendingProjectSelection: panel.pendingProjectSelection,
-							selectedAgentId: panel.selectedAgentId,
-							projectPath: panel.projectPath,
-							agentId: panel.agentId,
-							sessionTitle: panel.sessionTitle,
-							sourcePath: panel.sourcePath,
-							worktreePath: panel.worktreePath,
-						}
+								id: panel.id,
+								kind: panel.kind,
+								ownerPanelId: panel.ownerPanelId,
+								sessionId,
+								width: panel.width,
+								pendingProjectSelection: panel.pendingProjectSelection,
+								selectedAgentId: panel.selectedAgentId,
+								projectPath: panel.projectPath,
+								agentId: panel.agentId,
+								sessionTitle: panel.sessionTitle,
+								sourcePath: panel.sourcePath,
+								worktreePath: panel.worktreePath,
+							}
 						: panel
 				);
 			});
@@ -438,9 +424,7 @@ describe("InitializationManager", () => {
 			mockProjectManager.projects = [
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
-			mockWorkspaceStore.restore = mock(
-				() => ["recoverable-session"]
-			) as WorkspaceStore["restore"];
+			mockWorkspaceStore.restore = mock(() => ["recoverable-session"]) as WorkspaceStore["restore"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -484,14 +468,14 @@ describe("InitializationManager", () => {
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
-						id: "session-1",
-						projectPath: "/project1",
-						agentId: "cursor",
-						title: "Recovered session",
-						createdAt: new Date(),
-						updatedAt: new Date(),
-						parentId: null,
-					}
+							id: "session-1",
+							projectPath: "/project1",
+							agentId: "cursor",
+							title: "Recovered session",
+							createdAt: new Date(),
+							updatedAt: new Date(),
+							parentId: null,
+						}
 					: undefined
 			);
 
@@ -535,16 +519,16 @@ describe("InitializationManager", () => {
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
-						id: "session-1",
-						projectPath: "/project1",
-						agentId: "claude-code",
-						title: "Feature thread",
-						createdAt: new Date(),
-						updatedAt: new Date(),
-						parentId: null,
-						worktreePath: "/project1/.git/worktrees/feature-a",
-						sourcePath: "/project1/.cursor/sessions/session-1.json",
-					}
+							id: "session-1",
+							projectPath: "/project1",
+							agentId: "claude-code",
+							title: "Feature thread",
+							createdAt: new Date(),
+							updatedAt: new Date(),
+							parentId: null,
+							worktreePath: "/project1/.git/worktrees/feature-a",
+							sourcePath: "/project1/.cursor/sessions/session-1.json",
+						}
 					: undefined
 			) as SessionStore["getSessionCold"];
 
@@ -588,16 +572,16 @@ describe("InitializationManager", () => {
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
-						id: "session-1",
-						projectPath: "/project1",
-						agentId: "claude-code",
-						title: "Canonical title",
-						createdAt: new Date(),
-						updatedAt: new Date(),
-						parentId: null,
-						sourcePath: "/project1/.claude/session-1.jsonl",
-						worktreePath: "/project1/.git/worktrees/feature-b",
-					}
+							id: "session-1",
+							projectPath: "/project1",
+							agentId: "claude-code",
+							title: "Canonical title",
+							createdAt: new Date(),
+							updatedAt: new Date(),
+							parentId: null,
+							sourcePath: "/project1/.claude/session-1.jsonl",
+							worktreePath: "/project1/.git/worktrees/feature-b",
+						}
 					: undefined
 			) as SessionStore["getSessionCold"];
 
@@ -617,7 +601,12 @@ describe("InitializationManager", () => {
 
 		it("does not clear a restored worktree session when history contains it", async () => {
 			mockProjectManager.projects = [
-				{ path: "/Users/example/Documents/acepe", name: "acepe", createdAt: new Date(), color: "blue" },
+				{
+					path: "/Users/example/Documents/acepe",
+					name: "acepe",
+					createdAt: new Date(),
+					color: "blue",
+				},
 			];
 			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
 
@@ -719,9 +708,7 @@ describe("InitializationManager", () => {
 				{ path: "/project1", name: "Project 1", createdAt: new Date(), color: "blue" },
 			];
 			// Panel was persisted with a provider alias ID
-			mockWorkspaceStore.restore = mock(
-				() => ["claude-session"]
-			) as WorkspaceStore["restore"];
+			mockWorkspaceStore.restore = mock(() => ["claude-session"]) as WorkspaceStore["restore"];
 			let currentPanels: TestPanel[] = [
 				{
 					id: "panel-1",
@@ -747,25 +734,30 @@ describe("InitializationManager", () => {
 				currentPanels = currentPanels.map((panel) =>
 					panel.id === panelId
 						? {
-							id: panel.id,
-							kind: panel.kind,
-							ownerPanelId: panel.ownerPanelId,
-							sessionId,
-							width: panel.width,
-							pendingProjectSelection: panel.pendingProjectSelection,
-							selectedAgentId: panel.selectedAgentId,
-							projectPath: panel.projectPath,
-							agentId: panel.agentId,
-							sessionTitle: panel.sessionTitle,
-							sourcePath: panel.sourcePath,
-							worktreePath: panel.worktreePath,
-						}
+								id: panel.id,
+								kind: panel.kind,
+								ownerPanelId: panel.ownerPanelId,
+								sessionId,
+								width: panel.width,
+								pendingProjectSelection: panel.pendingProjectSelection,
+								selectedAgentId: panel.selectedAgentId,
+								projectPath: panel.projectPath,
+								agentId: panel.agentId,
+								sessionTitle: panel.sessionTitle,
+								sourcePath: panel.sourcePath,
+								worktreePath: panel.worktreePath,
+							}
 						: panel
 				);
 			});
 
 			// Backend returns the session under its canonical ID with an alias remap
-			const canonicalSession = buildSession("acepe-uuid", "opencode", "/project1", "Aliased Session");
+			const canonicalSession = buildSession(
+				"acepe-uuid",
+				"opencode",
+				"/project1",
+				"Aliased Session"
+			);
 			mockSessionStore.loadStartupSessions = mock(() => {
 				return okAsync({
 					missing: [],

@@ -6,11 +6,9 @@
  */
 
 import type { ResultAsync } from "neverthrow";
-
-import { tauriClient } from "$lib/utils/tauri-client.js";
-
-import type { AppError } from "../../errors/app-error.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
+import type { AppError } from "../../errors/app-error.js";
 
 // ── Per-panel localStorage (transient overrides) ──
 

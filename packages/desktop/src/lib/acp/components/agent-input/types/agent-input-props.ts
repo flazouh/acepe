@@ -123,7 +123,7 @@ export interface AgentInputProps {
 	 * Used for explicit UI intents like priming scroll reveal or choosing the
 	 * panel that should own optimistic pre-session state.
 	 */
-	readonly onWillSend?: () => string | null | void;
+	readonly onWillSend?: () => string | null | undefined;
 
 	/**
 	 * Callback fired when a pre-session send fails after optimistic UI state has

@@ -51,8 +51,7 @@ function buildStreamingLiveTextRender(
 	previousText: string | undefined,
 	nextText: string
 ): StreamingLiveTextRender {
-	const preservedPrefix =
-		previousText && nextText.startsWith(previousText) ? previousText : "";
+	const preservedPrefix = previousText && nextText.startsWith(previousText) ? previousText : "";
 
 	return {
 		fullText: nextText,
@@ -85,11 +84,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let {
-	text,
-	isStreaming = false,
-	projectPath: propProjectPath,
-}: Props = $props();
+let { text, isStreaming = false, projectPath: propProjectPath }: Props = $props();
 
 // Use context projectPath if no prop provided, otherwise use prop (backward compatibility)
 const projectPath = $derived(propProjectPath ?? contextProjectPath);
@@ -129,21 +124,18 @@ $effect(() => {
 	if (!projectPath || repoContext || isStreaming || !textNeedsRepoContext(text)) {
 		return;
 	}
-
-	{
-		// Fetch repo context once on mount
-		(async () => {
-			const result = await getRepoContext(projectPath);
-			result.match(
-				(ctx: RepoContext) => {
-					repoContext = ctx;
-				},
-				() => {
-					// Silently fail - badges will just be non-interactive
-				}
-			);
-		})();
-	}
+	// Fetch repo context once on mount
+	(async () => {
+		const result = await getRepoContext(projectPath);
+		result.match(
+			(ctx: RepoContext) => {
+				repoContext = ctx;
+			},
+			() => {
+				// Silently fail - badges will just be non-interactive
+			}
+		);
+	})();
 });
 
 // Try sync rendering first (eliminates flicker for most messages)

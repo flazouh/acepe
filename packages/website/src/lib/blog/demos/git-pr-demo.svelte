@@ -1,70 +1,85 @@
 <script lang="ts">
-	/**
-	 * Demo: Git PR Viewer
-	 * Shows the GitViewer component with mock PR data.
-	 */
-	import { GitViewer, type GitPrData } from '@acepe/ui';
+/**
+ * Demo: Git PR Viewer
+ * Shows the GitViewer component with mock PR data.
+ */
+import { GitViewer, type GitPrData } from "@acepe/ui";
 
-	const pr: GitPrData = {
-		number: 342,
-		title: 'Redesign settings page with new tab layout',
-		author: 'bob-dev',
-		state: 'merged',
-		description:
-			'Migrates the settings page from a single long scroll to a tabbed interface.\nEach settings category (General, Appearance, Keys, Advanced) gets its own tab.',
-		files: [
-			{ path: 'src/routes/settings/+page.svelte', status: 'modified', additions: 45, deletions: 112 },
-			{ path: 'src/routes/settings/tabs/general.svelte', status: 'added', additions: 38, deletions: 0 },
-			{ path: 'src/routes/settings/tabs/appearance.svelte', status: 'added', additions: 52, deletions: 0 },
-			{ path: 'src/routes/settings/tabs/keys.svelte', status: 'added', additions: 31, deletions: 0 },
-			{ path: 'src/routes/settings/tabs/advanced.svelte', status: 'added', additions: 28, deletions: 0 },
-			{ path: 'src/lib/components/tab-nav.svelte', status: 'added', additions: 24, deletions: 0 },
-			{ path: 'src/routes/settings/settings.css', status: 'deleted', additions: 0, deletions: 67 },
-		],
-		githubUrl: 'https://github.com/example/project/pull/342',
-	};
+const pr: GitPrData = {
+	number: 342,
+	title: "Redesign settings page with new tab layout",
+	author: "bob-dev",
+	state: "merged",
+	description:
+		"Migrates the settings page from a single long scroll to a tabbed interface.\nEach settings category (General, Appearance, Keys, Advanced) gets its own tab.",
+	files: [
+		{ path: "src/routes/settings/+page.svelte", status: "modified", additions: 45, deletions: 112 },
+		{
+			path: "src/routes/settings/tabs/general.svelte",
+			status: "added",
+			additions: 38,
+			deletions: 0,
+		},
+		{
+			path: "src/routes/settings/tabs/appearance.svelte",
+			status: "added",
+			additions: 52,
+			deletions: 0,
+		},
+		{ path: "src/routes/settings/tabs/keys.svelte", status: "added", additions: 31, deletions: 0 },
+		{
+			path: "src/routes/settings/tabs/advanced.svelte",
+			status: "added",
+			additions: 28,
+			deletions: 0,
+		},
+		{ path: "src/lib/components/tab-nav.svelte", status: "added", additions: 24, deletions: 0 },
+		{ path: "src/routes/settings/settings.css", status: "deleted", additions: 0, deletions: 67 },
+	],
+	githubUrl: "https://github.com/example/project/pull/342",
+};
 
-	const MOCK_DIFFS: Record<string, string> = {
-		'src/routes/settings/+page.svelte': [
-			'-   import GeneralSettings from "./general-settings.svelte";',
-			'-   import AppearanceSettings from "./appearance-settings.svelte";',
-			'-   import KeySettings from "./key-settings.svelte";',
-			'-   import AdvancedSettings from "./advanced-settings.svelte";',
-			'+   import TabNav from "$lib/components/tab-nav.svelte";',
-			'+   import General from "./tabs/general.svelte";',
-			'+   import Appearance from "./tabs/appearance.svelte";',
-			'+   import Keys from "./tabs/keys.svelte";',
-			'+   import Advanced from "./tabs/advanced.svelte";',
-			'+',
-			'+   let activeTab = $state("general");',
-			'+',
-			'+   const tabs = [',
-			'+     { id: "general", label: "General" },',
-			'+     { id: "appearance", label: "Appearance" },',
-			'+     { id: "keys", label: "Keys" },',
-			'+     { id: "advanced", label: "Advanced" },',
-			'+   ];',
-			'',
-			'- <div class="settings-page">',
-			'-   <h1>Settings</h1>',
-			'-   <GeneralSettings />',
-			'-   <AppearanceSettings />',
-			'-   <KeySettings />',
-			'-   <AdvancedSettings />',
-			'- </div>',
-			'+ <div class="flex flex-col gap-4">',
-			'+   <TabNav {tabs} bind:active={activeTab} />',
-			'+   {#if activeTab === "general"}<General />',
-			'+   {:else if activeTab === "appearance"}<Appearance />',
-			'+   {:else if activeTab === "keys"}<Keys />',
-			'+   {:else if activeTab === "advanced"}<Advanced />',
-			'+   {/if}',
-			'+ </div>',
-		].join('\n'),
-	};
+const MOCK_DIFFS: Record<string, string> = {
+	"src/routes/settings/+page.svelte": [
+		'-   import GeneralSettings from "./general-settings.svelte";',
+		'-   import AppearanceSettings from "./appearance-settings.svelte";',
+		'-   import KeySettings from "./key-settings.svelte";',
+		'-   import AdvancedSettings from "./advanced-settings.svelte";',
+		'+   import TabNav from "$lib/components/tab-nav.svelte";',
+		'+   import General from "./tabs/general.svelte";',
+		'+   import Appearance from "./tabs/appearance.svelte";',
+		'+   import Keys from "./tabs/keys.svelte";',
+		'+   import Advanced from "./tabs/advanced.svelte";',
+		"+",
+		'+   let activeTab = $state("general");',
+		"+",
+		"+   const tabs = [",
+		'+     { id: "general", label: "General" },',
+		'+     { id: "appearance", label: "Appearance" },',
+		'+     { id: "keys", label: "Keys" },',
+		'+     { id: "advanced", label: "Advanced" },',
+		"+   ];",
+		"",
+		'- <div class="settings-page">',
+		"-   <h1>Settings</h1>",
+		"-   <GeneralSettings />",
+		"-   <AppearanceSettings />",
+		"-   <KeySettings />",
+		"-   <AdvancedSettings />",
+		"- </div>",
+		'+ <div class="flex flex-col gap-4">',
+		"+   <TabNav {tabs} bind:active={activeTab} />",
+		'+   {#if activeTab === "general"}<General />',
+		'+   {:else if activeTab === "appearance"}<Appearance />',
+		'+   {:else if activeTab === "keys"}<Keys />',
+		'+   {:else if activeTab === "advanced"}<Advanced />',
+		"+   {/if}",
+		"+ </div>",
+	].join("\n"),
+};
 
-	let selectedFile = $state(pr.files[0].path);
-	let viewMode = $state<'inline' | 'side-by-side'>('inline');
+let selectedFile = $state(pr.files[0].path);
+let viewMode = $state<"inline" | "side-by-side">("inline");
 </script>
 
 <p class="demo-hint">

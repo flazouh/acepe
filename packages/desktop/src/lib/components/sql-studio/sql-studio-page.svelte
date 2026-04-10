@@ -397,7 +397,6 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	store.setExplorerCellEdit(rowIndex, columnName, value);
 	editingCell = null;
 }
-
 </script>
 
 <!-- SQL Editor snippet (desktop-only: CodeMirror) -->

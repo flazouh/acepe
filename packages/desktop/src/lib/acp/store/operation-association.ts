@@ -1,12 +1,15 @@
-import { extractPermissionCommand, extractPermissionToolKind } from "../components/tool-calls/permission-display.js";
+import {
+	extractPermissionCommand,
+	extractPermissionToolKind,
+} from "../components/tool-calls/permission-display.js";
+import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { Operation } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
-import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
-import { extractToolOperationCommand } from "./operation-store.svelte.js";
 import type { OperationStore } from "./operation-store.svelte.js";
+import { extractToolOperationCommand } from "./operation-store.svelte.js";
 
 function normalizeCommand(value: string | null | undefined): string | null {
 	if (value == null) {
@@ -21,7 +24,10 @@ function normalizeCommand(value: string | null | undefined): string | null {
 	return trimmed.replace(/\s+/g, " ");
 }
 
-export function permissionMatchesOperation(permission: PermissionRequest, operation: Operation): boolean {
+export function permissionMatchesOperation(
+	permission: PermissionRequest,
+	operation: Operation
+): boolean {
 	if (permission.tool?.callID === operation.toolCallId) {
 		return true;
 	}

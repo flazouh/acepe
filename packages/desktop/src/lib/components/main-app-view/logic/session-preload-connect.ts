@@ -1,8 +1,8 @@
 import { okAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
+import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 
 const logger = createLogger({ id: "session-preload-connect", name: "SessionPreloadConnect" });
@@ -52,10 +52,13 @@ export function preloadAndConnectSession(options: SessionPreloadConnectOptions):
 		.preloadSessions([sessionId])
 		.andThen((result) => {
 			if (result.missing.includes(sessionId)) {
-				logger.warn("Session preload returned missing, marking as loaded and connecting empty session", {
-					source,
-					sessionId,
-				});
+				logger.warn(
+					"Session preload returned missing, marking as loaded and connecting empty session",
+					{
+						source,
+						sessionId,
+					}
+				);
 				projectionHydrator.clearSession(sessionId);
 				sessionStore.setSessionLoaded(sessionId);
 				sessionStore.connectSession(sessionId).mapErr((error: AppError) => {

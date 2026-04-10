@@ -22,7 +22,7 @@ describe("project header overflow menu", () => {
 		expect(source).toContain('aria-pressed={currentViewMode === "files"}');
 		expect(source).toContain('onclick={() => handleViewModeSelect("sessions")}');
 		expect(source).toContain('onclick={() => handleViewModeSelect("files")}');
-		expect(source).toContain('menuOpen = false;');
+		expect(source).toContain("menuOpen = false;");
 		expect(source).toContain("{m.sidebar_view_sessions()}");
 		expect(source).toContain("{m.sidebar_view_files()}");
 		expect(source).not.toContain("<DropdownMenu.RadioGroup value={currentViewMode}>");

@@ -22,7 +22,7 @@ type TerminalTabStub = {
 };
 
 const saveWorkspaceStateMock = mock(
-	(state: Record<string, boolean | number | object | string | null | undefined>) =>
+	(_state: Record<string, boolean | number | object | string | null | undefined>) =>
 		okAsync(undefined)
 );
 const loadWorkspaceStateMock = mock(() => okAsync(null));
@@ -64,8 +64,7 @@ function createPanelStoreStub() {
 			if (
 				store.fullscreenPanelId &&
 				store.workspacePanels.some(
-					(panel: WorkspacePanel) =>
-						panel.id === store.fullscreenPanelId && panel.kind === "agent"
+					(panel: WorkspacePanel) => panel.id === store.fullscreenPanelId && panel.kind === "agent"
 				)
 			) {
 				store.viewMode = "single";
@@ -106,7 +105,10 @@ describe("workspace sidebar state persistence", () => {
 	});
 
 	it("restores collapsed project paths even when the saved list is empty", () => {
-		const store = new WorkspaceStore(createPanelStoreStub() as never, createSessionStoreStub() as never);
+		const store = new WorkspaceStore(
+			createPanelStoreStub() as never,
+			createSessionStoreStub() as never
+		);
 		const restoredValues: string[][] = [];
 
 		store.registerProviders({
@@ -128,7 +130,10 @@ describe("workspace sidebar state persistence", () => {
 	});
 
 	it("restores collapsed project paths for unified workspace panels", () => {
-		const store = new WorkspaceStore(createPanelStoreStub() as never, createSessionStoreStub() as never);
+		const store = new WorkspaceStore(
+			createPanelStoreStub() as never,
+			createSessionStoreStub() as never
+		);
 		const restoredValues: string[][] = [];
 
 		store.registerProviders({
@@ -163,7 +168,10 @@ describe("workspace sidebar state persistence", () => {
 	});
 
 	it("can persist sidebar collapse state immediately", () => {
-		const store = new WorkspaceStore(createPanelStoreStub() as never, createSessionStoreStub() as never);
+		const store = new WorkspaceStore(
+			createPanelStoreStub() as never,
+			createSessionStoreStub() as never
+		);
 
 		store.registerProviders({
 			getCollapsedProjectPaths: () => ["/workspace/app"],

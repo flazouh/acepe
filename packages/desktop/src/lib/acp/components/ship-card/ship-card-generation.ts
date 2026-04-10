@@ -13,8 +13,8 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
-import type { SessionUpdate, TurnErrorData } from "$lib/services/converted-session-types.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import type { SessionUpdate, TurnErrorData } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { parseShipXml, type ShipCardData } from "./ship-card-parser.js";
 
@@ -31,14 +31,17 @@ function runGeneration(
 	cwd: string,
 	onUpdate: ((data: ShipCardData) => void) | undefined,
 	agentId: string | undefined,
-	modelId: string | undefined,
+	modelId: string | undefined
 ): ResultAsync<ShipCardData, AgentError> {
 	return tauriClient.acp
 		.newSession(cwd, agentId)
 		.mapErr((e) => new AgentError("newSession", e))
 		.andThen((sessionResult) => {
 			const ephemeralSessionId = sessionResult.sessionId;
-			logger.info("Ship card generation: ephemeral session created", { ephemeralSessionId, modelId });
+			logger.info("Ship card generation: ephemeral session created", {
+				ephemeralSessionId,
+				modelId,
+			});
 
 			const modelSetup = modelId
 				? tauriClient.acp
@@ -46,15 +49,19 @@ function runGeneration(
 						.mapErr((e) => new AgentError("setModel", e))
 				: okAsync<void, AgentError>(undefined);
 
-			return modelSetup.map(() => ephemeralSessionId).orElse((error) =>
-				tauriClient.acp
-					.closeSession(ephemeralSessionId)
-					.orElse(() => okAsync(undefined))
-					.andThen(() => errAsync(error))
-			);
+			return modelSetup
+				.map(() => ephemeralSessionId)
+				.orElse((error) =>
+					tauriClient.acp
+						.closeSession(ephemeralSessionId)
+						.orElse(() => okAsync(undefined))
+						.andThen(() => errAsync(error))
+				);
 		})
 		.andThen((ephemeralSessionId) => {
-			logger.info("Ship card generation: session ready, starting generation", { ephemeralSessionId });
+			logger.info("Ship card generation: session ready, starting generation", {
+				ephemeralSessionId,
+			});
 
 			const closeEphemeral = (): void => {
 				void tauriClient.acp.closeSession(ephemeralSessionId);
@@ -70,9 +77,7 @@ function runGeneration(
 			});
 
 			const timeoutId = setTimeout(() => {
-				rejectStream(
-					new Error(`Ship card generation timed out after ${GENERATION_TIMEOUT_MS}ms`),
-				);
+				rejectStream(new Error(`Ship card generation timed out after ${GENERATION_TIMEOUT_MS}ms`));
 			}, GENERATION_TIMEOUT_MS);
 
 			const extractTurnErrorMessage = (error: TurnErrorData): string =>
@@ -114,10 +119,7 @@ function runGeneration(
 				.mapErr((e) => {
 					clearTimeout(timeoutId);
 					closeEphemeral();
-					return new AgentError(
-						"subscribe",
-						e instanceof Error ? e : new Error(String(e)),
-					);
+					return new AgentError("subscribe", e instanceof Error ? e : new Error(String(e)));
 				})
 				.andThen((listenerId) => {
 					const fullCleanup = (): void => {
@@ -132,12 +134,8 @@ function runGeneration(
 						.andThen(() =>
 							ResultAsync.fromPromise(
 								streamPromise,
-								(e) =>
-									new AgentError(
-										"stream",
-										e instanceof Error ? e : new Error(String(e)),
-									),
-							),
+								(e) => new AgentError("stream", e instanceof Error ? e : new Error(String(e)))
+							)
 						)
 						.map((result) => {
 							fullCleanup();
@@ -162,7 +160,7 @@ export function generateShipContent(
 	prompt: string,
 	cwd: string,
 	agentId?: string,
-	modelId?: string,
+	modelId?: string
 ): ResultAsync<ShipCardData, AgentError> {
 	return runGeneration(prompt, cwd, undefined, agentId, modelId);
 }
@@ -179,7 +177,7 @@ export function generateShipContentStreaming(
 	cwd: string,
 	onUpdate: (data: ShipCardData) => void,
 	agentId?: string,
-	modelId?: string,
+	modelId?: string
 ): ResultAsync<ShipCardData, AgentError> {
 	return runGeneration(prompt, cwd, onUpdate, agentId, modelId);
 }

@@ -1,7 +1,7 @@
-import { db } from './db/client';
-import { featureFlags, type FeatureFlagName } from './db/schema';
-import { eq } from 'drizzle-orm';
-import { ResultAsync } from 'neverthrow';
+import { eq } from "drizzle-orm";
+import { ResultAsync } from "neverthrow";
+import { db } from "./db/client";
+import { type FeatureFlagName, featureFlags } from "./db/schema";
 
 export type FeatureFlags = {
 	loginEnabled: boolean;
@@ -12,7 +12,7 @@ export type FeatureFlags = {
 const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
 	login_enabled: false,
 	download_enabled: false,
-	roadmap_enabled: false
+	roadmap_enabled: false,
 };
 
 function getOrCreateFlag(name: FeatureFlagName): ResultAsync<boolean, Error> {
@@ -39,13 +39,13 @@ function getOrCreateFlag(name: FeatureFlagName): ResultAsync<boolean, Error> {
 
 export function getFeatureFlags(): ResultAsync<FeatureFlags, Error> {
 	return ResultAsync.combine([
-		getOrCreateFlag('login_enabled'),
-		getOrCreateFlag('download_enabled'),
-		getOrCreateFlag('roadmap_enabled')
+		getOrCreateFlag("login_enabled"),
+		getOrCreateFlag("download_enabled"),
+		getOrCreateFlag("roadmap_enabled"),
 	]).map(([loginEnabled, downloadEnabled, roadmapEnabled]) => ({
 		loginEnabled,
 		downloadEnabled,
-		roadmapEnabled
+		roadmapEnabled,
 	}));
 }
 
@@ -56,7 +56,7 @@ export function setFeatureFlag(name: FeatureFlagName, enabled: boolean): ResultA
 			.values({ name, enabled, updatedAt: new Date() })
 			.onConflictDoUpdate({
 				target: featureFlags.name,
-				set: { enabled, updatedAt: new Date() }
+				set: { enabled, updatedAt: new Date() },
 			}),
 		(error) => new Error(`Failed to set feature flag ${name}: ${error}`)
 	).map(() => undefined);

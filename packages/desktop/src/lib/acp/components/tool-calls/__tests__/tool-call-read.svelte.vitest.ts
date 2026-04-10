@@ -7,14 +7,16 @@ vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
 vi.mock("@acepe/ui/agent-panel", async () => {
-	const AgentToolRead =
-		(await import("./fixtures/agent-tool-read-stub.svelte")).default;
+	const AgentToolRead = (await import("./fixtures/agent-tool-read-stub.svelte")).default;
 
 	return {
 		AgentToolRead,
@@ -83,7 +85,14 @@ describe("ToolCallRead", () => {
 		getStreamingArgumentsMock.mockReturnValue(null);
 		getProjectGitStatusMapMock.mockReset();
 		getProjectGitStatusMapMock.mockReturnValue({
-			match: (onOk: (statusMap: ReadonlyMap<string, { path: string; status: string; insertions: number; deletions: number }>) => void) => {
+			match: (
+				onOk: (
+					statusMap: ReadonlyMap<
+						string,
+						{ path: string; status: string; insertions: number; deletions: number }
+					>
+				) => void
+			) => {
 				onOk(
 					new Map([
 						[

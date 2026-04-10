@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { HistoryEntry } from "../../../../services/claude-history-types.js";
-import type { SessionEntry } from "../../types.js";
-import type { SessionCold } from "../../types.js";
+import type { SessionCold, SessionEntry } from "../../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,

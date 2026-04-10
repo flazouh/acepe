@@ -3,10 +3,10 @@ import { AgentToolQuestion } from "@acepe/ui/agent-panel";
 import { onMount } from "svelte";
 import * as m from "$lib/paraglide/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
-	import { getInteractionStore } from "../../store/interaction-store.svelte.js";
-	import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
-	import { getSessionStore } from "../../store/session-store.svelte.js";
-	import type { AnsweredQuestion } from "../../types/question.js";
+import { getInteractionStore } from "../../store/interaction-store.svelte.js";
+import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
+import { getSessionStore } from "../../store/session-store.svelte.js";
+import type { AnsweredQuestion } from "../../types/question.js";
 
 import {
 	findPendingQuestionForToolCall,
@@ -27,11 +27,11 @@ interface Props {
 
 let { toolCall, turnState, elapsedLabel }: Props = $props();
 
-	const interactionStore = getInteractionStore();
-	const questionStore = getQuestionStore();
-	const selectionStore = getQuestionSelectionStore();
-	const sessionStore = getSessionStore();
-	const sessionContext = useSessionContext();
+const interactionStore = getInteractionStore();
+const questionStore = getQuestionStore();
+const selectionStore = getQuestionSelectionStore();
+const sessionStore = getSessionStore();
+const sessionContext = useSessionContext();
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
 
 // Create state manager for question data extraction
@@ -43,21 +43,21 @@ const thinkState = new ToolCallThinkState(
 // Get the question ID for selection store (use toolCall.id as the key)
 const questionId = $derived(toolCall.id);
 
-	// Find the matching pending question from the store
-	const pendingQuestion = $derived.by(() => {
-		const sessionId = sessionContext?.sessionId;
-		if (sessionId) {
-			const operation = sessionStore.getOperationStore().getByToolCallId(sessionId, toolCall.id);
-			if (operation) {
-				const matchedQuestion = questionStore.getForOperation(operation);
-				if (matchedQuestion) {
-					return matchedQuestion;
-				}
+// Find the matching pending question from the store
+const pendingQuestion = $derived.by(() => {
+	const sessionId = sessionContext?.sessionId;
+	if (sessionId) {
+		const operation = sessionStore.getOperationStore().getByToolCallId(sessionId, toolCall.id);
+		if (operation) {
+			const matchedQuestion = questionStore.getForOperation(operation);
+			if (matchedQuestion) {
+				return matchedQuestion;
 			}
 		}
+	}
 
-		return findPendingQuestionForToolCall(interactionStore.questionsPending.values(), toolCall.id);
-	});
+	return findPendingQuestionForToolCall(interactionStore.questionsPending.values(), toolCall.id);
+});
 
 const displayQuestions = $derived.by(() => {
 	return (

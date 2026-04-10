@@ -1,13 +1,11 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import type { PrDetails } from "../../../utils/tauri-client/git.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
-import type { PrDetails } from "../../../utils/tauri-client/git.js";
 
-const prDetailsMock = vi.fn<
-	(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>
->();
+const prDetailsMock =
+	vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>>();
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -114,9 +112,7 @@ describe("SessionStore PR state refresh caching", () => {
 		addSessionWithPr(store, "session-pr-1", 83);
 		addSessionWithPr(store, "session-pr-2", 83);
 
-		let resolveDetails:
-			| ((details: PrDetails) => void)
-			| undefined;
+		let resolveDetails: ((details: PrDetails) => void) | undefined;
 		const detailsPromise = new Promise<PrDetails>((resolve) => {
 			resolveDetails = resolve;
 		});

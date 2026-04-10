@@ -1,17 +1,17 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock(
-	"svelte",
-	async () => {
-		const { createRequire } = await import("node:module");
-		const { dirname, join } = await import("node:path");
-		const require = createRequire(import.meta.url);
-		const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
-		return import(/* @vite-ignore */ svelteClientPath);
-	}
-);
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("$lib/paraglide/messages.js", () => ({
 	terminal_panel_title: () => "Terminal",

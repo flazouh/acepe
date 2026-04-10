@@ -16,15 +16,8 @@ interface Props {
 	onUnarchive?: (session: { id: string; projectPath: string; agentId: string }) => void;
 }
 
-let {
-	sessionId,
-	projectPath,
-	agentId,
-	onView,
-	onOpenInFinder,
-	onArchive,
-	onUnarchive,
-}: Props = $props();
+let { sessionId, projectPath, agentId, onView, onOpenInFinder, onArchive, onUnarchive }: Props =
+	$props();
 
 const actionTarget = $derived({ id: sessionId, projectPath, agentId });
 const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onUnarchive));

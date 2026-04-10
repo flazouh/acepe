@@ -1,19 +1,25 @@
-import { and, eq, inArray } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { ResultAsync } from 'neverthrow';
+import { and, eq, inArray } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { ResultAsync } from "neverthrow";
+import { db } from "../../db/client";
+import { reportVotes } from "../../db/schema";
+import { DatabaseError } from "../../domain/errors/ReportErrors";
 
-import { DatabaseError } from '../../domain/errors/ReportErrors';
-import { db } from '../../db/client';
-import { reportVotes } from '../../db/schema';
-
-type VoteType = 'up' | 'down';
-type VoteTarget = { reportId: string; commentId?: undefined } | { commentId: string; reportId?: undefined };
+type VoteType = "up" | "down";
+type VoteTarget =
+	| { reportId: string; commentId?: undefined }
+	| { commentId: string; reportId?: undefined };
 
 function targetCondition(userId: string, target: VoteTarget) {
-	if ('reportId' in target && target.reportId) {
+	if ("reportId" in target && target.reportId) {
 		return and(eq(reportVotes.userId, userId), eq(reportVotes.reportId, target.reportId));
 	}
-	return and(eq(reportVotes.userId, userId), eq(reportVotes.commentId, target.commentId!));
+
+	if ("commentId" in target && target.commentId) {
+		return and(eq(reportVotes.userId, userId), eq(reportVotes.commentId, target.commentId));
+	}
+
+	throw new Error("Vote target must include either reportId or commentId");
 }
 
 function castVote(
@@ -23,10 +29,7 @@ function castVote(
 ): ResultAsync<{ oldVote: VoteType | null }, DatabaseError> {
 	return ResultAsync.fromPromise(
 		db.transaction(async (tx) => {
-			const existing = await tx
-				.select()
-				.from(reportVotes)
-				.where(targetCondition(userId, target));
+			const existing = await tx.select().from(reportVotes).where(targetCondition(userId, target));
 
 			const oldVote = existing.length > 0 ? existing[0].voteType : null;
 
@@ -43,7 +46,7 @@ function castVote(
 
 			return { oldVote };
 		}),
-		(error) => new DatabaseError('Failed to cast vote', error)
+		(error) => new DatabaseError("Failed to cast vote", error)
 	);
 }
 
@@ -53,10 +56,7 @@ function removeVote(
 ): ResultAsync<{ oldVote: VoteType | null }, DatabaseError> {
 	return ResultAsync.fromPromise(
 		db.transaction(async (tx) => {
-			const existing = await tx
-				.select()
-				.from(reportVotes)
-				.where(targetCondition(userId, target));
+			const existing = await tx.select().from(reportVotes).where(targetCondition(userId, target));
 
 			const oldVote = existing.length > 0 ? existing[0].voteType : null;
 
@@ -64,7 +64,7 @@ function removeVote(
 
 			return { oldVote };
 		}),
-		(error) => new DatabaseError('Failed to remove vote', error)
+		(error) => new DatabaseError("Failed to remove vote", error)
 	);
 }
 
@@ -82,7 +82,7 @@ export class VoteRepositoryImpl {
 
 				return rows.length > 0 ? rows[0].voteType : null;
 			})(),
-			(error) => new DatabaseError('Failed to find user vote on report', error)
+			(error) => new DatabaseError("Failed to find user vote on report", error)
 		);
 	}
 
@@ -99,7 +99,7 @@ export class VoteRepositoryImpl {
 
 				return rows.length > 0 ? rows[0].voteType : null;
 			})(),
-			(error) => new DatabaseError('Failed to find user vote on comment', error)
+			(error) => new DatabaseError("Failed to find user vote on comment", error)
 		);
 	}
 
@@ -114,9 +114,7 @@ export class VoteRepositoryImpl {
 				const rows = await db
 					.select()
 					.from(reportVotes)
-					.where(
-						and(eq(reportVotes.userId, userId), inArray(reportVotes.reportId, reportIds))
-					);
+					.where(and(eq(reportVotes.userId, userId), inArray(reportVotes.reportId, reportIds)));
 
 				const map = new Map<string, VoteType>();
 				for (const row of rows) {
@@ -124,7 +122,7 @@ export class VoteRepositoryImpl {
 				}
 				return map;
 			})(),
-			(error) => new DatabaseError('Failed to find user votes on reports', error)
+			(error) => new DatabaseError("Failed to find user votes on reports", error)
 		);
 	}
 
@@ -139,12 +137,7 @@ export class VoteRepositoryImpl {
 				const rows = await db
 					.select()
 					.from(reportVotes)
-					.where(
-						and(
-							eq(reportVotes.userId, userId),
-							inArray(reportVotes.commentId, commentIds)
-						)
-					);
+					.where(and(eq(reportVotes.userId, userId), inArray(reportVotes.commentId, commentIds)));
 
 				const map = new Map<string, VoteType>();
 				for (const row of rows) {
@@ -152,7 +145,7 @@ export class VoteRepositoryImpl {
 				}
 				return map;
 			})(),
-			(error) => new DatabaseError('Failed to find user votes on comments', error)
+			(error) => new DatabaseError("Failed to find user votes on comments", error)
 		);
 	}
 

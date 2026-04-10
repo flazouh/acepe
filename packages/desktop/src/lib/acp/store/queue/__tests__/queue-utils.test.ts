@@ -38,9 +38,7 @@ function createToolEntry(toolCall: ToolCall, isStreaming = false): SessionEntry 
 	};
 }
 
-function createSession(
-	overrides: Partial<QueueSessionSnapshot> = {}
-): QueueSessionSnapshot {
+function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSessionSnapshot {
 	return {
 		id: "session-1",
 		agentId: "opencode",

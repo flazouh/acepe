@@ -16,8 +16,8 @@ describe("getNextExpandedPrFilePath", () => {
 	});
 
 	it("switches the expanded file when a different file is clicked", () => {
-		expect(
-			getNextExpandedPrFilePath("src/routes/+page.svelte", "src/lib/utils.ts")
-		).toBe("src/lib/utils.ts");
+		expect(getNextExpandedPrFilePath("src/routes/+page.svelte", "src/lib/utils.ts")).toBe(
+			"src/lib/utils.ts"
+		);
 	});
 });

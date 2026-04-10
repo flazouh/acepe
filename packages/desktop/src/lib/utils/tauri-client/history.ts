@@ -112,17 +112,11 @@ export const history = {
 		return invokeAsync(CMD.history.list_plans);
 	},
 
-	setSessionPrNumber: (
-		sessionId: string,
-		prNumber: number | null
-	): ResultAsync<void, AppError> => {
+	setSessionPrNumber: (sessionId: string, prNumber: number | null): ResultAsync<void, AppError> => {
 		return invokeAsync(CMD.history.set_session_pr_number, { sessionId, prNumber });
 	},
 
-	setSessionTitle: (
-		sessionId: string,
-		title: string
-	): ResultAsync<void, AppError> => {
+	setSessionTitle: (sessionId: string, title: string): ResultAsync<void, AppError> => {
 		return invokeAsync(CMD.history.set_session_title, { sessionId, title });
 	},
 

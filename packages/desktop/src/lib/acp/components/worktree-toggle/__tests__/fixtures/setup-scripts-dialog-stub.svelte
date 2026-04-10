@@ -1,11 +1,11 @@
 <script lang="ts">
-	interface Props {
-		open: boolean;
-		projectPath: string;
-		projectName: string;
-	}
+interface Props {
+	open: boolean;
+	projectPath: string;
+	projectName: string;
+}
 
-	let { open, projectPath, projectName }: Props = $props();
+let { open, projectPath, projectName }: Props = $props();
 </script>
 
 <div

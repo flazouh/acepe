@@ -1,11 +1,11 @@
-import type { DownloadEvent } from "@tauri-apps/plugin-updater";
 import { describe, expect, it } from "bun:test";
+import type { DownloadEvent } from "@tauri-apps/plugin-updater";
 
 import {
 	downloadAndInstallUpdate,
 	installDownloadedUpdate,
-	predownloadUpdate,
 	type PreparedUpdateHandle,
+	predownloadUpdate,
 } from "../logic/updater-workflow.js";
 
 describe("updater-workflow", () => {
@@ -77,11 +77,15 @@ describe("updater-workflow", () => {
 			},
 		};
 
-		const version = await downloadAndInstallUpdate(update, (event) => {
-			events.push(event);
-		}, async () => {
-			order.push("relaunch");
-		}).match(
+		const version = await downloadAndInstallUpdate(
+			update,
+			(event) => {
+				events.push(event);
+			},
+			async () => {
+				order.push("relaunch");
+			}
+		).match(
 			(result) => result,
 			(error) => {
 				throw error;

@@ -1,10 +1,9 @@
-import { and, eq, inArray } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { ResultAsync } from 'neverthrow';
-
-import { DatabaseError } from '../../domain/errors/ReportErrors';
-import { db } from '../../db/client';
-import { reportFollowers } from '../../db/schema';
+import { and, eq, inArray } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { ResultAsync } from "neverthrow";
+import { db } from "../../db/client";
+import { reportFollowers } from "../../db/schema";
+import { DatabaseError } from "../../domain/errors/ReportErrors";
 
 export class FollowerRepositoryImpl {
 	isFollowing(userId: string, reportId: string): ResultAsync<boolean, DatabaseError> {
@@ -13,23 +12,15 @@ export class FollowerRepositoryImpl {
 				const rows = await db
 					.select()
 					.from(reportFollowers)
-					.where(
-						and(
-							eq(reportFollowers.userId, userId),
-							eq(reportFollowers.reportId, reportId)
-						)
-					);
+					.where(and(eq(reportFollowers.userId, userId), eq(reportFollowers.reportId, reportId)));
 
 				return rows.length > 0;
 			})(),
-			(error) => new DatabaseError('Failed to check follow status', error)
+			(error) => new DatabaseError("Failed to check follow status", error)
 		);
 	}
 
-	isFollowingMany(
-		userId: string,
-		reportIds: string[]
-	): ResultAsync<Set<string>, DatabaseError> {
+	isFollowingMany(userId: string, reportIds: string[]): ResultAsync<Set<string>, DatabaseError> {
 		return ResultAsync.fromPromise(
 			(async () => {
 				if (reportIds.length === 0) return new Set<string>();
@@ -38,15 +29,12 @@ export class FollowerRepositoryImpl {
 					.select()
 					.from(reportFollowers)
 					.where(
-						and(
-							eq(reportFollowers.userId, userId),
-							inArray(reportFollowers.reportId, reportIds)
-						)
+						and(eq(reportFollowers.userId, userId), inArray(reportFollowers.reportId, reportIds))
 					);
 
 				return new Set(rows.map((row) => row.reportId));
 			})(),
-			(error) => new DatabaseError('Failed to check follow status for multiple reports', error)
+			(error) => new DatabaseError("Failed to check follow status for multiple reports", error)
 		);
 	}
 
@@ -58,14 +46,14 @@ export class FollowerRepositoryImpl {
 					.values({
 						id: nanoid(),
 						userId,
-						reportId
+						reportId,
 					})
 					.onConflictDoNothing()
 					.returning();
 
 				return { inserted: result.length > 0 };
 			})(),
-			(error) => new DatabaseError('Failed to follow report', error)
+			(error) => new DatabaseError("Failed to follow report", error)
 		);
 	}
 
@@ -74,17 +62,12 @@ export class FollowerRepositoryImpl {
 			(async () => {
 				const result = await db
 					.delete(reportFollowers)
-					.where(
-						and(
-							eq(reportFollowers.userId, userId),
-							eq(reportFollowers.reportId, reportId)
-						)
-					)
+					.where(and(eq(reportFollowers.userId, userId), eq(reportFollowers.reportId, reportId)))
 					.returning();
 
 				return { deleted: result.length > 0 };
 			})(),
-			(error) => new DatabaseError('Failed to unfollow report', error)
+			(error) => new DatabaseError("Failed to unfollow report", error)
 		);
 	}
 }

@@ -22,10 +22,12 @@ describe("getMicButtonVisualState", () => {
 		expect(getMicButtonVisualState("recording")).toBe("stop");
 	});
 
-	it.each(["idle", "complete", "cancelled", "error"] satisfies VoiceInputPhase[])(
-		"returns mic for %s",
-		(phase) => {
-			expect(getMicButtonVisualState(phase)).toBe("mic");
-		},
-	);
+	it.each([
+		"idle",
+		"complete",
+		"cancelled",
+		"error",
+	] satisfies VoiceInputPhase[])("returns mic for %s", (phase) => {
+		expect(getMicButtonVisualState(phase)).toBe("mic");
+	});
 });

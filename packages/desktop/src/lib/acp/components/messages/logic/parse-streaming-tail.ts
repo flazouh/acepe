@@ -111,9 +111,7 @@ export function parseStreamingTail(text: string): StreamingTailParseResult {
 	}
 
 	if (inFence) {
-		sections.push(
-			createLiveCodeSection(blockIndex, buffer.slice(1).join("\n"), openFenceLanguage)
-		);
+		sections.push(createLiveCodeSection(blockIndex, buffer.slice(1).join("\n"), openFenceLanguage));
 		return { sections };
 	}
 

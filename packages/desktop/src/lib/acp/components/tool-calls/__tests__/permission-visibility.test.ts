@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
-
-import type { PermissionRequest } from "../../../types/permission.js";
 import { OperationStore } from "../../../store/operation-store.svelte.js";
 import { SessionEntryStore } from "../../../store/session-entry-store.svelte.js";
+import type { PermissionRequest } from "../../../types/permission.js";
 
 import {
 	isPermissionRepresentedByToolCall,

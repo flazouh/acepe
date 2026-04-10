@@ -52,21 +52,22 @@ import type {
 	SessionMetadata,
 } from "./types.js";
 import "../errors/app-error.js";
+import type { PrDetails } from "../../utils/tauri-client/git.js";
+import { tauriClient } from "../../utils/tauri-client.js";
 import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
 import { SessionNotFoundError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
-import { tauriClient } from "../../utils/tauri-client.js";
-import type { PrDetails } from "../../utils/tauri-client/git.js";
-import { api } from "./api.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
+import { api } from "./api.js";
+import { OperationStore } from "./operation-store.svelte.js";
 import { SessionConnectionManager } from "./services/session-connection-manager.js";
 import { SessionMessagingService } from "./services/session-messaging-service.js";
 import { SessionRepository } from "./services/session-repository.js";
 import { SessionCapabilitiesStore } from "./session-capabilities-store.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { SessionHotStateStore } from "./session-hot-state-store.svelte.js";
-import { OperationStore } from "./operation-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
+
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
 const SESSION_STORE_KEY = Symbol("session-store");
@@ -156,12 +157,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	constructor() {
 		this.eventService = new SessionEventService();
 		// Create repository with this store as the state reader/writer
-		this.repository = new SessionRepository(
-			this,
-			this,
-			this.entryStore,
-			this.connectionService
-		);
+		this.repository = new SessionRepository(this, this, this.entryStore, this.connectionService);
 		// Create connection manager
 		this.connectionMgr = new SessionConnectionManager(
 			this,
@@ -470,15 +466,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = this.sessions.map((s) =>
 			s.id === id
 				? {
-					...s,
-					...updates,
-					updatedAt:
-						updates.updatedAt !== undefined
-							? updates.updatedAt
-							: options?.touchUpdatedAt === false
-								? s.updatedAt
-								: new Date(),
-				}
+						...s,
+						...updates,
+						updatedAt:
+							updates.updatedAt !== undefined
+								? updates.updatedAt
+								: options?.touchUpdatedAt === false
+									? s.updatedAt
+									: new Date(),
+					}
 				: s
 		);
 	}
@@ -541,7 +537,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Load startup sessions (hydrate sessions that should be open at startup).
 	 */
-	loadStartupSessions(sessionIds: string[]): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
+	loadStartupSessions(
+		sessionIds: string[]
+	): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
 		return this.repository.loadStartupSessions(this.sessions, sessionIds);
 	}
 
@@ -787,7 +785,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	refreshSessionPrState(
 		sessionId: string,
 		projectPath: string,
-		prNumber: number,
+		prNumber: number
 	): ResultAsync<PrDetails | null, never> {
 		if (prNumber <= 0) {
 			return okAsync<PrDetails | null, never>(null);
@@ -814,7 +812,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					fetchedAt: Date.now(),
 				});
 				this.prDetailsInflight.delete(cacheKey);
-				logger.info("refreshSessionPrState: got details", { sessionId, detailsState: details.state });
+				logger.info("refreshSessionPrState: got details", {
+					sessionId,
+					detailsState: details.state,
+				});
 				this.applyPrDetailsToSessions(projectPath, prNumber, details);
 				return details;
 			})
@@ -861,7 +862,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return cachedEntry.details;
 	}
 
-	private applyPrDetailsToSessions(projectPath: string, prNumber: number, details: PrDetails): void {
+	private applyPrDetailsToSessions(
+		projectPath: string,
+		prNumber: number,
+		details: PrDetails
+	): void {
 		const matchingSessions = this.sessions.filter(
 			(session) => session.projectPath === projectPath && session.prNumber === prNumber
 		);

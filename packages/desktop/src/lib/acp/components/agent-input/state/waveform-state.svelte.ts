@@ -1,11 +1,11 @@
 import {
+	buildMeterLevels,
 	DEFAULT_METER_BAR_COUNT,
-	MIN_LEVEL,
 	MAX_LEVEL,
+	MIN_LEVEL,
 	RESTING_FILL,
 	smooth,
 	toMeterLevel,
-	buildMeterLevels,
 } from "./waveform-math.js";
 
 /**

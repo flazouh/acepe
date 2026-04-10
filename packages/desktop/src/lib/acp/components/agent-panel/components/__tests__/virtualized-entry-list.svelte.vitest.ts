@@ -421,10 +421,7 @@ describe("VirtualizedEntryList auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			entries: [
-				createAssistantEntry("assistant-1", "latest"),
-				createToolCallEntry("tool-1", null),
-			],
+			entries: [createAssistantEntry("assistant-1", "latest"), createToolCallEntry("tool-1", null)],
 			turnState: "idle",
 			isWaitingForResponse: true,
 			projectPath: undefined,

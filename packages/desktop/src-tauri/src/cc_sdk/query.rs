@@ -74,7 +74,7 @@ impl From<&str> for QueryInput {
 ///
 /// ## Simple query:
 /// ```rust,no_run
-/// use cc_sdk::{query, Result};
+/// use acepe_lib::cc_sdk::{query, Result};
 /// use futures::StreamExt;
 ///
 /// #[tokio::main]
@@ -92,7 +92,7 @@ impl From<&str> for QueryInput {
 ///
 /// ## With options:
 /// ```rust,no_run
-/// use cc_sdk::{query, ClaudeCodeOptions, Result};
+/// use acepe_lib::cc_sdk::{query, ClaudeCodeOptions, Result};
 /// use futures::StreamExt;
 ///
 /// #[tokio::main]

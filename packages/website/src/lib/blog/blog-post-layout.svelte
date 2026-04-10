@@ -1,44 +1,44 @@
 <script lang="ts">
-	import * as m from '$lib/paraglide/messages.js';
-	import Header from '$lib/components/header.svelte';
-	import { ArrowLeft } from '@lucide/svelte';
-	import type { BlogPostMetadata } from './types.js';
-	import type { Snippet } from 'svelte';
+import * as m from "$lib/paraglide/messages.js";
+import Header from "$lib/components/header.svelte";
+import { ArrowLeft } from "@lucide/svelte";
+import type { BlogPostMetadata } from "./types.js";
+import type { Snippet } from "svelte";
 
-	interface Props {
-		metadata: BlogPostMetadata;
-		children: Snippet;
-		showDownload?: boolean;
-		showLogin?: boolean;
-	}
+interface Props {
+	metadata: BlogPostMetadata;
+	children: Snippet;
+	showDownload?: boolean;
+	showLogin?: boolean;
+}
 
-	let { metadata, children, showDownload = false, showLogin = false }: Props = $props();
+let { metadata, children, showDownload = false, showLogin = false }: Props = $props();
 
-	function formatDate(isoDate: string): string {
-		const date = new Date(isoDate);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
-	}
-
-	// Create JSON-LD structured data for BlogPosting (reactive to metadata)
-	const jsonLd = $derived({
-		'@context': 'https://schema.org',
-		'@type': 'BlogPosting',
-		headline: metadata.title,
-		description: metadata.description,
-		datePublished: metadata.date,
-		author: {
-			'@type': 'Organization',
-			name: metadata.author || 'Acepe'
-		},
-		publisher: {
-			'@type': 'Organization',
-			name: 'Acepe'
-		}
+function formatDate(isoDate: string): string {
+	const date = new Date(isoDate);
+	return date.toLocaleDateString("en-US", {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
 	});
+}
+
+// Create JSON-LD structured data for BlogPosting (reactive to metadata)
+const jsonLd = $derived({
+	"@context": "https://schema.org",
+	"@type": "BlogPosting",
+	headline: metadata.title,
+	description: metadata.description,
+	datePublished: metadata.date,
+	author: {
+		"@type": "Organization",
+		name: metadata.author || "Acepe",
+	},
+	publisher: {
+		"@type": "Organization",
+		name: "Acepe",
+	},
+});
 </script>
 
 <svelte:head>

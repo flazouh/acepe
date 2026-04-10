@@ -1500,7 +1500,7 @@ async fn test_cache_hit_project_path_override_scenario() {
 async fn test_scan_projects_streaming_emits_entries_progressively_per_project() {
     use crate::session_jsonl::cache::invalidate_cache;
 
-    let lock = claude_home_test_lock().lock().unwrap();
+    let _lock = claude_home_test_lock().lock().unwrap();
     let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
     let project_path = "/Users/test/project".to_string();
     let project_slug = path_to_slug(&project_path);
@@ -1530,7 +1530,6 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
     )
     .unwrap();
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
-    drop(lock);
     invalidate_cache().await;
 
     let mut emitted_ids = Vec::new();
@@ -1559,7 +1558,7 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
 /// This verifies O(1) lookup behavior - no scanning of other files.
 #[tokio::test]
 async fn test_find_session_file_direct_path_no_scanning() {
-    let lock = claude_home_test_lock().lock().unwrap();
+    let _lock = claude_home_test_lock().lock().unwrap();
     let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
     let project_path = "/Users/test/project";
     let project_slug = path_to_slug(project_path);
@@ -1582,7 +1581,6 @@ async fn test_find_session_file_direct_path_no_scanning() {
         fs::write(&other_file, "INVALID_JSON_SHOULD_NOT_BE_PARSED").unwrap();
     }
     let _claude_home = ClaudeHomeGuard::set(&claude_dir);
-    drop(lock);
 
     // Call find_session_file - it should return immediately without scanning agent-* files
     let result = find_session_file(session_id, project_path).await;

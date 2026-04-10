@@ -1,10 +1,9 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { ResultAsync } from 'neverthrow';
-
-import { DatabaseError } from '../../domain/errors/ReportErrors';
-import { db } from '../../db/client';
-import { reportComments, users } from '../../db/schema';
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { ResultAsync } from "neverthrow";
+import { db } from "../../db/client";
+import { reportComments, users } from "../../db/schema";
+import { DatabaseError } from "../../domain/errors/ReportErrors";
 
 export interface CommentRow {
 	id: string;
@@ -31,15 +30,15 @@ function toCommentRow(row: {
 		upvoteCount: row.report_comments.upvoteCount,
 		downvoteCount: row.report_comments.downvoteCount,
 		createdAt: row.report_comments.createdAt,
-		updatedAt: row.report_comments.updatedAt
+		updatedAt: row.report_comments.updatedAt,
 	};
 }
 
 function buildOrderBy(sort: string) {
 	switch (sort) {
-		case 'oldest':
+		case "oldest":
 			return asc(reportComments.createdAt);
-		case 'most_upvoted':
+		case "most_upvoted":
 			return desc(reportComments.upvoteCount);
 		default:
 			return desc(reportComments.createdAt);
@@ -65,7 +64,7 @@ export class CommentRepositoryImpl {
 					authorId: data.authorId,
 					body: data.body,
 					createdAt: now,
-					updatedAt: now
+					updatedAt: now,
 				});
 
 				const rows = await db
@@ -76,7 +75,7 @@ export class CommentRepositoryImpl {
 
 				return toCommentRow(rows[0]);
 			})(),
-			(error) => new DatabaseError('Failed to create comment', error)
+			(error) => new DatabaseError("Failed to create comment", error)
 		);
 	}
 
@@ -93,7 +92,7 @@ export class CommentRepositoryImpl {
 
 				return toCommentRow(rows[0]);
 			})(),
-			(error) => new DatabaseError('Failed to find comment', error)
+			(error) => new DatabaseError("Failed to find comment", error)
 		);
 	}
 
@@ -109,16 +108,14 @@ export class CommentRepositoryImpl {
 					.select()
 					.from(reportComments)
 					.innerJoin(users, eq(reportComments.authorId, users.id))
-					.where(
-						and(eq(reportComments.reportId, reportId), isNull(reportComments.deletedAt))
-					)
+					.where(and(eq(reportComments.reportId, reportId), isNull(reportComments.deletedAt)))
 					.orderBy(buildOrderBy(sort))
 					.limit(limit)
 					.offset(offset);
 
 				return rows.map(toCommentRow);
 			})(),
-			(error) => new DatabaseError('Failed to list comments', error)
+			(error) => new DatabaseError("Failed to list comments", error)
 		);
 	}
 
@@ -130,7 +127,7 @@ export class CommentRepositoryImpl {
 					and(eq(reportComments.reportId, reportId), isNull(reportComments.deletedAt))
 				);
 			})(),
-			(error) => new DatabaseError('Failed to count comments', error)
+			(error) => new DatabaseError("Failed to count comments", error)
 		);
 	}
 
@@ -147,7 +144,7 @@ export class CommentRepositoryImpl {
 
 				return toCommentRow({ report_comments: comment, users: user });
 			})(),
-			(error) => new DatabaseError('Failed to update comment', error)
+			(error) => new DatabaseError("Failed to update comment", error)
 		);
 	}
 
@@ -159,13 +156,13 @@ export class CommentRepositoryImpl {
 					.set({ deletedAt: new Date() })
 					.where(and(eq(reportComments.id, id), isNull(reportComments.deletedAt)));
 			})(),
-			(error) => new DatabaseError('Failed to delete comment', error)
+			(error) => new DatabaseError("Failed to delete comment", error)
 		);
 	}
 
 	incrementCount(
 		id: string,
-		field: 'upvoteCount' | 'downvoteCount',
+		field: "upvoteCount" | "downvoteCount",
 		delta: number
 	): ResultAsync<void, DatabaseError> {
 		return ResultAsync.fromPromise(
@@ -173,7 +170,7 @@ export class CommentRepositoryImpl {
 				await db
 					.update(reportComments)
 					.set({
-						[field]: sql`GREATEST(0, ${reportComments[field]} + ${delta})`
+						[field]: sql`GREATEST(0, ${reportComments[field]} + ${delta})`,
 					})
 					.where(eq(reportComments.id, id));
 			})(),

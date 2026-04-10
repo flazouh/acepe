@@ -10,7 +10,9 @@ const providerMarkSource = readFileSync(providerMarkPath, "utf8");
 
 describe("provider mark official asset", () => {
 	it("uses a vendored official Anthropic asset instead of the temporary inline mark", () => {
-		expect(providerMarkSource).toContain('import anthropicLogo from "./anthropic-official.png?url";');
+		expect(providerMarkSource).toContain(
+			'import anthropicLogo from "./anthropic-official.png?url";'
+		);
 		expect(providerMarkSource).toContain('src="/svgs/agents/codex/codex-icon-light.svg"');
 		expect(providerMarkSource).toContain('src="/svgs/agents/codex/codex-icon-dark.svg"');
 		expect(providerMarkSource).toContain(

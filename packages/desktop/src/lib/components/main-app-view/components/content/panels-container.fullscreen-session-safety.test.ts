@@ -18,7 +18,7 @@ describe("PanelsContainer fullscreen AgentPanel bindings", () => {
 
 	it("does not render source control as a workspace panel", () => {
 		expect(source).not.toContain("import { GitPanel }");
-		expect(source).not.toContain("{:else if fullscreenTopLevelPanel.kind === \"git\"}");
+		expect(source).not.toContain('{:else if fullscreenTopLevelPanel.kind === "git"}');
 		expect(source).not.toContain("{#each group.gitPanels as gitPanel (gitPanel.id)}");
 	});
 

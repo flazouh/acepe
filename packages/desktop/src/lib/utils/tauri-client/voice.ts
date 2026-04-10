@@ -1,10 +1,7 @@
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
+import type { VoiceLanguageOption, VoiceModelInfo } from "../../acp/types/voice-input.js";
 import { invokeAsync } from "./invoke.js";
-import type {
-	VoiceLanguageOption,
-	VoiceModelInfo,
-} from "../../acp/types/voice-input.js";
 
 export const voice = {
 	listModels: (): ResultAsync<VoiceModelInfo[], AppError> =>

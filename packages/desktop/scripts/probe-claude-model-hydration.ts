@@ -17,9 +17,9 @@ const ProbeSchema = z.object({
 			status_code: z.number().nullable(),
 			timed_out: z.boolean(),
 			parsed_model_ids: z.array(z.string()),
-			error: z.string().nullable()
+			error: z.string().nullable(),
 		})
-		.nullable()
+		.nullable(),
 });
 
 type ProbeReport = z.infer<typeof ProbeSchema>;
@@ -77,7 +77,9 @@ function printReport(report: ProbeReport): void {
 	if (report.discovery_attempted_in_app) {
 		console.log("Verdict: current code would still invoke CLI discovery during hydration.");
 	} else {
-		console.log("Verdict: current code uses provider defaults immediately and skips the blocking CLI probe.");
+		console.log(
+			"Verdict: current code uses provider defaults immediately and skips the blocking CLI probe."
+		);
 	}
 }
 
@@ -101,7 +103,7 @@ async function main(): Promise<void> {
 		manifestPath,
 		"--",
 		"--probe-claude-model-hydration",
-		projectPath
+		projectPath,
 	];
 
 	if (skipCliProbe) {
@@ -111,7 +113,7 @@ async function main(): Promise<void> {
 	const proc = Bun.spawn(["cargo"].concat(cargoArgs), {
 		cwd: desktopDir,
 		stdout: "pipe",
-		stderr: "pipe"
+		stderr: "pipe",
 	});
 
 	const stdoutText = await new Response(proc.stdout).text();

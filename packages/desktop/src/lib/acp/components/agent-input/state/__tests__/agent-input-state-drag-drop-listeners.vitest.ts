@@ -108,13 +108,15 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 	it("does not highlight the composer for native drag positions outside its zoomed bounds", async () => {
 		let dragOverHandler: ((event: DragPositionEvent) => void) | null = null;
 
-		listenMock.mockImplementation((eventName: string, handler: ((event: DragPositionEvent) => void) | (() => void)) => {
-			if (eventName === "tauri://drag-over") {
-				dragOverHandler = handler as (event: DragPositionEvent) => void;
-			}
+		listenMock.mockImplementation(
+			(eventName: string, handler: ((event: DragPositionEvent) => void) | (() => void)) => {
+				if (eventName === "tauri://drag-over") {
+					dragOverHandler = handler as (event: DragPositionEvent) => void;
+				}
 
-			return Promise.resolve(() => {});
-		});
+				return Promise.resolve(() => {});
+			}
+		);
 
 		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
 		state.containerRef = {
@@ -152,13 +154,15 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		let dragOverHandler: ((event: DragPositionEvent) => void) | null = null;
 		zoomLevel = 1;
 
-		listenMock.mockImplementation((eventName: string, handler: ((event: DragPositionEvent) => void) | (() => void)) => {
-			if (eventName === "tauri://drag-over") {
-				dragOverHandler = handler as (event: DragPositionEvent) => void;
-			}
+		listenMock.mockImplementation(
+			(eventName: string, handler: ((event: DragPositionEvent) => void) | (() => void)) => {
+				if (eventName === "tauri://drag-over") {
+					dragOverHandler = handler as (event: DragPositionEvent) => void;
+				}
 
-			return Promise.resolve(() => {});
-		});
+				return Promise.resolve(() => {});
+			}
+		);
 
 		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
 		state.containerRef = {

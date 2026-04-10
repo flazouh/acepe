@@ -232,19 +232,17 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 
 		logger.debug("Sending queued message now", { sessionId, messageId: target.id });
 
-		sender
-			.sendMessage(sessionId, target.content, target.attachments)
-			.mapErr((error) => {
-				const current = queues.get(sessionId) ?? [];
-				queues.set(sessionId, [target, ...current]);
-				bumpVersion(sessionId);
-				pausedIds.add(sessionId);
-				logger.warn("sendNow failed, re-inserted and paused", {
-					sessionId,
-					messageId: target.id,
-					error,
-				});
+		sender.sendMessage(sessionId, target.content, target.attachments).mapErr((error) => {
+			const current = queues.get(sessionId) ?? [];
+			queues.set(sessionId, [target, ...current]);
+			bumpVersion(sessionId);
+			pausedIds.add(sessionId);
+			logger.warn("sendNow failed, re-inserted and paused", {
+				sessionId,
+				messageId: target.id,
+				error,
 			});
+		});
 	}
 
 	function pause(sessionId: string): void {

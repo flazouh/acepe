@@ -42,7 +42,7 @@ describe("buildPrPromptPreview", () => {
 		expect(normalizeCustomShipInstructions(LEGACY_DEFAULT_SHIP_INSTRUCTIONS)).toBeUndefined();
 		expect(normalizeCustomShipInstructions(DEFAULT_SHIP_INSTRUCTIONS)).toBeUndefined();
 		expect(normalizeCustomShipInstructions("Custom reviewer guidance")).toBe(
-			"Custom reviewer guidance",
+			"Custom reviewer guidance"
 		);
 	});
 
@@ -59,7 +59,9 @@ describe("buildPrPromptPreview", () => {
 		expect(prompt).toContain("## Problem");
 		expect(prompt).toContain("## Solution");
 		expect(prompt).toContain("Explain the problem in depth before describing the fix.");
-		expect(prompt).toContain("Include an ASCII diagram that shows the current behavior, failure mode,");
+		expect(prompt).toContain(
+			"Include an ASCII diagram that shows the current behavior, failure mode,"
+		);
 		expect(prompt).toContain("Include a concrete before/after example");
 		expect(prompt).toContain("Current branch: feature/prompt-preview");
 		expect(prompt).toContain("Staged files:\nM\tsrc/alpha.ts\nA\tsrc/new-file.ts");

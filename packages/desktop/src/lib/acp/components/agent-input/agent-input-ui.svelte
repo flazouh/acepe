@@ -311,7 +311,7 @@ const toolbarConfigOptions = $derived.by(() => {
 });
 
 const liveAvailableCommands = $derived.by(() => {
-	if (sessionHotState && sessionHotState.availableCommands) {
+	if (sessionHotState?.availableCommands) {
 		return sessionHotState.availableCommands;
 	}
 
@@ -502,7 +502,7 @@ const primaryButtonIntent = $derived.by(() =>
 const defaultSubmitAction = $derived.by(() =>
 	resolveDefaultSubmitAction({
 		hasDraftInput,
-		hasSessionId: props.sessionId ? true : false,
+		hasSessionId: !!props.sessionId,
 		isAgentBusy,
 		isStreaming,
 		isSubmitDisabled,

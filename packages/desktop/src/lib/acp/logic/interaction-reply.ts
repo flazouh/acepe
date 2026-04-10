@@ -1,6 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 
-import { type AppError } from "../errors/app-error.js";
+import type { AppError } from "../errors/app-error.js";
 import { api } from "../store/api.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
@@ -138,9 +138,7 @@ export function replyToPlanApprovalRequest(
 				}
 			: targetOrSessionId;
 	const resolvedApproved =
-		typeof targetOrSessionId === "string"
-			? approved
-			: (jsonRpcRequestIdOrApproved as boolean);
+		typeof targetOrSessionId === "string" ? approved : (jsonRpcRequestIdOrApproved as boolean);
 
 	return api.replyInteraction(
 		createInteractionReplyRequest(target, {

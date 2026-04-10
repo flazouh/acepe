@@ -17,7 +17,9 @@ describe("project settings menu", () => {
 	});
 
 	it("uses the shared project color options", () => {
-		expect(source).toContain('import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";');
+		expect(source).toContain(
+			'import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";'
+		);
 		expect(source).not.toContain("const colorOptions = [");
 	});
 });

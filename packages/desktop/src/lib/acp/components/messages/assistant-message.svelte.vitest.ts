@@ -35,21 +35,21 @@ type QueuedAnimationFrame = {
 let queuedAnimationFrames: QueuedAnimationFrame[] = [];
 let nextAnimationFrameId = 1;
 
-vi.mock(
-	"svelte",
-	async () => {
-		const { createRequire } = await import("node:module");
-		const { dirname, join } = await import("node:path");
-		const require = createRequire(import.meta.url);
-		const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
-		return import(/* @vite-ignore */ svelteClientPath);
-	}
-);
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("@acepe/ui/agent-panel", async () => {
-	const AgentToolThinking =
-		(await import("./__tests__/fixtures/agent-tool-thinking-stub.svelte")).default;
+	const AgentToolThinking = (await import("./__tests__/fixtures/agent-tool-thinking-stub.svelte"))
+		.default;
 
 	return {
 		AgentToolThinking,
@@ -57,8 +57,9 @@ vi.mock("@acepe/ui/agent-panel", async () => {
 });
 
 vi.mock("./content-block-router.svelte", async () => {
-	const ContentBlockRouter =
-		(await import("./__tests__/fixtures/content-block-router-growing-stub.svelte")).default;
+	const ContentBlockRouter = (
+		await import("./__tests__/fixtures/content-block-router-growing-stub.svelte")
+	).default;
 
 	return {
 		default: ContentBlockRouter,

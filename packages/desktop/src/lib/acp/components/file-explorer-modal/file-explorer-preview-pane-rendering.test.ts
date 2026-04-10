@@ -14,7 +14,9 @@ describe("file explorer preview pane source", () => {
 	});
 
 	it("falls back explicitly when markdown HTML is unavailable", () => {
-		expect(source).toContain('{:else if props.preview.kind === "text" && isMarkdownPreview && textFallbackContent !== null}');
+		expect(source).toContain(
+			'{:else if props.preview.kind === "text" && isMarkdownPreview && textFallbackContent !== null}'
+		);
 		expect(source).toContain("textFallbackContent");
 	});
 
@@ -22,11 +24,13 @@ describe("file explorer preview pane source", () => {
 		expect(source).toContain('if (props.preview.kind === "text") {');
 		expect(source).toContain("oldContent: props.preview.content");
 		expect(source).toContain("newContent: props.preview.content");
-		expect(source).not.toContain('{:else if props.preview.kind === "text" && textFallbackContent !== null}');
+		expect(source).not.toContain(
+			'{:else if props.preview.kind === "text" && textFallbackContent !== null}'
+		);
 	});
 
 	it("shows plain-text fallback content instead of a raw render error", () => {
 		expect(source).toContain("textFallbackContent");
-		expect(source).not.toContain('{renderError}');
+		expect(source).not.toContain("{renderError}");
 	});
 });

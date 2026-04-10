@@ -1,6 +1,10 @@
 export { default as BranchPicker } from "./branch-picker.svelte";
-export type { WorktreeToggleConfig, WorktreeToggleProps } from "./types.js";
-export type { OnWorktreeCreatedCallback, OnWorktreeRenamedCallback } from "./types.js";
+export type {
+	OnWorktreeCreatedCallback,
+	OnWorktreeRenamedCallback,
+	WorktreeToggleConfig,
+	WorktreeToggleProps,
+} from "./types.js";
 export {
 	clearWorktreeEnabled,
 	loadWorktreeEnabled,

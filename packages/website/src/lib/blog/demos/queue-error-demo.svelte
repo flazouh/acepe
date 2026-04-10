@@ -1,62 +1,62 @@
 <script lang="ts">
-	/**
-	 * Demo: Error State
-	 * Shows an agent that encountered an error.
-	 */
-	import { SectionedFeed, ActivityEntry, TAG_COLORS } from '@acepe/ui';
-	import type { SectionedFeedGroup } from '@acepe/ui';
+/**
+ * Demo: Error State
+ * Shows an agent that encountered an error.
+ */
+import { SectionedFeed, ActivityEntry, TAG_COLORS } from "@acepe/ui";
+import type { SectionedFeedGroup } from "@acepe/ui";
 
-	interface DemoItem {
-		readonly id: string;
-		readonly title: string;
-		readonly mode: 'build' | 'plan' | null;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: null;
-		readonly question: null;
-		readonly projectName: string;
-		readonly projectColor: string;
-	}
+interface DemoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly mode: "build" | "plan" | null;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: null;
+	readonly question: null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
 
-	const demoItem: DemoItem = {
-		id: 'error-demo',
-		title: 'CI pipeline fix',
-		mode: null,
-		timeAgo: '8m',
-		insertions: 0,
-		deletions: 0,
-		isStreaming: false,
-		statusText: 'Build failed: missing environment variable',
-		showStatusShimmer: false,
-		fileToolDisplayText: null,
-		toolContent: null,
-		showToolShimmer: false,
-		taskSubagentSummaries: [],
-		showTaskSubagentList: false,
-		todoProgress: null,
-		question: null,
-		projectName: 'Backend',
-		projectColor: TAG_COLORS[1]
-	};
+const demoItem: DemoItem = {
+	id: "error-demo",
+	title: "CI pipeline fix",
+	mode: null,
+	timeAgo: "8m",
+	insertions: 0,
+	deletions: 0,
+	isStreaming: false,
+	statusText: "Build failed: missing environment variable",
+	showStatusShimmer: false,
+	fileToolDisplayText: null,
+	toolContent: null,
+	showToolShimmer: false,
+	taskSubagentSummaries: [],
+	showTaskSubagentList: false,
+	todoProgress: null,
+	question: null,
+	projectName: "Backend",
+	projectColor: TAG_COLORS[1],
+};
 
-	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
-		{
-			id: 'error',
-			label: 'Error',
-			items: [demoItem]
-		}
-	];
+const groups: readonly SectionedFeedGroup<DemoItem>[] = [
+	{
+		id: "error",
+		label: "Error",
+		items: [demoItem],
+	},
+];
 
-	let selectedItemId = $state<string | null>(null);
+let selectedItemId = $state<string | null>(null);
 </script>
 
 <div class="demo-container">

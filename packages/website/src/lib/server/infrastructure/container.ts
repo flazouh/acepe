@@ -1,8 +1,8 @@
-import { ReportRepositoryImpl } from './repositories/ReportRepositoryImpl';
-import { CommentRepositoryImpl } from './repositories/CommentRepositoryImpl';
-import { VoteRepositoryImpl } from './repositories/VoteRepositoryImpl';
-import { FollowerRepositoryImpl } from './repositories/FollowerRepositoryImpl';
-import { ReportsApplicationService } from '../application/ReportsApplicationService';
+import { ReportsApplicationService } from "../application/ReportsApplicationService";
+import { CommentRepositoryImpl } from "./repositories/CommentRepositoryImpl";
+import { FollowerRepositoryImpl } from "./repositories/FollowerRepositoryImpl";
+import { ReportRepositoryImpl } from "./repositories/ReportRepositoryImpl";
+import { VoteRepositoryImpl } from "./repositories/VoteRepositoryImpl";
 
 let reportsService: ReportsApplicationService | undefined;
 
@@ -17,5 +17,5 @@ export const container = {
 			);
 		}
 		return reportsService;
-	}
+	},
 };

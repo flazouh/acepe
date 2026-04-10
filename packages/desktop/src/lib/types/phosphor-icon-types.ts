@@ -1,12 +1,6 @@
 import type { SVGAttributes } from "svelte/elements";
 
-export type IconWeight =
-	| "bold"
-	| "duotone"
-	| "fill"
-	| "light"
-	| "thin"
-	| "regular";
+export type IconWeight = "bold" | "duotone" | "fill" | "light" | "thin" | "regular";
 
 interface IconBaseProps {
 	color?: string;

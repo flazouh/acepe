@@ -65,11 +65,7 @@ $effect(() => {
 			if (filePath === currentFilePath && projectPath === currentProjectPath) {
 				const fileStatus =
 					statusMap.get(currentRelativePath) ??
-					findGitStatusForFile(
-						Array.from(statusMap.values()),
-						currentFilePath,
-						currentProjectPath
-					);
+					findGitStatusForFile(Array.from(statusMap.values()), currentFilePath, currentProjectPath);
 				if (fileStatus) {
 					linesAdded = fileStatus.insertions;
 					linesRemoved = fileStatus.deletions;

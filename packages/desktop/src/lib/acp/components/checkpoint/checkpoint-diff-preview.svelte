@@ -5,7 +5,10 @@ import { onDestroy, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 
 import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
-import { buildPierreDiffOptions, ensurePierreThemeRegistered } from "../../utils/pierre-rendering.js";
+import {
+	buildPierreDiffOptions,
+	ensurePierreThemeRegistered,
+} from "../../utils/pierre-rendering.js";
 
 interface Props {
 	diff: CheckpointFileDiff;

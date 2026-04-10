@@ -1,4 +1,4 @@
-import { SPLIT_WITH_NEWLINES, type FileDiffMetadata } from "@pierre/diffs";
+import { type FileDiffMetadata, SPLIT_WITH_NEWLINES } from "@pierre/diffs";
 
 function appendLines(target: string[], source: string[]): void {
 	for (const line of source) {

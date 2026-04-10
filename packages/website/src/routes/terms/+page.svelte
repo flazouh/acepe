@@ -1,90 +1,90 @@
 <script lang="ts">
-	import Header from '$lib/components/header.svelte';
+import Header from "$lib/components/header.svelte";
 
-	let { data } = $props();
+let { data } = $props();
 
-	const sections = [
-		{
-			num: '01',
-			title: 'License',
-			items: [
-				{
-					label: 'FSL-1.1-ALv2',
-					body: "Acepe's source code is available on GitHub under the Functional Source License 1.1 (FSL-1.1-ALv2). This is a source-available license — not an open-source license.",
-				},
-				{
-					label: 'Permitted use',
-					body: 'You may use, copy, modify, and redistribute the software for personal use, non-commercial education, non-commercial research, or professional services provided to licensed users.',
-				},
-				{
-					label: 'Competing use',
-					body: 'You may not use Acepe to build or offer a product or service that substitutes for Acepe or competes with it commercially.',
-				},
-				{
-					label: 'Future license',
-					body: 'On the second anniversary of each release, that version converts to the Apache License 2.0, granting full open-source rights. The full license text is available in the repository.',
-				},
-			],
-		},
-		{
-			num: '02',
-			title: 'Your Responsibilities',
-			items: [
-				{
-					label: 'Prompts & output',
-					body: 'You are responsible for the prompts and instructions you send to AI agents through the application, and for any code or content generated during your sessions.',
-				},
-				{
-					label: 'Agent providers',
-					body: 'You are responsible for complying with the terms of service of any AI provider you connect (Anthropic, OpenAI, etc.).',
-				},
-			],
-		},
-		{
-			num: '03',
-			title: 'No Warranty',
-			items: [
-				{
-					label: 'As-is',
-					body: 'The software is provided "as is", without warranties of any kind, express or implied — including warranties of fitness for a particular purpose, merchantability, title, or non-infringement.',
-				},
-			],
-		},
-		{
-			num: '04',
-			title: 'Limitation of Liability',
-			items: [
-				{
-					label: 'Damages',
-					body: 'We will not be liable for any damages arising from your use of the software, including indirect, special, incidental, or consequential damages — even if we were informed of the possibility in advance. This includes data loss resulting from agent actions or the checkpoint/revert system.',
-				},
-			],
-		},
-		{
-			num: '05',
-			title: 'The Website',
-			items: [
-				{
-					label: 'Beta period',
-					body: 'The acepe.dev website and associated services are operated as-is during the beta period. We reserve the right to modify or discontinue any service at any time without notice.',
-				},
-				{
-					label: 'Changes',
-					body: 'We may update these terms occasionally. Continued use of the software or website after changes constitutes acceptance of the updated terms.',
-				},
-			],
-		},
-		{
-			num: '06',
-			title: 'Contact',
-			items: [
-				{
-					label: 'GitHub',
-					body: 'Questions or concerns? Open an issue at github.com/flazouh/acepe.',
-				},
-			],
-		},
-	];
+const sections = [
+	{
+		num: "01",
+		title: "License",
+		items: [
+			{
+				label: "FSL-1.1-ALv2",
+				body: "Acepe's source code is available on GitHub under the Functional Source License 1.1 (FSL-1.1-ALv2). This is a source-available license — not an open-source license.",
+			},
+			{
+				label: "Permitted use",
+				body: "You may use, copy, modify, and redistribute the software for personal use, non-commercial education, non-commercial research, or professional services provided to licensed users.",
+			},
+			{
+				label: "Competing use",
+				body: "You may not use Acepe to build or offer a product or service that substitutes for Acepe or competes with it commercially.",
+			},
+			{
+				label: "Future license",
+				body: "On the second anniversary of each release, that version converts to the Apache License 2.0, granting full open-source rights. The full license text is available in the repository.",
+			},
+		],
+	},
+	{
+		num: "02",
+		title: "Your Responsibilities",
+		items: [
+			{
+				label: "Prompts & output",
+				body: "You are responsible for the prompts and instructions you send to AI agents through the application, and for any code or content generated during your sessions.",
+			},
+			{
+				label: "Agent providers",
+				body: "You are responsible for complying with the terms of service of any AI provider you connect (Anthropic, OpenAI, etc.).",
+			},
+		],
+	},
+	{
+		num: "03",
+		title: "No Warranty",
+		items: [
+			{
+				label: "As-is",
+				body: 'The software is provided "as is", without warranties of any kind, express or implied — including warranties of fitness for a particular purpose, merchantability, title, or non-infringement.',
+			},
+		],
+	},
+	{
+		num: "04",
+		title: "Limitation of Liability",
+		items: [
+			{
+				label: "Damages",
+				body: "We will not be liable for any damages arising from your use of the software, including indirect, special, incidental, or consequential damages — even if we were informed of the possibility in advance. This includes data loss resulting from agent actions or the checkpoint/revert system.",
+			},
+		],
+	},
+	{
+		num: "05",
+		title: "The Website",
+		items: [
+			{
+				label: "Beta period",
+				body: "The acepe.dev website and associated services are operated as-is during the beta period. We reserve the right to modify or discontinue any service at any time without notice.",
+			},
+			{
+				label: "Changes",
+				body: "We may update these terms occasionally. Continued use of the software or website after changes constitutes acceptance of the updated terms.",
+			},
+		],
+	},
+	{
+		num: "06",
+		title: "Contact",
+		items: [
+			{
+				label: "GitHub",
+				body: "Questions or concerns? Open an issue at github.com/flazouh/acepe.",
+			},
+		],
+	},
+];
 </script>
 
 <svelte:head>

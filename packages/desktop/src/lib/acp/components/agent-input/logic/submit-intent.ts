@@ -64,9 +64,7 @@ export function resolvePrimaryButtonIntent(input: PrimaryButtonIntentInput): Sub
 	return "send";
 }
 
-export function resolveDefaultSubmitAction(
-	input: DefaultSubmitActionInput
-): DefaultSubmitAction {
+export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): DefaultSubmitAction {
 	if (!input.hasDraftInput) {
 		return "none";
 	}

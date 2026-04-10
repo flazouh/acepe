@@ -1,15 +1,14 @@
 import { describe, expect, it } from "bun:test";
-
+import type { Agent } from "$lib/acp/store/types.js";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "$lib/services/acp-provider-metadata.js";
-import type { Agent } from "$lib/acp/store/types.js";
 
 import {
 	applyAgentSelectionChange,
-	getAgentsByProviderOrder,
 	getAgentModelDefaultsEntries,
+	getAgentsByProviderOrder,
 	getProviderDefaultLabel,
 } from "./agents-models-section.logic.js";
 

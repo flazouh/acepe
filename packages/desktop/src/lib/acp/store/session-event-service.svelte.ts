@@ -29,8 +29,8 @@ import {
 	normalizeInteractionReplyHandler,
 } from "../types/reply-handler.js";
 import { createLogger } from "../utils/logger.js";
-import { enrichExistingToolCallFromPermission } from "./services/permission-tool-call-enricher.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
+import { enrichExistingToolCallFromPermission } from "./services/permission-tool-call-enricher.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
 
@@ -406,10 +406,7 @@ export class SessionEventService {
 				});
 				return;
 			}
-			if (
-				!hasActiveTurn &&
-				this.isReplaySuppressedUpdate(update)
-			) {
+			if (!hasActiveTurn && this.isReplaySuppressedUpdate(update)) {
 				logger.debug("Dropping replay update for preloaded session", {
 					sessionId,
 					updateType: update.type,
@@ -421,11 +418,7 @@ export class SessionEventService {
 		// Buffer events for known disconnected sessions so they can be replayed
 		// when connectSession() calls flushPendingEvents(). This handles the
 		// startup race where ACP events arrive before session reconnection completes.
-		if (
-			isDisconnectedSession &&
-			!isConnectingSession &&
-			!shouldBypassDisconnectedBuffer(update)
-		) {
+		if (isDisconnectedSession && !isConnectingSession && !shouldBypassDisconnectedBuffer(update)) {
 			this.telemetryDisconnectedDrops++;
 			this.warnWithCooldown("disconnected", "Buffered session update while disconnected", {
 				sessionId,

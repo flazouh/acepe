@@ -147,12 +147,18 @@ function ensureProjectInfoLoaded(project: Project): void {
 					(remote) => {
 						remoteStatusMap.set(projectPath, { ahead: remote.ahead, behind: remote.behind });
 					},
-					() => { /* no remote or not a git repo — ignore */ }
+					() => {
+						/* no remote or not a git repo — ignore */
+					}
 				);
 			},
 			(err) => {
 				const msg = err instanceof Error ? err.message : String(err);
-				if (msg.includes("not found") || msg.includes("not a directory") || msg.includes("does not exist")) {
+				if (
+					msg.includes("not found") ||
+					msg.includes("not a directory") ||
+					msg.includes("does not exist")
+				) {
 					missingProjectPaths.add(projectPath);
 				}
 				if (shouldLoadBranch) {

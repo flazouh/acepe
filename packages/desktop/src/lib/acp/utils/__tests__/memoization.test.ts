@@ -204,9 +204,9 @@ describe("hashContent", () => {
 		expect(hash.length).toBeLessThanOrEqual(7); // Max 7 chars for 32-bit base36
 	});
 
-		describe("performance", () => {
-			it("should hash 10,000 strings in under 50ms", () => {
-				const strings = Array.from({ length: 10_000 }, (_, i) => `content-${i}`);
+	describe("performance", () => {
+		it("should hash 10,000 strings in under 50ms", () => {
+			const strings = Array.from({ length: 10_000 }, (_, i) => `content-${i}`);
 
 			const start = performance.now();
 			for (const s of strings) {
@@ -214,43 +214,43 @@ describe("hashContent", () => {
 			}
 			const elapsed = performance.now() - start;
 
-				expect(elapsed).toBeLessThan(50);
-			});
+			expect(elapsed).toBeLessThan(50);
+		});
 
-			it("should scale roughly linearly for large strings", () => {
-				const largeString = "x".repeat(100_000);
-				const measureBatch = (iterations: number): number => {
-					const start = performance.now();
-					for (let i = 0; i < iterations; i++) {
-						hashContent(largeString);
-					}
-					return performance.now() - start;
-				};
-				const getMedian = (values: number[]): number => {
-					const sorted = values.slice().sort((a, b) => a - b);
-					return sorted[Math.floor(sorted.length / 2)] as number;
-				};
-
-				measureBatch(5);
-
-				const shortBatchSamples: number[] = [];
-				const longBatchSamples: number[] = [];
-
-				for (let sample = 0; sample < 5; sample++) {
-					shortBatchSamples.push(measureBatch(25));
-					longBatchSamples.push(measureBatch(100));
+		it("should scale roughly linearly for large strings", () => {
+			const largeString = "x".repeat(100_000);
+			const measureBatch = (iterations: number): number => {
+				const start = performance.now();
+				for (let i = 0; i < iterations; i++) {
+					hashContent(largeString);
 				}
+				return performance.now() - start;
+			};
+			const getMedian = (values: number[]): number => {
+				const sorted = values.slice().sort((a, b) => a - b);
+				return sorted[Math.floor(sorted.length / 2)] as number;
+			};
 
-				const shortBatchMedian = getMedian(shortBatchSamples);
-				const longBatchMedian = getMedian(longBatchSamples);
+			measureBatch(5);
 
-				// Avoid absolute wall-clock thresholds here because CI hardware varies.
-				// A 4x larger batch should stay within a small constant-factor multiple
-				// so we still catch obvious algorithmic regressions.
-				expect(longBatchMedian).toBeLessThan(shortBatchMedian * 6);
-			});
+			const shortBatchSamples: number[] = [];
+			const longBatchSamples: number[] = [];
+
+			for (let sample = 0; sample < 5; sample++) {
+				shortBatchSamples.push(measureBatch(25));
+				longBatchSamples.push(measureBatch(100));
+			}
+
+			const shortBatchMedian = getMedian(shortBatchSamples);
+			const longBatchMedian = getMedian(longBatchSamples);
+
+			// Avoid absolute wall-clock thresholds here because CI hardware varies.
+			// A 4x larger batch should stay within a small constant-factor multiple
+			// so we still catch obvious algorithmic regressions.
+			expect(longBatchMedian).toBeLessThan(shortBatchMedian * 6);
 		});
 	});
+});
 
 describe("normalizeLanguage", () => {
 	it("should map file extensions to Shiki languages", () => {

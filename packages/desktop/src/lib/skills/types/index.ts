@@ -1,8 +1,9 @@
 // Unified library types
-export type { LibrarySkill } from "./library-skill.js";
-export type { LibrarySkillWithSync } from "./library-skill-with-sync.js";
+
 // Plugin types
 export type { AgentSkills } from "./agent-skills.js";
+export type { LibrarySkill } from "./library-skill.js";
+export type { LibrarySkillWithSync } from "./library-skill-with-sync.js";
 export type { PluginInfo } from "./plugin-info.js";
 export type { PluginSkill } from "./plugin-skill.js";
 export type { Skill } from "./skill.js";

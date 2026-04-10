@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	HotPathDiagnostics,
-	type HotPathDiagnosticSnapshot,
-} from "../hot-path-diagnostics.js";
+import { type HotPathDiagnosticSnapshot, HotPathDiagnostics } from "../hot-path-diagnostics.js";
 
 describe("HotPathDiagnostics", () => {
 	it("aggregates repeated events and flushes the completed window before a new one starts", () => {

@@ -13,14 +13,14 @@
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import {
-	normalizeModelsForDisplay,
-	resolveProviderMetadataProjection,
 	type ModelsForDisplay,
+	normalizeModelsForDisplay,
 	type ProviderMetadataProjection,
+	resolveProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
 import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
-import { tauriClient } from "../../../utils/tauri-client.js";
 import type { ExecutionProfileRequest } from "../../../utils/tauri-client/acp.js";
+import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
 import type { ModeType } from "../../types/agent-model-preferences.js";
@@ -299,7 +299,7 @@ export class SessionConnectionManager {
 		const sessionCwd = options.worktreePath ? options.worktreePath : options.projectPath;
 		logger.info("[first-send-trace] connection manager createSession", {
 			projectPath: options.projectPath,
-					worktreePath: options.worktreePath ? options.worktreePath : null,
+			worktreePath: options.worktreePath ? options.worktreePath : null,
 			sessionCwd,
 			agentId: options.agentId,
 		});
@@ -328,18 +328,14 @@ export class SessionConnectionManager {
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
 				} = modelState;
-				const providerMetadata = this.resolveProviderMetadata(
-					options.agentId,
-					rawProviderMetadata
-				);
+				const providerMetadata = this.resolveProviderMetadata(options.agentId, rawProviderMetadata);
 				const modelsDisplay =
 					normalizeModelsForDisplay(
 						options.agentId,
 						rawModelsDisplay,
 						options.agentId,
 						providerMetadata
-					) ??
-					undefined;
+					) ?? undefined;
 
 				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
 					id: m.id,
@@ -355,8 +351,7 @@ export class SessionConnectionManager {
 				const availableCommands = result.availableCommands ?? [];
 				const configOptions = result.configOptions ?? [];
 
-				let currentMode =
-					availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
+				let currentMode = availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
 				let currentModel = this.resolveCurrentModel(
 					options.agentId,
 					availableModels,
@@ -382,37 +377,39 @@ export class SessionConnectionManager {
 				);
 				const targetModel = explicitInitialModel
 					? explicitInitialModel
-					: (defaultModelForTargetMode ? defaultModelForTargetMode : currentModel);
+					: defaultModelForTargetMode
+						? defaultModelForTargetMode
+						: currentModel;
 
 				const applyInitialSelection = hasExplicitInitialSelection
 					? (targetModeChanged && targetMode
-						? api.setMode(sessionId, targetMode.id)
-						: okAsync(undefined)
-					)
-						.andThen(() => {
-							const shouldApplyExplicitModel =
-								explicitInitialModel !== null &&
-								(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
-							const shouldApplyModeDefaultModel =
-								explicitInitialModel === null &&
-								targetModeChanged &&
-								targetModel !== null &&
-								targetModel.id !== currentModel?.id;
+							? api.setMode(sessionId, targetMode.id)
+							: okAsync(undefined)
+						)
+							.andThen(() => {
+								const shouldApplyExplicitModel =
+									explicitInitialModel !== null &&
+									(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
+								const shouldApplyModeDefaultModel =
+									explicitInitialModel === null &&
+									targetModeChanged &&
+									targetModel !== null &&
+									targetModel.id !== currentModel?.id;
 
-							if ((shouldApplyExplicitModel || shouldApplyModeDefaultModel) && targetModel) {
-								return api.setModel(sessionId, targetModel.id);
-							}
+								if ((shouldApplyExplicitModel || shouldApplyModeDefaultModel) && targetModel) {
+									return api.setModel(sessionId, targetModel.id);
+								}
 
-							return okAsync(undefined);
-						})
-						.map(() => ({
-							currentMode: targetMode,
-							currentModel: targetModel,
-						}))
+								return okAsync(undefined);
+							})
+							.map(() => ({
+								currentMode: targetMode,
+								currentModel: targetModel,
+							}))
 					: okAsync({
-						currentMode,
-						currentModel,
-					});
+							currentMode,
+							currentModel,
+						});
 
 				return applyInitialSelection
 					.orElse((error) => {
@@ -429,161 +426,160 @@ export class SessionConnectionManager {
 						});
 					})
 					.andThen((selection) => {
-					currentMode = selection.currentMode;
-					currentModel = selection.currentModel;
+						currentMode = selection.currentMode;
+						currentModel = selection.currentModel;
 
-					if (!hasExplicitInitialSelection) {
-						const defaultModel = this.resolveDefaultModelForMode(
-							options.agentId,
-							currentMode ? currentMode.id : undefined,
-							availableModels
-						);
-						if (defaultModel) {
-							currentModel = defaultModel;
-							logger.debug("Applied default model on session creation", {
-								sessionId,
-								agentId: options.agentId,
-								modeType: this.getModeType(currentMode ? currentMode.id : undefined),
-								modelId: defaultModel.id,
-							});
-							api.setModel(sessionId, defaultModel.id).mapErr((err) => {
-								logger.warn("Failed to set default model on ACP", {
-									sessionId,
-									modelId: defaultModel.id,
-									error: err,
-								});
-							});
-						}
-					}
-
-					const requestedAutonomous = options.initialAutonomousEnabled === true;
-					const applyInitialAutonomous =
-						requestedAutonomous && currentMode
-							? this.applyExecutionProfile(sessionId, currentMode.id, true)
-									.map(() => true)
-									.orElse((error) => {
-										logger.warn(
-											"Failed to apply initial autonomous profile after session creation",
-											{
-												sessionId,
-												modeId: currentMode ? currentMode.id : null,
-												error,
-											}
-										);
-										return okAsync(false);
-									})
-							: okAsync(false);
-
-					return applyInitialAutonomous.map((autonomousEnabled) => {
-
-						// Cache available models and modes for settings/optimistic display
-						preferencesStore.updateModelsCache(options.agentId, availableModels);
-						preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-						preferencesStore.updateModelsDisplayCache(
-							options.agentId,
-							modelsDisplay,
-							providerMetadata
-						);
-						preferencesStore.updateModesCache(options.agentId, availableModes);
-						logger.info("Provider model capabilities on session creation", {
-							sessionId,
-							agentId: options.agentId,
-							responseCurrentModelId: currentModelId ? currentModelId : null,
-							availableModelIds: availableModels.map((model) => model.id),
-							cachedModelIds: preferencesStore
-								.getCachedModels(options.agentId)
-								.map((model) => model.id),
-						});
-
-						// Initialize per-mode model memory with current mode choice
-						if (currentMode) {
-							preferencesStore.setSessionModelForMode(
-								sessionId,
-								currentMode.id,
-								currentModel?.id ? currentModel.id : ""
+						if (!hasExplicitInitialSelection) {
+							const defaultModel = this.resolveDefaultModelForMode(
+								options.agentId,
+								currentMode ? currentMode.id : undefined,
+								availableModels
 							);
-						}
-
-						// Store only cold data (identity + metadata) in the sessions array
-						const sessionCold: SessionCold = {
-							id: sessionId,
-							projectPath: options.projectPath,
-							agentId: options.agentId,
-							worktreePath: options.worktreePath,
-							title: options.title || "New Thread",
-							updatedAt: now,
-							createdAt: now,
-							sessionLifecycleState: "created",
-							parentId: null,
-							sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
-						};
-
-						// Initialize hot state BEFORE adding the session to the store.
-						// initializeHotState writes synchronously (bypasses RAF batch),
-						// so the event service will see isConnected: true immediately
-						// when it receives streaming events for this session.
-						this.hotStateManager.initializeHotState(sessionId, {
-							status: "ready",
-							isConnected: true,
-							turnState: "idle",
-							connectionError: null,
-							autonomousEnabled,
-							currentMode,
-							currentModel,
-							availableCommands,
-							configOptions,
-							modelPerMode: currentMode
-								? { [currentMode.id]: currentModel?.id ? currentModel.id : "" }
-								: {},
-						});
-
-						this.stateWriter.addSession(sessionCold);
-
-						// Persist worktree path to DB for restore across app restarts
-						if (options.worktreePath) {
-							tauriClient.history
-								.setSessionWorktreePath(
+							if (defaultModel) {
+								currentModel = defaultModel;
+								logger.debug("Applied default model on session creation", {
 									sessionId,
-									options.worktreePath,
-									options.projectPath,
-									options.agentId
-								)
-								.mapErr((error) => {
-									logger.error("Failed to persist worktree path to DB", {
+									agentId: options.agentId,
+									modeType: this.getModeType(currentMode ? currentMode.id : undefined),
+									modelId: defaultModel.id,
+								});
+								api.setModel(sessionId, defaultModel.id).mapErr((err) => {
+									logger.warn("Failed to set default model on ACP", {
 										sessionId,
-										worktreePath: options.worktreePath,
-										error,
+										modelId: defaultModel.id,
+										error: err,
 									});
 								});
+							}
 						}
 
-						// Store capabilities separately from cold data
-						this.capabilitiesManager.updateCapabilities(sessionId, {
-							availableModes,
-							availableModels,
-							availableCommands,
-							modelsDisplay,
-							providerMetadata,
+						const requestedAutonomous = options.initialAutonomousEnabled === true;
+						const applyInitialAutonomous =
+							requestedAutonomous && currentMode
+								? this.applyExecutionProfile(sessionId, currentMode.id, true)
+										.map(() => true)
+										.orElse((error) => {
+											logger.warn(
+												"Failed to apply initial autonomous profile after session creation",
+												{
+													sessionId,
+													modeId: currentMode ? currentMode.id : null,
+													error,
+												}
+											);
+											return okAsync(false);
+										})
+								: okAsync(false);
+
+						return applyInitialAutonomous.map((autonomousEnabled) => {
+							// Cache available models and modes for settings/optimistic display
+							preferencesStore.updateModelsCache(options.agentId, availableModels);
+							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
+							preferencesStore.updateModelsDisplayCache(
+								options.agentId,
+								modelsDisplay,
+								providerMetadata
+							);
+							preferencesStore.updateModesCache(options.agentId, availableModes);
+							logger.info("Provider model capabilities on session creation", {
+								sessionId,
+								agentId: options.agentId,
+								responseCurrentModelId: currentModelId ? currentModelId : null,
+								availableModelIds: availableModels.map((model) => model.id),
+								cachedModelIds: preferencesStore
+									.getCachedModels(options.agentId)
+									.map((model) => model.id),
+							});
+
+							// Initialize per-mode model memory with current mode choice
+							if (currentMode) {
+								preferencesStore.setSessionModelForMode(
+									sessionId,
+									currentMode.id,
+									currentModel?.id ? currentModel.id : ""
+								);
+							}
+
+							// Store only cold data (identity + metadata) in the sessions array
+							const sessionCold: SessionCold = {
+								id: sessionId,
+								projectPath: options.projectPath,
+								agentId: options.agentId,
+								worktreePath: options.worktreePath,
+								title: options.title || "New Thread",
+								updatedAt: now,
+								createdAt: now,
+								sessionLifecycleState: "created",
+								parentId: null,
+								sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
+							};
+
+							// Initialize hot state BEFORE adding the session to the store.
+							// initializeHotState writes synchronously (bypasses RAF batch),
+							// so the event service will see isConnected: true immediately
+							// when it receives streaming events for this session.
+							this.hotStateManager.initializeHotState(sessionId, {
+								status: "ready",
+								isConnected: true,
+								turnState: "idle",
+								connectionError: null,
+								autonomousEnabled,
+								currentMode,
+								currentModel,
+								availableCommands,
+								configOptions,
+								modelPerMode: currentMode
+									? { [currentMode.id]: currentModel?.id ? currentModel.id : "" }
+									: {},
+							});
+
+							this.stateWriter.addSession(sessionCold);
+
+							// Persist worktree path to DB for restore across app restarts
+							if (options.worktreePath) {
+								tauriClient.history
+									.setSessionWorktreePath(
+										sessionId,
+										options.worktreePath,
+										options.projectPath,
+										options.agentId
+									)
+									.mapErr((error) => {
+										logger.error("Failed to persist worktree path to DB", {
+											sessionId,
+											worktreePath: options.worktreePath,
+											error,
+										});
+									});
+							}
+
+							// Store capabilities separately from cold data
+							this.capabilitiesManager.updateCapabilities(sessionId, {
+								availableModes,
+								availableModels,
+								availableCommands,
+								modelsDisplay,
+								providerMetadata,
+							});
+
+							// Mark as preloaded since it's a new session with no entries
+							this.entryManager.markPreloaded(sessionId);
+
+							// Initialize session machine with correct initial states:
+							// - Content: LOADED (new session has no entries to load)
+							// - Connection: READY (already connected via newSession API)
+							this.connectionManager.initializeConnectedSession(sessionId);
+
+							// Flush any pending events that arrived before session was added
+							this.eventService.flushPendingEvents(sessionId, eventHandler);
+
+							logger.debug("Session created and connected", {
+								sessionId,
+							});
+
+							return sessionCold;
 						});
-
-						// Mark as preloaded since it's a new session with no entries
-						this.entryManager.markPreloaded(sessionId);
-
-						// Initialize session machine with correct initial states:
-						// - Content: LOADED (new session has no entries to load)
-						// - Connection: READY (already connected via newSession API)
-						this.connectionManager.initializeConnectedSession(sessionId);
-
-						// Flush any pending events that arrived before session was added
-						this.eventService.flushPendingEvents(sessionId, eventHandler);
-
-						logger.debug("Session created and connected", {
-							sessionId,
-						});
-
-						return sessionCold;
 					});
-				});
 			})
 			.mapErr((error) => {
 				logger.error("Failed to create session", { error });
@@ -697,85 +693,113 @@ export class SessionConnectionManager {
 						: reconnectHotState.autonomousEnabled;
 
 				return withTimeout(
-					api.resumeSession(
-						sessionId,
-						resumeCwd,
-						options?.agentOverrideId,
-						launchExecutionProfile
-					),
+					api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId, launchExecutionProfile),
 					CONNECTION_TIMEOUT_MS,
-					new ConnectionError(
-						`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`
-					)
+					new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
 				)
-			.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
-			.andThen((result) => {
-				this.connectionManager.setConnecting(sessionId, false);
-				const modelState = getProviderAwareSessionModelState(result.models);
-				const {
-					availableModels: rawModels = [],
-					currentModelId,
-					modelsDisplay: rawModelsDisplay,
-					providerMetadata: rawProviderMetadata,
-				} = modelState;
-				const providerMetadata = this.resolveProviderMetadata(
-					effectiveAgentId,
-					rawProviderMetadata
-				);
-				const modelsDisplay =
-					normalizeModelsForDisplay(
-						effectiveAgentId,
-						rawModelsDisplay,
-						effectiveAgentId,
-						providerMetadata
-					) ??
-					undefined;
+					.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
+					.andThen((result) => {
+						this.connectionManager.setConnecting(sessionId, false);
+						const modelState = getProviderAwareSessionModelState(result.models);
+						const {
+							availableModels: rawModels = [],
+							currentModelId,
+							modelsDisplay: rawModelsDisplay,
+							providerMetadata: rawProviderMetadata,
+						} = modelState;
+						const providerMetadata = this.resolveProviderMetadata(
+							effectiveAgentId,
+							rawProviderMetadata
+						);
+						const modelsDisplay =
+							normalizeModelsForDisplay(
+								effectiveAgentId,
+								rawModelsDisplay,
+								effectiveAgentId,
+								providerMetadata
+							) ?? undefined;
 
-				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-					id: m.id,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
+						const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
+							id: m.id,
+							name: m.name,
+							description: m.description ?? undefined,
+						}));
 
-				const availableModels: Model[] = rawModels.map((m) => ({
-					id: m.modelId,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
-				const availableCommands = result.availableCommands ?? [];
-				const configOptions = result.configOptions ?? [];
+						const availableModels: Model[] = rawModels.map((m) => ({
+							id: m.modelId,
+							name: m.name,
+							description: m.description ?? undefined,
+						}));
+						const availableCommands = result.availableCommands ?? [];
+						const configOptions = result.configOptions ?? [];
 
-				const currentMode =
-					availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
-				const initialModel = this.resolveCurrentModel(
-					effectiveAgentId,
-					availableModels,
-					currentModelId,
-					modelsDisplay,
-					providerMetadata
-				);
+						const currentMode =
+							availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
+						const initialModel = this.resolveCurrentModel(
+							effectiveAgentId,
+							availableModels,
+							currentModelId,
+							modelsDisplay,
+							providerMetadata
+						);
 
-				const storedModelId = currentMode?.id
-					? preferencesStore.getSessionModelForMode(sessionId, currentMode.id)
-					: undefined;
-				const hasStoredModel = typeof storedModelId === "string" && storedModelId.length > 0;
-				const storedModelValid =
-					hasStoredModel && availableModels.some((m) => m.id === storedModelId);
-				const canSeedSessionModel = preferencesStore.isSessionModelLoaded();
+						const storedModelId = currentMode?.id
+							? preferencesStore.getSessionModelForMode(sessionId, currentMode.id)
+							: undefined;
+						const hasStoredModel = typeof storedModelId === "string" && storedModelId.length > 0;
+						const storedModelValid =
+							hasStoredModel && availableModels.some((m) => m.id === storedModelId);
+						const canSeedSessionModel = preferencesStore.isSessionModelLoaded();
 
-				if (storedModelValid && storedModelId && storedModelId !== initialModel?.id) {
-					const storedModel = availableModels.find((m) => m.id === storedModelId) ?? null;
-					logger.debug("Restoring stored session model for mode", {
-						sessionId,
-						modeId: currentMode?.id,
-						modelId: storedModelId,
-					});
-					return withTimeout(
-						api.setModel(sessionId, storedModelId),
-						CONNECTION_TIMEOUT_MS,
-						new ConnectionError(`setModel timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
-					)
-						.map(() => ({
+						if (storedModelValid && storedModelId && storedModelId !== initialModel?.id) {
+							const storedModel = availableModels.find((m) => m.id === storedModelId) ?? null;
+							logger.debug("Restoring stored session model for mode", {
+								sessionId,
+								modeId: currentMode?.id,
+								modelId: storedModelId,
+							});
+							return withTimeout(
+								api.setModel(sessionId, storedModelId),
+								CONNECTION_TIMEOUT_MS,
+								new ConnectionError(`setModel timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
+							)
+								.map(() => ({
+									availableModes,
+									availableModels,
+									availableCommands,
+									configOptions,
+									modelsDisplay: modelsDisplay,
+									providerMetadata,
+									currentMode,
+									currentModel: storedModel ?? initialModel,
+								}))
+								.mapErr((err) => {
+									logger.warn("Failed to restore session model", {
+										sessionId,
+										modelId: storedModelId,
+										error: err,
+									});
+									return err;
+								})
+								.orElse(() =>
+									okAsync({
+										availableModes,
+										availableModels,
+										availableCommands,
+										configOptions,
+										modelsDisplay: modelsDisplay,
+										providerMetadata,
+										currentMode,
+										currentModel: initialModel,
+									})
+								);
+						}
+
+						if (!hasStoredModel && canSeedSessionModel && currentMode && initialModel?.id) {
+							preferencesStore.setSessionModelForMode(sessionId, currentMode.id, initialModel.id);
+						}
+
+						return okAsync({
 							availableModes,
 							availableModels,
 							availableCommands,
@@ -783,58 +807,11 @@ export class SessionConnectionManager {
 							modelsDisplay: modelsDisplay,
 							providerMetadata,
 							currentMode,
-							currentModel: storedModel ?? initialModel,
-						}))
-						.mapErr((err) => {
-							logger.warn("Failed to restore session model", {
-								sessionId,
-								modelId: storedModelId,
-								error: err,
-							});
-							return err;
-						})
-						.orElse(() =>
-							okAsync({
-								availableModes,
-								availableModels,
-								availableCommands,
-								configOptions,
-								modelsDisplay: modelsDisplay,
-								providerMetadata,
-								currentMode,
-								currentModel: initialModel,
-							})
-						);
-				}
-
-				if (!hasStoredModel && canSeedSessionModel && currentMode && initialModel?.id) {
-					preferencesStore.setSessionModelForMode(sessionId, currentMode.id, initialModel.id);
-				}
-
-				return okAsync({
-					availableModes,
-					availableModels,
-					availableCommands,
-					configOptions,
-					modelsDisplay: modelsDisplay,
-					providerMetadata,
-					currentMode,
-					currentModel: initialModel,
-				});
-			})
-			.andThen(
-				({
-					availableModes,
-					availableModels,
-					availableCommands,
-					configOptions,
-					modelsDisplay,
-					providerMetadata,
-					currentMode,
-					currentModel,
-				}) => {
-					if (!shouldRestoreAutonomous || !currentMode) {
-						return okAsync({
+							currentModel: initialModel,
+						});
+					})
+					.andThen(
+						({
 							availableModes,
 							availableModels,
 							availableCommands,
@@ -843,60 +820,71 @@ export class SessionConnectionManager {
 							providerMetadata,
 							currentMode,
 							currentModel,
-							autonomousEnabled: shouldRestoreAutonomous,
-						});
-					}
+						}) => {
+							if (!shouldRestoreAutonomous || !currentMode) {
+								return okAsync({
+									availableModes,
+									availableModels,
+									availableCommands,
+									configOptions,
+									modelsDisplay,
+									providerMetadata,
+									currentMode,
+									currentModel,
+									autonomousEnabled: shouldRestoreAutonomous,
+								});
+							}
 
-					if (
-						launchExecutionProfile &&
-						launchExecutionProfile.modeId === currentMode.id &&
-						launchExecutionProfile.autonomousEnabled === true
-					) {
-						return okAsync({
-							availableModes,
-							availableModels,
-							availableCommands,
-							configOptions,
-							modelsDisplay,
-							providerMetadata,
-							currentMode,
-							currentModel,
-							autonomousEnabled: true,
-						});
-					}
+							if (
+								launchExecutionProfile &&
+								launchExecutionProfile.modeId === currentMode.id &&
+								launchExecutionProfile.autonomousEnabled === true
+							) {
+								return okAsync({
+									availableModes,
+									availableModels,
+									availableCommands,
+									configOptions,
+									modelsDisplay,
+									providerMetadata,
+									currentMode,
+									currentModel,
+									autonomousEnabled: true,
+								});
+							}
 
-					return this.applyExecutionProfile(session.id, currentMode.id, true)
-						.map(() => ({
-							availableModes,
-							availableModels,
-							availableCommands,
-							configOptions,
-							modelsDisplay,
-							providerMetadata,
-							currentMode,
-							currentModel,
-							autonomousEnabled: true,
-						}))
-						.orElse((error) => {
-							logger.warn("Failed to restore Autonomous on connect; continuing safely", {
-								sessionId,
-								modeId: currentMode.id,
-								error,
-							});
-							return okAsync({
-								availableModes,
-								availableModels,
-								availableCommands,
-								configOptions,
-								modelsDisplay,
-								providerMetadata,
-								currentMode,
-								currentModel,
-								autonomousEnabled: false,
-							});
-						});
-				}
-			);
+							return this.applyExecutionProfile(session.id, currentMode.id, true)
+								.map(() => ({
+									availableModes,
+									availableModels,
+									availableCommands,
+									configOptions,
+									modelsDisplay,
+									providerMetadata,
+									currentMode,
+									currentModel,
+									autonomousEnabled: true,
+								}))
+								.orElse((error) => {
+									logger.warn("Failed to restore Autonomous on connect; continuing safely", {
+										sessionId,
+										modeId: currentMode.id,
+										error,
+									});
+									return okAsync({
+										availableModes,
+										availableModels,
+										availableCommands,
+										configOptions,
+										modelsDisplay,
+										providerMetadata,
+										currentMode,
+										currentModel,
+										autonomousEnabled: false,
+									});
+								});
+						}
+					);
 			})
 			.map(
 				({
@@ -912,10 +900,7 @@ export class SessionConnectionManager {
 				}) => {
 					// Cache available models and modes for settings/optimistic display
 					preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
-					preferencesStore.updateProviderMetadataCache(
-						effectiveAgentId,
-						providerMetadata
-					);
+					preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
 					preferencesStore.updateModelsDisplayCache(
 						effectiveAgentId,
 						modelsDisplay,
@@ -1275,10 +1260,7 @@ export class SessionConnectionManager {
 						enabled,
 						error,
 					});
-					return new AgentError(
-						"setAutonomousEnabled",
-						error instanceof Error ? error : undefined
-					);
+					return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
 				});
 		}
 
@@ -1303,10 +1285,7 @@ export class SessionConnectionManager {
 					enabled,
 					error,
 				});
-				return new AgentError(
-					"setAutonomousEnabled",
-					error instanceof Error ? error : undefined
-				);
+				return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
 			});
 	}
 

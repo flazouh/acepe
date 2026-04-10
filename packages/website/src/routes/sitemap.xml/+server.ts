@@ -1,9 +1,9 @@
-import type { RequestHandler } from './$types';
-import { baseLocale, locales } from '$lib/paraglide/runtime';
-import { getAllComparisonSlugs, getComparison } from '$lib/compare/data.js';
-import { getAllBlogPosts } from '$lib/blog/posts.js';
+import { getAllBlogPosts } from "$lib/blog/posts.js";
+import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
+import { baseLocale, locales } from "$lib/paraglide/runtime";
+import type { RequestHandler } from "./$types";
 
-const baseUrl = 'https://acepe.dev';
+const baseUrl = "https://acepe.dev";
 
 interface Route {
 	path: string;
@@ -12,22 +12,22 @@ interface Route {
 	lastmod?: string;
 }
 
-	const today = new Date().toISOString().split('T')[0];
+const today = new Date().toISOString().split("T")[0];
 
 const publicRoutes: Route[] = [
-	{ path: '/', priority: '1.0', changefreq: 'weekly' },
-	{ path: '/blog', priority: '0.7', changefreq: 'weekly' },
-	{ path: '/changelog', priority: '0.7', changefreq: 'weekly' },
-	{ path: '/download', priority: '0.8', changefreq: 'weekly' },
-	{ path: '/pricing', priority: '0.8', changefreq: 'weekly' },
-	{ path: '/compare', priority: '0.8', changefreq: 'weekly' },
-	{ path: '/roadmap', priority: '0.7', changefreq: 'daily' }
+	{ path: "/", priority: "1.0", changefreq: "weekly" },
+	{ path: "/blog", priority: "0.7", changefreq: "weekly" },
+	{ path: "/changelog", priority: "0.7", changefreq: "weekly" },
+	{ path: "/download", priority: "0.8", changefreq: "weekly" },
+	{ path: "/pricing", priority: "0.8", changefreq: "weekly" },
+	{ path: "/compare", priority: "0.8", changefreq: "weekly" },
+	{ path: "/roadmap", priority: "0.7", changefreq: "daily" },
 ]
 	.concat(
 		getAllBlogPosts().map((post) => ({
 			path: `/blog/${post.slug}`,
-			priority: '0.7',
-			changefreq: 'monthly',
+			priority: "0.7",
+			changefreq: "monthly",
 			lastmod: post.date,
 		}))
 	)
@@ -37,8 +37,8 @@ const publicRoutes: Route[] = [
 
 			return {
 				path: `/compare/${slug}`,
-				priority: '0.8',
-				changefreq: 'weekly',
+				priority: "0.8",
+				changefreq: "weekly",
 				lastmod: comparison?.lastVerifiedOn ?? today,
 			};
 		})
@@ -60,7 +60,7 @@ export const GET: RequestHandler = async () => {
 				loc: `${baseUrl}${localizedPath}`,
 				lastmod: route.lastmod ?? today,
 				priority: route.priority,
-				changefreq: route.changefreq
+				changefreq: route.changefreq,
 			};
 		});
 	});
@@ -76,13 +76,13 @@ ${entries
     <priority>${entry.priority}</priority>
   </url>`
 	)
-	.join('\n')}
+	.join("\n")}
 </urlset>`;
 
 	return new Response(xml, {
 		headers: {
-			'Content-Type': 'application/xml',
-			'Cache-Control': 'public, max-age=3600'
-		}
+			"Content-Type": "application/xml",
+			"Cache-Control": "public, max-age=3600",
+		},
 	});
 };

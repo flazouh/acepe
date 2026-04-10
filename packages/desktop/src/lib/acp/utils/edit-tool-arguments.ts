@@ -62,7 +62,9 @@ export function getEditContent(toolArguments: ToolArguments | null | undefined):
 	return normalizeNullableString(firstEdit.content);
 }
 
-export function getEditPreviewContent(toolArguments: ToolArguments | null | undefined): string | null {
+export function getEditPreviewContent(
+	toolArguments: ToolArguments | null | undefined
+): string | null {
 	const newString = getEditNewString(toolArguments);
 	if (newString !== null) {
 		return newString;
@@ -72,7 +74,7 @@ export function getEditPreviewContent(toolArguments: ToolArguments | null | unde
 }
 
 export function withSingleEditEntry(
-	toolArguments: Extract<ToolArguments, { kind: "edit" }>,
+	_toolArguments: Extract<ToolArguments, { kind: "edit" }>,
 	entry: EditEntry
 ): Extract<ToolArguments, { kind: "edit" }> {
 	return {

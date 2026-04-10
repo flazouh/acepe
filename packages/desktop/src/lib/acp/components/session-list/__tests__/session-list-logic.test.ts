@@ -62,7 +62,13 @@ describe("createDisplayItems", () => {
 				parentId: null,
 				entries: [
 					createToolCallEntry("Edit", "edit", {
-						edits: [{ filePath: "/repo/src/file.ts", oldString: "const a = 1;", newString: "const a = 2;\nconst b = 3;" }],
+						edits: [
+							{
+								filePath: "/repo/src/file.ts",
+								oldString: "const a = 1;",
+								newString: "const a = 2;\nconst b = 3;",
+							},
+						],
 					}),
 				],
 			},
@@ -99,7 +105,13 @@ describe("createDisplayItems", () => {
 				parentId: null,
 				entries: [
 					createToolCallEntry("Edit", "edit", {
-						edits: [{ filePath: "/repo/src/file.ts", oldString: "const a = 1;", newString: "const a = 2;" }],
+						edits: [
+							{
+								filePath: "/repo/src/file.ts",
+								oldString: "const a = 1;",
+								newString: "const a = 2;",
+							},
+						],
 					}),
 				],
 			},
@@ -334,7 +346,9 @@ describe("extractLastToolInfo", () => {
 
 	it("should extract Edit tool with file basename", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Edit", "edit", { edits: [{ filePath: "/src/components/Button.svelte" }] }),
+			createToolCallEntry("Edit", "edit", {
+				edits: [{ filePath: "/src/components/Button.svelte" }],
+			}),
 		];
 		const result = extractLastToolInfo(entries);
 		expect(result).toEqual({ name: "Edit", target: "Button.svelte", kind: "edit" });

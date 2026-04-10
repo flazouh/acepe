@@ -7,10 +7,7 @@ export interface RemoveWorktreeAndMarkSessionWorktreeDeletedOptions {
 }
 
 export interface RemoveWorktreeAndMarkSessionWorktreeDeletedDependencies<ErrorType> {
-	readonly removeWorktree: (
-		worktreePath: string,
-		force: boolean
-	) => ResultAsync<void, ErrorType>;
+	readonly removeWorktree: (worktreePath: string, force: boolean) => ResultAsync<void, ErrorType>;
 	readonly markSessionWorktreeDeleted: (sessionId: string) => void;
 	readonly clearSessionWorktreeDeleted: (sessionId: string) => void;
 	readonly disconnectSession: (sessionId: string) => void;

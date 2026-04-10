@@ -1,27 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@tauri-apps/api/core", () => ({
-	invoke: vi.fn(),
-}));
-
-import { invoke } from "@tauri-apps/api/core";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import { AgentError } from "../../acp/errors/app-error.js";
-import { invokeAsync } from "./invoke.js";
+import { invokeAsyncWithRuntimeForTesting } from "./invoke.js";
 
-type InvokeMock = typeof invoke & {
-	mockReset: () => void;
-	mockRejectedValue: (value: object) => void;
-};
-
-const invokeMock = invoke as InvokeMock;
+const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
 
 describe("invokeAsync", () => {
 	beforeEach(() => {
 		invokeMock.mockReset();
+		invokeMock.mockImplementation(async () => undefined);
 	});
 
 	it("preserves structured ACP errors instead of stringifying them to [object Object]", async () => {
-		invokeMock.mockRejectedValue({
+		invokeMock.mockRejectedValueOnce({
 			type: "invalid_state",
 			data: {
 				message:
@@ -29,7 +20,10 @@ describe("invokeAsync", () => {
 			},
 		});
 
-		const result = await invokeAsync("acp_new_session");
+		const result = await invokeAsyncWithRuntimeForTesting(
+			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
+			"acp_new_session"
+		);
 
 		expect(result.isErr()).toBe(true);
 		const error = result._unsafeUnwrapErr();

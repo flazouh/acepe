@@ -1,72 +1,72 @@
 <script lang="ts">
-	import Header from '$lib/components/header.svelte';
+import Header from "$lib/components/header.svelte";
 
-	let { data } = $props();
+let { data } = $props();
 
-	const sections = [
-		{
-			num: '01',
-			title: 'What We Collect',
-			items: [
-				{
-					label: 'Website usage',
-					body: 'The website itself does not collect account data, mailing-list signups, or personal profile information. If you download the app or follow external links, those providers may process request metadata such as IP addresses and timestamps.',
-				},
-				{
-					label: 'Analytics',
-					body: 'We do not run any third-party analytics or tracking scripts on this site. No cookies are set for tracking purposes.',
-				},
-				{
-					label: 'Error reporting',
-					body: 'The desktop app does not transmit any telemetry or crash reports by default.',
-				},
-			],
-		},
-		{
-			num: '02',
-			title: 'Data Storage',
-			items: [
-				{
-					label: 'Retention',
-					body: 'We store only the minimum operational data needed to run the website and its product surfaces. We do not maintain a mailing-list or email-confirmation datastore for the marketing site.',
-				},
-			],
-		},
-		{
-			num: '03',
-			title: 'Your Rights',
-			items: [
-				{
-					label: 'Deletion',
-					body: 'If you believe we are retaining personal data beyond what is necessary for operating the site or app, contact us through GitHub and we will investigate and remove it where appropriate.',
-				},
-			],
-		},
-		{
-			num: '04',
-			title: 'Third-Party Services',
-			items: [
-				{
-					label: 'Hosting',
-					body: 'The website is hosted on Vercel. Their privacy policy applies to infrastructure-level data (IP addresses, request logs) in the same way it applies to any site on their platform.',
-				},
-				{
-					label: 'Agent connections',
-					body: 'Connections made through the desktop app go directly between your machine and the agent provider (Anthropic, OpenAI, etc.). Acepe does not proxy or log these requests.',
-				},
-			],
-		},
-		{
-			num: '05',
-			title: 'Contact',
-			items: [
-				{
-					label: 'GitHub',
-					body: 'Questions? Open an issue at github.com/flazouh/acepe or email us at the address in the repository.',
-				},
-			],
-		},
-	];
+const sections = [
+	{
+		num: "01",
+		title: "What We Collect",
+		items: [
+			{
+				label: "Website usage",
+				body: "The website itself does not collect account data, mailing-list signups, or personal profile information. If you download the app or follow external links, those providers may process request metadata such as IP addresses and timestamps.",
+			},
+			{
+				label: "Analytics",
+				body: "We do not run any third-party analytics or tracking scripts on this site. No cookies are set for tracking purposes.",
+			},
+			{
+				label: "Error reporting",
+				body: "The desktop app does not transmit any telemetry or crash reports by default.",
+			},
+		],
+	},
+	{
+		num: "02",
+		title: "Data Storage",
+		items: [
+			{
+				label: "Retention",
+				body: "We store only the minimum operational data needed to run the website and its product surfaces. We do not maintain a mailing-list or email-confirmation datastore for the marketing site.",
+			},
+		],
+	},
+	{
+		num: "03",
+		title: "Your Rights",
+		items: [
+			{
+				label: "Deletion",
+				body: "If you believe we are retaining personal data beyond what is necessary for operating the site or app, contact us through GitHub and we will investigate and remove it where appropriate.",
+			},
+		],
+	},
+	{
+		num: "04",
+		title: "Third-Party Services",
+		items: [
+			{
+				label: "Hosting",
+				body: "The website is hosted on Vercel. Their privacy policy applies to infrastructure-level data (IP addresses, request logs) in the same way it applies to any site on their platform.",
+			},
+			{
+				label: "Agent connections",
+				body: "Connections made through the desktop app go directly between your machine and the agent provider (Anthropic, OpenAI, etc.). Acepe does not proxy or log these requests.",
+			},
+		],
+	},
+	{
+		num: "05",
+		title: "Contact",
+		items: [
+			{
+				label: "GitHub",
+				body: "Questions? Open an issue at github.com/flazouh/acepe or email us at the address in the repository.",
+			},
+		],
+	},
+];
 </script>
 
 <svelte:head>

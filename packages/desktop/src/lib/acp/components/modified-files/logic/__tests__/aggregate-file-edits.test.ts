@@ -69,7 +69,7 @@ function createUserEntry(id: string, content: string): SessionEntry {
 }
 
 describe("aggregateFileEdits", () => {
-		describe("empty and edge cases", () => {
+	describe("empty and edge cases", () => {
 		it("should return empty state for empty entries", () => {
 			const result = aggregateFileEdits([]);
 			expect(result.fileCount).toBe(0);
@@ -349,7 +349,9 @@ describe("aggregateFileEdits", () => {
 							status: "completed",
 							arguments: {
 								kind: "edit",
-								edits: [{ filePath: "/src/agent-input-ui.svelte", oldString: "old", newString: "new" }],
+								edits: [
+									{ filePath: "/src/agent-input-ui.svelte", oldString: "old", newString: "new" },
+								],
 							},
 							taskChildren: null,
 						},
@@ -370,7 +372,13 @@ describe("aggregateFileEdits", () => {
 									status: "completed",
 									arguments: {
 										kind: "edit",
-										edits: [{ filePath: "/src/review-panel.svelte", oldString: "before", newString: "after" }],
+										edits: [
+											{
+												filePath: "/src/review-panel.svelte",
+												oldString: "before",
+												newString: "after",
+											},
+										],
 									},
 									taskChildren: null,
 								},

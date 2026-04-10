@@ -15,8 +15,12 @@ const prSettingsPopoverSource =
 describe("modified-files-header structure", () => {
 	it("removes the duplicate modified-files count and embeds diff stats in the PR action", () => {
 		expect(source).not.toContain("m.modified_files_count({ count: modifiedFilesState.fileCount })");
-		expect(source).toContain("<DiffPill insertions={totalAdded} deletions={totalRemoved} variant=\"plain\" />");
-		expect(source).toContain("class=\"w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors cursor-pointer");
+		expect(source).toContain(
+			'<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />'
+		);
+		expect(source).toContain(
+			'class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors cursor-pointer'
+		);
 		expect(source).toContain("group-hover/open-pr:text-success");
 	});
 
@@ -34,7 +38,9 @@ describe("modified-files-header structure", () => {
 		expect(source).toContain(
 			'<Button variant="headerAction" size="headerAction" disabled class="disabled:opacity-100">'
 		);
-		expect(source).toContain('<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />');
+		expect(source).toContain(
+			'<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />'
+		);
 		expect(source).not.toContain("border-success/30 bg-success/10");
 	});
 
@@ -57,7 +63,9 @@ describe("modified-files-header structure", () => {
 		expect(prSettingsPopoverSource).toContain("PR instructions");
 		expect(prSettingsPopoverSource).toContain("Save prompt");
 		expect(prSettingsPopoverSource).toContain("Reset");
-		expect(prSettingsPopoverSource).toContain("Acepe appends the response format and git context automatically.");
+		expect(prSettingsPopoverSource).toContain(
+			"Acepe appends the response format and git context automatically."
+		);
 		expect(prSettingsPopoverSource).not.toContain("<DropdownMenu.SubTrigger");
 		expect(prSettingsPopoverSource).not.toContain("Session default");
 		expect(prSettingsPopoverSource).not.toContain("Agent default");

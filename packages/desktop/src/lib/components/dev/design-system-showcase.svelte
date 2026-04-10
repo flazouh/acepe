@@ -1,395 +1,430 @@
 <script lang="ts">
-	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-	import { IconDotsVertical } from "@tabler/icons-svelte";
-	import { Button } from "@acepe/ui/button";
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-	import {
-		CloseAction,
-		EmbeddedIconButton,
-		EmbeddedPanelHeader,
-		HeaderActionCell,
-		HeaderCell,
-		HeaderTitleCell,
-	} from "@acepe/ui/panel-header";
-	import {
-		AttentionQueueQuestionCard,
-		AgentToolTask,
-		type ActivityEntryQuestion,
-		type ActivityEntryQuestionOption,
-		type ActivityEntryQuestionProgress,
-		DiffPill,
-		FilePathBadge,
-		GitBranchBadge,
-		GitHubBadge,
-		InlineArtefactBadge,
-		KanbanCard,
-		PillButton,
-		ProjectLetterBadge,
-		type AgentToolEntry,
-		type AnyAgentEntry,
-		type KanbanCardData,
-	} from "@acepe/ui";
-	import { CheckCircle } from "phosphor-svelte";
-	import { X } from "phosphor-svelte";
-	import { Kanban } from "phosphor-svelte";
-	import { Rows } from "phosphor-svelte";
-	import { Palette } from "phosphor-svelte";
-	import { Robot } from "phosphor-svelte";
-	import { ShieldCheck } from "phosphor-svelte";
-	import { ShieldWarning } from "phosphor-svelte";
-	import { Tag } from "phosphor-svelte";
-	import { XCircle } from "phosphor-svelte";
+import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
+import { IconDotsVertical } from "@tabler/icons-svelte";
+import { Button } from "@acepe/ui/button";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import {
+	CloseAction,
+	EmbeddedIconButton,
+	EmbeddedPanelHeader,
+	HeaderActionCell,
+	HeaderCell,
+	HeaderTitleCell,
+} from "@acepe/ui/panel-header";
+import {
+	AttentionQueueQuestionCard,
+	AgentToolTask,
+	type ActivityEntryQuestion,
+	type ActivityEntryQuestionOption,
+	type ActivityEntryQuestionProgress,
+	DiffPill,
+	FilePathBadge,
+	GitBranchBadge,
+	GitHubBadge,
+	InlineArtefactBadge,
+	KanbanCard,
+	PillButton,
+	ProjectLetterBadge,
+	type AgentToolEntry,
+	type AnyAgentEntry,
+	type KanbanCardData,
+} from "@acepe/ui";
+import { CheckCircle } from "phosphor-svelte";
+import { X } from "phosphor-svelte";
+import { Kanban } from "phosphor-svelte";
+import { Rows } from "phosphor-svelte";
+import { Palette } from "phosphor-svelte";
+import { Robot } from "phosphor-svelte";
+import { ShieldCheck } from "phosphor-svelte";
+import { ShieldWarning } from "phosphor-svelte";
+import { Tag } from "phosphor-svelte";
+import { XCircle } from "phosphor-svelte";
 
-	import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
-	import type { PermissionRequest } from "$lib/acp/types/permission.js";
+import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
+import type { PermissionRequest } from "$lib/acp/types/permission.js";
 
-	interface Props {
-		open: boolean;
-		onOpenChange: (open: boolean) => void;
-	}
+interface Props {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}
 
-	let { open, onOpenChange }: Props = $props();
+let { open, onOpenChange }: Props = $props();
 
-	type SidebarItem = { id: string; label: string; icon: "palette" | "shield" | "kanban" | "tag" | "robot" | "panel" };
-	const sidebarItems: SidebarItem[] = [
-		{ id: "button", label: "Buttons", icon: "palette" },
-		{ id: "badges", label: "Badges & Chips", icon: "tag" },
-		{ id: "panel-header", label: "Panel Header", icon: "panel" },
-		{ id: "permission-card", label: "Permission Card", icon: "shield" },
-		{ id: "kanban-card", label: "Kanban Card", icon: "kanban" },
-		{ id: "agent-tool-task", label: "Agent Tool Task", icon: "robot" },
-	];
+type SidebarItem = {
+	id: string;
+	label: string;
+	icon: "palette" | "shield" | "kanban" | "tag" | "robot" | "panel";
+};
+const sidebarItems: SidebarItem[] = [
+	{ id: "button", label: "Buttons", icon: "palette" },
+	{ id: "badges", label: "Badges & Chips", icon: "tag" },
+	{ id: "panel-header", label: "Panel Header", icon: "panel" },
+	{ id: "permission-card", label: "Permission Card", icon: "shield" },
+	{ id: "kanban-card", label: "Kanban Card", icon: "kanban" },
+	{ id: "agent-tool-task", label: "Agent Tool Task", icon: "robot" },
+];
 
-	const demoCardBase: KanbanCardData = {
-		id: "demo-1",
-		title: "Refactor auth module",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "acepe",
-		projectColor: "#9858FF",
-		activityText: null,
-		isStreaming: false,
-		modeId: "build",
-		diffInsertions: 42,
-		diffDeletions: 8,
-		errorText: null,
-		todoProgress: { current: 3, total: 5, label: "Implement" },
-		taskCard: null,
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: 1,
-	};
+const demoCardBase: KanbanCardData = {
+	id: "demo-1",
+	title: "Refactor auth module",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "acepe",
+	projectColor: "#9858FF",
+	activityText: null,
+	isStreaming: false,
+	modeId: "build",
+	diffInsertions: 42,
+	diffDeletions: 8,
+	errorText: null,
+	todoProgress: { current: 3, total: 5, label: "Implement" },
+	taskCard: null,
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: 1,
+};
 
-	const demoCardStreaming: KanbanCardData = {
-		id: "demo-2",
-		title: "Add i18n support",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "web",
-		projectColor: "#3B82F6",
-		activityText: "Thinking…",
+const demoCardStreaming: KanbanCardData = {
+	id: "demo-2",
+	title: "Add i18n support",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "web",
+	projectColor: "#3B82F6",
+	activityText: "Thinking…",
+	isStreaming: true,
+	modeId: "plan",
+	diffInsertions: 0,
+	diffDeletions: 0,
+	errorText: null,
+	todoProgress: null,
+	taskCard: null,
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: 2,
+};
+
+const demoCardWithTool: KanbanCardData = {
+	id: "demo-3",
+	title: "Fix login redirect",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "acepe",
+	projectColor: "#9858FF",
+	activityText: null,
+	isStreaming: true,
+	modeId: "build",
+	diffInsertions: 12,
+	diffDeletions: 3,
+	errorText: null,
+	todoProgress: null,
+	taskCard: null,
+	latestTool: {
+		id: "tool-1",
+		kind: "edit",
+		title: "Editing",
+		filePath: "src/lib/auth.ts",
+		status: "running",
+	},
+	hasUnseenCompletion: false,
+	sequenceId: 3,
+};
+
+const demoCardError: KanbanCardData = {
+	id: "demo-4",
+	title: "Deploy pipeline",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "infra",
+	projectColor: "#EF4444",
+	activityText: null,
+	isStreaming: false,
+	modeId: "build",
+	diffInsertions: 0,
+	diffDeletions: 0,
+	errorText: "Connection error",
+	todoProgress: null,
+	taskCard: null,
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: null,
+};
+
+const demoCardNeedsReview: KanbanCardData = {
+	id: "demo-4b",
+	title: "Review kanban status transitions",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "desktop",
+	projectColor: "#4AD0FF",
+	activityText: null,
+	isStreaming: false,
+	modeId: "build",
+	diffInsertions: 7,
+	diffDeletions: 1,
+	errorText: null,
+	todoProgress: null,
+	taskCard: null,
+	latestTool: {
+		id: "tool-review-1",
+		kind: "execute",
+		title: "Ran kanban contract tests",
+		filePath: undefined,
+		status: "done",
+	},
+	hasUnseenCompletion: true,
+	sequenceId: null,
+};
+
+const demoSubagentToolCalls: readonly AgentToolEntry[] = [
+	{
+		id: "subagent-tool-1",
+		type: "tool_call",
+		kind: "search",
+		title: "Search",
+		subtitle: "queue reconciliation",
+		status: "done",
+	},
+	{
+		id: "subagent-tool-2",
+		type: "tool_call",
+		kind: "edit",
+		title: "Edit",
+		filePath: "src/lib/acp/store/queue-reducer.ts",
+		status: "done",
+	},
+];
+
+const demoCardSubagent: KanbanCardData = {
+	id: "demo-5",
+	title: "Inspect queue reconciliation",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "desktop",
+	projectColor: "#22C55E",
+	activityText: null,
+	isStreaming: true,
+	modeId: "build",
+	diffInsertions: 9,
+	diffDeletions: 2,
+	errorText: null,
+	todoProgress: { current: 2, total: 3, label: "Inspect" },
+	taskCard: {
+		summary: "Inspect queue reconciliation",
 		isStreaming: true,
-		modeId: "plan",
-		diffInsertions: 0,
-		diffDeletions: 0,
-		errorText: null,
-		todoProgress: null,
-		taskCard: null,
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: 2,
-	};
-
-	const demoCardWithTool: KanbanCardData = {
-		id: "demo-3",
-		title: "Fix login redirect",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "acepe",
-		projectColor: "#9858FF",
-		activityText: null,
-		isStreaming: true,
-		modeId: "build",
-		diffInsertions: 12,
-		diffDeletions: 3,
-		errorText: null,
-		todoProgress: null,
-		taskCard: null,
 		latestTool: {
-			id: "tool-1",
+			id: "subagent-tool-2",
 			kind: "edit",
 			title: "Editing",
-			filePath: "src/lib/auth.ts",
+			filePath: "src/lib/acp/store/queue-reducer.ts",
 			status: "running",
 		},
-		hasUnseenCompletion: false,
-		sequenceId: 3,
-	};
+		toolCalls: demoSubagentToolCalls,
+	},
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: 4,
+};
 
-	const demoCardError: KanbanCardData = {
-		id: "demo-4",
-		title: "Deploy pipeline",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "infra",
-		projectColor: "#EF4444",
-		activityText: null,
-		isStreaming: false,
-		modeId: "build",
-		diffInsertions: 0,
-		diffDeletions: 0,
-		errorText: "Connection error",
-		todoProgress: null,
-		taskCard: null,
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: null,
-	};
+const demoCurrentSubagentToolCalls: readonly AgentToolEntry[] = [
+	{
+		id: "current-subagent-1",
+		type: "tool_call",
+		kind: "task",
+		title: "Task completed",
+		subtitle: "Trace active task mapping in kanban view",
+		status: "done",
+	},
+	{
+		id: "current-subagent-2",
+		type: "tool_call",
+		kind: "task",
+		title: "Task completed",
+		subtitle: "Verify current task children survive thinking state",
+		status: "done",
+	},
+	{
+		id: "current-subagent-3",
+		type: "tool_call",
+		kind: "task",
+		title: "Task running",
+		subtitle: "Update design system specimen for multi-subagent cards",
+		status: "running",
+	},
+];
 
-	const demoCardNeedsReview: KanbanCardData = {
-		id: "demo-4b",
-		title: "Review kanban status transitions",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "desktop",
-		projectColor: "#4AD0FF",
-		activityText: null,
-		isStreaming: false,
-		modeId: "build",
-		diffInsertions: 7,
-		diffDeletions: 1,
-		errorText: null,
-		todoProgress: null,
-		taskCard: null,
-		latestTool: {
-			id: "tool-review-1",
-			kind: "execute",
-			title: "Ran kanban contract tests",
-			filePath: undefined,
-			status: "done",
-		},
-		hasUnseenCompletion: true,
-		sequenceId: null,
-	};
-
-	const demoSubagentToolCalls: readonly AgentToolEntry[] = [
-		{
-			id: "subagent-tool-1",
-			type: "tool_call",
-			kind: "search",
-			title: "Search",
-			subtitle: "queue reconciliation",
-			status: "done",
-		},
-		{
-			id: "subagent-tool-2",
-			type: "tool_call",
-			kind: "edit",
-			title: "Edit",
-			filePath: "src/lib/acp/store/queue-reducer.ts",
-			status: "done",
-		},
-	];
-
-	const demoCardSubagent: KanbanCardData = {
-		id: "demo-5",
-		title: "Inspect queue reconciliation",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "desktop",
-		projectColor: "#22C55E",
-		activityText: null,
+const demoCardMultiSubagent: KanbanCardData = {
+	id: "demo-6",
+	title: "Repair kanban subagent visibility",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "desktop",
+	projectColor: "#F59E0B",
+	activityText: null,
+	isStreaming: true,
+	modeId: "build",
+	diffInsertions: 14,
+	diffDeletions: 1,
+	errorText: null,
+	todoProgress: { current: 2, total: 4, label: "Fix" },
+	taskCard: {
+		summary: "Repair kanban subagent visibility",
 		isStreaming: true,
-		modeId: "build",
-		diffInsertions: 9,
-		diffDeletions: 2,
-		errorText: null,
-		todoProgress: { current: 2, total: 3, label: "Inspect" },
-		taskCard: {
-			summary: "Inspect queue reconciliation",
-			isStreaming: true,
-			latestTool: {
-				id: "subagent-tool-2",
-				kind: "edit",
-				title: "Editing",
-				filePath: "src/lib/acp/store/queue-reducer.ts",
-				status: "running",
-			},
-			toolCalls: demoSubagentToolCalls,
-		},
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: 4,
-	};
-
-	const demoCurrentSubagentToolCalls: readonly AgentToolEntry[] = [
-		{
-			id: "current-subagent-1",
-			type: "tool_call",
-			kind: "task",
-			title: "Task completed",
-			subtitle: "Trace active task mapping in kanban view",
-			status: "done",
-		},
-		{
-			id: "current-subagent-2",
-			type: "tool_call",
-			kind: "task",
-			title: "Task completed",
-			subtitle: "Verify current task children survive thinking state",
-			status: "done",
-		},
-		{
+		latestTool: {
 			id: "current-subagent-3",
-			type: "tool_call",
 			kind: "task",
 			title: "Task running",
-			subtitle: "Update design system specimen for multi-subagent cards",
+			filePath: undefined,
 			status: "running",
 		},
-	];
+		toolCalls: demoCurrentSubagentToolCalls,
+	},
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: 5,
+};
 
-	const demoCardMultiSubagent: KanbanCardData = {
-		id: "demo-6",
-		title: "Repair kanban subagent visibility",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "desktop",
-		projectColor: "#F59E0B",
-		activityText: null,
-		isStreaming: true,
-		modeId: "build",
-		diffInsertions: 14,
-		diffDeletions: 1,
-		errorText: null,
-		todoProgress: { current: 2, total: 4, label: "Fix" },
-		taskCard: {
-			summary: "Repair kanban subagent visibility",
-			isStreaming: true,
-			latestTool: {
-				id: "current-subagent-3",
-				kind: "task",
-				title: "Task running",
-				filePath: undefined,
-				status: "running",
-			},
-			toolCalls: demoCurrentSubagentToolCalls,
-		},
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: 5,
-	};
+const demoCardPermission: KanbanCardData = {
+	id: "demo-7",
+	title: "Approve workspace command",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "acepe",
+	projectColor: "#9858FF",
+	activityText: "Thinking…",
+	isStreaming: true,
+	modeId: "build",
+	diffInsertions: 0,
+	diffDeletions: 0,
+	errorText: null,
+	todoProgress: null,
+	taskCard: null,
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: null,
+};
 
-	const demoCardPermission: KanbanCardData = {
-		id: "demo-7",
-		title: "Approve workspace command",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "acepe",
-		projectColor: "#9858FF",
-		activityText: "Thinking…",
-		isStreaming: true,
-		modeId: "build",
-		diffInsertions: 0,
-		diffDeletions: 0,
-		errorText: null,
-		todoProgress: null,
-		taskCard: null,
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: null,
-	};
+const demoCardQuestion: KanbanCardData = {
+	id: "demo-8",
+	title: "Choose the migration runner",
+	agentIconSrc: "/svgs/icons/claude.svg",
+	agentLabel: "claude",
+	projectName: "desktop",
+	projectColor: "#22C55E",
+	activityText: null,
+	isStreaming: false,
+	modeId: "plan",
+	diffInsertions: 4,
+	diffDeletions: 0,
+	errorText: null,
+	todoProgress: { current: 1, total: 2, label: "Decide" },
+	taskCard: null,
+	latestTool: null,
+	hasUnseenCompletion: false,
+	sequenceId: null,
+};
 
-	const demoCardQuestion: KanbanCardData = {
-		id: "demo-8",
-		title: "Choose the migration runner",
-		agentIconSrc: "/svgs/icons/claude.svg",
-		agentLabel: "claude",
-		projectName: "desktop",
-		projectColor: "#22C55E",
-		activityText: null,
-		isStreaming: false,
-		modeId: "plan",
-		diffInsertions: 4,
-		diffDeletions: 0,
-		errorText: null,
-		todoProgress: { current: 1, total: 2, label: "Decide" },
-		taskCard: null,
-		latestTool: null,
-		hasUnseenCompletion: false,
-		sequenceId: null,
-	};
+const demoPermissionReq: PermissionRequest = {
+	id: "demo-perm-1",
+	sessionId: "demo-session",
+	permission: "Execute bun test src/lib/utils.test.ts",
+	patterns: [],
+	metadata: {},
+	always: ["Execute"],
+};
 
-	const demoPermissionReq: PermissionRequest = {
-		id: "demo-perm-1",
-		sessionId: "demo-session",
-		permission: "Execute bun test src/lib/utils.test.ts",
-		patterns: [],
-		metadata: {},
-		always: ["Execute"],
-	};
+const demoPermissionFileReq: PermissionRequest = {
+	id: "demo-perm-2",
+	sessionId: "demo-session",
+	permission: "Edit src/lib/auth.ts",
+	patterns: [],
+	metadata: {},
+	always: [],
+};
 
-	const demoPermissionFileReq: PermissionRequest = {
-		id: "demo-perm-2",
-		sessionId: "demo-session",
-		permission: "Edit src/lib/auth.ts",
-		patterns: [],
-		metadata: {},
-		always: [],
-	};
+const demoQuestion: ActivityEntryQuestion = {
+	question: "Which test runner do you prefer?",
+	multiSelect: false,
+	options: [{ label: "Vitest" }, { label: "Jest" }, { label: "Bun" }],
+};
+const demoQuestionOptions: readonly ActivityEntryQuestionOption[] = [
+	{ label: "Vitest", selected: true, color: "#22C55E" },
+	{ label: "Jest", selected: false, color: "#9858FF" },
+	{ label: "Bun", selected: false, color: "#FF8D20" },
+];
+const demoQuestionProgress: readonly ActivityEntryQuestionProgress[] = [
+	{ questionIndex: 0, answered: true },
+];
+const demoTaskToolCalls: AnyAgentEntry[] = [
+	{
+		id: "t1",
+		type: "tool_call",
+		kind: "read",
+		title: "Read",
+		filePath: "src/lib/auth.ts",
+		status: "done",
+	},
+	{
+		id: "t2",
+		type: "tool_call",
+		kind: "search",
+		title: "Search",
+		subtitle: "user session handler",
+		status: "done",
+	},
+	{
+		id: "t3",
+		type: "tool_call",
+		kind: "edit",
+		title: "Edit",
+		filePath: "src/lib/session.ts",
+		status: "done",
+	},
+	{
+		id: "t4",
+		type: "tool_call",
+		kind: "execute",
+		title: "Execute",
+		subtitle: "bun test",
+		status: "done",
+	},
+	{
+		id: "t5",
+		type: "tool_call",
+		kind: "edit",
+		title: "Edit",
+		filePath: "src/lib/auth.ts",
+		status: "running",
+	},
+];
 
-	const demoQuestion: ActivityEntryQuestion = {
-		question: "Which test runner do you prefer?",
-		multiSelect: false,
-		options: [
-			{ label: "Vitest" },
-			{ label: "Jest" },
-			{ label: "Bun" },
-		],
-	};
-	const demoQuestionOptions: readonly ActivityEntryQuestionOption[] = [
-		{ label: "Vitest", selected: true, color: "#22C55E" },
-		{ label: "Jest", selected: false, color: "#9858FF" },
-		{ label: "Bun", selected: false, color: "#FF8D20" },
-	];
-	const demoQuestionProgress: readonly ActivityEntryQuestionProgress[] = [
-		{ questionIndex: 0, answered: true },
-	];
-	const demoTaskToolCalls: AnyAgentEntry[] = [
-		{ id: "t1", type: "tool_call", kind: "read", title: "Read", filePath: "src/lib/auth.ts", status: "done" },
-		{ id: "t2", type: "tool_call", kind: "search", title: "Search", subtitle: "user session handler", status: "done" },
-		{ id: "t3", type: "tool_call", kind: "edit", title: "Edit", filePath: "src/lib/session.ts", status: "done" },
-		{ id: "t4", type: "tool_call", kind: "execute", title: "Execute", subtitle: "bun test", status: "done" },
-		{ id: "t5", type: "tool_call", kind: "edit", title: "Edit", filePath: "src/lib/auth.ts", status: "running" },
-	];
+let activeSection = $state("button");
 
-	let activeSection = $state("button");
+const purpleColor = "#9858FF";
+const redColor = "#FF5D5A";
+const greenColor = "var(--success)";
 
-	const purpleColor = "#9858FF";
-	const redColor = "#FF5D5A";
-	const greenColor = "var(--success)";
+function close() {
+	onOpenChange(false);
+}
 
-	function close() {
-		onOpenChange(false);
+function handleBackdropClick(event: MouseEvent) {
+	if (event.target === event.currentTarget) {
+		close();
 	}
+}
 
-	function handleBackdropClick(event: MouseEvent) {
-		if (event.target === event.currentTarget) {
-			close();
-		}
+function handleKeydown(event: KeyboardEvent) {
+	if (event.key === "Escape") {
+		event.stopPropagation();
+		close();
 	}
+}
 
-	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === "Escape") {
-			event.stopPropagation();
-			close();
-		}
-	}
+function handleShowcaseCardAction(): void {}
 
-	function handleShowcaseCardAction(): void {}
-
-	const kanbanMenuTriggerClass =
-		"shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
+const kanbanMenuTriggerClass =
+	"shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
 </script>
 
 {#if open}

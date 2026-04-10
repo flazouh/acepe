@@ -43,7 +43,7 @@ pub enum ClientState {
 /// # Example
 ///
 /// ```rust,no_run
-/// use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions, Message, Result};
+/// use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions, Message, Result};
 /// use futures::StreamExt;
 ///
 /// #[tokio::main]
@@ -153,7 +153,7 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions, SubprocessTransport};
+    /// # use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions, SubprocessTransport};
     /// # fn example() {
     /// let options = ClaudeCodeOptions::default();
     /// let transport = SubprocessTransport::with_cli_path(options.clone(), "/custom/path/claude-code");
@@ -531,7 +531,7 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
+    /// # use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = ClaudeSDKClient::new(ClaudeCodeOptions::default());
     /// client.connect(None).await?;
@@ -647,7 +647,7 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
+    /// # use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = ClaudeSDKClient::new(ClaudeCodeOptions::default());
     /// client.connect(None).await?;
@@ -680,7 +680,7 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
+    /// # use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = ClaudeSDKClient::new(ClaudeCodeOptions::default());
     /// client.connect(None).await?;
@@ -732,7 +732,7 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
+    /// # use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let options = ClaudeCodeOptions::builder()
     ///     .enable_file_checkpointing(true)
@@ -923,8 +923,8 @@ impl ClaudeSDKClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
-    /// use cc_sdk::token_tracker::{BudgetLimit, BudgetWarningCallback};
+    /// use acepe_lib::cc_sdk::{ClaudeSDKClient, ClaudeCodeOptions};
+    /// use acepe_lib::cc_sdk::token_tracker::{BudgetLimit, BudgetWarningCallback};
     /// use std::sync::Arc;
     ///
     /// # async fn example() {

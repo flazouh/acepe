@@ -1,16 +1,16 @@
 <script lang="ts">
-	interface TextBlock {
-		text: string;
-	}
+interface TextBlock {
+	text: string;
+}
 
-	interface Props {
-		block: TextBlock;
-		isStreaming?: boolean;
-		projectPath?: string;
-	}
+interface Props {
+	block: TextBlock;
+	isStreaming?: boolean;
+	projectPath?: string;
+}
 
-	let { block }: Props = $props();
-	let lineCount = $state(1);
+let { block }: Props = $props();
+let lineCount = $state(1);
 </script>
 
 {#if block.text === "thinking"}

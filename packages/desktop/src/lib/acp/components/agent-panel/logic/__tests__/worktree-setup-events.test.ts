@@ -3,15 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { WorktreeSetupEvent } from "$lib/acp/types/worktree-setup.js";
 
 import {
-	createWorktreeSetupMatchContext,
 	createWorktreeCreationState,
+	createWorktreeSetupMatchContext,
 	matchesWorktreeSetupContext,
 	reduceWorktreeSetupEvent,
 } from "../worktree-setup-events.js";
 
-function createEvent(
-	overrides: Partial<WorktreeSetupEvent> = {}
-): WorktreeSetupEvent {
+function createEvent(overrides: Partial<WorktreeSetupEvent> = {}): WorktreeSetupEvent {
 	return {
 		kind: "started",
 		projectPath: "/repo",
@@ -171,9 +169,9 @@ describe("matchesWorktreeSetupContext", () => {
 		});
 
 		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(true);
-		expect(
-			matchesWorktreeSetupContext(createEvent({ worktreePath: "/wt/repo-b" }), context)
-		).toBe(false);
+		expect(matchesWorktreeSetupContext(createEvent({ worktreePath: "/wt/repo-b" }), context)).toBe(
+			false
+		);
 	});
 
 	it("prefers worktree path matching when the panel already knows a worktree", () => {

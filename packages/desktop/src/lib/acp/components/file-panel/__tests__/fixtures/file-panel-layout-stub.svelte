@@ -1,27 +1,27 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	interface Props {
-		loading: boolean;
-		error: string | null;
-		hasContent: boolean;
-		header?: Snippet;
-		loadingSkeleton?: Snippet;
-		errorDisplay?: Snippet;
-		emptyDisplay?: Snippet;
-		fileViewer: Snippet;
-	}
+interface Props {
+	loading: boolean;
+	error: string | null;
+	hasContent: boolean;
+	header?: Snippet;
+	loadingSkeleton?: Snippet;
+	errorDisplay?: Snippet;
+	emptyDisplay?: Snippet;
+	fileViewer: Snippet;
+}
 
-	let {
-		loading,
-		error,
-		hasContent,
-		header,
-		loadingSkeleton,
-		errorDisplay,
-		emptyDisplay,
-		fileViewer,
-	}: Props = $props();
+let {
+	loading,
+	error,
+	hasContent,
+	header,
+	loadingSkeleton,
+	errorDisplay,
+	emptyDisplay,
+	fileViewer,
+}: Props = $props();
 </script>
 
 {#if header}

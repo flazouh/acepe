@@ -259,7 +259,11 @@ const planApprovalPrompt = $derived(
 
 const toolContent = $derived.by(() => {
 	if (!toolDisplay) return null;
-	return getToolCompactDisplayText(toolDisplay.toolKind, toolDisplay.toolCall, toolDisplay.turnState);
+	return getToolCompactDisplayText(
+		toolDisplay.toolKind,
+		toolDisplay.toolCall,
+		toolDisplay.turnState
+	);
 });
 
 const toolFilePath = $derived.by(() => {

@@ -1,275 +1,293 @@
 <script lang="ts">
-	/**
-	 * Live interactive demo of Acepe's Attention Queue.
-	 * Uses the real @acepe/ui components to showcase queue functionality
-	 * on the marketing website.
-	 */
-	import {
-		SectionedFeed,
-		FeedItem,
-		ActivityEntry,
-		ProjectLetterBadge,
-		COLOR_NAMES,
-		Colors,
-		TAG_COLORS
-	} from '@acepe/ui';
-	import type {
-		SectionedFeedGroup,
-		ActivityEntryMode,
-		ActivityEntryQuestion,
-		ActivityEntryQuestionOption,
-		ActivityEntryQuestionProgress,
-		ActivityEntryTodoProgress
-	} from '@acepe/ui';
+/**
+ * Live interactive demo of Acepe's Attention Queue.
+ * Uses the real @acepe/ui components to showcase queue functionality
+ * on the marketing website.
+ */
+import {
+	SectionedFeed,
+	FeedItem,
+	ActivityEntry,
+	ProjectLetterBadge,
+	COLOR_NAMES,
+	Colors,
+	TAG_COLORS,
+} from "@acepe/ui";
+import type {
+	SectionedFeedGroup,
+	ActivityEntryMode,
+	ActivityEntryQuestion,
+	ActivityEntryQuestionOption,
+	ActivityEntryQuestionProgress,
+	ActivityEntryTodoProgress,
+} from "@acepe/ui";
 
-	// =========================================================================
-	// TYPES
-	// =========================================================================
+// =========================================================================
+// TYPES
+// =========================================================================
 
-	interface DemoItem {
-		readonly id: string;
-		readonly sectionId: 'answer_needed' | 'working' | 'planning' | 'needs_review' | 'error';
-		readonly title: string;
-		readonly mode: ActivityEntryMode;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: ActivityEntryTodoProgress | null;
-		readonly question: ActivityEntryQuestion | null;
-		readonly projectName: string;
-		readonly projectColor: string;
-	}
+interface DemoItem {
+	readonly id: string;
+	readonly sectionId: "answer_needed" | "working" | "planning" | "needs_review" | "error";
+	readonly title: string;
+	readonly mode: ActivityEntryMode;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: ActivityEntryTodoProgress | null;
+	readonly question: ActivityEntryQuestion | null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
 
-	// =========================================================================
-	// DEMO ITEMS - Carefully curated to show feature breadth
-	// =========================================================================
+// =========================================================================
+// DEMO ITEMS - Carefully curated to show feature breadth
+// =========================================================================
 
-	const QUESTION_COLORS = [
-		Colors[COLOR_NAMES.GREEN],
-		Colors[COLOR_NAMES.RED],
-		Colors[COLOR_NAMES.PINK],
-		Colors[COLOR_NAMES.ORANGE]
-	];
+const QUESTION_COLORS = [
+	Colors[COLOR_NAMES.GREEN],
+	Colors[COLOR_NAMES.RED],
+	Colors[COLOR_NAMES.PINK],
+	Colors[COLOR_NAMES.ORANGE],
+];
 
-	const demoItems: DemoItem[] = [
-		// Input needed - with interactive question
-		{
-			id: 'auth-module',
-			sectionId: 'answer_needed',
-			title: 'Implementing auth module',
-			mode: 'build',
-			timeAgo: 'now',
-			insertions: 0,
-			deletions: 0,
-			isStreaming: false,
-			statusText: null,
-			showStatusShimmer: false,
-			fileToolDisplayText: null,
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: [],
-			showTaskSubagentList: false,
-			todoProgress: null,
-			question: {
-				question: 'Which auth strategy should I use?',
-				multiSelect: false,
-				options: [{ label: 'JWT tokens' }, { label: 'Session cookies' }, { label: 'OAuth 2.0' }]
-			},
-			projectName: 'Acme',
-			projectColor: TAG_COLORS[1]
+const demoItems: DemoItem[] = [
+	// Input needed - with interactive question
+	{
+		id: "auth-module",
+		sectionId: "answer_needed",
+		title: "Implementing auth module",
+		mode: "build",
+		timeAgo: "now",
+		insertions: 0,
+		deletions: 0,
+		isStreaming: false,
+		statusText: null,
+		showStatusShimmer: false,
+		fileToolDisplayText: null,
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: [],
+		showTaskSubagentList: false,
+		todoProgress: null,
+		question: {
+			question: "Which auth strategy should I use?",
+			multiSelect: false,
+			options: [{ label: "JWT tokens" }, { label: "Session cookies" }, { label: "OAuth 2.0" }],
 		},
-		// Working - with tool and progress
-		{
-			id: 'api-refactor',
-			sectionId: 'working',
-			title: 'API endpoint refactor',
-			mode: 'build',
-			timeAgo: '2m',
-			insertions: 67,
-			deletions: 23,
-			isStreaming: true,
-			statusText: null,
-			showStatusShimmer: false,
-			fileToolDisplayText: 'Editing api-routes.ts',
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: [],
-			showTaskSubagentList: false,
-			todoProgress: { current: 3, total: 5, label: 'Migrating endpoints' },
-			question: null,
-			projectName: 'Backend',
-			projectColor: TAG_COLORS[3]
-		},
-		// Working - with subagents
-		{
-			id: 'test-suite',
-			sectionId: 'working',
-			title: 'Test coverage expansion',
-			mode: 'build',
-			timeAgo: '5m',
-			insertions: 156,
-			deletions: 12,
-			isStreaming: true,
-			statusText: null,
-			showStatusShimmer: false,
-			fileToolDisplayText: null,
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: ['Analyzing auth.test.ts', 'Writing store tests', 'Running suite'],
-			showTaskSubagentList: true,
-			todoProgress: null,
-			question: null,
-			projectName: 'Acme',
-			projectColor: TAG_COLORS[1]
-		},
-		// Planning
-		{
-			id: 'architecture',
-			sectionId: 'planning',
-			title: 'Architecture review',
-			mode: 'plan',
-			timeAgo: '3m',
-			insertions: 0,
-			deletions: 0,
-			isStreaming: true,
-			statusText: 'Planning next moves...',
-			showStatusShimmer: true,
-			fileToolDisplayText: null,
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: [],
-			showTaskSubagentList: false,
-			todoProgress: null,
-			question: null,
-			projectName: 'Monorepo',
-			projectColor: TAG_COLORS[5]
-		},
-		// Finished
-		{
-			id: 'db-migration',
-			sectionId: 'needs_review',
-			title: 'Database migration',
-			mode: null,
-			timeAgo: '12m',
-			insertions: 34,
-			deletions: 8,
-			isStreaming: false,
-			statusText: null,
-			showStatusShimmer: false,
-			fileToolDisplayText: null,
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: [],
-			showTaskSubagentList: false,
-			todoProgress: { current: 4, total: 4, label: 'Complete' },
-			question: null,
-			projectName: 'Backend',
-			projectColor: TAG_COLORS[3]
-		},
-		// Error
-		{
-			id: 'deploy-fail',
-			sectionId: 'error',
-			title: 'CI pipeline fix',
-			mode: null,
-			timeAgo: '8m',
-			insertions: 0,
-			deletions: 0,
-			isStreaming: false,
-			statusText: 'Build failed: missing env var',
-			showStatusShimmer: false,
-			fileToolDisplayText: null,
-			toolContent: null,
-			showToolShimmer: false,
-			taskSubagentSummaries: [],
-			showTaskSubagentList: false,
-			todoProgress: null,
-			question: null,
-			projectName: 'Acme',
-			projectColor: TAG_COLORS[1]
-		}
-	];
+		projectName: "Acme",
+		projectColor: TAG_COLORS[1],
+	},
+	// Working - with tool and progress
+	{
+		id: "api-refactor",
+		sectionId: "working",
+		title: "API endpoint refactor",
+		mode: "build",
+		timeAgo: "2m",
+		insertions: 67,
+		deletions: 23,
+		isStreaming: true,
+		statusText: null,
+		showStatusShimmer: false,
+		fileToolDisplayText: "Editing api-routes.ts",
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: [],
+		showTaskSubagentList: false,
+		todoProgress: { current: 3, total: 5, label: "Migrating endpoints" },
+		question: null,
+		projectName: "Backend",
+		projectColor: TAG_COLORS[3],
+	},
+	// Working - with subagents
+	{
+		id: "test-suite",
+		sectionId: "working",
+		title: "Test coverage expansion",
+		mode: "build",
+		timeAgo: "5m",
+		insertions: 156,
+		deletions: 12,
+		isStreaming: true,
+		statusText: null,
+		showStatusShimmer: false,
+		fileToolDisplayText: null,
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: ["Analyzing auth.test.ts", "Writing store tests", "Running suite"],
+		showTaskSubagentList: true,
+		todoProgress: null,
+		question: null,
+		projectName: "Acme",
+		projectColor: TAG_COLORS[1],
+	},
+	// Planning
+	{
+		id: "architecture",
+		sectionId: "planning",
+		title: "Architecture review",
+		mode: "plan",
+		timeAgo: "3m",
+		insertions: 0,
+		deletions: 0,
+		isStreaming: true,
+		statusText: "Planning next moves...",
+		showStatusShimmer: true,
+		fileToolDisplayText: null,
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: [],
+		showTaskSubagentList: false,
+		todoProgress: null,
+		question: null,
+		projectName: "Monorepo",
+		projectColor: TAG_COLORS[5],
+	},
+	// Finished
+	{
+		id: "db-migration",
+		sectionId: "needs_review",
+		title: "Database migration",
+		mode: null,
+		timeAgo: "12m",
+		insertions: 34,
+		deletions: 8,
+		isStreaming: false,
+		statusText: null,
+		showStatusShimmer: false,
+		fileToolDisplayText: null,
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: [],
+		showTaskSubagentList: false,
+		todoProgress: { current: 4, total: 4, label: "Complete" },
+		question: null,
+		projectName: "Backend",
+		projectColor: TAG_COLORS[3],
+	},
+	// Error
+	{
+		id: "deploy-fail",
+		sectionId: "error",
+		title: "CI pipeline fix",
+		mode: null,
+		timeAgo: "8m",
+		insertions: 0,
+		deletions: 0,
+		isStreaming: false,
+		statusText: "Build failed: missing env var",
+		showStatusShimmer: false,
+		fileToolDisplayText: null,
+		toolContent: null,
+		showToolShimmer: false,
+		taskSubagentSummaries: [],
+		showTaskSubagentList: false,
+		todoProgress: null,
+		question: null,
+		projectName: "Acme",
+		projectColor: TAG_COLORS[1],
+	},
+];
 
-	// =========================================================================
-	// SECTION DEFINITIONS
-	// =========================================================================
+// =========================================================================
+// SECTION DEFINITIONS
+// =========================================================================
 
-	const SECTION_LABELS: Record<string, string> = {
-		answer_needed: 'Input Needed',
-		working: 'Working',
-		planning: 'Planning',
-		needs_review: 'Needs Review',
-		error: 'Error'
-	};
+const SECTION_LABELS: Record<string, string> = {
+	answer_needed: "Input Needed",
+	working: "Working",
+	planning: "Planning",
+	needs_review: "Needs Review",
+	error: "Error",
+};
 
-	const groups = $derived<readonly SectionedFeedGroup<DemoItem>[]>(
-		['answer_needed', 'working', 'planning', 'needs_review', 'error']
-			.map((id) => ({
-				id: id as 'answer_needed' | 'working' | 'planning' | 'needs_review' | 'error',
-				label: SECTION_LABELS[id],
-				items: demoItems.filter((item) => item.sectionId === id)
-			}))
-			.filter((g) => g.items.length > 0)
-	);
+const groups = $derived<readonly SectionedFeedGroup<DemoItem>[]>(
+	["answer_needed", "working", "planning", "needs_review", "error"]
+		.map((id) => ({
+			id: id as "answer_needed" | "working" | "planning" | "needs_review" | "error",
+			label: SECTION_LABELS[id],
+			items: demoItems.filter((item) => item.sectionId === id),
+		}))
+		.filter((g) => g.items.length > 0)
+);
 
-	// =========================================================================
-	// INTERACTIVE STATE
-	// =========================================================================
+// =========================================================================
+// INTERACTIVE STATE
+// =========================================================================
 
-	let selectedItemId = $state<string | null>(null);
+let selectedItemId = $state<string | null>(null);
 
-	// Question interaction state per item
-	const questionSelections = $state<Map<string, Set<string>>>(new Map());
-	const otherTexts = $state<Map<string, string>>(new Map());
-	const submittedItems = $state<Set<string>>(new Set());
+// Question interaction state per item
+const questionSelections = $state<Map<string, Set<string>>>(new Map());
+const otherTexts = $state<Map<string, string>>(new Map());
+const submittedItems = $state<Set<string>>(new Set());
 
-	function getQuestionOptions(item: DemoItem): readonly ActivityEntryQuestionOption[] {
-		if (!item.question) return [];
-		const selected = questionSelections.get(item.id) ?? new Set<string>();
-		return item.question.options.map((opt, i) => ({
-			label: opt.label,
-			selected: selected.has(opt.label),
-			color: QUESTION_COLORS[i % QUESTION_COLORS.length]
-		}));
-	}
+function getQuestionOptions(item: DemoItem): readonly ActivityEntryQuestionOption[] {
+	if (!item.question) return [];
+	const selected = questionSelections.get(item.id) ?? new Set<string>();
+	return item.question.options.map((opt, i) => ({
+		label: opt.label,
+		selected: selected.has(opt.label),
+		color: QUESTION_COLORS[i % QUESTION_COLORS.length],
+	}));
+}
 
-	function isAnswered(itemId: string): boolean {
-		const selections = questionSelections.get(itemId);
-		const otherText = otherTexts.get(itemId);
-		return (selections?.size ?? 0) > 0 || (otherText?.trim().length ?? 0) > 0;
-	}
+function isAnswered(itemId: string): boolean {
+	const selections = questionSelections.get(itemId);
+	const otherText = otherTexts.get(itemId);
+	return (selections?.size ?? 0) > 0 || (otherText?.trim().length ?? 0) > 0;
+}
 
-	function getAnswerDisplay(itemId: string): string {
-		const selections = questionSelections.get(itemId);
-		const otherText = otherTexts.get(itemId);
-		const answers: string[] = [];
-		if (selections) answers.push(...selections);
-		if (otherText?.trim()) answers.push(otherText.trim());
-		return answers.join(', ');
-	}
+function getAnswerDisplay(itemId: string): string {
+	const selections = questionSelections.get(itemId);
+	const otherText = otherTexts.get(itemId);
+	const answers: string[] = [];
+	if (selections) answers.push(...selections);
+	if (otherText?.trim()) answers.push(otherText.trim());
+	return answers.join(", ");
+}
 
-	function handleOptionSelect(itemId: string, optionLabel: string, multiSelect: boolean) {
-		if (submittedItems.has(itemId)) return;
+function handleOptionSelect(itemId: string, optionLabel: string, multiSelect: boolean) {
+	if (submittedItems.has(itemId)) return;
 
-		const current = questionSelections.get(itemId) ?? new Set<string>();
-		if (multiSelect) {
-			if (current.has(optionLabel)) {
-				current.delete(optionLabel);
-			} else {
-				current.add(optionLabel);
-			}
+	const current = questionSelections.get(itemId) ?? new Set<string>();
+	if (multiSelect) {
+		if (current.has(optionLabel)) {
+			current.delete(optionLabel);
 		} else {
-			current.clear();
 			current.add(optionLabel);
-			// Auto-submit for single-select
+		}
+	} else {
+		current.clear();
+		current.add(optionLabel);
+		// Auto-submit for single-select
+		submittedItems.add(itemId);
+		setTimeout(() => {
+			submittedItems.delete(itemId);
+			questionSelections.delete(itemId);
+			otherTexts.delete(itemId);
+		}, 2000);
+	}
+	questionSelections.set(itemId, current);
+}
+
+function handleOtherInput(itemId: string, value: string) {
+	otherTexts.set(itemId, value);
+}
+
+function handleOtherKeydown(itemId: string, key: string) {
+	if (key === "Enter") {
+		const text = otherTexts.get(itemId)?.trim();
+		if (text) {
 			submittedItems.add(itemId);
 			setTimeout(() => {
 				submittedItems.delete(itemId);
@@ -277,26 +295,8 @@
 				otherTexts.delete(itemId);
 			}, 2000);
 		}
-		questionSelections.set(itemId, current);
 	}
-
-	function handleOtherInput(itemId: string, value: string) {
-		otherTexts.set(itemId, value);
-	}
-
-	function handleOtherKeydown(itemId: string, key: string) {
-		if (key === 'Enter') {
-			const text = otherTexts.get(itemId)?.trim();
-			if (text) {
-				submittedItems.add(itemId);
-				setTimeout(() => {
-					submittedItems.delete(itemId);
-					questionSelections.delete(itemId);
-					otherTexts.delete(itemId);
-				}, 2000);
-			}
-		}
-	}
+}
 </script>
 
 <div class="queue-demo">

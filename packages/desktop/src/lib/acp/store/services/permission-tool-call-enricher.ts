@@ -1,6 +1,6 @@
 import type { PermissionRequest } from "../../types/permission.js";
-import type { SessionEntry } from "../types.js";
 import type { ToolCallUpdate } from "../../types/tool-call.js";
+import type { SessionEntry } from "../types.js";
 
 type PermissionToolCallHandler = {
 	getEntries(sessionId: string): SessionEntry[];

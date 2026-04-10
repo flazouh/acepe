@@ -271,7 +271,12 @@ describe("resolveChunkAction", () => {
 				content: { type: "text", text: "." },
 			});
 
-			const { decision } = resolveChunkAction(state, input, entriesExist("msg-1"), idGen("uuid-new"));
+			const { decision } = resolveChunkAction(
+				state,
+				input,
+				entriesExist("msg-1"),
+				idGen("uuid-new")
+			);
 
 			expect(decision).toEqual({
 				action: "create",

@@ -77,7 +77,9 @@ function sortItems(items: ThreadBoardItem[]): void {
 	items.sort((left, right) => right.lastActivityAt - left.lastActivityAt);
 }
 
-export function buildThreadBoard(sources: readonly ThreadBoardSource[]): readonly ThreadBoardGroup[] {
+export function buildThreadBoard(
+	sources: readonly ThreadBoardSource[]
+): readonly ThreadBoardGroup[] {
 	const answerNeeded: ThreadBoardItem[] = [];
 	const planning: ThreadBoardItem[] = [];
 	const working: ThreadBoardItem[] = [];

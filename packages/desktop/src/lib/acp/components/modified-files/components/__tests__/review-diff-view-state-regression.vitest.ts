@@ -1,17 +1,9 @@
-import {
-	type FileContents,
-	type FileDiffMetadata,
-	parseDiffFromFile,
-} from "@pierre/diffs";
+import { type FileContents, type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@pierre/diffs", async () => {
 	const actual = await vi.importActual<typeof import("@pierre/diffs")>("@pierre/diffs");
-	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (
-		diff,
-		hunkIndex,
-		action
-	) => {
+	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
 		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
 		const corruptedResult = Object.assign({}, result);
 		Reflect.deleteProperty(corruptedResult, "additionLines");

@@ -11,11 +11,20 @@ const prStatusCardSource = readFileSync(
 	resolve(__dirname, "../../pr-status-card/pr-status-card.svelte"),
 	"utf8"
 );
-const queueCardStripSource = readFileSync(resolve(__dirname, "../../queue-card-strip.svelte"), "utf8");
+const queueCardStripSource = readFileSync(
+	resolve(__dirname, "../../queue-card-strip.svelte"),
+	"utf8"
+);
 const todoHeaderSource = readFileSync(resolve(__dirname, "../../todo-header.svelte"), "utf8");
-const worktreeSetupCardSource = readFileSync(resolve(__dirname, "./worktree-setup-card.svelte"), "utf8");
+const worktreeSetupCardSource = readFileSync(
+	resolve(__dirname, "./worktree-setup-card.svelte"),
+	"utf8"
+);
 const agentErrorCardSource = readFileSync(resolve(__dirname, "./agent-error-card.svelte"), "utf8");
-const agentInstallCardSource = readFileSync(resolve(__dirname, "./agent-install-card.svelte"), "utf8");
+const agentInstallCardSource = readFileSync(
+	resolve(__dirname, "./agent-install-card.svelte"),
+	"utf8"
+);
 
 describe("agent panel compose stack", () => {
 	it("owns the shared above-composer gutter in the parent stack", () => {
@@ -26,7 +35,7 @@ describe("agent panel compose stack", () => {
 		expect(modifiedFilesHeaderSource).not.toContain('<div class="w-full px-5">');
 		expect(prStatusCardSource).not.toContain('<div class="w-full px-5">');
 		expect(queueCardStripSource).not.toContain('<div class="w-full px-5">');
-		expect(todoHeaderSource).not.toContain('{compact ? \'\' : \'px-5\'}');
+		expect(todoHeaderSource).not.toContain("{compact ? '' : 'px-5'}");
 		expect(worktreeSetupCardSource).not.toContain('<div class="w-full px-5">');
 		expect(agentErrorCardSource).not.toContain('<div class="w-full px-5">');
 		expect(agentInstallCardSource).not.toContain('<div class="w-full px-5">');

@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
 import { CMD } from "./commands.js";
 
-const mockInvokeAsync = vi.fn((_cmd: string, _args?: Record<string, unknown>) => okAsync(undefined));
+const mockInvokeAsync = vi.fn((_cmd: string, _args?: Record<string, unknown>) =>
+	okAsync(undefined)
+);
 
 vi.mock("./invoke.js", () => ({
 	invokeAsync: (cmd: string, args?: Record<string, unknown>) => mockInvokeAsync(cmd, args),

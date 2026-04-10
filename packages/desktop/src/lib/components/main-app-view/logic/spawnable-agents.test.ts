@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	ensureSpawnableAgentSelected,
-	getSpawnableSessionAgents,
-} from "./spawnable-agents.js";
+import { ensureSpawnableAgentSelected, getSpawnableSessionAgents } from "./spawnable-agents.js";
 
 describe("getSpawnableSessionAgents", () => {
 	it("includes selected agents and installable agents that are not installed", () => {

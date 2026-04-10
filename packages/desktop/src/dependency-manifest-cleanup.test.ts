@@ -1,15 +1,7 @@
-import {
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	readdirSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-
-import { describe, expect, it } from "bun:test";
 
 const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const CURRENT_TEST_FILE_PATH = import.meta.filename;
@@ -37,10 +29,9 @@ const IGNORED_DIRECTORY_NAMES = new Set([
 	"target",
 ]);
 const LEGACY_PACKAGE_PATTERN = LEGACY_PACKAGE_NAMES.join("|");
-const LEGACY_IMPORT_PATTERN =
-	new RegExp(
-		`from\\s+["'](?:${LEGACY_PACKAGE_PATTERN})["']|import\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)|require\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)`
-	);
+const LEGACY_IMPORT_PATTERN = new RegExp(
+	`from\\s+["'](?:${LEGACY_PACKAGE_PATTERN})["']|import\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)|require\\s*\\(\\s*["'](?:${LEGACY_PACKAGE_PATTERN})["']\\s*\\)`
+);
 
 type PackageJson = {
 	dependencies?: Record<string, string>;
@@ -91,7 +82,7 @@ describe("legacy icon package cleanup", () => {
 			mkdirSync(resolve(tempDirectoryPath, "src/routes"), { recursive: true });
 			mkdirSync(resolve(tempDirectoryPath, "node_modules"), { recursive: true });
 			writeFileSync(nestedSourcePath, "export const example = true;\n");
-			writeFileSync(nestedSveltePath, "<script lang=\"ts\"></script>\n");
+			writeFileSync(nestedSveltePath, '<script lang="ts"></script>\n');
 			writeFileSync(ignoredPath, "export const ignored = true;\n");
 			writeFileSync(unsupportedPath, "# ignored\n");
 
@@ -121,10 +112,9 @@ describe("legacy icon package cleanup", () => {
 
 			const source = readFileSync(sourceFilePath, "utf8");
 
-			expect(
-				source,
-				`File ${sourceFilePath} contains a legacy icon package import`
-			).not.toMatch(LEGACY_IMPORT_PATTERN);
+			expect(source, `File ${sourceFilePath} contains a legacy icon package import`).not.toMatch(
+				LEGACY_IMPORT_PATTERN
+			);
 		}
 	});
 

@@ -4,9 +4,9 @@ import { onDestroy, onMount } from "svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
-	import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
-	import { createLogger } from "../../utils/logger.js";
-	import BrowserPanelHeader from "./browser-panel-header.svelte";
+import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
+import { createLogger } from "../../utils/logger.js";
+import BrowserPanelHeader from "./browser-panel-header.svelte";
 import { observeScrollParents } from "./logic/scroll-sync.js";
 
 const logger = createLogger({ id: "browser-panel", name: "BrowserPanel" });
@@ -99,8 +99,7 @@ function navigateToUrl(nextUrl: string) {
 	if (webviewCreated) {
 		browserWebview.navigate(webviewLabel, nextUrl).match(
 			() => undefined,
-			(error) =>
-				logger.error("navigate failed", { panelId: props.panelId, nextUrl, error })
+			(error) => logger.error("navigate failed", { panelId: props.panelId, nextUrl, error })
 		);
 	}
 }
@@ -113,45 +112,47 @@ function createWebview() {
 	const label = webviewLabel;
 	const requestedUrl = currentUrl;
 	openPending = true;
-	resolveNativeBounds().andThen((bounds) => {
-		return browserWebview.open(
-			label,
-			requestedUrl,
-			bounds.x,
-			bounds.y,
-			bounds.width,
-			bounds.height
+	resolveNativeBounds()
+		.andThen((bounds) => {
+			return browserWebview.open(
+				label,
+				requestedUrl,
+				bounds.x,
+				bounds.y,
+				bounds.width,
+				bounds.height
+			);
+		})
+		.match(
+			() => {
+				openPending = false;
+				if (isDestroyed || closeRequested) {
+					browserWebview.close(label);
+					webviewCreated = false;
+					return;
+				}
+				webviewCreated = true;
+				// Re-sync bounds after creation in case a ResizeObserver event
+				// fired while webviewCreated was still false (race with async open).
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => syncWebviewBounds());
+				});
+				if (currentUrl !== requestedUrl) {
+					browserWebview.navigate(label, currentUrl).match(
+						() => undefined,
+						(error) =>
+							logger.error("post-open navigate failed", {
+								panelId: props.panelId,
+								error,
+							})
+					);
+				}
+			},
+			(error) => {
+				openPending = false;
+				logger.error("createWebview failed", { label, error });
+			}
 		);
-	}).match(
-		() => {
-			openPending = false;
-			if (isDestroyed || closeRequested) {
-				browserWebview.close(label);
-				webviewCreated = false;
-				return;
-			}
-			webviewCreated = true;
-			// Re-sync bounds after creation in case a ResizeObserver event
-			// fired while webviewCreated was still false (race with async open).
-			requestAnimationFrame(() => {
-				requestAnimationFrame(() => syncWebviewBounds());
-			});
-			if (currentUrl !== requestedUrl) {
-				browserWebview.navigate(label, currentUrl).match(
-					() => undefined,
-					(error) =>
-						logger.error("post-open navigate failed", {
-							panelId: props.panelId,
-							error,
-						})
-				);
-			}
-		},
-		(error) => {
-			openPending = false;
-			logger.error("createWebview failed", { label, error });
-		}
-	);
 }
 
 function syncWebviewBounds() {
@@ -159,25 +160,21 @@ function syncWebviewBounds() {
 		return;
 	}
 
-	resolveNativeBounds().andThen((bounds) => {
-		if (bounds.width <= 0 || bounds.height <= 0) {
-			return ResultAsync.fromPromise(
-				Promise.resolve(undefined),
-				() => new Error("Skipped zero-sized browser panel bounds")
-			);
-		}
+	resolveNativeBounds()
+		.andThen((bounds) => {
+			if (bounds.width <= 0 || bounds.height <= 0) {
+				return ResultAsync.fromPromise(
+					Promise.resolve(undefined),
+					() => new Error("Skipped zero-sized browser panel bounds")
+				);
+			}
 
-		return browserWebview.resize(
-			webviewLabel,
-			bounds.x,
-			bounds.y,
-			bounds.width,
-			bounds.height
+			return browserWebview.resize(webviewLabel, bounds.x, bounds.y, bounds.width, bounds.height);
+		})
+		.match(
+			() => undefined,
+			(error) => logger.error("syncWebviewBounds failed", { panelId: props.panelId, error })
 		);
-	}).match(
-		() => undefined,
-		(error) => logger.error("syncWebviewBounds failed", { panelId: props.panelId, error })
-	);
 }
 
 function destroyWebview() {

@@ -1,15 +1,15 @@
 <script lang="ts">
-	import BlogPostLayout from '$lib/blog/blog-post-layout.svelte';
-	import { attentionQueueBlogPost as metadata } from '$lib/blog/posts.js';
-	import { MarkdownDisplay } from '@acepe/ui';
-	import FullQueueDemo from '$lib/blog/demos/queue-full-demo.svelte';
-	import AnswerNeededDemo from '$lib/blog/demos/queue-answer-needed-demo.svelte';
-	import WorkingDemo from '$lib/blog/demos/queue-working-demo.svelte';
-	import PlanningDemo from '$lib/blog/demos/queue-planning-demo.svelte';
-	import ErrorDemo from '$lib/blog/demos/queue-error-demo.svelte';
-	import FinishedDemo from '$lib/blog/demos/queue-finished-demo.svelte';
+import BlogPostLayout from "$lib/blog/blog-post-layout.svelte";
+import { attentionQueueBlogPost as metadata } from "$lib/blog/posts.js";
+import { MarkdownDisplay } from "@acepe/ui";
+import FullQueueDemo from "$lib/blog/demos/queue-full-demo.svelte";
+import AnswerNeededDemo from "$lib/blog/demos/queue-answer-needed-demo.svelte";
+import WorkingDemo from "$lib/blog/demos/queue-working-demo.svelte";
+import PlanningDemo from "$lib/blog/demos/queue-planning-demo.svelte";
+import ErrorDemo from "$lib/blog/demos/queue-error-demo.svelte";
+import FinishedDemo from "$lib/blog/demos/queue-finished-demo.svelte";
 
-	let { data } = $props();
+let { data } = $props();
 </script>
 
 <BlogPostLayout

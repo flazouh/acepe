@@ -8,16 +8,15 @@ import type { ProjectIndex } from "../../../../services/converted-session-types.
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
+import { deriveSessionTitleFromUserInput } from "../../../store/session-title-policy.js";
 import type { AvailableCommand } from "../../../types/available-command.js";
 import type { FilePickerEntry } from "../../../types/file-picker-entry.js";
 import { createLogger } from "../../../utils/logger.js";
-
 import {
 	FileLoadError,
 	type MessageSendError,
 	SessionCreationError,
 } from "../errors/agent-input-error.js";
-import { deriveSessionTitleFromUserInput } from "../../../store/session-title-policy.js";
 import { calculateDropdownPosition } from "../logic/dropdown-trigger.js";
 import { createImageAttachment, isImageMimeType } from "../logic/image-attachment.js";
 import { findInlineArtefactRangeAtPosition } from "../logic/inline-artefact-segments.js";
@@ -264,19 +263,13 @@ export class AgentInputState {
 		if (!this.containerRef) return false;
 		const rect = this.containerRef.getBoundingClientRect();
 		const zoomLevel = getZoomService().zoomLevel;
-		const normalizedZoomLevel =
-			Number.isFinite(zoomLevel) && zoomLevel > 0 ? zoomLevel : 1;
+		const normalizedZoomLevel = Number.isFinite(zoomLevel) && zoomLevel > 0 ? zoomLevel : 1;
 		const left = rect.left * normalizedZoomLevel;
 		const right = rect.right * normalizedZoomLevel;
 		const top = rect.top * normalizedZoomLevel;
 		const bottom = rect.bottom * normalizedZoomLevel;
 
-		return (
-			position.x >= left &&
-			position.x <= right &&
-			position.y >= top &&
-			position.y <= bottom
-		);
+		return position.x >= left && position.x <= right && position.y >= top && position.y <= bottom;
 	}
 
 	/**

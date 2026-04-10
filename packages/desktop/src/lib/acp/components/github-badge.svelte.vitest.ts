@@ -5,7 +5,10 @@ vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });
@@ -52,7 +55,9 @@ describe("GitHubBadge", () => {
 		openGitDialogMock.mockClear();
 		fetchCommitDiffMock.mockReset();
 		fetchCommitDiffMock.mockResolvedValue({
-			match: (onOk: (diff: { files: Array<{ additions?: number; deletions?: number }> }) => void) => {
+			match: (
+				onOk: (diff: { files: Array<{ additions?: number; deletions?: number }> }) => void
+			) => {
 				onOk({
 					files: [{ additions: 7, deletions: 2 }],
 				});
@@ -60,7 +65,12 @@ describe("GitHubBadge", () => {
 		});
 		fetchPrDiffMock.mockReset();
 		fetchPrDiffMock.mockResolvedValue({
-			match: (onOk: (diff: { pr: { state: "open" }; files: Array<{ additions?: number; deletions?: number }> }) => void) => {
+			match: (
+				onOk: (diff: {
+					pr: { state: "open" };
+					files: Array<{ additions?: number; deletions?: number }>;
+				}) => void
+			) => {
 				onOk({
 					pr: { state: "open" },
 					files: [{ additions: 3, deletions: 1 }],

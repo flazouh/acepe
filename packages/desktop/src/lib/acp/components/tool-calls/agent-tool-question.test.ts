@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-
 import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
 
 const AGENT_TOOL_QUESTION_SOURCE = readFileSync(
 	new URL(

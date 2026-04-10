@@ -193,8 +193,12 @@ describe("PermissionStore", () => {
 				awaitingPlanApproval: false,
 			});
 			const operation = operationStore.getByToolCallId("session-1", "tool-1");
-			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 100, "git status"));
-			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status"));
+			store.add(
+				createExecutePermissionWithCommand("session-1", "shell-permission", 100, "git status")
+			);
+			store.add(
+				createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status")
+			);
 
 			const matched = operation ? store.getForOperation(operation, operationStore) : undefined;
 
@@ -232,12 +236,16 @@ describe("PermissionStore", () => {
 				skillMeta: null,
 				awaitingPlanApproval: false,
 			});
-			store.add(createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status"));
+			store.add(
+				createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status")
+			);
 
 			const firstOperation = operationStore.getByToolCallId("session-1", "tool-1");
 			const secondOperation = operationStore.getByToolCallId("session-1", "tool-2");
 
-			expect(firstOperation ? store.getForOperation(firstOperation, operationStore) : undefined).toBeUndefined();
+			expect(
+				firstOperation ? store.getForOperation(firstOperation, operationStore) : undefined
+			).toBeUndefined();
 			expect(
 				secondOperation ? store.getForOperation(secondOperation, operationStore) : undefined
 			).toBeUndefined();
@@ -671,26 +679,26 @@ describe("PermissionStore", () => {
 			expect(store.pending.get(permission.id)).toEqual(permission);
 		});
 
-			it("should keep session batch progress while later permissions remain pending", async () => {
-				const firstPermission = createAcpPermission("session-batch", "tool-1", 100);
-				const secondPermission = createAcpPermission("session-batch", "tool-2", 101);
+		it("should keep session batch progress while later permissions remain pending", async () => {
+			const firstPermission = createAcpPermission("session-batch", "tool-1", 100);
+			const secondPermission = createAcpPermission("session-batch", "tool-2", 101);
 
-				store.add(firstPermission);
-				store.add(secondPermission);
+			store.add(firstPermission);
+			store.add(secondPermission);
 
-				expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
-					firstPermission.id,
-					secondPermission.id,
-				]);
-				expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 0 });
+			expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
+				firstPermission.id,
+				secondPermission.id,
+			]);
+			expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 0 });
 
-				await store.reply(firstPermission.id, "once");
+			await store.reply(firstPermission.id, "once");
 
-				expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
-					secondPermission.id,
-				]);
-				expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 1 });
-			});
+			expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
+				secondPermission.id,
+			]);
+			expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 1 });
+		});
 	});
 
 	describe("drainPendingForSession", () => {

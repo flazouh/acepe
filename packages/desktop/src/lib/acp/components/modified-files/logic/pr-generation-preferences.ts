@@ -2,7 +2,7 @@ import type { Model } from "../../../application/dto/model.js";
 
 export function getValidPrGenerationModelId(
 	modelId: string | null | undefined,
-	models: readonly Model[],
+	models: readonly Model[]
 ): string | undefined {
 	if (!modelId) return undefined;
 	const match = models.find((model) => model.id === modelId);
@@ -13,7 +13,7 @@ export function buildPrGenerationPrefsForAgentSelection(
 	agentId: string | undefined,
 	modelId: string | undefined,
 	customPrompt: string | undefined,
-	models: readonly Model[],
+	models: readonly Model[]
 ): {
 	agentId?: string;
 	modelId?: string;
@@ -37,22 +37,19 @@ export function buildPrGenerationRequestConfig(
 	agentId: string | undefined,
 	modelId: string | undefined,
 	customPrompt: string | undefined,
-	models: readonly Model[],
-): {
-	agentId?: string;
-	modelId?: string;
-	customPrompt?: string;
-} | undefined {
+	models: readonly Model[]
+):
+	| {
+			agentId?: string;
+			modelId?: string;
+			customPrompt?: string;
+	  }
+	| undefined {
 	const config: {
 		agentId?: string;
 		modelId?: string;
 		customPrompt?: string;
-	} = buildPrGenerationPrefsForAgentSelection(
-		agentId,
-		modelId,
-		customPrompt,
-		models,
-	);
+	} = buildPrGenerationPrefsForAgentSelection(agentId, modelId, customPrompt, models);
 
 	if (!config.agentId && !config.modelId && !config.customPrompt) {
 		return undefined;

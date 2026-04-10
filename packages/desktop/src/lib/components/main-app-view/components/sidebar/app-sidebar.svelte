@@ -21,10 +21,7 @@ import { useTheme } from "$lib/components/theme/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
-import {
-	ensureProjectHeaderAgentSelected,
-	getProjectHeaderAgents,
-} from "./app-sidebar-agents.js";
+import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
 import AppQueueRow from "../app-queue-row.svelte";
 import SidebarFooter from "./sidebar-footer.svelte";
@@ -113,7 +110,9 @@ function handleRemoveProject(projectPath: string) {
 	for (const bp of panelStore.browserPanels.filter((p) => p.projectPath === projectPath)) {
 		panelStore.closeBrowserPanel(bp.id);
 	}
-	panelStore.workspacePanels = panelStore.workspacePanels.filter((panel) => panel.projectPath !== projectPath);
+	panelStore.workspacePanels = panelStore.workspacePanels.filter(
+		(panel) => panel.projectPath !== projectPath
+	);
 
 	projectManager.removeProject(projectPath).mapErr((error) => {
 		toast.error(`Failed to remove project: ${error.message}`);

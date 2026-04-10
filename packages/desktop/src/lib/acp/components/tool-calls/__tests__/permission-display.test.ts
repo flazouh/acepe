@@ -162,7 +162,14 @@ describe("permission-display", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "edit",
-				edits: [{ filePath: "/repo/packages/ui/src/index.ts", oldString: null, newString: null, content: null }],
+				edits: [
+					{
+						filePath: "/repo/packages/ui/src/index.ts",
+						oldString: null,
+						newString: null,
+						content: null,
+					},
+				],
 			},
 		});
 		permission.permission = "Edit /repo/packages/ui/src/index.ts";
@@ -179,7 +186,14 @@ describe("permission-display", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "edit",
-				edits: [{ filePath: "/repo/packages/ui/src/kanban-card.svelte", oldString: null, newString: null, content: null }],
+				edits: [
+					{
+						filePath: "/repo/packages/ui/src/kanban-card.svelte",
+						oldString: null,
+						newString: null,
+						content: null,
+					},
+				],
 			},
 			rawInput: {
 				command: "packages/ui/src/kanban-card.svelte",

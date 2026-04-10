@@ -287,8 +287,8 @@ export function getTodoStateManager(): TodoStateManager {
 		if (import.meta.env.DEV) {
 			setInterval(
 				() => {
-				const metrics = managerInstance?.getMetrics();
-				if (metrics && metrics.totalComputations > 0) {
+					const metrics = managerInstance?.getMetrics();
+					if (metrics && metrics.totalComputations > 0) {
 						managerInstance?.logPerformanceSummary();
 					}
 				},

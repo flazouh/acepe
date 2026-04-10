@@ -67,7 +67,7 @@
 		<GitFileTree
 			{files}
 			{selectedFile}
-			onSelect={onSelectFile}
+			onSelect={(file) => onSelectFile(file.path)}
 			{iconBasePath}
 			class="w-56 shrink-0 border-r border-border/30"
 		/>

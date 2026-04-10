@@ -78,11 +78,19 @@ function resolveSessionTitle(
 		return derivedTitle;
 	}
 
-	if (scannedTitle !== null && scannedTitle !== undefined && !isReplaceableSessionTitle(scannedTitle)) {
+	if (
+		scannedTitle !== null &&
+		scannedTitle !== undefined &&
+		!isReplaceableSessionTitle(scannedTitle)
+	) {
 		return scannedTitle;
 	}
 
-	if (existingTitle !== null && existingTitle !== undefined && !isReplaceableSessionTitle(existingTitle)) {
+	if (
+		existingTitle !== null &&
+		existingTitle !== undefined &&
+		!isReplaceableSessionTitle(existingTitle)
+	) {
 		return existingTitle;
 	}
 
@@ -259,7 +267,9 @@ export class SessionRepository {
 					...existingSession,
 					title,
 					updatedAt: scannedSession.updatedAt,
-					sourcePath: scannedSession.sourcePath ? scannedSession.sourcePath : existingSession.sourcePath,
+					sourcePath: scannedSession.sourcePath
+						? scannedSession.sourcePath
+						: existingSession.sourcePath,
 					sessionLifecycleState: scannedSession.sessionLifecycleState
 						? scannedSession.sessionLifecycleState
 						: existingSession.sessionLifecycleState,

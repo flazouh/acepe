@@ -1347,7 +1347,7 @@ pub struct ClaudeCodeOptions {
     ///
     /// # Examples
     /// ```rust
-    /// use cc_sdk::{ClaudeCodeOptions, ToolsConfig};
+    /// use acepe_lib::cc_sdk::{ClaudeCodeOptions, ToolsConfig};
     ///
     /// // Enable specific tools only
     /// let options = ClaudeCodeOptions::builder()
@@ -1409,7 +1409,7 @@ pub struct ClaudeCodeOptions {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::ClaudeCodeOptions;
+    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
     /// let options = ClaudeCodeOptions::builder()
     ///     .auto_download_cli(true)
     ///     .build();
@@ -1693,7 +1693,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::ClaudeCodeOptions;
+    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
     /// let options = ClaudeCodeOptions::builder()
     ///     .cli_channel_buffer_size(500)
     ///     .build();
@@ -1713,7 +1713,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Examples
     ///
     /// ```rust
-    /// # use cc_sdk::{ClaudeCodeOptions, ToolsConfig};
+    /// # use acepe_lib::cc_sdk::{ClaudeCodeOptions, ToolsConfig};
     /// // Enable specific tools only
     /// let options = ClaudeCodeOptions::builder()
     ///     .tools(ToolsConfig::list(vec!["Read".into(), "Edit".into()]))
@@ -1761,7 +1761,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::ClaudeCodeOptions;
+    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
     /// let options = ClaudeCodeOptions::builder()
     ///     .output_format(serde_json::json!({
     ///         "type": "json_schema",
@@ -1830,7 +1830,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::ClaudeCodeOptions;
+    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
     /// let options = ClaudeCodeOptions::builder()
     ///     .auto_download_cli(true)
     ///     .build();
@@ -1847,7 +1847,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::{ClaudeCodeOptions, Effort};
+    /// # use acepe_lib::cc_sdk::{ClaudeCodeOptions, Effort};
     /// let options = ClaudeCodeOptions::builder()
     ///     .effort(Effort::High)
     ///     .build();
@@ -1864,7 +1864,7 @@ impl ClaudeCodeOptionsBuilder {
     /// # Example
     ///
     /// ```rust
-    /// # use cc_sdk::{ClaudeCodeOptions, ThinkingConfig};
+    /// # use acepe_lib::cc_sdk::{ClaudeCodeOptions, ThinkingConfig};
     /// let options = ClaudeCodeOptions::builder()
     ///     .thinking(ThinkingConfig::Enabled { budget_tokens: 10000 })
     ///     .build();

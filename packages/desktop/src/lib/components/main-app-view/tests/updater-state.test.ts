@@ -6,10 +6,10 @@ import {
 	createCheckingUpdaterState,
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
-	isUpdaterInstallInProgress,
-	getUpdaterPrimaryAction,
 	getUpdaterActionLabel,
+	getUpdaterPrimaryAction,
 	getUpdaterStatusLabel,
+	isUpdaterInstallInProgress,
 	shouldShowBlockingUpdaterOverlay,
 } from "../logic/updater-state.js";
 

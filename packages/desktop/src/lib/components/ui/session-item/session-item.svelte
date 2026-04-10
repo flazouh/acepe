@@ -37,21 +37,21 @@ type SessionDisplayItem = BaseSessionDisplayItem & {
 	worktreeDeleted?: boolean;
 };
 
-	interface Props {
-		thread: SessionDisplayItem;
-		selected?: boolean;
-		isOpen?: boolean;
-		onSelect?: (session: SessionDisplayItem) => void;
-		depth?: number;
-		hasChildren?: boolean;
-		isExpanded?: boolean;
-		onToggleExpand?: () => void;
-		onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
-		onRename?: (title: string) => void | Promise<void>;
+interface Props {
+	thread: SessionDisplayItem;
+	selected?: boolean;
+	isOpen?: boolean;
+	onSelect?: (session: SessionDisplayItem) => void;
+	depth?: number;
+	hasChildren?: boolean;
+	isExpanded?: boolean;
+	onToggleExpand?: () => void;
+	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
+	onRename?: (title: string) => void | Promise<void>;
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	onExportJson?: (sessionId: string) => void | Promise<void>;
 	onOpenPr?: () => void;
-	}
+}
 
 let {
 	thread: session,
@@ -66,8 +66,8 @@ let {
 	onRename,
 	onExportMarkdown,
 	onExportJson,
-		onOpenPr,
-	}: Props = $props();
+	onOpenPr,
+}: Props = $props();
 
 const themeState = useTheme();
 const panelStore = getPanelStore();
@@ -144,12 +144,10 @@ async function handleExportJson() {
 }
 
 async function handleOpenStreamingLog() {
-	await tauriClient.shell
-		.openStreamingLog(session.id)
-		.match(
-			() => undefined,
-			(err) => toast.error(m.thread_export_raw_error({ error: err.message }))
-		);
+	await tauriClient.shell.openStreamingLog(session.id).match(
+		() => undefined,
+		(err) => toast.error(m.thread_export_raw_error({ error: err.message }))
+	);
 }
 
 function handleOpenPr(event: MouseEvent) {

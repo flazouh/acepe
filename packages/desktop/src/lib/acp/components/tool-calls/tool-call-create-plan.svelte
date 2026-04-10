@@ -1,11 +1,7 @@
 <script lang="ts">
 import type { PlanCardStatus } from "@acepe/ui/plan-card";
 import { BuildIcon, PlanIcon } from "@acepe/ui/icons";
-import {
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
+import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "@acepe/ui/panel-header";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Result } from "neverthrow";
@@ -128,7 +124,11 @@ const resultApproved = $derived.by((): boolean | null => {
 
 // Effective answer: prefer local optimistic state, fall back to result from backend.
 const effectiveApproval = $derived(
-	localApproval != null ? localApproval : approvalFromStore != null ? approvalFromStore : resultApproved
+	localApproval != null
+		? localApproval
+		: approvalFromStore != null
+			? approvalFromStore
+			: resultApproved
 );
 const isAnswered = $derived(effectiveApproval !== null && !isInteractive);
 const isApproved = $derived(effectiveApproval === true);
@@ -143,13 +143,13 @@ function handleApprove() {
 		interactionStore.setPlanApprovalStatus(approval.id, "approved");
 	}
 
-	let replyResult;
-	if (approval !== null) {
-		replyResult = replyToPlanApprovalRequest(approval, true, false);
-	} else {
-		if (requestId == null || sessionId == null) return;
-		replyResult = replyToPlanApprovalRequest(sessionId, requestId, true);
-	}
+	const replyResult =
+		approval !== null
+			? replyToPlanApprovalRequest(approval, true, false)
+			: requestId != null && sessionId != null
+				? replyToPlanApprovalRequest(sessionId, requestId, true)
+				: null;
+	if (replyResult === null) return;
 
 	replyResult.match(
 		() => {},
@@ -174,13 +174,13 @@ function handleReject() {
 		interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 	}
 
-	let replyResult;
-	if (approval !== null) {
-		replyResult = replyToPlanApprovalRequest(approval, false, false);
-	} else {
-		if (requestId == null || sessionId == null) return;
-		replyResult = replyToPlanApprovalRequest(sessionId, requestId, false);
-	}
+	const replyResult =
+		approval !== null
+			? replyToPlanApprovalRequest(approval, false, false)
+			: requestId != null && sessionId != null
+				? replyToPlanApprovalRequest(sessionId, requestId, false)
+				: null;
+	if (replyResult === null) return;
 
 	replyResult.match(
 		() => {},

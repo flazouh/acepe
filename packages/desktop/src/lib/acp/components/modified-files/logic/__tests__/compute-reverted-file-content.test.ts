@@ -1,5 +1,5 @@
-import { type FileContents, parseDiffFromFile } from "@pierre/diffs";
 import { describe, expect, it } from "bun:test";
+import { type FileContents, parseDiffFromFile } from "@pierre/diffs";
 
 import { computeRevertedFileContent } from "../compute-reverted-file-content.js";
 
@@ -104,39 +104,41 @@ describe("computeRevertedFileContent", () => {
 
 		const result = computeRevert(oldContent, newContent, 1);
 
-			expect(result).toBe([
-			"line1",
-			"newA",
-			"line3",
-			"line4",
-			"line5",
-			"line6",
-			"line7",
-			"line8",
-			"line9",
-			"line10",
-			"line11",
-			"line12",
-			"line13",
-			"line14",
-			"line15",
-			"line16",
-			"line17",
-			"line18",
-			"line19",
-			"line20",
-			"line21",
-			"line22",
-			"line23",
-			"line24",
-			"line25",
-			"line26",
-			"line27",
-			"line28",
-			"line29",
-			"oldB",
-			"line31",
-		].join("\n"));
+		expect(result).toBe(
+			[
+				"line1",
+				"newA",
+				"line3",
+				"line4",
+				"line5",
+				"line6",
+				"line7",
+				"line8",
+				"line9",
+				"line10",
+				"line11",
+				"line12",
+				"line13",
+				"line14",
+				"line15",
+				"line16",
+				"line17",
+				"line18",
+				"line19",
+				"line20",
+				"line21",
+				"line22",
+				"line23",
+				"line24",
+				"line25",
+				"line26",
+				"line27",
+				"line28",
+				"line29",
+				"oldB",
+				"line31",
+			].join("\n")
+		);
 	});
 
 	it("returns original content when hunk index is out of bounds", () => {

@@ -42,8 +42,8 @@ import {
 	PERMISSION_ACTIONS,
 	QUESTION_ACTIONS,
 	resetNotificationRuntimeForTesting,
-	showNotification,
 	setNotificationRuntimeForTesting,
+	showNotification,
 } from "./notification-state.js";
 
 describe("notification-service", () => {

@@ -2,12 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import { tryDeserializeAcpError } from "../../acp/errors/index.js";
-
 import { AgentError } from "../../acp/errors/app-error.js";
+import { tryDeserializeAcpError } from "../../acp/errors/index.js";
 
 // DEBUG: Track all in-flight Tauri IPC calls
 const pendingInvokes = new Map<number, { cmd: string; start: number; args?: string }>();
+type InvokeRuntime = <T>(cmd: string, args?: Parameters<typeof invoke>[1]) => Promise<T>;
 let invokeCounter = 0;
 const debugInvoke =
 	typeof import.meta.env !== "undefined" && import.meta.env?.VITE_DEBUG_INVOKE === "true";
@@ -46,12 +46,10 @@ if (typeof window !== "undefined") {
 	};
 }
 
-/**
- * Wrap Tauri invoke with ResultAsync for consistent error handling.
- */
-export function invokeAsync<T>(
+function invokeAsyncWithRuntime<T>(
+	runtime: InvokeRuntime,
 	cmd: string,
-	args?: Record<string, unknown>
+	args?: Parameters<typeof invoke>[1]
 ): ResultAsync<T, AppError> {
 	const id = ++invokeCounter;
 	const start = Date.now();
@@ -61,7 +59,7 @@ export function invokeAsync<T>(
 	if (debugInvoke) console.debug(`[INVOKE] #${id} START ${cmd}`, argsStr ?? "");
 
 	return ResultAsync.fromPromise(
-		invoke<T>(cmd, args).finally(() => {
+		runtime<T>(cmd, args).finally(() => {
 			const elapsed = Date.now() - start;
 			pendingInvokes.delete(id);
 			if (elapsed > 1000) {
@@ -81,3 +79,15 @@ export function invokeAsync<T>(
 		}
 	);
 }
+
+/**
+ * Wrap Tauri invoke with ResultAsync for consistent error handling.
+ */
+export function invokeAsync<T>(
+	cmd: string,
+	args?: Parameters<typeof invoke>[1]
+): ResultAsync<T, AppError> {
+	return invokeAsyncWithRuntime(invoke, cmd, args);
+}
+
+export const invokeAsyncWithRuntimeForTesting = invokeAsyncWithRuntime;

@@ -1,10 +1,10 @@
 <script lang="ts">
-	interface Props {
-		fileName: string;
-		gitStatus: { status: string; insertions: number; deletions: number } | null;
-	}
+interface Props {
+	fileName: string;
+	gitStatus: { status: string; insertions: number; deletions: number } | null;
+}
 
-	let { fileName, gitStatus }: Props = $props();
+let { fileName, gitStatus }: Props = $props();
 </script>
 
 <div data-testid="file-panel-header-stub">

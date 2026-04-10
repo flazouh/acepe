@@ -21,7 +21,7 @@ import { getConnectionStore } from "../../../store/connection-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
-	import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
+import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
@@ -35,7 +35,9 @@ import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import { aggregateFileEdits } from "../../modified-files/logic/aggregate-file-edits.js";
-import ModifiedFilesHeader, { type PrGenerationConfig } from "../../modified-files/modified-files-header.svelte";
+import ModifiedFilesHeader, {
+	type PrGenerationConfig,
+} from "../../modified-files/modified-files-header.svelte";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import PlanDialog from "../../plan-dialog.svelte";
@@ -185,7 +187,7 @@ const sessionTitle = $derived(sessionMetadata?.title ?? null);
 
 // Current model from session hot state (for PR popover default)
 const sessionCurrentModelId = $derived(
-	sessionId ? sessionStore.getHotState(sessionId)?.currentModel?.id ?? null : null
+	sessionId ? (sessionStore.getHotState(sessionId)?.currentModel?.id ?? null) : null
 );
 
 // ✅ State manager for local UI state only (drag, dialog)
@@ -250,6 +252,7 @@ function prepareForNextUserReveal() {
 		latestEntryType: sessionEntries.at(-1)?.type ?? null,
 	});
 	contentRef?.prepareForNextUserReveal({ force: true });
+	return effectivePanelId;
 }
 
 function scrollToBottomOnTabSwitch() {
@@ -295,7 +298,9 @@ const isTerminalDrawerOpen = $derived(
 
 /** Browser sidebar state. */
 const showBrowserSidebar = $derived(panelId ? panelStore.isBrowserSidebarExpanded(panelId) : false);
-const browserSidebarUrl = $derived(panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null);
+const browserSidebarUrl = $derived(
+	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
+);
 
 // Canonical runtime state from session machine.
 const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
@@ -323,7 +328,8 @@ const effectiveProjectName = $derived(
 // ✅ Derived values from granular session data
 const agentName = $derived(sessionAgentId ?? selectedAgentId);
 const sessionStatus = $derived.by(() => {
-	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry) return "connecting";
+	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
+		return "connecting";
 	const connectionPhase = runtimeState?.connectionPhase;
 	const activityPhase = runtimeState?.activityPhase;
 	if (!connectionPhase) return null;
@@ -532,11 +538,7 @@ const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
 });
 
-const sequenceId = $derived(
-	sessionMetadata
-		? (sessionMetadata.sequenceId ?? null)
-		: null
-);
+const sequenceId = $derived(sessionMetadata ? (sessionMetadata.sequenceId ?? null) : null);
 
 const displayTitle = $derived.by(() => {
 	if (!sessionTitle && !displayProjectName) return null;
@@ -584,13 +586,14 @@ let createPrLabel = $state<string | null>(null);
 let mergePrRunning = $state(false);
 let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
 let prFetchError = $state<string | null>(null);
-let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(null);
+let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(
+	null
+);
 let prCardRenderKey = $state(0);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const worktreeSetupMatchContext = $derived.by(() => {
-	const activeSetupState =
-		worktreeSetupState && worktreeSetupState.isVisible ? worktreeSetupState : null;
+	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
 
 	return createWorktreeSetupMatchContext({
 		pendingSetupProjectPath: pendingWorktreeSetup ? pendingWorktreeSetup.projectPath : null,
@@ -644,21 +647,23 @@ void mergeStrategyStore.initialize();
  * - After PR merge (to refresh state)
  * The store's prState update is handled by sessionStore.refreshSessionPrState.
  */
-function fetchPrDetails(target: { sessionId: string; projectPath: string; prNumber: number }): void {
+function fetchPrDetails(target: {
+	sessionId: string;
+	projectPath: string;
+	prNumber: number;
+}): void {
 	prDetails = null;
 	prFetchError = null;
-	void sessionStore.refreshSessionPrState(
-		target.sessionId,
-		target.projectPath,
-		target.prNumber
-	).match(
-		(details) => {
-			prDetails = details;
-		},
-		() => {
-			// refreshSessionPrState never errors (orElse swallows), but match requires both branches
-		},
-	);
+	void sessionStore
+		.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
+		.match(
+			(details) => {
+				prDetails = details;
+			},
+			() => {
+				// refreshSessionPrState never errors (orElse swallows), but match requires both branches
+			}
+		);
 }
 
 let lastFetchedPrTargetKey = $state<string | null>(null);
@@ -670,8 +675,7 @@ $effect(() => {
 		return;
 	}
 
-	const targetKey =
-		`${prFetchTarget.sessionId}:${prFetchTarget.projectPath}:${prFetchTarget.prNumber}`;
+	const targetKey = `${prFetchTarget.sessionId}:${prFetchTarget.projectPath}:${prFetchTarget.prNumber}`;
 	if (targetKey === lastFetchedPrTargetKey) {
 		return;
 	}
@@ -930,12 +934,10 @@ async function handleClose() {
 		worktreeCloseConfirming = confirmationState.confirming;
 		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
 		worktreeDirtyCheckPending = confirmationState.dirtyCheckPending;
-		const hasDirtyChanges = await tauriClient.git
-			.hasUncommittedChanges(worktreePath)
-			.match(
-				(dirty) => dirty,
-				() => false // safe default on error — show normal confirmation
-			);
+		const hasDirtyChanges = await tauriClient.git.hasUncommittedChanges(worktreePath).match(
+			(dirty) => dirty,
+			() => false // safe default on error — show normal confirmation
+		);
 		const resolvedState = createResolvedWorktreeCloseConfirmationState(hasDirtyChanges);
 		worktreeCloseConfirming = resolvedState.confirming;
 		worktreeHasDirtyChanges = resolvedState.hasDirtyChanges;
@@ -968,18 +970,18 @@ function handleWorktreeRemoveAndClose() {
 			sessionId: currentSessionId,
 			worktreePath,
 		},
-			{
-				removeWorktree: (path, shouldForce) => tauriClient.git.worktreeRemove(path, shouldForce),
-				markSessionWorktreeDeleted: (id) => {
-					sessionStore.updateSession(id, { worktreeDeleted: true });
-				},
-				clearSessionWorktreeDeleted: (id) => {
-					sessionStore.updateSession(id, { worktreeDeleted: false });
-				},
-				disconnectSession: (id) => {
-					sessionStore.disconnectSession(id);
-				},
-			}
+		{
+			removeWorktree: (path, shouldForce) => tauriClient.git.worktreeRemove(path, shouldForce),
+			markSessionWorktreeDeleted: (id) => {
+				sessionStore.updateSession(id, { worktreeDeleted: true });
+			},
+			clearSessionWorktreeDeleted: (id) => {
+				sessionStore.updateSession(id, { worktreeDeleted: false });
+			},
+			disconnectSession: (id) => {
+				sessionStore.disconnectSession(id);
+			},
+		}
 	).mapErr((error) => {
 		console.error("[AgentPanel] Failed to remove worktree", { error });
 		toast.error(`Failed to remove worktree: ${error.message}`);
@@ -1104,7 +1106,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 
 	const shipCtxResult = await tauriClient.git.collectShipContext(
 		path,
-		config?.customPrompt ? config.customPrompt : undefined,
+		config?.customPrompt ? config.customPrompt : undefined
 	);
 	if (shipCtxResult.isOk() && shipCtxResult.value) {
 		const ctx = shipCtxResult.value;
@@ -1112,7 +1114,9 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		const prompt = ctx.prompt;
 
 		// Use the streaming text generation service — updates the PR card live
-		const { generateShipContentStreaming } = await import("../../ship-card/ship-card-generation.js");
+		const { generateShipContentStreaming } = await import(
+			"../../ship-card/ship-card-generation.js"
+		);
 		const genResult = await generateShipContentStreaming(
 			prompt,
 			path,
@@ -1124,8 +1128,14 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 				}
 				streamingShipData = data;
 			},
-			config?.agentId ? config.agentId : (sessionAgentId ? sessionAgentId : (selectedAgentId ? selectedAgentId : undefined)),
-			config?.modelId ? config.modelId : undefined,
+			config?.agentId
+				? config.agentId
+				: sessionAgentId
+					? sessionAgentId
+					: selectedAgentId
+						? selectedAgentId
+						: undefined,
+			config?.modelId ? config.modelId : undefined
 		);
 		if (genResult.isOk()) {
 			const gen = genResult.value;
@@ -1148,7 +1158,13 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		commitMsg,
 		prTitle,
 	});
-	const result = await tauriClient.git.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody);
+	const result = await tauriClient.git.runStackedAction(
+		path,
+		"commit_push_pr",
+		commitMsg,
+		prTitle,
+		prBody
+	);
 	await result.match(
 		(ok) => {
 			createPrRunning = false;
@@ -1284,12 +1300,10 @@ async function handleExportRawStreaming() {
 		return;
 	}
 
-	await tauriClient.shell
-		.openStreamingLog(sessionId)
-		.match(
-			() => undefined,
-			(error) => toast.error(m.thread_export_raw_error({ error: error.message }))
-		);
+	await tauriClient.shell.openStreamingLog(sessionId).match(
+		() => undefined,
+		(error) => toast.error(m.thread_export_raw_error({ error: error.message }))
+	);
 }
 
 async function handleCopyStreamingLogPath() {
@@ -1443,7 +1457,8 @@ function handleDismissError() {
 }
 
 function handleCreateIssueFromError() {
-	const errorDetails = errorInfo.details ?? panelConnectionError ?? sessionConnectionError ?? "Unknown error";
+	const errorDetails =
+		errorInfo.details ?? panelConnectionError ?? sessionConnectionError ?? "Unknown error";
 	const errorSummary = errorDetails.split("\n")[0]?.slice(0, 120) ?? "Agent connection error";
 	const cold = sessionId ? sessionStore.getSessionCold(sessionId) : null;
 	const draft = buildAgentErrorIssueDraft({

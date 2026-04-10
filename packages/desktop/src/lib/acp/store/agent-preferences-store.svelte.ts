@@ -4,8 +4,8 @@ import { SvelteSet } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { CustomAgentConfig } from "$lib/acp/logic/agent-manager.js";
 import type { Agent } from "$lib/acp/store/types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const AGENT_PREFERENCES_STORE_KEY = Symbol("agent-preferences-store");
 
@@ -226,34 +226,34 @@ export class AgentPreferencesStore {
 					persistedCustom,
 					persistedAgentEnvOverrides,
 				]) => {
-				const initState = deriveAgentPreferencesInitializationState({
-					persistedOnboardingCompleted,
-					persistedSelectedAgentIds,
-					projectCount,
-					availableAgentIds,
-				});
+					const initState = deriveAgentPreferencesInitializationState({
+						persistedOnboardingCompleted,
+						persistedSelectedAgentIds,
+						projectCount,
+						availableAgentIds,
+					});
 
-				this.onboardingCompleted = initState.onboardingCompleted;
-				this.selectedAgentIds = initState.selectedAgentIds;
-				this.customAgentConfigs = persistedCustom ?? [];
-				this.agentEnvOverrides = persistedAgentEnvOverrides ?? {};
+					this.onboardingCompleted = initState.onboardingCompleted;
+					this.selectedAgentIds = initState.selectedAgentIds;
+					this.customAgentConfigs = persistedCustom ?? [];
+					this.agentEnvOverrides = persistedAgentEnvOverrides ?? {};
 
-				const persistOperations: ResultAsync<void, AppError>[] = [];
-				if (initState.shouldPersistOnboardingCompleted) {
-					persistOperations.push(
-						tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
-					);
-				}
-				if (initState.shouldPersistSelectedAgentIds) {
-					persistOperations.push(
-						tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, initState.selectedAgentIds)
-					);
-				}
+					const persistOperations: ResultAsync<void, AppError>[] = [];
+					if (initState.shouldPersistOnboardingCompleted) {
+						persistOperations.push(
+							tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
+						);
+					}
+					if (initState.shouldPersistSelectedAgentIds) {
+						persistOperations.push(
+							tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, initState.selectedAgentIds)
+						);
+					}
 
-				return chainPersistOperations(persistOperations).map(() => {
-					this.initialized = true;
-					return undefined;
-				});
+					return chainPersistOperations(persistOperations).map(() => {
+						this.initialized = true;
+						return undefined;
+					});
 				}
 			)
 			.mapErr((error) => new Error(`Failed to initialize agent preferences: ${error.message}`));

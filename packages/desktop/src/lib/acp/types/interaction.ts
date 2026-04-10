@@ -33,10 +33,7 @@ export interface PlanApprovalInteraction {
 	status: "pending" | "approved" | "rejected";
 }
 
-export type Interaction =
-	| PermissionInteraction
-	| QuestionInteraction
-	| PlanApprovalInteraction;
+export type Interaction = PermissionInteraction | QuestionInteraction | PlanApprovalInteraction;
 
 export function buildPlanApprovalInteractionId(
 	sessionId: string,

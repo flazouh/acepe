@@ -28,7 +28,7 @@ import {
 } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
 import { DEFAULT_FILE_PANEL_WIDTH, MIN_FILE_PANEL_WIDTH } from "./file-panel-type.js";
-import { openGitModalPanel, type GitModalPanel } from "./git-modal-state.js";
+import { type GitModalPanel, openGitModalPanel } from "./git-modal-state.js";
 import type { GitPanel, GitPanelInitialTarget } from "./git-panel-type.js";
 import { DEFAULT_GIT_PANEL_WIDTH } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
@@ -36,7 +36,6 @@ import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-pan
 import type { SessionStore } from "./session-store.svelte.js";
 import { DEFAULT_TERMINAL_PANEL_WIDTH, MIN_TERMINAL_PANEL_WIDTH } from "./terminal-panel-type.js";
 import type {
-	AgentWorkspacePanel,
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
 	Panel,
@@ -238,7 +237,9 @@ export class PanelStore {
 	}
 
 	get filePanels(): FilePanel[] {
-		return this.workspacePanels.filter((panel): panel is FileWorkspacePanel => panel.kind === "file");
+		return this.workspacePanels.filter(
+			(panel): panel is FileWorkspacePanel => panel.kind === "file"
+		);
 	}
 
 	set filePanels(nextPanels: FilePanel[]) {
@@ -281,7 +282,10 @@ export class PanelStore {
 		this.replaceWorkspacePanels("git", nextPanels);
 	}
 
-	private replaceWorkspacePanels(kind: WorkspacePanelKind, nextPanels: readonly WorkspacePanel[]): void {
+	private replaceWorkspacePanels(
+		kind: WorkspacePanelKind,
+		nextPanels: readonly WorkspacePanel[]
+	): void {
 		const remainingPanels = this.workspacePanels.filter((panel) => panel.kind !== kind);
 		this.workspacePanels = Array.from(nextPanels).concat(remainingPanels);
 	}
@@ -770,28 +774,26 @@ export class PanelStore {
 			sessionId,
 			sessionProjectPath: session?.projectPath ?? null,
 			sessionWorktreePath: session?.worktreePath ?? null,
-			panelProjectPathBefore:
-				this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
+			panelProjectPathBefore: this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
 		});
 		this.panels = this.panels.map((p) =>
 			p.id === panelId
 				? {
-					...p,
-					sessionId,
-					pendingProjectSelection: false,
-					projectPath: session?.projectPath ?? p.projectPath,
-					agentId: session?.agentId ?? p.agentId,
-					sourcePath: session?.sourcePath ?? p.sourcePath,
-					worktreePath: session?.worktreePath ?? p.worktreePath,
-					sessionTitle: session?.title ?? p.sessionTitle,
-				}
+						...p,
+						sessionId,
+						pendingProjectSelection: false,
+						projectPath: session?.projectPath ?? p.projectPath,
+						agentId: session?.agentId ?? p.agentId,
+						sourcePath: session?.sourcePath ?? p.sourcePath,
+						worktreePath: session?.worktreePath ?? p.worktreePath,
+						sessionTitle: session?.title ?? p.sessionTitle,
+					}
 				: p
 		);
 		logger.info("[worktree-debug] updatePanelSession applied", {
 			panelId,
 			sessionId,
-			panelProjectPathAfter:
-				this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
+			panelProjectPathAfter: this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
 		});
 		this.onPersist();
 	}
@@ -1146,10 +1148,7 @@ export class PanelStore {
 		this.updateHotState(panelId, { pendingUserEntry: null });
 	}
 
-	setPendingWorktreeSetup(
-		panelId: string,
-		setup: PanelHotState["pendingWorktreeSetup"]
-	): void {
+	setPendingWorktreeSetup(panelId: string, setup: PanelHotState["pendingWorktreeSetup"]): void {
 		this.updateHotState(panelId, { pendingWorktreeSetup: setup });
 	}
 
@@ -1338,7 +1337,8 @@ export class PanelStore {
 
 	setActiveTopLevelFilePanel(projectPath: string, filePanelId: string): void {
 		const target = this.filePanels.find(
-			(panel) => panel.id === filePanelId && panel.ownerPanelId === null && panel.projectPath === projectPath
+			(panel) =>
+				panel.id === filePanelId && panel.ownerPanelId === null && panel.projectPath === projectPath
 		);
 		if (!target) return;
 		this.activeTopLevelFilePanelIdByProject.set(projectPath, filePanelId);
@@ -1346,7 +1346,9 @@ export class PanelStore {
 	}
 
 	getTopLevelFilePanelsForProject(projectPath: string): FilePanel[] {
-		return this.filePanels.filter((panel) => panel.ownerPanelId === null && panel.projectPath === projectPath);
+		return this.filePanels.filter(
+			(panel) => panel.ownerPanelId === null && panel.projectPath === projectPath
+		);
 	}
 
 	getActiveFilePanelIdByOwnerPanelIdRecord(): Record<string, string> {
@@ -1510,7 +1512,10 @@ export class PanelStore {
 		return groups;
 	}
 
-	private getTerminalTabsFromCollection(tabs: readonly TerminalTab[], groupId: string): TerminalTab[] {
+	private getTerminalTabsFromCollection(
+		tabs: readonly TerminalTab[],
+		groupId: string
+	): TerminalTab[] {
 		const groupTabs = tabs.filter((tab) => tab.groupId === groupId);
 		groupTabs.sort((left, right) => left.createdAt - right.createdAt);
 		return groupTabs;
@@ -1527,7 +1532,10 @@ export class PanelStore {
 		this.syncTerminalWorkspacePanels();
 	}
 
-	private updateTerminalGroup(groupId: string, updater: (group: TerminalPanelGroup) => TerminalPanelGroup): void {
+	private updateTerminalGroup(
+		groupId: string,
+		updater: (group: TerminalPanelGroup) => TerminalPanelGroup
+	): void {
 		const groups = this.getAllTerminalPanelGroups();
 		const nextGroups = groups.map((group) => (group.id === groupId ? updater(group) : group));
 		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
@@ -1621,7 +1629,9 @@ export class PanelStore {
 		if (!selectedTabId) {
 			return null;
 		}
-		const tab = this.getTerminalTabsForGroup(groupId).find((candidate) => candidate.id === selectedTabId);
+		const tab = this.getTerminalTabsForGroup(groupId).find(
+			(candidate) => candidate.id === selectedTabId
+		);
 		return tab ? tab : null;
 	}
 
@@ -1733,7 +1743,10 @@ export class PanelStore {
 		const sourceTabs = this.getTerminalTabsForGroup(sourceGroup.id);
 		const movedTabIndex = sourceTabs.findIndex((candidate) => candidate.id === tabId);
 		if (movedTabIndex === -1) {
-			console.warn("Attempted to move terminal tab missing from group", { tabId, groupId: sourceGroup.id });
+			console.warn("Attempted to move terminal tab missing from group", {
+				tabId,
+				groupId: sourceGroup.id,
+			});
 			return null;
 		}
 
@@ -1748,13 +1761,13 @@ export class PanelStore {
 		this.terminalTabs = this.terminalTabs.map((candidate) =>
 			candidate.id === tabId
 				? {
-					id: candidate.id,
-					groupId: newGroup.id,
-					projectPath: candidate.projectPath,
-					createdAt: candidate.createdAt,
-					ptyId: candidate.ptyId,
-					shell: candidate.shell,
-				}
+						id: candidate.id,
+						groupId: newGroup.id,
+						projectPath: candidate.projectPath,
+						createdAt: candidate.createdAt,
+						ptyId: candidate.ptyId,
+						shell: candidate.shell,
+					}
 				: candidate
 		);
 
@@ -1819,13 +1832,13 @@ export class PanelStore {
 		this.terminalTabs = this.terminalTabs.map((tab) =>
 			tab.id === tabId
 				? {
-					id: tab.id,
-					groupId: tab.groupId,
-					projectPath: tab.projectPath,
-					createdAt: tab.createdAt,
-					ptyId,
-					shell,
-				}
+						id: tab.id,
+						groupId: tab.groupId,
+						projectPath: tab.projectPath,
+						createdAt: tab.createdAt,
+						ptyId,
+						shell,
+					}
 				: tab
 		);
 	}
@@ -1839,7 +1852,10 @@ export class PanelStore {
 
 		const group = this.getTerminalPanelGroup(tab.groupId);
 		if (!group) {
-			console.warn("Attempted to close terminal tab in stale group", { tabId, groupId: tab.groupId });
+			console.warn("Attempted to close terminal tab in stale group", {
+				tabId,
+				groupId: tab.groupId,
+			});
 			return;
 		}
 
@@ -1850,14 +1866,19 @@ export class PanelStore {
 
 		const remainingTabs = this.getTerminalTabsForGroup(group.id);
 		if (remainingTabs.length === 0) {
-			const groups = this.getAllTerminalPanelGroups().filter((candidate) => candidate.id !== group.id);
+			const groups = this.getAllTerminalPanelGroups().filter(
+				(candidate) => candidate.id !== group.id
+			);
 			this.setTerminalPanelGroupsInDisplayOrder(groups);
 			this.applyTopLevelPanelCloseState(closeState);
 			this.onPersist();
 			return;
 		}
 
-		const selectedTabId = group.selectedTabId === tabId ? this.getFallbackSelectedTerminalTabId(group.id, removedIndex) : this.getSelectedTerminalTabId(group.id);
+		const selectedTabId =
+			group.selectedTabId === tabId
+				? this.getFallbackSelectedTerminalTabId(group.id, removedIndex)
+				: this.getSelectedTerminalTabId(group.id);
 		this.updateTerminalGroup(group.id, (current) => ({
 			id: current.id,
 			projectPath: current.projectPath,
@@ -2053,7 +2074,6 @@ export class PanelStore {
 	getBrowserPanel(panelId: string): BrowserPanel | undefined {
 		return this.browserPanels.find((p) => p.id === panelId);
 	}
-
 }
 
 /**

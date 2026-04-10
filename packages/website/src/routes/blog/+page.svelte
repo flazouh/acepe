@@ -1,51 +1,45 @@
 <script lang="ts">
-	import * as m from '$lib/paraglide/messages.js';
-	import { DiffPill } from '@acepe/ui';
-	import Header from '$lib/components/header.svelte';
-	import type { BlogPostMetadata } from '$lib/blog/types.js';
-	import { getAllBlogPosts } from '$lib/blog/posts.js';
-	import type { Component } from 'svelte';
-	import { ArrowRight } from '@lucide/svelte';
-	import {
-		HardDrives,
-		Eye,
-		GitBranch,
-		ClockCounterClockwise,
-		BellRinging
-	} from 'phosphor-svelte';
+import * as m from "$lib/paraglide/messages.js";
+import { DiffPill } from "@acepe/ui";
+import Header from "$lib/components/header.svelte";
+import type { BlogPostMetadata } from "$lib/blog/types.js";
+import { getAllBlogPosts } from "$lib/blog/posts.js";
+import type { Component } from "svelte";
+import { ArrowRight } from "@lucide/svelte";
+import { HardDrives, Eye, GitBranch, ClockCounterClockwise, BellRinging } from "phosphor-svelte";
 
-	let { data } = $props();
+let { data } = $props();
 
-	type Post = BlogPostMetadata & { icon: Component };
+type Post = BlogPostMetadata & { icon: Component };
 
-	const postIcons = new Map<string, Component>([
-		['sql-studio', HardDrives],
-		['git-viewer', Eye],
-		['git-panel', GitBranch],
-		['checkpoints', ClockCounterClockwise],
-		['attention-queue', BellRinging],
-	]);
+const postIcons = new Map<string, Component>([
+	["sql-studio", HardDrives],
+	["git-viewer", Eye],
+	["git-panel", GitBranch],
+	["checkpoints", ClockCounterClockwise],
+	["attention-queue", BellRinging],
+]);
 
-	const posts: Post[] = getAllBlogPosts().map((post) => ({
-		title: post.title,
-		description: post.description,
-		date: post.date,
-		slug: post.slug,
-		category: post.category,
-		characterCount: post.characterCount,
-		readingTimeMinutes: post.readingTimeMinutes,
-		relatedLinks: post.relatedLinks,
-		icon: postIcons.get(post.slug) ?? BellRinging,
-	}));
+const posts: Post[] = getAllBlogPosts().map((post) => ({
+	title: post.title,
+	description: post.description,
+	date: post.date,
+	slug: post.slug,
+	category: post.category,
+	characterCount: post.characterCount,
+	readingTimeMinutes: post.readingTimeMinutes,
+	relatedLinks: post.relatedLinks,
+	icon: postIcons.get(post.slug) ?? BellRinging,
+}));
 
-	function formatDate(isoDate: string): string {
-		const date = new Date(isoDate);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
-	}
+function formatDate(isoDate: string): string {
+	const date = new Date(isoDate);
+	return date.toLocaleDateString("en-US", {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+	});
+}
 </script>
 
 <svelte:head>

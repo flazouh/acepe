@@ -48,7 +48,9 @@ const displayName = $derived.by(() => {
  * Priority: project.color -> projectColor prop -> default
  */
 const fallbackColor = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
-const resolvedColor = $derived(project?.color ? project.color : projectColor ? projectColor : fallbackColor);
+const resolvedColor = $derived(
+	project?.color ? project.color : projectColor ? projectColor : fallbackColor
+);
 </script>
 
 <div

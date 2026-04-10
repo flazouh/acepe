@@ -5,7 +5,12 @@ export type UpdaterBannerState =
 	| { kind: "idle" }
 	| { kind: "checking" }
 	| { kind: "available"; version: string }
-	| { kind: "downloading"; version: string; downloadedBytes: number; totalBytes: number | undefined }
+	| {
+			kind: "downloading";
+			version: string;
+			downloadedBytes: number;
+			totalBytes: number | undefined;
+	  }
 	| { kind: "installing"; version: string }
 	| { kind: "error"; message: string };
 

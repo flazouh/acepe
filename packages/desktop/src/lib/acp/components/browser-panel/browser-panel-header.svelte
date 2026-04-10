@@ -32,9 +32,10 @@ function handleSubmit(event: Event): void {
 	if (!trimmedValue) {
 		return;
 	}
-	const normalizedUrl = trimmedValue.startsWith("http://") || trimmedValue.startsWith("https://")
-		? trimmedValue
-		: `https://${trimmedValue}`;
+	const normalizedUrl =
+		trimmedValue.startsWith("http://") || trimmedValue.startsWith("https://")
+			? trimmedValue
+			: `https://${trimmedValue}`;
 	lastSyncedUrl = normalizedUrl;
 	props.onNavigate(normalizedUrl);
 	inputValue = normalizedUrl;

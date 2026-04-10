@@ -8,9 +8,7 @@ export interface HttpInteractionReplyHandler {
 	requestId: string;
 }
 
-export type InteractionReplyHandler =
-	| JsonRpcInteractionReplyHandler
-	| HttpInteractionReplyHandler;
+export type InteractionReplyHandler = JsonRpcInteractionReplyHandler | HttpInteractionReplyHandler;
 
 export interface InteractionReplyHandlerInput {
 	kind: "json-rpc" | "json_rpc" | "http" | "JsonRpc" | "Http";

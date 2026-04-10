@@ -1,19 +1,18 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "svelte-sonner";
-
-import * as m from "$lib/paraglide/messages.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
+import * as m from "$lib/paraglide/messages.js";
+import { tauriClient } from "../../../../utils/tauri-client.js";
+import type { AppError } from "../../../errors/app-error.js";
 import type {
 	AmplitudePayload,
 	RecordingErrorPayload,
 	TranscriptionCompletePayload,
 	TranscriptionErrorPayload,
-	VoiceModelDownloadProgress,
 	VoiceInputPhase,
+	VoiceModelDownloadProgress,
 } from "../../../types/voice-input.js";
-import { tauriClient } from "../../../../utils/tauri-client.js";
-import type { AppError } from "../../../errors/app-error.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import { transition } from "./voice-transitions.js";
 import { WaveformState } from "./waveform-state.svelte.js";
@@ -68,9 +67,9 @@ export class VoiceInputState {
 	/** Derived: mic button is in a non-idle voice workflow state. */
 	readonly isBusy = $derived(
 		this.phase === "checking_permission" ||
-		this.phase === "downloading_model" ||
-		this.phase === "loading_model" ||
-		this.phase === "transcribing"
+			this.phase === "downloading_model" ||
+			this.phase === "loading_model" ||
+			this.phase === "transcribing"
 	);
 	readonly recordingElapsedLabel = $derived(
 		this.phase === "recording" ? `${(this.recordingElapsedTenths / 10).toFixed(1)}s` : null
@@ -98,18 +97,27 @@ export class VoiceInputState {
 		getSelectedModelId?: () => string;
 	}) {
 		this.sessionId = options.sessionId;
-		this.onTranscriptionReady = options.onTranscriptionReady !== undefined ? options.onTranscriptionReady : null;
-		this.onOverlayDeactivated = options.onOverlayDeactivated !== undefined ? options.onOverlayDeactivated : null;
-		this.getSelectedLanguage = options.getSelectedLanguage !== undefined ? options.getSelectedLanguage : () => "auto";
-		this.getSelectedModelId = options.getSelectedModelId !== undefined ? options.getSelectedModelId : () => "small.en";
+		this.onTranscriptionReady =
+			options.onTranscriptionReady !== undefined ? options.onTranscriptionReady : null;
+		this.onOverlayDeactivated =
+			options.onOverlayDeactivated !== undefined ? options.onOverlayDeactivated : null;
+		this.getSelectedLanguage =
+			options.getSelectedLanguage !== undefined ? options.getSelectedLanguage : () => "auto";
+		this.getSelectedModelId =
+			options.getSelectedModelId !== undefined ? options.getSelectedModelId : () => "small.en";
 		log("VoiceInputState created", { sessionId: this.sessionId });
 	}
 
 	/** Register Tauri event listeners. Call once from onMount. */
 	async registerListeners(): Promise<void> {
 		log("Registering Tauri event listeners...");
-		const [amplitudeUnlisten, recErrUnlisten, transcCompleteUnlisten, transcErrUnlisten, dlProgressUnlisten] =
-			await Promise.all([
+		const [
+			amplitudeUnlisten,
+			recErrUnlisten,
+			transcCompleteUnlisten,
+			transcErrUnlisten,
+			dlProgressUnlisten,
+		] = await Promise.all([
 			listen<AmplitudePayload>("voice://amplitude", (event) => {
 				if (this.isDisposed) return;
 				if (event.payload.session_id !== this.sessionId) {
@@ -186,9 +194,15 @@ export class VoiceInputState {
 					});
 				}
 			}),
-			]);
+		]);
 
-		this.unlisteners.push(amplitudeUnlisten, recErrUnlisten, transcCompleteUnlisten, transcErrUnlisten, dlProgressUnlisten);
+		this.unlisteners.push(
+			amplitudeUnlisten,
+			recErrUnlisten,
+			transcCompleteUnlisten,
+			transcErrUnlisten,
+			dlProgressUnlisten
+		);
 		log("Event listeners registered");
 	}
 
@@ -283,7 +297,11 @@ export class VoiceInputState {
 
 	/** Called on pointerup on the mic button. */
 	onMicPointerUp(): void {
-		log("onMicPointerUp", { phase: this.phase, pressTimerActive: this.pressTimer !== null, isPressAndHold: this.isPressAndHold });
+		log("onMicPointerUp", {
+			phase: this.phase,
+			pressTimerActive: this.pressTimer !== null,
+			isPressAndHold: this.isPressAndHold,
+		});
 		if (this.pressTimer !== null) {
 			// Released before threshold → toggle click
 			this.clearPressTimer();
@@ -353,13 +371,16 @@ export class VoiceInputState {
 				log("stopRecording: FAILED", { error: err.message });
 				this.clearWatchdog();
 				this.setError(err.message ?? m.voice_error_stop_failed());
-			},
+			}
 		);
 	}
 
 	/** Cancel recording (Escape / Cancel button). */
 	cancelRecording(): void {
-		log("cancelRecording()", { phase: this.phase, canCancel: canCancelVoiceInteraction(this.phase) });
+		log("cancelRecording()", {
+			phase: this.phase,
+			canCancel: canCancelVoiceInteraction(this.phase),
+		});
 		if (!canCancelVoiceInteraction(this.phase)) {
 			log("cancelRecording: ignored (phase not cancellable)");
 			return;
@@ -419,11 +440,11 @@ export class VoiceInputState {
 							}
 							this.loadModelAndRecord(selectedModelId);
 						},
-					(err: AppError) => {
-						log("downloadModel: FAILED", { error: err.message });
-						this.activeDownloadModelId = null;
-						this.setError(err.message ?? m.voice_error_download_failed());
-					},
+						(err: AppError) => {
+							log("downloadModel: FAILED", { error: err.message });
+							this.activeDownloadModelId = null;
+							this.setError(err.message ?? m.voice_error_download_failed());
+						}
 					);
 				} else if (modelInfo.is_loaded) {
 					log("getModelStatus: model already loaded, starting recording immediately");
@@ -438,7 +459,7 @@ export class VoiceInputState {
 			(err: AppError) => {
 				log("getModelStatus: FAILED", { error: err.message });
 				this.setError(err.message ?? m.voice_error_model_status_failed());
-			},
+			}
 		);
 	}
 
@@ -469,7 +490,7 @@ export class VoiceInputState {
 				log("loadModel: FAILED", { error: err.message });
 				this.isLoadingModel = false;
 				this.setError(err.message ?? m.voice_error_load_failed());
-			},
+			}
 		);
 	}
 
@@ -483,7 +504,7 @@ export class VoiceInputState {
 			(err: AppError) => {
 				log("startRecording: FAILED", { error: err.message });
 				this.setError(err.message ?? m.voice_error_start_failed());
-			},
+			}
 		);
 	}
 

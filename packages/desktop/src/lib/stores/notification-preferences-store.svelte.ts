@@ -10,8 +10,8 @@
 
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const SETTINGS_KEY: UserSettingKey = "notification-preferences";
 const STORE_KEY = Symbol("notification-preferences");

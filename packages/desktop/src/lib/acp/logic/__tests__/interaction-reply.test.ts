@@ -34,12 +34,8 @@ vi.mock("../../store/api.js", () => ({
 }));
 
 vi.mock("../inbound-request-handler.js", () => ({
-	respondToPermission: (
-		sessionId: string,
-		requestId: number,
-		allowed: boolean,
-		optionId: string
-	) => mockRespondToPermission(sessionId, requestId, allowed, optionId),
+	respondToPermission: (sessionId: string, requestId: number, allowed: boolean, optionId: string) =>
+		mockRespondToPermission(sessionId, requestId, allowed, optionId),
 	respondToQuestion: (
 		sessionId: string,
 		requestId: number,

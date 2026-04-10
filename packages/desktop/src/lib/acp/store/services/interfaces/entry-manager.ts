@@ -7,11 +7,7 @@
 
 import type { ResultAsync } from "neverthrow";
 
-import type {
-	ContentBlock,
-	ContentChunk,
-	ToolCallData,
-} from "../../../../services/converted-session-types.js";
+import type { ContentChunk, ToolCallData } from "../../../../services/converted-session-types.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type { ToolCallUpdate } from "../../../types/tool-call.js";
 import type { SessionEntry } from "../../types.js";

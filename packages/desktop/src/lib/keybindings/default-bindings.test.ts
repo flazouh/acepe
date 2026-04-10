@@ -13,23 +13,17 @@ function getBinding(command: string) {
 
 describe("default keybindings", () => {
 	it("suppresses app-level toggles while a modal is open", () => {
-		expect(getBinding(KEYBINDING_ACTIONS.COMMAND_PALETTE_TOGGLE)?.when).toContain(
-			"!modalOpen"
-		);
+		expect(getBinding(KEYBINDING_ACTIONS.COMMAND_PALETTE_TOGGLE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.SIDEBAR_TOGGLE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.TOP_BAR_TOGGLE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.THREAD_CREATE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.THREAD_CLOSE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.DEBUG_TOGGLE)?.when).toContain("!modalOpen");
-		expect(getBinding(KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST)?.when).toContain(
-			"!modalOpen"
-		);
+		expect(getBinding(KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST)?.when).toContain("!modalOpen");
 	});
 
 	it("does not allow the file explorer toggle to fire from another modal", () => {
-		expect(getBinding(KEYBINDING_ACTIONS.FILE_EXPLORER_TOGGLE)?.when).toContain(
-			"!modalOpen"
-		);
+		expect(getBinding(KEYBINDING_ACTIONS.FILE_EXPLORER_TOGGLE)?.when).toContain("!modalOpen");
 	});
 
 	it("keeps mode cycling available while the composer is focused", () => {
@@ -37,12 +31,8 @@ describe("default keybindings", () => {
 			"!inputFocused"
 		);
 		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.key).toBe("$mod+Period");
-		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
-			"!settingsOpen"
-		);
-		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain(
-			"!modalOpen"
-		);
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain("!settingsOpen");
+		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).toContain("!modalOpen");
 	});
 
 	it("adds a shifted dot fallback for layouts where period requires Shift", () => {

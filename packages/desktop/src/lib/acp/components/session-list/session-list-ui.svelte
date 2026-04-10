@@ -545,16 +545,13 @@ const watchedProjectPaths = new Set<string>();
 $effect(() => {
 	let unlisten: (() => void) | null = null;
 	let disposed = false;
-	listen<{ projectPath: string; branch: string | null }>(
-		"git:head-changed",
-		(event) => {
-			const pp = event.payload.projectPath;
-			if (gitLoadedProjects.has(pp)) {
-				gitLoadedProjects.delete(pp);
-				loadGitOverview(pp);
-			}
+	listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
+		const pp = event.payload.projectPath;
+		if (gitLoadedProjects.has(pp)) {
+			gitLoadedProjects.delete(pp);
+			loadGitOverview(pp);
 		}
-	).then((fn) => {
+	}).then((fn) => {
 		if (disposed) fn();
 		else unlisten = fn;
 	});

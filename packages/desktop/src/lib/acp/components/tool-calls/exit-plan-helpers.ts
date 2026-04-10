@@ -22,7 +22,9 @@ function normalizeString(value: string | null | undefined): string | null {
 	return trimmed;
 }
 
-export function readExitPlanPermissionInput(permission: PermissionRequest): ExitPlanRawInput | null {
+export function readExitPlanPermissionInput(
+	permission: PermissionRequest
+): ExitPlanRawInput | null {
 	return readExitPlanRawInput(permission.metadata.rawInput);
 }
 

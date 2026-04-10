@@ -166,7 +166,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-			finalizeStreamingEntries: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -452,12 +452,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(
-			sessionId,
-			"/tmp/project",
-			undefined,
-			undefined
-		);
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", undefined, undefined);
 	});
 
 	it("passes through an explicit agent override when reconnect is intentionally redirected", async () => {
@@ -475,12 +470,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		});
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(
-			sessionId,
-			projectPath,
-			"claude-code",
-			undefined
-		);
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, "claude-code", undefined);
 	});
 
 	it("caches resumed capabilities under the effective override agent", async () => {
@@ -722,8 +712,9 @@ describe("SessionConnectionManager.connectSession", () => {
 			})
 		);
 
-		const capabilitiesUpdate = (capabilities.updateCapabilities as ReturnType<typeof vi.fn>).mock
-			.calls.at(-1)?.[1];
+		const capabilitiesUpdate = (
+			capabilities.updateCapabilities as ReturnType<typeof vi.fn>
+		).mock.calls.at(-1)?.[1];
 		expect(capabilitiesUpdate?.modelsDisplay?.presentation?.provider?.providerBrand).toBe("codex");
 	});
 
@@ -888,7 +879,7 @@ describe("SessionConnectionManager.createSession", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-			finalizeStreamingEntries: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -1176,8 +1167,8 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-			SessionCold;
+		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0] as SessionCold;
 		expect(addedSession.sequenceId).toBe(7);
 	});
 
@@ -1237,11 +1228,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
 		expect(initUpdate?.currentMode?.id).toBe("plan");
 		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/medium");
-		expect(setSessionModelForMode).toHaveBeenCalledWith(
-			sessionId,
-			"plan",
-			"gpt-5.2-codex/medium"
-		);
+		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
 	});
 
 	it("applies the target mode default model when only the initial mode is explicit", async () => {
@@ -1491,7 +1478,7 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-			finalizeStreamingEntries: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -1881,7 +1868,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-			finalizeStreamingEntries: vi.fn(),
+		finalizeStreamingEntries: vi.fn(),
 	};
 
 	const connectionManager: IConnectionManager = {
@@ -1967,20 +1954,22 @@ describe("SessionConnectionManager.disconnectSession", () => {
 	it("clears available commands when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
-			getHotState: vi.fn((): SessionHotState => ({
-				isConnected: true,
-				status: "ready" as const,
-				turnState: "idle" as const,
-				acpSessionId: "acp-1",
-				connectionError: null,
-				autonomousEnabled: false,
-				autonomousTransition: "idle",
-				currentModel: null,
-				currentMode: null,
-				availableCommands: [{ name: "open", description: "Open file" }],
-				modelPerMode: {},
-				statusChangedAt: Date.now(),
-			})),
+			getHotState: vi.fn(
+				(): SessionHotState => ({
+					isConnected: true,
+					status: "ready" as const,
+					turnState: "idle" as const,
+					acpSessionId: "acp-1",
+					connectionError: null,
+					autonomousEnabled: false,
+					autonomousTransition: "idle",
+					currentModel: null,
+					currentMode: null,
+					availableCommands: [{ name: "open", description: "Open file" }],
+					modelPerMode: {},
+					statusChangedAt: Date.now(),
+				})
+			),
 			getEntries: vi.fn(() => []),
 			isPreloaded: vi.fn(() => false),
 			getSessionsForProject: vi.fn(() => []),

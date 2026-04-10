@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "bun:test";
 
 const source = readFileSync(resolve(import.meta.dir, "./agent-attached-file-pane.svelte"), "utf8");
 

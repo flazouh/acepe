@@ -1,17 +1,16 @@
-import { and, asc, desc, eq, isNull, like, or, sql } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { ResultAsync } from 'neverthrow';
-
-import { DatabaseError } from '../../domain/errors/ReportErrors';
-import { db } from '../../db/client';
-import { reports, users } from '../../db/schema';
+import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { ResultAsync } from "neverthrow";
+import { db } from "../../db/client";
+import { reports, users } from "../../db/schema";
+import { DatabaseError } from "../../domain/errors/ReportErrors";
 
 export interface ReportRow {
 	id: string;
 	title: string;
 	body: string;
-	category: 'bug' | 'feature_request' | 'question' | 'discussion';
-	status: 'open' | 'under_review' | 'planned' | 'in_progress' | 'completed' | 'closed' | 'wont_fix';
+	category: "bug" | "feature_request" | "question" | "discussion";
+	status: "open" | "under_review" | "planned" | "in_progress" | "completed" | "closed" | "wont_fix";
 	author: { id: string; name: string | null; picture: string | null };
 	upvoteCount: number;
 	downvoteCount: number;
@@ -29,7 +28,10 @@ export interface ReportFilters {
 	search?: string;
 }
 
-function toReportRow(report: typeof reports.$inferSelect, user: typeof users.$inferSelect): ReportRow {
+function toReportRow(
+	report: typeof reports.$inferSelect,
+	user: typeof users.$inferSelect
+): ReportRow {
 	return {
 		id: report.id,
 		title: report.title,
@@ -43,7 +45,7 @@ function toReportRow(report: typeof reports.$inferSelect, user: typeof users.$in
 		followerCount: report.followerCount,
 		isPinned: report.isPinned,
 		createdAt: report.createdAt,
-		updatedAt: report.updatedAt
+		updatedAt: report.updatedAt,
 	};
 }
 
@@ -51,18 +53,25 @@ function buildWhereConditions(filters: ReportFilters) {
 	const conditions = [isNull(reports.deletedAt)];
 
 	if (filters.category) {
-		conditions.push(eq(reports.category, filters.category as typeof reports.category.enumValues[number]));
+		conditions.push(
+			eq(reports.category, filters.category as (typeof reports.category.enumValues)[number])
+		);
 	}
 	if (filters.status) {
-		conditions.push(eq(reports.status, filters.status as typeof reports.status.enumValues[number]));
+		conditions.push(
+			eq(reports.status, filters.status as (typeof reports.status.enumValues)[number])
+		);
 	}
 	if (filters.authorId) {
 		conditions.push(eq(reports.authorId, filters.authorId));
 	}
 	if (filters.search) {
-		const escaped = filters.search.replace(/[%_\\]/g, '\\$&');
+		const escaped = filters.search.replace(/[%_\\]/g, "\\$&");
 		const pattern = `%${escaped}%`;
-		conditions.push(or(like(reports.title, pattern), like(reports.body, pattern))!);
+		const searchCondition = or(like(reports.title, pattern), like(reports.body, pattern));
+		if (searchCondition) {
+			conditions.push(searchCondition);
+		}
 	}
 
 	return and(...conditions);
@@ -70,13 +79,13 @@ function buildWhereConditions(filters: ReportFilters) {
 
 function buildOrderBy(sort: string) {
 	switch (sort) {
-		case 'oldest':
+		case "oldest":
 			return asc(reports.createdAt);
-		case 'most_upvoted':
+		case "most_upvoted":
 			return desc(reports.upvoteCount);
-		case 'most_commented':
+		case "most_commented":
 			return desc(reports.commentCount);
-		case 'trending':
+		case "trending":
 			return sql`(${reports.upvoteCount} - ${reports.downvoteCount}) / pow(extract(epoch from now() - ${reports.createdAt}) / 3600 + 2, 1.8) desc`;
 		default:
 			return desc(reports.createdAt);
@@ -101,10 +110,10 @@ export class ReportRepositoryImpl {
 						id,
 						title: data.title,
 						body: data.body,
-						category: data.category as typeof reports.category.enumValues[number],
+						category: data.category as (typeof reports.category.enumValues)[number],
 						authorId: data.authorId,
 						createdAt: now,
-						updatedAt: now
+						updatedAt: now,
 					})
 					.returning();
 
@@ -112,7 +121,7 @@ export class ReportRepositoryImpl {
 
 				return toReportRow(report, user);
 			})(),
-			(error) => new DatabaseError('Failed to create report', error)
+			(error) => new DatabaseError("Failed to create report", error)
 		);
 	}
 
@@ -129,7 +138,7 @@ export class ReportRepositoryImpl {
 
 				return toReportRow(rows[0].reports, rows[0].users);
 			})(),
-			(error) => new DatabaseError('Failed to find report', error)
+			(error) => new DatabaseError("Failed to find report", error)
 		);
 	}
 
@@ -152,7 +161,7 @@ export class ReportRepositoryImpl {
 
 				return rows.map((row) => toReportRow(row.reports, row.users));
 			})(),
-			(error) => new DatabaseError('Failed to list reports', error)
+			(error) => new DatabaseError("Failed to list reports", error)
 		);
 	}
 
@@ -161,7 +170,7 @@ export class ReportRepositoryImpl {
 			(async () => {
 				return await db.$count(reports, buildWhereConditions(filters));
 			})(),
-			(error) => new DatabaseError('Failed to count reports', error)
+			(error) => new DatabaseError("Failed to count reports", error)
 		);
 	}
 
@@ -195,7 +204,7 @@ export class ReportRepositoryImpl {
 
 				return toReportRow(report, user);
 			})(),
-			(error) => new DatabaseError('Failed to update report', error)
+			(error) => new DatabaseError("Failed to update report", error)
 		);
 	}
 
@@ -207,13 +216,13 @@ export class ReportRepositoryImpl {
 					.set({ deletedAt: new Date() })
 					.where(and(eq(reports.id, id), isNull(reports.deletedAt)));
 			})(),
-			(error) => new DatabaseError('Failed to delete report', error)
+			(error) => new DatabaseError("Failed to delete report", error)
 		);
 	}
 
 	incrementCount(
 		id: string,
-		field: 'commentCount' | 'followerCount' | 'upvoteCount' | 'downvoteCount',
+		field: "commentCount" | "followerCount" | "upvoteCount" | "downvoteCount",
 		delta: number
 	): ResultAsync<void, DatabaseError> {
 		return ResultAsync.fromPromise(
@@ -221,7 +230,7 @@ export class ReportRepositoryImpl {
 				await db
 					.update(reports)
 					.set({
-						[field]: sql`GREATEST(0, ${reports[field]} + ${delta})`
+						[field]: sql`GREATEST(0, ${reports[field]} + ${delta})`,
 					})
 					.where(eq(reports.id, id));
 			})(),

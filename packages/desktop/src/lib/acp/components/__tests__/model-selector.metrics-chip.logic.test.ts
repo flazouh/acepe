@@ -48,7 +48,16 @@ describe("getContextUsagePercent", () => {
 
 describe("createContextUsageSegments", () => {
 	it("fills segments according to the usage percentage", () => {
-		expect(createContextUsageSegments(25, 8)).toEqual([true, true, false, false, false, false, false, false]);
+		expect(createContextUsageSegments(25, 8)).toEqual([
+			true,
+			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
 	});
 
 	it("returns an empty list for invalid segment counts", () => {

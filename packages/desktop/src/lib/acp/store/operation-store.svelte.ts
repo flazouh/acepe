@@ -72,8 +72,18 @@ export class OperationStore {
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
 
-	upsertFromToolCall(sessionId: string, sourceEntryId: string | null, toolCall: ToolCall): Operation {
-		return this.upsertToolCall(sessionId, sourceEntryId, toolCall, null, toolCall.parentToolUseId ?? null);
+	upsertFromToolCall(
+		sessionId: string,
+		sourceEntryId: string | null,
+		toolCall: ToolCall
+	): Operation {
+		return this.upsertToolCall(
+			sessionId,
+			sourceEntryId,
+			toolCall,
+			null,
+			toolCall.parentToolUseId ?? null
+		);
 	}
 
 	getById(operationId: string): Operation | undefined {
@@ -81,7 +91,9 @@ export class OperationStore {
 	}
 
 	getByToolCallId(sessionId: string, toolCallId: string): Operation | undefined {
-		const operationId = this.operationIdByToolCallKey.get(createSessionToolKey(sessionId, toolCallId));
+		const operationId = this.operationIdByToolCallKey.get(
+			createSessionToolKey(sessionId, toolCallId)
+		);
 		if (operationId == null) {
 			return undefined;
 		}
@@ -185,7 +197,10 @@ export class OperationStore {
 		this.operationsById.set(operationId, nextOperation);
 		this.operationIdByToolCallKey.set(createSessionToolKey(sessionId, toolCall.id), operationId);
 		if (nextSourceEntryId != null) {
-			this.operationIdByEntryKey.set(createSessionToolKey(sessionId, nextSourceEntryId), operationId);
+			this.operationIdByEntryKey.set(
+				createSessionToolKey(sessionId, nextSourceEntryId),
+				operationId
+			);
 		}
 
 		const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];

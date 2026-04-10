@@ -1,11 +1,11 @@
 <script lang="ts">
-	import * as m from "$lib/paraglide/messages.js";
-	import { portal } from "../../actions/portal.js";
-	import type { FilePickerEntry } from "../../types/file-picker-entry.js";
-	import { fuzzyMatchFiles } from "../../utils/fuzzy-match.js";
-	import { getPreviewFile, shouldDeferFilePreview } from "./file-picker-preview-state.js";
-	import FilePickerItem from "./file-picker-item.svelte";
-	import FilePreview from "./file-preview.svelte";
+import * as m from "$lib/paraglide/messages.js";
+import { portal } from "../../actions/portal.js";
+import type { FilePickerEntry } from "../../types/file-picker-entry.js";
+import { fuzzyMatchFiles } from "../../utils/fuzzy-match.js";
+import { getPreviewFile, shouldDeferFilePreview } from "./file-picker-preview-state.js";
+import FilePickerItem from "./file-picker-item.svelte";
+import FilePreview from "./file-preview.svelte";
 
 interface Props {
 	files: FilePickerEntry[];
@@ -58,8 +58,8 @@ let selectedIndex = $state(0);
 
 // Store references to items for scrolling
 let itemRefs: Record<number, HTMLDivElement> = {};
-	const deferPreview = $derived(shouldDeferFilePreview(query));
-	const previewFile = $derived(getPreviewFile(filteredFiles, selectedIndex, deferPreview));
+const deferPreview = $derived(shouldDeferFilePreview(query));
+const previewFile = $derived(getPreviewFile(filteredFiles, selectedIndex, deferPreview));
 
 // Reset selection when filtered files change
 $effect(() => {

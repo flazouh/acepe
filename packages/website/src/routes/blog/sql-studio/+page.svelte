@@ -1,56 +1,56 @@
 <script lang="ts">
-	import BlogPostLayout from '$lib/blog/blog-post-layout.svelte';
-	import { sqlStudioBlogPost as metadata } from '$lib/blog/posts.js';
-	import Card from '$lib/components/ui/card/card.svelte';
-	import { MarkdownDisplay } from '@acepe/ui';
-	import SqlStudioDemo from '$lib/blog/demos/sql-studio-demo.svelte';
-	import {
-		SqlConnectionBadge,
-		SqlStudioSidebar,
-		SqlStudioDataGrid,
-		SqlStudioToolbar,
-		SqlStudioFilterBar,
-		SqlStudioStatusBar,
-		type SqlSchemaInfo
-	} from '@acepe/ui/sql-studio';
+import BlogPostLayout from "$lib/blog/blog-post-layout.svelte";
+import { sqlStudioBlogPost as metadata } from "$lib/blog/posts.js";
+import Card from "$lib/components/ui/card/card.svelte";
+import { MarkdownDisplay } from "@acepe/ui";
+import SqlStudioDemo from "$lib/blog/demos/sql-studio-demo.svelte";
+import {
+	SqlConnectionBadge,
+	SqlStudioSidebar,
+	SqlStudioDataGrid,
+	SqlStudioToolbar,
+	SqlStudioFilterBar,
+	SqlStudioStatusBar,
+	type SqlSchemaInfo,
+} from "@acepe/ui/sql-studio";
 
-	let { data } = $props();
+let { data } = $props();
 
-	// --- Demo state for individual component showcases ---
+// --- Demo state for individual component showcases ---
 
-	const demoSchema: SqlSchemaInfo[] = [
-		{
-			name: 'public',
-			tables: [
-				{
-					name: 'users',
-					schema: 'public',
-					columns: [
-						{ name: 'id', dataType: 'bigint', nullable: false, isPrimaryKey: true },
-						{ name: 'email', dataType: 'varchar', nullable: false, isPrimaryKey: false },
-						{ name: 'name', dataType: 'varchar', nullable: true, isPrimaryKey: false }
-					]
-				},
-				{
-					name: 'projects',
-					schema: 'public',
-					columns: [
-						{ name: 'id', dataType: 'bigint', nullable: false, isPrimaryKey: true },
-						{ name: 'name', dataType: 'varchar', nullable: false, isPrimaryKey: false },
-						{ name: 'status', dataType: 'varchar', nullable: false, isPrimaryKey: false }
-					]
-				}
-			]
-		}
-	];
+const demoSchema: SqlSchemaInfo[] = [
+	{
+		name: "public",
+		tables: [
+			{
+				name: "users",
+				schema: "public",
+				columns: [
+					{ name: "id", dataType: "bigint", nullable: false, isPrimaryKey: true },
+					{ name: "email", dataType: "varchar", nullable: false, isPrimaryKey: false },
+					{ name: "name", dataType: "varchar", nullable: true, isPrimaryKey: false },
+				],
+			},
+			{
+				name: "projects",
+				schema: "public",
+				columns: [
+					{ name: "id", dataType: "bigint", nullable: false, isPrimaryKey: true },
+					{ name: "name", dataType: "varchar", nullable: false, isPrimaryKey: false },
+					{ name: "status", dataType: "varchar", nullable: false, isPrimaryKey: false },
+				],
+			},
+		],
+	},
+];
 
-	const demoColumns = ['id', 'email', 'name', 'created_at', 'plan'];
-	const demoRows = [
-		{ originalIndex: 0, cells: ['1', 'alice@example.com', 'Alice Chen', '2025-11-02', 'pro'] },
-		{ originalIndex: 1, cells: ['2', 'bob@example.com', 'Bob Smith', '2025-11-05', 'free'] },
-		{ originalIndex: 2, cells: ['3', 'carol@example.com', '', '2025-12-01', 'pro'] },
-		{ originalIndex: 3, cells: ['4', 'dave@example.com', 'Dave Park', '2026-01-10', 'enterprise'] }
-	];
+const demoColumns = ["id", "email", "name", "created_at", "plan"];
+const demoRows = [
+	{ originalIndex: 0, cells: ["1", "alice@example.com", "Alice Chen", "2025-11-02", "pro"] },
+	{ originalIndex: 1, cells: ["2", "bob@example.com", "Bob Smith", "2025-11-05", "free"] },
+	{ originalIndex: 2, cells: ["3", "carol@example.com", "", "2025-12-01", "pro"] },
+	{ originalIndex: 3, cells: ["4", "dave@example.com", "Dave Park", "2026-01-10", "enterprise"] },
+];
 </script>
 
 <BlogPostLayout

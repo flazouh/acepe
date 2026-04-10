@@ -1,4 +1,3 @@
-import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 import {
 	buildChipShellClassName,
 	buildInlineArtefactIconClassName,
@@ -6,6 +5,7 @@ import {
 	INLINE_ARTEFACT_CLIPBOARD_PATH,
 	INLINE_ARTEFACT_PACKAGE_PATH,
 } from "@acepe/ui";
+import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 
 import {
 	type InlineArtefactTokenType,
@@ -40,7 +40,6 @@ function labelForToken(
 	}
 	return "Pasted text";
 }
-
 
 function createTextFragment(content: string): DocumentFragment {
 	const fragment = document.createDocumentFragment();
@@ -152,16 +151,10 @@ function createTokenIcon(tokenType: InlineArtefactTokenType, value: string): Ele
 		.join(" ");
 
 	if (tokenType === "command" || tokenType === "skill") {
-		return createPhosphorPathIcon(
-			INLINE_ARTEFACT_PACKAGE_PATH,
-			iconClassName,
-		);
+		return createPhosphorPathIcon(INLINE_ARTEFACT_PACKAGE_PATH, iconClassName);
 	}
 	if (tokenType === "text" || tokenType === "text_ref") {
-		return createPhosphorPathIcon(
-			INLINE_ARTEFACT_CLIPBOARD_PATH,
-			iconClassName,
-		);
+		return createPhosphorPathIcon(INLINE_ARTEFACT_CLIPBOARD_PATH, iconClassName);
 	}
 	return createFileTypeIcon(value, "h-3.5 w-3.5 shrink-0");
 }
@@ -422,7 +415,9 @@ export function getSerializedCursorOffset(editor: HTMLElement): number {
 	return getSerializedOffsetWithinNode(editor, range.startContainer, range.startOffset);
 }
 
-export function getSerializedSelectionRange(editor: HTMLElement): { start: number; end: number } | null {
+export function getSerializedSelectionRange(
+	editor: HTMLElement
+): { start: number; end: number } | null {
 	const selection = window.getSelection();
 	if (!selection || selection.rangeCount === 0) {
 		return null;

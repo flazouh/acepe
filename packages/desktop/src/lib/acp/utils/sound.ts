@@ -1,6 +1,6 @@
 import { ResultAsync } from "neverthrow";
 
-import { SoundEffect } from "../types/sounds.js";
+import type { SoundEffect } from "../types/sounds.js";
 
 const APP_START_SOUND_FILE = "app-start.wav";
 
@@ -18,7 +18,7 @@ function warmAudioContext(ctx: AudioContext): void {
 
 	ResultAsync.fromPromise(ctx.resume(), (e) => e as Error).match(
 		() => undefined,
-		() => undefined,
+		() => undefined
 	);
 }
 
@@ -32,7 +32,7 @@ function getAudioContext(): AudioContext {
 
 export function shouldPlaySound(
 	sound: SoundEffect,
-	isDevMode: boolean = import.meta.env.DEV,
+	isDevMode: boolean = import.meta.env.DEV
 ): boolean {
 	return !(isDevMode && sound === APP_START_SOUND_FILE);
 }
@@ -50,14 +50,14 @@ export function preloadSound(sound: SoundEffect): void {
 		fetch(`/sounds/${sound}`)
 			.then((response) => response.arrayBuffer())
 			.then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer)),
-		(e) => e as Error,
+		(e) => e as Error
 	).match(
 		(buffer) => {
 			bufferCache.set(sound, buffer);
 		},
 		() => {
 			// Silently ignore preload errors — playSound falls back to HTML Audio
-		},
+		}
 	);
 }
 

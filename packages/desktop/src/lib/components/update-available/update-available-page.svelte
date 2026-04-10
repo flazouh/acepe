@@ -1,60 +1,54 @@
 <script lang="ts">
-	import { BrandLockup, BrandShaderBackground, TextShimmer } from "@acepe/ui";
-	import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-	import { onMount } from "svelte";
-	import {
-		isUpdaterInstallInProgress,
-		type UpdaterBannerState,
-	} from "$lib/components/main-app-view/logic/updater-state.js";
-	import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-	import { Button } from "$lib/components/ui/button/index.js";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import * as m from "$lib/paraglide/messages.js";
+import { BrandLockup, BrandShaderBackground, TextShimmer } from "@acepe/ui";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import { onMount } from "svelte";
+import {
+	isUpdaterInstallInProgress,
+	type UpdaterBannerState,
+} from "$lib/components/main-app-view/logic/updater-state.js";
+import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
+import { Button } from "$lib/components/ui/button/index.js";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import * as m from "$lib/paraglide/messages.js";
 
-	const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
+const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 
-	interface Props {
-		updaterState: UpdaterBannerState;
-		onRetry: () => void;
-		onDismiss?: () => void;
-	}
+interface Props {
+	updaterState: UpdaterBannerState;
+	onRetry: () => void;
+	onDismiss?: () => void;
+}
 
-	let { updaterState, onRetry, onDismiss }: Props = $props();
+let { updaterState, onRetry, onDismiss }: Props = $props();
 
-	const downloadPercent = $derived(
-		updaterState.kind === "installing"
-			? 100
-			: updaterState.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
-			? Math.min(
-					Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100),
-					100
-				)
+const downloadPercent = $derived(
+	updaterState.kind === "installing"
+		? 100
+		: updaterState.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
 			: null
-	);
+);
 
-	const isInstalling = $derived(
-		isUpdaterInstallInProgress(updaterState)
-	);
+const isInstalling = $derived(isUpdaterInstallInProgress(updaterState));
 
-	function formatBytes(bytes: number): string {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+onMount(() => {
+	if (onDismiss) {
+		const handleKeydown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				onDismiss();
+			}
+		};
+		window.addEventListener("keydown", handleKeydown);
+		return () => window.removeEventListener("keydown", handleKeydown);
 	}
-
-	onMount(() => {
-		if (onDismiss) {
-			const handleKeydown = (event: KeyboardEvent) => {
-				if (event.key === "Escape") {
-					event.preventDefault();
-					onDismiss();
-				}
-			};
-			window.addEventListener("keydown", handleKeydown);
-			return () => window.removeEventListener("keydown", handleKeydown);
-		}
-	});
-
+});
 </script>
 
 <!-- Shader background layer -->

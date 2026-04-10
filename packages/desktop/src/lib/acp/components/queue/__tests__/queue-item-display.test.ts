@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
 import {
-	getQueueItemToolDisplay,
 	getQueueItemTaskDisplay,
+	getQueueItemToolDisplay,
 	getTaskSubagentSummaries,
 	type QueueItemToolDisplayInput,
 } from "../queue-item-display.js";

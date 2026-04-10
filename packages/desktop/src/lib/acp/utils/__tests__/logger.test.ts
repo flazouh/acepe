@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
-import {
-	__configureLoggerRuntimeForTests,
-	__resetLoggerStateForTests,
-	__restoreLoggerRuntimeDefaultsForTests,
-	createLogger,
-	getLogs,
-} from "../logger.js";
+import { __createLoggerHarnessForTests } from "../logger.js";
 
 type ConsoleCall = {
 	method: "debug" | "info" | "warn" | "error";
@@ -17,6 +11,7 @@ describe("logger", () => {
 	let monotonicNow = 0;
 	let wallClockNow = 1_700_000_000_000;
 	let consoleCalls: ConsoleCall[] = [];
+	let harness: ReturnType<typeof __createLoggerHarnessForTests>;
 
 	const consoleApi = {
 		debug: (...data: unknown[]) => {
@@ -34,26 +29,30 @@ describe("logger", () => {
 	};
 
 	beforeEach(() => {
-		__restoreLoggerRuntimeDefaultsForTests();
+		harness = __createLoggerHarnessForTests();
 		monotonicNow = 0;
 		wallClockNow = 1_700_000_000_000;
 		consoleCalls = [];
-		__configureLoggerRuntimeForTests({
+		harness.configureRuntime({
 			monotonicNow: () => monotonicNow,
 			wallClockNow: () => wallClockNow,
 			consoleApi,
 			shouldUseStyledConsole: () => true,
 		});
-		__resetLoggerStateForTests();
+		harness.reset();
 	});
 
 	afterEach(() => {
-		__restoreLoggerRuntimeDefaultsForTests();
+		harness.restoreRuntimeDefaults();
 	});
 
 	it("records global and per-logger timing metadata", () => {
-		const primaryLogger = createLogger({ id: "primary", name: "Primary", level: "info" });
-		const secondaryLogger = createLogger({ id: "secondary", name: "Secondary", level: "info" });
+		const primaryLogger = harness.createLogger({ id: "primary", name: "Primary", level: "info" });
+		const secondaryLogger = harness.createLogger({
+			id: "secondary",
+			name: "Secondary",
+			level: "info",
+		});
 
 		monotonicNow = 25;
 		wallClockNow += 25;
@@ -67,7 +66,7 @@ describe("logger", () => {
 		wallClockNow += 140;
 		secondaryLogger.warn("Other logger");
 
-		const logs = getLogs();
+		const logs = harness.getLogs();
 		expect(logs).toHaveLength(3);
 		expect(logs[0]?.timing).toEqual({
 			sinceStartMs: 25,
@@ -87,7 +86,11 @@ describe("logger", () => {
 	});
 
 	it("formats styled dev console output with timing badges", () => {
-		const logger = createLogger({ id: "provider-store", name: "ProviderStore", level: "info" });
+		const logger = harness.createLogger({
+			id: "provider-store",
+			name: "ProviderStore",
+			level: "info",
+		});
 		const payload = { count: 3 };
 
 		monotonicNow = 50;
@@ -108,11 +111,11 @@ describe("logger", () => {
 	});
 
 	it("falls back to plain console output when styled logs are disabled", () => {
-		__configureLoggerRuntimeForTests({
+		harness.configureRuntime({
 			shouldUseStyledConsole: () => false,
 		});
 
-		const logger = createLogger({ id: "plain", name: "PlainLogger", level: "warn" });
+		const logger = harness.createLogger({ id: "plain", name: "PlainLogger", level: "warn" });
 		monotonicNow = 80;
 		wallClockNow += 80;
 		logger.warn("Plain output");

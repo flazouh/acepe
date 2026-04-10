@@ -3,14 +3,12 @@ import { describe, expect, it } from "bun:test";
 import {
 	buildLiveSessionPanelSignal,
 	isLiveSessionPanelCandidate,
-	syncLiveSessionPanels,
 	type LiveSessionPanelSyncController,
 	type LiveSessionPanelSyncInput,
+	syncLiveSessionPanels,
 } from "../logic/live-session-panel-sync.js";
 
-function makeInput(
-	overrides: Partial<LiveSessionPanelSyncInput> = {}
-): LiveSessionPanelSyncInput {
+function makeInput(overrides: Partial<LiveSessionPanelSyncInput> = {}): LiveSessionPanelSyncInput {
 	return {
 		sessionId: overrides.sessionId !== undefined ? overrides.sessionId : "session-1",
 		updatedAtMs: overrides.updatedAtMs !== undefined ? overrides.updatedAtMs : 1000,
@@ -76,9 +74,9 @@ describe("isLiveSessionPanelCandidate", () => {
 	});
 
 	it("treats waiting-for-user sessions as live", () => {
-		expect(
-			isLiveSessionPanelCandidate(makeInput({ activityPhase: "waiting_for_user" }))
-		).toBe(true);
+		expect(isLiveSessionPanelCandidate(makeInput({ activityPhase: "waiting_for_user" }))).toBe(
+			true
+		);
 	});
 
 	it("treats failed sessions as live", () => {
@@ -89,7 +87,9 @@ describe("isLiveSessionPanelCandidate", () => {
 
 	it("treats connected idle sessions without pending input as not live", () => {
 		expect(
-			isLiveSessionPanelCandidate(makeInput({ activityPhase: "idle", connectionPhase: "connected" }))
+			isLiveSessionPanelCandidate(
+				makeInput({ activityPhase: "idle", connectionPhase: "connected" })
+			)
 		).toBe(false);
 	});
 
@@ -114,7 +114,11 @@ describe("syncLiveSessionPanels", () => {
 	it("materializes live sessions that do not yet have panels", () => {
 		const { controller, materializedSessionIds } = createController();
 
-		const synchronized = syncLiveSessionPanels([makeInput({ sessionId: "session-1" })], controller, 450);
+		const synchronized = syncLiveSessionPanels(
+			[makeInput({ sessionId: "session-1" })],
+			controller,
+			450
+		);
 
 		expect(synchronized).toEqual(["session-1"]);
 		expect(materializedSessionIds).toEqual(["session-1"]);
@@ -136,7 +140,10 @@ describe("syncLiveSessionPanels", () => {
 	it("does not rematerialize a session when the dismissal suppression signal still matches", () => {
 		const input = makeInput({ sessionId: "session-1", updatedAtMs: 1000 });
 		const signal = buildLiveSessionPanelSignal(input);
-		const { controller, materializedSessionIds } = createController([], new Map([["session-1", signal]]));
+		const { controller, materializedSessionIds } = createController(
+			[],
+			new Map([["session-1", signal]])
+		);
 
 		const synchronized = syncLiveSessionPanels([input], controller, 450);
 
@@ -167,7 +174,11 @@ describe("syncLiveSessionPanels", () => {
 	it("does not materialize sessions that already have panels", () => {
 		const { controller, materializedSessionIds } = createController(["session-1"]);
 
-		const synchronized = syncLiveSessionPanels([makeInput({ sessionId: "session-1" })], controller, 450);
+		const synchronized = syncLiveSessionPanels(
+			[makeInput({ sessionId: "session-1" })],
+			controller,
+			450
+		);
 
 		expect(synchronized).toEqual([]);
 		expect(materializedSessionIds).toEqual([]);

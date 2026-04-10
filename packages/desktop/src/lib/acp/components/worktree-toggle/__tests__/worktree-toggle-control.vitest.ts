@@ -6,20 +6,17 @@ import * as m from "$lib/paraglide/messages.js";
 
 const setWorktreeDefault = vi.fn(() => okAsync(undefined));
 
-vi.mock(
-	"svelte",
-	async () => {
-		const { createRequire } = await import("node:module");
-		const { dirname, join } = await import("node:path");
-		const require = createRequire(import.meta.url);
-		const svelteClientPath = join(
-			dirname(require.resolve("svelte/package.json")),
-			"src/index-client.js"
-		);
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
-		return import(/* @vite-ignore */ svelteClientPath);
-	}
-);
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("../worktree-toggle.svelte", async () => {
 	const Stub = (await import("./fixtures/worktree-toggle-stub.svelte")).default;

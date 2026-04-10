@@ -1,20 +1,8 @@
+import { afterEach, describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import {
-	afterEach,
-	describe,
-	expect,
-	it,
-} from "bun:test";
-import {
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const GIT_EXECUTABLE = "/usr/bin/git";
 const DESKTOP_ROOT = resolve(import.meta.dir, "..");
@@ -88,9 +76,7 @@ describe("tauri dev watcher ignore config", () => {
 	it("uses filename-based .taurignore discovery for tauri dev", () => {
 		const packageJsonSource = readDesktopFile("package.json");
 
-		expect(packageJsonSource).toContain(
-			'TAURI_CLI_WATCHER_IGNORE_FILENAME=.taurignore'
-		);
+		expect(packageJsonSource).toContain("TAURI_CLI_WATCHER_IGNORE_FILENAME=.taurignore");
 		expect(packageJsonSource).not.toContain("TAURI_DEV_WATCHER_IGNORE_FILE");
 	});
 
@@ -113,10 +99,7 @@ describe("tauri dev watcher ignore config", () => {
 		expect(isIgnored(tempRepo, "packages/desktop/src/routes/+page.svelte")).toBe(true);
 		expect(isIgnored(tempRepo, "packages/desktop/src/app.css")).toBe(true);
 		expect(
-			isIgnored(
-				tempRepo,
-				"packages/ui/src/components/attention-queue/attention-queue-entry.svelte"
-			)
+			isIgnored(tempRepo, "packages/ui/src/components/attention-queue/attention-queue-entry.svelte")
 		).toBe(true);
 		expect(isIgnored(tempRepo, "packages/desktop/src-tauri/src/lib.rs")).toBe(false);
 		expect(isIgnored(tempRepo, "packages/desktop/src-tauri/Cargo.toml")).toBe(false);

@@ -7,7 +7,10 @@ vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });
@@ -43,7 +46,10 @@ const mountFileBadgesMock = vi.fn<
 	(container: HTMLElement, resolver: (filePath: string) => unknown) => () => void
 >(() => () => {});
 const mountGitHubBadgesMock = vi.fn<
-	(container: HTMLElement, options: { repoContext?: RepoContext; projectPath?: string }) => () => void
+	(
+		container: HTMLElement,
+		options: { repoContext?: RepoContext; projectPath?: string }
+	) => () => void
 >(() => () => {});
 
 vi.mock("../../services/github-service.js", () => ({
@@ -64,21 +70,17 @@ vi.mock("../../utils/logger.js", () => ({
 	}),
 }));
 
-const renderMarkdownSyncMock = vi.fn<(text: string) => { html: string | null; fromCache: boolean; needsAsync: boolean }>();
-const renderMarkdownMock = vi.fn(
-	(text: string, repoContext?: RepoContext) => ({
-		match: (
-			onOk: (html: string) => void,
-			onErr: (error: string) => void
-		): Promise<void> => {
-			pendingAsyncRenders.set(getRequestKey(text, repoContext), {
-				reject: onErr,
-				resolve: onOk,
-			});
-			return Promise.resolve();
-		},
-	})
-);
+const renderMarkdownSyncMock =
+	vi.fn<(text: string) => { html: string | null; fromCache: boolean; needsAsync: boolean }>();
+const renderMarkdownMock = vi.fn((text: string, repoContext?: RepoContext) => ({
+	match: (onOk: (html: string) => void, onErr: (error: string) => void): Promise<void> => {
+		pendingAsyncRenders.set(getRequestKey(text, repoContext), {
+			reject: onErr,
+			resolve: onOk,
+		});
+		return Promise.resolve();
+	},
+}));
 
 vi.mock("../../utils/markdown-renderer.js", () => ({
 	renderMarkdown: renderMarkdownMock,
@@ -94,10 +96,8 @@ vi.mock("./content-block-renderer.svelte", async () => {
 });
 
 vi.mock("./logic/mount-file-badges.js", () => ({
-	mountFileBadges: (
-		container: HTMLElement,
-		resolver: (filePath: string) => unknown
-	) => mountFileBadgesMock(container, resolver),
+	mountFileBadges: (container: HTMLElement, resolver: (filePath: string) => unknown) =>
+		mountFileBadgesMock(container, resolver),
 }));
 
 vi.mock("./logic/mount-github-badges.js", () => ({
@@ -192,8 +192,7 @@ describe("MarkdownText", () => {
 		});
 
 		renderMarkdownSyncMock.mockImplementation(() => ({
-			html:
-				'<p>See <span class="github-badge-placeholder" data-github-ref="ref"></span></p>',
+			html: '<p>See <span class="github-badge-placeholder" data-github-ref="ref"></span></p>',
 			fromCache: false,
 			needsAsync: false,
 		}));
@@ -209,8 +208,8 @@ describe("MarkdownText", () => {
 	});
 
 	it("keeps the previous async HTML visible while a newer large render is pending", async () => {
-		const firstChunk = "# Section A\n\n" + "alpha ".repeat(2500);
-		const secondChunk = "# Section B\n\n" + "beta ".repeat(2600);
+		const firstChunk = `# Section A\n\n${"alpha ".repeat(2500)}`;
+		const secondChunk = `# Section B\n\n${"beta ".repeat(2600)}`;
 
 		renderMarkdownSyncMock.mockImplementation((text) => {
 			if (text === firstChunk || text === secondChunk) {
@@ -259,8 +258,8 @@ describe("MarkdownText", () => {
 	});
 
 	it("ignores an older async markdown result after newer text has arrived", async () => {
-		const firstChunk = "# Older\n\n" + "alpha ".repeat(2500);
-		const secondChunk = "# Newer\n\n" + "beta ".repeat(2600);
+		const firstChunk = `# Older\n\n${"alpha ".repeat(2500)}`;
+		const secondChunk = `# Newer\n\n${"beta ".repeat(2600)}`;
 
 		renderMarkdownSyncMock.mockImplementation((text) => {
 			if (text === firstChunk || text === secondChunk) {
@@ -302,15 +301,14 @@ describe("MarkdownText", () => {
 	});
 
 	it("starts a new async render when repo context arrives for the same bare-commit text", async () => {
-		const chunk = "# Contextual\n\nSee abcdef1\n\n" + "alpha ".repeat(2500);
+		const chunk = `# Contextual\n\nSee abcdef1\n\n${"alpha ".repeat(2500)}`;
 		const repoContext = { owner: "acepe", repo: "desktop" };
-		const repoContextResolver: { current: ((value: RepoContext) => void) | null } = { current: null };
+		const repoContextResolver: { current: ((value: RepoContext) => void) | null } = {
+			current: null,
+		};
 
 		getRepoContextMock.mockReturnValue({
-			match: (
-				onOk: (ctx: RepoContext) => void,
-				_onErr?: (error: string) => void
-			) => {
+			match: (onOk: (ctx: RepoContext) => void, _onErr?: (error: string) => void) => {
 				repoContextResolver.current = onOk;
 				return Promise.resolve();
 			},
@@ -323,10 +321,7 @@ describe("MarkdownText", () => {
 		}));
 
 		renderMarkdownMock.mockImplementation((text: string, currentRepoContext?: RepoContext) => ({
-			match: (
-				onOk: (html: string) => void,
-				onErr: (error: string) => void
-			): Promise<void> => {
+			match: (onOk: (html: string) => void, onErr: (error: string) => void): Promise<void> => {
 				pendingAsyncRenders.set(getRequestKey(text, currentRepoContext), {
 					reject: onErr,
 					resolve: onOk,
@@ -486,12 +481,14 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent).toContain(
-				"Hello world"
-			);
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
+			).toContain("Hello world");
 		});
 
-		expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).toBe(firstSection);
+		expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).toBe(
+			firstSection
+		);
 		expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')).toBe(liveSection);
 		expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
 	});
@@ -509,9 +506,9 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"]')?.textContent).toContain(
-				"Hello"
-			);
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:0"]')?.textContent
+			).toContain("Hello");
 		});
 
 		await view.rerender({
@@ -520,12 +517,12 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')?.textContent).toContain(
-				"Hello"
-			);
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent).toContain(
-				"Next"
-			);
+			expect(
+				view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')?.textContent
+			).toContain("Hello");
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
+			).toContain("Next");
 		});
 
 		expect(view.container.querySelector(".streaming-section.streaming-fade-in")).toBeNull();
@@ -554,7 +551,7 @@ describe("MarkdownText", () => {
 	});
 
 	it("defers rich markdown rendering until streaming stops", async () => {
-		const chunk = "# Streaming title\n\n" + "alpha ".repeat(2500);
+		const chunk = `# Streaming title\n\n${"alpha ".repeat(2500)}`;
 
 		renderMarkdownSyncMock.mockImplementation(() => ({
 			html: null,
@@ -595,7 +592,7 @@ describe("MarkdownText", () => {
 	});
 
 	it("defers repo-context and async markdown work until streaming settles", async () => {
-		const chunk = "# Streaming title\n\nSee abcdef1\n\n" + "alpha ".repeat(2500);
+		const chunk = `# Streaming title\n\nSee abcdef1\n\n${"alpha ".repeat(2500)}`;
 		const repoContext = { owner: "acepe", repo: "desktop" };
 
 		getRepoContextMock.mockReturnValue({

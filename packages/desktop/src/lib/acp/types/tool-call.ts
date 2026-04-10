@@ -9,9 +9,9 @@ export type {
 
 // Import the data types directly to avoid circular dependencies
 import type {
-	ToolArguments,
 	ToolCallData as _ToolCallData,
 	ToolCallUpdateData as _ToolCallUpdateData,
+	ToolArguments,
 } from "../../services/converted-session-types.js";
 
 interface ToolCallTiming {

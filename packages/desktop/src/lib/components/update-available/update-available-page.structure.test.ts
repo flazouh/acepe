@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "bun:test";
 
 const source = readFileSync(resolve(import.meta.dir, "./update-available-page.svelte"), "utf8");
 
@@ -13,20 +13,20 @@ describe("update available page structure", () => {
 	});
 
 	it("keeps the update card layout compact", () => {
-		expect(source).toContain('max-w-sm');
-		expect(source).toContain('px-5 py-4');
-		expect(source).toContain('rounded-xl');
-		expect(source).toContain('gap-2 p-4 pb-3');
-		expect(source).not.toContain('max-w-3xl');
-		expect(source).not.toContain('px-6 py-12');
-		expect(source).not.toContain('rounded-2xl');
-		expect(source).not.toContain('gap-5');
+		expect(source).toContain("max-w-sm");
+		expect(source).toContain("px-5 py-4");
+		expect(source).toContain("rounded-xl");
+		expect(source).toContain("gap-2 p-4 pb-3");
+		expect(source).not.toContain("max-w-3xl");
+		expect(source).not.toContain("px-6 py-12");
+		expect(source).not.toContain("rounded-2xl");
+		expect(source).not.toContain("gap-5");
 	});
 
 	it("only shows install copy when the install phase has actually started", () => {
 		expect(source).toContain("isUpdaterInstallInProgress(updaterState)");
 		expect(source).not.toContain(
-			"updaterState.kind === \"installing\" || (downloadPercent !== null && downloadPercent >= 100)"
+			'updaterState.kind === "installing" || (downloadPercent !== null && downloadPercent >= 100)'
 		);
 		expect(source).not.toContain("{#if downloadPercent !== null && downloadPercent >= 100}");
 	});

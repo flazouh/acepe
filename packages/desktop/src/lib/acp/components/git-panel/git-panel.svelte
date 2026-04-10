@@ -42,7 +42,10 @@ import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import MicButton from "../agent-input/components/mic-button.svelte";
 import { normalizeVoiceInputText } from "../agent-input/logic/voice-input-text.js";
-import { canCancelVoiceInteraction, canStartVoiceInteraction } from "../agent-input/logic/voice-ui-state.js";
+import {
+	canCancelVoiceInteraction,
+	canStartVoiceInteraction,
+} from "../agent-input/logic/voice-ui-state.js";
 import { VoiceInputState } from "../agent-input/state/voice-input-state.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";
 import type {
@@ -168,26 +171,6 @@ const surfaceClass = $derived(
 );
 const currentWorktree = $derived(resolveCurrentWorktree(projectPath, worktrees));
 const worktreeItems = $derived(buildWorktreeListItems(projectPath, worktrees));
-const navigableChangesFiles = $derived([
-	...stagedFiles.map((file) => ({
-		file: {
-			path: file.path,
-			status: (file.indexStatus ?? "modified") as FileDiffType["status"],
-			additions: file.additions,
-			deletions: file.deletions,
-		},
-		staged: true,
-	})),
-	...unstagedFiles.map((file) => ({
-		file: {
-			path: file.path,
-			status: (file.worktreeStatus === "untracked" ? "added" : file.worktreeStatus ?? "modified") as FileDiffType["status"],
-			additions: file.additions,
-			deletions: file.deletions,
-		},
-		staged: false,
-	})),
-]);
 
 /** Map Tauri file status → shared UI GitStatusFile */
 const stagedFiles: GitStatusFile[] = $derived(
@@ -213,6 +196,29 @@ const unstagedFiles: GitStatusFile[] = $derived(
 			deletions: f.worktreeDeletions,
 		}))
 );
+
+const navigableChangesFiles = $derived([
+	...stagedFiles.map((file) => ({
+		file: {
+			path: file.path,
+			status: (file.indexStatus ?? "modified") as FileDiffType["status"],
+			additions: file.additions,
+			deletions: file.deletions,
+		},
+		staged: true,
+	})),
+	...unstagedFiles.map((file) => ({
+		file: {
+			path: file.path,
+			status: (file.worktreeStatus === "untracked"
+				? "added"
+				: (file.worktreeStatus ?? "modified")) as FileDiffType["status"],
+			additions: file.additions,
+			deletions: file.deletions,
+		},
+		staged: false,
+	})),
+]);
 
 /** Map Tauri types → shared UI types */
 const uiRemoteStatus: UIRemoteStatus | null = $derived(
@@ -270,7 +276,8 @@ onMount(() => {
 				return;
 			}
 
-			commitMessage = commitMessage.length > 0 ? `${commitMessage} ${normalizedText}` : normalizedText;
+			commitMessage =
+				commitMessage.length > 0 ? `${commitMessage} ${normalizedText}` : normalizedText;
 		},
 	});
 	let disposed = false;
@@ -353,14 +360,11 @@ function initWatchHead() {
 	if (watchHeadInitialized) return;
 	watchHeadInitialized = true;
 	void tauriClient.git.watchHead(projectPath);
-	void listen<{ projectPath: string; branch: string | null }>(
-		"git:head-changed",
-		(event) => {
-			if (event.payload.projectPath === projectPath) {
-				refresh();
-			}
+	void listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
+		if (event.payload.projectPath === projectPath) {
+			refresh();
 		}
-	);
+	});
 }
 if (!initialTargetSnapshot?.prNumber) {
 	initWatchHead();
@@ -488,7 +492,7 @@ async function handleGenerate() {
 		(err) => {
 			toast.error(m.git_generation_failed({ error: err.message }));
 			generating = false;
-		},
+		}
 	);
 }
 
@@ -607,7 +611,7 @@ async function handleFileSelect(
 		staged,
 		file.status,
 		file.additions,
-		file.deletions,
+		file.deletions
 	);
 	result.match(
 		(diff) => {
@@ -652,9 +656,9 @@ function handleChangesKeyDown(event: KeyboardEvent) {
 		target instanceof HTMLInputElement ||
 		target instanceof HTMLTextAreaElement ||
 		target instanceof HTMLSelectElement ||
-		target instanceof HTMLButtonElement === false &&
+		(target instanceof HTMLButtonElement === false &&
 			target instanceof HTMLElement &&
-			target.isContentEditable
+			target.isContentEditable)
 	) {
 		return;
 	}
@@ -665,7 +669,9 @@ function handleChangesKeyDown(event: KeyboardEvent) {
 
 	event.preventDefault();
 
-	const currentIndex = navigableChangesFiles.findIndex((entry) => entry.file.path === selectedChangesFile);
+	const currentIndex = navigableChangesFiles.findIndex(
+		(entry) => entry.file.path === selectedChangesFile
+	);
 	const fallbackIndex = event.key === "ArrowDown" ? 0 : navigableChangesFiles.length - 1;
 	const nextIndex =
 		currentIndex === -1
@@ -927,7 +933,13 @@ async function handleOpenPr(prNumber: number) {
 	{/snippet}
 
 	{#if activeSection === "changes"}
-		<div class="flex min-h-0 flex-1 overflow-hidden" onkeydown={handleChangesKeyDown}>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="flex min-h-0 flex-1 overflow-hidden"
+			role="group"
+			aria-label="Git changes"
+			onkeydown={handleChangesKeyDown}
+		>
 			<GitPanelLayout
 				branch={branch ?? ""}
 				{stagedFiles}

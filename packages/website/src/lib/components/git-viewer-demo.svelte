@@ -1,97 +1,97 @@
 <script lang="ts">
-	/**
-	 * Git Viewer demo for the homepage features section.
-	 * Shows PR and commit diffs with a toggle between the two.
-	 */
-	import { GitViewer, type GitCommitData, type GitPrData } from '@acepe/ui';
-	import GitFeaturesDemo from './git-features-demo.svelte';
+/**
+ * Git Viewer demo for the homepage features section.
+ * Shows PR and commit diffs with a toggle between the two.
+ */
+import { GitViewer, type GitCommitData, type GitPrData } from "@acepe/ui";
+import GitFeaturesDemo from "./git-features-demo.svelte";
 
-	const ICON_BASE_PATH = '/svgs/icons';
+const ICON_BASE_PATH = "/svgs/icons";
 
-	const pr: GitPrData = {
-		number: 47,
-		title: 'Migrate authentication to JWT tokens',
-		author: 'claude-agent',
-		state: 'open',
-		description:
-			'Replaces session cookies with stateless JWT tokens.\nAdds refresh token rotation and updates all auth middleware.',
-		files: [
-			{ path: 'src/lib/auth/jwt.ts', status: 'added', additions: 54, deletions: 0 },
-			{ path: 'src/lib/auth/session.ts', status: 'deleted', additions: 0, deletions: 38 },
-			{ path: 'src/middleware/auth.ts', status: 'modified', additions: 18, deletions: 24 },
-			{ path: 'src/routes/api/login/+server.ts', status: 'modified', additions: 12, deletions: 8 },
-			{ path: 'src/routes/api/refresh/+server.ts', status: 'added', additions: 31, deletions: 0 },
-			{ path: 'src/lib/stores/auth.ts', status: 'modified', additions: 9, deletions: 14 }
-		],
-		githubUrl: 'https://github.com/example/project/pull/47'
-	};
+const pr: GitPrData = {
+	number: 47,
+	title: "Migrate authentication to JWT tokens",
+	author: "claude-agent",
+	state: "open",
+	description:
+		"Replaces session cookies with stateless JWT tokens.\nAdds refresh token rotation and updates all auth middleware.",
+	files: [
+		{ path: "src/lib/auth/jwt.ts", status: "added", additions: 54, deletions: 0 },
+		{ path: "src/lib/auth/session.ts", status: "deleted", additions: 0, deletions: 38 },
+		{ path: "src/middleware/auth.ts", status: "modified", additions: 18, deletions: 24 },
+		{ path: "src/routes/api/login/+server.ts", status: "modified", additions: 12, deletions: 8 },
+		{ path: "src/routes/api/refresh/+server.ts", status: "added", additions: 31, deletions: 0 },
+		{ path: "src/lib/stores/auth.ts", status: "modified", additions: 9, deletions: 14 },
+	],
+	githubUrl: "https://github.com/example/project/pull/47",
+};
 
-	const commit: GitCommitData = {
-		sha: 'e8224481b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8',
-		shortSha: 'e822448',
-		message: 'feat: add JWT service with sign and verify',
-		messageBody:
-			'Creates src/lib/auth/jwt.ts using the jose library.\nImplements signToken() with 15m expiry and verifyToken() for middleware use.',
-		author: 'Claude',
-		authorEmail: 'agent@acepe.dev',
-		date: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-		files: [
-			{ path: 'src/lib/auth/jwt.ts', status: 'added', additions: 54, deletions: 0 },
-			{ path: 'src/lib/auth/types.ts', status: 'modified', additions: 8, deletions: 2 },
-			{ path: 'package.json', status: 'modified', additions: 1, deletions: 0 }
-		],
-		githubUrl: 'https://github.com/example/project/commit/e822448'
-	};
+const commit: GitCommitData = {
+	sha: "e8224481b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8",
+	shortSha: "e822448",
+	message: "feat: add JWT service with sign and verify",
+	messageBody:
+		"Creates src/lib/auth/jwt.ts using the jose library.\nImplements signToken() with 15m expiry and verifyToken() for middleware use.",
+	author: "Claude",
+	authorEmail: "agent@acepe.dev",
+	date: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+	files: [
+		{ path: "src/lib/auth/jwt.ts", status: "added", additions: 54, deletions: 0 },
+		{ path: "src/lib/auth/types.ts", status: "modified", additions: 8, deletions: 2 },
+		{ path: "package.json", status: "modified", additions: 1, deletions: 0 },
+	],
+	githubUrl: "https://github.com/example/project/commit/e822448",
+};
 
-	const PR_DIFFS: Record<string, string> = {
-		'src/lib/auth/jwt.ts': [
-			"+ import { SignJWT, jwtVerify } from 'jose';",
-			'+',
-			'+ const secret = new TextEncoder().encode(process.env.JWT_SECRET);',
-			'+',
-			'+ export async function signToken(payload: Record<string, unknown>) {',
-			"+   return new SignJWT(payload)",
-			"+     .setProtectedHeader({ alg: 'HS256' })",
-			"+     .setExpirationTime('15m')",
-			'+     .sign(secret);',
-			'+ }',
-			'+',
-			'+ export async function verifyToken(token: string) {',
-			'+   const { payload } = await jwtVerify(token, secret);',
-			'+   return payload;',
-			'+ }'
-		].join('\n'),
-		'src/middleware/auth.ts': [
-			"  import type { RequestHandler } from '@sveltejs/kit';",
-			"- import { validateSession } from '$lib/auth/session.js';",
-			"+ import { verifyToken } from '$lib/auth/jwt.js';",
-			'',
-			'  export const authenticate: RequestHandler = async ({ request, locals }) => {',
-			"-   const sessionId = request.headers.get('x-session-id');",
-			"-   if (!sessionId) return unauthorized();",
-			"-   const session = await validateSession(sessionId);",
-			"-   if (!session) return unauthorized();",
-			"-   locals.user = session.user;",
-			"+   const auth = request.headers.get('authorization');",
-			"+   if (!auth?.startsWith('Bearer ')) return unauthorized();",
-			"+   const token = auth.slice(7);",
-			'+   locals.user = await verifyToken(token);',
-			'  };'
-		].join('\n')
-	};
+const PR_DIFFS: Record<string, string> = {
+	"src/lib/auth/jwt.ts": [
+		"+ import { SignJWT, jwtVerify } from 'jose';",
+		"+",
+		"+ const secret = new TextEncoder().encode(process.env.JWT_SECRET);",
+		"+",
+		"+ export async function signToken(payload: Record<string, unknown>) {",
+		"+   return new SignJWT(payload)",
+		"+     .setProtectedHeader({ alg: 'HS256' })",
+		"+     .setExpirationTime('15m')",
+		"+     .sign(secret);",
+		"+ }",
+		"+",
+		"+ export async function verifyToken(token: string) {",
+		"+   const { payload } = await jwtVerify(token, secret);",
+		"+   return payload;",
+		"+ }",
+	].join("\n"),
+	"src/middleware/auth.ts": [
+		"  import type { RequestHandler } from '@sveltejs/kit';",
+		"- import { validateSession } from '$lib/auth/session.js';",
+		"+ import { verifyToken } from '$lib/auth/jwt.js';",
+		"",
+		"  export const authenticate: RequestHandler = async ({ request, locals }) => {",
+		"-   const sessionId = request.headers.get('x-session-id');",
+		"-   if (!sessionId) return unauthorized();",
+		"-   const session = await validateSession(sessionId);",
+		"-   if (!session) return unauthorized();",
+		"-   locals.user = session.user;",
+		"+   const auth = request.headers.get('authorization');",
+		"+   if (!auth?.startsWith('Bearer ')) return unauthorized();",
+		"+   const token = auth.slice(7);",
+		"+   locals.user = await verifyToken(token);",
+		"  };",
+	].join("\n"),
+};
 
-	const COMMIT_DIFFS: Record<string, string> = PR_DIFFS;
+const COMMIT_DIFFS: Record<string, string> = PR_DIFFS;
 
-	type ViewType = 'panel' | 'pr' | 'commit';
-	let viewType = $state<ViewType>('panel');
-	let prSelectedFile = $state(pr.files[0].path);
-	let commitSelectedFile = $state(commit.files[0].path);
-	let viewMode = $state<'inline' | 'side-by-side'>('inline');
+type ViewType = "panel" | "pr" | "commit";
+let viewType = $state<ViewType>("panel");
+let prSelectedFile = $state(pr.files[0].path);
+let commitSelectedFile = $state(commit.files[0].path);
+let viewMode = $state<"inline" | "side-by-side">("inline");
 
-	function handleSelectFile(path: string) {
-		if (viewType === 'pr') prSelectedFile = path;
-		else commitSelectedFile = path;
-	}
+function handleSelectFile(path: string) {
+	if (viewType === "pr") prSelectedFile = path;
+	else commitSelectedFile = path;
+}
 </script>
 
 <div class="flex h-full flex-col overflow-hidden">

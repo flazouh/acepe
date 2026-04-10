@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "bun:test";
 
 function readSource(relativePath: string): string {
 	return readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -15,9 +15,7 @@ describe("Pierre usage patterns", () => {
 	});
 
 	it("reuses FileDiff instances in all diff renderers", () => {
-		const pierreDiffView = readSource(
-			"src/lib/acp/components/diff-viewer/pierre-diff-view.svelte"
-		);
+		const pierreDiffView = readSource("src/lib/acp/components/diff-viewer/pierre-diff-view.svelte");
 		const checkpointDiffPreview = readSource(
 			"src/lib/acp/components/checkpoint/checkpoint-diff-preview.svelte"
 		);

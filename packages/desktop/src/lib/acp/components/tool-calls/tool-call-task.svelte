@@ -40,7 +40,9 @@ const agentStatus = $derived.by(() => {
 });
 
 // Convert task children to presentational entries
-const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState, toolStatus.isSuccess));
+const children = $derived(
+	convertTaskChildren(toolCall.taskChildren, turnState, toolStatus.isSuccess)
+);
 </script>
 
 <AgentToolTask

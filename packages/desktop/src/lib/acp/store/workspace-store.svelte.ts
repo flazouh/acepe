@@ -10,6 +10,7 @@ import type { ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
+import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";
 import type { BrowserPanel } from "./browser-panel-type.js";
@@ -17,24 +18,23 @@ import { remapOwnerPanelId } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
-import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import {
-	MIN_PANEL_WIDTH,
 	type AgentWorkspacePanel,
 	type BrowserWorkspacePanel,
 	type FileWorkspacePanel,
+	MIN_PANEL_WIDTH,
 	type Panel,
+	type PersistedAgentWorkspacePanelState,
 	type PersistedBrowserPanelState,
-	type PersistedTerminalPanelGroupState,
-	type PersistedTerminalTabState,
 	type PersistedBrowserWorkspacePanelState,
 	type PersistedFilePanelState,
 	type PersistedFileWorkspacePanelState,
-	type PersistedAgentWorkspacePanelState,
-	type PersistedReviewWorkspacePanelState,
 	type PersistedReviewFullscreenState,
+	type PersistedReviewWorkspacePanelState,
 	type PersistedSqlStudioState,
+	type PersistedTerminalPanelGroupState,
 	type PersistedTerminalPanelState,
+	type PersistedTerminalTabState,
 	type PersistedTerminalWorkspacePanelState,
 	type PersistedWorkspacePanelState,
 	type PersistedWorkspaceState,
@@ -592,73 +592,72 @@ export class WorkspaceStore {
 	 * Restore workspace state from persisted data.
 	 * Returns list of session IDs that need to be loaded.
 	 */
-		restore(state: PersistedWorkspaceState): string[] {
-			logger.debug("Restoring workspace", {
-				panelCount: state.workspacePanels ? state.workspacePanels.length : state.panels.length,
-				version: state.version,
-			});
+	restore(state: PersistedWorkspaceState): string[] {
+		logger.debug("Restoring workspace", {
+			panelCount: state.workspacePanels ? state.workspacePanels.length : state.panels.length,
+			version: state.version,
+		});
 
-			if (state.workspacePanels && state.workspacePanels.length > 0) {
-				const restoredWorkspacePanels = hydratePersistedWorkspacePanels(state.workspacePanels);
-				this.panelStore.workspacePanels = restoredWorkspacePanels;
-				if (state.terminalPanelGroups && state.terminalTabs) {
-					this.panelStore.terminalPanelGroups = hydratePersistedTerminalPanelGroups(
-						state.terminalPanelGroups
-					);
-					this.panelStore.terminalTabs = hydratePersistedTerminalTabs(state.terminalTabs);
-				}
-
-				const restoredAgentPanels = restoredWorkspacePanels.filter(
-					(panel): panel is AgentWorkspacePanel => panel.kind === "agent"
+		if (state.workspacePanels && state.workspacePanels.length > 0) {
+			const restoredWorkspacePanels = hydratePersistedWorkspacePanels(state.workspacePanels);
+			this.panelStore.workspacePanels = restoredWorkspacePanels;
+			if (state.terminalPanelGroups && state.terminalTabs) {
+				this.panelStore.terminalPanelGroups = hydratePersistedTerminalPanelGroups(
+					state.terminalPanelGroups
 				);
-
-				const topLevelWorkspacePanels = restoredWorkspacePanels.filter(
-					(panel) => panel.kind === "agent" || panel.ownerPanelId === null
-				);
-
-				if (
-					state.focusedPanelIndex !== null &&
-					state.focusedPanelIndex >= 0 &&
-					state.focusedPanelIndex < topLevelWorkspacePanels.length
-				) {
-					this.panelStore.focusedPanelId = topLevelWorkspacePanels[state.focusedPanelIndex].id;
-				} else if (topLevelWorkspacePanels.length > 0) {
-					this.panelStore.focusedPanelId = topLevelWorkspacePanels[0].id;
-				}
-
-				if (
-					state.viewMode !== undefined) {
-					this.panelStore.viewMode = state.viewMode;
-				} else if (state.focusedViewEnabled) {
-					this.panelStore.viewMode = "project";
-				}
-				if (state.focusedViewProjectPath !== undefined) {
-					this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
-				}
-				if (
-					state.fullscreenPanelIndex !== undefined &&
-					state.fullscreenPanelIndex !== null &&
-					state.fullscreenPanelIndex >= 0 &&
-					state.fullscreenPanelIndex < topLevelWorkspacePanels.length
-				) {
-					const fullscreenPanel = topLevelWorkspacePanels[state.fullscreenPanelIndex];
-					if (fullscreenPanel) {
-						this.panelStore.focusedPanelId = fullscreenPanel.id;
-						this.panelStore.viewMode = "single";
-						this.panelStore.fullscreenPanelId = null;
-					}
-				}
-				this.panelStore.ensureSingleViewForAgentFullscreen();
-				this.restoreProviderState(state);
-
-				const sessionIds = restoredAgentPanels
-					.map((panel) => panel.sessionId)
-					.filter((id): id is string => id !== null);
-
-				return sessionIds;
+				this.panelStore.terminalTabs = hydratePersistedTerminalTabs(state.terminalTabs);
 			}
 
-			// Restore panels with new IDs, preserving hot state for later
+			const restoredAgentPanels = restoredWorkspacePanels.filter(
+				(panel): panel is AgentWorkspacePanel => panel.kind === "agent"
+			);
+
+			const topLevelWorkspacePanels = restoredWorkspacePanels.filter(
+				(panel) => panel.kind === "agent" || panel.ownerPanelId === null
+			);
+
+			if (
+				state.focusedPanelIndex !== null &&
+				state.focusedPanelIndex >= 0 &&
+				state.focusedPanelIndex < topLevelWorkspacePanels.length
+			) {
+				this.panelStore.focusedPanelId = topLevelWorkspacePanels[state.focusedPanelIndex].id;
+			} else if (topLevelWorkspacePanels.length > 0) {
+				this.panelStore.focusedPanelId = topLevelWorkspacePanels[0].id;
+			}
+
+			if (state.viewMode !== undefined) {
+				this.panelStore.viewMode = state.viewMode;
+			} else if (state.focusedViewEnabled) {
+				this.panelStore.viewMode = "project";
+			}
+			if (state.focusedViewProjectPath !== undefined) {
+				this.panelStore.focusedViewProjectPath = state.focusedViewProjectPath;
+			}
+			if (
+				state.fullscreenPanelIndex !== undefined &&
+				state.fullscreenPanelIndex !== null &&
+				state.fullscreenPanelIndex >= 0 &&
+				state.fullscreenPanelIndex < topLevelWorkspacePanels.length
+			) {
+				const fullscreenPanel = topLevelWorkspacePanels[state.fullscreenPanelIndex];
+				if (fullscreenPanel) {
+					this.panelStore.focusedPanelId = fullscreenPanel.id;
+					this.panelStore.viewMode = "single";
+					this.panelStore.fullscreenPanelId = null;
+				}
+			}
+			this.panelStore.ensureSingleViewForAgentFullscreen();
+			this.restoreProviderState(state);
+
+			const sessionIds = restoredAgentPanels
+				.map((panel) => panel.sessionId)
+				.filter((id): id is string => id !== null);
+
+			return sessionIds;
+		}
+
+		// Restore panels with new IDs, preserving hot state for later
 		const panelScrollPositions: Array<{ id: string; scrollTop: number }> = [];
 		const panelPlanSidebarStates: Array<{ id: string; expanded: boolean }> = [];
 		const panelMessageDrafts: Array<{ id: string; draft: string }> = [];
@@ -800,14 +799,15 @@ export class WorkspaceStore {
 			const hydratedTerminals = hydratePersistedTerminalPanels(state.terminalPanels);
 			this.panelStore.terminalPanelGroups = hydratedTerminals.terminalPanelGroups;
 			this.panelStore.terminalTabs = hydratedTerminals.terminalTabs;
-			const migratedTerminalPanels: TerminalWorkspacePanel[] = hydratedTerminals.terminalPanelGroups.map((group) => ({
-				id: group.id,
-				kind: "terminal" as const,
-				projectPath: group.projectPath,
-				width: group.width,
-				ownerPanelId: null,
-				groupId: group.id,
-			}));
+			const migratedTerminalPanels: TerminalWorkspacePanel[] =
+				hydratedTerminals.terminalPanelGroups.map((group) => ({
+					id: group.id,
+					kind: "terminal" as const,
+					projectPath: group.projectPath,
+					width: group.width,
+					ownerPanelId: null,
+					groupId: group.id,
+				}));
 			this.panelStore.terminalPanels = migratedTerminalPanels;
 			this.panelStore.workspacePanels = migratedTerminalPanels;
 			if (

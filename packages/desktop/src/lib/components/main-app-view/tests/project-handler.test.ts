@@ -1,4 +1,3 @@
-
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { errAsync, okAsync } from "neverthrow";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";

@@ -104,15 +104,30 @@ describe("extractEditArguments", () => {
 	it("should handle filePath variations", () => {
 		const args1 = {
 			kind: "edit" as const,
-			edits: [{ filePath: "packages/desktop/src/lib/utils.ts", newString: "export const VERSION = '1.0.0';" }],
+			edits: [
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
+			],
 		};
 		const args2 = {
 			kind: "edit" as const,
-			edits: [{ filePath: "packages/desktop/src/lib/utils.ts", newString: "export const VERSION = '1.0.0';" }],
+			edits: [
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
+			],
 		};
 		const args3 = {
 			kind: "edit" as const,
-			edits: [{ filePath: "packages/desktop/src/lib/utils.ts", newString: "export const VERSION = '1.0.0';" }],
+			edits: [
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
+			],
 		};
 
 		const result1 = extractEditArguments(args1);

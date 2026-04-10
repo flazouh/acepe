@@ -1,7 +1,4 @@
-import type {
-	ModelsForDisplay,
-	ProviderMetadataProjection,
-} from "./acp-types.js";
+import type { ModelsForDisplay, ProviderMetadataProjection } from "./acp-types.js";
 
 export type { ModelsForDisplay, ProviderMetadataProjection } from "./acp-types.js";
 
@@ -64,7 +61,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 };
 
 function cloneProviderMetadataProjection(
-	providerMetadata: ProviderMetadataProjection,
+	providerMetadata: ProviderMetadataProjection
 ): ProviderMetadataProjection {
 	return {
 		providerBrand: providerMetadata.providerBrand,
@@ -82,7 +79,7 @@ function cloneProviderMetadataProjection(
 export function resolveProviderMetadataProjection(
 	agentId: string,
 	providerMetadata: ProviderMetadataProjection | null | undefined,
-	fallbackDisplayName?: string,
+	fallbackDisplayName?: string
 ): ProviderMetadataProjection {
 	if (providerMetadata) {
 		return cloneProviderMetadataProjection(providerMetadata);
@@ -107,7 +104,7 @@ export function resolveProviderMetadataProjection(
 }
 
 export function getProviderMetadataFromModelsDisplay(
-	modelsDisplay: ModelsForDisplay | null | undefined,
+	modelsDisplay: ModelsForDisplay | null | undefined
 ): ProviderMetadataProjection | null {
 	return modelsDisplay?.presentation?.provider ?? null;
 }
@@ -116,7 +113,7 @@ export function normalizeModelsForDisplay(
 	agentId: string,
 	modelsDisplay: ModelsForDisplay | null | undefined,
 	fallbackDisplayName?: string,
-	providerMetadataOverride?: ProviderMetadataProjection | null,
+	providerMetadataOverride?: ProviderMetadataProjection | null
 ): ModelsForDisplay | null {
 	if (!modelsDisplay) {
 		return null;
@@ -125,7 +122,7 @@ export function normalizeModelsForDisplay(
 	const providerMetadata = resolveProviderMetadataProjection(
 		agentId,
 		providerMetadataOverride ?? getProviderMetadataFromModelsDisplay(modelsDisplay),
-		fallbackDisplayName,
+		fallbackDisplayName
 	);
 	const presentation = modelsDisplay.presentation;
 	const displayFamily =

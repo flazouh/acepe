@@ -12,8 +12,8 @@ import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { TAG_COLORS } from "../utils/colors.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
-import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
+import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import type { Panel } from "./types.js";
@@ -239,7 +239,6 @@ export class UrgencyTabsStore {
 			isIdle: hotState.status === "idle" || hotState.status === "ready",
 		};
 	}
-
 }
 
 /**

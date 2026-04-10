@@ -20,30 +20,30 @@ type TauriWindow = typeof globalThis & {
 	};
 };
 
-	let VoiceInputState: typeof import("../voice-input-state.svelte.js").VoiceInputState;
+let VoiceInputState: typeof import("../voice-input-state.svelte.js").VoiceInputState;
 
-	function createPendingResult<T>() {
-		let resolveValue: ((value: T) => void) | null = null;
-		let rejectValue: ((error: Error) => void) | null = null;
-		const promise = new Promise<T>((resolve, reject) => {
-			resolveValue = resolve;
-			rejectValue = reject;
-		});
+function createPendingResult<T>() {
+	let resolveValue: ((value: T) => void) | null = null;
+	let rejectValue: ((error: Error) => void) | null = null;
+	const promise = new Promise<T>((resolve, reject) => {
+		resolveValue = resolve;
+		rejectValue = reject;
+	});
 
-		return {
-			promise,
-			resolve(value: T) {
-				if (resolveValue) {
-					resolveValue(value);
-				}
-			},
-			reject(error: Error) {
-				if (rejectValue) {
-					rejectValue(error);
-				}
-			},
-		};
-	}
+	return {
+		promise,
+		resolve(value: T) {
+			if (resolveValue) {
+				resolveValue(value);
+			}
+		},
+		reject(error: Error) {
+			if (rejectValue) {
+				rejectValue(error);
+			}
+		},
+	};
+}
 
 function createPointerEvent(): PointerEvent {
 	return {
@@ -59,7 +59,7 @@ function unwrapResultAsync<T>(result: ResultAsync<T, Error>): Promise<T> {
 		(value) => value,
 		(error) => {
 			throw error;
-		},
+		}
 	);
 }
 
@@ -129,8 +129,7 @@ describe("VoiceInputState", () => {
 						toAgentResult("voice_get_model_status", getModelStatusMock(modelId)),
 					startRecording: (sessionId: string) =>
 						toAgentResult("voice_start_recording", startRecordingMock(sessionId)),
-					loadModel: (modelId: string) =>
-						toAgentResult("voice_load_model", loadModelMock(modelId)),
+					loadModel: (modelId: string) => toAgentResult("voice_load_model", loadModelMock(modelId)),
 					downloadModel: (modelId: string) =>
 						toAgentResult("voice_download_model", downloadModelMock(modelId)),
 					stopRecording: (sessionId: string, language: string | null) =>
@@ -198,7 +197,9 @@ describe("VoiceInputState", () => {
 
 	it("handles transcription completion before stopRecording resolves", async () => {
 		const pendingStop = createPendingResult<void>();
-		stopRecordingMock.mockReturnValue(ResultAsync.fromPromise(pendingStop.promise, (error) => error as Error));
+		stopRecordingMock.mockReturnValue(
+			ResultAsync.fromPromise(pendingStop.promise, (error) => error as Error)
+		);
 
 		const state = new VoiceInputState({ sessionId: "session-race" });
 		await state.registerListeners();
@@ -217,7 +218,7 @@ describe("VoiceInputState", () => {
 						language: string | null;
 						duration_ms: number;
 					};
-				}) => void)
+			  }) => void)
 			| undefined;
 
 		if (!transcriptionListener) {
@@ -257,7 +258,16 @@ describe("VoiceInputState", () => {
 
 		const transcriptionListener = listenMock.mock.calls.find(
 			([eventName]) => eventName === "voice://transcription_complete"
-		)?.[1] as ((event: { payload: { session_id: string; text: string; language: string | null; duration_ms: number } }) => void) | undefined;
+		)?.[1] as
+			| ((event: {
+					payload: {
+						session_id: string;
+						text: string;
+						language: string | null;
+						duration_ms: number;
+					};
+			  }) => void)
+			| undefined;
 
 		if (!transcriptionListener) {
 			throw new Error("expected transcription_complete listener");
@@ -308,9 +318,12 @@ describe("VoiceInputState", () => {
 	});
 
 	it("cancels keyboard press-and-hold if released during startup", async () => {
-		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		const pendingModelStatus = createPendingResult<{
+			is_downloaded: boolean;
+			is_loaded: boolean;
+		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard-startup" });
@@ -334,9 +347,12 @@ describe("VoiceInputState", () => {
 
 	it("cancels pointer press-and-hold if released during startup", async () => {
 		vi.useFakeTimers();
-		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		const pendingModelStatus = createPendingResult<{
+			is_downloaded: boolean;
+			is_loaded: boolean;
+		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-pointer-startup" });
@@ -361,9 +377,12 @@ describe("VoiceInputState", () => {
 	});
 
 	it("cancels click-to-toggle startup on a second click before recording begins", async () => {
-		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		const pendingModelStatus = createPendingResult<{
+			is_downloaded: boolean;
+			is_loaded: boolean;
+		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-click-startup" });
@@ -388,9 +407,12 @@ describe("VoiceInputState", () => {
 	});
 
 	it("keeps the waveform quiet before the first live amplitude event arrives", async () => {
-		const pendingModelStatus = createPendingResult<{ is_downloaded: boolean; is_loaded: boolean }>();
+		const pendingModelStatus = createPendingResult<{
+			is_downloaded: boolean;
+			is_loaded: boolean;
+		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error),
+			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-waveform-prime" });
@@ -445,7 +467,7 @@ describe("VoiceInputState", () => {
 		const pendingDownload = createPendingResult<void>();
 		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: false, is_loaded: false }));
 		downloadModelMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingDownload.promise, (error) => error as Error),
+			ResultAsync.fromPromise(pendingDownload.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({
@@ -461,7 +483,7 @@ describe("VoiceInputState", () => {
 		expect(state.phase).toBe("downloading_model");
 
 		const progressListener = listenMock.mock.calls.find(
-			([eventName]) => eventName === "voice://model_download_progress",
+			([eventName]) => eventName === "voice://model_download_progress"
 		)?.[1] as
 			| ((event: {
 					payload: {
@@ -470,7 +492,7 @@ describe("VoiceInputState", () => {
 						total_bytes: number;
 						percent: number;
 					};
-				}) => void)
+			  }) => void)
 			| undefined;
 
 		if (!progressListener) {

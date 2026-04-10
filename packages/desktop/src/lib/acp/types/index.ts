@@ -43,11 +43,6 @@ export type { CreateTerminalResult } from "./create-terminal-result.js";
 export type { ErrorMessage } from "./error-message.js";
 // Response types
 export type { InitializeResponse } from "./initialize-response.js";
-export type { ModeId } from "./mode-id.js";
-export type { ModelId } from "./model-id.js";
-export type { ModifiedFileEntry } from "./modified-file-entry.js";
-export type { ModifiedFilesState } from "./modified-files-state.js";
-export type { NewSessionResponse } from "./new-session-response.js";
 // OpenCode-specific types
 export type {
 	Interaction,
@@ -57,6 +52,11 @@ export type {
 	PlanApprovalInteraction,
 	QuestionInteraction,
 } from "./interaction.js";
+export type { ModeId } from "./mode-id.js";
+export type { ModelId } from "./model-id.js";
+export type { ModifiedFileEntry } from "./modified-file-entry.js";
+export type { ModifiedFilesState } from "./modified-files-state.js";
+export type { NewSessionResponse } from "./new-session-response.js";
 export type { Operation, OperationKind, OperationStatus } from "./operation.js";
 export type { PermissionReply, PermissionRequest } from "./permission.js";
 export type { Plan, PlanStep } from "./plan.js";

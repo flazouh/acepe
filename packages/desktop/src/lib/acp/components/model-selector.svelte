@@ -29,30 +29,30 @@ import {
 	groupCodexModelsByBase,
 	isSplitSelectorOpen,
 	setPrimarySelectorOpen,
-setVariantSelectorOpen,
-supportsReasoningEffortPicker,
-togglePrimarySelector,
+	setVariantSelectorOpen,
+	supportsReasoningEffortPicker,
+	togglePrimarySelector,
 } from "./model-selector-logic.js";
 
 interface ModelSelectorProps {
-availableModels: readonly Model[];
-currentModelId: ModelId | null;
-/** When present, use backend-precomputed display groups instead of client-side parsing */
-modelsDisplay?: ModelsForDisplay | null;
-onModelChange: (modelId: ModelId) => Promise<void>;
-isLoading?: boolean;
-panelId?: string;
-ontoggle?: (isOpen: boolean) => void;
+	availableModels: readonly Model[];
+	currentModelId: ModelId | null;
+	/** When present, use backend-precomputed display groups instead of client-side parsing */
+	modelsDisplay?: ModelsForDisplay | null;
+	onModelChange: (modelId: ModelId) => Promise<void>;
+	isLoading?: boolean;
+	panelId?: string;
+	ontoggle?: (isOpen: boolean) => void;
 }
 
 let {
-availableModels,
-currentModelId,
-modelsDisplay = null,
-onModelChange,
-isLoading = false,
-panelId,
-ontoggle,
+	availableModels,
+	currentModelId,
+	modelsDisplay = null,
+	onModelChange,
+	isLoading = false,
+	panelId,
+	ontoggle,
 }: ModelSelectorProps = $props();
 
 let isOpen = $state(false);
@@ -63,136 +63,134 @@ const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
 
 const agentId = $derived.by(() => {
-if (panelId) {
-const panel = panelStore.panels.find((candidatePanel) => candidatePanel.id === panelId);
-if (panel?.sessionId) {
-const session = sessionStore.getSessionCold(panel.sessionId);
-return session?.agentId ?? panel.selectedAgentId;
-}
-return panel?.selectedAgentId;
-}
-return null;
+	if (panelId) {
+		const panel = panelStore.panels.find((candidatePanel) => candidatePanel.id === panelId);
+		if (panel?.sessionId) {
+			const session = sessionStore.getSessionCold(panel.sessionId);
+			return session?.agentId ?? panel.selectedAgentId;
+		}
+		return panel?.selectedAgentId;
+	}
+	return null;
 });
 
-const usesVariantSelector = $derived(
-supportsReasoningEffortPicker(availableModels, modelsDisplay)
-);
+const usesVariantSelector = $derived(supportsReasoningEffortPicker(availableModels, modelsDisplay));
 
 const logger = createLogger({
-id: LOGGER_IDS.MODEL_SELECTOR,
-name: "Model Selector",
+	id: LOGGER_IDS.MODEL_SELECTOR,
+	name: "Model Selector",
 });
 const registry = getSelectorRegistry();
 let unregister: (() => void) | null = null;
 
 onMount(() => {
-if (registry && panelId) {
-unregister = registry.register("model", panelId, { toggle });
-}
+	if (registry && panelId) {
+		unregister = registry.register("model", panelId, { toggle });
+	}
 });
 
 onDestroy(() => {
-unregister?.();
+	unregister?.();
 });
 
 function applySplitSelectorState(nextState: { primaryOpen: boolean; variantOpen: boolean }): void {
-isPrimarySelectorOpen = nextState.primaryOpen;
-isVariantSelectorOpen = nextState.variantOpen;
-ontoggle?.(isSplitSelectorOpen(nextState));
+	isPrimarySelectorOpen = nextState.primaryOpen;
+	isVariantSelectorOpen = nextState.variantOpen;
+	ontoggle?.(isSplitSelectorOpen(nextState));
 }
 
 function closeSelectors(): void {
-isOpen = false;
-applySplitSelectorState(
-closeSplitSelector({
-primaryOpen: isPrimarySelectorOpen,
-variantOpen: isVariantSelectorOpen,
-})
-);
+	isOpen = false;
+	applySplitSelectorState(
+		closeSplitSelector({
+			primaryOpen: isPrimarySelectorOpen,
+			variantOpen: isVariantSelectorOpen,
+		})
+	);
 }
 
 export function toggle() {
-if (usesVariantSelector) {
-const nextState = togglePrimarySelector({
-primaryOpen: isPrimarySelectorOpen,
-variantOpen: isVariantSelectorOpen,
-});
-logger.debug("Toggle split model dropdown", {
-from: { primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
-to: nextState,
-});
-applySplitSelectorState(nextState);
-return;
-}
+	if (usesVariantSelector) {
+		const nextState = togglePrimarySelector({
+			primaryOpen: isPrimarySelectorOpen,
+			variantOpen: isVariantSelectorOpen,
+		});
+		logger.debug("Toggle split model dropdown", {
+			from: { primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
+			to: nextState,
+		});
+		applySplitSelectorState(nextState);
+		return;
+	}
 
-const nextOpen = !isOpen;
-logger.debug("Toggle dropdown", { from: isOpen, to: nextOpen });
-isOpen = nextOpen;
-ontoggle?.(nextOpen);
+	const nextOpen = !isOpen;
+	logger.debug("Toggle dropdown", { from: isOpen, to: nextOpen });
+	isOpen = nextOpen;
+	ontoggle?.(nextOpen);
 }
 
 async function handleModelChange(modelId: ModelId) {
-logger.debug("handleModelChange() called", {
-modelId,
-currentModelId,
-isDifferent: modelId !== currentModelId,
-});
+	logger.debug("handleModelChange() called", {
+		modelId,
+		currentModelId,
+		isDifferent: modelId !== currentModelId,
+	});
 
-if (modelId !== currentModelId) {
-logger.info("Changing model", { from: currentModelId, to: modelId });
+	if (modelId !== currentModelId) {
+		logger.info("Changing model", { from: currentModelId, to: modelId });
 
-const result = await ResultAsync.fromPromise(onModelChange(modelId), (error) => error as Error)
-.map(() => {
-logger.info("Model change completed", { modelId });
-closeSelectors();
-return undefined;
-})
-.mapErr((error) => {
-logger.error("Model change failed", {
-modelId,
-error: error instanceof Error ? error.message : String(error),
-});
-return error;
-});
+		const result = await ResultAsync.fromPromise(onModelChange(modelId), (error) => error as Error)
+			.map(() => {
+				logger.info("Model change completed", { modelId });
+				closeSelectors();
+				return undefined;
+			})
+			.mapErr((error) => {
+				logger.error("Model change failed", {
+					modelId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+				return error;
+			});
 
-if (result.isErr()) {
-throw result.error;
-}
-return;
-}
+		if (result.isErr()) {
+			throw result.error;
+		}
+		return;
+	}
 
-logger.debug("Model unchanged, skipping", { modelId });
-closeSelectors();
+	logger.debug("Model unchanged, skipping", { modelId });
+	closeSelectors();
 }
 
 const selectedModel = $derived(
-currentModelId && availableModels.length > 0
-? (availableModels.find((model) => model.id === currentModelId) ?? null)
-: null
+	currentModelId && availableModels.length > 0
+		? (availableModels.find((model) => model.id === currentModelId) ?? null)
+		: null
 );
 
 const displayName = $derived.by(() => {
-if (!currentModelId) return "Model";
+	if (!currentModelId) return "Model";
 
-if (modelsDisplay?.groups) {
-for (const group of modelsDisplay.groups) {
-const match = group.models.find((model) => model.modelId === currentModelId);
-if (match) {
-return match.displayName;
-}
-}
-}
+	if (modelsDisplay?.groups) {
+		for (const group of modelsDisplay.groups) {
+			const match = group.models.find((model) => model.modelId === currentModelId);
+			if (match) {
+				return match.displayName;
+			}
+		}
+	}
 
-if (!selectedModel) {
-return "Model";
-}
+	if (!selectedModel) {
+		return "Model";
+	}
 
-return getModelDisplayName(selectedModel, agentId ?? null, modelsDisplay);
+	return getModelDisplayName(selectedModel, agentId ?? null, modelsDisplay);
 });
 const triggerProviderMarkSource = $derived.by(() => {
-if (!currentModelId) {
-return agentId ?? "other";
-}
+	if (!currentModelId) {
+		return agentId ?? "other";
+	}
 
 	return `${displayName} ${currentModelId}`;
 });
@@ -208,103 +206,103 @@ const reasoningBaseGroups = $derived.by(() =>
 		: []
 );
 const selectedReasoningVariant = $derived.by(() =>
-usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentModelId) : null
+	usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentModelId) : null
 );
 const selectedReasoningBaseGroup = $derived.by(() => {
-if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
-return null;
-}
-if (!selectedReasoningVariant) {
-return reasoningBaseGroups[0] ?? null;
-}
-return (
-reasoningBaseGroups.find(
-(group) => group.baseModelId === selectedReasoningVariant.baseModelId
-) ??
-reasoningBaseGroups[0] ??
-null
-);
+	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
+		return null;
+	}
+	if (!selectedReasoningVariant) {
+		return reasoningBaseGroups[0] ?? null;
+	}
+	return (
+		reasoningBaseGroups.find(
+			(group) => group.baseModelId === selectedReasoningVariant.baseModelId
+		) ??
+		reasoningBaseGroups[0] ??
+		null
+	);
 });
 const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName ?? "Model");
 
 const planDefaultId = $derived(
-agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.PLAN) : undefined
+	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.PLAN) : undefined
 );
 const buildDefaultId = $derived(
-agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.BUILD) : undefined
+	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.BUILD) : undefined
 );
 
 function getPreferredVariantId(baseModelId: string): string | null {
-const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
-if (!baseGroup) {
-return null;
-}
-const matchingCurrent =
-selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
-? baseGroup.variants.find(
-(variant) => variant.fullModelId === selectedReasoningVariant.fullModelId
-)
-: undefined;
-return (
-matchingCurrent?.fullModelId ??
-baseGroup.variants.find((variant) => variant.effort === "medium")?.fullModelId ??
-baseGroup.variants[0]?.fullModelId ??
-null
-);
+	const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
+	if (!baseGroup) {
+		return null;
+	}
+	const matchingCurrent =
+		selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
+			? baseGroup.variants.find(
+					(variant) => variant.fullModelId === selectedReasoningVariant.fullModelId
+				)
+			: undefined;
+	return (
+		matchingCurrent?.fullModelId ??
+		baseGroup.variants.find((variant) => variant.effort === "medium")?.fullModelId ??
+		baseGroup.variants[0]?.fullModelId ??
+		null
+	);
 }
 
 function isDefaultForBase(defaultModelId: string | undefined, baseModelId: string): boolean {
-if (!defaultModelId) {
-return false;
-}
-return defaultModelId.startsWith(`${baseModelId}/`);
+	if (!defaultModelId) {
+		return false;
+	}
+	return defaultModelId.startsWith(`${baseModelId}/`);
 }
 
 function handlePrimarySelect(baseModelId: string): void {
-const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
-if (!baseGroup || baseGroup.variants.length === 0) {
-return;
-}
-const currentEffort =
-selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
-? selectedReasoningVariant.effort
-: null;
-const nextVariant =
-(currentEffort
-? baseGroup.variants.find((variant) => variant.effort === currentEffort)
-: undefined) ??
-baseGroup.variants.find((variant) => variant.effort === "medium") ??
-baseGroup.variants[0];
-if (nextVariant) {
-void handleModelChange(nextVariant.fullModelId);
-}
+	const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
+	if (!baseGroup || baseGroup.variants.length === 0) {
+		return;
+	}
+	const currentEffort =
+		selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
+			? selectedReasoningVariant.effort
+			: null;
+	const nextVariant =
+		(currentEffort
+			? baseGroup.variants.find((variant) => variant.effort === currentEffort)
+			: undefined) ??
+		baseGroup.variants.find((variant) => variant.effort === "medium") ??
+		baseGroup.variants[0];
+	if (nextVariant) {
+		void handleModelChange(nextVariant.fullModelId);
+	}
 }
 
 function handleVariantSelect(modelId: string): void {
-void handleModelChange(modelId);
+	void handleModelChange(modelId);
 }
 
 function handleOpenChange(open: boolean) {
-isOpen = open;
-ontoggle?.(open);
+	isOpen = open;
+	ontoggle?.(open);
 }
 
 function handlePrimaryOpenChange(open: boolean) {
-applySplitSelectorState(
-setPrimarySelectorOpen(
-{ primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
-open
-)
-);
+	applySplitSelectorState(
+		setPrimarySelectorOpen(
+			{ primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
+			open
+		)
+	);
 }
 
 function handleVariantOpenChange(open: boolean) {
-applySplitSelectorState(
-setVariantSelectorOpen(
-{ primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
-open
-)
-);
+	applySplitSelectorState(
+		setVariantSelectorOpen(
+			{ primaryOpen: isPrimarySelectorOpen, variantOpen: isVariantSelectorOpen },
+			open
+		)
+	);
 }
 </script>
 

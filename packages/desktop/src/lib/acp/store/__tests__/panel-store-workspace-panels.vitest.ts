@@ -5,7 +5,10 @@ import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
 type GitDialogCapableStore = PanelStore & {
-	openGitDialog: (projectPath: string, width?: number) => {
+	openGitDialog: (
+		projectPath: string,
+		width?: number
+	) => {
 		id: string;
 		projectPath: string;
 		width: number;
@@ -103,11 +106,11 @@ describe("PanelStore workspacePanels", () => {
 			getSessionCold: vi.fn((sessionId: string) =>
 				sessionId === "session-1"
 					? {
-						id: "session-1",
-						projectPath: "/tmp/project",
-						agentId: "cursor",
-						title: "Hello",
-					}
+							id: "session-1",
+							projectPath: "/tmp/project",
+							agentId: "cursor",
+							title: "Hello",
+						}
 					: null
 			),
 		} as unknown as SessionStore;

@@ -325,7 +325,10 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			return status.isPending ? m.tool_delete_running() : m.tool_delete_completed();
 		},
 		subtitle: (toolCall) => getDeleteSubtitle(toolCall),
-		tooltipContent: (toolCall) => getDeleteFilePaths(toolCall).map((path) => getDisplayPath(path)).join("\n"),
+		tooltipContent: (toolCall) =>
+			getDeleteFilePaths(toolCall)
+				.map((path) => getDisplayPath(path))
+				.join("\n"),
 		filePath: (toolCall) => {
 			const filePaths = getDeleteFilePaths(toolCall);
 			return filePaths.length === 1 ? filePaths[0] : null;
@@ -361,8 +364,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			return status.isPending ? m.tool_tool_search_running() : m.tool_tool_search_completed();
 		},
 		subtitle: (toolCall) => {
-			const query =
-				toolCall.arguments.kind === "toolSearch" ? toolCall.arguments.query : null;
+			const query = toolCall.arguments.kind === "toolSearch" ? toolCall.arguments.query : null;
 			return query ? truncateText(query, 40) : "";
 		},
 	},
@@ -373,8 +375,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			return status.isPending ? m.tool_task_output_running() : m.tool_task_output_completed();
 		},
 		subtitle: (toolCall) => {
-			const taskId =
-				toolCall.arguments.kind === "taskOutput" ? toolCall.arguments.task_id : null;
+			const taskId = toolCall.arguments.kind === "taskOutput" ? toolCall.arguments.task_id : null;
 			return typeof taskId === "string" ? truncateText(taskId, 40) : "";
 		},
 	},

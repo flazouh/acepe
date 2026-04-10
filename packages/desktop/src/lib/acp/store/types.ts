@@ -32,13 +32,13 @@ export type {
 // STORE-SPECIFIC TYPES
 // ============================================
 
-import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
+import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
-import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { AvailableCommand } from "../types/available-command";
+import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { SessionState } from "./session-state.js";
 
 /**

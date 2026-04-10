@@ -1,62 +1,62 @@
 <script lang="ts">
-	/**
-	 * Demo: Planning State
-	 * Shows an agent in planning mode, thinking about next moves.
-	 */
-	import { SectionedFeed, ActivityEntry, TAG_COLORS } from '@acepe/ui';
-	import type { SectionedFeedGroup } from '@acepe/ui';
+/**
+ * Demo: Planning State
+ * Shows an agent in planning mode, thinking about next moves.
+ */
+import { SectionedFeed, ActivityEntry, TAG_COLORS } from "@acepe/ui";
+import type { SectionedFeedGroup } from "@acepe/ui";
 
-	interface DemoItem {
-		readonly id: string;
-		readonly title: string;
-		readonly mode: 'build' | 'plan' | null;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: null;
-		readonly question: null;
-		readonly projectName: string;
-		readonly projectColor: string;
-	}
+interface DemoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly mode: "build" | "plan" | null;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: null;
+	readonly question: null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
 
-	const demoItem: DemoItem = {
-		id: 'plan-demo',
-		title: 'Architecture review',
-		mode: 'plan',
-		timeAgo: '1m',
-		insertions: 0,
-		deletions: 0,
-		isStreaming: true,
-		statusText: 'Planning next moves...',
-		showStatusShimmer: true,
-		fileToolDisplayText: null,
-		toolContent: null,
-		showToolShimmer: false,
-		taskSubagentSummaries: [],
-		showTaskSubagentList: false,
-		todoProgress: null,
-		question: null,
-		projectName: 'Frontend',
-		projectColor: TAG_COLORS[5]
-	};
+const demoItem: DemoItem = {
+	id: "plan-demo",
+	title: "Architecture review",
+	mode: "plan",
+	timeAgo: "1m",
+	insertions: 0,
+	deletions: 0,
+	isStreaming: true,
+	statusText: "Planning next moves...",
+	showStatusShimmer: true,
+	fileToolDisplayText: null,
+	toolContent: null,
+	showToolShimmer: false,
+	taskSubagentSummaries: [],
+	showTaskSubagentList: false,
+	todoProgress: null,
+	question: null,
+	projectName: "Frontend",
+	projectColor: TAG_COLORS[5],
+};
 
-	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
-		{
-			id: 'planning',
-			label: 'Planning',
-			items: [demoItem]
-		}
-	];
+const groups: readonly SectionedFeedGroup<DemoItem>[] = [
+	{
+		id: "planning",
+		label: "Planning",
+		items: [demoItem],
+	},
+];
 
-	let selectedItemId = $state<string | null>(null);
+let selectedItemId = $state<string | null>(null);
 </script>
 
 <div class="demo-container">

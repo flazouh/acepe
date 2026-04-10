@@ -31,9 +31,9 @@
 	const TOOLTIP_WIDTH_PX = 224;
 	const VIEWPORT_PADDING_PX = 12;
 	let closeTimer: ReturnType<typeof setTimeout> | null = null;
-	let triggerElement: HTMLSpanElement | null = null;
-	let contentElement: HTMLDivElement | null = null;
-	let contentPositionStyle = "";
+	let triggerElement = $state<HTMLSpanElement | null>(null);
+	let contentElement = $state<HTMLDivElement | null>(null);
+	let contentPositionStyle = $state("");
 
 	function portalToBody(node: HTMLElement): { destroy: () => void } {
 		document.body.appendChild(node);
@@ -82,8 +82,32 @@
 		requestClose();
 	}
 
+	function handleTriggerFocusout(event: FocusEvent): void {
+		if (
+			contentElement !== null &&
+			event.relatedTarget instanceof Node &&
+			contentElement.contains(event.relatedTarget)
+		) {
+			return;
+		}
+
+		requestClose();
+	}
+
 	function handleContentMouseleave(event: MouseEvent): void {
 		if (triggerElement !== null && event.relatedTarget instanceof Node && triggerElement.contains(event.relatedTarget)) {
+			return;
+		}
+
+		requestClose();
+	}
+
+	function handleContentFocusout(event: FocusEvent): void {
+		if (
+			triggerElement !== null &&
+			event.relatedTarget instanceof Node &&
+			triggerElement.contains(event.relatedTarget)
+		) {
 			return;
 		}
 
@@ -148,8 +172,11 @@
 	<span
 		bind:this={triggerElement}
 		class={triggerClass}
-		onmouseover={requestOpen}
-		onmouseleave={handleTriggerMouseleave}
+		role="presentation"
+		onpointerenter={requestOpen}
+		onpointerleave={handleTriggerMouseleave}
+		onfocusin={requestOpen}
+		onfocusout={handleTriggerFocusout}
 	>
 		{@render children()}
 
@@ -157,11 +184,12 @@
 			<div
 				bind:this={contentElement}
 				use:portalToBody
+				role="tooltip"
 				class="bg-popover border-border text-foreground fixed z-[9999] w-56 rounded-md border px-3 py-2 text-xs shadow-md"
 				style={contentPositionStyle}
-				onmouseenter={cancelClose}
-				onmouseleave={handleContentMouseleave}
-				onkeydown={handleContentKeydown}
+				onpointerenter={cancelClose}
+				onpointerleave={handleContentMouseleave}
+				onfocusout={handleContentFocusout}
 			>
 				<p class="mb-1 font-semibold">{title}</p>
 				<p class="text-muted-foreground mb-2">{description}</p>
@@ -171,6 +199,7 @@
 						class="text-foreground hover:text-foreground/80 cursor-pointer text-xs font-medium"
 						aria-label="Dismiss this tip"
 						onclick={handleDismiss}
+						onkeydown={handleContentKeydown}
 					>
 						Got it
 					</button>

@@ -46,7 +46,9 @@ describe("agent input toolbar structure", () => {
 	});
 
 	it("renders fewer, chunkier live voice bars from the overlay component", () => {
-		expect(voiceRecordingOverlaySource).toContain('class="voice-meter flex items-center gap-[1.5px]"');
+		expect(voiceRecordingOverlaySource).toContain(
+			'class="voice-meter flex items-center gap-[1.5px]"'
+		);
 		expect(voiceRecordingOverlaySource).toContain('style:width="2.5px"');
 	});
 
@@ -56,7 +58,7 @@ describe("agent input toolbar structure", () => {
 			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && currentVoiceState.phase !== "recording"}'
 		);
 		expect(agentInputSource).toContain(
-			'disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}'
+			"disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}"
 		);
 	});
 
@@ -66,11 +68,13 @@ describe("agent input toolbar structure", () => {
 		expect(agentInputSource).toContain(
 			'class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"'
 		);
-		expect(agentInputSource).not.toContain('bg-background text-foreground');
+		expect(agentInputSource).not.toContain("bg-background text-foreground");
 	});
 
 	it("cycles modes from the composer when Cmd+. is pressed in the focused editor", () => {
-		expect(agentInputSource).toContain("function cycleModeOnShortcut(event: KeyboardEvent): boolean {");
+		expect(agentInputSource).toContain(
+			"function cycleModeOnShortcut(event: KeyboardEvent): boolean {"
+		);
 		expect(agentInputSource).toContain('event.code !== "Period"');
 		expect(agentInputSource).toContain("event.metaKey || event.ctrlKey");
 		expect(agentInputSource).toContain("handleModeChange(nextMode.id);");
@@ -78,10 +82,14 @@ describe("agent input toolbar structure", () => {
 	});
 
 	it("cycles modes from the wider input container when modal-local controls have focus", () => {
-		expect(agentInputSource).toContain("function handleInputContainerKeyDown(event: KeyboardEvent): void {");
+		expect(agentInputSource).toContain(
+			"function handleInputContainerKeyDown(event: KeyboardEvent): void {"
+		);
 		expect(agentInputSource).toContain("if (event.target === editorRef) {");
 		expect(agentInputSource).toContain("if (cycleModeOnShortcut(event)) {");
-		expect(agentInputSource).toContain('container?.addEventListener("keydown", handleInputContainerKeyDown);');
+		expect(agentInputSource).toContain(
+			'container?.addEventListener("keydown", handleInputContainerKeyDown);'
+		);
 	});
 
 	it("waits for in-flight session mode or model changes before sending", () => {

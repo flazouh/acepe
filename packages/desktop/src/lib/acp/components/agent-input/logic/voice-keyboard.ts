@@ -20,7 +20,10 @@ export function shouldStartVoiceHold(event: VoiceKeyboardEventLike): boolean {
 	return event.repeat !== true;
 }
 
-export function shouldStopVoiceHold(event: VoiceKeyboardEventLike, isPressAndHold: boolean): boolean {
+export function shouldStopVoiceHold(
+	event: VoiceKeyboardEventLike,
+	isPressAndHold: boolean
+): boolean {
 	if (!isPressAndHold) {
 		return false;
 	}

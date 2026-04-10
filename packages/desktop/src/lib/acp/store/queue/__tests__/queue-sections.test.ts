@@ -229,7 +229,9 @@ describe("classifyItem", () => {
 	});
 
 	it("should classify ready status as needs_review", () => {
-		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe("needs_review");
+		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe(
+			"needs_review"
+		);
 	});
 
 	it("should prioritize answer_needed over error", () => {

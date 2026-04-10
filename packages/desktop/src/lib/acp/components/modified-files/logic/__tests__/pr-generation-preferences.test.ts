@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-	buildPrGenerationRequestConfig,
 	buildPrGenerationPrefsForAgentSelection,
+	buildPrGenerationRequestConfig,
 } from "../pr-generation-preferences.js";
 
 const MODEL_A = { id: "model-a", name: "Model A" };
@@ -14,7 +14,7 @@ describe("pr-generation-preferences", () => {
 			"agent-b",
 			"model-a",
 			"custom instructions",
-			[MODEL_B],
+			[MODEL_B]
 		);
 
 		expect(prefs).toEqual({
@@ -24,12 +24,9 @@ describe("pr-generation-preferences", () => {
 	});
 
 	it("omits an invalid model override from the create-pr request config", () => {
-		const config = buildPrGenerationRequestConfig(
-			"agent-b",
-			"model-a",
-			"custom instructions",
-			[MODEL_B],
-		);
+		const config = buildPrGenerationRequestConfig("agent-b", "model-a", "custom instructions", [
+			MODEL_B,
+		]);
 
 		expect(config).toEqual({
 			agentId: "agent-b",
@@ -38,12 +35,10 @@ describe("pr-generation-preferences", () => {
 	});
 
 	it("retains a valid model override for the selected agent", () => {
-		const config = buildPrGenerationRequestConfig(
-			"agent-a",
-			"model-a",
-			undefined,
-			[MODEL_A, MODEL_B],
-		);
+		const config = buildPrGenerationRequestConfig("agent-a", "model-a", undefined, [
+			MODEL_A,
+			MODEL_B,
+		]);
 
 		expect(config).toEqual({
 			agentId: "agent-a",

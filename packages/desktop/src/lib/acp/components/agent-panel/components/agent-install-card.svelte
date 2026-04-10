@@ -16,7 +16,6 @@ let { agentId, agentName, stage, progress }: Props = $props();
 
 let isExpanded = $state(false);
 const progressPercent = $derived(progress < 0 ? 0 : progress > 1 ? 100 : progress * 100);
-
 </script>
 
 <div class="w-full">

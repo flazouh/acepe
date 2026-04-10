@@ -1,16 +1,16 @@
 <script lang="ts">
-	/**
-	 * Plan Mode demo for the homepage features section.
-	 * Shows a realistic plan in the shared PlanSidebarLayout component.
-	 */
-	import { PlanSidebarLayout } from '@acepe/ui/plan-sidebar';
+/**
+ * Plan Mode demo for the homepage features section.
+ * Shows a realistic plan in the shared PlanSidebarLayout component.
+ */
+import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 
-	let isBuilding = $state(false);
+let isBuilding = $state(false);
 
-	const plan = {
-		title: 'Migrate authentication to JWT',
-		slug: 'migrate-auth-to-jwt',
-		content: `## Goal
+const plan = {
+	title: "Migrate authentication to JWT",
+	slug: "migrate-auth-to-jwt",
+	content: `## Goal
 
 Replace session cookies with JWT tokens for stateless API scaling and mobile app support.
 
@@ -84,9 +84,8 @@ Fix specs to send \`Authorization: Bearer <token>\` headers instead of session c
 
 ## References
 
-Tracked in acepe/acepe#47. Implementation based on commit \`e8224481\`.`
-	};
-
+Tracked in acepe/acepe#47. Implementation based on commit \`e8224481\`.`,
+};
 </script>
 
 <div class="h-full">

@@ -1,98 +1,109 @@
 <script lang="ts">
-	import { BellRinging, ClockCounterClockwise, Database, GitBranch, PencilRuler, Terminal } from 'phosphor-svelte';
-	import Card from './ui/card/card.svelte';
-	import AgentPanelDemo from './agent-panel-demo.svelte';
-	import CheckpointDemo from './checkpoint-demo.svelte';
-	import GitViewerDemo from './git-viewer-demo.svelte';
-	import PlanDemo from './plan-demo.svelte';
-	import QueueDemo from './queue-demo.svelte';
-	import SqlFeaturesDemo from './sql-features-demo.svelte';
+import {
+	BellRinging,
+	ClockCounterClockwise,
+	Database,
+	GitBranch,
+	PencilRuler,
+	Terminal,
+} from "phosphor-svelte";
+import Card from "./ui/card/card.svelte";
+import AgentPanelDemo from "./agent-panel-demo.svelte";
+import CheckpointDemo from "./checkpoint-demo.svelte";
+import GitViewerDemo from "./git-viewer-demo.svelte";
+import PlanDemo from "./plan-demo.svelte";
+import QueueDemo from "./queue-demo.svelte";
+import SqlFeaturesDemo from "./sql-features-demo.svelte";
 
-	type FeatureTab = 'agent' | 'plan' | 'queue' | 'git' | 'sql' | 'checkpoint';
+type FeatureTab = "agent" | "plan" | "queue" | "git" | "sql" | "checkpoint";
 
-	const features = [
-		{
-			id: 'agent' as FeatureTab,
-			icon: Terminal,
-			tab: 'Agent Panel',
-			title: 'Your AI, beautifully in context',
-			description:
-				'Watch your agent read files, run tests, write code — every tool call visible inline. No terminal hunting, no black boxes. A live view of exactly what your AI is doing.',
-			useCases: [
-				'See every file read, written, and tested in real time',
-				'Follow multi-step tasks without losing your place',
-				'Pick up where the agent left off — full conversation history preserved'
-			]
-		},
-		{
-			id: 'plan' as FeatureTab,
-			icon: PencilRuler,
-			tab: 'Plan Mode',
-			title: 'Plan before you build',
-			description:
-				'Acepe outlines a step-by-step implementation plan before touching any code. Review, adjust, and execute with full visibility into what will change.',
-			useCases: [
-				'See exactly what will change before it happens',
-				'Catch missing edge cases before they become bugs',
-				'Keep agents on track across complex multi-step tasks'
-			]
-		},
-		{
-			id: 'queue' as FeatureTab,
-			icon: BellRinging,
-			tab: 'Attention Queue',
-			title: 'All your agents, one place',
-			description:
-				'Run multiple AI agents across different projects simultaneously. The attention queue surfaces only what needs your input — questions, errors, decisions.',
-			useCases: [
-				'Answer agent questions without losing focus',
-				'Monitor parallel sessions from a single panel',
-				'See diff stats accumulate as agents work'
-			]
-		},
-		{
-			id: 'git' as FeatureTab,
-			icon: GitBranch,
-			tab: 'Git Integration',
-			title: 'Full git workflow, built in',
-			description:
-				'Stage files, commit, push, and review PRs and commits — all from inside Acepe. Browse file diffs, track what your agent shipped, and manage your branch without leaving context.',
-			useCases: [
-				'Stage, commit, and push without a terminal',
-				'Review PR and commit diffs with file tree navigation',
-				'Track remote branch status and history inline'
-			]
-		},
-		{
-			id: 'sql' as FeatureTab,
-			icon: Database,
-			tab: 'SQL Studio',
-			title: 'Browse your data inline',
-			description:
-				'Connect to Postgres, MySQL, or SQLite. Explore schemas, filter rows, edit cells, and run queries — all inline with your coding session.',
-			useCases: [
-				'Explore schemas, tables, and column definitions',
-				'Filter and sort rows to find what you need',
-				'Edit cells and run custom SQL queries'
-			]
-		},
-		{
-			id: 'checkpoint' as FeatureTab,
-			icon: ClockCounterClockwise,
-			tab: 'Checkpoints',
-			title: 'Undo anything, instantly',
-			description:
-				'Acepe auto-saves a checkpoint after every agent step. If something goes wrong, revert to any earlier state in one click — no git required.',
-			useCases: [
-				'Auto-saved at every significant file change',
-				'Revert to any earlier checkpoint instantly',
-				'Inspect exactly which files changed at each step'
-			]
-		},
-	];
+const features = [
+	{
+		id: "agent" as FeatureTab,
+		icon: Terminal,
+		tab: "Agent Panel",
+		title: "Your AI, beautifully in context",
+		description:
+			"Watch your agent read files, run tests, write code — every tool call visible inline. No terminal hunting, no black boxes. A live view of exactly what your AI is doing.",
+		useCases: [
+			"See every file read, written, and tested in real time",
+			"Follow multi-step tasks without losing your place",
+			"Pick up where the agent left off — full conversation history preserved",
+		],
+	},
+	{
+		id: "plan" as FeatureTab,
+		icon: PencilRuler,
+		tab: "Plan Mode",
+		title: "Plan before you build",
+		description:
+			"Acepe outlines a step-by-step implementation plan before touching any code. Review, adjust, and execute with full visibility into what will change.",
+		useCases: [
+			"See exactly what will change before it happens",
+			"Catch missing edge cases before they become bugs",
+			"Keep agents on track across complex multi-step tasks",
+		],
+	},
+	{
+		id: "queue" as FeatureTab,
+		icon: BellRinging,
+		tab: "Attention Queue",
+		title: "All your agents, one place",
+		description:
+			"Run multiple AI agents across different projects simultaneously. The attention queue surfaces only what needs your input — questions, errors, decisions.",
+		useCases: [
+			"Answer agent questions without losing focus",
+			"Monitor parallel sessions from a single panel",
+			"See diff stats accumulate as agents work",
+		],
+	},
+	{
+		id: "git" as FeatureTab,
+		icon: GitBranch,
+		tab: "Git Integration",
+		title: "Full git workflow, built in",
+		description:
+			"Stage files, commit, push, and review PRs and commits — all from inside Acepe. Browse file diffs, track what your agent shipped, and manage your branch without leaving context.",
+		useCases: [
+			"Stage, commit, and push without a terminal",
+			"Review PR and commit diffs with file tree navigation",
+			"Track remote branch status and history inline",
+		],
+	},
+	{
+		id: "sql" as FeatureTab,
+		icon: Database,
+		tab: "SQL Studio",
+		title: "Browse your data inline",
+		description:
+			"Connect to Postgres, MySQL, or SQLite. Explore schemas, filter rows, edit cells, and run queries — all inline with your coding session.",
+		useCases: [
+			"Explore schemas, tables, and column definitions",
+			"Filter and sort rows to find what you need",
+			"Edit cells and run custom SQL queries",
+		],
+	},
+	{
+		id: "checkpoint" as FeatureTab,
+		icon: ClockCounterClockwise,
+		tab: "Checkpoints",
+		title: "Undo anything, instantly",
+		description:
+			"Acepe auto-saves a checkpoint after every agent step. If something goes wrong, revert to any earlier state in one click — no git required.",
+		useCases: [
+			"Auto-saved at every significant file change",
+			"Revert to any earlier checkpoint instantly",
+			"Inspect exactly which files changed at each step",
+		],
+	},
+];
 
-	let activeTab = $state<FeatureTab>('agent');
-	let activeFeature = $derived(features.find((f) => f.id === activeTab)!);
+let activeTab = $state<FeatureTab>("agent");
+const defaultFeature = features[0];
+if (!defaultFeature) {
+	throw new Error("homepage features must define at least one feature");
+}
+let activeFeature = $derived(features.find((f) => f.id === activeTab) ?? defaultFeature);
 </script>
 
 <section class="mx-auto max-w-6xl px-4 pt-8 pb-32 md:px-6 md:pt-12 md:pb-40">

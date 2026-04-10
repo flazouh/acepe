@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { BrandLockup } from "@acepe/ui";
-	import { IconArrowLeft } from "@tabler/icons-svelte";
-	import AnimatedBackground from "$lib/components/animated-background.svelte";
-	import { Button } from "$lib/components/ui/button/index.js";
+import { BrandLockup } from "@acepe/ui";
+import { IconArrowLeft } from "@tabler/icons-svelte";
+import AnimatedBackground from "$lib/components/animated-background.svelte";
+import { Button } from "$lib/components/ui/button/index.js";
 </script>
 
 <main class="h-screen w-full overflow-hidden">

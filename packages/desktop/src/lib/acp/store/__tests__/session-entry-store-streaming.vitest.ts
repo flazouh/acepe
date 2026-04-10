@@ -45,7 +45,10 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			store.createToolCallEntry("session1", {
 				id: "tool1",
 				name: "Edit",
-				arguments: { kind: "edit", edits: [{ filePath: null, oldString: null, newString: null, content: null }] },
+				arguments: {
+					kind: "edit",
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+				},
 				status: "pending",
 				kind: "edit",
 				title: null,
@@ -56,13 +59,17 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			});
 			applyStreamingArguments(store, "session1", "tool1", {
 				kind: "edit",
-				edits: [{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null }],
+				edits: [
+					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
+				],
 			});
 
 			const result = store.getStreamingArguments("tool1");
 			expect(result).toEqual({
 				kind: "edit",
-				edits: [{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null }],
+				edits: [
+					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
+				],
 			});
 		});
 
@@ -122,7 +129,10 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			store.createToolCallEntry("session1", {
 				id: "tool1",
 				name: "Edit",
-				arguments: { kind: "edit", edits: [{ filePath: null, oldString: null, newString: null, content: null }] },
+				arguments: {
+					kind: "edit",
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+				},
 				status: "pending",
 				kind: "edit",
 				title: null,
@@ -158,7 +168,10 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			store.createToolCallEntry("session1", {
 				id: "tool1",
 				name: "Edit",
-				arguments: { kind: "edit", edits: [{ filePath: null, oldString: null, newString: null, content: null }] },
+				arguments: {
+					kind: "edit",
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+				},
 				status: "pending",
 				kind: "edit",
 				title: null,
@@ -495,7 +508,9 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const toolEntries = store.getEntries("session1").filter((entry) => entry.type === "tool_call");
+			const toolEntries = store
+				.getEntries("session1")
+				.filter((entry) => entry.type === "tool_call");
 			expect(toolEntries).toHaveLength(1);
 		});
 

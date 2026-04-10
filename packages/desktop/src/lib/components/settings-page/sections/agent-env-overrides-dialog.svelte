@@ -5,13 +5,7 @@ import { IconPlus } from "@tabler/icons-svelte";
 import { IconTrash } from "@tabler/icons-svelte";
 import { FloppyDisk } from "phosphor-svelte";
 import { SlidersHorizontal } from "phosphor-svelte";
-import {
-	Button,
-	Dialog,
-	DialogContent,
-	Input,
-	PillButton,
-} from "@acepe/ui";
+import { Button, Dialog, DialogContent, Input, PillButton } from "@acepe/ui";
 import {
 	CloseAction,
 	EmbeddedPanelHeader,
@@ -152,7 +146,7 @@ function buildEnvMap(): Record<string, string> | null {
 			return null;
 		}
 
-		if (Object.prototype.hasOwnProperty.call(nextEnv, trimmedName)) {
+		if (Object.hasOwn(nextEnv, trimmedName)) {
 			validationError = `Duplicate variable name: ${trimmedName}`;
 			return null;
 		}

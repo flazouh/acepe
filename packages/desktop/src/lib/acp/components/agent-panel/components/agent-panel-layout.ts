@@ -30,9 +30,7 @@ export function resolveAgentContentColumnStyle(input: AttachedPaneLayoutInput): 
 	return `min-width: ${input.attachedColumnWidth}px; width: ${input.attachedColumnWidth}px; max-width: ${input.attachedColumnWidth}px; flex: 0 0 ${input.attachedColumnWidth}px;`;
 }
 
-export function shouldUseCenteredFullscreenContent(
-	input: CenteredFullscreenContentInput
-): boolean {
+export function shouldUseCenteredFullscreenContent(input: CenteredFullscreenContentInput): boolean {
 	if (!input.isFullscreen) {
 		return false;
 	}

@@ -803,8 +803,9 @@ mod tests {
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            StoredEntry::AssistantMessage(message) => {
-                assert_eq!(message.content, "world");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].block.text.as_deref(), Some("world"));
             }
             other => panic!("expected assistant message entry, got {other:?}"),
         }

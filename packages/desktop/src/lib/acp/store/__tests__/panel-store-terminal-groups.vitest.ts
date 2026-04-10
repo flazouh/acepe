@@ -72,12 +72,14 @@ describe("PanelStore terminal groups", () => {
 		const newGroup = store.moveTerminalTabToNewPanel(movedTab.id);
 
 		expect(newGroup).not.toBeNull();
+		if (!newGroup) {
+			throw new Error("expected moved tab to create a new terminal group");
+		}
 		expect(store.getTerminalTabsForGroup(sourceGroup.id)).toHaveLength(1);
-		expect(store.getTerminalTabsForGroup(newGroup!.id).map((tab) => tab.id)).toEqual([movedTab.id]);
-		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
-			sourceGroup.id,
-			newGroup!.id,
-		]);
+		expect(store.getTerminalTabsForGroup(newGroup.id).map((tab) => tab.id)).toEqual([movedTab.id]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual(
+			[sourceGroup.id, newGroup.id]
+		);
 	});
 
 	it("preserves the live terminal runtime state when popping out a tab", () => {
@@ -108,7 +110,9 @@ describe("PanelStore terminal groups", () => {
 
 		store.closeTerminalTab(third.id);
 
-		expect(store.getSelectedTerminalTabId(group.id)).toBe(store.getTerminalTabsForGroup(group.id)[0]?.id);
+		expect(store.getSelectedTerminalTabId(group.id)).toBe(
+			store.getTerminalTabsForGroup(group.id)[0]?.id
+		);
 	});
 
 	it("no-ops and logs when moving a stale tab id", () => {
@@ -143,11 +147,11 @@ describe("PanelStore terminal groups", () => {
 		const result = onlyTab ? store.moveTerminalTabToNewPanel(onlyTab.id) : "unexpected";
 
 		expect(result).toBeNull();
-		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((candidate) => candidate.id)).toEqual([
-			group.id,
-		]);
+		expect(
+			store.getTerminalPanelGroupsForProject("/tmp/project").map((candidate) => candidate.id)
+		).toEqual([group.id]);
 		expect(store.getTerminalTabsForGroup(group.id).map((candidate) => candidate.id)).toEqual([
-			onlyTab!.id,
+			onlyTab?.id,
 		]);
 		expect(loggerSpy).toHaveBeenCalled();
 		loggerSpy.mockRestore();
@@ -212,9 +216,13 @@ describe("PanelStore terminal groups", () => {
 				panel.kind === "terminal"
 		);
 
-		expect(store.workspacePanels.map((panel) => panel.id)).toEqual([agentPanel.id, group.id, poppedGroup!.id]);
-		expect(terminalPanels.map((panel) => panel.id)).toEqual([group.id, poppedGroup!.id]);
-		expect(terminalPanels.map((panel) => panel.groupId)).toEqual([group.id, poppedGroup!.id]);
+		expect(store.workspacePanels.map((panel) => panel.id)).toEqual([
+			agentPanel.id,
+			group.id,
+			poppedGroup?.id,
+		]);
+		expect(terminalPanels.map((panel) => panel.id)).toEqual([group.id, poppedGroup?.id]);
+		expect(terminalPanels.map((panel) => panel.groupId)).toEqual([group.id, poppedGroup?.id]);
 
 		const remainingTab = store.getTerminalTabsForGroup(group.id)[0] as TerminalTab;
 		const loggerSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

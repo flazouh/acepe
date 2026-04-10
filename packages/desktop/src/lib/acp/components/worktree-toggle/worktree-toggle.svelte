@@ -177,7 +177,9 @@ const effectiveWorktreeName = $derived.by(() => {
 	const parts = activePath.split("/").filter((segment) => segment.length > 0);
 	return parts.length > 0 ? (parts[parts.length - 1] ? parts[parts.length - 1] : null) : null;
 });
-const branchTargetPath = $derived(effectiveWorktreePath ? effectiveWorktreePath : props.projectPath);
+const branchTargetPath = $derived(
+	effectiveWorktreePath ? effectiveWorktreePath : props.projectPath
+);
 
 // Pending/disabled/tooltip derivations (depend on effectiveWorktreeName)
 const isPending = $derived(
@@ -190,7 +192,7 @@ const isPending = $derived(
 const isDisabled = $derived(
 	// Global auto-worktree locks the primary toggle on, but manual pending should remain untoggleable.
 	(props.globalWorktreeDefault ? props.globalWorktreeDefault : false) ||
-	props.hasMessages ||
+		props.hasMessages ||
 		props.hasEdits ||
 		toggleState.loading ||
 		toggleState.isCreatingWorktree ||

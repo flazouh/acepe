@@ -1,19 +1,14 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	interface Props {
-		children?: Snippet;
-		collapsed?: boolean;
-		headerLabel?: string;
-		showHeader?: boolean;
-	}
+interface Props {
+	children?: Snippet;
+	collapsed?: boolean;
+	headerLabel?: string;
+	showHeader?: boolean;
+}
 
-	let {
-		children,
-		collapsed = false,
-		headerLabel = "Thought",
-		showHeader = true,
-	}: Props = $props();
+let { children, collapsed = false, headerLabel = "Thought", showHeader = true }: Props = $props();
 </script>
 
 <div data-testid="agent-tool-thinking-stub" data-collapsed={collapsed ? "true" : "false"}>

@@ -49,13 +49,13 @@ function extractToolTarget(toolCall: ToolCall, kind: ToolKind): string {
 		case "delete":
 			if (args.kind === "read" || args.kind === "delete") {
 				const path = args.file_path;
-				return path ? (path.split("/").pop() || path) : "";
+				return path ? path.split("/").pop() || path : "";
 			}
 			return "";
 		case "edit":
 			if (args.kind === "edit") {
 				const path = args.edits[0]?.filePath;
-				return path ? (path.split("/").pop() || path) : "";
+				return path ? path.split("/").pop() || path : "";
 			}
 			return "";
 		case "execute":

@@ -3,10 +3,10 @@ import { BuildIcon, PlanIcon } from "@acepe/ui";
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
-EmbeddedPanelHeader,
-HeaderActionCell,
-HeaderCell,
-HeaderTitleCell,
+	EmbeddedPanelHeader,
+	HeaderActionCell,
+	HeaderCell,
+	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
 import { CaretDown } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
@@ -40,67 +40,67 @@ const sortedAgents = $derived.by(() =>
 );
 
 function setAgentChecked(agentId: string, checked: boolean): void {
-const result = applyAgentSelectionChange(
-agentPreferencesStore.selectedAgentIds,
-agentId,
-checked
-);
-if (!result.ok) {
-toast.error(m.settings_agents_min_one());
-return;
-}
-if (!result.changed) {
-return;
-}
+	const result = applyAgentSelectionChange(
+		agentPreferencesStore.selectedAgentIds,
+		agentId,
+		checked
+	);
+	if (!result.ok) {
+		toast.error(m.settings_agents_min_one());
+		return;
+	}
+	if (!result.changed) {
+		return;
+	}
 
-agentPreferencesStore.setSelectedAgentIds(result.value).match(
-() => undefined,
-(error) => {
-toast.error(error.message);
-}
-);
+	agentPreferencesStore.setSelectedAgentIds(result.value).match(
+		() => undefined,
+		(error) => {
+			toast.error(error.message);
+		}
+	);
 }
 
 function handleDefaultChange(agentId: string, mode: ModeType, modelId: string): void {
-preferencesStore.setDefaultModel(agentId, mode, modelId);
+	preferencesStore.setDefaultModel(agentId, mode, modelId);
 }
 
 function handleClearDefault(agentId: string, mode: ModeType): void {
-preferencesStore.setDefaultModel(agentId, mode, undefined);
+	preferencesStore.setDefaultModel(agentId, mode, undefined);
 }
 
 function findDisplayModel(
-modelsDisplay: ModelsForDisplay | null,
-modelId: string
+	modelsDisplay: ModelsForDisplay | null,
+	modelId: string
 ): DisplayableModel | null {
-if (!modelsDisplay?.groups) {
-return null;
-}
+	if (!modelsDisplay?.groups) {
+		return null;
+	}
 
-for (const group of modelsDisplay.groups) {
-const match = group.models.find((model) => model.modelId === modelId);
-if (match) {
-return match;
-}
-}
+	for (const group of modelsDisplay.groups) {
+		const match = group.models.find((model) => model.modelId === modelId);
+		if (match) {
+			return match;
+		}
+	}
 
-return null;
+	return null;
 }
 
 function getModelLabel(
-modelId: string,
-fallbackName: string,
-modelsDisplay: ModelsForDisplay | null
+	modelId: string,
+	fallbackName: string,
+	modelsDisplay: ModelsForDisplay | null
 ): string {
-return findDisplayModel(modelsDisplay, modelId)?.displayName ?? fallbackName;
+	return findDisplayModel(modelsDisplay, modelId)?.displayName ?? fallbackName;
 }
 
 function getModelDescription(
-modelId: string,
-fallbackDescription: string | undefined,
-modelsDisplay: ModelsForDisplay | null
+	modelId: string,
+	fallbackDescription: string | undefined,
+	modelsDisplay: ModelsForDisplay | null
 ): string | undefined {
-return findDisplayModel(modelsDisplay, modelId)?.description ?? fallbackDescription;
+	return findDisplayModel(modelsDisplay, modelId)?.description ?? fallbackDescription;
 }
 </script>
 

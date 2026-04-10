@@ -16,7 +16,9 @@ describe("ACP model selector provider marks", () => {
 	it("derives trigger and dropdown provider marks from the selected model and row/group data", () => {
 		expect(modelSelectorSource).toContain("triggerProviderMarkSource");
 		expect(modelSelectorContentSource).toContain("getModelProviderSource(model)");
-		expect(modelSelectorContentSource).toContain('ProviderMark provider={group.provider} class="size-3"');
+		expect(modelSelectorContentSource).toContain(
+			'ProviderMark provider={group.provider} class="size-3"'
+		);
 	});
 
 	it("marks the selector trigger as a hover group for provider marks", () => {

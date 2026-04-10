@@ -1,10 +1,13 @@
 import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
-import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
-import { compactAgentToolEntry, resolveFullToolEntry } from "../tool-calls/tool-definition-registry.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
+import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
+import {
+	compactAgentToolEntry,
+	resolveFullToolEntry,
+} from "../tool-calls/tool-definition-registry.js";
 
 export interface QueueItemToolDisplayInput {
 	readonly activityKind: "idle" | "thinking" | "streaming" | "paused";

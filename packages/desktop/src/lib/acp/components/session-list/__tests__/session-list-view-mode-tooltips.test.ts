@@ -9,7 +9,7 @@ describe("session list project display mode wiring", () => {
 	it("routes project view mode through the project overflow menu instead of inline toggle buttons", () => {
 		expect(source).toContain("currentViewMode={viewMode}");
 		expect(source).toContain(
-			'onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}'
+			"onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}"
 		);
 		expect(source).not.toContain("title={m.sidebar_view_sessions()}");
 		expect(source).not.toContain("title={m.sidebar_view_files()}");

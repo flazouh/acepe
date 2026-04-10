@@ -188,19 +188,22 @@ export class ReviewDiffViewState {
 
 		// Create FileDiff instance with full file rendering options
 		this.fileDiffInstance = new FileDiff<AnnotationMetadata>(
-			Object.assign(buildPierreDiffOptions<AnnotationMetadata>(this.themeType, this.diffStyle, "wrap", false), {
-				// Use native line-info separator (no custom buttons)
-				// Don't expand all unchanged by default - let user click to expand
-				// Lines revealed per click when expanding collapsed regions
-				expansionLineCount: 100,
-				enableLineSelection: false,
-				enableHoverUtility: false,
-				// Render accept/reject buttons via annotations
-				renderAnnotation: this.onHunkAction
-					? (annotation: DiffLineAnnotation<AnnotationMetadata>) =>
-						this.createAnnotationElement(annotation)
-					: undefined,
-			}),
+			Object.assign(
+				buildPierreDiffOptions<AnnotationMetadata>(this.themeType, this.diffStyle, "wrap", false),
+				{
+					// Use native line-info separator (no custom buttons)
+					// Don't expand all unchanged by default - let user click to expand
+					// Lines revealed per click when expanding collapsed regions
+					expansionLineCount: 100,
+					enableLineSelection: false,
+					enableHoverUtility: false,
+					// Render accept/reject buttons via annotations
+					renderAnnotation: this.onHunkAction
+						? (annotation: DiffLineAnnotation<AnnotationMetadata>) =>
+								this.createAnnotationElement(annotation)
+						: undefined,
+				}
+			),
 			getWorkerPool()
 		);
 
@@ -498,10 +501,10 @@ export class ReviewDiffViewState {
 		const updatedNewContents =
 			action === "reject"
 				? computeRevertedFileContent(
-					currentDiffData.newFile.contents,
-					currentDiffData.fileDiffMetadata,
-					hunkIndex
-				)
+						currentDiffData.newFile.contents,
+						currentDiffData.fileDiffMetadata,
+						hunkIndex
+					)
 				: currentDiffData.newFile.contents;
 
 		this.currentDiffData = Object.assign({}, currentDiffData, {

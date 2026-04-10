@@ -1,9 +1,14 @@
 import { describe, expect, it, mock } from "bun:test";
+import { okAsync } from "neverthrow";
 
-const invokeMock = mock(async () => undefined);
+const sendMock = mock(() => okAsync(undefined));
 
-mock.module("@tauri-apps/api/core", () => ({
-	invoke: invokeMock,
+mock.module("$lib/utils/tauri-client/notifications.js", () => ({
+	notifications: {
+		send: sendMock,
+		getPermission: mock(),
+		requestPermission: mock(),
+	},
 }));
 
 import { sendNativeNotification } from "./native-notification.js";
@@ -16,11 +21,9 @@ describe("native-notification", () => {
 		});
 
 		expect(result.isOk()).toBe(true);
-		expect(invokeMock).toHaveBeenCalledWith("plugin:notification|notify", {
-			options: {
-				title: "Task Complete",
-				body: "Agent finished work",
-			},
+		expect(sendMock).toHaveBeenCalledWith({
+			title: "Task Complete",
+			body: "Agent finished work",
 		});
 	});
 });

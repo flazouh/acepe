@@ -2,10 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
-import {
-	resolveCompactToolDisplay,
-	resolveFullToolEntry,
-} from "../tool-definition-registry.js";
+import { resolveCompactToolDisplay, resolveFullToolEntry } from "../tool-definition-registry.js";
 
 function createToolCall(overrides?: Partial<ToolCall>): ToolCall {
 	const base: ToolCall = {

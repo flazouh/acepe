@@ -1,4 +1,3 @@
-
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { errAsync, okAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";

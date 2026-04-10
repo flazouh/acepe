@@ -1,19 +1,19 @@
 <script lang="ts">
-	interface Props {
-		content?: string;
-		filePath?: string;
-		projectPath?: string;
-		formatKind?: string;
-		gitGutterInput?: { kind: string } | null;
-	}
+interface Props {
+	content?: string;
+	filePath?: string;
+	projectPath?: string;
+	formatKind?: string;
+	gitGutterInput?: { kind: string } | null;
+}
 
-	let {
-		content = "",
-		filePath = "",
-		projectPath = "",
-		formatKind = "",
-		gitGutterInput = null,
-	}: Props = $props();
+let {
+	content = "",
+	filePath = "",
+	projectPath = "",
+	formatKind = "",
+	gitGutterInput = null,
+}: Props = $props();
 </script>
 
 <div

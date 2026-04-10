@@ -1,12 +1,12 @@
-import type { Handle } from '@sveltejs/kit';
-import { sequence } from '@sveltejs/kit/hooks';
-import { paraglideMiddleware } from '$lib/paraglide/server';
-import { logger } from '$lib/server/logger';
-import { runMigrations } from '$lib/server/db/migrate';
+import type { Handle } from "@sveltejs/kit";
+import { sequence } from "@sveltejs/kit/hooks";
+import { paraglideMiddleware } from "$lib/paraglide/server";
+import { runMigrations } from "$lib/server/db/migrate";
+import { logger } from "$lib/server/logger";
 
 // Run migrations on startup
 runMigrations().catch((err) => {
-	logger.error({ err }, 'Failed to run database migrations');
+	logger.error({ err }, "Failed to run database migrations");
 });
 
 const BOT_PATTERNS = [
@@ -17,35 +17,35 @@ const BOT_PATTERNS = [
 	/\/phpmyadmin/,
 	/\/admin\/config\.php/,
 	/\.env$/,
-	/\.git\//
+	/\.git\//,
 ];
 
 const IGNORE_404_PATHS = [
-	'/sw.js',
-	'/service-worker.js',
-	'/manifest.json',
-	'/robots.txt',
-	'/favicon.ico'
+	"/sw.js",
+	"/service-worker.js",
+	"/manifest.json",
+	"/robots.txt",
+	"/favicon.ico",
 ];
 
 const CORS_HEADERS = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-	'Access-Control-Max-Age': '86400'
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization",
+	"Access-Control-Max-Age": "86400",
 } as const;
 
 const handleCors: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
-	const isApi = path.startsWith('/api/');
+	const isApi = path.startsWith("/api/");
 
-	if (isApi && event.request.method === 'OPTIONS') {
+	if (isApi && event.request.method === "OPTIONS") {
 		return new Response(null, { status: 204, headers: CORS_HEADERS });
 	}
 
 	const response = await resolve(event);
 
-	if (isApi && response.headers.get('Access-Control-Allow-Origin') === null) {
+	if (isApi && response.headers.get("Access-Control-Allow-Origin") === null) {
 		const headers = new Headers(response.headers);
 		for (const [key, value] of Object.entries(CORS_HEADERS)) {
 			headers.set(key, value);
@@ -53,7 +53,7 @@ const handleCors: Handle = async ({ event, resolve }) => {
 		return new Response(response.body, {
 			status: response.status,
 			statusText: response.statusText,
-			headers
+			headers,
 		});
 	}
 
@@ -81,7 +81,7 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 		event.request = request;
 
 		return resolve(event, {
-			transformPageChunk: ({ html }) => html.replace('%paraglide.lang%', locale)
+			transformPageChunk: ({ html }) => html.replace("%paraglide.lang%", locale),
 		});
 	});
 

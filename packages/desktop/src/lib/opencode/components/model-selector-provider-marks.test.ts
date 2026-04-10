@@ -11,10 +11,14 @@ describe("opencode model selector provider marks", () => {
 	it("uses the shared provider mark component and shows marks for grouped model rows", () => {
 		expect(providerLogoSource).toContain('from "@acepe/ui"');
 		expect(providerLogoSource).toContain("ProviderMark");
-		expect(modelSelectorSource).toContain('ProviderLogo providerId={provider.id} class="h-3.5 w-3.5"');
+		expect(modelSelectorSource).toContain(
+			'ProviderLogo providerId={provider.id} class="h-3.5 w-3.5"'
+		);
 	});
 
 	it("marks the trigger button as a hover group for provider marks", () => {
-		expect(modelSelectorSource).toContain('class={cn("group/provider-trigger h-8 gap-2 px-2", className)}');
+		expect(modelSelectorSource).toContain(
+			'class={cn("group/provider-trigger h-8 gap-2 px-2", className)}'
+		);
 	});
 });

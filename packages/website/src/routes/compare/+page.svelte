@@ -1,16 +1,16 @@
 <script lang="ts">
-	import * as m from "$lib/paraglide/messages.js";
-	import Header from "$lib/components/header.svelte";
-	import { ArrowRight } from "@lucide/svelte";
-	import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
+import * as m from "$lib/paraglide/messages.js";
+import Header from "$lib/components/header.svelte";
+import { ArrowRight } from "@lucide/svelte";
+import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
 
-	let { data } = $props();
+let { data } = $props();
 
-	const comparisons = $derived(
-		getAllComparisonSlugs()
-			.map((slug) => getComparison(slug))
-			.filter((c): c is NonNullable<typeof c> => c !== null)
-	);
+const comparisons = $derived(
+	getAllComparisonSlugs()
+		.map((slug) => getComparison(slug))
+		.filter((c): c is NonNullable<typeof c> => c !== null)
+);
 </script>
 
 <svelte:head>

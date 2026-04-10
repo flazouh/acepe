@@ -149,7 +149,11 @@ mod tests {
         assert_eq!(context.agent_id, CanonicalAgentId::ClaudeCode);
         assert_eq!(
             context.compatibility,
-            SessionDescriptorCompatibility::Canonical
+            SessionDescriptorCompatibility::ReadOnly {
+                missing_facts: vec![
+                    crate::acp::session_descriptor::SessionDescriptorMissingFact::ProviderSessionId
+                ]
+            }
         );
     }
 
@@ -212,7 +216,11 @@ mod tests {
         assert_eq!(context.agent_id, CanonicalAgentId::ClaudeCode);
         assert_eq!(
             context.compatibility,
-            SessionDescriptorCompatibility::Canonical
+            SessionDescriptorCompatibility::ReadOnly {
+                missing_facts: vec![
+                    crate::acp::session_descriptor::SessionDescriptorMissingFact::ProviderSessionId
+                ]
+            }
         );
     }
 
@@ -236,7 +244,12 @@ mod tests {
         assert_eq!(context.agent_id, CanonicalAgentId::OpenCode);
         assert_eq!(
             context.compatibility,
-            SessionDescriptorCompatibility::Canonical
+            SessionDescriptorCompatibility::ReadOnly {
+                missing_facts: vec![
+                    crate::acp::session_descriptor::SessionDescriptorMissingFact::CanonicalAgentId,
+                    crate::acp::session_descriptor::SessionDescriptorMissingFact::ProjectPath,
+                ]
+            }
         );
     }
 

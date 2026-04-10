@@ -32,10 +32,7 @@ export class InteractionStore {
 	readonly planApprovalsPending = new SvelteMap<string, PlanApprovalInteraction>();
 	private readonly answeredQuestionSessionIds = new SvelteMap<string, string>();
 
-	setPlanApprovalStatus(
-		interactionId: string,
-		status: PlanApprovalInteraction["status"]
-	): void {
+	setPlanApprovalStatus(interactionId: string, status: PlanApprovalInteraction["status"]): void {
 		const approval = this.planApprovalsPending.get(interactionId);
 		if (approval === undefined) {
 			return;
@@ -84,8 +81,7 @@ export class InteractionStore {
 	}
 
 	replaceSessionProjection(projection: SessionProjectionSnapshot): void {
-		const sessionId =
-			projection.session?.session_id ?? projection.interactions[0]?.session_id;
+		const sessionId = projection.session?.session_id ?? projection.interactions[0]?.session_id;
 		if (sessionId === undefined) {
 			return;
 		}

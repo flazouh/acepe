@@ -20,7 +20,7 @@ export interface ComparisonSourceNote {
 	readonly note: string;
 }
 
-export type ComparisonVerificationStatus = 'verified' | 'draft';
+export type ComparisonVerificationStatus = "verified" | "draft";
 
 export interface ComparisonData {
 	readonly slug: string;

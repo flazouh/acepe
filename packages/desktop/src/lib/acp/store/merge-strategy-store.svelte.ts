@@ -3,9 +3,9 @@
  * Defaults to "squash". Stored in user settings so it survives restarts.
  */
 
-import { tauriClient } from "$lib/utils/tauri-client.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const SETTING_KEY: UserSettingKey = "git_merge_strategy_preference";
 const DEFAULT: MergeStrategy = "squash";

@@ -78,7 +78,8 @@ let selectedPrefix = $state(BRANCH_PREFIXES[0]);
 let prefixDropdownOpen = $state(false);
 let newBranchInputRef = $state<HTMLInputElement | null>(null);
 
-const minimalTriggerClass = "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]";
+const minimalTriggerClass =
+	"!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]";
 
 const normalizedBranchQuery = $derived(branchQuery.trim().toLowerCase());
 

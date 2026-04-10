@@ -186,9 +186,11 @@ function handleWillSend() {
 		projectPath,
 		effectiveAgentId,
 		panelProjectPath:
-			panelStore.panels.find((panel) => panel.id === EMPTY_STATE_PANEL_ID && "projectPath" in panel)?.projectPath ?? null,
+			panelStore.panels.find((panel) => panel.id === EMPTY_STATE_PANEL_ID && "projectPath" in panel)
+				?.projectPath ?? null,
 	});
 	panelStore.focusPanel(EMPTY_STATE_PANEL_ID);
+	return EMPTY_STATE_PANEL_ID;
 }
 
 function handleEmptyStateSessionCreated(sessionId: string) {

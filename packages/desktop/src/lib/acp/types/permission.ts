@@ -1,14 +1,14 @@
 import type {
-	JsonValue,
 	InteractionReplyHandler as GeneratedInteractionReplyHandler,
+	JsonValue,
 	ToolArguments,
 	ToolReference,
 } from "../../services/converted-session-types.js";
 import {
 	createLegacyInteractionReplyHandler,
-	normalizeInteractionReplyHandler,
 	type InteractionReplyHandler,
 	type InteractionReplyHandlerInput,
+	normalizeInteractionReplyHandler,
 } from "./reply-handler.js";
 
 /**

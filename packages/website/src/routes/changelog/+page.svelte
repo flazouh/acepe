@@ -1,29 +1,29 @@
 <script lang="ts">
-	import type { ChangeType } from '@acepe/changelog';
-	import { CHANGELOG, groupChangesByType } from '@acepe/changelog';
-	import * as m from '$lib/paraglide/messages.js';
-	import Header from '$lib/components/header.svelte';
-	import { Bug, Lightning, RocketLaunch, Warning } from 'phosphor-svelte';
+import type { ChangeType } from "@acepe/changelog";
+import { CHANGELOG, groupChangesByType } from "@acepe/changelog";
+import * as m from "$lib/paraglide/messages.js";
+import Header from "$lib/components/header.svelte";
+import { Bug, Lightning, RocketLaunch, Warning } from "phosphor-svelte";
 
-	let { data } = $props();
+let { data } = $props();
 
-	const changeTypeConfig: Record<
-		ChangeType,
-		{ icon: typeof RocketLaunch; hex: string; label: string }
-	> = {
-		feature:     { icon: RocketLaunch, hex: '#22c55e', label: 'Features' },
-		fix:         { icon: Bug,          hex: '#ef4444', label: 'Fixes' },
-		improvement: { icon: Lightning,    hex: '#f97316', label: 'Improvements' },
-		breaking:    { icon: Warning,      hex: '#ef4444', label: 'Breaking' },
-	};
+const changeTypeConfig: Record<
+	ChangeType,
+	{ icon: typeof RocketLaunch; hex: string; label: string }
+> = {
+	feature: { icon: RocketLaunch, hex: "#22c55e", label: "Features" },
+	fix: { icon: Bug, hex: "#ef4444", label: "Fixes" },
+	improvement: { icon: Lightning, hex: "#f97316", label: "Improvements" },
+	breaking: { icon: Warning, hex: "#ef4444", label: "Breaking" },
+};
 
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			month: 'long',
-			day: 'numeric',
-			year: 'numeric',
-		});
-	}
+function formatDate(dateStr: string): string {
+	return new Date(dateStr).toLocaleDateString("en-US", {
+		month: "long",
+		day: "numeric",
+		year: "numeric",
+	});
+}
 </script>
 
 <svelte:head>

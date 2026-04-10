@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { useSessionContext } from "../../hooks/use-session-context.js";
-	import { getPermissionStore } from "../../store/permission-store.svelte.js";
-	import { getSessionStore } from "../../store/session-store.svelte.js";
-	import type { TurnState } from "../../store/types.js";
-	import type { PermissionRequest } from "../../types/permission.js";
-	import type { ToolCall } from "../../types/tool-call.js";
-	import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
-	import { resolveToolOperation } from "./resolve-tool-operation.js";
-	import { getToolDefinition } from "./tool-definition-registry.js";
+import { useSessionContext } from "../../hooks/use-session-context.js";
+import { getPermissionStore } from "../../store/permission-store.svelte.js";
+import { getSessionStore } from "../../store/session-store.svelte.js";
+import type { TurnState } from "../../store/types.js";
+import type { PermissionRequest } from "../../types/permission.js";
+import type { ToolCall } from "../../types/tool-call.js";
+import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
+import { resolveToolOperation } from "./resolve-tool-operation.js";
+import { getToolDefinition } from "./tool-definition-registry.js";
 
 interface Props {
 	toolCall: ToolCall;
@@ -21,25 +21,25 @@ interface Props {
 let { toolCall, turnState = "idle", projectPath }: Props = $props();
 let nowMs = $state(Date.now());
 
-	const permissionStore = getPermissionStore();
-	const sessionStore = getSessionStore();
-	const sessionContext = useSessionContext();
-	const operationStore = $derived(sessionStore.getOperationStore());
-	const operation = $derived.by(() => {
-		if (!sessionContext?.sessionId) {
-			return null;
-		}
+const permissionStore = getPermissionStore();
+const sessionStore = getSessionStore();
+const sessionContext = useSessionContext();
+const operationStore = $derived(sessionStore.getOperationStore());
+const operation = $derived.by(() => {
+	if (!sessionContext?.sessionId) {
+		return null;
+	}
 
-		return operationStore.getByToolCallId(sessionContext.sessionId, toolCall.id) ?? null;
-	});
-	const pendingPermission = $derived.by(() => {
-		if (operation) {
-			return permissionStore.getForOperation(operation, operationStore) ?? null;
-		}
+	return operationStore.getByToolCallId(sessionContext.sessionId, toolCall.id) ?? null;
+});
+const pendingPermission = $derived.by(() => {
+	if (operation) {
+		return permissionStore.getForOperation(operation, operationStore) ?? null;
+	}
 
-		return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
-	});
-	const resolvedOperation = $derived(resolveToolOperation(toolCall, pendingPermission));
+	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
+});
+const resolvedOperation = $derived(resolveToolOperation(toolCall, pendingPermission));
 const toolDefinition = $derived(
 	getToolDefinition(resolvedOperation.toolCall, resolvedOperation.resolvedKind)
 );

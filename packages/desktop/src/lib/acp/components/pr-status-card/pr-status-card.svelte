@@ -14,102 +14,104 @@
   Fully presentational — all data is passed in as props.
 -->
 <script lang="ts">
-	import { DiffPill, GitHubBadge } from "@acepe/ui";
-	import "@acepe/ui/markdown-prose.css";
-	import { openUrl } from "@tauri-apps/plugin-opener";
-	import { Result } from "neverthrow";
-	import { GitPullRequest } from "phosphor-svelte";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
-	import * as m from "$lib/paraglide/messages.js";
-	import type { PrDetails } from "$lib/utils/tauri-client/git.js";
-	import type { ShipCardData } from "../ship-card/ship-card-parser.js";
-	import { renderMarkdownSync } from "../../utils/markdown-renderer.js";
-	import AnimatedChevron from "../animated-chevron.svelte";
-	import PrStateIcon from "../pr-state-icon.svelte";
+import { DiffPill, GitHubBadge } from "@acepe/ui";
+import "@acepe/ui/markdown-prose.css";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Result } from "neverthrow";
+import { GitPullRequest } from "phosphor-svelte";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
+import * as m from "$lib/paraglide/messages.js";
+import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import type { ShipCardData } from "../ship-card/ship-card-parser.js";
+import { renderMarkdownSync } from "../../utils/markdown-renderer.js";
+import AnimatedChevron from "../animated-chevron.svelte";
+import PrStateIcon from "../pr-state-icon.svelte";
 
-	interface Props {
-		projectPath: string;
-		prNumber: number | null;
-		isCreating: boolean;
-		prDetails: PrDetails | null;
-		fetchError: string | null;
-		/** Live streaming data from AI generation — shown before the PR is created. */
-		streamingData?: ShipCardData | null;
+interface Props {
+	projectPath: string;
+	prNumber: number | null;
+	isCreating: boolean;
+	prDetails: PrDetails | null;
+	fetchError: string | null;
+	/** Live streaming data from AI generation — shown before the PR is created. */
+	streamingData?: ShipCardData | null;
+}
+
+let {
+	projectPath,
+	prNumber,
+	isCreating,
+	prDetails,
+	fetchError,
+	streamingData = null,
+}: Props = $props();
+
+let isExpanded = $state(
+	(() => {
+		if (!streamingData) return false;
+		return streamingData.prTitle !== null || streamingData.prDescription !== null;
+	})()
+);
+let diffModalOpen = $state(false);
+let selectedCommitSha = $state<string | null>(null);
+
+// Auto-expand when streaming data arrives
+const isStreaming = $derived(streamingData?.started && !streamingData.complete);
+const hasStreamingContent = $derived(
+	streamingData !== null && (streamingData.prTitle !== null || streamingData.prDescription !== null)
+);
+
+const safeRenderMarkdown = Result.fromThrowable(
+	(body: string) => {
+		const result = renderMarkdownSync(body);
+		return result.html ? result.html : "";
+	},
+	() => ""
+);
+
+const descriptionHtml = $derived.by(() => {
+	if (!prDetails?.body) return "";
+	return safeRenderMarkdown(prDetails.body).unwrapOr("");
+});
+
+const streamingDescriptionHtml = $derived.by(() => {
+	if (!streamingData?.prDescription) return "";
+	return safeRenderMarkdown(streamingData.prDescription).unwrapOr("");
+});
+
+const hasExpandedContent = $derived(
+	Boolean(descriptionHtml) ||
+		(prDetails?.commits?.length ? prDetails.commits.length > 0 : false) ||
+		hasStreamingContent
+);
+
+// Show the card when streaming content arrives or a PR exists (not during initial creating phase)
+const isVisible = $derived(prNumber !== null || hasStreamingContent);
+
+// Derive the title to display — streaming title takes priority during generation
+const displayTitle = $derived.by(() => {
+	if (streamingData?.prTitle) return streamingData.prTitle;
+	if (prDetails?.title) return prDetails.title;
+	return null;
+});
+
+function handleOpenGitHub(e: MouseEvent) {
+	e.stopPropagation();
+	const url = prDetails?.url;
+	if (url?.startsWith("https://github.com/")) {
+		void openUrl(url).catch(() => {});
 	}
+}
 
-	let {
-		projectPath,
-		prNumber,
-		isCreating,
-		prDetails,
-		fetchError,
-		streamingData = null,
-	}: Props = $props();
+function toggleExpand() {
+	if (hasExpandedContent) isExpanded = !isExpanded;
+}
 
-	let isExpanded = $state(
-		(() => {
-			if (!streamingData) return false;
-			return streamingData.prTitle !== null || streamingData.prDescription !== null;
-		})(),
-	);
-	let diffModalOpen = $state(false);
-	let selectedCommitSha = $state<string | null>(null);
-
-	// Auto-expand when streaming data arrives
-	const isStreaming = $derived(streamingData !== null && streamingData.started && !streamingData.complete);
-	const hasStreamingContent = $derived(
-		streamingData !== null && (streamingData.prTitle !== null || streamingData.prDescription !== null),
-	);
-
-	const safeRenderMarkdown = Result.fromThrowable(
-		(body: string) => {
-			const result = renderMarkdownSync(body);
-			return result.html ? result.html : "";
-		},
-		() => "",
-	);
-
-	const descriptionHtml = $derived.by(() => {
-		if (!prDetails?.body) return "";
-		return safeRenderMarkdown(prDetails.body).unwrapOr("");
-	});
-
-	const streamingDescriptionHtml = $derived.by(() => {
-		if (!streamingData?.prDescription) return "";
-		return safeRenderMarkdown(streamingData.prDescription).unwrapOr("");
-	});
-
-	const hasExpandedContent = $derived(
-		Boolean(descriptionHtml) || (prDetails?.commits?.length ? prDetails.commits.length > 0 : false) || hasStreamingContent,
-	);
-
-	// Show the card when streaming content arrives or a PR exists (not during initial creating phase)
-	const isVisible = $derived(prNumber !== null || hasStreamingContent);
-
-	// Derive the title to display — streaming title takes priority during generation
-	const displayTitle = $derived.by(() => {
-		if (streamingData?.prTitle) return streamingData.prTitle;
-		if (prDetails?.title) return prDetails.title;
-		return null;
-	});
-
-	function handleOpenGitHub(e: MouseEvent) {
-		e.stopPropagation();
-		const url = prDetails?.url;
-		if (url?.startsWith("https://github.com/")) {
-			void openUrl(url).catch(() => {});
-		}
-	}
-
-	function toggleExpand() {
-		if (hasExpandedContent) isExpanded = !isExpanded;
-	}
-
-	function handleCommitClick(sha: string) {
-		selectedCommitSha = sha;
-		diffModalOpen = true;
-	}
+function handleCommitClick(sha: string) {
+	selectedCommitSha = sha;
+	diffModalOpen = true;
+}
 </script>
 
 {#if isVisible}

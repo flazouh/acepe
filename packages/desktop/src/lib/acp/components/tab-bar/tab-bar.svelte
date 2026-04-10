@@ -25,16 +25,16 @@ let { groupedTabs, onSelectTab, onCloseTab }: Props = $props();
 
 const themeState = useTheme();
 
-	function tabToAppTab(tab: TabBarTab): AppTab {
-		let status: AppTabStatus = "idle";
-		if (tab.state.connection === "error") status = "error";
-		else if (
-			tab.state.pendingInput.kind === "question" ||
-			tab.state.pendingInput.kind === "plan_approval"
-		)
-			status = "question";
-		else if (tab.state.activity.kind === "streaming") status = "running";
-		else if (tab.isUnseen) status = "unseen";
+function tabToAppTab(tab: TabBarTab): AppTab {
+	let status: AppTabStatus = "idle";
+	if (tab.state.connection === "error") status = "error";
+	else if (
+		tab.state.pendingInput.kind === "question" ||
+		tab.state.pendingInput.kind === "plan_approval"
+	)
+		status = "question";
+	else if (tab.state.activity.kind === "streaming") status = "running";
+	else if (tab.isUnseen) status = "unseen";
 
 	let mode: AppTabMode = null;
 	if (tab.currentModeId === CanonicalModeId.PLAN) mode = "plan";

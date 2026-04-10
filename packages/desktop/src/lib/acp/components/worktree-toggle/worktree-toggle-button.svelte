@@ -56,7 +56,9 @@ const buttonLabel = $derived.by(() => {
 	if (pending) return m.worktree_toggle_pending_label();
 	return m.worktree_toggle_label();
 });
-const canRename = $derived(hasWorktree && loading === false && deleted === false && Boolean(onRename));
+const canRename = $derived(
+	hasWorktree && loading === false && deleted === false && Boolean(onRename)
+);
 const showMenu = $derived(canRename || Boolean(onOpenSettings));
 
 let isRenaming = $state(false);

@@ -50,9 +50,7 @@ describe("first-send-recovery", () => {
 			cause: new Error("Failed to spawn subprocess: No such file or directory (os error 2)"),
 		});
 
-		expect(formatPreSessionSendFailure(error)).toContain(
-			"No such file or directory (os error 2)"
-		);
+		expect(formatPreSessionSendFailure(error)).toContain("No such file or directory (os error 2)");
 	});
 
 	it("blocks sending while a pre-session panel error is active", () => {

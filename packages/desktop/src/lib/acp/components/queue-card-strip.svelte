@@ -85,7 +85,6 @@ function handleResume(): void {
 function handleSendNow(messageId: string): void {
 	messageQueueStore.sendNow(sessionId, messageId);
 }
-
 </script>
 
 {#if count > 0}

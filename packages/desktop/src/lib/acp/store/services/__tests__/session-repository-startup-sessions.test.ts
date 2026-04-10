@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
-import type { HistoryEntry, StartupSessionsResponse } from "../../../../services/claude-history-types.js";
+import type {
+	HistoryEntry,
+	StartupSessionsResponse,
+} from "../../../../services/claude-history-types.js";
 import type { SessionCold } from "../../types.js";
 import type {
 	IConnectionManager,
@@ -117,7 +120,7 @@ const entryManager: IEntryManager = {
 		throw new Error("Not implemented for test");
 	},
 	clearStreamingAssistantEntry: () => {},
-		finalizeStreamingEntries: () => {},
+	finalizeStreamingEntries: () => {},
 };
 
 const connectionManager: IConnectionManager = {
@@ -170,19 +173,14 @@ describe("SessionRepository.loadStartupSessions", () => {
 			"missing-session",
 		]);
 
-		expect(getStartupSessionsMock).toHaveBeenCalledWith([
-			"session-123",
-			"missing-session",
-		]);
+		expect(getStartupSessionsMock).toHaveBeenCalledWith(["session-123", "missing-session"]);
 		expect(result.isOk()).toBe(true);
 		if (result.isOk()) {
 			expect(result.value.missing).toEqual(["missing-session"]);
 		}
 		expect(state.sessions[0]?.id).toBe("session-123");
 		expect(state.sessions[0]?.projectPath).toBe("/projects/acepe");
-		expect(state.sessions[0]?.sourcePath).toBe(
-			"/opencode/storage/session/session-123.json"
-		);
+		expect(state.sessions[0]?.sourcePath).toBe("/opencode/storage/session/session-123.json");
 	});
 
 	it("skips fetching startup session metadata already loaded in memory", async () => {
@@ -228,9 +226,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, [
-			"claude-session",
-		]);
+		const result = await repository.loadStartupSessions(state.sessions, ["claude-session"]);
 
 		expect(result.isOk()).toBe(true);
 		if (result.isOk()) {
@@ -259,9 +255,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, [
-			"session-123",
-		]);
+		const result = await repository.loadStartupSessions(state.sessions, ["session-123"]);
 
 		expect(result.isOk()).toBe(true);
 		if (result.isOk()) {

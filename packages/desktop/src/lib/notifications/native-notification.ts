@@ -1,6 +1,6 @@
-import { notifications } from "$lib/utils/tauri-client/notifications.js";
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
+import { notifications } from "$lib/utils/tauri-client/notifications.js";
 
 export interface NativeNotificationPayload {
 	readonly title: string;

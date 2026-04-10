@@ -56,7 +56,7 @@ describe("VoiceSettingsStore", () => {
 		setSettingMock.mockReturnValue(okAsync(undefined));
 		loadModelMock.mockReturnValue(okAsync(undefined));
 		listenMock.mockResolvedValue(() => undefined);
-	listModelsMock.mockReturnValue(
+		listModelsMock.mockReturnValue(
 			okAsync([
 				{
 					id: "small.en",

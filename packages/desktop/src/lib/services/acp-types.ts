@@ -193,7 +193,7 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 
 export type AutonomousApplyStrategy = "postConnect" | "launchProfile";
 
-export type PreconnectionSlashMode = "unsupported" | "startupGlobal" | "projectScoped";
+export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
@@ -347,3 +347,4 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
+

@@ -80,9 +80,7 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		currentModeId: overrides.currentModeId !== undefined ? overrides.currentModeId : null,
 		currentToolKind: overrides.currentToolKind !== undefined ? overrides.currentToolKind : null,
 		currentStreamingToolCall:
-			overrides.currentStreamingToolCall !== undefined
-				? overrides.currentStreamingToolCall
-				: null,
+			overrides.currentStreamingToolCall !== undefined ? overrides.currentStreamingToolCall : null,
 		lastToolKind: overrides.lastToolKind !== undefined ? overrides.lastToolKind : null,
 		lastToolCall: overrides.lastToolCall !== undefined ? overrides.lastToolCall : null,
 		insertions: overrides.insertions !== undefined ? overrides.insertions : 0,
@@ -213,12 +211,8 @@ describe("buildThreadBoard", () => {
 		expect(groups.find((group) => group.status === "needs_review")?.items[0]?.panelId).toBe(
 			"panel-needs-review"
 		);
-		expect(groups.find((group) => group.status === "idle")?.items[0]?.panelId).toBe(
-			"panel-idle"
-		);
-		expect(groups.find((group) => group.status === "error")?.items[0]?.panelId).toBe(
-			"panel-error"
-		);
+		expect(groups.find((group) => group.status === "idle")?.items[0]?.panelId).toBe("panel-idle");
+		expect(groups.find((group) => group.status === "error")?.items[0]?.panelId).toBe("panel-error");
 	});
 
 	it("sorts items within a status by most recent activity first", () => {
@@ -237,9 +231,6 @@ describe("buildThreadBoard", () => {
 
 		expect(
 			groups.find((group) => group.status === "needs_review")?.items.map((item) => item.panelId)
-		).toEqual([
-			"panel-new",
-			"panel-old",
-		]);
+		).toEqual(["panel-new", "panel-old"]);
 	});
 });

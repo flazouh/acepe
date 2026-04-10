@@ -1,9 +1,9 @@
 import { SvelteSet } from "svelte/reactivity";
+import type { Agent } from "$lib/acp/store/types.js";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "$lib/services/acp-provider-metadata.js";
-import type { Agent } from "$lib/acp/store/types.js";
 
 const MIN_SELECTED_AGENTS_ERROR = "At least one agent must remain selected";
 
@@ -95,7 +95,9 @@ export function getAgentsByProviderOrder(
 		const leftProviderMetadata =
 			getCachedModelsDisplay(left.id)?.presentation?.provider ?? left.providerMetadata ?? undefined;
 		const rightProviderMetadata =
-			getCachedModelsDisplay(right.id)?.presentation?.provider ?? right.providerMetadata ?? undefined;
+			getCachedModelsDisplay(right.id)?.presentation?.provider ??
+			right.providerMetadata ??
+			undefined;
 		return compareProviders(leftProviderMetadata, rightProviderMetadata, left.name, right.name);
 	});
 }

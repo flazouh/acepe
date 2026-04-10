@@ -1,36 +1,32 @@
 <script lang="ts">
-	import * as m from "$lib/paraglide/messages.js";
-	import Header from "$lib/components/header.svelte";
-	import {
-		attentionQueueBlogPost,
-		checkpointsBlogPost,
-		sqlStudioBlogPost,
-	} from '$lib/blog/posts.js';
-	import { Check, X, ArrowRight, Minus } from "@lucide/svelte";
-	import type { ComparisonFeatureRow } from "$lib/compare/types.js";
+import * as m from "$lib/paraglide/messages.js";
+import Header from "$lib/components/header.svelte";
+import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
+import { Check, X, ArrowRight, Minus } from "@lucide/svelte";
+import type { ComparisonFeatureRow } from "$lib/compare/types.js";
 
-	let { data } = $props();
-	const comparison = $derived(data.comparison);
-	const proofPosts = [attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost];
+let { data } = $props();
+const comparison = $derived(data.comparison);
+const proofPosts = [attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost];
 
-	const featuresByCategory = $derived.by((): ReadonlyMap<string, readonly ComparisonFeatureRow[]> => {
-		const map = new Map<string, ComparisonFeatureRow[]>();
-		for (const row of comparison.features) {
-			const existing = map.get(row.category);
-			if (existing) {
-				existing.push(row);
-			} else {
-				map.set(row.category, [row]);
-			}
+const featuresByCategory = $derived.by((): ReadonlyMap<string, readonly ComparisonFeatureRow[]> => {
+	const map = new Map<string, ComparisonFeatureRow[]>();
+	for (const row of comparison.features) {
+		const existing = map.get(row.category);
+		if (existing) {
+			existing.push(row);
+		} else {
+			map.set(row.category, [row]);
 		}
-		return map;
-	});
-
-	let expandedFaqIndex = $state<number | null>(null);
-
-	function toggleFaq(index: number): void {
-		expandedFaqIndex = expandedFaqIndex === index ? null : index;
 	}
+	return map;
+});
+
+let expandedFaqIndex = $state<number | null>(null);
+
+function toggleFaq(index: number): void {
+	expandedFaqIndex = expandedFaqIndex === index ? null : index;
+}
 </script>
 
 <svelte:head>

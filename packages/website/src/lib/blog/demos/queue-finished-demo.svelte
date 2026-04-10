@@ -1,62 +1,62 @@
 <script lang="ts">
-	/**
-	 * Demo: Finished State
-	 * Shows a completed task with final stats.
-	 */
-	import { SectionedFeed, ActivityEntry, TAG_COLORS } from '@acepe/ui';
-	import type { SectionedFeedGroup, ActivityEntryTodoProgress } from '@acepe/ui';
+/**
+ * Demo: Finished State
+ * Shows a completed task with final stats.
+ */
+import { SectionedFeed, ActivityEntry, TAG_COLORS } from "@acepe/ui";
+import type { SectionedFeedGroup, ActivityEntryTodoProgress } from "@acepe/ui";
 
-	interface DemoItem {
-		readonly id: string;
-		readonly title: string;
-		readonly mode: 'build' | 'plan' | null;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: ActivityEntryTodoProgress | null;
-		readonly question: null;
-		readonly projectName: string;
-		readonly projectColor: string;
-	}
+interface DemoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly mode: "build" | "plan" | null;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: ActivityEntryTodoProgress | null;
+	readonly question: null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
 
-	const demoItem: DemoItem = {
-		id: 'finished-demo',
-		title: 'Database migration',
-		mode: null,
-		timeAgo: '12m',
-		insertions: 34,
-		deletions: 8,
-		isStreaming: false,
-		statusText: null,
-		showStatusShimmer: false,
-		fileToolDisplayText: null,
-		toolContent: null,
-		showToolShimmer: false,
-		taskSubagentSummaries: [],
-		showTaskSubagentList: false,
-		todoProgress: { current: 4, total: 4, label: 'Complete' },
-		question: null,
-		projectName: 'Backend',
-		projectColor: TAG_COLORS[3]
-	};
+const demoItem: DemoItem = {
+	id: "finished-demo",
+	title: "Database migration",
+	mode: null,
+	timeAgo: "12m",
+	insertions: 34,
+	deletions: 8,
+	isStreaming: false,
+	statusText: null,
+	showStatusShimmer: false,
+	fileToolDisplayText: null,
+	toolContent: null,
+	showToolShimmer: false,
+	taskSubagentSummaries: [],
+	showTaskSubagentList: false,
+	todoProgress: { current: 4, total: 4, label: "Complete" },
+	question: null,
+	projectName: "Backend",
+	projectColor: TAG_COLORS[3],
+};
 
-	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
-		{
-			id: 'needs_review',
-			label: 'Needs Review',
-			items: [demoItem]
-		}
-	];
+const groups: readonly SectionedFeedGroup<DemoItem>[] = [
+	{
+		id: "needs_review",
+		label: "Needs Review",
+		items: [demoItem],
+	},
+];
 
-	let selectedItemId = $state<string | null>(null);
+let selectedItemId = $state<string | null>(null);
 </script>
 
 <div class="demo-container">

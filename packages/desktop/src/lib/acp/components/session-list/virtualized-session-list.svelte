@@ -13,16 +13,16 @@ type SessionListItem = BaseSessionListItem & {
 	worktreeDeleted?: boolean;
 };
 
-	interface Props {
-		sessions: SessionListItem[];
-		selectedSessionId: string | null;
+interface Props {
+	sessions: SessionListItem[];
+	selectedSessionId: string | null;
 	onSelectSession: (item: SessionListItem) => void;
 	onOpenPr?: (item: SessionListItem) => void;
 	onRenameSession?: (session: SessionListItem, title: string) => void | Promise<void>;
 	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	onExportJson?: (sessionId: string) => void | Promise<void>;
-	}
+}
 
 let {
 	sessions,
@@ -33,7 +33,7 @@ let {
 	onArchive,
 	onExportMarkdown,
 	onExportJson,
-	}: Props = $props();
+}: Props = $props();
 
 // Track which parent sessions are expanded
 let expandedParents = new SvelteSet<string>();

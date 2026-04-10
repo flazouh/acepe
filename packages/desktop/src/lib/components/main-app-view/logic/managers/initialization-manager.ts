@@ -56,9 +56,9 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
+import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 
 const logger = createLogger({ id: "initialization-manager", name: "InitializationManager" });
@@ -102,7 +102,10 @@ export class InitializationManager {
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
 		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
-		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
+		private readonly projectionHydrator: Pick<
+			SessionProjectionHydrator,
+			"hydrateSession" | "clearSession"
+		>
 	) {}
 
 	/**
@@ -141,8 +144,8 @@ export class InitializationManager {
 				.map(() => undefined)
 				.andThen(() => this.initializeAgentPreferences())
 				// Phase 2: Restore workspace (needs projects from Phase 1)
-			.andThen(() => this.restoreWorkspace())
-			.andThen((restoredSessionIds) => this.hydrateStartupPanels(restoredSessionIds))
+				.andThen(() => this.restoreWorkspace())
+				.andThen((restoredSessionIds) => this.hydrateStartupPanels(restoredSessionIds))
 				// Phase 4: Create sessions for panels with agent but no session (fire and forget)
 				.andThen(() => this.createSessionsForAgentOnlyPanels())
 				.map(() => {
@@ -291,10 +294,7 @@ export class InitializationManager {
 			.loadAvailableAgents()
 			.mapErr(
 				(error) =>
-					new InitializationError(
-						"loadAvailableAgents",
-						error instanceof Error ? error : undefined
-					)
+					new InitializationError("loadAvailableAgents", error instanceof Error ? error : undefined)
 			)
 			.andThen((agents) =>
 				this.preconnectionAgentSkillsStore.initialize(agents).orElse((error) => {

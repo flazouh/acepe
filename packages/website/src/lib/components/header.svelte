@@ -4,13 +4,7 @@ import * as m from "$lib/paraglide/messages.js";
 import { browser } from "$app/environment";
 import { page } from "$app/stores";
 import { Download, Menu, Moon, Sun } from "@lucide/svelte";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerOverlay,
-	DrawerPortal,
-	DrawerTrigger,
-} from "@acepe/ui";
+import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
 import { DiscordLogo, GithubLogo, Star } from "phosphor-svelte";
 import {
 	THEME_STORAGE_KEY,

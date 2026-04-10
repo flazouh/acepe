@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	batchPeak,
+	buildMeterLevels,
+	clampLevel,
 	DEFAULT_METER_BAR_COUNT,
-	MIN_LEVEL,
 	MAX_LEVEL,
+	MIN_LEVEL,
 	RESTING_FILL,
 	smooth,
-	clampLevel,
-	batchPeak,
 	toMeterLevel,
-	buildMeterLevels,
 } from "../waveform-math.js";
 
 function makeState() {

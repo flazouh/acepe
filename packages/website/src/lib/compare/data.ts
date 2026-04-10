@@ -1,9 +1,9 @@
-import type { ComparisonData } from "./types.js";
-import { conductorComparison } from './conductor.js';
+import { conductorComparison } from "./conductor.js";
 import { cursorComparison } from "./cursor.js";
-import { onecodeComparison } from './onecode.js';
-import { supersetComparison } from './superset.js';
-import { t3Comparison } from './t3.js';
+import { onecodeComparison } from "./onecode.js";
+import { supersetComparison } from "./superset.js";
+import { t3Comparison } from "./t3.js";
+import type { ComparisonData } from "./types.js";
 
 const allComparisons: readonly ComparisonData[] = [
 	cursorComparison,
@@ -15,7 +15,7 @@ const allComparisons: readonly ComparisonData[] = [
 
 const comparisons: ReadonlyMap<string, ComparisonData> = new Map(
 	allComparisons
-		.filter((comparison) => comparison.verificationStatus === 'verified')
+		.filter((comparison) => comparison.verificationStatus === "verified")
 		.map((comparison) => [comparison.slug, comparison])
 );
 

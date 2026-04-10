@@ -15,8 +15,8 @@ const repoContext: RepoContext = {
 	repo: "acepe",
 	remoteUrl: "git@github.com:flazouh/acepe.git",
 };
-const invokeMock = mock(
-	(_command: string, _payload: { projectPath: string }) => Promise.resolve(repoContext)
+const invokeMock = mock((_command: string, _payload: { projectPath: string }) =>
+	Promise.resolve(repoContext)
 );
 
 describe("GitHub Service - repo context cache", () => {

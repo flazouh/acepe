@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { transition, VALID_TRANSITIONS } from "../voice-transitions.js";
 import type { VoiceInputPhase } from "../../../../types/voice-input.js";
+import { transition, VALID_TRANSITIONS } from "../voice-transitions.js";
 
 describe("voice-transitions", () => {
 	describe("transition()", () => {
@@ -127,8 +127,15 @@ describe("voice-transitions", () => {
 
 	describe("VALID_TRANSITIONS completeness", () => {
 		const ALL_PHASES: VoiceInputPhase[] = [
-			"idle", "checking_permission", "downloading_model", "loading_model",
-			"recording", "transcribing", "complete", "cancelled", "error",
+			"idle",
+			"checking_permission",
+			"downloading_model",
+			"loading_model",
+			"recording",
+			"transcribing",
+			"complete",
+			"cancelled",
+			"error",
 		];
 
 		it("has entries for every phase", () => {

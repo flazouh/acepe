@@ -137,7 +137,12 @@ export function reduceWorktreeSetupEvent(
 			commandCount: nextCommandCount,
 			activeCommandIndex: nextCommandIndex,
 			activeCommand: nextCommand,
-			outputText: appendCommandHeader(current.outputText, event.command, event.commandIndex, nextCommandCount),
+			outputText: appendCommandHeader(
+				current.outputText,
+				event.command,
+				event.commandIndex,
+				nextCommandCount
+			),
 			error: null,
 		};
 	}

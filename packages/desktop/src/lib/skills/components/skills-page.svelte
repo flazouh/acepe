@@ -5,11 +5,7 @@ import { FileText } from "phosphor-svelte";
 import { PuzzlePiece } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import { onMount } from "svelte";
-import {
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
+import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "@acepe/ui/panel-header";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { Button } from "$lib/components/ui/button/index.js";

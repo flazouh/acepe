@@ -1,22 +1,22 @@
 <script lang="ts">
-	import { BrandShaderBackground } from "@acepe/ui";
-	import { Kanban, GitBranch, ShieldCheck, ListChecks } from "phosphor-svelte";
-	import LandingKanbanDemo from "./landing-kanban-demo.svelte";
+import { BrandShaderBackground } from "@acepe/ui";
+import { Kanban, GitBranch, ShieldCheck, ListChecks } from "phosphor-svelte";
+import LandingKanbanDemo from "./landing-kanban-demo.svelte";
 
-	interface Feature {
-		id: string;
-		label: string;
-		icon: typeof Kanban;
-	}
+interface Feature {
+	id: string;
+	label: string;
+	icon: typeof Kanban;
+}
 
-	const features: Feature[] = [
-		{ id: "kanban", label: "Kanban Board", icon: Kanban },
-		{ id: "checkpoints", label: "Checkpoints", icon: GitBranch },
-		{ id: "permissions", label: "Permissions", icon: ShieldCheck },
-		{ id: "plans", label: "Plans & Tasks", icon: ListChecks },
-	];
+const features: Feature[] = [
+	{ id: "kanban", label: "Kanban Board", icon: Kanban },
+	{ id: "checkpoints", label: "Checkpoints", icon: GitBranch },
+	{ id: "permissions", label: "Permissions", icon: ShieldCheck },
+	{ id: "plans", label: "Plans & Tasks", icon: ListChecks },
+];
 
-	let activeFeature = $state("kanban");
+let activeFeature = $state("kanban");
 </script>
 
 <div class="flex flex-col gap-4">

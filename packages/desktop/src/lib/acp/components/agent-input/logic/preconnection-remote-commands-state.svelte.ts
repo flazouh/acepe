@@ -1,10 +1,10 @@
-import { SvelteMap } from "svelte/reactivity";
 import { okAsync, type ResultAsync } from "neverthrow";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
-import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 interface EnsureLoadedInput {
 	agentId: string | null;
@@ -70,8 +70,9 @@ export class PreconnectionRemoteCommandsState {
 	private readonly fetchRemoteCommands: FetchRemoteCommands;
 
 	constructor(fetchRemoteCommands?: FetchRemoteCommands) {
-		this.fetchRemoteCommands =
-			fetchRemoteCommands ? fetchRemoteCommands : tauriClient.acp.listPreconnectionCommands;
+		this.fetchRemoteCommands = fetchRemoteCommands
+			? fetchRemoteCommands
+			: tauriClient.acp.listPreconnectionCommands;
 	}
 
 	ensureLoaded(input: EnsureLoadedInput): ResultAsync<void, AppError> {

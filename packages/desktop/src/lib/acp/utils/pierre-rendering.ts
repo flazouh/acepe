@@ -1,9 +1,6 @@
 import type { FileDiffOptions, FileOptions, ThemeTypes } from "@pierre/diffs";
 
-import {
-	pierreDiffsUnsafeCSS,
-	registerCursorThemeForPierreDiffs,
-} from "./pierre-diffs-theme.js";
+import { pierreDiffsUnsafeCSS, registerCursorThemeForPierreDiffs } from "./pierre-diffs-theme.js";
 
 let pierreThemeRegistrationPromise: Promise<void> | null = null;
 

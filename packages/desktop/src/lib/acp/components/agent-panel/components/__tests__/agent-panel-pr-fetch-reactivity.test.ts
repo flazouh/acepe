@@ -9,6 +9,8 @@ describe("agent panel PR details fetching", () => {
 	it("reacts to session PR changes instead of only reading the initial sessionId", () => {
 		expect(source).toContain("const prFetchTarget = $derived.by(() => {");
 		expect(source).toContain("fetchPrDetails(prFetchTarget);");
-		expect(source).not.toContain("const session = sessionId ? sessionStore.getSessionCold(sessionId) : null;");
+		expect(source).not.toContain(
+			"const session = sessionId ? sessionStore.getSessionCold(sessionId) : null;"
+		);
 	});
 });

@@ -62,7 +62,7 @@ describe("generateShipContentStreaming", () => {
 			"/repo",
 			vi.fn(),
 			"agent-id",
-			"bad-model",
+			"bad-model"
 		);
 
 		expect(result.isErr()).toBe(true);

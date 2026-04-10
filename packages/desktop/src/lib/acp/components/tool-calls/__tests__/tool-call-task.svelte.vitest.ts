@@ -7,7 +7,10 @@ vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");
 	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(dirname(require.resolve("svelte/package.json")), "src/index-client.js");
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
 });
@@ -36,7 +39,9 @@ vi.mock("../../../store/index.js", () => ({
 
 const { default: ToolCallTask } = await import("../tool-call-task.svelte");
 
-function createChildToolCall(overrides: Partial<ToolCall> & Pick<ToolCall, "id" | "kind" | "status">): ToolCall {
+function createChildToolCall(
+	overrides: Partial<ToolCall> & Pick<ToolCall, "id" | "kind" | "status">
+): ToolCall {
 	return {
 		id: overrides.id,
 		name: overrides.name !== undefined ? overrides.name : "Read",
@@ -44,7 +49,9 @@ function createChildToolCall(overrides: Partial<ToolCall> & Pick<ToolCall, "id" 
 		status: overrides.status,
 		title: overrides.title !== undefined ? overrides.title : "Read file",
 		arguments:
-			overrides.arguments !== undefined ? overrides.arguments : { kind: "read", file_path: "/repo/src/task.ts" },
+			overrides.arguments !== undefined
+				? overrides.arguments
+				: { kind: "read", file_path: "/repo/src/task.ts" },
 		locations: overrides.locations !== undefined ? overrides.locations : null,
 		skillMeta: overrides.skillMeta !== undefined ? overrides.skillMeta : null,
 		result: overrides.result !== undefined ? overrides.result : null,

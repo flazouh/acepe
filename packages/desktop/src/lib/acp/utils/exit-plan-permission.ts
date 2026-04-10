@@ -10,7 +10,9 @@ export interface ExitPlanRawInput {
 }
 
 function isJsonObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
-	return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
+	return (
+		value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+	);
 }
 
 function normalizeString(value: string | null | undefined): string | null {
@@ -90,7 +92,9 @@ export function readExitPlanToolInput(argumentsValue: ToolArguments): ExitPlanRa
 	return readExitPlanRawInput(argumentsValue.raw);
 }
 
-export function readExitPlanPermissionInput(permission: PermissionRequest): ExitPlanRawInput | null {
+export function readExitPlanPermissionInput(
+	permission: PermissionRequest
+): ExitPlanRawInput | null {
 	return readExitPlanRawInput(permission.metadata.rawInput);
 }
 

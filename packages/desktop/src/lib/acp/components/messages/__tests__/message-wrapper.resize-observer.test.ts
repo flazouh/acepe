@@ -12,7 +12,7 @@ describe("message wrapper resize reveal wiring", () => {
 	});
 
 	it("reissues thread follow reveals directly from resize notifications", () => {
-		expect(source).toContain('nextParams.controller?.requestReveal(nextParams.entryKey);');
+		expect(source).toContain("nextParams.controller?.requestReveal(nextParams.entryKey);");
 		expect(source).not.toContain("requestLatestReveal(");
 	});
 });

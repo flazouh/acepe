@@ -2,6 +2,7 @@
 import {
 	Dialog,
 	DialogContent,
+	type AgentToolKind,
 	type KanbanCardData,
 	type KanbanColumnGroup,
 	KanbanSceneBoard,
@@ -1010,7 +1011,7 @@ function buildSceneFooter(item: ThreadBoardItem) {
 			label: compactDisplay.label,
 			command: compactDisplay.command,
 			filePath: compactDisplay.filePath,
-			toolKind: compactDisplay.kind,
+			toolKind: toScenePermissionToolKind(compactDisplay.kind),
 			progress,
 			allowAlwaysLabel:
 				permission.always && permission.always.length > 0 ? m.permission_always_allow() : undefined,
@@ -1050,6 +1051,24 @@ function buildSceneFooter(item: ThreadBoardItem) {
 	}
 
 	return null;
+}
+
+function toScenePermissionToolKind(kind: string): AgentToolKind | null {
+	switch (kind) {
+		case "read":
+		case "edit":
+		case "delete":
+		case "execute":
+		case "search":
+		case "fetch":
+		case "web_search":
+			return kind;
+		case "move":
+		case "other":
+			return "other";
+		default:
+			return null;
+	}
 }
 
 function getCurrentQuestionIndex(item: ThreadBoardItem): number {

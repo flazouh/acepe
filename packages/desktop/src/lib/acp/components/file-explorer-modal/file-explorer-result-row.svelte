@@ -14,13 +14,10 @@ interface Props {
 const { row, optionId, isSelected, onSelect, onHover }: Props = $props();
 
 const hasDiff = $derived(
-	row.gitStatus !== null &&
-		(row.gitStatus.insertions > 0 || row.gitStatus.deletions > 0)
+	row.gitStatus !== null && (row.gitStatus.insertions > 0 || row.gitStatus.deletions > 0)
 );
 
-const gitStatusLabel = $derived(
-	row.gitStatus !== null ? row.gitStatus.status : null
-);
+const gitStatusLabel = $derived(row.gitStatus !== null ? row.gitStatus.status : null);
 
 // Directory segments (everything except the last segment = filename)
 const dirPath = $derived(row.pathSegments.slice(0, -1).join("/"));

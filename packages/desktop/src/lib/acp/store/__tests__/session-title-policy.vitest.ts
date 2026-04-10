@@ -34,9 +34,9 @@ describe("session-title-policy", () => {
 		expect(getTitleUpdateFromUserMessage("New Thread", "Implement auth flow")).toBe(
 			"Implement auth flow"
 		);
-		expect(
-			getTitleUpdateFromUserMessage("Session 24745d00", "Investigate kanban crash")
-		).toBe("Investigate kanban crash");
+		expect(getTitleUpdateFromUserMessage("Session 24745d00", "Investigate kanban crash")).toBe(
+			"Investigate kanban crash"
+		);
 		expect(getTitleUpdateFromUserMessage("Real title", "Implement auth flow")).toBeNull();
 	});
 

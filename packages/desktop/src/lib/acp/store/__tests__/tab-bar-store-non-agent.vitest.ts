@@ -4,7 +4,10 @@ import { InteractionStore } from "../interaction-store.svelte.js";
 import { TabBarStore } from "../tab-bar-store.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
-function createStore(workspacePanels: WorkspacePanel[], focusedPanelId: string | null): TabBarStore {
+function createStore(
+	workspacePanels: WorkspacePanel[],
+	focusedPanelId: string | null
+): TabBarStore {
 	const panelStore = {
 		workspacePanels,
 		focusedPanelId,
@@ -109,18 +112,18 @@ describe("TabBarStore non-agent tabs", () => {
 				title: "Example",
 				agentId: null,
 				sessionId: null,
-				}),
-				expect.objectContaining({
-					panelId: "review-1",
-					title: "Review",
-					agentId: null,
-					sessionId: null,
-				}),
-				expect.objectContaining({
-					panelId: "git-1",
-					title: "Source Control",
-					agentId: null,
-					sessionId: null,
+			}),
+			expect.objectContaining({
+				panelId: "review-1",
+				title: "Review",
+				agentId: null,
+				sessionId: null,
+			}),
+			expect.objectContaining({
+				panelId: "git-1",
+				title: "Source Control",
+				agentId: null,
+				sessionId: null,
 			}),
 		]);
 	});

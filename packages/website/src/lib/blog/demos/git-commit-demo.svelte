@@ -1,75 +1,85 @@
 <script lang="ts">
-	/**
-	 * Demo: Git Commit Viewer
-	 * Shows the GitViewer component with mock commit data.
-	 */
-	import { GitViewer, type GitCommitData, type GitViewerFile } from '@acepe/ui';
+/**
+ * Demo: Git Commit Viewer
+ * Shows the GitViewer component with mock commit data.
+ */
+import { GitViewer, type GitCommitData, type GitViewerFile } from "@acepe/ui";
 
-	const commit: GitCommitData = {
-		sha: '9e39f1a0b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8',
-		shortSha: '9e39f1a',
-		message: 'feat: add real-time collaboration cursors',
-		messageBody:
-			'Implements multiplayer cursor presence using WebSocket channels.\nEach user gets a unique color and their cursor position broadcasts to all connected peers.',
-		author: 'Alice Chen',
-		authorEmail: 'alice@example.com',
-		date: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-		files: [
-			{ path: 'src/lib/collaboration/cursor-manager.ts', status: 'added', additions: 87, deletions: 0 },
-			{ path: 'src/lib/collaboration/presence-channel.ts', status: 'added', additions: 54, deletions: 0 },
-			{ path: 'src/lib/collaboration/types.ts', status: 'added', additions: 23, deletions: 0 },
-			{ path: 'src/lib/editor/editor-view.svelte', status: 'modified', additions: 18, deletions: 4 },
-			{ path: 'src/lib/editor/cursor-overlay.svelte', status: 'added', additions: 42, deletions: 0 },
-			{ path: 'src/lib/services/websocket.ts', status: 'modified', additions: 12, deletions: 3 },
-			{ path: 'package.json', status: 'modified', additions: 2, deletions: 1 },
-		],
-		githubUrl: 'https://github.com/example/project/commit/9e39f1a',
-	};
+const commit: GitCommitData = {
+	sha: "9e39f1a0b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8",
+	shortSha: "9e39f1a",
+	message: "feat: add real-time collaboration cursors",
+	messageBody:
+		"Implements multiplayer cursor presence using WebSocket channels.\nEach user gets a unique color and their cursor position broadcasts to all connected peers.",
+	author: "Alice Chen",
+	authorEmail: "alice@example.com",
+	date: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+	files: [
+		{
+			path: "src/lib/collaboration/cursor-manager.ts",
+			status: "added",
+			additions: 87,
+			deletions: 0,
+		},
+		{
+			path: "src/lib/collaboration/presence-channel.ts",
+			status: "added",
+			additions: 54,
+			deletions: 0,
+		},
+		{ path: "src/lib/collaboration/types.ts", status: "added", additions: 23, deletions: 0 },
+		{ path: "src/lib/editor/editor-view.svelte", status: "modified", additions: 18, deletions: 4 },
+		{ path: "src/lib/editor/cursor-overlay.svelte", status: "added", additions: 42, deletions: 0 },
+		{ path: "src/lib/services/websocket.ts", status: "modified", additions: 12, deletions: 3 },
+		{ path: "package.json", status: "modified", additions: 2, deletions: 1 },
+	],
+	githubUrl: "https://github.com/example/project/commit/9e39f1a",
+};
 
-	const MOCK_DIFFS: Record<string, string> = {
-		'src/lib/collaboration/cursor-manager.ts': [
-			'  import type { CursorPosition, UserPresence } from "./types.js";',
-			'  import { presenceChannel } from "./presence-channel.js";',
-			'',
-			'+ export class CursorManager {',
-			'+   private cursors = new Map<string, CursorPosition>();',
-			'+   private colors = ["#f97316", "#8b5cf6", "#06b6d4", "#22c55e"];',
-			'+',
-			'+   addCursor(userId: string, position: CursorPosition): void {',
-			'+     this.cursors.set(userId, position);',
-			'+     this.broadcastPosition(userId, position);',
-			'+   }',
-			'+',
-			'+   removeCursor(userId: string): void {',
-			'+     this.cursors.delete(userId);',
-			'+   }',
-			'+',
-			'+   private broadcastPosition(userId: string, pos: CursorPosition): void {',
-			'+     presenceChannel.broadcast("cursor:move", { userId, ...pos });',
-			'+   }',
-			'+ }',
-		].join('\n'),
-		'src/lib/editor/editor-view.svelte': [
-			'    import { onMount, onDestroy } from "svelte";',
-			'+   import { CursorManager } from "../collaboration/cursor-manager.js";',
-			'+   import CursorOverlay from "./cursor-overlay.svelte";',
-			'',
-			'    let editorRef: HTMLDivElement;',
-			'+   const cursorManager = new CursorManager();',
-			'',
-			'    onMount(() => {',
-			'-     // TODO: add collaboration support',
-			'+     cursorManager.connect(editorRef);',
-			'    });',
-			'',
-			'    onDestroy(() => {',
-			'+     cursorManager.disconnect();',
-			'    });',
-		].join('\n'),
-	};
+const MOCK_DIFFS: Record<string, string> = {
+	"src/lib/collaboration/cursor-manager.ts": [
+		'  import type { CursorPosition, UserPresence } from "./types.js";',
+		'  import { presenceChannel } from "./presence-channel.js";',
+		"",
+		"+ export class CursorManager {",
+		"+   private cursors = new Map<string, CursorPosition>();",
+		'+   private colors = ["#f97316", "#8b5cf6", "#06b6d4", "#22c55e"];',
+		"+",
+		"+   addCursor(userId: string, position: CursorPosition): void {",
+		"+     this.cursors.set(userId, position);",
+		"+     this.broadcastPosition(userId, position);",
+		"+   }",
+		"+",
+		"+   removeCursor(userId: string): void {",
+		"+     this.cursors.delete(userId);",
+		"+   }",
+		"+",
+		"+   private broadcastPosition(userId: string, pos: CursorPosition): void {",
+		'+     presenceChannel.broadcast("cursor:move", { userId, ...pos });',
+		"+   }",
+		"+ }",
+	].join("\n"),
+	"src/lib/editor/editor-view.svelte": [
+		'    import { onMount, onDestroy } from "svelte";',
+		'+   import { CursorManager } from "../collaboration/cursor-manager.js";',
+		'+   import CursorOverlay from "./cursor-overlay.svelte";',
+		"",
+		"    let editorRef: HTMLDivElement;",
+		"+   const cursorManager = new CursorManager();",
+		"",
+		"    onMount(() => {",
+		"-     // TODO: add collaboration support",
+		"+     cursorManager.connect(editorRef);",
+		"    });",
+		"",
+		"    onDestroy(() => {",
+		"+     cursorManager.disconnect();",
+		"    });",
+	].join("\n"),
+};
 
-	let selectedFile = $state(commit.files[0].path);
-	let viewMode = $state<'inline' | 'side-by-side'>('inline');
+let selectedFile = $state(commit.files[0].path);
+let viewMode = $state<"inline" | "side-by-side">("inline");
 </script>
 
 <p class="demo-hint">

@@ -34,14 +34,14 @@ describe("SessionDomainEventSubscriber", () => {
 		eventName: string,
 		payload: AcpEventEnvelope["payload"]
 	): void {
-onEnvelope({
-seq: 1,
-eventName,
-sessionId: "session-1",
-payload,
-priority: "normal",
-droppable: false,
-emittedAtMs: 1234,
+		onEnvelope({
+			seq: 1,
+			eventName,
+			sessionId: "session-1",
+			payload,
+			priority: "normal",
+			droppable: false,
+			emittedAtMs: 1234,
 		});
 	}
 
@@ -54,17 +54,17 @@ emittedAtMs: 1234,
 		return onEnvelope;
 	}
 
-it("emits typed domain events and ignores other ACP events", async () => {
-let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
-mockOpenAcpEventSource.mockImplementationOnce(
-(handler: (envelope: AcpEventEnvelope) => void) => {
-onEnvelope = handler;
-return okAsync(() => {});
-}
-);
+	it("emits typed domain events and ignores other ACP events", async () => {
+		let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
+		mockOpenAcpEventSource.mockImplementationOnce(
+			(handler: (envelope: AcpEventEnvelope) => void) => {
+				onEnvelope = handler;
+				return okAsync(() => {});
+			}
+		);
 
-const subscriber = new SessionDomainEventSubscriber();
-const listener = vi.fn();
+		const subscriber = new SessionDomainEventSubscriber();
+		const listener = vi.fn();
 
 		const result = await subscriber.subscribe(listener);
 		expect(result.isOk()).toBe(true);
@@ -75,18 +75,18 @@ const listener = vi.fn();
 		emit(emitEnvelope, "acp-session-domain-event", domainEvent);
 		emit(emitEnvelope, "acp-session-update", { type: "noop" });
 
-expect(listener).toHaveBeenCalledTimes(1);
-expect(listener).toHaveBeenCalledWith(domainEvent);
-});
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledWith(domainEvent);
+	});
 
-it("drops invalid domain event payloads", async () => {
-let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
-mockOpenAcpEventSource.mockImplementationOnce(
-(handler: (envelope: AcpEventEnvelope) => void) => {
-onEnvelope = handler;
-return okAsync(() => {});
-}
-);
+	it("drops invalid domain event payloads", async () => {
+		let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
+		mockOpenAcpEventSource.mockImplementationOnce(
+			(handler: (envelope: AcpEventEnvelope) => void) => {
+				onEnvelope = handler;
+				return okAsync(() => {});
+			}
+		);
 
 		const subscriber = new SessionDomainEventSubscriber();
 		const listener = vi.fn();
@@ -97,30 +97,30 @@ return okAsync(() => {});
 			event_id: "evt-1",
 			seq: 42,
 			session_id: "session-1",
-provider_session_id: null,
-occurred_at_ms: 1234,
-causation_id: null,
-kind: "not-a-real-kind",
-});
+			provider_session_id: null,
+			occurred_at_ms: 1234,
+			causation_id: null,
+			kind: "not-a-real-kind",
+		});
 
-expect(listener).not.toHaveBeenCalled();
-});
+		expect(listener).not.toHaveBeenCalled();
+	});
 
-it("cleans up the bridge listener when the last subscriber unsubscribes", async () => {
-const unlisten = vi.fn();
-mockOpenAcpEventSource.mockReturnValueOnce(okAsync(unlisten));
-const subscriber = new SessionDomainEventSubscriber();
+	it("cleans up the bridge listener when the last subscriber unsubscribes", async () => {
+		const unlisten = vi.fn();
+		mockOpenAcpEventSource.mockReturnValueOnce(okAsync(unlisten));
+		const subscriber = new SessionDomainEventSubscriber();
 
-const first = await subscriber.subscribe(vi.fn());
-const second = await subscriber.subscribe(vi.fn());
-if (first.isErr() || second.isErr()) {
-throw new Error("Expected subscriptions to succeed");
-}
+		const first = await subscriber.subscribe(vi.fn());
+		const second = await subscriber.subscribe(vi.fn());
+		if (first.isErr() || second.isErr()) {
+			throw new Error("Expected subscriptions to succeed");
+		}
 
-subscriber.unsubscribeById(first.value);
-expect(unlisten).not.toHaveBeenCalled();
+		subscriber.unsubscribeById(first.value);
+		expect(unlisten).not.toHaveBeenCalled();
 
-subscriber.unsubscribeById(second.value);
-expect(unlisten).toHaveBeenCalledTimes(1);
-});
+		subscriber.unsubscribeById(second.value);
+		expect(unlisten).toHaveBeenCalledTimes(1);
+	});
 });

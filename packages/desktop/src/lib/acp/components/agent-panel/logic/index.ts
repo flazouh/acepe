@@ -12,15 +12,15 @@ export { resolveEffectiveProjectPath } from "./effective-project-path";
 export { calculateLoadingProgress, isLoadingComplete } from "./loading-animator";
 export { loadSessionPlan } from "./plan-loader";
 export { mapSessionStatusToUI } from "./session-status-mapper";
-export { removeWorktreeAndMarkSessionWorktreeDeleted } from "./worktree-removal";
 export {
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,
 	shouldConfirmWorktreeClose,
 } from "./worktree-close-confirmation";
+export { removeWorktreeAndMarkSessionWorktreeDeleted } from "./worktree-removal";
 export {
-	createWorktreeSetupMatchContext,
 	createWorktreeCreationState,
+	createWorktreeSetupMatchContext,
 	matchesWorktreeSetupContext,
 	reduceWorktreeSetupEvent,
 } from "./worktree-setup-events";

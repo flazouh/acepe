@@ -1,13 +1,12 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
-
-import { createLogger } from "$lib/acp/utils/logger.js";
 import type {
 	VoiceLanguageOption,
 	VoiceModelDownloadProgress,
 	VoiceModelInfo,
 } from "$lib/acp/types/voice-input.js";
+import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const STORE_KEY = Symbol("voice-settings");
@@ -65,7 +64,7 @@ export class VoiceSettingsStore {
 	private listenersRegistered = false;
 	private readonly unlisteners: UnlistenFn[] = [];
 
-async initialize(): Promise<void> {
+	async initialize(): Promise<void> {
 		if (this.initialized) {
 			return;
 		}
@@ -122,7 +121,10 @@ async initialize(): Promise<void> {
 	}
 
 	async setSelectedModelId(modelId: string): Promise<void> {
-		console.log("[voice-settings] setSelectedModelId", { modelId, previousModelId: this.selectedModelId });
+		console.log("[voice-settings] setSelectedModelId", {
+			modelId,
+			previousModelId: this.selectedModelId,
+		});
 		const previousModelId = this.selectedModelId;
 		const saveResult = await tauriClient.settings.set(VOICE_MODEL_KEY, modelId);
 		if (saveResult.isErr()) {
@@ -143,16 +145,17 @@ async initialize(): Promise<void> {
 		const t0 = performance.now();
 		const loadResult = await tauriClient.voice.loadModel(modelId);
 		if (loadResult.isErr()) {
-			console.error("[voice-settings] loadModel FAILED", { modelId, error: loadResult.error.message, elapsed_ms: Math.round(performance.now() - t0) });
+			console.error("[voice-settings] loadModel FAILED", {
+				modelId,
+				error: loadResult.error.message,
+				elapsed_ms: Math.round(performance.now() - t0),
+			});
 			logger.error("Failed to load selected voice model", {
 				error: loadResult.error,
 				modelId,
 			});
 			toast.error(loadResult.error.message);
-			const rollbackResult = await tauriClient.settings.set(
-				VOICE_MODEL_KEY,
-				previousModelId,
-			);
+			const rollbackResult = await tauriClient.settings.set(VOICE_MODEL_KEY, previousModelId);
 			if (rollbackResult.isErr()) {
 				logger.error("Failed to roll back voice model preference", {
 					error: rollbackResult.error,
@@ -162,10 +165,13 @@ async initialize(): Promise<void> {
 			return;
 		}
 
-		console.log("[voice-settings] model loaded OK", { modelId, elapsed_ms: Math.round(performance.now() - t0) });
+		console.log("[voice-settings] model loaded OK", {
+			modelId,
+			elapsed_ms: Math.round(performance.now() - t0),
+		});
 		const normalizedLanguageSaved = await this.persistNormalizedLanguageForModel(
 			selectedModel,
-			modelId,
+			modelId
 		);
 		if (!normalizedLanguageSaved) {
 			return;
@@ -175,23 +181,23 @@ async initialize(): Promise<void> {
 		this.models = this.models.map((model) =>
 			model.id === modelId
 				? {
-					id: model.id,
-					name: model.name,
-					size_bytes: model.size_bytes,
-					is_english_only: model.is_english_only,
-					is_downloaded: model.is_downloaded,
-					is_loaded: true,
-					download_url: model.download_url,
-				}
+						id: model.id,
+						name: model.name,
+						size_bytes: model.size_bytes,
+						is_english_only: model.is_english_only,
+						is_downloaded: model.is_downloaded,
+						is_loaded: true,
+						download_url: model.download_url,
+					}
 				: {
-					id: model.id,
-					name: model.name,
-					size_bytes: model.size_bytes,
-					is_english_only: model.is_english_only,
-					is_downloaded: model.is_downloaded,
-					is_loaded: false,
-					download_url: model.download_url,
-				}
+						id: model.id,
+						name: model.name,
+						size_bytes: model.size_bytes,
+						is_english_only: model.is_english_only,
+						is_downloaded: model.is_downloaded,
+						is_loaded: false,
+						download_url: model.download_url,
+					}
 		);
 	}
 
@@ -203,7 +209,11 @@ async initialize(): Promise<void> {
 		const t0 = performance.now();
 		const result = await tauriClient.voice.downloadModel(modelId);
 		if (result.isErr()) {
-			console.error("[voice-settings] downloadModel: FAILED", { modelId, error: result.error.message, elapsed_ms: Math.round(performance.now() - t0) });
+			console.error("[voice-settings] downloadModel: FAILED", {
+				modelId,
+				error: result.error.message,
+				elapsed_ms: Math.round(performance.now() - t0),
+			});
 			logger.error("Failed to download voice model", {
 				error: result.error,
 				modelId,
@@ -213,7 +223,10 @@ async initialize(): Promise<void> {
 				this.downloadPercent = 0;
 			}
 		} else {
-			console.log("[voice-settings] downloadModel: complete", { modelId, elapsed_ms: Math.round(performance.now() - t0) });
+			console.log("[voice-settings] downloadModel: complete", {
+				modelId,
+				elapsed_ms: Math.round(performance.now() - t0),
+			});
 		}
 	}
 
@@ -221,7 +234,10 @@ async initialize(): Promise<void> {
 		console.log("[voice-settings] deleteModel", { modelId });
 		const result = await tauriClient.voice.deleteModel(modelId);
 		if (result.isErr()) {
-			console.error("[voice-settings] deleteModel: FAILED", { modelId, error: result.error.message });
+			console.error("[voice-settings] deleteModel: FAILED", {
+				modelId,
+				error: result.error.message,
+			});
 			logger.error("Failed to delete voice model", {
 				error: result.error,
 				modelId,
@@ -289,14 +305,14 @@ async initialize(): Promise<void> {
 		this.models = this.models.map((model) =>
 			model.id === selectedModel.id
 				? {
-					id: model.id,
-					name: model.name,
-					size_bytes: model.size_bytes,
-					is_english_only: model.is_english_only,
-					is_downloaded: model.is_downloaded,
-					is_loaded: true,
-					download_url: model.download_url,
-				}
+						id: model.id,
+						name: model.name,
+						size_bytes: model.size_bytes,
+						is_english_only: model.is_english_only,
+						is_downloaded: model.is_downloaded,
+						is_loaded: true,
+						download_url: model.download_url,
+					}
 				: model
 		);
 	}
@@ -323,7 +339,7 @@ async initialize(): Promise<void> {
 
 	private async persistNormalizedLanguageForModel(
 		model: VoiceModelInfo | null,
-		modelId: string,
+		modelId: string
 	): Promise<boolean> {
 		const nextLanguage = normalizeLanguageForModel(model, this.language);
 		if (nextLanguage === this.language) {
@@ -357,7 +373,9 @@ async initialize(): Promise<void> {
 				this.downloadPercent = event.payload.percent;
 			}),
 			listen<VoiceDownloadCompletePayload>("voice://model_download_complete", (event) => {
-				console.log("[voice-settings] event: model_download_complete", { model_id: event.payload.model_id });
+				console.log("[voice-settings] event: model_download_complete", {
+					model_id: event.payload.model_id,
+				});
 				if (this.downloadProgressModelId === event.payload.model_id) {
 					this.downloadProgressModelId = null;
 					this.downloadPercent = 0;
@@ -365,7 +383,10 @@ async initialize(): Promise<void> {
 				void this.refreshModels();
 			}),
 			listen<VoiceDownloadErrorPayload>("voice://model_download_error", (event) => {
-				console.error("[voice-settings] event: model_download_error", { model_id: event.payload.model_id, message: event.payload.message });
+				console.error("[voice-settings] event: model_download_error", {
+					model_id: event.payload.model_id,
+					message: event.payload.message,
+				});
 				logger.error("Voice model download failed", {
 					message: event.payload.message,
 					modelId: event.payload.model_id,

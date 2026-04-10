@@ -1,62 +1,62 @@
 <script lang="ts">
-	/**
-	 * Demo: Working State
-	 * Shows an agent actively working with todo progress and tool execution.
-	 */
-	import { SectionedFeed, ActivityEntry, TAG_COLORS } from '@acepe/ui';
-	import type { SectionedFeedGroup, ActivityEntryTodoProgress } from '@acepe/ui';
+/**
+ * Demo: Working State
+ * Shows an agent actively working with todo progress and tool execution.
+ */
+import { SectionedFeed, ActivityEntry, TAG_COLORS } from "@acepe/ui";
+import type { SectionedFeedGroup, ActivityEntryTodoProgress } from "@acepe/ui";
 
-	interface DemoItem {
-		readonly id: string;
-		readonly title: string;
-		readonly mode: 'build' | 'plan' | null;
-		readonly timeAgo: string;
-		readonly insertions: number;
-		readonly deletions: number;
-		readonly isStreaming: boolean;
-		readonly statusText: string | null;
-		readonly showStatusShimmer: boolean;
-		readonly fileToolDisplayText: string | null;
-		readonly toolContent: string | null;
-		readonly showToolShimmer: boolean;
-		readonly taskSubagentSummaries: readonly string[];
-		readonly showTaskSubagentList: boolean;
-		readonly todoProgress: ActivityEntryTodoProgress | null;
-		readonly question: null;
-		readonly projectName: string;
-		readonly projectColor: string;
-	}
+interface DemoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly mode: "build" | "plan" | null;
+	readonly timeAgo: string;
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly isStreaming: boolean;
+	readonly statusText: string | null;
+	readonly showStatusShimmer: boolean;
+	readonly fileToolDisplayText: string | null;
+	readonly toolContent: string | null;
+	readonly showToolShimmer: boolean;
+	readonly taskSubagentSummaries: readonly string[];
+	readonly showTaskSubagentList: boolean;
+	readonly todoProgress: ActivityEntryTodoProgress | null;
+	readonly question: null;
+	readonly projectName: string;
+	readonly projectColor: string;
+}
 
-	const demoItem: DemoItem = {
-		id: 'api-demo',
-		title: 'Refactoring API endpoints',
-		mode: 'build',
-		timeAgo: '2m',
-		insertions: 67,
-		deletions: 23,
-		isStreaming: true,
-		statusText: null,
-		showStatusShimmer: false,
-		fileToolDisplayText: 'Editing api-routes.ts',
-		toolContent: null,
-		showToolShimmer: false,
-		taskSubagentSummaries: [],
-		showTaskSubagentList: false,
-		todoProgress: { current: 3, total: 5, label: 'Migrating endpoints' },
-		question: null,
-		projectName: 'Backend',
-		projectColor: TAG_COLORS[3]
-	};
+const demoItem: DemoItem = {
+	id: "api-demo",
+	title: "Refactoring API endpoints",
+	mode: "build",
+	timeAgo: "2m",
+	insertions: 67,
+	deletions: 23,
+	isStreaming: true,
+	statusText: null,
+	showStatusShimmer: false,
+	fileToolDisplayText: "Editing api-routes.ts",
+	toolContent: null,
+	showToolShimmer: false,
+	taskSubagentSummaries: [],
+	showTaskSubagentList: false,
+	todoProgress: { current: 3, total: 5, label: "Migrating endpoints" },
+	question: null,
+	projectName: "Backend",
+	projectColor: TAG_COLORS[3],
+};
 
-	const groups: readonly SectionedFeedGroup<DemoItem>[] = [
-		{
-			id: 'working',
-			label: 'Working',
-			items: [demoItem]
-		}
-	];
+const groups: readonly SectionedFeedGroup<DemoItem>[] = [
+	{
+		id: "working",
+		label: "Working",
+		items: [demoItem],
+	},
+];
 
-	let selectedItemId = $state<string | null>(null);
+let selectedItemId = $state<string | null>(null);
 </script>
 
 <div class="demo-container">

@@ -34,7 +34,9 @@ let {
 	onPendingChange,
 }: Props = $props();
 
-const resolvedProjectName = $derived(projectName !== null ? projectName : extractProjectName(projectPath));
+const resolvedProjectName = $derived(
+	projectName !== null ? projectName : extractProjectName(projectPath)
+);
 const wrapperClass = $derived(
 	cn("flex items-center h-full w-full", variant === "default" ? "border-r border-border/50" : "")
 );

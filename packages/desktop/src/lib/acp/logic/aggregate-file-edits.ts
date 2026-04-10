@@ -1,5 +1,5 @@
-import type { SessionEntry } from "../application/dto/session.js";
 import type { EditEntry } from "../../services/converted-session-types.js";
+import type { SessionEntry } from "../application/dto/session.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ToolCall } from "../types/tool-call.js";

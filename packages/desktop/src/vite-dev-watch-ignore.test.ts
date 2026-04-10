@@ -1,7 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
-import { describe, expect, it } from "bun:test";
 
 const viteConfigSource = readFileSync(resolve(import.meta.dir, "../vite.config.js"), "utf8");
 

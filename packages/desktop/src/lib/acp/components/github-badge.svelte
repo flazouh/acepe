@@ -164,7 +164,6 @@ function getTextToCopy(): string {
 	if (enhancedRef.type === "commit") return enhancedRef.sha;
 	return `${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
 }
-
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

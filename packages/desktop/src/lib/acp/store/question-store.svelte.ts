@@ -15,17 +15,13 @@ import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } f
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
+import { AgentError } from "../errors/app-error.js";
+import { cancelQuestionRequest, replyToQuestionRequest } from "../logic/interaction-reply.js";
 import type { Operation } from "../types/operation.js";
 import type { AnsweredQuestion, QuestionItem, QuestionRequest } from "../types/question.js";
-
-import { AgentError } from "../errors/app-error.js";
-import {
-	cancelQuestionRequest,
-	replyToQuestionRequest,
-} from "../logic/interaction-reply.js";
-import { questionMatchesOperation } from "./operation-association.js";
-import { InteractionStore } from "./interaction-store.svelte.js";
 import { createLogger } from "../utils/logger.js";
+import { InteractionStore } from "./interaction-store.svelte.js";
+import { questionMatchesOperation } from "./operation-association.js";
 
 const QUESTION_STORE_KEY = Symbol("question-store");
 const logger = createLogger({ id: "question-store", name: "QuestionStore" });
@@ -38,9 +34,7 @@ function mergeQuestionRequest(
 	const replyHandler =
 		incoming.replyHandler !== undefined ? incoming.replyHandler : existing.replyHandler;
 	const jsonRpcRequestId =
-		incoming.jsonRpcRequestId !== undefined
-			? incoming.jsonRpcRequestId
-			: existing.jsonRpcRequestId;
+		incoming.jsonRpcRequestId !== undefined ? incoming.jsonRpcRequestId : existing.jsonRpcRequestId;
 	const questions = incoming.questions.length > 0 ? incoming.questions : existing.questions;
 	const tool = incoming.tool !== undefined ? incoming.tool : existing.tool;
 

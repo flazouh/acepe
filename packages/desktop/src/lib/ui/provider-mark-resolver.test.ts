@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { getProviderDisplayName, resolveProviderBrand } from "@acepe/ui";
+import { describe, expect, it } from "vitest";
 
 describe("provider mark resolver", () => {
 	it("maps claude-family model names to Anthropic", () => {

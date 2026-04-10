@@ -35,9 +35,7 @@ describe("parseShipXml", () => {
 	});
 
 	it("parses complete commit message", () => {
-		const result = parseShipXml(
-			"<ship>\n<commit-message>feat: add login</commit-message>",
-		);
+		const result = parseShipXml("<ship>\n<commit-message>feat: add login</commit-message>");
 		expect(result.commitMessage).toBe("feat: add login");
 		expect(result.activeField).toBeNull();
 		expect(result.complete).toBe(false); // no </ship> yet
@@ -91,16 +89,14 @@ Adds OAuth2 flow</commit-message>
 	});
 
 	it("strips trailing incomplete closing tag during streaming", () => {
-		const result = parseShipXml(
-			"<ship>\n<pr-description>## Summary\n- Added feature</pr-descrip",
-		);
+		const result = parseShipXml("<ship>\n<pr-description>## Summary\n- Added feature</pr-descrip");
 		expect(result.prDescription).toBe("## Summary\n- Added feature");
 		expect(result.activeField).toBe("pr-description");
 	});
 
 	it("handles pr-title streaming mid-word", () => {
 		const result = parseShipXml(
-			"<ship>\n<commit-message>feat: done</commit-message>\n<pr-title>Add fea",
+			"<ship>\n<commit-message>feat: done</commit-message>\n<pr-title>Add fea"
 		);
 		expect(result.commitMessage).toBe("feat: done");
 		expect(result.prTitle).toBe("Add fea");

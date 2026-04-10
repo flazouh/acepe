@@ -74,11 +74,7 @@ const isBooleanEnabled = $derived.by(() => {
 	}
 
 	const normalizedValue = currentValue.toLowerCase();
-	return (
-		normalizedValue === "true" ||
-		normalizedValue === "on" ||
-		normalizedValue === "enabled"
-	);
+	return normalizedValue === "true" || normalizedValue === "on" || normalizedValue === "enabled";
 });
 
 const isReasoningConfigOption = $derived(isReasoningOption(configOption));

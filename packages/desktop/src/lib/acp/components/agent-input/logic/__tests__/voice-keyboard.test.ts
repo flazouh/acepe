@@ -15,7 +15,7 @@ function createKeyboardEventLike(
 		metaKey: boolean;
 		repeat: boolean;
 		shiftKey: boolean;
-	}> = {},
+	}> = {}
 ) {
 	return {
 		altKey: true,
@@ -47,7 +47,7 @@ describe("voice-keyboard", () => {
 				metaKey: false,
 				repeat: false,
 				shiftKey: false,
-			}),
+			})
 		).toBe(false);
 	});
 
@@ -63,27 +63,27 @@ describe("voice-keyboard", () => {
 				editorHasFocus: false,
 				focusedPanelId: "panel-a",
 				panelId: "panel-a",
-			}),
+			})
 		).toBe(true);
 		expect(
 			shouldRouteWindowVoiceHold({
 				editorHasFocus: false,
 				focusedPanelId: "panel-a",
 				panelId: "panel-b",
-			}),
+			})
 		).toBe(false);
 		expect(
 			shouldRouteWindowVoiceHold({
 				editorHasFocus: true,
 				focusedPanelId: "panel-a",
 				panelId: "panel-a",
-			}),
+			})
 		).toBe(false);
 		expect(
 			shouldRouteWindowVoiceHold({
 				editorHasFocus: false,
 				focusedPanelId: null,
-			}),
+			})
 		).toBe(true);
 	});
 });

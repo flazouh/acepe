@@ -1,19 +1,19 @@
 <script lang="ts">
-	import { page } from '$app/state';
-	import { locales, baseLocale, localizeHref } from '$lib/paraglide/runtime';
+import { page } from "$app/state";
+import { locales, baseLocale, localizeHref } from "$lib/paraglide/runtime";
 
-	const baseUrl = 'https://acepe.dev';
+const baseUrl = "https://acepe.dev";
 
-	const currentPath = $derived(page.url.pathname);
+const currentPath = $derived(page.url.pathname);
 
-	const hreflangs = $derived(
-		locales.map((locale) => ({
-			locale,
-			href: `${baseUrl}${localizeHref(currentPath, { locale })}`
-		}))
-	);
+const hreflangs = $derived(
+	locales.map((locale) => ({
+		locale,
+		href: `${baseUrl}${localizeHref(currentPath, { locale })}`,
+	}))
+);
 
-	const defaultHref = $derived(`${baseUrl}${localizeHref(currentPath, { locale: baseLocale })}`);
+const defaultHref = $derived(`${baseUrl}${localizeHref(currentPath, { locale: baseLocale })}`);
 </script>
 
 <svelte:head>

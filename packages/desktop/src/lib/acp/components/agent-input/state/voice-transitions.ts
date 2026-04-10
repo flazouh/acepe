@@ -25,7 +25,7 @@ export const VALID_TRANSITIONS: Record<VoiceInputPhase, ReadonlySet<VoiceInputPh
  */
 export function transition(
 	current: VoiceInputPhase,
-	next: VoiceInputPhase,
+	next: VoiceInputPhase
 ): VoiceInputPhase | null {
 	if (VALID_TRANSITIONS[current].has(next)) {
 		return next;

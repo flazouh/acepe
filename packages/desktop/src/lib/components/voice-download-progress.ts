@@ -10,10 +10,7 @@ export function clampVoiceDownloadPercent(percent: number): number {
 	return percent;
 }
 
-export function countFilledVoiceDownloadSegments(
-	percent: number,
-	segmentCount: number,
-): number {
+export function countFilledVoiceDownloadSegments(percent: number, segmentCount: number): number {
 	const clampedPercent = clampVoiceDownloadPercent(percent);
 	if (clampedPercent <= 0) {
 		return 0;
@@ -31,10 +28,7 @@ export function countFilledVoiceDownloadSegments(
 	return filledSegments;
 }
 
-export function buildVoiceDownloadSegments(
-	percent: number,
-	segmentCount: number,
-): boolean[] {
+export function buildVoiceDownloadSegments(percent: number, segmentCount: number): boolean[] {
 	const filledSegments = countFilledVoiceDownloadSegments(percent, segmentCount);
 	return Array.from({ length: segmentCount }, (_, index) => index < filledSegments);
 }

@@ -78,10 +78,7 @@ export function renderComponent<
 	// biome-ignore lint/suspicious/noExplicitAny: Svelte Component generic requires any
 	T extends Component<any>,
 	Props extends ComponentProps<T>,
->(
-	component: T,
-	props: Props = {} as Props
-) {
+>(component: T, props: Props = {} as Props) {
 	return new RenderComponentConfig(component, props);
 }
 
@@ -109,9 +106,6 @@ export function renderComponent<
  * ```
  * @see {@link https://tanstack.com/table/latest/docs/guide/column-defs}
  */
-export function renderSnippet<TProps>(
-	snippet: Snippet<[TProps]>,
-	params: TProps = {} as TProps
-) {
+export function renderSnippet<TProps>(snippet: Snippet<[TProps]>, params: TProps = {} as TProps) {
 	return new RenderSnippetConfig(snippet, params);
 }

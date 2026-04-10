@@ -7,9 +7,15 @@ import type { BrowserPanel } from "$lib/acp/store/browser-panel-type.js";
 import type { FilePanel } from "$lib/acp/store/file-panel-type.js";
 import type { GitPanel } from "$lib/acp/store/git-panel-type.js";
 import type { ReviewPanel } from "$lib/acp/store/review-panel-type.js";
-import type { BrowserWorkspacePanel, TerminalPanelGroup, WorkspacePanel } from "$lib/acp/store/types.js";
+import type {
+	BrowserWorkspacePanel,
+	TerminalPanelGroup,
+	WorkspacePanel,
+} from "$lib/acp/store/types.js";
 
-export interface UnifiedWorkspacePanelGroup<TAgent extends { id: string; projectPath: string | null }> {
+export interface UnifiedWorkspacePanelGroup<
+	TAgent extends { id: string; projectPath: string | null },
+> {
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
@@ -176,7 +182,9 @@ export function groupAllPanelsByProject<TAgent extends { sessionProjectPath: str
 	return groupOrder.map((key) => groupMap.get(key)!);
 }
 
-export function groupWorkspacePanelsByProject<TAgent extends { id: string; projectPath: string | null }>(
+export function groupWorkspacePanelsByProject<
+	TAgent extends { id: string; projectPath: string | null },
+>(
 	agentPanels: readonly TAgent[],
 	workspacePanels: readonly WorkspacePanel[],
 	reviewPanels: readonly ReviewPanel[],

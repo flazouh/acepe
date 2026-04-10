@@ -4,10 +4,7 @@ export function resolveEmptyStateAgentId(options: {
 	selectedAgentId: string | null;
 	availableAgentIds: readonly string[];
 }): string | null {
-	if (
-		options.selectedAgentId &&
-		options.availableAgentIds.includes(options.selectedAgentId)
-	) {
+	if (options.selectedAgentId && options.availableAgentIds.includes(options.selectedAgentId)) {
 		return options.selectedAgentId;
 	}
 

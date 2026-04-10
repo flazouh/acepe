@@ -12,8 +12,8 @@
 import { getContext, setContext } from "svelte";
 import { extractProjectName } from "../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
-import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
+import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 
@@ -23,7 +23,7 @@ import {
 	panelToTab,
 	type TabBarTab,
 } from "./tab-bar-utils.js";
-import type { Panel, WorkspacePanel } from "./types.js";
+import type { WorkspacePanel } from "./types.js";
 import type { UnseenStore } from "./unseen-store.svelte.js";
 
 export type { TabBarTab, TabBarTabGroup } from "./tab-bar-utils.js";
@@ -135,7 +135,6 @@ export class TabBarStore {
 			projectPath,
 		});
 	}
-
 }
 
 /**

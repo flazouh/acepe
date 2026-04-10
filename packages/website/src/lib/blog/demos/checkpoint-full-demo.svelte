@@ -1,80 +1,80 @@
 <script lang="ts">
-	/**
-	 * Demo: Full Checkpoint Timeline
-	 * Shows 3 checkpoints with expand/collapse and file lists using @acepe/ui components.
-	 */
-	import {
-		CheckpointTimeline,
-		FilePathBadge,
-		type CheckpointData,
-		type CheckpointFile,
-		type CheckpointState,
-		type FileRowState,
-		type FileDiff
-	} from '@acepe/ui';
-	import { SvelteMap } from 'svelte/reactivity';
+/**
+ * Demo: Full Checkpoint Timeline
+ * Shows 3 checkpoints with expand/collapse and file lists using @acepe/ui components.
+ */
+import {
+	CheckpointTimeline,
+	FilePathBadge,
+	type CheckpointData,
+	type CheckpointFile,
+	type CheckpointState,
+	type FileRowState,
+	type FileDiff,
+} from "@acepe/ui";
+import { SvelteMap } from "svelte/reactivity";
 
-	const ICON_BASE_PATH = '/svgs/icons';
+const ICON_BASE_PATH = "/svgs/icons";
 
-	// Mock checkpoint data
-	const checkpoints: CheckpointData[] = [
-		{
-			id: 'cp3',
-			number: 3,
-			message: 'Add session management',
-			timestamp: Date.now() - 5 * 60 * 1000,
-			fileCount: 3,
-			totalInsertions: 156,
-			totalDeletions: 8,
-			isAuto: true
-		},
-		{
-			id: 'cp2',
-			number: 2,
-			message: 'Fix login validation',
-			timestamp: Date.now() - 15 * 60 * 1000,
-			fileCount: 2,
-			totalInsertions: 45,
-			totalDeletions: 23,
-			isAuto: true
-		},
-		{
-			id: 'cp1',
-			number: 1,
-			message: 'Add user authentication',
-			timestamp: Date.now() - 30 * 60 * 1000,
-			fileCount: 5,
-			totalInsertions: 234,
-			totalDeletions: 12,
-			isAuto: true
-		}
-	];
+// Mock checkpoint data
+const checkpoints: CheckpointData[] = [
+	{
+		id: "cp3",
+		number: 3,
+		message: "Add session management",
+		timestamp: Date.now() - 5 * 60 * 1000,
+		fileCount: 3,
+		totalInsertions: 156,
+		totalDeletions: 8,
+		isAuto: true,
+	},
+	{
+		id: "cp2",
+		number: 2,
+		message: "Fix login validation",
+		timestamp: Date.now() - 15 * 60 * 1000,
+		fileCount: 2,
+		totalInsertions: 45,
+		totalDeletions: 23,
+		isAuto: true,
+	},
+	{
+		id: "cp1",
+		number: 1,
+		message: "Add user authentication",
+		timestamp: Date.now() - 30 * 60 * 1000,
+		fileCount: 5,
+		totalInsertions: 234,
+		totalDeletions: 12,
+		isAuto: true,
+	},
+];
 
-	// Mock files for each checkpoint
-	const checkpointFiles: Record<string, CheckpointFile[]> = {
-		cp3: [
-			{ id: 'f3-1', filePath: 'src/lib/session/store.ts', linesAdded: 89, linesRemoved: 0 },
-			{ id: 'f3-2', filePath: 'src/lib/session/types.ts', linesAdded: 45, linesRemoved: 0 },
-			{ id: 'f3-3', filePath: 'src/routes/+layout.server.ts', linesAdded: 22, linesRemoved: 8 }
-		],
-		cp2: [
-			{ id: 'f2-1', filePath: 'src/lib/auth/validation.ts', linesAdded: 34, linesRemoved: 18 },
-			{ id: 'f2-2', filePath: 'src/lib/auth/validation.test.ts', linesAdded: 11, linesRemoved: 5 }
-		],
-		cp1: [
-			{ id: 'f1-1', filePath: 'src/lib/auth/service.ts', linesAdded: 112, linesRemoved: 0 },
-			{ id: 'f1-2', filePath: 'src/lib/auth/types.ts', linesAdded: 67, linesRemoved: 0 },
-			{ id: 'f1-3', filePath: 'src/routes/login/+page.svelte', linesAdded: 45, linesRemoved: 0 },
-			{ id: 'f1-4', filePath: 'package.json', linesAdded: 8, linesRemoved: 4 },
-			{ id: 'f1-5', filePath: 'README.md', linesAdded: 2, linesRemoved: 8 }
-		]
-	};
+// Mock files for each checkpoint
+const checkpointFiles: Record<string, CheckpointFile[]> = {
+	cp3: [
+		{ id: "f3-1", filePath: "src/lib/session/store.ts", linesAdded: 89, linesRemoved: 0 },
+		{ id: "f3-2", filePath: "src/lib/session/types.ts", linesAdded: 45, linesRemoved: 0 },
+		{ id: "f3-3", filePath: "src/routes/+layout.server.ts", linesAdded: 22, linesRemoved: 8 },
+	],
+	cp2: [
+		{ id: "f2-1", filePath: "src/lib/auth/validation.ts", linesAdded: 34, linesRemoved: 18 },
+		{ id: "f2-2", filePath: "src/lib/auth/validation.test.ts", linesAdded: 11, linesRemoved: 5 },
+	],
+	cp1: [
+		{ id: "f1-1", filePath: "src/lib/auth/service.ts", linesAdded: 112, linesRemoved: 0 },
+		{ id: "f1-2", filePath: "src/lib/auth/types.ts", linesAdded: 67, linesRemoved: 0 },
+		{ id: "f1-3", filePath: "src/routes/login/+page.svelte", linesAdded: 45, linesRemoved: 0 },
+		{ id: "f1-4", filePath: "package.json", linesAdded: 8, linesRemoved: 4 },
+		{ id: "f1-5", filePath: "README.md", linesAdded: 2, linesRemoved: 8 },
+	],
+};
 
-	// Mock diff content for files
-	const mockDiffs: Record<string, FileDiff> = {
-		'f3-1': {
-			filePath: 'src/lib/session/store.ts',
-			content: `+ import { writable } from 'svelte/store';
+// Mock diff content for files
+const mockDiffs: Record<string, FileDiff> = {
+	"f3-1": {
+		filePath: "src/lib/session/store.ts",
+		content: `+ import { writable } from 'svelte/store';
 +
 + export interface Session {
 +   id: string;
@@ -84,11 +84,11 @@
 + }
 +
 + export const sessionStore = writable<Session | null>(null);`,
-			language: 'typescript'
-		},
-		'f2-1': {
-			filePath: 'src/lib/auth/validation.ts',
-			content: `  export function validateEmail(email: string): boolean {
+		language: "typescript",
+	},
+	"f2-1": {
+		filePath: "src/lib/auth/validation.ts",
+		content: `  export function validateEmail(email: string): boolean {
 -   return email.includes('@');
 +   const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
 +   return emailRegex.test(email);
@@ -98,71 +98,71 @@
 -   return password.length > 0;
 +   return password.length >= 8 && /[A-Z]/.test(password);
   }`,
-			language: 'typescript'
-		}
-	};
+		language: "typescript",
+	},
+};
 
-	// State management with SvelteMap for reactivity
-	let checkpointStates = $state(new SvelteMap<string, CheckpointState>());
-	let fileStates = $state(new SvelteMap<string, FileRowState>());
+// State management with SvelteMap for reactivity
+let checkpointStates = $state(new SvelteMap<string, CheckpointState>());
+let fileStates = $state(new SvelteMap<string, FileRowState>());
 
-	// Initialize checkpoint states (all expanded by default)
-	$effect(() => {
-		for (const cp of checkpoints) {
-			if (!checkpointStates.has(cp.id)) {
-				checkpointStates.set(cp.id, {
-					isExpanded: true,
-					isLoadingFiles: false,
-					isReverting: false,
-					files: checkpointFiles[cp.id] ?? []
-				});
-			}
-		}
-	});
-
-	function handleToggleCheckpoint(checkpointId: string) {
-		const current = checkpointStates.get(checkpointId);
-		if (current) {
-			checkpointStates.set(checkpointId, {
-				...current,
-				isExpanded: !current.isExpanded
+// Initialize checkpoint states (all expanded by default)
+$effect(() => {
+	for (const cp of checkpoints) {
+		if (!checkpointStates.has(cp.id)) {
+			checkpointStates.set(cp.id, {
+				isExpanded: true,
+				isLoadingFiles: false,
+				isReverting: false,
+				files: checkpointFiles[cp.id] ?? [],
 			});
 		}
 	}
+});
 
-	function handleToggleFileDiff(checkpointId: string, fileId: string) {
-		const current = fileStates.get(fileId);
-		const isExpanded = !current?.isDiffExpanded;
+function handleToggleCheckpoint(checkpointId: string) {
+	const current = checkpointStates.get(checkpointId);
+	if (current) {
+		checkpointStates.set(checkpointId, {
+			...current,
+			isExpanded: !current.isExpanded,
+		});
+	}
+}
 
-		if (isExpanded && !current?.diff) {
+function handleToggleFileDiff(_checkpointId: string, fileId: string) {
+	const current = fileStates.get(fileId);
+	const isExpanded = !current?.isDiffExpanded;
+
+	if (isExpanded && !current?.diff) {
+		fileStates.set(fileId, {
+			isDiffExpanded: true,
+			isLoadingDiff: true,
+			isReverting: false,
+			diff: null,
+		});
+
+		setTimeout(() => {
 			fileStates.set(fileId, {
 				isDiffExpanded: true,
-				isLoadingDiff: true,
-				isReverting: false,
-				diff: null
-			});
-
-			setTimeout(() => {
-				fileStates.set(fileId, {
-					isDiffExpanded: true,
-					isLoadingDiff: false,
-					isReverting: false,
-					diff: mockDiffs[fileId] ?? {
-						filePath: '',
-						content: '// No diff available for demo',
-						language: 'text'
-					}
-				});
-			}, 300);
-		} else {
-			fileStates.set(fileId, {
-				isDiffExpanded: isExpanded,
 				isLoadingDiff: false,
 				isReverting: false,
-				diff: current?.diff ?? null
+				diff: mockDiffs[fileId] ?? {
+					filePath: "",
+					content: "// No diff available for demo",
+					language: "text",
+				},
 			});
-		}
+		}, 300);
+	} else {
+		fileStates.set(fileId, {
+			isDiffExpanded: isExpanded,
+			isLoadingDiff: false,
+			isReverting: false,
+			diff: current?.diff ?? null,
+		});
 	}
+}
 </script>
 
 <div class="demo-container">

@@ -6,7 +6,6 @@
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
-import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type {
 	ProviderMetadataProjection,
 	SessionProjectionSnapshot,
@@ -15,8 +14,8 @@ import type { HistoryEntry, StartupSessionsResponse } from "../../services/claud
 import type { ConfigOptionData, ConvertedSession } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
 import type { ExecutionProfileRequest } from "../../utils/tauri-client/acp.js";
-
 import { AgentError, type AppError } from "../errors/app-error";
+import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { AgentAvailabilityKind, PersistedWorkspaceState, ResumeSessionResult } from "./types";
 
 // ============================================
@@ -193,7 +192,9 @@ export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[]
  * Returns the hydrated entries plus a mapping from any requested alias IDs
  * (provider_session_id values) to their canonical Acepe session IDs.
  */
-export function getStartupSessions(sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> {
+export function getStartupSessions(
+	sessionIds: string[]
+): ResultAsync<StartupSessionsResponse, AppError> {
 	return tauriClient.history.getStartupSessions(sessionIds);
 }
 

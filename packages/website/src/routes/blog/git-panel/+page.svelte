@@ -1,58 +1,112 @@
 <script lang="ts">
-	import BlogPostLayout from '$lib/blog/blog-post-layout.svelte';
-	import { gitPanelBlogPost as metadata } from '$lib/blog/posts.js';
-	import Card from '$lib/components/ui/card/card.svelte';
-	import { MarkdownDisplay } from '@acepe/ui';
-	import GitPanelDemo from '$lib/blog/demos/git-panel-demo.svelte';
-	import {
-		GitBranchBadge,
-		GitRemoteStatusBadge,
-		GitCommitBox,
-		GitStatusList,
-		GitLogList,
-		GitStashList,
-		type GitStatusFile,
-		type GitLogEntry,
-		type GitStashEntry,
-		type GitRemoteStatus
-	} from '@acepe/ui/git-panel';
+import BlogPostLayout from "$lib/blog/blog-post-layout.svelte";
+import { gitPanelBlogPost as metadata } from "$lib/blog/posts.js";
+import Card from "$lib/components/ui/card/card.svelte";
+import { MarkdownDisplay } from "@acepe/ui";
+import GitPanelDemo from "$lib/blog/demos/git-panel-demo.svelte";
+import {
+	GitBranchBadge,
+	GitRemoteStatusBadge,
+	GitCommitBox,
+	GitStatusList,
+	GitLogList,
+	GitStashList,
+	type GitStatusFile,
+	type GitLogEntry,
+	type GitStashEntry,
+	type GitRemoteStatus,
+} from "@acepe/ui/git-panel";
 
-	let { data } = $props();
+let { data } = $props();
 
-	// --- Demo state for individual components ---
+// --- Demo state for individual components ---
 
-	let commitMessage = $state('');
-	let commitCommitted = $state(false);
+let commitMessage = $state("");
+let commitCommitted = $state(false);
 
-	const demoStagedFiles: GitStatusFile[] = [
-		{ path: 'src/lib/auth/session.ts', indexStatus: 'modified', worktreeStatus: null, additions: 12, deletions: 3 },
-		{ path: 'src/lib/auth/token.ts', indexStatus: 'added', worktreeStatus: null, additions: 45, deletions: 0 }
-	];
+const demoStagedFiles: GitStatusFile[] = [
+	{
+		path: "src/lib/auth/session.ts",
+		indexStatus: "modified",
+		worktreeStatus: null,
+		additions: 12,
+		deletions: 3,
+	},
+	{
+		path: "src/lib/auth/token.ts",
+		indexStatus: "added",
+		worktreeStatus: null,
+		additions: 45,
+		deletions: 0,
+	},
+];
 
-	const demoUnstagedFiles: GitStatusFile[] = [
-		{ path: 'src/lib/api/client.ts', indexStatus: null, worktreeStatus: 'modified', additions: 8, deletions: 2 },
-		{ path: 'tests/auth.test.ts', indexStatus: null, worktreeStatus: 'untracked', additions: 30, deletions: 0 },
-		{ path: 'old-config.json', indexStatus: null, worktreeStatus: 'deleted', additions: 0, deletions: 15 }
-	];
+const demoUnstagedFiles: GitStatusFile[] = [
+	{
+		path: "src/lib/api/client.ts",
+		indexStatus: null,
+		worktreeStatus: "modified",
+		additions: 8,
+		deletions: 2,
+	},
+	{
+		path: "tests/auth.test.ts",
+		indexStatus: null,
+		worktreeStatus: "untracked",
+		additions: 30,
+		deletions: 0,
+	},
+	{
+		path: "old-config.json",
+		indexStatus: null,
+		worktreeStatus: "deleted",
+		additions: 0,
+		deletions: 15,
+	},
+];
 
-	const demoRemoteStatus: GitRemoteStatus = {
-		ahead: 3,
-		behind: 1,
-		remote: 'origin',
-		trackingBranch: 'origin/feat/auth'
-	};
+const demoRemoteStatus: GitRemoteStatus = {
+	ahead: 3,
+	behind: 1,
+	remote: "origin",
+	trackingBranch: "origin/feat/auth",
+};
 
-	const demoLogEntries: GitLogEntry[] = [
-		{ sha: '9e39f1a0b2c4d5e6', shortSha: '9e39f1a', message: 'feat: add JWT token refresh', author: 'Alice', date: '2h ago' },
-		{ sha: '7b2c3d4e5f6a7b8c', shortSha: '7b2c3d4', message: 'fix: session expiry handling', author: 'Bob', date: '5h ago' },
-		{ sha: 'a1b2c3d4e5f6a7b8', shortSha: 'a1b2c3d', message: 'refactor: extract auth module', author: 'Alice', date: '1d ago' },
-		{ sha: 'f0e1d2c3b4a5f0e1', shortSha: 'f0e1d2c', message: 'chore: update dependencies', author: 'CI Bot', date: '2d ago' }
-	];
+const demoLogEntries: GitLogEntry[] = [
+	{
+		sha: "9e39f1a0b2c4d5e6",
+		shortSha: "9e39f1a",
+		message: "feat: add JWT token refresh",
+		author: "Alice",
+		date: "2h ago",
+	},
+	{
+		sha: "7b2c3d4e5f6a7b8c",
+		shortSha: "7b2c3d4",
+		message: "fix: session expiry handling",
+		author: "Bob",
+		date: "5h ago",
+	},
+	{
+		sha: "a1b2c3d4e5f6a7b8",
+		shortSha: "a1b2c3d",
+		message: "refactor: extract auth module",
+		author: "Alice",
+		date: "1d ago",
+	},
+	{
+		sha: "f0e1d2c3b4a5f0e1",
+		shortSha: "f0e1d2c",
+		message: "chore: update dependencies",
+		author: "CI Bot",
+		date: "2d ago",
+	},
+];
 
-	const demoStashEntries: GitStashEntry[] = [
-		{ index: 0, message: 'WIP on feat/auth: token refresh logic', date: '3h ago' },
-		{ index: 1, message: 'save: experiment with OAuth flow', date: '1d ago' }
-	];
+const demoStashEntries: GitStashEntry[] = [
+	{ index: 0, message: "WIP on feat/auth: token refresh logic", date: "3h ago" },
+	{ index: 1, message: "save: experiment with OAuth flow", date: "1d ago" },
+];
 </script>
 
 <BlogPostLayout

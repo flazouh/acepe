@@ -1,10 +1,10 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import type { SessionDomainEvent } from "../../../services/acp-types.js";
-import type { AcpError } from "../../errors/index.js";
-import type { AppError } from "../../errors/app-error.js";
-import { createLogger } from "../../utils/logger.js";
-import type { SessionDomainEventSubscriber } from "../../logic/session-domain-event-subscriber.js";
 import { LOGGER_IDS } from "../../constants/logger-ids.js";
+import type { AppError } from "../../errors/app-error.js";
+import type { AcpError } from "../../errors/index.js";
+import type { SessionDomainEventSubscriber } from "../../logic/session-domain-event-subscriber.js";
+import { createLogger } from "../../utils/logger.js";
 
 interface InteractionProjectionHydrator {
 	hydrateSession(sessionId: string): ResultAsync<void, AppError>;

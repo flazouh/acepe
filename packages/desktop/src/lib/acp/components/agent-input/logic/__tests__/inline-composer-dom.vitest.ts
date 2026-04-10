@@ -119,13 +119,20 @@ describe("inline-composer-dom", () => {
 
 	it("uses shared chip chrome and artefact accents for live composer tokens", () => {
 		const editor = document.createElement("div");
-		const message = "@[command:/review] @[skill:/Plan_review] @[text_ref:ref-123] @[file:src/main.ts]";
+		const message =
+			"@[command:/review] @[skill:/Plan_review] @[text_ref:ref-123] @[file:src/main.ts]";
 
 		renderInlineComposerMessage(editor, message);
 
-		const commandToken = editor.querySelector('[data-inline-token-type="command"]') as HTMLElement | null;
-		const skillToken = editor.querySelector('[data-inline-token-type="skill"]') as HTMLElement | null;
-		const textToken = editor.querySelector('[data-inline-token-type="text_ref"]') as HTMLElement | null;
+		const commandToken = editor.querySelector(
+			'[data-inline-token-type="command"]'
+		) as HTMLElement | null;
+		const skillToken = editor.querySelector(
+			'[data-inline-token-type="skill"]'
+		) as HTMLElement | null;
+		const textToken = editor.querySelector(
+			'[data-inline-token-type="text_ref"]'
+		) as HTMLElement | null;
 		const fileToken = editor.querySelector('[data-inline-token-type="file"]') as HTMLElement | null;
 
 		expect(commandToken).not.toBeNull();

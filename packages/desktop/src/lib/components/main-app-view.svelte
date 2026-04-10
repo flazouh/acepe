@@ -177,12 +177,7 @@ workspaceStore = createWorkspaceStore(panelStore, sessionStore);
 const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, interactionStore);
 
 // Create tab bar store for flat, panel-ordered tabs with mode/state/tool indicators
-const tabBarStore = createTabBarStore(
-	panelStore,
-	sessionStore,
-	interactionStore,
-	unseenStore
-);
+const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore, unseenStore);
 
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
@@ -241,9 +236,7 @@ function buildPlanApprovalIdFromQuestion(
 	);
 }
 
-function isPlanApprovalQuestion(
-	question: QuestionRequest
-): question is QuestionRequest & {
+function isPlanApprovalQuestion(question: QuestionRequest): question is QuestionRequest & {
 	jsonRpcRequestId: number;
 	tool: NonNullable<QuestionRequest["tool"]>;
 } {
@@ -276,7 +269,9 @@ function hasPendingQuestionNotificationTarget(question: QuestionRequest): boolea
 		return interactionStore.questionsPending.has(question.id);
 	}
 
-	const approval = interactionStore.planApprovalsPending.get(buildPlanApprovalIdFromQuestion(question));
+	const approval = interactionStore.planApprovalsPending.get(
+		buildPlanApprovalIdFromQuestion(question)
+	);
 	return approval?.status === "pending";
 }
 
@@ -492,21 +487,19 @@ sessionStore.setCallbacks({
 });
 
 // Auto-accept permissions from child sessions (subtasks)
-permissionStore.setAutoAccept(
-	(permission) => {
-		const sessionMetadata = sessionStore.getSessionMetadata(permission.sessionId);
-		if (sessionMetadata && sessionMetadata.parentId != null) {
-			return "child-session";
-		}
-
-		const hotState = sessionStore.getHotState(permission.sessionId);
-		if (hotState.autonomousEnabled) {
-			return "autonomous-live";
-		}
-
-		return false;
+permissionStore.setAutoAccept((permission) => {
+	const sessionMetadata = sessionStore.getSessionMetadata(permission.sessionId);
+	if (sessionMetadata && sessionMetadata.parentId != null) {
+		return "child-session";
 	}
-);
+
+	const hotState = sessionStore.getHotState(permission.sessionId);
+	if (hotState.autonomousEnabled) {
+		return "autonomous-live";
+	}
+
+	return false;
+});
 
 // Initialize session updates subscription
 sessionStore.initializeSessionUpdates().mapErr((error) => {
@@ -822,14 +815,18 @@ async function downloadAndInstallAvailableUpdate(): Promise<void> {
 
 	const update = availableUpdate;
 	updaterState = createDownloadingUpdaterState(update.version);
-	await downloadAndInstallUpdate(update, (event: DownloadEvent) => {
-		if (event.event === "Finished") {
-			updaterState = createInstallingUpdaterState(update.version);
-			return;
-		}
+	await downloadAndInstallUpdate(
+		update,
+		(event: DownloadEvent) => {
+			if (event.event === "Finished") {
+				updaterState = createInstallingUpdaterState(update.version);
+				return;
+			}
 
-		updaterState = applyUpdaterDownloadEvent(updaterState, event);
-	}, relaunch).match(
+			updaterState = applyUpdaterDownloadEvent(updaterState, event);
+		},
+		relaunch
+	).match(
 		(version) => {
 			logger.info("Startup update installed", { version });
 		},

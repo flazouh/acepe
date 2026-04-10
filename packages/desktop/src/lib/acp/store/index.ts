@@ -39,21 +39,16 @@ export {
 	getConnectionStore,
 } from "./connection-store.svelte.js";
 export {
-	createInteractionStore,
-	getInteractionStore,
-	InteractionStore,
-} from "./interaction-store.svelte.js";
-export {
-	createOperationStore,
-	getOperationStore,
-	OperationStore,
-} from "./operation-store.svelte.js";
-export {
 	type GitHubDiffViewerReference,
 	GitHubDiffViewerStore,
 	gitHubDiffViewerStore,
 	type OpenGitHubDiffViewerInput,
 } from "./github-diff-viewer-store.svelte.js";
+export {
+	createInteractionStore,
+	getInteractionStore,
+	InteractionStore,
+} from "./interaction-store.svelte.js";
 // Message queue store (per-session message stacking)
 export {
 	createMessageQueueStore,
@@ -62,6 +57,11 @@ export {
 	type QueuedMessage,
 	serializeWithAttachments,
 } from "./message-queue/index.js";
+export {
+	createOperationStore,
+	getOperationStore,
+	OperationStore,
+} from "./operation-store.svelte.js";
 export { createPanelStore, getPanelStore, PanelStore } from "./panel-store.svelte.js";
 export {
 	createPermissionStore,
@@ -88,6 +88,8 @@ export {
 	getReviewPreferenceStore,
 	ReviewPreferenceStore,
 } from "./review-preference-store.svelte.js";
+export { LiveInteractionProjectionSync } from "./services/live-interaction-projection-sync.js";
+export { SessionProjectionHydrator } from "./services/session-projection-hydrator.js";
 // Session state model
 export type {
 	ActivityState,
@@ -173,5 +175,3 @@ export {
 	getWorkspaceStore,
 	WorkspaceStore,
 } from "./workspace-store.svelte.js";
-export { SessionProjectionHydrator } from "./services/session-projection-hydrator.js";
-export { LiveInteractionProjectionSync } from "./services/live-interaction-projection-sync.js";

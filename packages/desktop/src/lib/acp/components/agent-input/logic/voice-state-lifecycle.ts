@@ -3,7 +3,7 @@ export type VoiceStateLifecycleAction = "noop" | "init" | "replace" | "dispose";
 export function resolveVoiceStateLifecycle(
 	currentSessionId: string | null,
 	nextSessionId: string | null,
-	voiceEnabled: boolean,
+	voiceEnabled: boolean
 ): VoiceStateLifecycleAction {
 	const shouldHaveVoiceState = voiceEnabled && nextSessionId !== null;
 

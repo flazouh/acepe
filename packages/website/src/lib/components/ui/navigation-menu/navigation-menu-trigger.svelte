@@ -1,10 +1,10 @@
 <script lang="ts" module>
-	import { cn } from '$lib/utils.js';
-	import { tv } from 'tailwind-variants';
+import { cn } from "$lib/utils.js";
+import { tv } from "tailwind-variants";
 
-	export const navigationMenuTriggerStyle = tv({
-		base: 'group inline-flex h-9 w-max items-center justify-center px-2 py-2 text-sm font-medium transition-colors outline-none disabled:pointer-events-none disabled:opacity-50'
-	});
+export const navigationMenuTriggerStyle = tv({
+	base: "group inline-flex h-9 w-max items-center justify-center px-2 py-2 text-sm font-medium transition-colors outline-none disabled:pointer-events-none disabled:opacity-50",
+});
 </script>
 
 <script lang="ts">

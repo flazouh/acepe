@@ -1,6 +1,6 @@
 import { error } from "@sveltejs/kit";
-import type { PageLoad } from "./$types";
 import { getComparison } from "$lib/compare/data.js";
+import type { PageLoad } from "./$types";
 
 export const load: PageLoad = ({ params }) => {
 	const comparison = getComparison(params.slug);

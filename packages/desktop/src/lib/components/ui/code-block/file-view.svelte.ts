@@ -1,7 +1,10 @@
 import { File, type FileContents } from "@pierre/diffs";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { createCacheKey } from "../../../acp/utils/memoization.js";
-import { buildPierreFileOptions, ensurePierreThemeRegistered } from "../../../acp/utils/pierre-rendering.js";
+import {
+	buildPierreFileOptions,
+	ensurePierreThemeRegistered,
+} from "../../../acp/utils/pierre-rendering.js";
 import { getWorkerPool } from "../../../acp/utils/worker-pool-singleton.js";
 
 /**
@@ -46,7 +49,9 @@ export class FileViewState {
 			themeType?: "dark" | "light";
 		}
 	): ResultAsync<void, Error> {
-		this.currentDisableLineNumbers = options?.disableLineNumbers ? options.disableLineNumbers : false;
+		this.currentDisableLineNumbers = options?.disableLineNumbers
+			? options.disableLineNumbers
+			: false;
 		this.currentOverflow = options?.overflow ? options.overflow : "scroll";
 		this.currentThemeType = options?.themeType ? options.themeType : "dark";
 

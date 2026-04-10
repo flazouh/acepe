@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
-
-import { WorkspaceStore } from "../workspace-store.svelte.js";
 import type { WorkspacePanel } from "../types.js";
+import { WorkspaceStore } from "../workspace-store.svelte.js";
 
 function createPanelStoreStub() {
 	const panelStore = {

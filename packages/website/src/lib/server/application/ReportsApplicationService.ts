@@ -1,15 +1,22 @@
-import { ResultAsync, okAsync, errAsync } from 'neverthrow';
-import type { ReportRepositoryImpl, ReportRow, ReportFilters } from '../infrastructure/repositories/ReportRepositoryImpl';
-import type { CommentRepositoryImpl, CommentRow } from '../infrastructure/repositories/CommentRepositoryImpl';
-import type { VoteRepositoryImpl } from '../infrastructure/repositories/VoteRepositoryImpl';
-import type { FollowerRepositoryImpl } from '../infrastructure/repositories/FollowerRepositoryImpl';
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import {
-	ReportNotFoundError,
 	CommentNotFoundError,
 	ForbiddenError,
 	InvalidReplyDepthError,
-	type ReportError
-} from '../domain/errors/ReportErrors';
+	type ReportError,
+	ReportNotFoundError,
+} from "../domain/errors/ReportErrors";
+import type {
+	CommentRepositoryImpl,
+	CommentRow,
+} from "../infrastructure/repositories/CommentRepositoryImpl";
+import type { FollowerRepositoryImpl } from "../infrastructure/repositories/FollowerRepositoryImpl";
+import type {
+	ReportFilters,
+	ReportRepositoryImpl,
+	ReportRow,
+} from "../infrastructure/repositories/ReportRepositoryImpl";
+import type { VoteRepositoryImpl } from "../infrastructure/repositories/VoteRepositoryImpl";
 
 interface User {
 	id: string;
@@ -30,18 +37,16 @@ export class ReportsApplicationService {
 		user: User,
 		data: { title: string; body: string; category: string }
 	): ResultAsync<ReportRow, ReportError> {
-		return this.reportRepo
-			.create({ ...data, authorId: user.id })
-			.andThen((report) =>
-				this.followerRepo
-					.follow(user.id, report.id)
-					.andThen(({ inserted }) =>
-						inserted
-							? this.reportRepo.incrementCount(report.id, 'followerCount', 1)
-							: okAsync(undefined as void)
-					)
-					.map(() => report)
-			);
+		return this.reportRepo.create({ ...data, authorId: user.id }).andThen((report) =>
+			this.followerRepo
+				.follow(user.id, report.id)
+				.andThen(({ inserted }) =>
+					inserted
+						? this.reportRepo.incrementCount(report.id, "followerCount", 1)
+						: okAsync(undefined)
+				)
+				.map(() => report)
+		);
 	}
 
 	getReport(id: string): ResultAsync<ReportRow, ReportError> {
@@ -85,11 +90,7 @@ export class ReportsApplicationService {
 		});
 	}
 
-	updateStatus(
-		user: User,
-		reportId: string,
-		status: string
-	): ResultAsync<ReportRow, ReportError> {
+	updateStatus(user: User, reportId: string, status: string): ResultAsync<ReportRow, ReportError> {
 		if (!user.isAdmin) return errAsync(new ForbiddenError());
 		return this.reportRepo.findById(reportId).andThen((report) => {
 			if (!report) return errAsync(new ReportNotFoundError(reportId));
@@ -102,20 +103,22 @@ export class ReportsApplicationService {
 	castReportVote(
 		userId: string,
 		reportId: string,
-		voteType: 'up' | 'down'
+		voteType: "up" | "down"
 	): ResultAsync<void, ReportError> {
 		return this.voteRepo.castReportVote(userId, reportId, voteType).andThen(({ oldVote }) => {
 			let upDelta = 0;
 			let downDelta = 0;
 
-			if (oldVote === 'up') upDelta--;
-			if (oldVote === 'down') downDelta--;
-			if (voteType === 'up') upDelta++;
-			if (voteType === 'down') downDelta++;
+			if (oldVote === "up") upDelta--;
+			if (oldVote === "down") downDelta--;
+			if (voteType === "up") upDelta++;
+			if (voteType === "down") downDelta++;
 
 			const updates: ResultAsync<void, ReportError>[] = [];
-			if (upDelta !== 0) updates.push(this.reportRepo.incrementCount(reportId, 'upvoteCount', upDelta));
-			if (downDelta !== 0) updates.push(this.reportRepo.incrementCount(reportId, 'downvoteCount', downDelta));
+			if (upDelta !== 0)
+				updates.push(this.reportRepo.incrementCount(reportId, "upvoteCount", upDelta));
+			if (downDelta !== 0)
+				updates.push(this.reportRepo.incrementCount(reportId, "downvoteCount", downDelta));
 
 			return ResultAsync.combine(updates).map(() => undefined);
 		});
@@ -123,8 +126,8 @@ export class ReportsApplicationService {
 
 	removeReportVote(userId: string, reportId: string): ResultAsync<void, ReportError> {
 		return this.voteRepo.removeReportVote(userId, reportId).andThen(({ oldVote }) => {
-			if (!oldVote) return okAsync(undefined as void);
-			const field = oldVote === 'up' ? 'upvoteCount' : 'downvoteCount';
+			if (!oldVote) return okAsync(undefined);
+			const field = oldVote === "up" ? "upvoteCount" : "downvoteCount";
 			return this.reportRepo.incrementCount(reportId, field, -1);
 		});
 	}
@@ -135,9 +138,7 @@ export class ReportsApplicationService {
 		return this.followerRepo
 			.follow(userId, reportId)
 			.andThen(({ inserted }) =>
-				inserted
-					? this.reportRepo.incrementCount(reportId, 'followerCount', 1)
-					: okAsync(undefined as void)
+				inserted ? this.reportRepo.incrementCount(reportId, "followerCount", 1) : okAsync(undefined)
 			);
 	}
 
@@ -145,9 +146,7 @@ export class ReportsApplicationService {
 		return this.followerRepo
 			.unfollow(userId, reportId)
 			.andThen(({ deleted }) =>
-				deleted
-					? this.reportRepo.incrementCount(reportId, 'followerCount', -1)
-					: okAsync(undefined as void)
+				deleted ? this.reportRepo.incrementCount(reportId, "followerCount", -1) : okAsync(undefined)
 			);
 	}
 
@@ -158,9 +157,10 @@ export class ReportsApplicationService {
 		reportId: string,
 		data: { body: string; parentId?: string }
 	): ResultAsync<CommentRow, ReportError> {
-		const checkParent: ResultAsync<CommentRow | null, ReportError> = data.parentId
-			? this.commentRepo.findById(data.parentId).andThen((parent) => {
-					if (!parent) return errAsync(new CommentNotFoundError(data.parentId!));
+		const parentId = data.parentId;
+		const checkParent: ResultAsync<CommentRow | null, ReportError> = parentId
+			? this.commentRepo.findById(parentId).andThen((parent) => {
+					if (!parent) return errAsync(new CommentNotFoundError(parentId));
 					if (parent.parentId !== null) return errAsync(new InvalidReplyDepthError());
 					return okAsync(parent as CommentRow | null);
 				})
@@ -170,7 +170,7 @@ export class ReportsApplicationService {
 			this.commentRepo
 				.create({ reportId, authorId: user.id, body: data.body, parentId: data.parentId })
 				.andThen((comment) =>
-					this.reportRepo.incrementCount(reportId, 'commentCount', 1).map(() => comment)
+					this.reportRepo.incrementCount(reportId, "commentCount", 1).map(() => comment)
 				)
 		);
 	}
@@ -201,17 +201,13 @@ export class ReportsApplicationService {
 		});
 	}
 
-	deleteComment(
-		user: User,
-		reportId: string,
-		commentId: string
-	): ResultAsync<void, ReportError> {
+	deleteComment(user: User, reportId: string, commentId: string): ResultAsync<void, ReportError> {
 		return this.commentRepo.findById(commentId).andThen((comment) => {
 			if (!comment) return errAsync(new CommentNotFoundError(commentId));
 			if (comment.author.id !== user.id && !user.isAdmin) return errAsync(new ForbiddenError());
 			return this.commentRepo
 				.softDelete(commentId)
-				.andThen(() => this.reportRepo.incrementCount(reportId, 'commentCount', -1));
+				.andThen(() => this.reportRepo.incrementCount(reportId, "commentCount", -1));
 		});
 	}
 
@@ -220,20 +216,22 @@ export class ReportsApplicationService {
 	castCommentVote(
 		userId: string,
 		commentId: string,
-		voteType: 'up' | 'down'
+		voteType: "up" | "down"
 	): ResultAsync<void, ReportError> {
 		return this.voteRepo.castCommentVote(userId, commentId, voteType).andThen(({ oldVote }) => {
 			let upDelta = 0;
 			let downDelta = 0;
 
-			if (oldVote === 'up') upDelta--;
-			if (oldVote === 'down') downDelta--;
-			if (voteType === 'up') upDelta++;
-			if (voteType === 'down') downDelta++;
+			if (oldVote === "up") upDelta--;
+			if (oldVote === "down") downDelta--;
+			if (voteType === "up") upDelta++;
+			if (voteType === "down") downDelta++;
 
 			const updates: ResultAsync<void, ReportError>[] = [];
-			if (upDelta !== 0) updates.push(this.commentRepo.incrementCount(commentId, 'upvoteCount', upDelta));
-			if (downDelta !== 0) updates.push(this.commentRepo.incrementCount(commentId, 'downvoteCount', downDelta));
+			if (upDelta !== 0)
+				updates.push(this.commentRepo.incrementCount(commentId, "upvoteCount", upDelta));
+			if (downDelta !== 0)
+				updates.push(this.commentRepo.incrementCount(commentId, "downvoteCount", downDelta));
 
 			return ResultAsync.combine(updates).map(() => undefined);
 		});
@@ -241,8 +239,8 @@ export class ReportsApplicationService {
 
 	removeCommentVote(userId: string, commentId: string): ResultAsync<void, ReportError> {
 		return this.voteRepo.removeCommentVote(userId, commentId).andThen(({ oldVote }) => {
-			if (!oldVote) return okAsync(undefined as void);
-			const field = oldVote === 'up' ? 'upvoteCount' : 'downvoteCount';
+			if (!oldVote) return okAsync(undefined);
+			const field = oldVote === "up" ? "upvoteCount" : "downvoteCount";
 			return this.commentRepo.incrementCount(commentId, field, -1);
 		});
 	}
@@ -253,59 +251,62 @@ export class ReportsApplicationService {
 		report: ReportRow,
 		userId: string | null
 	): ResultAsync<
-		ReportRow & { currentUserVote: 'up' | 'down' | null; currentUserFollowing: boolean },
+		ReportRow & { currentUserVote: "up" | "down" | null; currentUserFollowing: boolean },
 		ReportError
 	> {
 		if (!userId) {
-			return okAsync({ ...report, currentUserVote: null as 'up' | 'down' | null, currentUserFollowing: false });
+			return okAsync({
+				...report,
+				currentUserVote: null as "up" | "down" | null,
+				currentUserFollowing: false,
+			});
 		}
 
-		return this.voteRepo
-			.findUserVoteOnReport(userId, report.id)
-			.andThen((vote) =>
-				this.followerRepo
-					.isFollowing(userId, report.id)
-					.map((following) => ({ ...report, currentUserVote: vote, currentUserFollowing: following }))
-			);
+		return this.voteRepo.findUserVoteOnReport(userId, report.id).andThen((vote) =>
+			this.followerRepo.isFollowing(userId, report.id).map((following) => ({
+				...report,
+				currentUserVote: vote,
+				currentUserFollowing: following,
+			}))
+		);
 	}
 
 	enrichReportsWithUserData(
 		reports: ReportRow[],
 		userId: string | null
 	): ResultAsync<
-		(ReportRow & { currentUserVote: 'up' | 'down' | null; currentUserFollowing: boolean })[],
+		(ReportRow & { currentUserVote: "up" | "down" | null; currentUserFollowing: boolean })[],
 		ReportError
 	> {
 		if (!userId || reports.length === 0) {
 			return okAsync(
-				reports.map((r) => ({ ...r, currentUserVote: null as 'up' | 'down' | null, currentUserFollowing: false }))
+				reports.map((r) => ({
+					...r,
+					currentUserVote: null as "up" | "down" | null,
+					currentUserFollowing: false,
+				}))
 			);
 		}
 
 		const ids = reports.map((r) => r.id);
-		return this.voteRepo
-			.findUserVotesOnReports(userId, ids)
-			.andThen((voteMap) =>
-				this.followerRepo.isFollowingMany(userId, ids).map((followSet) =>
-					reports.map((r) => ({
-						...r,
-						currentUserVote: voteMap.get(r.id) ?? null,
-						currentUserFollowing: followSet.has(r.id)
-					}))
-				)
-			);
+		return this.voteRepo.findUserVotesOnReports(userId, ids).andThen((voteMap) =>
+			this.followerRepo.isFollowingMany(userId, ids).map((followSet) =>
+				reports.map((r) => ({
+					...r,
+					currentUserVote: voteMap.get(r.id) ?? null,
+					currentUserFollowing: followSet.has(r.id),
+				}))
+			)
+		);
 	}
 
 	enrichCommentsWithUserData(
 		comments: CommentRow[],
 		userId: string | null
-	): ResultAsync<
-		(CommentRow & { currentUserVote: 'up' | 'down' | null })[],
-		ReportError
-	> {
+	): ResultAsync<(CommentRow & { currentUserVote: "up" | "down" | null })[], ReportError> {
 		if (!userId || comments.length === 0) {
 			return okAsync(
-				comments.map((c) => ({ ...c, currentUserVote: null as 'up' | 'down' | null }))
+				comments.map((c) => ({ ...c, currentUserVote: null as "up" | "down" | null }))
 			);
 		}
 
@@ -313,7 +314,7 @@ export class ReportsApplicationService {
 		return this.voteRepo.findUserVotesOnComments(userId, ids).map((voteMap) =>
 			comments.map((c) => ({
 				...c,
-				currentUserVote: voteMap.get(c.id) ?? null
+				currentUserVote: voteMap.get(c.id) ?? null,
 			}))
 		);
 	}

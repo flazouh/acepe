@@ -5,7 +5,9 @@ import { resolve } from "node:path";
 const prStatusCardPath = resolve(__dirname, "../pr-status-card/pr-status-card.svelte");
 const source = readFileSync(prStatusCardPath, "utf8");
 const headerIndex = source.indexOf("<!-- Header bar -->");
-const expandedContentIndex = source.indexOf("<!-- Expanded content: streaming preview OR description + commits -->");
+const expandedContentIndex = source.indexOf(
+	"<!-- Expanded content: streaming preview OR description + commits -->"
+);
 
 describe("PR status card loading fallback", () => {
 	it("renders a non-empty placeholder while details for an existing PR are still loading", () => {

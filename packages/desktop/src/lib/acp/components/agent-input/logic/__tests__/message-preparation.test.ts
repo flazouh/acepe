@@ -31,7 +31,11 @@ describe("prepareMessageForSend", () => {
 			// Decode the base64 to verify round-trip
 			const match = result.value.content.match(/@\[text:([^\]]+)\]/);
 			expect(match).not.toBeNull();
-			const decoded = decodeURIComponent(escape(atob(match![1])));
+			const encodedText = match?.[1];
+			if (!encodedText) {
+				throw new Error("expected encoded text attachment");
+			}
+			const decoded = decodeURIComponent(escape(atob(encodedText)));
 			expect(decoded).toBe("Hello from pasted text");
 		}
 	});
@@ -72,7 +76,11 @@ describe("prepareMessageForSend", () => {
 		if (result.isOk()) {
 			const match = result.value.content.match(/@\[text:([^\]]+)\]/);
 			expect(match).not.toBeNull();
-			const decoded = decodeURIComponent(escape(atob(match![1])));
+			const encodedText = match?.[1];
+			if (!encodedText) {
+				throw new Error("expected encoded text attachment");
+			}
+			const decoded = decodeURIComponent(escape(atob(encodedText)));
 			expect(decoded).toBe("Hello 世界 🌍");
 		}
 	});

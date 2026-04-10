@@ -803,7 +803,8 @@ mod tests {
     };
     use crate::acp::types::ContentBlock;
     use crate::cc_sdk::{
-        AssistantMessage, ContentBlock as CcContentBlock, Message, TextContent, ThinkingContent,
+        self as cc_sdk, AssistantMessage, ContentBlock as CcContentBlock, Message, TextContent,
+        ThinkingContent,
     };
 
     #[test]

@@ -67,7 +67,7 @@ const shellName = $derived(shell ? (shell.split("/").pop() ? shell.split("/").po
 const showFullscreen = $derived(onEnterFullscreen !== undefined || onExitFullscreen !== undefined);
 const hasTabs = $derived(tabs !== undefined && tabs.length > 0);
 
-function canShowTabMenu(tabId: string): boolean {
+function canShowTabMenu(_tabId: string): boolean {
 	if (tabs === undefined) {
 		return false;
 	}

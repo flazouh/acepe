@@ -19,8 +19,7 @@ const modifiedFiles = [
 		totalAdded: 3,
 		totalRemoved: 0,
 		originalContent: "export function beta() {\n\treturn 1;\n}\n",
-		finalContent:
-			"export function beta() {\n\tconst nextValue = 2;\n\treturn nextValue;\n}\n",
+		finalContent: "export function beta() {\n\tconst nextValue = 2;\n\treturn nextValue;\n}\n",
 		editCount: 1,
 	},
 ] as const;
@@ -42,9 +41,9 @@ describe("buildKeepAllReviewEntries", () => {
 			expect(entry.progress.acceptedHunks).toBe(entry.progress.totalHunks);
 			expect(entry.progress.totalHunks).toBeGreaterThan(0);
 			expect(entry.progress.resolvedActions).toHaveLength(entry.progress.totalHunks);
-			expect(
-				entry.progress.resolvedActions.every((action) => action.action === "accept")
-			).toBe(true);
+			expect(entry.progress.resolvedActions.every((action) => action.action === "accept")).toBe(
+				true
+			);
 		}
 	});
 });

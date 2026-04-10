@@ -1,10 +1,10 @@
-import { dev } from '$app/environment';
-import type { LayoutServerLoad } from './$types';
-import { getFeatureFlags } from '$lib/server/feature-flags';
+import { dev } from "$app/environment";
+import { getFeatureFlags } from "$lib/server/feature-flags";
+import type { LayoutServerLoad } from "./$types";
 
 async function getGitHubStars(): Promise<number | null> {
-	const res = await fetch('https://api.github.com/repos/flazouh/acepe', {
-		headers: { Accept: 'application/vnd.github+json' }
+	const res = await fetch("https://api.github.com/repos/flazouh/acepe", {
+		headers: { Accept: "application/vnd.github+json" },
 	});
 	if (!res.ok) return null;
 	const data = (await res.json()) as { stargazers_count?: number };
@@ -12,10 +12,7 @@ async function getGitHubStars(): Promise<number | null> {
 }
 
 export const load: LayoutServerLoad = async () => {
-	const [featureFlagsResult, stars] = await Promise.all([
-		getFeatureFlags(),
-		getGitHubStars()
-	]);
+	const [featureFlagsResult, stars] = await Promise.all([getFeatureFlags(), getGitHubStars()]);
 
 	// Use fallback values if feature flags fail to load
 	const featureFlags = featureFlagsResult.isOk()
@@ -23,7 +20,7 @@ export const load: LayoutServerLoad = async () => {
 		: {
 				loginEnabled: false,
 				downloadEnabled: false,
-				roadmapEnabled: false
+				roadmapEnabled: false,
 			};
 
 	// In dev mode, always enable download
@@ -33,6 +30,6 @@ export const load: LayoutServerLoad = async () => {
 
 	return {
 		featureFlags,
-		githubStars: stars
+		githubStars: stars,
 	};
 };

@@ -63,15 +63,18 @@ export function renderMarkdown(text: string, repoContext?: { owner: string; repo
 	const startedAt = getNowMs();
 	recordHotPathDiagnostic("markdown-renderer", "async-request");
 	recordHotPathDiagnostic("markdown-renderer", "async-input-chars", text.length);
-	return api.renderMarkdown(text, repoContext).map((html) => {
-		recordHotPathDiagnostic("markdown-renderer", "async-success");
-		recordHotPathDiagnostic("markdown-renderer", "async-duration-ms", getNowMs() - startedAt);
-		return html;
-	}).mapErr((error) => {
-		recordHotPathDiagnostic("markdown-renderer", "async-error");
-		recordHotPathDiagnostic("markdown-renderer", "async-duration-ms", getNowMs() - startedAt);
-		return error;
-	});
+	return api
+		.renderMarkdown(text, repoContext)
+		.map((html) => {
+			recordHotPathDiagnostic("markdown-renderer", "async-success");
+			recordHotPathDiagnostic("markdown-renderer", "async-duration-ms", getNowMs() - startedAt);
+			return html;
+		})
+		.mapErr((error) => {
+			recordHotPathDiagnostic("markdown-renderer", "async-error");
+			recordHotPathDiagnostic("markdown-renderer", "async-duration-ms", getNowMs() - startedAt);
+			return error;
+		});
 }
 
 export function renderMarkdownSync(text: string, repoContext?: { owner: string; repo: string }) {

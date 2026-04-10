@@ -291,7 +291,7 @@ export class Logger {
 			return;
 		}
 
-		const timestamp = loggerRuntime.wallClockNow();
+		const timestamp = this.logManager.getRuntime().wallClockNow();
 		const timing = this.logManager.captureTiming(this.config.id);
 		const entry: LogEntry = {
 			id: `${this.config.id}-${timestamp}-${Math.random()}`,
@@ -308,8 +308,9 @@ export class Logger {
 	}
 
 	private writeToConsole(level: LogLevel, entry: LogEntry, data: readonly unknown[]): void {
-		const consoleMethod = loggerRuntime.consoleApi[level];
-		const consoleArguments = loggerRuntime.shouldUseStyledConsole()
+		const runtime = this.logManager.getRuntime();
+		const consoleMethod = runtime.consoleApi[level];
+		const consoleArguments = runtime.shouldUseStyledConsole()
 			? createStyledConsoleArguments(
 					level,
 					entry.loggerId,
@@ -328,7 +329,7 @@ export class Logger {
 					data
 				);
 
-		consoleMethod.apply(loggerRuntime.consoleApi, consoleArguments);
+		consoleMethod.apply(runtime.consoleApi, consoleArguments);
 	}
 
 	get enabled(): boolean {
@@ -375,9 +376,13 @@ class LogManager {
 	private logs: LogEntry[] = [];
 	private readonly maxLogs = 1000;
 	private readonly listeners = new Set<(logs: LogEntry[]) => void>();
-	private sessionStartMonotonicMs = loggerRuntime.monotonicNow();
+	private sessionStartMonotonicMs: number;
 	private lastLogMonotonicMs: number | null = null;
 	private readonly loggerLastLogMonotonicMs = new Map<string, number>();
+
+	constructor(private readonly runtime: LoggerRuntime = loggerRuntime) {
+		this.sessionStartMonotonicMs = runtime.monotonicNow();
+	}
 
 	createLogger(config: LoggerConfig): Logger {
 		const logger = new Logger(config, this);
@@ -409,7 +414,7 @@ class LogManager {
 	}
 
 	captureTiming(loggerId: string): LogTiming {
-		const now = loggerRuntime.monotonicNow();
+		const now = this.runtime.monotonicNow();
 		const previousGlobalLog = this.lastLogMonotonicMs;
 		const previousLoggerLog = this.loggerLastLogMonotonicMs.get(loggerId);
 
@@ -418,8 +423,7 @@ class LogManager {
 
 		return {
 			sinceStartMs: Math.max(0, now - this.sessionStartMonotonicMs),
-			sinceLastLogMs:
-				previousGlobalLog === null ? null : Math.max(0, now - previousGlobalLog),
+			sinceLastLogMs: previousGlobalLog === null ? null : Math.max(0, now - previousGlobalLog),
 			sinceLoggerLogMs:
 				previousLoggerLog === undefined ? null : Math.max(0, now - previousLoggerLog),
 		};
@@ -455,7 +459,11 @@ class LogManager {
 		this.listeners.clear();
 		this.lastLogMonotonicMs = null;
 		this.loggerLastLogMonotonicMs.clear();
-		this.sessionStartMonotonicMs = loggerRuntime.monotonicNow();
+		this.sessionStartMonotonicMs = this.runtime.monotonicNow();
+	}
+
+	getRuntime(): LoggerRuntime {
+		return this.runtime;
 	}
 
 	private notifyListeners(): void {
@@ -524,4 +532,49 @@ export function __resetLoggerStateForTests(): void {
 export function __restoreLoggerRuntimeDefaultsForTests(): void {
 	restoreLoggerRuntimeDefaults();
 	logManager.resetForTests();
+}
+
+export type LoggerTestHarness = {
+	createLogger: (config: LoggerConfig) => Logger;
+	getLogs: () => LogEntry[];
+	configureRuntime: (overrides: LoggerRuntimeOverrides) => void;
+	restoreRuntimeDefaults: () => void;
+	reset: () => void;
+};
+
+export function __createLoggerHarnessForTests(): LoggerTestHarness {
+	const runtime: LoggerRuntime = {
+		wallClockNow: defaultLoggerRuntime.wallClockNow,
+		monotonicNow: defaultLoggerRuntime.monotonicNow,
+		consoleApi: defaultLoggerRuntime.consoleApi,
+		shouldUseStyledConsole: defaultLoggerRuntime.shouldUseStyledConsole,
+	};
+	const manager = new LogManager(runtime);
+
+	return {
+		createLogger: (config) => manager.createLogger(config),
+		getLogs: () => manager.getLogs(),
+		configureRuntime: (overrides) => {
+			if (overrides.wallClockNow) {
+				runtime.wallClockNow = overrides.wallClockNow;
+			}
+			if (overrides.monotonicNow) {
+				runtime.monotonicNow = overrides.monotonicNow;
+			}
+			if (overrides.consoleApi) {
+				runtime.consoleApi = overrides.consoleApi;
+			}
+			if (overrides.shouldUseStyledConsole) {
+				runtime.shouldUseStyledConsole = overrides.shouldUseStyledConsole;
+			}
+		},
+		restoreRuntimeDefaults: () => {
+			runtime.wallClockNow = defaultLoggerRuntime.wallClockNow;
+			runtime.monotonicNow = defaultLoggerRuntime.monotonicNow;
+			runtime.consoleApi = defaultLoggerRuntime.consoleApi;
+			runtime.shouldUseStyledConsole = defaultLoggerRuntime.shouldUseStyledConsole;
+			manager.resetForTests();
+		},
+		reset: () => manager.resetForTests(),
+	};
 }

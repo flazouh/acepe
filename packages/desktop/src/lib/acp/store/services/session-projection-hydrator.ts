@@ -1,4 +1,4 @@
-import { ResultAsync, okAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
+import { ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
 import type { SessionProjectionSnapshot } from "../../../services/acp-types.js";
 import { AgentError, AppError } from "../../errors/app-error.js";
 import { api } from "../api.js";
@@ -21,9 +21,8 @@ export class SessionProjectionHydrator {
 			return existing;
 		}
 
-		const request = ResultAsync.fromPromise(
-			this.hydrateUntilSettled(sessionId),
-			(error) => toAppError(error)
+		const request = ResultAsync.fromPromise(this.hydrateUntilSettled(sessionId), (error) =>
+			toAppError(error)
 		);
 
 		this.inflight.set(sessionId, request);

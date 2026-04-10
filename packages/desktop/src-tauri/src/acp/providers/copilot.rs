@@ -24,9 +24,16 @@ pub struct CopilotProvider;
 const COPILOT_BINARY_OVERRIDE_ENV: &str = "ACEPE_COPILOT_BIN";
 const ACP_STDIO_ARGS: &[&str] = &["--acp", "--stdio"];
 const COPILOT_LOGIN_METHOD_ID: &str = "copilot-login";
-const COPILOT_MODE_AGENT_URI: &str = "https://github.com/github/copilot-cli/mode#agent";
-const COPILOT_MODE_PLAN_URI: &str = "https://github.com/github/copilot-cli/mode#plan";
-const COPILOT_MODE_AUTOPILOT_URI: &str = "https://github.com/github/copilot-cli/mode#autopilot";
+const COPILOT_MODE_AGENT_URI: &str =
+    "https://agentclientprotocol.com/protocol/session-modes#agent";
+const COPILOT_MODE_PLAN_URI: &str =
+    "https://agentclientprotocol.com/protocol/session-modes#plan";
+const COPILOT_MODE_AUTOPILOT_URI: &str =
+    "https://agentclientprotocol.com/protocol/session-modes#autopilot";
+const LEGACY_COPILOT_MODE_AGENT_URI: &str = "https://github.com/github/copilot-cli/mode#agent";
+const LEGACY_COPILOT_MODE_PLAN_URI: &str = "https://github.com/github/copilot-cli/mode#plan";
+const LEGACY_COPILOT_MODE_AUTOPILOT_URI: &str =
+    "https://github.com/github/copilot-cli/mode#autopilot";
 const ALLOWED_ENV_KEYS: &[&str] = &[
     "PATH",
     "HOME",
@@ -156,8 +163,11 @@ impl AgentProvider for CopilotProvider {
 
     fn normalize_mode_id(&self, id: &str) -> String {
         match id {
-            COPILOT_MODE_AGENT_URI | COPILOT_MODE_AUTOPILOT_URI => "build".to_string(),
-            COPILOT_MODE_PLAN_URI => "plan".to_string(),
+            COPILOT_MODE_AGENT_URI
+            | COPILOT_MODE_AUTOPILOT_URI
+            | LEGACY_COPILOT_MODE_AGENT_URI
+            | LEGACY_COPILOT_MODE_AUTOPILOT_URI => "build".to_string(),
+            COPILOT_MODE_PLAN_URI | LEGACY_COPILOT_MODE_PLAN_URI => "plan".to_string(),
             other => other.to_string(),
         }
     }
@@ -349,16 +359,24 @@ mod tests {
         let provider = CopilotProvider;
 
         assert_eq!(
+            provider.normalize_mode_id("https://agentclientprotocol.com/protocol/session-modes#agent"),
+            "build"
+        );
+        assert_eq!(
+            provider.normalize_mode_id("https://agentclientprotocol.com/protocol/session-modes#plan"),
+            "plan"
+        );
+        assert_eq!(
+            provider.normalize_mode_id("https://agentclientprotocol.com/protocol/session-modes#autopilot"),
+            "build"
+        );
+        assert_eq!(
             provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#agent"),
             "build"
         );
         assert_eq!(
             provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#plan"),
             "plan"
-        );
-        assert_eq!(
-            provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#autopilot"),
-            "build"
         );
     }
 
@@ -367,16 +385,24 @@ mod tests {
         let provider = CopilotProvider;
 
         assert_eq!(
+            provider.map_outbound_mode_id("build"),
+            "https://agentclientprotocol.com/protocol/session-modes#agent"
+        );
+        assert_eq!(
+            provider.map_outbound_mode_id("plan"),
+            "https://agentclientprotocol.com/protocol/session-modes#plan"
+        );
+        assert_eq!(
             provider.map_execution_profile_mode_id("build", false),
-            Some("https://github.com/github/copilot-cli/mode#agent".to_string())
+            Some("https://agentclientprotocol.com/protocol/session-modes#agent".to_string())
         );
         assert_eq!(
             provider.map_execution_profile_mode_id("build", true),
-            Some("https://github.com/github/copilot-cli/mode#autopilot".to_string())
+            Some("https://agentclientprotocol.com/protocol/session-modes#autopilot".to_string())
         );
         assert_eq!(
             provider.map_execution_profile_mode_id("plan", false),
-            Some("https://github.com/github/copilot-cli/mode#plan".to_string())
+            Some("https://agentclientprotocol.com/protocol/session-modes#plan".to_string())
         );
         assert_eq!(provider.map_execution_profile_mode_id("plan", true), None);
         assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);

@@ -166,7 +166,7 @@ export const git = {
 		action: GitStackedAction,
 		commitMessage: string,
 		prTitle?: string,
-		prBody?: string,
+		prBody?: string
 	): ResultAsync<GitStackedActionResult, AppError> => {
 		return invokeAsync(CMD.git.run_stacked_action, {
 			projectPath,
@@ -183,7 +183,7 @@ export const git = {
 	 */
 	collectShipContext: (
 		projectPath: string,
-		customInstructions?: string,
+		customInstructions?: string
 	): ResultAsync<ShipContext | null, AppError> => {
 		return invokeAsync(CMD.git.collect_ship_context, { projectPath, customInstructions });
 	},
@@ -195,7 +195,7 @@ export const git = {
 	mergePr: (
 		projectPath: string,
 		prNumber: number,
-		strategy: MergeStrategy,
+		strategy: MergeStrategy
 	): ResultAsync<void, AppError> => {
 		return invokeAsync(CMD.git.merge_pr, { projectPath, prNumber, strategy });
 	},

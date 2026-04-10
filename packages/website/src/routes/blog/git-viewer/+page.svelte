@@ -1,12 +1,12 @@
 <script lang="ts">
-	import BlogPostLayout from '$lib/blog/blog-post-layout.svelte';
-	import { gitViewerBlogPost as metadata } from '$lib/blog/posts.js';
-	import Card from '$lib/components/ui/card/card.svelte';
-	import { MarkdownDisplay } from '@acepe/ui';
-	import GitCommitDemo from '$lib/blog/demos/git-commit-demo.svelte';
-	import GitPrDemo from '$lib/blog/demos/git-pr-demo.svelte';
+import BlogPostLayout from "$lib/blog/blog-post-layout.svelte";
+import { gitViewerBlogPost as metadata } from "$lib/blog/posts.js";
+import Card from "$lib/components/ui/card/card.svelte";
+import { MarkdownDisplay } from "@acepe/ui";
+import GitCommitDemo from "$lib/blog/demos/git-commit-demo.svelte";
+import GitPrDemo from "$lib/blog/demos/git-pr-demo.svelte";
 
-	let { data } = $props();
+let { data } = $props();
 </script>
 
 <BlogPostLayout

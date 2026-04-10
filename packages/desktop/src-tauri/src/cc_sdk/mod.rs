@@ -14,7 +14,7 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use cc_sdk::{query, Result};
+//! use acepe_lib::cc_sdk::{query, Result};
 //! use futures::StreamExt;
 //!
 //! #[tokio::main]

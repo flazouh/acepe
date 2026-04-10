@@ -1,20 +1,20 @@
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel";
 import type { Component } from "svelte";
-
-import type { PermissionRequest } from "../../types/permission.js";
-import type { ToolCall } from "../../types/tool-call.js";
-import type { ToolKind } from "../../types/tool-kind.js";
 import {
 	getToolKindFilePath,
 	getToolKindSubtitle,
 	getToolKindTitle,
 } from "../../registry/tool-kind-ui-registry.js";
 import type { TurnState } from "../../store/types.js";
+import type { PermissionRequest } from "../../types/permission.js";
+import type { ToolCall } from "../../types/tool-call.js";
+import type { ToolKind } from "../../types/tool-kind.js";
 import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
 import ToolCallEnterPlanMode from "./tool-call-enter-plan-mode.svelte";
+import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import ToolCallExecute from "./tool-call-execute.svelte";
 import ToolCallExitPlanMode from "./tool-call-exit-plan-mode.svelte";
 import ToolCallFallback from "./tool-call-fallback.svelte";
@@ -30,7 +30,6 @@ import ToolCallThink from "./tool-call-think.svelte";
 import ToolCallTodo from "./tool-call-todo.svelte";
 import ToolCallToolSearch from "./tool-call-tool-search.svelte";
 import ToolCallWebSearch from "./tool-call-web-search.svelte";
-import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import { toAgentToolKind } from "./tool-kind-to-agent-tool-kind.js";
 
 export type ToolDetailComponentProps = {
@@ -205,10 +204,7 @@ const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 
 const FALLBACK_TOOL_DEFINITION = createToolDefinition("other", ToolCallFallback);
 
-export function getToolDefinition(
-	toolCall: ToolCall,
-	toolKind?: ToolKind | null
-): ToolDefinition {
+export function getToolDefinition(toolCall: ToolCall, toolKind?: ToolKind | null): ToolDefinition {
 	const resolvedKind = toolKind ?? toolCall.kind ?? "other";
 	const routeKey = resolveToolRouteKey(toolCall, resolvedKind);
 	return TOOL_DEFINITIONS[routeKey] ?? FALLBACK_TOOL_DEFINITION;

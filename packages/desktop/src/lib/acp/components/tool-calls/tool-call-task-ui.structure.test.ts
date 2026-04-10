@@ -1,10 +1,13 @@
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "bun:test";
 
 const desktopTaskSource = readFileSync(resolve(import.meta.dir, "./tool-call-task.svelte"), "utf8");
 const sharedTaskSource = readFileSync(
-	resolve(import.meta.dir, "../../../../../../ui/src/components/agent-panel/agent-tool-task.svelte"),
+	resolve(
+		import.meta.dir,
+		"../../../../../../ui/src/components/agent-panel/agent-tool-task.svelte"
+	),
 	"utf8"
 );
 

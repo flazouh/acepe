@@ -156,11 +156,13 @@ That's all for now!`,
 				status: "completed",
 				arguments: {
 					kind: "edit",
-					edits: [{
-						filePath: "/Users/test/project/src/example.ts",
-						oldString: "function hello() {\n  console.log('Hello');\n}",
-						newString: "function hello() {\n  console.log('Hello, World!');\n}",
-					}],
+					edits: [
+						{
+							filePath: "/Users/test/project/src/example.ts",
+							oldString: "function hello() {\n  console.log('Hello');\n}",
+							newString: "function hello() {\n  console.log('Hello, World!');\n}",
+						},
+					],
 				},
 				result: null,
 				kind: "edit",

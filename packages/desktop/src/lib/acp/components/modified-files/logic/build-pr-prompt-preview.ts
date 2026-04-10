@@ -122,7 +122,7 @@ interface BuildPrPromptPreviewInput {
 }
 
 export function normalizeCustomShipInstructions(
-	customInstructions: string | undefined,
+	customInstructions: string | undefined
 ): string | undefined {
 	if (!customInstructions) {
 		return undefined;
@@ -167,7 +167,7 @@ function resolveInstructions(customInstructions: string | undefined): string {
 
 function buildModifiedFilesSummary(
 	modifiedFiles: readonly ModifiedFileEntry[],
-	projectPath: string,
+	projectPath: string
 ): string {
 	return modifiedFiles
 		.map((file) => `${getGitStatus(file)}\t${getRelativeFilePath(file.filePath, projectPath)}`)
@@ -176,7 +176,7 @@ function buildModifiedFilesSummary(
 
 function buildModifiedFilesPatch(
 	modifiedFiles: readonly ModifiedFileEntry[],
-	projectPath: string,
+	projectPath: string
 ): string {
 	return modifiedFiles
 		.map((file) => buildSingleFilePatch(file, projectPath))
@@ -195,7 +195,7 @@ function buildSingleFilePatch(file: ModifiedFileEntry, projectPath: string): str
 		nextContent,
 		"",
 		"",
-		{ context: 3 },
+		{ context: 3 }
 	);
 
 	if (structuredPatch.hunks.length === 0) {

@@ -135,7 +135,7 @@ export function copyTextToClipboard(content: string): ResultAsync<void, Clipboar
 					fallback: "execCommand",
 				})
 			);
-	});
+		});
 }
 
 /**

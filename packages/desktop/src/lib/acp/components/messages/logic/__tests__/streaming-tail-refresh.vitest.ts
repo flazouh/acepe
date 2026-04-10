@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-	LIVE_REFRESH_CLASS,
-	streamingTailRefresh,
-} from "../streaming-tail-refresh.js";
+import { LIVE_REFRESH_CLASS, streamingTailRefresh } from "../streaming-tail-refresh.js";
 
 function createRefreshNode(): {
 	node: HTMLDivElement;

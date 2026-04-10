@@ -99,9 +99,7 @@ export class SessionDomainEventSubscriber {
 		name: "Session Domain Event Subscriber",
 	});
 
-	subscribe(
-		listener: (event: SessionDomainEvent) => void
-	): ResultAsync<string, AcpError> {
+	subscribe(listener: (event: SessionDomainEvent) => void): ResultAsync<string, AcpError> {
 		const listenerId = `session-domain-event-listener-${++this.listenerIdCounter}`;
 		this.listeners.set(listenerId, listener);
 
@@ -163,10 +161,7 @@ export class SessionDomainEventSubscriber {
 				this.isInitializing = false;
 				this.unlistenFn = null;
 				this.listeners.delete(listenerId);
-				return new ProtocolError(
-					`Failed to subscribe to session domain events: ${error}`,
-					error
-				);
+				return new ProtocolError(`Failed to subscribe to session domain events: ${error}`, error);
 			});
 
 		this.initPromise = listenResult

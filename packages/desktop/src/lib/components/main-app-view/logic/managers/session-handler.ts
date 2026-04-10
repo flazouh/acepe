@@ -38,7 +38,10 @@ export class SessionHandler {
 		private readonly state: MainAppViewState,
 		private readonly sessionStore: SessionStore,
 		private readonly panelStore: PanelStore,
-		private readonly projectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">
+		private readonly projectionHydrator: Pick<
+			SessionProjectionHydrator,
+			"hydrateSession" | "clearSession"
+		>
 	) {}
 
 	/**
@@ -178,7 +181,11 @@ export class SessionHandler {
 				panelId,
 			});
 			return errAsync(
-				new SessionCreationError("", project.path, new Error("Panel not found for project selection"))
+				new SessionCreationError(
+					"",
+					project.path,
+					new Error("Panel not found for project selection")
+				)
 			);
 		}
 		const selectedAgentId = panel.selectedAgentId;

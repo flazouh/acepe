@@ -272,7 +272,7 @@ export function fetchWorkingFileDiff(
 	staged: boolean,
 	status: FileDiff["status"],
 	additions: number,
-	deletions: number,
+	deletions: number
 ): ResultAsync<FileDiff, GitHubError> {
 	return ResultAsync.fromPromise(
 		invoke<FileDiff>(Commands.github.git_working_file_diff, {

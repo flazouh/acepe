@@ -5,9 +5,9 @@ import { Input } from "$lib/components/ui/input/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
 import type {
-DisplayableModel,
-DisplayModelGroup,
-ModelsForDisplay,
+	DisplayableModel,
+	DisplayModelGroup,
+	ModelsForDisplay,
 } from "../../services/acp-types.js";
 
 import type { Model } from "../application/dto/model.js";
@@ -25,26 +25,26 @@ import {
 	groupModelsByProvider,
 	groupCodexModelsByBase,
 	isDefaultModel,
-supportsReasoningEffortPicker,
+	supportsReasoningEffortPicker,
 } from "./model-selector-logic.js";
 
 interface Props {
-availableModels: readonly Model[];
-currentModelId: ModelId | null;
-/** When present, use backend-precomputed display groups instead of client-side parsing */
-modelsDisplay?: ModelsForDisplay | null;
-agentId: string | null;
-isOpen: boolean;
-onModelChange: (modelId: ModelId) => Promise<void> | void;
+	availableModels: readonly Model[];
+	currentModelId: ModelId | null;
+	/** When present, use backend-precomputed display groups instead of client-side parsing */
+	modelsDisplay?: ModelsForDisplay | null;
+	agentId: string | null;
+	isOpen: boolean;
+	onModelChange: (modelId: ModelId) => Promise<void> | void;
 }
 
 let {
-availableModels,
-currentModelId,
-modelsDisplay = null,
-agentId,
-isOpen: _,
-onModelChange,
+	availableModels,
+	currentModelId,
+	modelsDisplay = null,
+	agentId,
+	isOpen: _,
+	onModelChange,
 }: Props = $props();
 
 const MODEL_SEARCH_THRESHOLD = 8;
@@ -54,178 +54,178 @@ let searchQuery = $state("");
 const validModels = $derived(availableModels.filter((model) => model.id));
 
 const hasModelsDisplay = $derived(
-!!modelsDisplay && modelsDisplay.groups && modelsDisplay.groups.length > 0
+	!!modelsDisplay && modelsDisplay.groups && modelsDisplay.groups.length > 0
 );
 
 const allDisplayableModels = $derived.by(() => {
-if (!modelsDisplay?.groups) {
-return [];
-}
-return modelsDisplay.groups.flatMap((group) => group.models);
+	if (!modelsDisplay?.groups) {
+		return [];
+	}
+	return modelsDisplay.groups.flatMap((group) => group.models);
 });
 
 const totalModelCount = $derived(
-hasModelsDisplay ? allDisplayableModels.length : validModels.length
+	hasModelsDisplay ? allDisplayableModels.length : validModels.length
 );
 const showFavorites = $derived(
-hasModelsDisplay ? allDisplayableModels.length >= 5 : validModels.length >= 5
+	hasModelsDisplay ? allDisplayableModels.length >= 5 : validModels.length >= 5
 );
 
 const favoritesList = $derived.by(() => {
-if (!agentId || !showFavorites) {
-return [];
-}
-const favoriteIds = preferencesStore.getFavorites(agentId);
-if (hasModelsDisplay) {
-return allDisplayableModels.filter((model) => favoriteIds.includes(model.modelId));
-}
-return validModels.filter((model) => favoriteIds.includes(model.id));
+	if (!agentId || !showFavorites) {
+		return [];
+	}
+	const favoriteIds = preferencesStore.getFavorites(agentId);
+	if (hasModelsDisplay) {
+		return allDisplayableModels.filter((model) => favoriteIds.includes(model.modelId));
+	}
+	return validModels.filter((model) => favoriteIds.includes(model.id));
 });
 
 const planDefaultId = $derived(
-agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.PLAN) : undefined
+	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.PLAN) : undefined
 );
 const buildDefaultId = $derived(
-agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.BUILD) : undefined
+	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.BUILD) : undefined
 );
 
 function getModelId(model: Model | DisplayableModel): string {
-return "displayName" in model ? model.modelId : model.id;
+	return "displayName" in model ? model.modelId : model.id;
 }
 
 function getDisplayName(model: Model | DisplayableModel): string {
-return "displayName" in model ? model.displayName : getModelDisplayName(model, agentId, modelsDisplay);
+	return "displayName" in model
+		? model.displayName
+		: getModelDisplayName(model, agentId, modelsDisplay);
 }
 
 function getModelProviderSource(model: Model | DisplayableModel): string {
-return `${getDisplayName(model)} ${getModelId(model)}`;
+	return `${getDisplayName(model)} ${getModelId(model)}`;
 }
 
 function matchesSearch(model: Model | DisplayableModel, query: string): boolean {
-const displayName = getDisplayName(model).toLowerCase();
-const modelId = getModelId(model).toLowerCase();
-const description = (model.description ?? "").toLowerCase();
-const providerText = getModelProviderSource(model).toLowerCase();
-return (
-displayName.includes(query) ||
-modelId.includes(query) ||
-description.includes(query) ||
-providerText.includes(query)
-);
+	const displayName = getDisplayName(model).toLowerCase();
+	const modelId = getModelId(model).toLowerCase();
+	const description = (model.description ?? "").toLowerCase();
+	const providerText = getModelProviderSource(model).toLowerCase();
+	return (
+		displayName.includes(query) ||
+		modelId.includes(query) ||
+		description.includes(query) ||
+		providerText.includes(query)
+	);
 }
 
 const filteredGroupedModelsFromDisplay = $derived.by((): DisplayModelGroup[] => {
-if (!hasModelsDisplay || !modelsDisplay?.groups) {
-return [];
-}
-const sortByDisplayName = (left: DisplayableModel, right: DisplayableModel) =>
-left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
-if (!searchQuery.trim()) {
+	if (!hasModelsDisplay || !modelsDisplay?.groups) {
+		return [];
+	}
+	const sortByDisplayName = (left: DisplayableModel, right: DisplayableModel) =>
+		left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
+	if (!searchQuery.trim()) {
 		return modelsDisplay.groups.map((group) => ({
 			label: group.label,
 			models: Array.from(group.models).sort(sortByDisplayName),
 		}));
 	}
-const query = searchQuery.toLowerCase().trim();
-return modelsDisplay.groups
-.map((group) => ({
-label: group.label,
-models: group.models.filter((model) => matchesSearch(model, query)).sort(sortByDisplayName),
-}))
-.filter((group) => group.models.length > 0);
+	const query = searchQuery.toLowerCase().trim();
+	return modelsDisplay.groups
+		.map((group) => ({
+			label: group.label,
+			models: group.models.filter((model) => matchesSearch(model, query)).sort(sortByDisplayName),
+		}))
+		.filter((group) => group.models.length > 0);
 });
 
 const filteredModels = $derived.by(() => {
-if (!searchQuery.trim()) {
-return validModels;
-}
-const query = searchQuery.toLowerCase().trim();
-return validModels.filter((model) => matchesSearch(model, query));
+	if (!searchQuery.trim()) {
+		return validModels;
+	}
+	const query = searchQuery.toLowerCase().trim();
+	return validModels.filter((model) => matchesSearch(model, query));
 });
 
 const filteredGroupedModels = $derived.by(() => {
-if (hasModelsDisplay) {
-return filteredGroupedModelsFromDisplay.map((group) => ({
-provider: group.label,
-models: group.models as (Model | DisplayableModel)[],
-}));
-}
+	if (hasModelsDisplay) {
+		return filteredGroupedModelsFromDisplay.map((group) => ({
+			provider: group.label,
+			models: group.models as (Model | DisplayableModel)[],
+		}));
+	}
 
-return groupModelsByProvider(filteredModels).map((group) => ({
-provider: group.provider,
-models: group.models as (Model | DisplayableModel)[],
-}));
+	return groupModelsByProvider(filteredModels).map((group) => ({
+		provider: group.provider,
+		models: group.models as (Model | DisplayableModel)[],
+	}));
 });
 
 const showGroups = $derived(
-hasModelsDisplay
-? filteredGroupedModelsFromDisplay.some((group) => group.label) ||
-filteredGroupedModelsFromDisplay.length > 1
-: filteredGroupedModels.length > 1
+	hasModelsDisplay
+		? filteredGroupedModelsFromDisplay.some((group) => group.label) ||
+				filteredGroupedModelsFromDisplay.length > 1
+		: filteredGroupedModels.length > 1
 );
 
-const usesVariantSelector = $derived(
-supportsReasoningEffortPicker(availableModels, modelsDisplay)
-);
+const usesVariantSelector = $derived(supportsReasoningEffortPicker(availableModels, modelsDisplay));
 const showSearch = $derived(!usesVariantSelector && totalModelCount > MODEL_SEARCH_THRESHOLD);
 
 const reasoningBaseGroupsFromDisplay = $derived.by(() => {
-return groupReasoningModelsFromDisplay(modelsDisplay);
+	return groupReasoningModelsFromDisplay(modelsDisplay);
 });
 
 const reasoningBaseGroups = $derived.by(() =>
-hasModelsDisplay && usesVariantSelector
-? reasoningBaseGroupsFromDisplay
-: usesVariantSelector
-? groupCodexModelsByBase(filteredModels)
-: []
+	hasModelsDisplay && usesVariantSelector
+		? reasoningBaseGroupsFromDisplay
+		: usesVariantSelector
+			? groupCodexModelsByBase(filteredModels)
+			: []
 );
 
 const selectedReasoningVariant = $derived.by(() =>
-usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentModelId) : null
+	usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentModelId) : null
 );
 const selectedReasoningBaseGroup = $derived.by(() => {
-if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
-return null;
-}
+	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
+		return null;
+	}
 
-if (!selectedReasoningVariant) {
-return reasoningBaseGroups[0] ?? null;
-}
+	if (!selectedReasoningVariant) {
+		return reasoningBaseGroups[0] ?? null;
+	}
 
-return (
-reasoningBaseGroups.find(
-(group) => group.baseModelId === selectedReasoningVariant.baseModelId
-) ??
-reasoningBaseGroups[0] ??
-null
-);
+	return (
+		reasoningBaseGroups.find(
+			(group) => group.baseModelId === selectedReasoningVariant.baseModelId
+		) ??
+		reasoningBaseGroups[0] ??
+		null
+	);
 });
 
 function handlePrimarySelect(baseModelId: string): void {
-const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
-if (!baseGroup || baseGroup.variants.length === 0) {
-return;
-}
+	const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
+	if (!baseGroup || baseGroup.variants.length === 0) {
+		return;
+	}
 
-const currentEffort =
-selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
-? selectedReasoningVariant.effort
-: null;
-const nextVariant =
-(currentEffort
-? baseGroup.variants.find((variant) => variant.effort === currentEffort)
-: undefined) ??
-baseGroup.variants.find((variant) => variant.effort === "medium") ??
-baseGroup.variants[0];
+	const currentEffort =
+		selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
+			? selectedReasoningVariant.effort
+			: null;
+	const nextVariant =
+		(currentEffort
+			? baseGroup.variants.find((variant) => variant.effort === currentEffort)
+			: undefined) ??
+		baseGroup.variants.find((variant) => variant.effort === "medium") ??
+		baseGroup.variants[0];
 
-if (nextVariant) {
-onModelChange(nextVariant.fullModelId);
-}
+	if (nextVariant) {
+		onModelChange(nextVariant.fullModelId);
+	}
 }
 
 function handleVariantSelect(modelId: string): void {
-onModelChange(modelId);
+	onModelChange(modelId);
 }
 </script>
 

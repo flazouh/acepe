@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
 
-import type { ConvertedSession, StoredEntry } from "../../../../services/converted-session-types.js";
+import type {
+	ConvertedSession,
+	StoredEntry,
+} from "../../../../services/converted-session-types.js";
 import type { SessionCold, SessionEntry } from "../../types.js";
 import type {
 	IConnectionManager,
@@ -109,8 +112,7 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 					worktreePath: updates.worktreePath ?? session.worktreePath,
 					worktreeDeleted: updates.worktreeDeleted ?? session.worktreeDeleted,
 					prNumber: updates.prNumber ?? session.prNumber,
-					sessionLifecycleState:
-						updates.sessionLifecycleState ?? session.sessionLifecycleState,
+					sessionLifecycleState: updates.sessionLifecycleState ?? session.sessionLifecycleState,
 					sequenceId: updates.sequenceId ?? session.sequenceId,
 				};
 			});

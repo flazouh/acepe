@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-	getScrollEventTargets,
-	observeScrollParents,
-} from "../logic/scroll-sync.js";
+import { getScrollEventTargets, observeScrollParents } from "../logic/scroll-sync.js";
 
 describe("browser panel scroll sync", () => {
 	afterEach(() => {

@@ -1,12 +1,12 @@
 <script lang="ts">
-	interface Props {
-		value: string;
-		language?: string;
-		readonly?: boolean;
-		gitGutterInput?: { kind: string } | null;
-	}
+interface Props {
+	value: string;
+	language?: string;
+	readonly?: boolean;
+	gitGutterInput?: { kind: string } | null;
+}
 
-	let { value, language = "", readonly = false, gitGutterInput = null }: Props = $props();
+let { value, language = "", readonly = false, gitGutterInput = null }: Props = $props();
 </script>
 
 <div

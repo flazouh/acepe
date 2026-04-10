@@ -218,7 +218,7 @@
 .shiki,
 .shiki span {
 	color: var(--shiki-dark);
-	background-color: transparent !important;
+	background-color: transparent;
 }
 
 :root[data-theme="light"] .shiki,

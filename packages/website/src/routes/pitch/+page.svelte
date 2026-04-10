@@ -1,59 +1,69 @@
 <script lang="ts">
-	import { BrandLockup, BrandShaderBackground } from '@acepe/ui';
-	import { formatPitchProofValue, pitchSections } from '$lib/pitch/content.js';
+import { BrandLockup, BrandShaderBackground } from "@acepe/ui";
+import { formatPitchProofValue, pitchSections } from "$lib/pitch/content.js";
 
-	const workflowComparison = [
-		{
-			label: 'Before',
-			accentClass: 'border-destructive/30 bg-destructive/6',
-			badgeClass: 'text-destructive/80 bg-destructive/10',
-			steps: [
-				'One terminal per agent',
-				'Manual conflict hunting',
-				'Missed permission prompts',
-				'No shared ship-ready state',
-			],
-		},
-		{
-			label: 'After',
-			accentClass: 'border-accent/40 bg-accent/8',
-			badgeClass: 'text-foreground bg-accent/15',
-			steps: [
-				'One workspace for all agents',
-				'Attention queue surfaces blockers',
-				'Checkpoint diffs before merge',
-				'Clear ship-ready status',
-			],
-		},
-	] as const;
+const workflowComparison = [
+	{
+		label: "Before",
+		accentClass: "border-destructive/30 bg-destructive/6",
+		badgeClass: "text-destructive/80 bg-destructive/10",
+		steps: [
+			"One terminal per agent",
+			"Manual conflict hunting",
+			"Missed permission prompts",
+			"No shared ship-ready state",
+		],
+	},
+	{
+		label: "After",
+		accentClass: "border-accent/40 bg-accent/8",
+		badgeClass: "text-foreground bg-accent/15",
+		steps: [
+			"One workspace for all agents",
+			"Attention queue surfaces blockers",
+			"Checkpoint diffs before merge",
+			"Clear ship-ready status",
+		],
+	},
+] as const;
 
-	const marketSizingInputs = [
-		{ label: 'Developers', value: '30M+', detail: 'AI-assisted developers' },
-		{ label: 'Target wedge', value: '1%', detail: 'Early multi-agent teams' },
-		{ label: 'Annual seat ACV', value: '$348', detail: '$29 per seat / month' },
-		{ label: 'Starting SAM', value: '$104M+', detail: '30M x 1% x $348' },
-	] as const;
+const marketSizingInputs = [
+	{ label: "Developers", value: "30M+", detail: "AI-assisted developers" },
+	{ label: "Target wedge", value: "1%", detail: "Early multi-agent teams" },
+	{ label: "Annual seat ACV", value: "$348", detail: "$29 per seat / month" },
+	{ label: "Starting SAM", value: "$104M+", detail: "30M x 1% x $348" },
+] as const;
 
-	const competitionPoints = [
-		{ name: 'Terminal CLIs', note: 'single-session tools', x: '18%', y: '22%', highlight: false },
-		{ name: 'IDE copilots', note: 'editor-native agents', x: '34%', y: '38%', highlight: false },
-		{ name: 'PR / CI automation', note: 'review after execution', x: '70%', y: '30%', highlight: false },
-		{ name: 'Acepe', note: 'live, governed multi-agent work', x: '76%', y: '78%', highlight: true },
-	] as const;
+const competitionPoints = [
+	{ name: "Terminal CLIs", note: "single-session tools", x: "18%", y: "22%", highlight: false },
+	{ name: "IDE copilots", note: "editor-native agents", x: "34%", y: "38%", highlight: false },
+	{
+		name: "PR / CI automation",
+		note: "review after execution",
+		x: "70%",
+		y: "30%",
+		highlight: false,
+	},
+	{ name: "Acepe", note: "live, governed multi-agent work", x: "76%", y: "78%", highlight: true },
+] as const;
 
-	const tiers = [
-		{ name: 'Solo', price: 'Free forever', features: 'Full workspace. Unlimited local sessions.' },
-		{ name: 'Team', price: '$29 / seat / mo', features: 'Shared visibility. Approvals. Handoffs.' },
-		{ name: 'Enterprise', price: 'Custom', features: 'SSO. Audit trails. Governance. Remote agents.' },
-	] as const;
+const tiers = [
+	{ name: "Solo", price: "Free forever", features: "Full workspace. Unlimited local sessions." },
+	{ name: "Team", price: "$29 / seat / mo", features: "Shared visibility. Approvals. Handoffs." },
+	{
+		name: "Enterprise",
+		price: "Custom",
+		features: "SSO. Audit trails. Governance. Remote agents.",
+	},
+] as const;
 
-	const milestones = [
-		{ area: 'Team workflows', detail: 'Shared workspaces, approvals, session handoff' },
-		{ area: 'Go-to-market', detail: 'Developer content and design partners' },
-		{ area: 'Remote agents', detail: 'Cloud-hosted sessions with Acepe observability' },
-	] as const;
+const milestones = [
+	{ area: "Team workflows", detail: "Shared workspaces, approvals, session handoff" },
+	{ area: "Go-to-market", detail: "Developer content and design partners" },
+	{ area: "Remote agents", detail: "Cloud-hosted sessions with Acepe observability" },
+] as const;
 
-	const workflowSteps = ['Launch', 'Monitor', 'Unblock', 'Review', 'Ship'] as const;
+const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as const;
 </script>
 
 <svelte:head>

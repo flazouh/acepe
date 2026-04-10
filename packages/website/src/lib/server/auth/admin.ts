@@ -1,13 +1,13 @@
-import { ResultAsync } from 'neverthrow';
-import { eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { db } from '../db/client';
-import { users, sessions } from '../db/schema';
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { ResultAsync } from "neverthrow";
+import { db } from "../db/client";
+import { sessions, users } from "../db/schema";
 import {
-	UnauthorizedError,
+	type AuthError,
 	SessionCreationFailedError,
-	type AuthError
-} from '../domain/errors/AuthErrors';
+	UnauthorizedError,
+} from "../domain/errors/AuthErrors";
 
 interface GoogleUserData {
 	googleId: string;
@@ -48,7 +48,7 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 					.set({
 						name: data.name,
 						picture: data.picture,
-						email: data.email
+						email: data.email,
 					})
 					.where(eq(users.id, user.id));
 
@@ -56,7 +56,7 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 					...user,
 					name: data.name,
 					picture: data.picture,
-					email: data.email
+					email: data.email,
 				};
 			}
 
@@ -67,7 +67,7 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 				googleId: data.googleId,
 				name: data.name,
 				picture: data.picture,
-				isAdmin: false
+				isAdmin: false,
 			};
 
 			await db.insert(users).values(newUser);
@@ -87,7 +87,7 @@ export function createSession(userId: string): ResultAsync<Session, AuthError> {
 			const session = {
 				id: nanoid(),
 				userId,
-				expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 days
+				expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 7 days
 			};
 
 			await db.insert(sessions).values(session);
@@ -107,7 +107,7 @@ export function validateSession(sessionId: string): ResultAsync<User | null, Aut
 			const result = await db
 				.select({
 					session: sessions,
-					user: users
+					user: users,
 				})
 				.from(sessions)
 				.innerJoin(users, eq(sessions.userId, users.id))

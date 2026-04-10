@@ -1,5 +1,5 @@
-import { createLogger } from "../../../utils/logger.js";
 import { recordHotPathDiagnostic } from "../../../utils/hot-path-diagnostics.js";
+import { createLogger } from "../../../utils/logger.js";
 
 const BOTTOM_THRESHOLD = 10;
 const AUTO_MARK_TIMEOUT_MS = 400;
@@ -417,11 +417,7 @@ export class AutoScrollLogic {
 			metrics.scrollOffset >= previousMetrics.scrollOffset;
 
 		if (this._following && contentGrewWithoutUserScroll) {
-			log(
-				"scroll",
-				"IGNORED (content growth while following), dist=",
-				metrics.distanceFromBottom
-			);
+			log("scroll", "IGNORED (content growth while following), dist=", metrics.distanceFromBottom);
 			return this.buildStateSnapshot(metrics);
 		}
 

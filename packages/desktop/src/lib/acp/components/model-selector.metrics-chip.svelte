@@ -46,7 +46,9 @@ const percent = $derived(getContextUsagePercent(total, contextWindow));
 const hasContextUsage = $derived(percent !== null);
 const percentValue = $derived(percent !== null ? percent : 0);
 const remaining = $derived(
-	hasContextUsage && contextWindow != null && total != null ? Math.max(0, contextWindow - total) : null
+	hasContextUsage && contextWindow != null && total != null
+		? Math.max(0, contextWindow - total)
+		: null
 );
 const tokenUsageText = $derived(formatTokenUsageCompact(total, contextWindow));
 const claudeUsageText = $derived.by(() => {

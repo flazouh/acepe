@@ -8,11 +8,7 @@
  */
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { BuildIcon, PlanIcon } from "@acepe/ui/icons";
-import {
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
+import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "@acepe/ui/panel-header";
 import type { PlanCardStatus } from "@acepe/ui/plan-card";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { XCircle } from "phosphor-svelte";

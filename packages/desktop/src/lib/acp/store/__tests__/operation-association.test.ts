@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
 
 import type { ToolCallData } from "../../../services/converted-session-types.js";
-import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
+import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
-import { OperationStore } from "../operation-store.svelte.js";
 import {
 	findOperationForPermission,
 	findOperationForPlanApproval,
 	findOperationForQuestion,
 } from "../operation-association.js";
+import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function createExecuteToolCall(

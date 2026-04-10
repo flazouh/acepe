@@ -16,7 +16,13 @@ interface Props {
 	projectPath?: string | null;
 }
 
-let { permission, compact = false, inline = false, hideHeader = false, projectPath = null }: Props = $props();
+let {
+	permission,
+	compact = false,
+	inline = false,
+	hideHeader = false,
+	projectPath = null,
+}: Props = $props();
 
 const permissionStore = getPermissionStore();
 
