@@ -16,7 +16,7 @@ use crate::acp::projections::{
     SessionSnapshot, SessionTurnState,
 };
 use crate::acp::session_update::{
-    AvailableCommand, AvailableCommandsData, CommandInput, ConfigOptionData,
+    AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
     InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
     PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
@@ -44,6 +44,158 @@ const CLAUDE_HISTORY_TYPES_PATH: &str =
 const ACP_TYPES_PATH: &str = "../../../packages/desktop/src/lib/services/acp-types.ts";
 const CHECKPOINT_TYPES_PATH: &str =
     "../../../packages/desktop/src/lib/services/checkpoint-types.ts";
+const ACP_TYPES_COMPAT_HELPERS: &str = r#"
+export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
+
+export type ProviderVariantGroup = "plain" | "reasoningEffort";
+
+export type AutonomousApplyStrategy = "postConnect" | "launchProfile";
+
+export type ProviderMetadataProjection = {
+	providerBrand: ProviderBrand;
+	displayName: string;
+	displayOrder: number;
+	supportsModelDefaults: boolean;
+	variantGroup: ProviderVariantGroup;
+	defaultAlias?: string;
+	reasoningEffortSupport: boolean;
+	autonomousApplyStrategy: AutonomousApplyStrategy;
+};
+
+export type ModelsForDisplayWithProvider = ModelsForDisplay;
+
+export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetadataProjection> = {
+	"claude-code": {
+		providerBrand: "claude-code",
+		displayName: "Claude Code",
+		displayOrder: 10,
+		supportsModelDefaults: true,
+		variantGroup: "plain",
+		defaultAlias: "default",
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "launchProfile",
+	},
+	copilot: {
+		providerBrand: "copilot",
+		displayName: "GitHub Copilot",
+		displayOrder: 30,
+		supportsModelDefaults: false,
+		variantGroup: "plain",
+		defaultAlias: undefined,
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "postConnect",
+	},
+	cursor: {
+		providerBrand: "cursor",
+		displayName: "Cursor",
+		displayOrder: 20,
+		supportsModelDefaults: true,
+		variantGroup: "plain",
+		defaultAlias: "auto",
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "postConnect",
+	},
+	opencode: {
+		providerBrand: "opencode",
+		displayName: "OpenCode",
+		displayOrder: 40,
+		supportsModelDefaults: true,
+		variantGroup: "plain",
+		defaultAlias: undefined,
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "postConnect",
+	},
+	codex: {
+		providerBrand: "codex",
+		displayName: "Codex",
+		displayOrder: 50,
+		supportsModelDefaults: true,
+		variantGroup: "reasoningEffort",
+		defaultAlias: undefined,
+		reasoningEffortSupport: true,
+		autonomousApplyStrategy: "postConnect",
+	},
+};
+
+function cloneProviderMetadataProjection(
+	providerMetadata: ProviderMetadataProjection
+): ProviderMetadataProjection {
+	return {
+		providerBrand: providerMetadata.providerBrand,
+		displayName: providerMetadata.displayName,
+		displayOrder: providerMetadata.displayOrder,
+		supportsModelDefaults: providerMetadata.supportsModelDefaults,
+		variantGroup: providerMetadata.variantGroup,
+		defaultAlias: providerMetadata.defaultAlias,
+		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
+		autonomousApplyStrategy: providerMetadata.autonomousApplyStrategy,
+	};
+}
+
+export function resolveProviderMetadataProjection(
+	agentId: string,
+	providerMetadata: ProviderMetadataProjection | null | undefined,
+	fallbackDisplayName?: string
+): ProviderMetadataProjection {
+	if (providerMetadata) {
+		return cloneProviderMetadataProjection(providerMetadata);
+	}
+
+	const builtInProviderMetadata = BUILTIN_PROVIDER_METADATA_BY_AGENT_ID[agentId];
+	if (builtInProviderMetadata) {
+		return cloneProviderMetadataProjection(builtInProviderMetadata);
+	}
+
+	return {
+		providerBrand: "custom",
+		displayName: fallbackDisplayName ?? agentId,
+		displayOrder: 65535,
+		supportsModelDefaults: false,
+		variantGroup: "plain",
+		defaultAlias: undefined,
+		reasoningEffortSupport: false,
+		autonomousApplyStrategy: "postConnect",
+	};
+}
+
+export function getProviderMetadataFromModelsDisplay(
+	modelsDisplay: ModelsForDisplay | null | undefined
+): ProviderMetadataProjection | null {
+	return modelsDisplay?.presentation?.provider ?? null;
+}
+
+export function normalizeModelsForDisplay(
+	agentId: string,
+	modelsDisplay: ModelsForDisplay | null | undefined,
+	fallbackDisplayName?: string,
+	providerMetadataOverride?: ProviderMetadataProjection | null
+): ModelsForDisplay | null {
+	if (!modelsDisplay) {
+		return null;
+	}
+
+	const providerMetadata = resolveProviderMetadataProjection(
+		agentId,
+		providerMetadataOverride ?? getProviderMetadataFromModelsDisplay(modelsDisplay),
+		fallbackDisplayName
+	);
+	const presentation = modelsDisplay.presentation;
+	const displayFamily =
+		presentation?.displayFamily ??
+		(providerMetadata.variantGroup === "reasoningEffort"
+			? "codexReasoningEffort"
+			: "providerGrouped");
+
+	return {
+		groups: modelsDisplay.groups,
+		presentation: {
+			displayFamily,
+			usageMetrics: presentation?.usageMetrics ?? "spendAndContext",
+			provider: providerMetadata,
+		},
+	};
+}
+"#;
 
 /// Creates a specta configuration that allows BigInt for i64 types
 fn ts_config() -> Typescript {
@@ -95,6 +247,7 @@ pub fn export_all_types() {
     export_type!(UsageTelemetryTokens);
     export_type!(UsageTelemetryData);
     export_type!(SessionUpdate);
+    export_type!(ChunkAggregationHint);
     export_type!(ContentChunk);
     export_type!(ToolCallData);
     export_type!(EditEntry);
@@ -201,6 +354,7 @@ pub fn export_all_types() {
     export_acp_type!(CanonicalAgentId);
     export_acp_type!(ToolKind);
     export_acp_type!(ToolCallStatus);
+    export_acp_type!(ChunkAggregationHint);
     export_acp_type!(EditEntry);
     export_acp_type!(ToolArguments);
     export_acp_type!(ToolReference);
@@ -222,6 +376,18 @@ pub fn export_all_types() {
     export_acp_type!(InteractionResponse);
     export_acp_type!(InteractionSnapshot);
     export_acp_type!(SessionProjectionSnapshot);
+
+    acp_types = acp_types.replace(
+        "export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }",
+        "export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation; provider?: ProviderMetadataProjection }",
+    );
+    acp_types = acp_types.replace(
+        "export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay }",
+        "export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay; providerMetadata?: ProviderMetadataProjection }",
+    );
+
+    acp_types.push_str(ACP_TYPES_COMPAT_HELPERS);
+    acp_types.push('\n');
 
     let acp_path = Path::new(manifest_dir).join(ACP_TYPES_PATH);
     fs::write(&acp_path, acp_types).expect("Failed to write acp-types.ts");

@@ -21,6 +21,18 @@ describe("kanban layout wiring contract", () => {
 		expect(panelsContainerSource).toContain("<KanbanView");
 	});
 
+	it("renders the board through the shared kanban scene renderer instead of bespoke inline composition", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
+
+		const kanbanViewSource = readFileSync(kanbanViewPath, "utf8");
+
+		expect(kanbanViewSource).toContain("KanbanSceneBoard");
+		expect(kanbanViewSource).toContain("<KanbanSceneBoard");
+		expect(kanbanViewSource).not.toContain("<KanbanBoard {groups} emptyHint=\"No sessions\">");
+		expect(kanbanViewSource).not.toContain("{#snippet cardRenderer(card: KanbanCardData)}");
+	});
+
 	it("hides the sidebar queue when the board is active", () => {
 		expect(existsSync(appSidebarPath)).toBe(true);
 		if (!existsSync(appSidebarPath)) return;

@@ -47,6 +47,8 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  */
 { type: "usageTelemetryUpdate"; data: UsageTelemetryData }
 
+export type ChunkAggregationHint = "boundaryCarryover"
+
 /**
  * ContentChunk represents a chunk of content being streamed.
  * 

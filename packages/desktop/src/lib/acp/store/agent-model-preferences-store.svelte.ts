@@ -15,10 +15,10 @@ import { okAsync, ResultAsync } from "neverthrow";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
 	normalizeModelsForDisplay,
+	resolveProviderMetadataProjection,
 	type ModelsForDisplay,
 	type ProviderMetadataProjection,
-	resolveProviderMetadataProjection,
-} from "../../services/acp-types.js";
+} from "../../services/acp-provider-metadata.js";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
 import type { AppError } from "../errors/app-error.js";

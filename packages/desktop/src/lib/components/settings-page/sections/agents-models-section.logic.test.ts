@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import type { ModelsForDisplay, ProviderMetadataProjection } from "$lib/services/acp-types.js";
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
+} from "$lib/services/acp-provider-metadata.js";
 import type { Agent } from "$lib/acp/store/types.js";
 
 import {

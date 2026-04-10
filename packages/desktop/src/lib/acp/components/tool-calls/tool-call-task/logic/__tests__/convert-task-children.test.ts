@@ -89,6 +89,7 @@ describe("convertTaskChildren", () => {
 		it.each([
 			["read", "read"],
 			["edit", "edit"],
+			["delete", "delete"],
 			["execute", "execute"],
 			["search", "search"],
 			["fetch", "fetch"],
@@ -107,7 +108,6 @@ describe("convertTaskChildren", () => {
 			"question",
 			"skill",
 			"move",
-			"delete",
 			"enter_plan_mode",
 			"exit_plan_mode",
 			"other",

@@ -1395,6 +1395,52 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_preserves_persisted_source_path_when_incoming_path_is_registry_sentinel() {
+        let db = setup_test_db().await;
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "copilot-session".to_string(),
+            "Cached Copilot Session".to_string(),
+            1704067200000,
+            "/project".to_string(),
+            "copilot".to_string(),
+            "/tmp/copilot-session.json".to_string(),
+            1704067200000,
+            2048,
+        )
+        .await
+        .unwrap();
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "copilot-session".to_string(),
+            "Cached Copilot Session".to_string(),
+            1704067300000,
+            "/project".to_string(),
+            "copilot".to_string(),
+            "__session_registry__/copilot/copilot-session".to_string(),
+            0,
+            0,
+        )
+        .await
+        .unwrap();
+
+        let session = SessionMetadataRepository::get_by_id(&db, "copilot-session")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.file_path, "/tmp/copilot-session.json");
+        assert_eq!(session.file_mtime, 1704067200000);
+        assert_eq!(session.file_size, 2048);
+        assert_eq!(
+            SessionMetadataRepository::normalized_source_path(session.file_path.as_str()),
+            Some("/tmp/copilot-session.json".to_string())
+        );
+    }
+
+    #[tokio::test]
     async fn test_ensure_exists_inserts_placeholder_when_session_missing() {
         let db = setup_test_db().await;
 

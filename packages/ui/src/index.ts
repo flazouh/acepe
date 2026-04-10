@@ -185,8 +185,16 @@ export { Input, Root as InputRoot } from "./components/input/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
+	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
+	KanbanSceneCardData,
+	KanbanSceneColumnGroup,
+	KanbanSceneFooterData,
+	KanbanSceneMenuAction,
+	KanbanScenePermissionFooterData,
+	KanbanScenePlanApprovalFooterData,
+	KanbanSceneQuestionFooterData,
 	KanbanTaskCardData,
 	KanbanToolData,
 } from "./components/kanban/index.js";
@@ -195,7 +203,9 @@ export {
 	KanbanCard,
 	KanbanColumn,
 	KanbanCompactComposer,
+	KanbanPermissionFooter,
 	KanbanQuestionFooter,
+	KanbanSceneBoard,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";
 export {

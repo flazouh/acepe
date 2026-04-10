@@ -42,7 +42,6 @@ serde_json = "1"
 anyhow = "1"
 # TypeScript type generation (specta v2 for Tauri v2)
 specta = { version = "=2.0.0-rc.22", features = ["export", "function", "serde", "serde_json"] }
-tauri-specta = { version = "=2.0.0-rc.21", features = ["typescript"] }
 specta-typescript = "0.0.9"
 dotenv = "0.15"
 dirs = "5"
@@ -51,9 +50,6 @@ futures = "0.3"
 axum = { version = "0.7", features = ["http1", "tokio"] }
 # HTTP client for OpenCode REST API
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip"] }
-aws-config = "1"
-aws-sdk-s3 = "1"
-aws-credential-types = "1"
 # SSE stream parsing for OpenCode events
 tokio-util = { version = "0.7", features = ["io"] }
 tauri-plugin-notification = "2.3.3"
@@ -80,7 +76,6 @@ base64 = "0.22"
 ignore = "0.4"
 git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
 rayon = "1.10"
-memchr = "2"
 dashmap = "6"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 thiserror = "1"
@@ -89,7 +84,7 @@ tar = "0.4"
 flate2 = "1.0"
 zip = "2"
 partial-json-fixer = "0.5"
-cc-sdk = { path = "cc-sdk-local" }
+cc-sdk = { path = "cc-sdk-local", default-features = false }
 tauri-plugin-mcp-bridge = "0.9"
 tauri-plugin-clipboard-manager = "2.3.2"
 # Unix signal handling for graceful shutdown
@@ -155,7 +150,6 @@ path = "tests/acp_session_list_probe.rs"
 required-features = ["manual-test-targets"]
 
 [dev-dependencies]
-tokio-test = "0.4"
 insta = { version = "1", features = ["json"] }
 hound = "3"
 

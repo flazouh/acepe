@@ -19,6 +19,7 @@
 
 	interface Props {
 		card: KanbanCardData;
+		children?: Snippet;
 		onclick?: () => void;
 		/** Close button callback. When provided, renders a compact X button in the header. */
 		onClose?: () => void;

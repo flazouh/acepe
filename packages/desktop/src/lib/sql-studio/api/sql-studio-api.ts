@@ -4,12 +4,6 @@ import type {
 	ConnectionFormInput,
 	QueryExecutionRequest,
 	QueryExecutionResult,
-	S3BucketNode,
-	S3DownloadRequest,
-	S3ListObjectsRequest,
-	S3ListObjectsResponse,
-	S3PreviewRequest,
-	S3PreviewResponse,
 	SavedConnectionDetail,
 	SavedConnectionSummary,
 	SchemaNode,
@@ -76,22 +70,4 @@ export function updateTableCell(
 	request: TableUpdateRequest
 ): ResultAsync<TableUpdateResult, Error> {
 	return mapError(tauriClient.sqlStudio.updateTableCell(request));
-}
-
-export function listS3Buckets(connectionId: string): ResultAsync<readonly S3BucketNode[], Error> {
-	return mapError(tauriClient.sqlStudio.listS3Buckets(connectionId));
-}
-
-export function listS3Objects(
-	request: S3ListObjectsRequest
-): ResultAsync<S3ListObjectsResponse, Error> {
-	return mapError(tauriClient.sqlStudio.listS3Objects(request));
-}
-
-export function previewS3Object(request: S3PreviewRequest): ResultAsync<S3PreviewResponse, Error> {
-	return mapError(tauriClient.sqlStudio.previewS3Object(request));
-}
-
-export function downloadS3Object(request: S3DownloadRequest): ResultAsync<string | null, Error> {
-	return mapError(tauriClient.sqlStudio.downloadS3Object(request));
 }

@@ -111,6 +111,37 @@ describe("tool definition display builders", () => {
 		});
 	});
 
+	it("builds execute entries from MCP content block array results", () => {
+		const entry = resolveFullToolEntry({
+			toolCall: createToolCall({
+				id: "tool-7",
+				name: "Bash",
+				kind: "execute",
+				status: "completed",
+				arguments: { kind: "execute", command: "bun test" },
+				result: [
+					{ type: "text", text: "3 tests passed" },
+					{ type: "text", text: "Done" },
+				],
+			}),
+			turnState: "completed",
+		});
+
+		expect(entry).toEqual({
+			id: "tool-7",
+			type: "tool_call",
+			kind: "execute",
+			title: "Ran command",
+			subtitle: "bun test",
+			filePath: undefined,
+			status: "done",
+			command: "bun test",
+			stdout: "3 tests passed\nDone",
+			stderr: null,
+			exitCode: undefined,
+		});
+	});
+
 	it("marks unfinished child tools as done when the parent task has completed", () => {
 		const entry = resolveFullToolEntry({
 			toolCall: createToolCall({

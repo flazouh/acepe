@@ -20,6 +20,7 @@ export type AgentToolStatus = "pending" | "running" | "done" | "error";
 export type AgentToolKind =
 	| "read"
 	| "edit"
+	| "delete"
 	| "write"
 	| "execute"
 	| "search"

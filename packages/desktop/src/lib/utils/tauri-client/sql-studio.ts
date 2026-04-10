@@ -4,12 +4,6 @@ import type {
 	ConnectionFormInput,
 	QueryExecutionRequest,
 	QueryExecutionResult,
-	S3BucketNode,
-	S3DownloadRequest,
-	S3ListObjectsRequest,
-	S3ListObjectsResponse,
-	S3PreviewRequest,
-	S3PreviewResponse,
 	SavedConnectionDetail,
 	SavedConnectionSummary,
 	SchemaNode,
@@ -67,21 +61,5 @@ export const sqlStudio = {
 
 	updateTableCell: (request: TableUpdateRequest): ResultAsync<TableUpdateResult, AppError> => {
 		return invokeAsync(CMD.sqlStudio.update_table_cell, { request });
-	},
-
-	listS3Buckets: (connectionId: string): ResultAsync<readonly S3BucketNode[], AppError> => {
-		return invokeAsync(CMD.sqlStudio.list_s3_buckets, { connectionId });
-	},
-
-	listS3Objects: (request: S3ListObjectsRequest): ResultAsync<S3ListObjectsResponse, AppError> => {
-		return invokeAsync(CMD.sqlStudio.list_s3_objects, { request });
-	},
-
-	previewS3Object: (request: S3PreviewRequest): ResultAsync<S3PreviewResponse, AppError> => {
-		return invokeAsync(CMD.sqlStudio.preview_s3_object, { request });
-	},
-
-	downloadS3Object: (request: S3DownloadRequest): ResultAsync<string | null, AppError> => {
-		return invokeAsync(CMD.sqlStudio.download_s3_object, { request });
 	},
 };

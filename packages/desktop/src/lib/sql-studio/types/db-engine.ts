@@ -1,1 +1,1 @@
-export type DbEngine = "postgres" | "mysql" | "sqlite" | "s3";
+export type DbEngine = "postgres" | "mysql" | "sqlite";

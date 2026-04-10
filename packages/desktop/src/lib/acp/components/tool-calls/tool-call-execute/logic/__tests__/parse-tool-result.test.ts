@@ -212,4 +212,15 @@ describe("parseToolResultWithExitCode", () => {
 		expect(parsed.exitCode).toBe(0);
 		expect(parsed.stderr).toBeNull();
 	});
+
+	it("should extract stdout from MCP content block arrays", () => {
+		const parsed = parseToolResultWithExitCode([
+			{ type: "text", text: "test output" },
+			{ type: "text", text: "done" },
+		]);
+
+		expect(parsed.stdout).toBe("test output\ndone");
+		expect(parsed.stderr).toBeNull();
+		expect(parsed.exitCode).toBeUndefined();
+	});
 });

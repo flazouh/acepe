@@ -35,6 +35,7 @@ const ALLOWED_ENV_KEYS: &[&str] = &[
     "LC_ALL",
     "LC_CTYPE",
     "SSH_AUTH_SOCK",
+    "OPENCODE_API_KEY",
 ];
 
 fn filtered_env() -> HashMap<String, String> {
@@ -322,6 +323,11 @@ mod tests {
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].command, "/tmp/opencode");
         assert_eq!(configs[0].args, vec!["serve"]);
+    }
+
+    #[test]
+    fn allowed_env_keys_forward_opencode_api_key() {
+        assert!(ALLOWED_ENV_KEYS.contains(&"OPENCODE_API_KEY"));
     }
 
     #[test]

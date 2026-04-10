@@ -1,6 +1,3 @@
-use aws_config::BehaviorVersion;
-use aws_credential_types::Credentials;
-use aws_sdk_s3::{config::Region, Client as S3Client};
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Row;
@@ -8,10 +5,7 @@ use sqlx::Row;
 use crate::db::repository::SqlConnectionRow;
 
 use super::super::super::types::TestConnectionResponse;
-use super::stored_config::{
-    parse_s3_stored_config, parse_s3_stored_secrets, parse_sql_stored_config,
-    parse_sql_stored_secrets,
-};
+use super::stored_config::{parse_sql_stored_config, parse_sql_stored_secrets};
 
 pub(crate) fn require_field(value: &Option<String>, field_name: &str) -> Result<String, String> {
     value
@@ -213,39 +207,6 @@ pub(crate) async fn connect_mysql(config: &SqlConnectionRow) -> Result<MySqlPool
         .map_err(|e| format!("Failed to connect to MySQL: {}", e))
 }
 
-pub(crate) async fn connect_s3(config: &SqlConnectionRow) -> Result<S3Client, String> {
-    let stored = parse_s3_stored_config(config)?;
-    let secrets = parse_s3_stored_secrets(config)?;
-
-    let credentials = Credentials::new(
-        secrets.access_key_id,
-        secrets.secret_access_key,
-        secrets.session_token,
-        None,
-        "acepe-database-manager",
-    );
-
-    let shared_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(Region::new(stored.region.clone()))
-        .credentials_provider(credentials)
-        .load()
-        .await;
-
-    let mut builder = aws_sdk_s3::config::Builder::from(&shared_config);
-    if stored.force_path_style {
-        builder = builder.force_path_style(true);
-    }
-    if let Some(endpoint_url) = stored
-        .endpoint_url
-        .as_ref()
-        .filter(|endpoint| !endpoint.trim().is_empty())
-    {
-        builder = builder.endpoint_url(endpoint_url.clone());
-    }
-
-    Ok(S3Client::from_conf(builder.build()))
-}
-
 pub(crate) async fn test_connection_row(
     connection: &SqlConnectionRow,
 ) -> Result<TestConnectionResponse, String> {
@@ -283,18 +244,6 @@ pub(crate) async fn test_connection_row(
             Ok(TestConnectionResponse {
                 ok: true,
                 message: "MySQL connection successful".to_string(),
-            })
-        }
-        "s3" => {
-            let client = connect_s3(connection).await?;
-            client
-                .list_buckets()
-                .send()
-                .await
-                .map_err(|e| format!("Failed to list S3 buckets: {}", e))?;
-            Ok(TestConnectionResponse {
-                ok: true,
-                message: "S3 connection successful".to_string(),
             })
         }
         engine => Err(format!("Unsupported database engine: {}", engine)),

@@ -320,7 +320,7 @@ where
 
 /// A content block in a user or assistant message.
 /// Simplified version for storage/display.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct StoredContentBlock {
     #[serde(rename = "type")]
     pub block_type: String,
@@ -329,7 +329,7 @@ pub struct StoredContentBlock {
 }
 
 /// A chunk of assistant message content (text or thought).
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct StoredAssistantChunk {
     #[serde(rename = "type")]
     pub chunk_type: String, // "message" or "thought"
@@ -337,7 +337,7 @@ pub struct StoredAssistantChunk {
 }
 
 /// User message in a thread (simplified for storage).
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct StoredUserMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -348,7 +348,7 @@ pub struct StoredUserMessage {
 }
 
 /// Assistant message in a thread (simplified for storage).
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct StoredAssistantMessage {
     pub chunks: Vec<StoredAssistantChunk>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -373,7 +373,7 @@ pub struct QuestionAnswer {
 
 /// A single entry in the thread.
 /// Discriminated union tagged by "type".
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
 pub enum StoredEntry {
@@ -400,7 +400,7 @@ pub enum StoredEntry {
 
 /// Result of converting a full session to stored entries.
 /// Returned by get_converted_session command.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct ConvertedSession {
     pub entries: Vec<StoredEntry>,
     pub stats: SessionStats,

@@ -10,14 +10,17 @@ import {
 	getProviderMetadataFromModelsDisplay,
 	resolveProviderMetadataProjection,
 	type ProviderMetadataProjection,
-	type DisplayModelGroup,
-	type DisplayableModel,
-	type ModelDisplayFamily,
-	type ModelsForDisplay,
-	type UsageMetricsPresentation,
+} from "../../services/acp-provider-metadata.js";
+import type {
+	DisplayModelGroup,
+	DisplayableModel,
+	ModelDisplayFamily,
+	ModelsForDisplay,
+	UsageMetricsPresentation,
 } from "../../services/acp-types.js";
-
-import { getProviderDisplayName } from "@acepe/ui";
+import {
+	getProviderDisplayName,
+} from "@acepe/ui";
 import { AGENT_IDS } from "../types/agent-id.js";
 
 /**

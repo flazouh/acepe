@@ -43,6 +43,15 @@ function normalizeExecEnvelope(raw: string): NormalizedExecEnvelope {
  * @returns Parsed result with stdout, stderr, and exitCode
  */
 export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
+	function fallbackStdout(value: unknown): string | null {
+		const fallbackResult = parseToolResultOutput(value);
+		if (fallbackResult.isErr()) {
+			return null;
+		}
+
+		return fallbackResult.value;
+	}
+
 	// Handle null/undefined early
 	if (result === null || result === undefined) {
 		return { stdout: null, stderr: null, exitCode: undefined };
@@ -81,6 +90,14 @@ export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
 			exitCode = envelopeExitCode;
 		}
 
+		if (stdout === null && stderr === null) {
+			return {
+				stdout: fallbackStdout(result),
+				stderr,
+				exitCode,
+			};
+		}
+
 		return { stdout, stderr, exitCode };
 	}
 
@@ -94,7 +111,11 @@ export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
 		};
 	}
 
-	return { stdout: null, stderr: null, exitCode: undefined };
+	return {
+		stdout: fallbackStdout(result),
+		stderr: null,
+		exitCode: undefined,
+	};
 }
 
 /**

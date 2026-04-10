@@ -3,54 +3,6 @@ export interface QueryExecutionRequest {
 	readonly sql: string;
 }
 
-export interface S3BucketNode {
-	readonly name: string;
-	readonly creationDate: string | null;
-}
-
-export interface S3ObjectNode {
-	readonly key: string;
-	readonly size: number;
-	readonly lastModified: string | null;
-	readonly storageClass: string | null;
-	readonly isPrefix: boolean;
-}
-
-export interface S3ListObjectsRequest {
-	readonly connectionId: string;
-	readonly bucket: string;
-	readonly prefix: string | null;
-	readonly continuationToken: string | null;
-	readonly limit: number | null;
-}
-
-export interface S3ListObjectsResponse {
-	readonly bucket: string;
-	readonly prefix: string;
-	readonly objects: readonly S3ObjectNode[];
-	readonly nextContinuationToken: string | null;
-}
-
-export interface S3PreviewRequest {
-	readonly connectionId: string;
-	readonly bucket: string;
-	readonly key: string;
-}
-
-export interface S3PreviewResponse {
-	readonly content: string | null;
-	readonly contentType: string | null;
-	readonly contentLength: number;
-	readonly previewable: boolean;
-	readonly reason: string | null;
-}
-
-export interface S3DownloadRequest {
-	readonly connectionId: string;
-	readonly bucket: string;
-	readonly key: string;
-}
-
 export interface TableExploreRequest {
 	readonly connectionId: string;
 	readonly schemaName: string;

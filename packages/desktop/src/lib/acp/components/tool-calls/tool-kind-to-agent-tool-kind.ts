@@ -5,6 +5,7 @@ import type { ToolKind } from "$lib/acp/types/tool-kind.js";
 const TOOL_KIND_TO_AGENT_TOOL_KIND: Record<ToolKind, AgentToolKind> = {
 	read: "read",
 	edit: "edit",
+	delete: "delete",
 	execute: "execute",
 	search: "search",
 	glob: "search",
@@ -17,7 +18,6 @@ const TOOL_KIND_TO_AGENT_TOOL_KIND: Record<ToolKind, AgentToolKind> = {
 	question: "other",
 	skill: "other",
 	move: "other",
-	delete: "other",
 	enter_plan_mode: "other",
 	exit_plan_mode: "other",
 	create_plan: "other",

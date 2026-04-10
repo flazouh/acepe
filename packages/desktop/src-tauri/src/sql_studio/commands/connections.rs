@@ -35,36 +35,6 @@ pub async fn sql_studio_get_connection(
         .and_then(|row| {
             let engine = DbEngine::from_db_value(&row.engine)
                 .ok_or_else(|| format!("Unsupported engine stored in database: {}", row.engine))?;
-            let connection_kind = match row.connection_kind.as_str() {
-                "s3" => ConnectionKind::S3,
-                _ => ConnectionKind::Sql,
-            };
-
-            if matches!(connection_kind, ConnectionKind::S3) {
-                let s3_config = parse_s3_stored_config(&row)?;
-                let s3_secrets = parse_s3_stored_secrets(&row)?;
-                return Ok(SqlConnectionConfig {
-                    kind: ConnectionKind::S3,
-                    id: Some(row.id),
-                    name: row.name,
-                    engine,
-                    host: None,
-                    port: None,
-                    database_name: None,
-                    username: None,
-                    password: None,
-                    file_path: None,
-                    ssl_mode: None,
-                    s3_region: Some(s3_config.region),
-                    s3_endpoint_url: s3_config.endpoint_url,
-                    s3_force_path_style: Some(s3_config.force_path_style),
-                    s3_default_prefix: s3_config.default_prefix,
-                    s3_access_key_id: Some(s3_secrets.access_key_id),
-                    s3_secret_access_key: Some(s3_secrets.secret_access_key),
-                    s3_session_token: s3_secrets.session_token,
-                });
-            }
-
             let sql_config = parse_sql_stored_config(&row)?;
             Ok(SqlConnectionConfig {
                 kind: ConnectionKind::Sql,
@@ -78,13 +48,6 @@ pub async fn sql_studio_get_connection(
                 password: None,
                 file_path: sql_config.file_path,
                 ssl_mode: sql_config.ssl_mode,
-                s3_region: None,
-                s3_endpoint_url: None,
-                s3_force_path_style: None,
-                s3_default_prefix: None,
-                s3_access_key_id: None,
-                s3_secret_access_key: None,
-                s3_session_token: None,
             })
         })
 }
@@ -106,50 +69,7 @@ pub async fn sql_studio_save_connection(
         config_json,
         secret_json,
     ) = match input.kind {
-        ConnectionKind::S3 => {
-            if input.engine.as_str() != "s3" {
-                return Err("S3 connections must use engine 's3'".to_string());
-            }
-            let s3_config = S3ConnectionStoredConfig {
-                region: require_field(&input.s3_region, "s3Region")?,
-                endpoint_url: input
-                    .s3_endpoint_url
-                    .clone()
-                    .filter(|value| !value.trim().is_empty()),
-                force_path_style: input.s3_force_path_style.unwrap_or(false),
-                default_prefix: input
-                    .s3_default_prefix
-                    .clone()
-                    .filter(|value| !value.trim().is_empty()),
-            };
-            let s3_secret = S3ConnectionStoredSecrets {
-                access_key_id: require_field(&input.s3_access_key_id, "s3AccessKeyId")?,
-                secret_access_key: require_field(&input.s3_secret_access_key, "s3SecretAccessKey")?,
-                session_token: input
-                    .s3_session_token
-                    .clone()
-                    .filter(|value| !value.trim().is_empty()),
-            };
-            let serialized_config = serde_json::to_string(&s3_config)
-                .map_err(|e| format!("Failed to encode S3 connection config: {}", e))?;
-            let serialized_secret = serde_json::to_string(&s3_secret)
-                .map_err(|e| format!("Failed to encode S3 connection secret: {}", e))?;
-            (
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(serialized_config),
-                Some(obfuscate_password(&serialized_secret)),
-            )
-        }
         ConnectionKind::Sql => {
-            if input.engine.as_str() == "s3" {
-                return Err("SQL connections cannot use engine 's3'".to_string());
-            }
             let sql_config = SqlConnectionStoredConfig {
                 host: input.host.clone(),
                 port: input.port,
@@ -184,17 +104,12 @@ pub async fn sql_studio_save_connection(
         }
     };
 
-    let normalized_connection_kind = match input.kind {
-        ConnectionKind::S3 => "s3".to_string(),
-        ConnectionKind::Sql => "sql".to_string(),
-    };
-
     SqlStudioRepository::save_connection(
         &db,
         input.id,
         input.name,
         input.engine.as_str().to_string(),
-        normalized_connection_kind,
+        "sql".to_string(),
         host,
         port,
         database_name,

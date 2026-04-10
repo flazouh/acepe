@@ -257,6 +257,8 @@ export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch"
  */
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
 
+export type ChunkAggregationHint = "boundaryCarryover"
+
 /**
  * A single file edit entry within an Edit tool call.
  * 

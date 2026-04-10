@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentToolCard } from "@acepe/ui/agent-panel";
+import { Colors } from "@acepe/ui";
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Trash } from "phosphor-svelte";
@@ -45,7 +46,9 @@ const filePaths = $derived.by(() => {
 
 	return resolveDeleteFilePaths(toolCall.arguments);
 });
-const hasMultipleFilePaths = $derived(filePaths.length > 1);
+const singleFilePath = $derived(filePaths.length === 1 ? filePaths[0] : null);
+const multipleFilePaths = $derived(filePaths.length > 1 ? filePaths : []);
+const hasMultipleFilePaths = $derived(multipleFilePaths.length > 0);
 const containerClass = $derived(
 	hasMultipleFilePaths
 		? "flex min-h-7 items-start justify-between gap-2 px-2.5 py-1.5"
@@ -56,11 +59,6 @@ const contentClass = $derived(
 		? "flex min-w-0 flex-1 flex-col gap-1.5"
 		: "flex min-w-0 flex-1 items-center gap-1.5 text-xs text-muted-foreground"
 );
-const fileListClass = $derived(
-	hasMultipleFilePaths
-		? "flex flex-wrap items-center gap-1.5 pl-5"
-		: "contents"
-);
 
 const label = $derived(isPending ? m.tool_delete_running() : m.tool_delete_completed());
 </script>
@@ -68,44 +66,40 @@ const label = $derived(isPending ? m.tool_delete_running() : m.tool_delete_compl
 <AgentToolCard variant="muted">
 	<div class={containerClass}>
 		<div class={contentClass}>
-			<span class="inline-flex shrink-0 items-center gap-1">
-				<Trash weight="bold" class="size-3.5 text-red-500" />
-				<span class="shrink-0 text-xs font-normal text-muted-foreground">
-					{#if isPending}
-						<TextShimmer>{label}</TextShimmer>
-					{:else}
-						{label}
-					{/if}
+			<div class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+				<span class="inline-flex shrink-0 items-center gap-1">
+					<Trash weight="bold" class="size-3.5" style="color: {Colors.red}" />
+					<span class="shrink-0 text-xs font-normal text-muted-foreground">
+						{#if isPending}
+							<TextShimmer>{label}</TextShimmer>
+						{:else}
+							{label}
+						{/if}
+					</span>
 				</span>
-			</span>
 
-			{#if filePaths.length > 0}
-				<div class={fileListClass}>
-					{#if isPending}
-						<TextShimmer class="text-muted-foreground" duration={1.2}>
-							<div class="flex flex-wrap items-center gap-1.5">
-								{#each filePaths as currentFilePath (currentFilePath)}
-									<FilePathBadge
-										filePath={currentFilePath}
-										fileName={getFileName(currentFilePath)}
-										iconBasePath="/svgs/icons"
-										interactive={false}
-									/>
-								{/each}
-							</div>
-						</TextShimmer>
-					{:else}
-						<div class="flex flex-wrap items-center gap-1.5">
-							{#each filePaths as currentFilePath (currentFilePath)}
-								<FilePathBadge
-									filePath={currentFilePath}
-									fileName={getFileName(currentFilePath)}
-									iconBasePath="/svgs/icons"
-									interactive={false}
-								/>
-							{/each}
-						</div>
-					{/if}
+				{#if singleFilePath}
+					<FilePathBadge
+						filePath={singleFilePath}
+						fileName={getFileName(singleFilePath)}
+						iconBasePath="/svgs/icons"
+						interactive={false}
+					/>
+				{/if}
+			</div>
+
+			{#if hasMultipleFilePaths}
+				<div class="flex flex-wrap items-center gap-1.5 pl-5">
+					<div class="flex flex-wrap items-center gap-1.5">
+						{#each multipleFilePaths as currentFilePath (currentFilePath)}
+							<FilePathBadge
+								filePath={currentFilePath}
+								fileName={getFileName(currentFilePath)}
+								iconBasePath="/svgs/icons"
+								interactive={false}
+							/>
+						{/each}
+					</div>
 				</div>
 			{/if}
 		</div>

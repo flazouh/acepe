@@ -8,7 +8,7 @@ use tauri::State;
 use crate::db::repository::SqlStudioRepository;
 
 use super::super::super::types::{ColumnNode, SchemaNode, TableNode};
-use super::super::helpers::{connect_mysql, connect_postgres, connect_s3, get_sqlite_file_path};
+use super::super::helpers::{connect_mysql, connect_postgres, get_sqlite_file_path};
 
 #[tauri::command]
 #[specta::specta]
@@ -289,55 +289,6 @@ pub async fn sql_studio_list_schema(
                 .into_iter()
                 .map(|(name, tables)| SchemaNode { name, tables })
                 .collect())
-        }
-        "s3" => {
-            let client = connect_s3(&connection).await?;
-            let response = client
-                .list_buckets()
-                .send()
-                .await
-                .map_err(|e| format!("Failed to list S3 buckets: {}", e))?;
-
-            let tables = response
-                .buckets()
-                .iter()
-                .map(|bucket| TableNode {
-                    name: bucket.name().unwrap_or_default().to_string(),
-                    schema: "buckets".to_string(),
-                    columns: vec![
-                        ColumnNode {
-                            name: "key".to_string(),
-                            data_type: "string".to_string(),
-                            nullable: false,
-                            is_primary_key: true,
-                        },
-                        ColumnNode {
-                            name: "size".to_string(),
-                            data_type: "number".to_string(),
-                            nullable: false,
-                            is_primary_key: false,
-                        },
-                        ColumnNode {
-                            name: "last_modified".to_string(),
-                            data_type: "datetime".to_string(),
-                            nullable: true,
-                            is_primary_key: false,
-                        },
-                        ColumnNode {
-                            name: "storage_class".to_string(),
-                            data_type: "string".to_string(),
-                            nullable: true,
-                            is_primary_key: false,
-                        },
-                    ],
-                    primary_key_columns: vec!["key".to_string()],
-                })
-                .collect::<Vec<_>>();
-
-            Ok(vec![SchemaNode {
-                name: "buckets".to_string(),
-                tables,
-            }])
         }
         engine => Err(format!("Unsupported database engine: {}", engine)),
     }

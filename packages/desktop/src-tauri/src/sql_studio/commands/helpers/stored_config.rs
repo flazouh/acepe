@@ -20,23 +20,6 @@ pub(crate) struct SqlConnectionStoredSecrets {
     pub(crate) password: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct S3ConnectionStoredConfig {
-    pub(crate) region: String,
-    pub(crate) endpoint_url: Option<String>,
-    pub(crate) force_path_style: bool,
-    pub(crate) default_prefix: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct S3ConnectionStoredSecrets {
-    pub(crate) access_key_id: String,
-    pub(crate) secret_access_key: String,
-    pub(crate) session_token: Option<String>,
-}
-
 pub(crate) fn parse_sql_stored_config(
     row: &SqlConnectionRow,
 ) -> Result<SqlConnectionStoredConfig, String> {
@@ -77,29 +60,6 @@ pub(crate) fn parse_sql_stored_secrets(
     Ok(SqlConnectionStoredSecrets { password })
 }
 
-pub(crate) fn parse_s3_stored_config(
-    row: &SqlConnectionRow,
-) -> Result<S3ConnectionStoredConfig, String> {
-    let config_json = row
-        .config_json
-        .as_ref()
-        .ok_or_else(|| "S3 connection config is missing".to_string())?;
-    serde_json::from_str::<S3ConnectionStoredConfig>(config_json)
-        .map_err(|e| format!("Failed to parse S3 connection config: {}", e))
-}
-
-pub(crate) fn parse_s3_stored_secrets(
-    row: &SqlConnectionRow,
-) -> Result<S3ConnectionStoredSecrets, String> {
-    let secret_json = row
-        .secret_json
-        .as_ref()
-        .ok_or_else(|| "S3 connection secret is missing".to_string())?;
-    let decrypted = reveal_password(secret_json)?;
-    serde_json::from_str::<S3ConnectionStoredSecrets>(&decrypted)
-        .map_err(|e| format!("Failed to parse S3 connection secret config: {}", e))
-}
-
 pub(crate) fn build_connection_subtitle(row: &SqlConnectionRow) -> String {
     match row.engine.as_str() {
         "sqlite" => {
@@ -108,15 +68,6 @@ pub(crate) fn build_connection_subtitle(row: &SqlConnectionRow) -> String {
             } else {
                 String::new()
             }
-        }
-        "s3" => {
-            if let Ok(config) = parse_s3_stored_config(row) {
-                if let Some(endpoint) = config.endpoint_url {
-                    return endpoint;
-                }
-                return config.region;
-            }
-            "S3".to_string()
         }
         _ => {
             let host = row.host.as_deref().unwrap_or("localhost");

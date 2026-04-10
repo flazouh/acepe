@@ -10,7 +10,7 @@ import type { ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
-import { resolveProviderMetadataProjection } from "../../services/acp-types.js";
+import { resolveProviderMetadataProjection } from "../../services/acp-provider-metadata.js";
 import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";

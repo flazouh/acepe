@@ -6,7 +6,7 @@ import {
 	BUILTIN_PROVIDER_METADATA_BY_AGENT_ID,
 	normalizeModelsForDisplay,
 	resolveProviderMetadataProjection,
-} from "../../services/acp-types.js";
+} from "../../services/acp-provider-metadata.js";
 
 const rustSource = readFileSync(
 	resolve(__dirname, "../../../../src-tauri/src/acp/parsers/provider_capabilities.rs"),

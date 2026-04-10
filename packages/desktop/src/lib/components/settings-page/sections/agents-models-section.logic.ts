@@ -1,5 +1,8 @@
 import { SvelteSet } from "svelte/reactivity";
-import type { ModelsForDisplay, ProviderMetadataProjection } from "$lib/services/acp-types.js";
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
+} from "$lib/services/acp-provider-metadata.js";
 import type { Agent } from "$lib/acp/store/types.js";
 
 const MIN_SELECTED_AGENTS_ERROR = "At least one agent must remain selected";

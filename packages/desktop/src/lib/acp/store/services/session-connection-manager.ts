@@ -17,7 +17,8 @@ import {
 	resolveProviderMetadataProjection,
 	type ModelsForDisplay,
 	type ProviderMetadataProjection,
-} from "../../../services/acp-types.js";
+} from "../../../services/acp-provider-metadata.js";
+import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import type { ExecutionProfileRequest } from "../../../utils/tauri-client/acp.js";
 import type { AppError } from "../../errors/app-error.js";
@@ -53,6 +54,11 @@ interface ConnectSessionOptions {
 	agentOverrideId?: string;
 }
 
+type ProviderAwareSessionModelState = AcpSessionModelState & {
+	readonly providerMetadata?: ProviderMetadataProjection | null;
+	readonly modelsDisplay?: ModelsForDisplay | null;
+};
+
 /**
  * Wrap a ResultAsync with a timeout. If the timeout fires first, the
  * returned ResultAsync resolves to the given timeoutError.
@@ -73,6 +79,16 @@ function withTimeout<T, E>(ra: ResultAsync<T, E>, ms: number, timeoutError: E): 
 		}),
 		(error) => error as E
 	);
+}
+
+function getProviderAwareSessionModelState(
+	modelState: AcpSessionModelState | null | undefined
+): ProviderAwareSessionModelState {
+	if (!modelState) {
+		return {};
+	}
+
+	return modelState as ProviderAwareSessionModelState;
 }
 
 /**
@@ -305,12 +321,13 @@ export class SessionConnectionManager {
 			.andThen((result) => {
 				const sessionId = result.sessionId;
 				const now = new Date();
+				const modelState = getProviderAwareSessionModelState(result.models);
 				const {
 					availableModels: rawModels = [],
 					currentModelId,
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
-				} = result.models ?? {};
+				} = modelState;
 				const providerMetadata = this.resolveProviderMetadata(
 					options.agentId,
 					rawProviderMetadata
@@ -694,12 +711,13 @@ export class SessionConnectionManager {
 			.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
 			.andThen((result) => {
 				this.connectionManager.setConnecting(sessionId, false);
+				const modelState = getProviderAwareSessionModelState(result.models);
 				const {
 					availableModels: rawModels = [],
 					currentModelId,
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
-				} = result.models ?? {};
+				} = modelState;
 				const providerMetadata = this.resolveProviderMetadata(
 					effectiveAgentId,
 					rawProviderMetadata

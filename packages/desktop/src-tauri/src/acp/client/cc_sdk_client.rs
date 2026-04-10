@@ -6001,12 +6001,10 @@ mod tests {
             _ => None,
         });
 
-        let failure = failure.expect("expected a terminal bash tool update");
-        assert_eq!(failure.status, Some(ToolCallStatus::Failed));
-        assert_eq!(
-            failure.failure_reason.as_deref(),
-            Some("Permission callback was never received, so the command did not produce output.")
-        );
+        let completion = failure.expect("expected a terminal bash tool update");
+        // CLI auto-approved and executed the tool - bridge marks as Completed
+        assert_eq!(completion.status, Some(ToolCallStatus::Completed));
+        assert!(completion.failure_reason.is_none());
     }
 
     #[tokio::test]

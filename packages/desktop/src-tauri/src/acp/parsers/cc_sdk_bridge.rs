@@ -67,13 +67,6 @@ pub fn resolve_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_c
         .retain(|pending_tool_call| pending_tool_call.tool_call_id != tool_call_id);
 }
 
-fn tool_name_expects_permission_callback(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "Bash" | "Edit" | "MultiEdit" | "Write" | "NotebookEdit" | "NotebookWrite"
-    )
-}
-
 fn take_synthetic_tool_completions_for_resumed_tool_turn(
     stream_state: &mut CcSdkTurnStreamState,
     session_id: &Option<String>,
@@ -81,21 +74,14 @@ fn take_synthetic_tool_completions_for_resumed_tool_turn(
     let mut synthetic_updates = Vec::new();
 
     while let Some(pending_tool_call) = stream_state.pending_tool_calls.pop_front() {
-        let status = if tool_name_expects_permission_callback(&pending_tool_call.tool_name) {
-            ToolCallStatus::Failed
-        } else {
-            ToolCallStatus::Completed
-        };
-        let failure_reason = tool_name_expects_permission_callback(&pending_tool_call.tool_name)
-            .then_some(
-                "Permission callback was never received, so the command did not produce output."
-                    .to_string(),
-            );
+        // When the next message_start arrives with pending tool calls still unresolved,
+        // it means the CLI handled the tool without going through can_use_tool (e.g.
+        // auto-approved Bash commands). Mark as Completed — if Claude is continuing,
+        // the CLI resolved the tool one way or another.
         synthetic_updates.push(SessionUpdate::ToolCallUpdate {
             update: ToolCallUpdateData {
                 tool_call_id: pending_tool_call.tool_call_id,
-                status: Some(status),
-                failure_reason,
+                status: Some(ToolCallStatus::Completed),
                 ..Default::default()
             },
             session_id: session_id.clone(),
@@ -1291,7 +1277,10 @@ mod tests {
     }
 
     #[test]
-    fn next_message_start_after_tool_use_fails_permission_gated_tool_without_callback() {
+    fn next_message_start_completes_unresolved_tool_without_callback() {
+        // When a tool_use is pending and the next message_start arrives without
+        // a can_use_tool callback, the CLI handled the tool on its own (e.g.
+        // auto-approved). The bridge should mark it Completed, not Failed.
         let mut stream_state = CcSdkTurnStreamState::default();
 
         let _ = super::translate_cc_sdk_message_with_mut_turn_state(
@@ -1357,11 +1346,10 @@ mod tests {
                 update,
                 SessionUpdate::ToolCallUpdate { update, .. }
                     if update.tool_call_id == "toolu_resume_me"
-                        && update.status == Some(ToolCallStatus::Failed)
-                        && update.failure_reason.as_deref()
-                            == Some("Permission callback was never received, so the command did not produce output.")
+                        && update.status == Some(ToolCallStatus::Completed)
+                        && update.failure_reason.is_none()
             )),
-            "bridge should synthesize a failed terminal update for unresolved permission-gated tool_use turns when the next message starts"
+            "bridge should synthesize a completed terminal update for unresolved tool_use turns when the CLI handles them without can_use_tool"
         );
     }
 
@@ -1778,5 +1766,103 @@ mod tests {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
             }
         });
+    }
+
+    #[test]
+    fn auto_approved_bash_without_callback_completes_not_fails() {
+        // When the CLI auto-approves a Bash command (e.g. read-only commands),
+        // it executes without sending a can_use_tool control message.
+        // The bridge should mark such tools as Completed, not Failed,
+        // because the CLI handled the tool successfully.
+        let mut stream_state = CcSdkTurnStreamState::default();
+
+        // Step 1: Bash tool_use starts on the stream
+        let _ = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-bash-start".to_string(),
+                session_id: "ses-auto-approve".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_auto_bash",
+                        "name": "Bash",
+                        "input": {
+                            "command": "pwd && ls"
+                        }
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("ses-auto-approve".to_string()),
+            &mut stream_state,
+        );
+
+        // Step 2: message_delta with stop_reason=tool_use
+        let _ = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-bash-stop".to_string(),
+                session_id: "ses-auto-approve".to_string(),
+                event: serde_json::json!({
+                    "type": "message_delta",
+                    "delta": {
+                        "stop_reason": "tool_use"
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("ses-auto-approve".to_string()),
+            &mut stream_state,
+        );
+
+        // Step 3: Next message_start arrives (CLI executed the tool,
+        // Claude got the result, and is continuing).
+        // No can_use_tool callback was ever received.
+        let updates = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-next-start".to_string(),
+                session_id: "ses-auto-approve".to_string(),
+                event: serde_json::json!({
+                    "type": "message_start",
+                    "message": {
+                        "content": [],
+                        "model": "claude-opus-4-6"
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("ses-auto-approve".to_string()),
+            &mut stream_state,
+        );
+
+        // The bridge should synthesize a Completed update, not Failed.
+        // The CLI handled the tool — the bridge should not second-guess it.
+        let synthetic_update = updates.iter().find(|update| matches!(
+            update,
+            SessionUpdate::ToolCallUpdate { update, .. }
+                if update.tool_call_id == "toolu_auto_bash"
+        ));
+
+        assert!(
+            synthetic_update.is_some(),
+            "bridge should synthesize a terminal update for the auto-approved Bash tool"
+        );
+
+        if let Some(SessionUpdate::ToolCallUpdate { update, .. }) = synthetic_update {
+            assert_eq!(
+                update.status,
+                Some(ToolCallStatus::Completed),
+                "auto-approved Bash tool should be marked Completed, not Failed"
+            );
+            assert!(
+                update.failure_reason.is_none(),
+                "auto-approved Bash tool should have no failure_reason, got: {:?}",
+                update.failure_reason
+            );
+        }
     }
 }

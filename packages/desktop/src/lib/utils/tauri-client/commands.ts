@@ -180,10 +180,6 @@ export const CMD = {
 		execute_query: "sql_studio_execute_query",
 		explore_table: "sql_studio_explore_table",
 		update_table_cell: "sql_studio_update_table_cell",
-		list_s3_buckets: "sql_studio_list_s3_buckets",
-		list_s3_objects: "sql_studio_list_s3_objects",
-		preview_s3_object: "sql_studio_preview_s3_object",
-		download_s3_object: "sql_studio_download_s3_object",
 	} as const,
 
 	skills: {

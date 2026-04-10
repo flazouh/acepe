@@ -6,14 +6,12 @@ pub enum DbEngine {
     Postgres,
     Mysql,
     Sqlite,
-    S3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionKind {
     Sql,
-    S3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -39,13 +37,6 @@ pub struct SqlConnectionConfig {
     pub password: Option<String>,
     pub file_path: Option<String>,
     pub ssl_mode: Option<String>,
-    pub s3_region: Option<String>,
-    pub s3_endpoint_url: Option<String>,
-    pub s3_force_path_style: Option<bool>,
-    pub s3_default_prefix: Option<String>,
-    pub s3_access_key_id: Option<String>,
-    pub s3_secret_access_key: Option<String>,
-    pub s3_session_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -147,75 +138,12 @@ pub struct ExecuteQueryResponse {
     pub messages: Vec<QueryExecutionMessage>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3BucketNode {
-    pub name: String,
-    pub creation_date: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3ObjectNode {
-    pub key: String,
-    pub size: i64,
-    pub last_modified: Option<String>,
-    pub storage_class: Option<String>,
-    pub is_prefix: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3ListObjectsRequest {
-    pub connection_id: String,
-    pub bucket: String,
-    pub prefix: Option<String>,
-    pub continuation_token: Option<String>,
-    pub limit: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3ListObjectsResponse {
-    pub bucket: String,
-    pub prefix: String,
-    pub objects: Vec<S3ObjectNode>,
-    pub next_continuation_token: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3PreviewRequest {
-    pub connection_id: String,
-    pub bucket: String,
-    pub key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3PreviewResponse {
-    pub content: Option<String>,
-    pub content_type: Option<String>,
-    pub content_length: i64,
-    pub previewable: bool,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct S3DownloadRequest {
-    pub connection_id: String,
-    pub bucket: String,
-    pub key: String,
-}
-
 impl DbEngine {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Postgres => "postgres",
             Self::Mysql => "mysql",
             Self::Sqlite => "sqlite",
-            Self::S3 => "s3",
         }
     }
 
@@ -224,18 +152,7 @@ impl DbEngine {
             "postgres" => Some(Self::Postgres),
             "mysql" => Some(Self::Mysql),
             "sqlite" => Some(Self::Sqlite),
-            "s3" => Some(Self::S3),
             _ => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::DbEngine;
-
-    #[test]
-    fn from_db_value_supports_s3() {
-        assert!(DbEngine::from_db_value("s3").is_some());
     }
 }

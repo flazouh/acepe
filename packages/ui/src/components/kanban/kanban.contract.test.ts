@@ -9,6 +9,8 @@ const kanbanCardPath = resolve(kanbanDir, "./kanban-card.svelte");
 const kanbanBoardPath = resolve(kanbanDir, "./kanban-board.svelte");
 const kanbanColumnPath = resolve(kanbanDir, "./kanban-column.svelte");
 const questionFooterPath = resolve(kanbanDir, "./kanban-question-footer.svelte");
+const kanbanSceneBoardPath = resolve(kanbanDir, "./kanban-scene-board.svelte");
+const kanbanSceneTypesPath = resolve(kanbanDir, "./kanban-scene-types.ts");
 const kanbanTypesPath = resolve(kanbanDir, "./types.ts");
 
 describe("kanban UI contract", () => {
@@ -17,6 +19,8 @@ describe("kanban UI contract", () => {
 		expect(existsSync(kanbanBoardPath)).toBe(true);
 		expect(existsSync(kanbanColumnPath)).toBe(true);
 		expect(existsSync(questionFooterPath)).toBe(true);
+		expect(existsSync(kanbanSceneBoardPath)).toBe(true);
+		expect(existsSync(kanbanSceneTypesPath)).toBe(true);
 		expect(existsSync(kanbanTypesPath)).toBe(true);
 		expect(existsSync(kanbanIndexPath)).toBe(true);
 	});
@@ -33,8 +37,47 @@ describe("kanban UI contract", () => {
 		expect(kanbanIndexSource).toContain("KanbanCard");
 		expect(kanbanIndexSource).toContain("KanbanColumn");
 		expect(kanbanIndexSource).toContain("KanbanQuestionFooter");
+		expect(kanbanIndexSource).toContain("KanbanSceneBoard");
+		expect(kanbanIndexSource).toContain("KanbanSceneCardData");
 		expect(rootUiIndexSource).toContain("KanbanBoard");
 		expect(rootUiIndexSource).toContain("KanbanCardData");
+		expect(rootUiIndexSource).toContain("KanbanSceneBoard");
+		expect(rootUiIndexSource).toContain("KanbanSceneCardData");
+	});
+
+	it("defines a shared scene model for mockable kanban compositions", () => {
+		expect(existsSync(kanbanSceneTypesPath)).toBe(true);
+		if (!existsSync(kanbanSceneTypesPath)) return;
+
+		const sceneTypesSource = readFileSync(kanbanSceneTypesPath, "utf8");
+
+		expect(sceneTypesSource).toContain("export interface KanbanSceneMenuAction");
+		expect(sceneTypesSource).toContain("export interface KanbanSceneQuestionFooterData");
+		expect(sceneTypesSource).toContain("export interface KanbanScenePermissionFooterData");
+		expect(sceneTypesSource).toContain("export interface KanbanScenePlanApprovalFooterData");
+		expect(sceneTypesSource).toContain("export type KanbanSceneFooterData =");
+		expect(sceneTypesSource).toContain("export interface KanbanSceneCardData extends KanbanCardData");
+		expect(sceneTypesSource).toContain("footer: KanbanSceneFooterData | null");
+		expect(sceneTypesSource).toContain("menuActions: readonly KanbanSceneMenuAction[]");
+		expect(sceneTypesSource).toContain("export interface KanbanSceneColumnGroup");
+	});
+
+	it("adds a shared scene board that owns card chrome and footer variants", () => {
+		expect(existsSync(kanbanSceneBoardPath)).toBe(true);
+		if (!existsSync(kanbanSceneBoardPath)) return;
+
+		const sceneBoardSource = readFileSync(kanbanSceneBoardPath, "utf8");
+
+		expect(sceneBoardSource).toContain("import { AttentionQueueQuestionCard }");
+		expect(sceneBoardSource).toContain("import KanbanBoard from \"./kanban-board.svelte\"");
+		expect(sceneBoardSource).toContain("import KanbanCard from \"./kanban-card.svelte\"");
+		expect(sceneBoardSource).toContain("{#if questionFooterData}");
+		expect(sceneBoardSource).toContain("{:else if permissionFooterData}");
+		expect(sceneBoardSource).toContain("{:else if planApprovalFooterData}");
+		expect(sceneBoardSource).toContain("menuActions={sceneCard.menuActions}");
+		expect(sceneBoardSource).toContain("onMenuAction={(actionId: string) => onMenuAction(sceneCard.id, actionId)}");
+		expect(sceneBoardSource).toContain("onCardClick(sceneCard.id)");
+		expect(sceneBoardSource).toContain("onCardClose(sceneCard.id)");
 	});
 
 	it("removes conversation preview content from the shared kanban card contract", () => {

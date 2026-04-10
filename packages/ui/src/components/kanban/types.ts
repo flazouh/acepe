@@ -56,3 +56,24 @@ export interface KanbanQuestionData {
 	readonly options: readonly KanbanQuestionOption[];
 	readonly canSubmit: boolean;
 }
+
+export interface KanbanPermissionData {
+	readonly label: string;
+	readonly command?: string;
+	readonly filePath?: string;
+	readonly toolKind?: AgentToolKind | null;
+	readonly progress?: { current: number; total: number; label: string } | null;
+	readonly allowAlwaysLabel?: string;
+	readonly approveLabel?: string;
+	readonly rejectLabel?: string;
+}
+
+export interface KanbanPermissionData {
+	readonly label: string;
+	readonly command?: string;
+	readonly filePath?: string;
+	readonly toolKind?: AgentToolKind | null;
+	readonly progress?: { current: number; total: number; label: string } | null;
+	readonly approveLabel?: string;
+	readonly rejectLabel?: string;
+}

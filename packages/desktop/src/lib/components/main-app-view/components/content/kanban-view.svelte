@@ -1,23 +1,19 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
 	import {
-		AttentionQueueQuestionCard,
-		BuildIcon,
 		CloseAction,
 		Dialog,
 		DialogContent,
 		EmbeddedPanelHeader,
 		HeaderActionCell,
-		HeaderTitleCell,
-		KanbanBoard,
-		KanbanCard,
 		type KanbanCardData,
 		type KanbanColumnGroup,
+		KanbanSceneBoard,
+		type KanbanSceneCardData,
+		type KanbanSceneColumnGroup,
+		type KanbanSceneMenuAction,
 		type KanbanTaskCardData,
 		type KanbanToolData,
-		PlanIcon,
 	} from "@acepe/ui";
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 	import { SvelteMap } from "svelte/reactivity";
 	import { onDestroy, onMount } from "svelte";
@@ -25,14 +21,13 @@
 	import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 	import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 	import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
-	import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 	import { copySessionToClipboard, copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 	import { getOpenInFinderTarget } from "$lib/acp/components/agent-panel/logic/open-in-finder-target.js";
 	import {
 		getQueueItemTaskDisplay,
 		getQueueItemToolDisplay,
 	} from "$lib/acp/components/queue/queue-item-display.js";
-	import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
+	import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
 	import TodoHeader from "$lib/acp/components/todo-header.svelte";
 	import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 	import AgentSelector from "$lib/acp/components/agent-selector.svelte";
@@ -73,7 +68,7 @@
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 	import { ResultAsync } from "neverthrow";
-	import { Robot, XCircle } from "phosphor-svelte";
+	import { Robot } from "phosphor-svelte";
 	import { toast } from "svelte-sonner";
 	import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 
@@ -457,6 +452,56 @@
 		return lastTool?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running();
 	}
 
+	function buildSceneMenuActions(item: ThreadBoardItem): readonly KanbanSceneMenuAction[] {
+		const actions: KanbanSceneMenuAction[] = [
+			{ id: "copy-id", label: m.session_menu_copy_id() },
+			{ id: "copy-title", label: m.session_menu_copy_title() },
+			{ id: "open-raw", label: m.session_menu_open_raw_file() },
+			{ id: "open-in-acepe", label: m.session_menu_open_in_acepe() },
+			{ id: "open-in-finder", label: m.thread_open_in_finder() },
+			{ id: "export-markdown", label: m.session_menu_export_markdown() },
+			{ id: "export-json", label: m.session_menu_export_json() },
+		];
+
+		if (isDev) {
+			actions.push({ id: "copy-streaming-log-path", label: "Copy Streaming Log Path" });
+			actions.push({ id: "export-raw-streaming", label: m.thread_export_raw_streaming() });
+		}
+
+		return actions;
+	}
+
+	function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
+		const item = itemLookup.get(card.id);
+		const footer = item ? buildSceneFooter(item) : null;
+		const menuActions = item ? buildSceneMenuActions(item) : [];
+
+		return {
+			id: card.id,
+			title: card.title,
+			agentIconSrc: card.agentIconSrc,
+			agentLabel: card.agentLabel,
+			projectName: card.projectName,
+			projectColor: card.projectColor,
+			activityText: card.activityText,
+			isStreaming: card.isStreaming,
+			modeId: card.modeId,
+			diffInsertions: card.diffInsertions,
+			diffDeletions: card.diffDeletions,
+			errorText: card.errorText,
+			todoProgress: card.todoProgress,
+			taskCard: card.taskCard,
+			latestTool: card.latestTool,
+			hasUnseenCompletion: card.hasUnseenCompletion,
+			sequenceId: card.sequenceId,
+			footer,
+			menuActions,
+			showCloseAction: item !== undefined,
+			hideBody: false,
+			flushFooter: false,
+		};
+	}
+
 	function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 		const cards: OptimisticKanbanCard[] = [];
 
@@ -538,6 +583,14 @@
 			}
 		}
 		return map;
+	});
+
+	const sceneGroups = $derived.by((): readonly KanbanSceneColumnGroup[] => {
+		return groups.map((group) => ({
+			id: group.id,
+			label: group.label,
+			items: group.items.map((card) => buildSceneCard(card)),
+		}));
 	});
 
 	const optimisticCardLookup = $derived.by(() => {
@@ -678,6 +731,82 @@
 		);
 	}
 
+	async function handleCopyValue(value: string): Promise<void> {
+		await copyTextToClipboard(value).match(
+			() => undefined,
+			() => toast.error(m.file_list_copy_path_error())
+		);
+	}
+
+	async function handleMenuAction(sessionId: string, actionId: string): Promise<void> {
+		const item = itemLookup.get(sessionId);
+		if (!item) {
+			return;
+		}
+
+		switch (actionId) {
+			case "copy-id":
+				await handleCopyValue(item.sessionId);
+				return;
+			case "copy-title":
+				await handleCopyValue(getSessionDisplayName(item));
+				return;
+			case "open-raw":
+				await handleOpenRawFile(item);
+				return;
+			case "open-in-acepe":
+				await handleOpenInAcepe(item);
+				return;
+			case "open-in-finder":
+				await handleOpenInFinder(item);
+				return;
+			case "export-markdown":
+				await handleExportMarkdown(item);
+				return;
+			case "export-json":
+				await handleExportJson(item);
+				return;
+			case "copy-streaming-log-path":
+				await handleCopyStreamingLogPath(item);
+				return;
+			case "export-raw-streaming":
+				await handleExportRawStreaming(item);
+				return;
+			default:
+				return;
+		}
+	}
+
+	function handleApprovePermission(sessionId: string): void {
+		const item = itemLookup.get(sessionId);
+		const permission = item ? getPermissionRequest(item) : null;
+		if (!permission) {
+			return;
+		}
+
+		permissionStore.reply(permission.id, "once");
+	}
+
+	function handleAllowAlwaysPermission(sessionId: string): void {
+		const item = itemLookup.get(sessionId);
+		const permission = item ? getPermissionRequest(item) : null;
+		if (!permission || !permission.always || permission.always.length === 0) {
+			return;
+		}
+
+		permissionStore.reply(permission.id, "always");
+	}
+
+	function handleRejectPermission(sessionId: string): void {
+		const item = itemLookup.get(sessionId);
+		const permission = item ? getPermissionRequest(item) : null;
+		if (!permission) {
+			return;
+		}
+
+		permissionStore.reply(permission.id, "reject");
+	}
+
 	function resetNewSessionState(): void {
 		const defaults = resolveKanbanNewSessionDefaults({
 			projects,
@@ -814,6 +943,69 @@
 				},
 			},
 		});
+	}
+
+	function buildSceneFooter(item: ThreadBoardItem) {
+		const permission = getPermissionRequest(item);
+		if (permission) {
+			const compactDisplay = extractCompactPermissionDisplay(permission, item.projectPath);
+			const sessionProgress = permissionStore.getSessionProgress(item.sessionId);
+			const progress = sessionProgress
+				? {
+					current:
+						sessionProgress.completed + 1 <= sessionProgress.total
+							? sessionProgress.completed + 1
+							: sessionProgress.total,
+					total: sessionProgress.total,
+					label: `Permission ${sessionProgress.total}`,
+				}
+				: null;
+
+			return {
+				kind: "permission" as const,
+				label: compactDisplay.label,
+				command: compactDisplay.command,
+				filePath: compactDisplay.filePath,
+				toolKind: compactDisplay.kind,
+				progress,
+				allowAlwaysLabel:
+					permission.always && permission.always.length > 0 ? m.permission_always_allow() : undefined,
+				approveLabel: m.permission_allow(),
+				rejectLabel: m.permission_deny(),
+			};
+		}
+
+		if (item.state.pendingInput.kind === "plan_approval") {
+			return {
+				kind: "plan_approval" as const,
+				prompt: getPlanApprovalPrompt(item),
+				approveLabel: m.plan_sidebar_build(),
+				rejectLabel: "Cancel",
+			};
+		}
+
+		const questionUiState = getQuestionUiState(item);
+		if (questionUiState && questionUiState.currentQuestion) {
+			return {
+				kind: "question" as const,
+				currentQuestion: questionUiState.currentQuestion,
+				totalQuestions: questionUiState.totalQuestions,
+				hasMultipleQuestions: questionUiState.hasMultipleQuestions,
+				currentQuestionIndex: getCurrentQuestionIndex(item),
+				questionId: getPendingQuestionId(item),
+				questionProgress: questionUiState.questionProgress,
+				currentQuestionAnswered: questionUiState.currentQuestionAnswered,
+				currentQuestionOptions: questionUiState.currentQuestionOptions,
+				otherText: questionUiState.otherText,
+				otherPlaceholder: m.question_other_placeholder(),
+				showOtherInput: questionUiState.showOtherInput,
+				showSubmitButton: questionUiState.showSubmitButton,
+				canSubmit: questionUiState.canSubmit,
+				submitLabel: m.common_submit(),
+			};
+		}
+
+		return null;
 	}
 
 	function getCurrentQuestionIndex(item: ThreadBoardItem): number {
@@ -1084,185 +1276,48 @@
 	</Dialog>
 
 	<div class="min-h-0 min-w-0 flex-1">
-		<KanbanBoard {groups} emptyHint="No sessions">
-			{#snippet cardRenderer(card: KanbanCardData)}
+		<KanbanSceneBoard
+			groups={sceneGroups}
+			emptyHint="No sessions"
+			onCardClick={handleCardClick}
+			onCardClose={(cardId: string) => {
+				const item = itemLookup.get(cardId);
+				if (item) {
+					handleCloseSession(item);
+				}
+			}}
+			onMenuAction={(cardId: string, actionId: string) => {
+				void handleMenuAction(cardId, actionId);
+			}}
+			onPermissionApprove={handleApprovePermission}
+			onPermissionAllowAlways={handleAllowAlwaysPermission}
+			onPermissionReject={handleRejectPermission}
+			onQuestionOptionSelect={handleOptionSelect}
+			onQuestionOtherInput={handleOtherInput}
+			onQuestionOtherKeydown={handleOtherKeydown}
+			onQuestionSubmit={handleSubmitQuestion}
+			onQuestionPrev={handlePrevQuestion}
+			onQuestionNext={handleNextQuestion}
+			onPlanApprove={handleApprovePlanApproval}
+			onPlanReject={handleRejectPlanApproval}
+		>
+			{#snippet todoSectionRenderer(card: KanbanSceneCardData)}
 				{@const item = itemLookup.get(card.id)}
-				{@const permission = item ? getPermissionRequest(item) : null}
-				{@const currentQuestionIndex = item ? getCurrentQuestionIndex(item) : 0}
-				{@const questionUiState = item ? getQuestionUiState(item) : null}
-				{@const questionId = item ? getPendingQuestionId(item) : ""}
 				{@const hotState = item ? sessionStore.getHotState(item.sessionId) : null}
-				{@const showFooter =
-					permission !== null ||
-					questionUiState !== null ||
-					(item && item.state.pendingInput.kind === "plan_approval")}
 				{#if item}
-					<KanbanCard {card} onclick={() => handleCardClick(card.id)} onClose={() => handleCloseSession(item)} showFooter={showFooter}>
-						{#snippet todoSection()}
-							{@const runtimeState = sessionStore.getSessionRuntimeState(item.sessionId)}
-							{@const todoSessionStatus = toSessionStatus(runtimeState, hotState ? hotState.status : "idle")}
-							<TodoHeader
-								sessionId={item.sessionId}
-								entries={sessionStore.getEntries(item.sessionId)}
-								isConnected={item.state.connection === "connected"}
-								status={todoSessionStatus}
-								isStreaming={card.isStreaming}
-								compact={true}
-							/>
-						{/snippet}
-						{#snippet menu()}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger
-									class="shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
-									aria-label="More actions"
-									title="More actions"
-									onclick={(event: MouseEvent) => event.stopPropagation()}
-								>
-									<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end" class="min-w-[180px]">
-									<DropdownMenu.Item class="cursor-pointer">
-										<CopyButton
-											text={item.sessionId}
-											variant="menu"
-											label={m.session_menu_copy_id()}
-											hideIcon
-											size={16}
-										/>
-									</DropdownMenu.Item>
-									<DropdownMenu.Item class="cursor-pointer">
-										<CopyButton
-											getText={() => getSessionDisplayName(item)}
-											variant="menu"
-											label={m.session_menu_copy_title()}
-											hideIcon
-											size={16}
-										/>
-									</DropdownMenu.Item>
-									<DropdownMenu.Item onSelect={() => {
-										void handleOpenRawFile(item);
-									}} class="cursor-pointer">
-										{m.session_menu_open_raw_file()}
-									</DropdownMenu.Item>
-									<DropdownMenu.Item onSelect={() => {
-										void handleOpenInAcepe(item);
-									}} class="cursor-pointer">
-										{m.session_menu_open_in_acepe()}
-									</DropdownMenu.Item>
-									<DropdownMenu.Item onSelect={() => {
-										void handleOpenInFinder(item);
-									}} class="cursor-pointer">
-										{m.thread_open_in_finder()}
-									</DropdownMenu.Item>
-									<DropdownMenu.Separator />
-									<DropdownMenu.Sub>
-										<DropdownMenu.SubTrigger class="cursor-pointer">
-											{m.session_menu_export()}
-										</DropdownMenu.SubTrigger>
-										<DropdownMenu.SubContent class="min-w-[160px]">
-											<DropdownMenu.Item onSelect={() => {
-												void handleExportMarkdown(item);
-											}} class="cursor-pointer">
-												{m.session_menu_export_markdown()}
-											</DropdownMenu.Item>
-											<DropdownMenu.Item onSelect={() => {
-												void handleExportJson(item);
-											}} class="cursor-pointer">
-												{m.session_menu_export_json()}
-											</DropdownMenu.Item>
-										</DropdownMenu.SubContent>
-									</DropdownMenu.Sub>
-									{#if isDev}
-										<DropdownMenu.Separator />
-										<DropdownMenu.Item onSelect={() => {
-											void handleCopyStreamingLogPath(item);
-										}} class="cursor-pointer">
-											Copy Streaming Log Path
-										</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => {
-											void handleExportRawStreaming(item);
-										}} class="cursor-pointer">
-											{m.thread_export_raw_streaming()}
-										</DropdownMenu.Item>
-									{/if}
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						{/snippet}
-						{#snippet footer()}
-							<div
-								class="flex min-w-0 flex-col gap-1"
-								data-has-permission={permission ? "true" : "false"}
-								data-has-question={questionUiState ? "true" : "false"}
-							>
-								{#if permission}
-									<PermissionBar
-										sessionId={item.sessionId}
-										permission={permission}
-										projectPath={item.projectPath}
-									/>
-								{:else if item.state.pendingInput.kind === "plan_approval"}
-									<div class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-accent/20">
-										<EmbeddedPanelHeader class="bg-accent/30">
-											<HeaderTitleCell compactPadding>
-												<PlanIcon size="sm" class="shrink-0 mr-1" />
-												<span class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none">
-													{getPlanApprovalPrompt(item)}
-												</span>
-											</HeaderTitleCell>
-											<HeaderActionCell withDivider={false}>
-												<button
-													type="button"
-													class="plan-action-btn"
-													onclick={() => handleRejectPlanApproval(card.id)}
-												>
-													<XCircle weight="fill" class="size-3 shrink-0" style="color: {Colors.red}" />
-													Cancel
-												</button>
-											</HeaderActionCell>
-											<HeaderActionCell>
-												<button
-													type="button"
-													class="plan-action-btn"
-													onclick={() => handleApprovePlanApproval(card.id)}
-												>
-													<BuildIcon size="sm" />
-													{m.plan_sidebar_build()}
-												</button>
-											</HeaderActionCell>
-										</EmbeddedPanelHeader>
-									</div>
-								{:else if questionUiState && questionUiState.currentQuestion}
-									<AttentionQueueQuestionCard
-										currentQuestion={questionUiState.currentQuestion}
-										totalQuestions={questionUiState.totalQuestions}
-										hasMultipleQuestions={questionUiState.hasMultipleQuestions}
-										{currentQuestionIndex}
-										{questionId}
-										questionProgress={questionUiState.questionProgress}
-										currentQuestionAnswered={questionUiState.currentQuestionAnswered}
-										currentQuestionOptions={questionUiState.currentQuestionOptions}
-										otherText={questionUiState.otherText}
-										otherPlaceholder={m.question_other_placeholder()}
-										showOtherInput={questionUiState.showOtherInput}
-										showSubmitButton={questionUiState.showSubmitButton}
-										canSubmit={questionUiState.canSubmit}
-										submitLabel={m.common_submit()}
-										onOptionSelect={(optionLabel: string) => handleOptionSelect(card.id, currentQuestionIndex, optionLabel)}
-										onOtherInput={(value: string) => handleOtherInput(card.id, currentQuestionIndex, value)}
-										onOtherKeydown={(key: string) => handleOtherKeydown(card.id, currentQuestionIndex, key)}
-										onSubmitAll={() => handleSubmitQuestion(card.id)}
-										onPrevQuestion={() => handlePrevQuestion(card.id, currentQuestionIndex)}
-										onNextQuestion={() => handleNextQuestion(card.id, currentQuestionIndex, questionUiState.totalQuestions)}
-									/>
-								{/if}
-							</div>
-						{/snippet}
-					</KanbanCard>
-				{:else}
-					<KanbanCard {card} onclick={() => handleCardClick(card.id)} />
+					{@const runtimeState = sessionStore.getSessionRuntimeState(item.sessionId)}
+					{@const todoSessionStatus = toSessionStatus(runtimeState, hotState ? hotState.status : "idle")}
+					<TodoHeader
+						sessionId={item.sessionId}
+						entries={sessionStore.getEntries(item.sessionId)}
+						isConnected={item.state.connection === "connected"}
+						status={todoSessionStatus}
+						isStreaming={card.isStreaming}
+						compact={true}
+					/>
 				{/if}
 			{/snippet}
-		</KanbanBoard>
+		</KanbanSceneBoard>
 	</div>
 
 	<KanbanThreadDialog

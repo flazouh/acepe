@@ -1102,6 +1102,40 @@ impl SessionMetadataRepository {
         }
     }
 
+    fn should_preserve_existing_source_path(
+        existing_model: &session_metadata::Model,
+        incoming_file_path: &str,
+        incoming_file_mtime: i64,
+        incoming_file_size: i64,
+    ) -> bool {
+        Self::normalized_source_path(&existing_model.file_path).is_some()
+            && Self::is_non_persisted_session_file_path(incoming_file_path)
+            && incoming_file_mtime == 0
+            && incoming_file_size == 0
+    }
+
+    fn resolved_file_metadata_for_update(
+        existing_model: &session_metadata::Model,
+        incoming_file_path: String,
+        incoming_file_mtime: i64,
+        incoming_file_size: i64,
+    ) -> (String, i64, i64) {
+        if Self::should_preserve_existing_source_path(
+            existing_model,
+            &incoming_file_path,
+            incoming_file_mtime,
+            incoming_file_size,
+        ) {
+            (
+                existing_model.file_path.clone(),
+                existing_model.file_mtime,
+                existing_model.file_size,
+            )
+        } else {
+            (incoming_file_path, incoming_file_mtime, incoming_file_size)
+        }
+    }
+
     fn provider_session_id_for_existing_model(
         existing_model: &session_metadata::Model,
         incoming_agent_id: &str,
@@ -1437,6 +1471,12 @@ impl SessionMetadataRepository {
 
         if let Some(existing_model) = existing {
             let project_path = Self::project_path_for_update(&existing_model, project_path);
+            let (file_path, file_mtime, file_size) = Self::resolved_file_metadata_for_update(
+                &existing_model,
+                file_path,
+                file_mtime,
+                file_size,
+            );
             let existing_is_acepe_managed = existing_model.is_acepe_managed;
             let next_is_acepe_managed =
                 Self::merged_acepe_managed_flag(existing_is_acepe_managed, &file_path);
@@ -1445,6 +1485,7 @@ impl SessionMetadataRepository {
             if existing_model.file_mtime == file_mtime
                 && existing_model.file_size == file_size
                 && existing_model.project_path == project_path
+                && existing_model.file_path == file_path
             {
                 return Ok(false); // No change
             }
@@ -1564,6 +1605,12 @@ impl SessionMetadataRepository {
         {
             if let Some(existing_model) = existing_map.get(&session_id) {
                 let project_path = Self::project_path_for_update(existing_model, project_path);
+                let (file_path, file_mtime, file_size) = Self::resolved_file_metadata_for_update(
+                    existing_model,
+                    file_path,
+                    file_mtime,
+                    file_size,
+                );
                 let next_is_acepe_managed =
                     Self::merged_acepe_managed_flag(existing_model.is_acepe_managed, &file_path);
 

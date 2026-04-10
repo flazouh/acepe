@@ -1,4 +1,7 @@
-import type { ModelsForDisplay, ProviderMetadataProjection } from "../../../services/acp-types.js";
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
+} from "../../../services/acp-provider-metadata.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import type { Mode } from "./mode.js";
 import type { Model } from "./model.js";
