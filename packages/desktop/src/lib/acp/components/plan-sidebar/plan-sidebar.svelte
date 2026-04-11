@@ -9,7 +9,6 @@ import * as m from "$lib/paraglide/messages.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
 
 import { useSessionContext } from "../../hooks/use-session-context.js";
-import { getSessionStore } from "../../store/session-store.svelte.js";
 import CopyButton from "../messages/copy-button.svelte";
 import MarkdownText from "../messages/markdown-text.svelte";
 
@@ -20,6 +19,7 @@ interface Props {
 	columnWidth?: number;
 	onOpenFullscreen: () => void;
 	onClose?: () => void;
+	onSendMessage?: (sessionId: string, message: string) => Promise<void>;
 }
 
 let {
@@ -29,6 +29,7 @@ let {
 	columnWidth = 450,
 	onOpenFullscreen,
 	onClose,
+	onSendMessage,
 }: Props = $props();
 
 // Get projectPath from context or use prop (backward compatibility)
@@ -37,10 +38,8 @@ const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
 
 let isBuilding = $state(false);
 
-const sessionStore = getSessionStore();
-
 async function handleBuildPlan() {
-	if (!sessionId) {
+	if (!sessionId || !onSendMessage) {
 		toast.error(m.plan_sidebar_no_active_session());
 		return;
 	}
@@ -49,13 +48,13 @@ async function handleBuildPlan() {
 
 	const message = m.plan_sidebar_build_message();
 
-	await sessionStore.sendMessage(sessionId, message).match(
-		() => {},
-		(error) => {
-			toast.error(m.plan_sidebar_send_message_error({ error: error.message }));
-			isBuilding = false;
-		}
-	);
+	try {
+		await onSendMessage(sessionId, message);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		toast.error(m.plan_sidebar_send_message_error({ error: errorMessage }));
+		isBuilding = false;
+	}
 }
 
 function handleDownloadMarkdown() {

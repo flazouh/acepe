@@ -2,6 +2,7 @@ import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PanelViewState } from "../../../logic/panel-visibility";
 import type { Project } from "../../../logic/project-manager.svelte";
+import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 
 /**
@@ -30,4 +31,6 @@ export interface AgentPanelContentProps {
 	readonly availableAgents: AgentInfo[];
 	readonly effectiveTheme: "light" | "dark";
 	readonly modifiedFilesState: ModifiedFilesState | null;
+	readonly turnState?: TurnState;
+	readonly isWaitingForResponse?: boolean;
 }

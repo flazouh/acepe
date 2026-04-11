@@ -1714,6 +1714,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					{availableAgents}
 					{effectiveTheme}
 					{modifiedFilesState}
+					turnState={sessionHotState?.turnState ?? "idle"}
+					isWaitingForResponse={runtimeState?.showThinking ?? false}
 				/>
 			</div>
 			{#if viewState.kind === "conversation" && !contentIsAtTop}
@@ -2001,6 +2003,12 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 				columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
 				onOpenFullscreen={() => panelState.openPlanDialog()}
 				onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
+				onSendMessage={async (sid, message) => {
+					await sessionStore.sendMessage(sid, message).match(
+						() => {},
+						(error) => { throw error; }
+					);
+				}}
 			/>
 		{/if}
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { TextShimmer } from "@acepe/ui";
+import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
 import * as m from "$lib/paraglide/messages.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
@@ -31,6 +31,8 @@ let {
 	availableAgents,
 	effectiveTheme,
 	modifiedFilesState,
+	turnState: turnStateProp,
+	isWaitingForResponse: isWaitingProp,
 }: AgentPanelContentProps = $props();
 
 const sessionStore = getSessionStore();
@@ -43,17 +45,17 @@ let lastContentTraceSignature = $state<string | null>(null);
 // Reference to virtualized list for scroll control
 let virtualizedListRef: VirtualizedEntryList | null = $state(null);
 
-// Track hot state to ensure reactivity for UI state derivation
-const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
-const hotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
+// Prefer props when provided (controller pattern), fall back to store access
+const runtimeState = $derived(
+	isWaitingProp !== undefined ? null : (sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null)
+);
+const hotState = $derived(
+	turnStateProp !== undefined ? null : (sessionId ? sessionStore.getHotState(sessionId) : null)
+);
 
-// Turn state from hot state - used for tool call status determination
-const turnState = $derived<TurnState>(hotState?.turnState ?? "idle");
-
-// Streaming state (derived from turnState for backward compatibility)
+const turnState = $derived<TurnState>(turnStateProp ?? hotState?.turnState ?? "idle");
 const isStreaming = $derived(turnState === "streaming");
-
-const isWaitingForResponse = $derived(runtimeState?.showThinking ?? false);
+const isWaitingForResponse = $derived(isWaitingProp ?? runtimeState?.showThinking ?? false);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {
@@ -105,15 +107,23 @@ export function scrollToTop() {
 </script>
 
 {#if viewState.kind === "project_selection"}
-	<ProjectSelectionPanel
-		projects={[...allProjects]}
-		preSelectedProjectPath={sessionProjectPath}
-		{availableAgents}
-		{effectiveTheme}
-		{onProjectAgentSelected}
-	/>
+	<AgentPanelStatePanel class="overflow-y-auto">
+		{#snippet children()}
+			<ProjectSelectionPanel
+				projects={[...allProjects]}
+				preSelectedProjectPath={sessionProjectPath}
+				{availableAgents}
+				{effectiveTheme}
+				{onProjectAgentSelected}
+			/>
+		{/snippet}
+	</AgentPanelStatePanel>
 {:else if viewState.kind === "error"}
-	<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
+	<AgentPanelStatePanel centerContent={true}>
+		{#snippet children()}
+			<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
+		{/snippet}
+	</AgentPanelStatePanel>
 {:else if viewState.kind === "conversation"}
 	<div class="h-full flex flex-col relative">
 		<div class="flex-1 min-h-0">
@@ -153,5 +163,9 @@ export function scrollToTop() {
 		</div>
 	</div>
 {:else if viewState.kind === "ready"}
-	<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
+	<AgentPanelStatePanel centerContent={true}>
+		{#snippet children()}
+			<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
+		{/snippet}
+	</AgentPanelStatePanel>
 {/if}

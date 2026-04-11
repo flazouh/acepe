@@ -1,12 +1,16 @@
 <script lang="ts">
+import {
+	AgentPanelBrowserHeader as SharedAgentPanelBrowserHeader,
+	AgentPanelBrowserPanel as SharedAgentPanelBrowserPanel,
+} from "@acepe/ui/agent-panel";
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as m from "$lib/paraglide/messages.js";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
 import { createLogger } from "../../utils/logger.js";
-import BrowserPanelHeader from "./browser-panel-header.svelte";
 import { observeScrollParents } from "./logic/scroll-sync.js";
 
 const logger = createLogger({ id: "browser-panel", name: "BrowserPanel" });
@@ -18,6 +22,7 @@ interface Props {
 	width: number;
 	isFullscreenEmbedded?: boolean;
 	isFillContainer?: boolean;
+	zoomLevel?: number;
 	onClose: () => void;
 	onResize: (panelId: string, delta: number) => void;
 }
@@ -45,8 +50,8 @@ const widthStyle = $derived(
 );
 
 const webviewLabel = $derived(`browser-${props.panelId}`);
-const zoomService = getZoomService();
-const zoomLevel = $derived(zoomService.zoomLevel);
+const zoomFallback = getZoomService();
+const effectiveZoomLevel = $derived(props.zoomLevel ?? zoomFallback.zoomLevel);
 
 function openInSystemBrowser() {
 	openUrl(currentUrl).catch((error) => {
@@ -87,7 +92,7 @@ function resolveNativeBounds() {
 			getWindowInnerPosition: async () => ({ x: 0, y: 0 }),
 			getWebviewPosition: async () => ({ x: 0, y: 0 }),
 			getScaleFactor: async () => 1,
-			getZoomLevel: () => zoomService.zoomLevel,
+			getZoomLevel: () => effectiveZoomLevel,
 		}),
 		(error) => new Error(`Failed to resolve browser panel bounds: ${String(error)}`)
 	);
@@ -284,7 +289,7 @@ $effect(() => {
 $effect(() => {
 	// When app zoom changes, re-sync bounds because the CSS-to-logical
 	// coordinate mapping changes (resolveBrowserPanelBounds scales by zoom).
-	zoomLevel;
+	effectiveZoomLevel;
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
 			syncWebviewBounds();
@@ -293,15 +298,19 @@ $effect(() => {
 });
 </script>
 
-<div
-	class="flex flex-col h-full min-h-0 bg-background border border-border overflow-hidden relative {isDragging
-		? 'select-none'
-		: ''} {props.isFillContainer ? 'flex-1 min-w-0' : 'shrink-0 grow-0'}"
-	style={widthStyle}
+<SharedAgentPanelBrowserPanel
+	{widthStyle}
+	{isDragging}
+	isFillContainer={Boolean(props.isFillContainer)}
 >
-	<div class="shrink-0">
-		<BrowserPanelHeader
+	{#snippet header()}
+		<SharedAgentPanelBrowserHeader
 			url={currentUrl}
+			backLabel={m.link_preview_back()}
+			forwardLabel={m.link_preview_forward()}
+			reloadLabel={m.link_preview_refresh()}
+			openExternalLabel={m.link_preview_open_browser()}
+			closeLabel={m.common_close()}
 			onBack={goBack}
 			onForward={goForward}
 			onReload={reload}
@@ -309,20 +318,24 @@ $effect(() => {
 			onOpenExternal={openInSystemBrowser}
 			onClose={handleClose}
 		/>
-	</div>
+	{/snippet}
 
-	<div bind:this={webviewAreaRef} class="flex-1 min-h-0 bg-white"></div>
+	{#snippet body()}
+		<div bind:this={webviewAreaRef} class="flex-1 min-h-0 bg-white"></div>
+	{/snippet}
 
 	{#if !props.isFullscreenEmbedded}
-		<div
-			class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors"
-			role="separator"
-			aria-orientation="vertical"
-			tabindex="-1"
-			onpointerdown={handlePointerDown}
-			onpointermove={handlePointerMove}
-			onpointerup={handlePointerUp}
-			onpointercancel={handlePointerUp}
-		></div>
+		{#snippet resizeEdge()}
+			<div
+				class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors"
+				role="separator"
+				aria-orientation="vertical"
+				tabindex="-1"
+				onpointerdown={handlePointerDown}
+				onpointermove={handlePointerMove}
+				onpointerup={handlePointerUp}
+				onpointercancel={handlePointerUp}
+			></div>
+		{/snippet}
 	{/if}
-</div>
+</SharedAgentPanelBrowserPanel>
