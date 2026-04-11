@@ -80,8 +80,9 @@ import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-proje
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
+import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
+import { WorktreeToggleControl } from "../../worktree-toggle/index.js";
 import AgentPanelContent from "./agent-panel-content.svelte";
-import AgentPanelFooter from "./agent-panel-footer.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
@@ -1932,34 +1933,46 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			worktreeToggleProjectPath &&
 			panelId
 		}
-			<AgentPanelFooter
-				{panelId}
-				projectPath={worktreeToggleProjectPath}
-				activeWorktreePath={effectiveActiveWorktreePath}
-				effectiveCwd={effectivePathForGit}
-				{isFullscreen}
-				{globalWorktreeDefault}
-				{worktreeDeleted}
-				{hasEdits}
-				{hasMessages}
-				{isTerminalDrawerOpen}
-				isBrowserSidebarOpen={showBrowserSidebar}
+			<SharedFooter
+				showTrailingBorder={!isFullscreen}
+				browserActive={showBrowserSidebar}
+				browserTitle="Toggle browser"
+				browserAriaLabel="Toggle browser"
 				onToggleBrowser={() => {
 					if (panelId) {
 						panelStore.toggleBrowserSidebar(panelId);
 					}
 				}}
+				terminalActive={isTerminalDrawerOpen}
+				terminalDisabled={effectivePathForGit === null}
+				terminalTitle={effectivePathForGit !== null
+					? m.embedded_terminal_toggle_tooltip()
+					: m.embedded_terminal_no_cwd_tooltip()}
+				terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
 				onToggleTerminal={() => {
 					if (panelId && effectivePathForGit) {
 						panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
 					}
 				}}
-				onWorktreeCreated={handleWorktreeCreated}
-				onWorktreeRenamed={handleWorktreeRenamed}
-				onPendingChange={(pending) => {
-					worktreePending = pending;
-				}}
-			/>
+			>
+				{#snippet left()}
+					<WorktreeToggleControl
+						{panelId}
+						projectPath={worktreeToggleProjectPath}
+						projectName={null}
+						activeWorktreePath={effectiveActiveWorktreePath}
+						{hasEdits}
+						{hasMessages}
+						globalWorktreeDefault={globalWorktreeDefault}
+						{worktreeDeleted}
+						onWorktreeCreated={handleWorktreeCreated}
+						onWorktreeRenamed={handleWorktreeRenamed}
+						onPendingChange={(pending) => {
+							worktreePending = pending;
+						}}
+					/>
+				{/snippet}
+			</SharedFooter>
 		{/if}
 	{/snippet}
 
