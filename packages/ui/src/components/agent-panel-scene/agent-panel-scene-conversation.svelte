@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AgentPanelConversationModel } from "@acepe/agent-panel-contract";
+	import type { AgentPanelConversationModel } from "../agent-panel/types.js";
 	import AgentPanelSceneEntry from "./agent-panel-scene-entry.svelte";
 
 	interface Props {

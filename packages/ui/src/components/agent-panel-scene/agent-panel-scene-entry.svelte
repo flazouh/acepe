@@ -1,6 +1,8 @@
 <script lang="ts">
-	import type { AgentPanelConversationEntry } from "@acepe/agent-panel-contract";
-	import type { AnyAgentEntry } from "../agent-panel/types.js";
+	import type {
+		AgentPanelConversationEntry as AgentPanelConversationEntryModel,
+		AnyAgentEntry,
+	} from "../agent-panel/types.js";
 
 	import AgentAssistantMessage from "../agent-panel/agent-assistant-message.svelte";
 	import AgentToolExecute from "../agent-panel/agent-tool-execute.svelte";
@@ -17,20 +19,20 @@
 	import { TextShimmer } from "../text-shimmer/index.js";
 
 	interface Props {
-		entry: AgentPanelConversationEntry;
+		entry: AgentPanelConversationEntryModel;
 		iconBasePath?: string;
 	}
 
 	let { entry, iconBasePath = "" }: Props = $props();
 
 	function isToolCall(
-		value: AgentPanelConversationEntry
-	): value is Extract<AgentPanelConversationEntry, { type: "tool_call" }> {
+		value: AgentPanelConversationEntryModel
+	): value is Extract<AgentPanelConversationEntryModel, { type: "tool_call" }> {
 		return value.type === "tool_call";
 	}
 
 	function mapTaskChildren(
-		children: readonly AgentPanelConversationEntry[] | undefined
+		children: readonly AgentPanelConversationEntryModel[] | undefined
 	): AnyAgentEntry[] | undefined {
 		if (!children || children.length === 0) {
 			return undefined;

@@ -1,5 +1,12 @@
 <script lang="ts">
-import { DiffPill } from "@acepe/ui";
+import {
+	AgentPanelModifiedFileRow as SharedAgentPanelModifiedFileRow,
+	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
+	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
+	DiffPill,
+	type AgentPanelFileReviewStatus,
+	type AgentPanelModifiedFilesTrailingModel,
+} from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ArrowsOut } from "phosphor-svelte";
@@ -28,7 +35,6 @@ import { getModelDisplayName } from "../model-selector-logic.js";
 import AnimatedChevron from "../animated-chevron.svelte";
 import SelectorCheck from "../selector-check.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
-import InlineModifiedFileRow from "./components/inline-modified-file-row.svelte";
 import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
 import {
 	DEFAULT_SHIP_INSTRUCTIONS,
@@ -107,7 +113,6 @@ let {
 // Get review preference store at component initialization (not in handlers)
 const reviewPreferenceStore = getReviewPreferenceStore();
 
-let isExpanded = $state(false);
 let hasPromptDraft = $state(false);
 let promptDraft = $state("");
 
@@ -245,14 +250,43 @@ const canKeepAll = $derived.by(() => {
 	return !isKeepAllApplied;
 });
 
+const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
+	reviewLabel: m.modified_files_review_button(),
+	reviewOptions: [
+		{
+			id: "panel",
+			label: m.modified_files_review_panel(),
+			kind: "panel",
+			onSelect: () => {
+				void reviewPreferenceStore.setPreferFullscreen(false);
+				if (modifiedFilesState) onEnterReviewMode?.(modifiedFilesState, 0);
+			},
+		},
+		{
+			id: "fullscreen",
+			label: m.modified_files_review_fullscreen(),
+			kind: "fullscreen",
+			onSelect: () => {
+				void reviewPreferenceStore.setPreferFullscreen(true);
+				if (modifiedFilesState) onOpenFullscreenReview?.(modifiedFilesState, 0);
+			},
+		},
+	],
+	onReview: () => {
+		handleReviewButtonClick(0);
+	},
+	keepState: isKeepAllApplied ? "applied" : canKeepAll ? "enabled" : "disabled",
+	keepLabel: m.review_keep(),
+	appliedLabel: m.review_applied(),
+	onKeep: handleKeepAllClick,
+	reviewedCount: reviewedFileCount,
+	totalCount: modifiedFilesState?.fileCount ?? 0,
+});
+
 $effect(() => {
 	if (!sessionId) return;
 	sessionReviewStateStore.ensureLoaded(sessionId);
 });
-
-function toggleExpanded(): void {
-	isExpanded = !isExpanded;
-}
 
 function handleReviewButtonClick(fileIndex: number): void {
 	if (!modifiedFilesState) return;
@@ -368,39 +402,37 @@ function handlePromptResetClick(): void {
 		customPrompt: undefined,
 	});
 }
+
+function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileReviewStatus {
+	if (status === "accepted" || status === "partial" || status === "denied") {
+		return status;
+	}
+
+	return "unreviewed";
+}
 </script>
 
 {#if modifiedFilesState}
-	<div class="w-full">
-		<!-- Inline Expanded File List (in document flow) -->
-		{#if isExpanded}
-			<div class="rounded-t-md bg-muted/30 overflow-hidden border border-b-0 border-border">
-				<!-- File list -->
-				<div class="flex flex-col p-1 max-h-[300px] overflow-y-auto">
-					{#each modifiedFilesState.files as file, index (file.filePath)}
-						<InlineModifiedFileRow
-							{file}
-							fileIndex={index}
-							reviewStatus={reviewStatusByFilePath.get(file.filePath)}
-							onOpenReviewPanel={handleReviewButtonClick}
-						/>
-					{/each}
-				</div>
-			</div>
-		{/if}
+	<SharedAgentPanelModifiedFilesHeader visible={true}>
+		{#snippet fileList()}
+			{#each modifiedFilesState.files as file, index (file.filePath)}
+				<SharedAgentPanelModifiedFileRow
+					file={{
+						id: file.filePath,
+						filePath: file.filePath,
+						fileName: file.fileName,
+						reviewStatus: mapReviewStatus(reviewStatusByFilePath.get(file.filePath)),
+						additions: file.totalAdded,
+						deletions: file.totalRemoved,
+						onSelect: () => {
+							handleReviewButtonClick(index);
+						},
+					}}
+				/>
+			{/each}
+		{/snippet}
 
-		<!-- Header Bar (whole component clickable to expand/collapse) -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			role="button"
-			tabindex="0"
-			onclick={toggleExpanded}
-			onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(); } }}
-			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors cursor-pointer {isExpanded
-				? 'rounded-t-none border-t-0'
-				: ''}"
-		>
-			<div class="flex items-center gap-2 shrink-0 min-w-0">
+		{#snippet leadingContent()}
 				<!-- PR split button: main action + dropdown for agent/model/prompt config -->
 				{#if onCreatePr}
 					<DropdownMenu.Root>
@@ -653,85 +685,10 @@ function handlePromptResetClick(): void {
 				{#if !onCreatePr && modifiedFilesState}
 					<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
 				{/if}
-			</div>
+		{/snippet}
 
-			<div class="flex items-center gap-3 shrink-0 ml-auto">
-				<!-- Review split button -->
-				<DropdownMenu.Root>
-					<div
-						class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-						onclick={(e: MouseEvent) => e.stopPropagation()}
-						role="none"
-					>
-						<Button
-							variant="headerAction"
-							size="headerAction"
-							class="rounded-none border-0 bg-transparent shadow-none"
-							onclick={() => handleReviewButtonClick(0)}
-						>
-							<FileCode size={11} weight="fill" class="shrink-0" />
-							{m.modified_files_review_button()}
-						</Button>
-						<DropdownMenu.Trigger
-							class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none"
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-						>
-							<svg class="size-2.5" viewBox="0 0 10 10" fill="none">
-								<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-							</svg>
-						</DropdownMenu.Trigger>
-					</div>
-					<DropdownMenu.Content align="end" class="min-w-[140px]">
-						<DropdownMenu.Item
-							onSelect={() => {
-								void reviewPreferenceStore.setPreferFullscreen(false);
-								if (modifiedFilesState) onEnterReviewMode?.(modifiedFilesState, 0);
-							}}
-							class="cursor-pointer text-[0.6875rem]"
-						>
-							<SidebarSimple size={12} weight="fill" class="shrink-0" />
-							{m.modified_files_review_panel()}
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							onSelect={() => {
-								void reviewPreferenceStore.setPreferFullscreen(true);
-								if (modifiedFilesState) onOpenFullscreenReview?.(modifiedFilesState, 0);
-							}}
-							class="cursor-pointer text-[0.6875rem]"
-						>
-							<ArrowsOut size={12} weight="bold" class="shrink-0" />
-							{m.modified_files_review_fullscreen()}
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-
-				<div role="none" onclick={(e: MouseEvent) => e.stopPropagation()}>
-					{#if isKeepAllApplied}
-						<Button variant="headerAction" size="headerAction" disabled class="disabled:opacity-100">
-							<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />
-							{m.review_applied()}
-						</Button>
-					{:else}
-						<Button
-							variant="invert"
-							size="headerAction"
-							disabled={!canKeepAll}
-							onclick={handleKeepAllClick}
-						>
-							<Check size={11} weight="bold" class="shrink-0" />
-							{m.review_keep()}
-						</Button>
-					{/if}
-				</div>
-
-				<!-- Reviewed count -->
-				<span class="text-muted-foreground tabular-nums text-[0.6875rem]">
-					{reviewedFileCount}/{modifiedFilesState.fileCount}
-				</span>
-
-				<!-- Expand/collapse chevron -->
-				<AnimatedChevron isOpen={isExpanded} class="size-3.5 text-muted-foreground" />
-			</div>
-		</div>
-	</div>
+		{#snippet trailingContent(isExpanded: boolean)}
+			<SharedAgentPanelModifiedFilesTrailingControls model={trailingControlsModel} {isExpanded} />
+		{/snippet}
+	</SharedAgentPanelModifiedFilesHeader>
 {/if}

@@ -53,10 +53,11 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		errorInfo,
 	} = input;
 
-	// 1. Project selection — also handles agent selection since agents are now embedded in project cards
-	// Show when: explicit project selection needed, OR when no agent is selected (need to pick from project cards)
+	// 1. Project selection — also handles agent selection since agents are now embedded in project cards.
+	// Only new-session flows require selecting an agent from the project cards. Existing sessions
+	// already have an agent identity, even if the draft-level selectedAgentId prop is empty.
 	const needsProjectOrAgentSelection =
-		showProjectSelection || (hasAvailableAgents && !hasSelectedAgentId);
+		showProjectSelection || (!hasSession && hasAvailableAgents && !hasSelectedAgentId);
 	if (needsProjectOrAgentSelection) {
 		return { kind: "project_selection" };
 	}

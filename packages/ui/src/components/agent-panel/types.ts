@@ -252,9 +252,11 @@ export interface AgentPanelHeaderModel {
 	title: string;
 	subtitle?: string | null;
 	status: AgentPanelSessionStatus;
+	agentIconSrc?: string | null;
 	agentLabel?: string | null;
 	projectLabel?: string | null;
 	projectColor?: string | null;
+	sequenceId?: number | null;
 	branchLabel?: string | null;
 	badges?: readonly AgentPanelBadge[];
 	actions: readonly AgentPanelActionDescriptor[];

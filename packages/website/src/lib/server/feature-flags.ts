@@ -1,6 +1,9 @@
+import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
 import { ResultAsync } from "neverthrow";
-import { db } from "./db/client";
+import postgres from "postgres";
+import { getDatabaseUrl } from "./db/database-url";
+import * as schema from "./db/schema";
 import { type FeatureFlagName, featureFlags } from "./db/schema";
 
 export type FeatureFlags = {
@@ -15,9 +18,22 @@ const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
 	roadmap_enabled: false,
 };
 
-function getOrCreateFlag(name: FeatureFlagName): ResultAsync<boolean, Error> {
+function withFeatureFlagDb<T>(operation: (db: ReturnType<typeof drizzle<typeof schema>>) => Promise<T>): ResultAsync<T, Error> {
 	return ResultAsync.fromPromise(
 		(async () => {
+			const client = postgres(getDatabaseUrl(), { max: 1 });
+			const db = drizzle(client, { schema });
+
+			return operation(db).finally(async () => {
+				await client.end();
+			});
+		})(),
+		(error) => new Error(`Feature flag database access failed: ${error}`)
+	);
+}
+
+function getOrCreateFlag(name: FeatureFlagName): ResultAsync<boolean, Error> {
+	return withFeatureFlagDb(async (db) => {
 			const rows = await db.select().from(featureFlags).where(eq(featureFlags.name, name));
 
 			if (rows.length > 0) {
@@ -32,9 +48,7 @@ function getOrCreateFlag(name: FeatureFlagName): ResultAsync<boolean, Error> {
 				.onConflictDoNothing();
 
 			return defaultValue;
-		})(),
-		(error) => new Error(`Failed to get feature flag ${name}: ${error}`)
-	);
+	}).mapErr((error) => new Error(`Failed to get feature flag ${name}: ${error}`));
 }
 
 export function getFeatureFlags(): ResultAsync<FeatureFlags, Error> {
@@ -50,14 +64,15 @@ export function getFeatureFlags(): ResultAsync<FeatureFlags, Error> {
 }
 
 export function setFeatureFlag(name: FeatureFlagName, enabled: boolean): ResultAsync<void, Error> {
-	return ResultAsync.fromPromise(
+	return withFeatureFlagDb((db) =>
 		db
 			.insert(featureFlags)
 			.values({ name, enabled, updatedAt: new Date() })
 			.onConflictDoUpdate({
 				target: featureFlags.name,
 				set: { enabled, updatedAt: new Date() },
-			}),
-		(error) => new Error(`Failed to set feature flag ${name}: ${error}`)
-	).map(() => undefined);
+			})
+	)
+		.map(() => undefined)
+		.mapErr((error) => new Error(`Failed to set feature flag ${name}: ${error}`));
 }

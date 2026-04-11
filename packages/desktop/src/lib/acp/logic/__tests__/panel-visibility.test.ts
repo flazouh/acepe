@@ -203,6 +203,34 @@ describe("derivePanelViewState", () => {
 		expect(result.kind).not.toBe("project_selection");
 	});
 
+	it("should not return project_selection for existing sessions that already have an agent", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				hasAvailableAgents: true,
+				hasSelectedAgentId: false,
+				hasSession: true,
+				runtimeState: makeRuntimeState({
+					showConversation: false,
+					showReadyPlaceholder: true,
+				}),
+				entriesCount: 0,
+			})
+		);
+		expect(result.kind).toBe("ready");
+	});
+
+	it("should keep existing session conversations visible even when no draft agent is selected", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				hasAvailableAgents: true,
+				hasSelectedAgentId: false,
+				hasSession: true,
+				entriesCount: 3,
+			})
+		);
+		expect(result.kind).toBe("conversation");
+	});
+
 	// ── Priority 4: Ready ──────────────────────────────────────
 
 	it("should return ready for new session with zero entries", () => {

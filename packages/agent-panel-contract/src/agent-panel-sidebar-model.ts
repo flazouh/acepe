@@ -1,4 +1,4 @@
-import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract";
+import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract.js";
 
 export interface AgentPanelPlanSidebarItem {
 	id: string;
@@ -20,8 +20,8 @@ export interface AgentPanelAttachedFileTab {
 	language?: string | null;
 	contentPreview?: string | null;
 	isActive: boolean;
-	selectActionId?: import("./agent-panel-action-contract").AgentPanelActionId | null;
-	closeActionId?: import("./agent-panel-action-contract").AgentPanelActionId | null;
+	selectActionId?: import("./agent-panel-action-contract.js").AgentPanelActionId | null;
+	closeActionId?: import("./agent-panel-action-contract.js").AgentPanelActionId | null;
 }
 
 export interface AgentPanelAttachedFilePaneModel {

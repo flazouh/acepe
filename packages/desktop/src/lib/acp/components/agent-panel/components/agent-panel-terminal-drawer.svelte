@@ -6,6 +6,7 @@
   Wrapped in <svelte:boundary> for resilience against xterm.js crashes.
 -->
 <script lang="ts">
+import { AgentPanelTerminalDrawer as SharedAgentPanelTerminalDrawer } from "@acepe/ui/agent-panel";
 import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 import { Plus } from "phosphor-svelte";
@@ -113,28 +114,21 @@ function handleResizePointerUp(): void {
 }
 </script>
 
-<div
-	class="flex flex-col bg-background"
-	style="height: {clampedHeight}px; contain: layout;"
->
-	<!-- Resize handle -->
-	<div
-		class="h-px hover:h-[3px] cursor-row-resize shrink-0 bg-border hover:bg-primary/50 transition-all
-			{isResizing ? 'h-[3px] bg-primary/50' : ''}"
-		role="separator"
-		aria-orientation="horizontal"
-		onpointerdown={handleResizePointerDown}
-		onpointermove={handleResizePointerMove}
-		onpointerup={handleResizePointerUp}
-		onpointercancel={handleResizePointerUp}
-	></div>
+<SharedAgentPanelTerminalDrawer height={clampedHeight}>
+	{#snippet resizeHandle()}
+		<div
+			class="h-px hover:h-[3px] cursor-row-resize shrink-0 bg-border hover:bg-primary/50 transition-all
+				{isResizing ? 'h-[3px] bg-primary/50' : ''}"
+			role="separator"
+			aria-orientation="horizontal"
+			onpointerdown={handleResizePointerDown}
+			onpointermove={handleResizePointerMove}
+			onpointerup={handleResizePointerUp}
+			onpointercancel={handleResizePointerUp}
+		></div>
+	{/snippet}
 
-	<!-- Tab strip -->
-	<div
-		class="flex items-stretch h-7 shrink-0 border-b border-border/50"
-		role="tablist"
-		aria-label={m.terminal_panel_title()}
-	>
+	{#snippet tabs()}
 		{#each tabs as tab, i (tab.id)}
 			<div
 				class="group inline-flex h-7 shrink-0 items-center gap-1 px-2 text-xs transition-colors cursor-pointer
@@ -163,7 +157,6 @@ function handleResizePointerUp(): void {
 			</div>
 		{/each}
 
-		<!-- New tab button -->
 		<button
 			type="button"
 			class="h-7 w-7 inline-flex items-center justify-center border-l border-border/50
@@ -173,17 +166,13 @@ function handleResizePointerUp(): void {
 		>
 			<Plus size={12} weight="bold" />
 		</button>
-	</div>
+	{/snippet}
 
-	<!-- Terminal content with error boundary -->
-	<div class="flex-1 min-h-0 overflow-hidden relative">
+	{#snippet body()}
 		<svelte:boundary>
 			{#if detectedShell}
 				{#each tabs as tab (tab.id)}
-					<div
-						class="absolute inset-0"
-						class:hidden={tab.id !== selectedTabId}
-					>
+					<div class="absolute inset-0" class:hidden={tab.id !== selectedTabId}>
 						<TerminalRenderer
 							projectPath={tab.cwd}
 							shell={detectedShell}
@@ -208,5 +197,5 @@ function handleResizePointerUp(): void {
 				</div>
 			{/snippet}
 		</svelte:boundary>
-	</div>
-</div>
+	{/snippet}
+</SharedAgentPanelTerminalDrawer>

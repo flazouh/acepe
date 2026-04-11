@@ -45,14 +45,17 @@ export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export { default as AgentInputDivider } from "./agent-input-divider.svelte";
 export { default as AgentInputEditor } from "./agent-input-editor.svelte";
+export { default as AgentInputFilePickerDropdown } from "./agent-input-file-picker-dropdown.svelte";
 export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
 export { default as AgentInputModelModeBar } from "./agent-input-model-mode-bar.svelte";
 export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
+export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
 export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.svelte";
 export { default as AgentInputSelectorCheck } from "./agent-input-selector-check.svelte";
+export { default as AgentInputSlashCommandDropdown } from "./agent-input-slash-command-dropdown.svelte";
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export { default as AgentInputVoiceModelMenu } from "./agent-input-voice-model-menu.svelte";

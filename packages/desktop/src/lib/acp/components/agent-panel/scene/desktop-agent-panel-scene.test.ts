@@ -227,7 +227,7 @@ describe("desktop agent panel scene adapter", () => {
 							{ filePath: "src/lib/auth.ts", line: 42, message: "Boom", severity: "error" },
 						],
 					},
-					kind: "read_lints",
+					kind: "other",
 					title: "Read lints",
 					locations: null,
 					skillMeta: null,

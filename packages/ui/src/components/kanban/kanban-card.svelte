@@ -93,18 +93,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			<HeaderCell>
 				<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
 			</HeaderCell>
-			{#if card.hasUnseenCompletion}
-				<HeaderTitleCell compactPadding>
-					<div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-						<span
-							class="size-1.5 shrink-0 rounded-full"
-							style="background-color: var(--success-reference)"
-							title="Finished — not yet reviewed"
-							data-testid="unseen-completion-dot"
-						></span>
-					</div>
-				</HeaderTitleCell>
-			{/if}
+			<HeaderTitleCell compactPadding></HeaderTitleCell>
 			{#if hasDiff}
 				<HeaderActionCell withDivider={headerDiffDivider} class="px-1">
 					<div class="flex h-7 items-center justify-center">
@@ -145,19 +134,21 @@ function handleKeydown(event: KeyboardEvent): void {
 	{#if showBody}
 		<div class="flex flex-col gap-1 px-1 pt-1 pb-1">
 			{#if card.taskCard}
+				{@const taskCard = card.taskCard}
 				<AgentToolTask
-					description={card.taskCard.summary}
-					status={card.taskCard.isStreaming ? "running" : "done"}
-					children={card.taskCard.toolCalls}
+					description={taskCard.summary}
+					status={taskCard.isStreaming ? "running" : "done"}
+					children={taskCard.toolCalls}
 					compact={true}
 					iconBasePath="/svgs/icons"
 				/>
 			{:else if card.latestTool}
+				{@const latestTool = card.latestTool}
 				<AgentToolRow
-					title={card.latestTool.title}
-					filePath={card.latestTool.filePath}
-					status={card.latestTool.status}
-					kind={card.latestTool.kind}
+					title={latestTool.title}
+					filePath={latestTool.filePath}
+					status={latestTool.status}
+					kind={latestTool.kind}
 					iconBasePath="/svgs/icons"
 				/>
 			{:else if card.activityText}
@@ -188,10 +179,11 @@ function handleKeydown(event: KeyboardEvent): void {
 					{/if}
 				{/if}
 				{#if card.todoProgress && !hasTodoSection}
-					<span class="shrink-0 text-[10px] text-muted-foreground">{card.todoProgress.label}</span>
-					<SegmentedProgress current={card.todoProgress.current} total={card.todoProgress.total} />
+					{@const todoProgress = card.todoProgress}
+					<span class="shrink-0 text-[10px] text-muted-foreground">{todoProgress.label}</span>
+					<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
 					<span class="text-[10px] text-muted-foreground">
-						{card.todoProgress.current}/{card.todoProgress.total}
+						{todoProgress.current}/{todoProgress.total}
 					</span>
 				{/if}
 			</div>
@@ -231,10 +223,11 @@ function handleKeydown(event: KeyboardEvent): void {
 					{/if}
 				{/if}
 				{#if card.todoProgress && !hasTodoSection}
-					<span class="shrink-0 text-[10px] text-muted-foreground">{card.todoProgress.label}</span>
-					<SegmentedProgress current={card.todoProgress.current} total={card.todoProgress.total} />
+					{@const todoProgress = card.todoProgress}
+					<span class="shrink-0 text-[10px] text-muted-foreground">{todoProgress.label}</span>
+					<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
 					<span class="text-[10px] text-muted-foreground">
-						{card.todoProgress.current}/{card.todoProgress.total}
+						{todoProgress.current}/{todoProgress.total}
 					</span>
 				{/if}
 			</div>

@@ -1242,7 +1242,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 		<DialogContent
 			bind:ref={newSessionDialogRef}
 			showCloseButton={false}
-			class="overflow-hidden max-w-[34rem] gap-0 border border-border/70 bg-background p-0 shadow-xl !backdrop-blur-none"
+			class="overflow-hidden max-w-[34rem] gap-0 rounded-2xl !border-0 bg-background p-0 shadow-xl !backdrop-blur-none"
 			portalProps={{ disabled: true }}
 			onOpenAutoFocus={(e: Event) => {
 				e.preventDefault();
@@ -1251,7 +1251,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				});
 			}}
 		>
-			<div class="mx-auto flex w-full max-w-[30rem] flex-col py-2">
+			<div class="flex w-full flex-col px-2 py-2">
 				{#if canShowNewSessionInput}
 					<AgentInput
 						panelId={KANBAN_NEW_SESSION_PANEL_ID}

@@ -60,10 +60,13 @@ let {
 }: AgentPanelHeaderProps = $props();
 
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
+const panelHeaderClass = $derived(
+	isFullscreen ? "bg-card/50" : "bg-card/50 border-r border-border/50"
+);
 </script>
 
 {#if worktreeCloseConfirming}
-	<EmbeddedPanelHeader class="bg-card/50">
+	<EmbeddedPanelHeader class={panelHeaderClass}>
 		<HeaderTitleCell>
 			{#snippet children()}
 				<span class="text-[11px] font-medium truncate text-muted-foreground">
@@ -125,6 +128,7 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 {:else}
 	<AgentPanelHeaderLayout
 		class="bg-card/50"
+		showTrailingBorder={!isFullscreen}
 		sessionTitle={sessionTitle ? sessionTitle : undefined}
 		displayTitle={displayTitle ? displayTitle : undefined}
 		{agentIconSrc}

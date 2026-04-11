@@ -1,4 +1,5 @@
 <script lang="ts">
+import { AgentPanelReviewContent as SharedAgentPanelReviewContent } from "@acepe/ui/agent-panel";
 import { IconMaximize } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
@@ -400,9 +401,8 @@ $effect(() => {
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex flex-col h-full w-full overflow-hidden">
-	<!-- Header: tab strip + actions -->
-	<div class="flex min-h-8 items-center overflow-x-auto border-b border-border shrink-0">
+<SharedAgentPanelReviewContent>
+	{#snippet header()}
 		<div class="flex-1 min-w-0 overflow-hidden">
 			<ReviewTabStrip
 				{files}
@@ -434,44 +434,44 @@ $effect(() => {
 				<IconX class="h-3.5 w-3.5" />
 			</Button>
 		</div>
-	</div>
+	{/snippet}
 
-	<!-- Diff view + embedded footer bar -->
-	<div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+	{#snippet body()}
 		{#if selectedFile}
 			{#key getReviewFileRevisionKey(selectedFile)}
-				<div class="flex-1 min-h-0 overflow-auto">
-					<ReviewPanelDiff
-						file={selectedFile}
-						projectPath={projectPath ?? undefined}
-						{isActive}
-						onHunkAccept={handleHunkAccept}
-						onHunkReject={handleHunkReject}
-						onDiffStateReady={handleDiffStateReady}
-					/>
-				</div>
-				<div class="shrink-0">
-					<ReviewBottomWidget
-						hunkCurrent={hunkStats.hunkCurrent}
-						hunkTotal={hunkStats.hunkTotal}
-						{fileCurrent}
-						{fileTotal}
-						hasPrevHunk={hunkStats.hasPrev}
-						hasNextHunk={hunkStats.hasNext}
-						hasPrevPendingFile={prevFileIdx !== null}
-						hasNextPendingFile={nextFileIdx !== null}
-						hasPendingHunks={hunkStats.hasPending}
-						showReviewNextFileCta={showReviewNextCta}
-						onPrevHunk={handlePrevHunk}
-						onNextHunk={handleNextHunk}
-						onPrevFile={handlePrevFile}
-						onNextFile={handleNextFile}
-						onAcceptFile={handleAcceptFile}
-						onRejectFile={handleRejectFile}
-						onReviewNextFile={handleReviewNextFile}
-					/>
-				</div>
+				<ReviewPanelDiff
+					file={selectedFile}
+					projectPath={projectPath ?? undefined}
+					{isActive}
+					onHunkAccept={handleHunkAccept}
+					onHunkReject={handleHunkReject}
+					onDiffStateReady={handleDiffStateReady}
+				/>
 			{/key}
 		{/if}
-	</div>
-</div>
+	{/snippet}
+
+	{#snippet footer()}
+		{#if selectedFile}
+			<ReviewBottomWidget
+				hunkCurrent={hunkStats.hunkCurrent}
+				hunkTotal={hunkStats.hunkTotal}
+				{fileCurrent}
+				{fileTotal}
+				hasPrevHunk={hunkStats.hasPrev}
+				hasNextHunk={hunkStats.hasNext}
+				hasPrevPendingFile={prevFileIdx !== null}
+				hasNextPendingFile={nextFileIdx !== null}
+				hasPendingHunks={hunkStats.hasPending}
+				showReviewNextFileCta={showReviewNextCta}
+				onPrevHunk={handlePrevHunk}
+				onNextHunk={handleNextHunk}
+				onPrevFile={handlePrevFile}
+				onNextFile={handleNextFile}
+				onAcceptFile={handleAcceptFile}
+				onRejectFile={handleRejectFile}
+				onReviewNextFile={handleReviewNextFile}
+			/>
+		{/if}
+	{/snippet}
+</SharedAgentPanelReviewContent>

@@ -1,4 +1,4 @@
-import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract";
+import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract.js";
 
 export interface AgentPanelComposerAttachment {
 	id: string;

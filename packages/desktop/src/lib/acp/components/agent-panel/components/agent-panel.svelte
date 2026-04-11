@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentPanel } from "@acepe/ui/agent-panel";
+import { AgentPanelShell } from "@acepe/ui/agent-panel";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import { listen } from "@tauri-apps/api/event";
@@ -1567,7 +1567,7 @@ const queueMessages = $derived.by(() => {
 const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessionId) : false);
 </script>
 
-<AgentPanel
+<AgentPanelShell
 	widthStyle={widthStyle}
 	centerColumnStyle={agentContentColumnStyle}
 	{isFullscreen}
@@ -2042,4 +2042,4 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			/>
 		{/if}
 	{/snippet}
-</AgentPanel>
+</AgentPanelShell>

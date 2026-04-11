@@ -3,12 +3,11 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("model-selector subcomponents", () => {
-	it("exports the subcomponents", () => {
-		const base = resolve(__dirname, "..");
-		expect(existsSync(resolve(base, "model-selector.trigger.svelte"))).toBe(true);
-		expect(existsSync(resolve(base, "model-selector.content.svelte"))).toBe(true);
-		expect(existsSync(resolve(base, "model-selector.row.svelte"))).toBe(true);
-		expect(existsSync(resolve(base, "model-selector.mode-bar.svelte"))).toBe(true);
-		expect(existsSync(resolve(base, "model-selector.favorite-star.svelte"))).toBe(true);
+	it("keeps the shared selector subcomponents available from @acepe/ui", () => {
+		const base = resolve(__dirname, "../../../../../../ui/src/components/agent-panel");
+		expect(existsSync(resolve(base, "agent-input-model-trigger.svelte"))).toBe(true);
+		expect(existsSync(resolve(base, "agent-input-model-row.svelte"))).toBe(true);
+		expect(existsSync(resolve(base, "agent-input-model-mode-bar.svelte"))).toBe(true);
+		expect(existsSync(resolve(base, "agent-input-model-favorite-star.svelte"))).toBe(true);
 	});
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
 import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
@@ -99,11 +100,8 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 </script>
 
 {#if activeFilePanel}
-	<div
-		class="flex h-full min-h-0 shrink-0 flex-col gap-0 overflow-hidden"
-		style={`min-width: ${columnWidth}px; width: ${columnWidth}px; max-width: ${columnWidth}px; flex-basis: ${columnWidth}px;`}
-	>
-		<div class="flex min-h-8 shrink-0 items-center overflow-x-auto border-r border-border bg-muted/20">
+	<SharedAgentAttachedFilePane {columnWidth}>
+		{#snippet tabs()}
 			{#each filePanels as filePanel (filePanel.id)}
 				{@const fileName = filePanel.filePath.split("/").pop() ?? filePanel.filePath}
 				{@const diffStats = getGitDiffStats(filePanel)}
@@ -138,8 +136,9 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 					</button>
 				</div>
 			{/each}
-		</div>
-		<div class="min-h-0 flex-1 overflow-hidden">
+		{/snippet}
+
+		{#snippet body()}
 			<FilePanel
 				panelId={activeFilePanel.id}
 				filePath={activeFilePanel.filePath}
@@ -156,8 +155,8 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				onClose={() => onCloseFilePanel(activeFilePanel.id)}
 				onResize={(panelId, delta) => onResizeFilePanel(panelId, delta)}
 			/>
-		</div>
-	</div>
+		{/snippet}
+	</SharedAgentAttachedFilePane>
 {/if}
 
 <style>

@@ -1,16 +1,17 @@
 import {
 	AGENT_PANEL_ACTION_IDS,
 	type AgentPanelActionDescriptor,
+	type AgentPanelActionId,
 	type AgentPanelCardModel,
 	type AgentPanelChromeModel,
 	type AgentPanelComposerModel,
-	type AgentPanelConversationEntry,
 	type AgentPanelPlanSidebarItem,
 	type AgentPanelSceneModel,
+	type AgentPanelSceneEntryModel,
 	type AgentPanelSessionStatus,
 	type AgentPanelSidebarModel,
 	type AgentPanelStripModel,
-} from "@acepe/agent-panel-contract";
+} from "@acepe/ui/agent-panel";
 
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../../application/dto/session.js";
@@ -102,6 +103,18 @@ export interface BuildDesktopAgentPanelSceneOptions {
 	installCard?: DesktopInstallCardInput | null;
 	errorCard?: DesktopErrorCardInput | null;
 	chrome?: AgentPanelChromeModel | null;
+}
+
+type AttachmentScopedBaseActionId =
+	| typeof AGENT_PANEL_ACTION_IDS.attachment.selectTab
+	| typeof AGENT_PANEL_ACTION_IDS.attachment.closeTab;
+
+function createAttachmentScopedActionId(
+	baseActionId: AttachmentScopedBaseActionId,
+	value: string,
+): AgentPanelActionId {
+	const scopedActionId: `${AttachmentScopedBaseActionId}:${string}` = `${baseActionId}:${value}`;
+	return scopedActionId;
 }
 
 function mapToolStatus(
@@ -263,7 +276,7 @@ function mapQuestion(
 	| {
 			question: string;
 			header?: string | null;
-			options?: readonly { label: string; description?: string | null }[] | null;
+			options?: { label: string; description?: string | null }[] | null;
 			multiSelect?: boolean;
 	  }
 	| null {
@@ -302,7 +315,7 @@ function mapTaskChildren(
 	children: readonly ToolCall[] | null | undefined,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean
-): readonly AgentPanelConversationEntry[] | undefined {
+): AgentPanelSceneEntryModel[] | undefined {
 	if (!children || children.length === 0) {
 		return undefined;
 	}
@@ -320,7 +333,7 @@ function getToolResultObject(toolCall: ToolCall): Record<string, unknown> | null
 }
 
 function mapSearchPayload(toolCall: ToolCall): {
-	searchFiles?: readonly string[];
+	searchFiles?: string[];
 	searchResultCount?: number;
 } {
 	if (toolCall.arguments.kind !== "search" && toolCall.arguments.kind !== "glob") {
@@ -353,7 +366,7 @@ function mapSearchPayload(toolCall: ToolCall): {
 	const parsedResult = parseSearchResult(toolCall.result, toolResponseMeta, searchPath);
 
 	return {
-		searchFiles: parsedResult.files,
+		searchFiles: Array.from(parsedResult.files),
 		searchResultCount:
 			parsedResult.mode === "content" ? parsedResult.numFiles : parsedResult.files.length,
 	};
@@ -376,7 +389,7 @@ function mapFetchResultText(toolCall: ToolCall): string | null {
 }
 
 function mapWebSearchPayload(toolCall: ToolCall): {
-	webSearchLinks?: readonly {
+	webSearchLinks?: {
 		title: string;
 		url: string;
 		domain: string;
@@ -404,7 +417,7 @@ function mapWebSearchPayload(toolCall: ToolCall): {
 function mapLintDiagnostics(
 	toolCall: ToolCall
 ):
-	| readonly {
+	| {
 			filePath?: string | null;
 			line?: number | null;
 			message?: string | null;
@@ -469,7 +482,7 @@ function mapToolCallEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean
-): AgentPanelConversationEntry {
+): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
 	const parsedResult = kind === "execute" ? parseToolResultWithExitCode(toolCall.result) : null;
 	const subtitle = getToolSubtitle(toolCall);
@@ -586,7 +599,7 @@ export function mapSessionStatusToSceneStatus(
 export function mapSessionEntriesToConversationModel(
 	entries: readonly SessionEntry[],
 	turnState: TurnState | undefined
-): { entries: readonly AgentPanelConversationEntry[]; isStreaming: boolean } {
+): { entries: readonly AgentPanelSceneEntryModel[]; isStreaming: boolean } {
 	const conversationEntries = entries.map((entry) =>
 		mapSessionEntryToConversationEntry(entry, turnState)
 	);
@@ -600,7 +613,7 @@ export function mapSessionEntriesToConversationModel(
 export function mapSessionEntryToConversationEntry(
 	entry: SessionEntry,
 	turnState: TurnState | undefined
-): AgentPanelConversationEntry {
+): AgentPanelSceneEntryModel {
 	if (entry.type === "user") {
 		return {
 			id: entry.id,
@@ -659,7 +672,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 	entry: VirtualizedDisplayEntry,
 	turnState: TurnState | undefined,
 	isStreamingAssistant: boolean
-): AgentPanelConversationEntry {
+): AgentPanelSceneEntryModel {
 	if (entry.type === "thinking") {
 		return {
 			id: entry.id,
@@ -799,8 +812,14 @@ export function buildDesktopAttachedFilesSidebar(
 				language: null,
 				contentPreview: null,
 				isActive: panel.id === activeFilePanelId,
-				selectActionId: `${AGENT_PANEL_ACTION_IDS.attachment.selectTab}:${panel.id}`,
-				closeActionId: `${AGENT_PANEL_ACTION_IDS.attachment.closeTab}:${panel.id}`,
+				selectActionId: createAttachmentScopedActionId(
+					AGENT_PANEL_ACTION_IDS.attachment.selectTab,
+					panel.id
+				),
+				closeActionId: createAttachmentScopedActionId(
+					AGENT_PANEL_ACTION_IDS.attachment.closeTab,
+					panel.id
+				),
 			};
 		}),
 		actions,

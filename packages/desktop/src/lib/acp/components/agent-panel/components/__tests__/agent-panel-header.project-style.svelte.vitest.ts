@@ -60,6 +60,7 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(fullscreen).not.toBeNull();
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
+		expect(header?.className).toContain("border-r");
 		expect(fullscreen?.className).toContain("h-7");
 		expect(close?.className).toContain("h-7");
 
@@ -72,6 +73,42 @@ describe("AgentPanelHeader project-header style", () => {
 
 		expect(onToggleFullscreen).toHaveBeenCalledTimes(1);
 		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not add a trailing border in fullscreen mode", () => {
+		const { container } = render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: null,
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: true,
+			sessionStatus: "empty",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: null,
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onScrollToTop: undefined,
+			debugPanelState: null,
+		});
+
+		expect(container.firstElementChild?.className).not.toContain("border-r");
 	});
 
 	it("shows the computed display title before the session title is hydrated", () => {

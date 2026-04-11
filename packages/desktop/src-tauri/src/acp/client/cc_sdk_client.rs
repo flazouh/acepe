@@ -2417,7 +2417,15 @@ impl AgentClient for ClaudeCcSdkClient {
     ) -> AcpResult<ResumeSessionResponse> {
         self.reset_stream_runtime_state();
         self.current_cwd = Some(PathBuf::from(&cwd));
-        self.reset_pending_mode_for_safe_resume();
+        // Only clear stale autonomous mode when we're reusing an existing live
+        // client. For freshly created clients, `pending_mode_id` was either left
+        // at its default (None → Default) or intentionally seeded via
+        // `seed_client_launch_mode` to carry a launch execution profile such as
+        // `bypassPermissions`; resetting it here would silently drop the caller's
+        // autonomous selection.
+        if self.sdk_client.is_some() {
+            self.reset_pending_mode_for_safe_resume();
+        }
         self.restore_session_permission_approvals(&session_id).await;
         let history_session_id = self.history_session_id_for_app_session(&session_id).await;
         if !self.session_has_persisted_history(&session_id, &cwd).await {
@@ -2511,9 +2519,25 @@ impl AgentClient for ClaudeCcSdkClient {
         Ok(())
     }
 
-    async fn set_session_mode(&mut self, _session_id: String, _mode_id: String) -> AcpResult<()> {
-        self.pending_mode_id = Some(_mode_id.clone());
-        self.apply_runtime_mode(&_mode_id).await?;
+    async fn set_session_mode(&mut self, session_id: String, mode_id: String) -> AcpResult<()> {
+        self.pending_mode_id = Some(mode_id.clone());
+        if self.sdk_client.is_some() {
+            self.apply_runtime_mode(&mode_id).await?;
+            return Ok(());
+        }
+        // Deferred-connection path: `new_session` and the no-history branch of
+        // `resume_session` eagerly cache `ClaudeCodeOptions` in `pending_options`
+        // using whatever `pending_mode_id` was set at that moment. If the caller
+        // seeds a new mode (e.g. enabling autonomous before the first prompt),
+        // rebuild the cached options so the new mode is honored when
+        // `send_prompt_fire_and_forget` finally connects the client.
+        if self.pending_options.is_some() {
+            if let Some(cwd_buf) = self.current_cwd.clone() {
+                let cwd_str = cwd_buf.to_string_lossy().into_owned();
+                let rebuilt = self.build_options(&cwd_str, &session_id, None, false);
+                self.pending_options = Some(rebuilt);
+            }
+        }
         Ok(())
     }
 
@@ -3192,7 +3216,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resume_session_clears_stale_autonomous_permission_mode_before_reconnect() {
+    async fn resume_session_preserves_seeded_launch_mode_on_fresh_client() {
+        // A fresh client whose `pending_mode_id` was seeded by
+        // `seed_client_launch_mode` (carrying an autonomous execution profile)
+        // must not have that seed wiped by the safe-resume reset — otherwise
+        // enabling autonomous mid-session would silently launch the CLI in
+        // Default mode and every tool call would still require approval.
         let temp = tempfile::tempdir().expect("temp dir");
         let mut client = make_test_client();
         client.pending_mode_id = Some("bypassPermissions".to_string());
@@ -3206,14 +3235,53 @@ mod tests {
             .expect("resume session should succeed without persisted history");
 
         assert_eq!(response.modes.current_mode_id, "build");
-        assert_eq!(client.pending_mode_id.as_deref(), Some("default"));
+        assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
         assert_eq!(
             client
                 .pending_options
                 .as_ref()
                 .expect("resume without persisted history should defer connect")
                 .permission_mode,
+            cc_sdk::PermissionMode::BypassPermissions
+        );
+    }
+
+    #[tokio::test]
+    async fn set_session_mode_rebuilds_pending_options_on_deferred_connection() {
+        // When the frontend enables autonomous before sending the first prompt,
+        // `new_session` has already cached `ClaudeCodeOptions` in
+        // `pending_options` with the default permission mode. `set_session_mode`
+        // must rebuild those options so the deferred `connect_and_start_bridge`
+        // call launches the CLI in `bypassPermissions`.
+        let temp = tempfile::tempdir().expect("temp dir");
+        let mut client = make_test_client();
+
+        let new_response = client
+            .new_session(temp.path().to_string_lossy().into_owned())
+            .await
+            .expect("new_session should succeed");
+        assert_eq!(
+            client
+                .pending_options
+                .as_ref()
+                .expect("new_session should cache options for deferred connect")
+                .permission_mode,
             cc_sdk::PermissionMode::Default
+        );
+
+        client
+            .set_session_mode(new_response.session_id, "bypassPermissions".to_string())
+            .await
+            .expect("set_session_mode should succeed on deferred client");
+
+        assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
+        assert_eq!(
+            client
+                .pending_options
+                .as_ref()
+                .expect("pending_options should survive set_session_mode")
+                .permission_mode,
+            cc_sdk::PermissionMode::BypassPermissions
         );
     }
 

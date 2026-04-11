@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentPanelSceneEntry, setIconConfig } from "@acepe/ui";
+import { AgentPanelConversationEntry, setIconConfig } from "@acepe/ui";
 import { setContext, untrack } from "svelte";
 import { VList, type VListHandle } from "virtua/svelte";
 import type { SessionEntry } from "../../../application/dto/session.js";
@@ -511,7 +511,7 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 			{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
 				<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />
 			{:else}
-				<AgentPanelSceneEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
+				<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
 			{/if}
 		</MessageWrapper>
 	{/snippet}

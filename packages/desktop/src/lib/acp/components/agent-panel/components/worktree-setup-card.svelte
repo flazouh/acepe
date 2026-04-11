@@ -1,17 +1,15 @@
 <script lang="ts">
+import { AgentPanelWorktreeSetupCard as SharedAgentPanelWorktreeSetupCard } from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { WarningCircle } from "phosphor-svelte";
 import * as m from "$lib/paraglide/messages.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
-import AnimatedChevron from "../../animated-chevron.svelte";
 
 interface Props {
 	state: WorktreeSetupState;
 }
 
 let { state: setupState }: Props = $props();
-
-let isExpanded = $state(true);
 
 const summaryText = $derived.by(() => {
 	if (setupState.status === "creating-worktree") return m.worktree_toggle_creating();
@@ -25,64 +23,38 @@ const progressText = $derived.by(() => {
 	const currentStep = setupState.activeCommandIndex ?? 0;
 	return `${currentStep}/${setupState.commandCount}`;
 });
+const titleText = $derived.by(() => {
+	if (setupState.status === "failed") {
+		return m.settings_worktree_setup_failed();
+	}
 
-function toggleExpanded(): void {
-	isExpanded = !isExpanded;
-}
+	if (setupState.status === "creating-worktree") {
+		return m.worktree_toggle_creating();
+	}
+
+	return m.settings_worktree_setup_running();
+});
+const detailsText = $derived(
+	setupState.outputText ||
+		(setupState.status === "creating-worktree"
+			? m.worktree_toggle_creating()
+			: m.settings_worktree_setup_running())
+);
 </script>
 
-{#if setupState.isVisible}
-	<div class="w-full">
-		{#if isExpanded}
-			<div class="rounded-t-lg bg-accent/50 overflow-hidden">
-				<div class="max-h-[240px] overflow-y-auto px-3 py-2">
-					<pre class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{setupState.outputText || (setupState.status === "creating-worktree" ? m.worktree_toggle_creating() : m.settings_worktree_setup_running())}</pre>
-				</div>
-			</div>
+<SharedAgentPanelWorktreeSetupCard
+	visible={setupState.isVisible}
+	title={titleText}
+	summary={summaryText}
+	details={detailsText}
+	progressLabel={progressText}
+	tone={setupState.status === "failed" ? "error" : "running"}
+>
+	{#snippet leading()}
+		{#if setupState.status === "failed"}
+			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
+		{:else}
+			<Spinner class="size-[13px]" />
 		{/if}
-
-		<div
-			role="button"
-			tabindex="0"
-			onclick={toggleExpanded}
-			onkeydown={(event: KeyboardEvent) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					toggleExpanded();
-				}
-			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-lg bg-accent hover:bg-accent/80 transition-colors cursor-pointer {isExpanded
-				? 'rounded-t-none'
-				: ''}"
-		>
-			<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">
-				{#if setupState.status === "failed"}
-					<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
-				{:else}
-					<Spinner class="size-[13px]" />
-				{/if}
-
-				<span class="font-medium text-foreground shrink-0">
-					{setupState.status === "failed"
-						? m.settings_worktree_setup_failed()
-						: setupState.status === "creating-worktree"
-							? m.worktree_toggle_creating()
-						: m.settings_worktree_setup_running()}
-				</span>
-
-				<span class="truncate text-muted-foreground">
-					{summaryText}
-				</span>
-			</div>
-
-			<div class="flex items-center gap-2 shrink-0">
-				{#if progressText}
-					<span class="tabular-nums text-muted-foreground text-[0.6875rem]">
-						{progressText}
-					</span>
-				{/if}
-				<AnimatedChevron isOpen={isExpanded} class="size-3.5 text-muted-foreground" />
-			</div>
-		</div>
-	</div>
-{/if}
+	{/snippet}
+</SharedAgentPanelWorktreeSetupCard>

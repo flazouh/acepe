@@ -167,6 +167,7 @@ The agent panel follows a View–Model–Controller split across packages:
 
 **Key rules:**
 - New UI for the agent panel goes in `@acepe/ui` as a presentational component with prop-based data. Labels as props, not i18n imports.
+- The composer view also follows this rule: composer leaf controls, selector rows, metrics, and dropdown shells live in `@acepe/ui`, while desktop keeps the controller/state adapters in `agent-input-ui.svelte` and related wrappers.
 - `packages/website` renders `@acepe/ui` components with mock data — proves the view layer works independently.
 - Domain controllers (`modified-files-header`, `review-content`) may access domain-specific stores but should compose `@acepe/ui` sub-components for rendering.
 - Desktop wrappers that only add store access should accept data as optional props with store fallback, so they work without stores when rendered from a parent that already has the data.

@@ -1,6 +1,5 @@
 <script lang="ts">
-import { SegmentedProgress, TextShimmer, TodoNumberIcon } from "@acepe/ui";
-import { CheckCircle } from "phosphor-svelte";
+import { AgentPanelTodoHeader as SharedAgentPanelTodoHeader } from "@acepe/ui/agent-panel";
 import * as m from "$lib/paraglide/messages.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
@@ -42,9 +41,6 @@ const todoState = $derived.by(() => {
 	}
 });
 
-// Expanded by default
-let isExpanded = $state(true);
-
 const shouldRender = $derived(todoState !== null && todoState.totalCount > 0);
 
 function formatDuration(durationMs: number | null | undefined): string {
@@ -79,131 +75,23 @@ function getMarkdown(): string {
 	return [header, separator, ...rows].join("\n");
 }
 
-function toggleExpanded() {
-	isExpanded = !isExpanded;
-}
 </script>
 
 {#if shouldRender && todoState}
-	<div class="w-full">
-		<!-- Expanded Task Table (above the bar, expanding upward) -->
-		{#if !compact && isExpanded}
-			<div class="rounded-t-md bg-muted/30 overflow-hidden border border-b-0 border-border">
-				<div class="flex flex-col max-h-[300px] overflow-y-auto">
-					<!-- Compact markdown-table-style rows -->
-					{#each todoState.items as item, index (index)}
-						{@const isInProgress = item.status === "in_progress"}
-						{@const duration = formatDuration(item.duration)}
-						<div
-							class="flex items-center gap-2 px-3 py-1 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isInProgress
-								? 'bg-muted/30'
-								: ''}"
-						>
-							<!-- Status icon -->
-							<span class="shrink-0">
-								<TodoNumberIcon {index} status={item.status} isLive={todoState.isLive} size={12} />
-							</span>
-
-							<!-- Task content -->
-							{#if isInProgress && todoState.isLive}
-								<TextShimmer class="flex-1 truncate text-foreground text-[0.6875rem]">
-									{item.content}
-								</TextShimmer>
-							{:else}
-								<span
-									class="flex-1 truncate {item.status === 'completed'
-										? 'text-muted-foreground/60 line-through'
-										: item.status === 'cancelled'
-											? 'text-muted-foreground/40 line-through'
-											: 'text-foreground'}"
-								>
-									{item.content}
-								</span>
-							{/if}
-
-							<!-- Duration -->
-							{#if duration}
-								<span class="shrink-0 text-muted-foreground font-mono text-[0.625rem]">
-									{duration}
-								</span>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</div>
-		{/if}
-
-		{#if compact}
-			<!-- Compact bar: non-interactive, no expand/copy/chevron -->
-			<div
-				class="w-full flex items-center justify-between px-1.5 py-0.5"
-			>
-				<div class="flex items-center gap-1.5 text-[10px] min-w-0">
-					{#if todoState.isLive && todoState.currentTask}
-						<TextShimmer class="truncate text-foreground text-[10px]">
-							{todoState.currentTask.activeForm ? todoState.currentTask.activeForm : todoState.currentTask.content}
-						</TextShimmer>
-					{:else if todoState.currentTask}
-						<span class="text-muted-foreground truncate">
-							{todoState.currentTask.content}
-						</span>
-					{:else if todoState.completedCount === todoState.totalCount}
-						<CheckCircle class="size-3 text-success shrink-0" weight="fill" />
-						<span class="text-muted-foreground">{m.todo_all_completed()}</span>
-					{:else}
-						<span class="text-muted-foreground">{m.todo_tasks_paused()}</span>
-					{/if}
-				</div>
-
-				<div class="flex items-center gap-1.5 shrink-0">
-					<SegmentedProgress current={todoState.completedCount} total={todoState.totalCount} />
-					<span class="text-[10px] text-muted-foreground">
-						{todoState.completedCount}/{todoState.totalCount}
-					</span>
-				</div>
-			</div>
-		{:else}
-			<!-- Collapsed Header Bar (same style as modified-files-header) -->
-			<div
-				role="button"
-				tabindex={0}
-				onclick={toggleExpanded}
-				onkeydown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						toggleExpanded();
-					}
-				}}
-				class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors cursor-pointer {isExpanded
-					? 'rounded-t-none border-t-0'
-					: ''}"
-			>
-				<div class="flex items-center gap-1.5 text-[0.6875rem] min-w-0">
-					{#if todoState.isLive && todoState.currentTask}
-						<span class="text-foreground font-medium truncate text-[0.6875rem]">
-							{todoState.currentTask.activeForm ? todoState.currentTask.activeForm : todoState.currentTask.content}
-						</span>
-					{:else if todoState.currentTask}
-						<span class="text-muted-foreground truncate">
-							{todoState.currentTask.content}
-						</span>
-					{:else if todoState.completedCount === todoState.totalCount}
-						<CheckCircle class="size-3 text-success shrink-0" weight="fill" />
-						<span class="text-muted-foreground">{m.todo_all_completed()}</span>
-					{:else}
-						<span class="text-muted-foreground">{m.todo_tasks_paused()}</span>
-					{/if}
-				</div>
-
-				<div class="flex items-center gap-1.5 shrink-0">
-					<SegmentedProgress current={todoState.completedCount} total={todoState.totalCount} />
-
-					<CopyButton getText={getMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
-
-					<!-- Expand/collapse chevron -->
-					<AnimatedChevron isOpen={isExpanded} class="size-3.5 text-muted-foreground" />
-				</div>
-			</div>
-		{/if}
-	</div>
+	<SharedAgentPanelTodoHeader
+		items={todoState.items}
+		currentTask={todoState.currentTask}
+		completedCount={todoState.completedCount}
+		totalCount={todoState.totalCount}
+		isLive={todoState.isLive}
+		allCompletedLabel={m.todo_all_completed()}
+		pausedLabel={m.todo_tasks_paused()}
+		{compact}
+	>
+		{#snippet copyButton()}
+			{#if !compact}
+				<CopyButton getText={getMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
+			{/if}
+		{/snippet}
+	</SharedAgentPanelTodoHeader>
 {/if}

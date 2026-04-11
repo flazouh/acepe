@@ -24,6 +24,8 @@
 		avatar?: Snippet;
 		/** Toggle avatar/account button visibility */
 		showAvatar?: boolean;
+		/** Toggle settings button visibility in the right section */
+		showSettings?: boolean;
 		/** Toggle sidebar button visibility in the left section */
 		showSidebarToggle?: boolean;
 		/** Toggle add project button visibility in the left section */
@@ -48,6 +50,7 @@
 		extraRightActions,
 		avatar,
 		showAvatar = true,
+		showSettings = true,
 		showSidebarToggle = true,
 		showAddProject = true,
 		showRightSectionLeadingBorder = true,
@@ -117,14 +120,16 @@
 		{#if extraRightActions}
 			{@render extraRightActions()}
 		{/if}
-		<button
-			class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-			title="Settings"
-			aria-label="Settings"
-			onclick={onSettings}
-		>
-			<GearSix class={ICON} weight="fill" />
-		</button>
+		{#if showSettings}
+			<button
+				class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				title="Settings"
+				aria-label="Settings"
+				onclick={onSettings}
+			>
+				<GearSix class={ICON} weight="fill" />
+			</button>
+		{/if}
 		{#if showAvatar}
 			{#if avatar}
 				{@render avatar()}

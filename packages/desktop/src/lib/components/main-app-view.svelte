@@ -348,6 +348,9 @@ sessionStore.setCallbacks({
 			if (!currentPermission || currentPermission.id !== permission.id) {
 				return;
 			}
+			if (permissionStore.maybeAutoAcceptPending(currentPermission.id)) {
+				return;
+			}
 			showNotification(
 				{
 					id: currentPermission.id,
@@ -892,7 +895,15 @@ onMount(async () => {
 		(permission) => {
 			logger.debug("Permission callback invoked", { permissionId: permission.id });
 			enrichExistingToolCallFromPermission(sessionStore, permission);
-			hydrateInteractionProjection(permission.sessionId, "inbound-permission");
+			hydrateInteractionProjection(permission.sessionId, "inbound-permission", () => {
+				const currentPermission = permissionStore.getForToolCall(
+					permission.sessionId,
+					permission.tool?.callID ?? permission.id
+				);
+				if (currentPermission) {
+					permissionStore.maybeAutoAcceptPending(currentPermission.id);
+				}
+			});
 		},
 		(question) => {
 			logger.debug("Question callback invoked", { questionId: question.id });

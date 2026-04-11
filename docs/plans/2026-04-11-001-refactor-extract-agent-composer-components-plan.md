@@ -1,7 +1,7 @@
 ---
 title: Extract Agent Composer Components to @acepe/ui
 type: refactor
-status: active
+status: completed
 date: 2026-04-11
 ---
 
@@ -140,7 +140,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ## Implementation Units
 
-- [ ] **Unit 1: Extract leaf visual components (no selectors, no dropdowns)**
+- [x] **Unit 1: Extract leaf visual components (no selectors, no dropdowns)**
 
 **Goal:** Move the simplest self-contained visual components from desktop to `@acepe/ui`. Each is a pure presentational component with no state coupling.
 
@@ -184,7 +184,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ---
 
-- [ ] **Unit 2: Extract selector components as a group**
+- [x] **Unit 2: Extract selector components as a group**
 
 **Goal:** Move mode selector, model selector (and its 7 sub-files), metrics chip, and config option selector to `@acepe/ui`. These are grouped because they share the desktop `selector.svelte` base primitive.
 
@@ -233,7 +233,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ---
 
-- [ ] **Unit 3: Extract dropdowns (slash command, file picker)**
+- [x] **Unit 3: Extract dropdowns (slash command, file picker)**
 
 **Goal:** Move the `@` file picker and `/` slash command dropdowns to `@acepe/ui` as presentational overlays that accept anchor position and item lists as props.
 
@@ -272,7 +272,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ---
 
-- [ ] **Unit 4: Refactor desktop `agent-input-ui.svelte` to use shared components**
+- [x] **Unit 4: Refactor desktop `agent-input-ui.svelte` to use shared components**
 
 **Goal:** Replace inline template usage and imports of desktop sub-components with imports from `@acepe/ui`. The desktop file shrinks as pure visual code moves out.
 
@@ -325,7 +325,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ---
 
-- [ ] **Unit 5: Wire shared components into the website demo**
+- [x] **Unit 5: Wire shared components into the website demo**
 
 **Goal:** Update `packages/website/src/lib/components/agent-panel-demo.svelte` to use every extracted shared component with mock data, replacing the current inline `<button>` placeholders.
 
@@ -359,7 +359,7 @@ Not needed. This is pure internal refactoring following patterns already establi
 
 ---
 
-- [ ] **Unit 6: Final integration verification**
+- [x] **Unit 6: Final integration verification**
 
 **Goal:** Confirm the full migration achieves its intent: desktop still works, website demo matches desktop, no regressions, architectural guards pass.
 

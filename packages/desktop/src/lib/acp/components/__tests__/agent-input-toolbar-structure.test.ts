@@ -24,7 +24,7 @@ describe("agent input toolbar structure", () => {
 	});
 
 	it("renders the Autonomous toggle through the shared toolbar cluster", () => {
-		expect(agentInputSource).toContain("AutonomousToggleButton");
+		expect(agentInputSource).toContain("AgentInputAutonomousToggle");
 		expect(agentInputSource).toContain("handleAutonomousToggle");
 		expect(agentInputSource).toContain("sessionStore.setAutonomousEnabled");
 		expect(agentInputSource).toContain("initialAutonomousEnabled");

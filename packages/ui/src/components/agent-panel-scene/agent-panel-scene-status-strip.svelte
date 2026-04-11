@@ -3,7 +3,7 @@
 		AgentPanelActionCallbacks,
 		AgentPanelActionDescriptor,
 		AgentPanelStripModel,
-	} from "@acepe/agent-panel-contract";
+	} from "../agent-panel/types.js";
 
 	import { Button } from "../button/index.js";
 

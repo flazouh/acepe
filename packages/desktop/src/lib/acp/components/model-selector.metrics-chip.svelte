@@ -1,10 +1,9 @@
 <script lang="ts">
+import { AgentInputMetricsChip } from "@acepe/ui";
 import { getSessionStore } from "$lib/acp/store/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { Colors } from "@acepe/ui/colors";
 
 import {
-	createContextUsageSegments,
 	formatTokenCountCompact,
 	formatTokenUsageCompact,
 	getContextUsagePercent,
@@ -19,7 +18,7 @@ interface Props {
 	hideLabel?: boolean;
 }
 
-let { sessionId, agentId: _agentId = null, compact = false, hideLabel = false }: Props = $props();
+let { sessionId, agentId: _agentId = null, compact = false, hideLabel = true }: Props = $props();
 
 const sessionStore = getSessionStore();
 
@@ -56,10 +55,21 @@ const claudeUsageText = $derived.by(() => {
 	if (total != null && total >= 0) return formatTokenCountCompact(total);
 	return "0";
 });
-const usageSegments = $derived(createContextUsageSegments(percent, compact ? 8 : 10));
 const statusLabel = $derived(
 	contextOnlyMetrics ? "Context window usage" : "Session spend and context usage"
 );
+const chipLabel = $derived.by(() => {
+	if (hideLabel) {
+		return null;
+	}
+	if (contextOnlyMetrics) {
+		return claudeUsageText;
+	}
+	if (showSpend) {
+		return spendText;
+	}
+	return null;
+});
 
 const tooltipLines = $derived.by(() => {
 	if (!usageTelemetry) return [];
@@ -84,33 +94,13 @@ const tooltipLines = $derived.by(() => {
 </script>
 
 {#snippet chipContent()}
-	<div
-		class="flex items-center text-muted-foreground {compact
-			? 'h-5 gap-1 px-0.5 text-[10px]'
-			: 'h-7 gap-1.5 px-1.5 text-[11px]'}"
-		role="status"
-		aria-label={statusLabel}
-	>
-		{#if !hideLabel}
-			{#if contextOnlyMetrics}
-				<span class="font-mono font-medium tabular-nums">{claudeUsageText}</span>
-			{:else if showSpend}
-				<span class="font-mono font-medium tabular-nums">{spendText}</span>
-			{/if}
-		{/if}
-		{#if hasContextUsage}
-			<div class="context-tally flex items-center gap-[2px]" class:context-tally-compact={compact} aria-hidden="true">
-				{#each usageSegments as isFilled, index (index)}
-					<span
-						class="context-tally-bar"
-						class:context-tally-bar-compact={compact}
-						class:is-filled={isFilled}
-						style={isFilled ? `background-color: ${Colors.purple};` : undefined}
-					></span>
-				{/each}
-			</div>
-		{/if}
-	</div>
+	<AgentInputMetricsChip
+		{compact}
+		{hideLabel}
+		label={chipLabel}
+		percent={hasContextUsage ? percent : null}
+		ariaLabel={statusLabel}
+	/>
 {/snippet}
 
 {#if showChip}
@@ -134,36 +124,3 @@ const tooltipLines = $derived.by(() => {
 		</Tooltip.Root>
 	{/if}
 {/if}
-
-<style>
-	.context-tally {
-		min-width: fit-content;
-	}
-
-	.context-tally-compact {
-		gap: 1px;
-	}
-
-	.context-tally-bar {
-		width: 3px;
-		height: 10px;
-		border-radius: 1px;
-		background-color: color-mix(in srgb, var(--border) 55%, transparent);
-		transition: background-color 160ms ease-out, opacity 160ms ease-out, transform 160ms ease-out;
-		opacity: 0.55;
-	}
-
-	.context-tally-bar-compact {
-		width: 2px;
-		height: 8px;
-	}
-
-	.context-tally-bar.is-filled {
-		opacity: 1;
-	}
-
-	:global([data-state="open"]) .context-tally-bar.is-filled,
-	.context-tally-bar.is-filled:hover {
-		transform: translateY(-0.5px);
-	}
-</style>

@@ -38,10 +38,12 @@
 <div class="shrink-0 border-b border-border/50">
 	<AgentPanelHeader
 		displayTitle={header.title}
+		agentIconSrc={header.agentIconSrc ?? undefined}
 		sessionStatus={header.status}
 		isFullscreen={isFullscreen}
 		projectName={header.projectLabel ?? undefined}
 		projectColor={header.projectColor ?? undefined}
+		sequenceId={header.sequenceId ?? undefined}
 		{controls}
 	>
 		{#snippet statusIndicator()}

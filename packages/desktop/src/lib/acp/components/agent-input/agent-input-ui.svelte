@@ -14,6 +14,19 @@ import * as m from "$lib/paraglide/messages.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import {
+	AgentInputArtefactBadge,
+	AgentInputAutonomousToggle,
+	AgentInputConfigOptionSelector,
+	AgentInputMicButton,
+	AgentInputModeSelector,
+	AgentInputFilePickerDropdown,
+	AgentInputPastedTextOverlay,
+	AgentInputSlashCommandDropdown,
+	AgentInputVoiceModelMenu,
+	AgentInputVoiceRecordingOverlay,
+	AgentPanelComposer as SharedAgentPanelComposer,
+} from "@acepe/ui/agent-panel";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getConnectionStore } from "../../store/connection-store.svelte.js";
 import {
@@ -28,18 +41,11 @@ import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
 import { createLogger } from "../../utils/logger.js";
 import { filterVisibleModes } from "../../utils/mode-filter.js";
-import { ArtefactBadge } from "../artefact/index.js";
-import FilePickerDropdown from "../file-picker/file-picker-dropdown.svelte";
-import { ConfigOptionSelector, ModelSelector, ModeSelector } from "../index.js";
-import { InputContainer } from "@acepe/ui/input-container";
+import FilePreview from "../file-picker/file-preview.svelte";
+import { ModelSelector } from "../index.js";
 import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
-import SlashCommandDropdown from "../slash-command-dropdown/slash-command-dropdown-ui.svelte";
 import { runWorktreeSetup } from "../worktree-toggle/worktree-setup-orchestrator.js";
-import MicButton from "./components/mic-button.svelte";
-import AutonomousToggleButton from "./components/autonomous-toggle-button.svelte";
-import VoiceModelMenu from "./components/voice-model-menu.svelte";
-import PastedTextOverlay from "./components/pasted-text-overlay.svelte";
-import VoiceRecordingOverlay from "./components/voice-recording-overlay.svelte";
+import { getMicButtonVisualState } from "./components/mic-button-state.js";
 import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
 import {
@@ -1931,6 +1937,39 @@ async function handleCancel() {
 		}
 	}
 }
+
+function resolveVoiceMicLabel(currentVoiceState: VoiceInputState): string {
+	if (currentVoiceState.phase === "downloading_model") {
+		return m.voice_downloading_model();
+	}
+	if (currentVoiceState.phase === "loading_model") {
+		return "Loading model...";
+	}
+	if (currentVoiceState.phase === "checking_permission") {
+		return "Checking...";
+	}
+	if (currentVoiceState.phase === "transcribing") {
+		return m.voice_transcribing();
+	}
+	if (currentVoiceState.phase === "recording") {
+		return m.voice_stop_recording();
+	}
+	return m.voice_start_recording();
+}
+
+function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInputState): void {
+	if (event.key === " " || event.key === "Enter") {
+		event.preventDefault();
+		if (currentVoiceState.phase === "idle") {
+			currentVoiceState.onKeyboardHoldStart();
+		} else if (currentVoiceState.phase === "recording") {
+			currentVoiceState.onKeyboardHoldEnd();
+		}
+	}
+	if (event.key === "Escape" && canCancelVoiceInteraction(currentVoiceState.phase)) {
+		currentVoiceState.cancelRecording();
+	}
+}
 </script>
 
 <div
@@ -1974,16 +2013,28 @@ async function handleCancel() {
 			</div>
 		</div>
 	{:else}
-		<InputContainer class="flex-shrink-0 border border-border" contentClass={voiceOverlayActive ? "relative" : "p-2"}>
+		<SharedAgentPanelComposer
+			class="border-t-0 p-0"
+			inputClass="flex-shrink-0 border border-border bg-input/30"
+			contentClass={voiceOverlayActive ? "relative" : "p-2"}
+		>
 			{#snippet content()}
 				{#if voiceState !== null && voiceOverlayActive}
-					<VoiceRecordingOverlay voiceState={voiceState} />
+					<AgentInputVoiceRecordingOverlay
+						phase={voiceState.phase === "checking_permission" ? "checking_permission" : voiceState.phase === "recording" ? "recording" : "error"}
+						meterLevels={voiceState.waveform.meterLevels}
+						barCount={voiceState.waveform.barCount}
+						errorMessage={voiceState.errorMessage}
+						defaultErrorMessage={m.voice_error_permission_denied()}
+					/>
 				{:else if inputReady}
 					{#if inputState.attachments.length > 0}
 						<div class="flex flex-wrap gap-1.5">
 							{#each inputState.attachments as attachment (attachment.id)}
-								<ArtefactBadge
-									{attachment}
+								<AgentInputArtefactBadge
+									displayName={attachment.displayName}
+									extension={attachment.extension ?? null}
+									kind={attachment.type === "image" ? "image" : "file"}
 									onRemove={() => inputState.removeAttachment(attachment.id)}
 								/>
 							{/each}
@@ -2066,7 +2117,7 @@ async function handleCancel() {
 							></div>
 							{#if overlayMode && overlayRefId && overlayAnchorRect}
 								{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
-								<PastedTextOverlay
+								<AgentInputPastedTextOverlay
 									mode={overlayMode}
 									refId={overlayRefId}
 									anchorRect={overlayAnchorRect}
@@ -2094,28 +2145,41 @@ async function handleCancel() {
 						<Skeleton class="h-8 w-8 rounded-full shrink-0" />
 					</div>
 				{/if}
-				<SlashCommandDropdown
+				<AgentInputSlashCommandDropdown
 					bind:this={inputState.slashDropdownRef}
 					commands={effectiveAvailableCommands}
 					isOpen={isSlashDropdownVisible}
 					query={inputState.slashQuery}
 					position={inputState.slashPosition}
+					headerLabel={m.slash_command_header()}
+					noCommandsLabel={m.slash_command_no_commands_available()}
+					noResultsLabel={m.slash_command_no_results()}
+					startTypingLabel={m.slash_command_start_typing()}
+					selectHintLabel={m.slash_command_select_hint()}
+					closeHintLabel={m.slash_command_close_hint()}
 					onSelect={(cmd: AvailableCommand) => handleCommandSelect(cmd)}
 					onClose={() => inputState.handleDropdownClose()}
 				/>
-				<FilePickerDropdown
+				<AgentInputFilePickerDropdown
 					bind:this={inputState.fileDropdownRef}
 					files={inputState.availableFiles}
 					isOpen={inputState.showFileDropdown}
 					isLoading={inputState.filesLoading}
 					query={inputState.fileQuery}
 					position={inputState.filePosition}
-					projectPath={filePickerProjectPath ? filePickerProjectPath : ""}
+					headerLabel={m.file_picker_header()}
+					noResultsLabel={m.file_picker_no_results()}
+					selectHintLabel={m.file_picker_select_hint()}
+					closeHintLabel={m.file_picker_close_hint()}
 					onSelect={(file) => handleFileSelect(file)}
 					onClose={() => inputState.handleFileDropdownClose()}
-				/>
+				>
+					{#snippet preview(file)}
+						<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
+					{/snippet}
+				</AgentInputFilePickerDropdown>
 			{/snippet}
-		{#snippet footer()}
+			{#snippet footer()}
 			{#if inputReady}
 				{@const currentVoiceState = voiceState}
 				{@const isVoiceRecordingUi = currentVoiceState !== null && (currentVoiceState.phase === "checking_permission" || currentVoiceState.phase === "recording")}
@@ -2128,23 +2192,29 @@ async function handleCancel() {
 					class:pointer-events-none={isVoiceRecordingUi}
 				>
 					{#if visibleModes.length > 0}
-						<ModeSelector
+						<AgentInputModeSelector
 							availableModes={visibleModes}
 							currentModeId={effectiveCurrentModeId}
-							onModeChange={handleModeChange}
-							panelId={props.panelId}
+							planLabel={m.plan_heading()}
+							buildLabel={m.plan_sidebar_build()}
+							onModeChange={(modeId) => {
+								void handleModeChange(modeId);
+							}}
 						/>
 						<div class="h-full w-px bg-border/50"></div>
 					{:else if selectorsLoading}
 						<Skeleton class="h-7 w-7" />
 						<div class="h-full w-px bg-border/50"></div>
 					{/if}
-					<AutonomousToggleButton
+					<AgentInputAutonomousToggle
 						active={autonomousToggleActive}
 						disabled={autonomousToggleDisabled}
 						busy={autonomousToggleBusy}
-						tooltip={autonomousTooltip}
-						onToggle={handleAutonomousToggle}
+						title={autonomousTooltip}
+						ariaLabel={autonomousTooltip}
+						onToggle={() => {
+							void handleAutonomousToggle();
+						}}
 					/>
 					<div class="h-full w-px bg-border/50"></div>
 					<ModelSelector
@@ -2159,9 +2229,11 @@ async function handleCancel() {
 						<div class="h-full w-px bg-border/50"></div>
 						<div class="flex items-center">
 							{#each toolbarConfigOptions as configOption (configOption.id)}
-								<ConfigOptionSelector
+								<AgentInputConfigOptionSelector
 									{configOption}
-									onValueChange={handleConfigOptionChange}
+									onValueChange={(configId, value) => {
+										void handleConfigOptionChange(configId, value);
+									}}
 									disabled={selectorsLoading}
 								/>
 							{/each}
@@ -2183,9 +2255,16 @@ async function handleCancel() {
 									{currentVoiceState.recordingElapsedLabel}
 								</span>
 							{/if}
-							<MicButton
-								voiceState={currentVoiceState}
+							<AgentInputMicButton
+								visualState={getMicButtonVisualState(currentVoiceState.phase)}
+								downloadPercent={currentVoiceState.downloadPercent}
+								title={resolveVoiceMicLabel(currentVoiceState)}
+								ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
 								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
+								onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+								onpointerup={() => currentVoiceState.onMicPointerUp()}
+								onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+								onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
 							/>
 						</div>
 					{:else}
@@ -2216,18 +2295,44 @@ async function handleCancel() {
 								</button>
 							{/if}
 							<div class="voice-controls flex items-center">
-								<VoiceModelMenu {voiceSettingsStore} />
-							<MicButton
-								voiceState={currentVoiceState}
+								<AgentInputVoiceModelMenu
+									models={voiceSettingsStore.models.map((model) => ({
+										id: model.id,
+										name: model.name,
+										sizeBytes: model.size_bytes,
+										isDownloaded: model.is_downloaded,
+									}))}
+									selectedModelId={voiceSettingsStore.selectedModelId}
+									modelsLoading={voiceSettingsStore.modelsLoading}
+									downloadingModelId={voiceSettingsStore.downloadProgressModelId}
+									downloadPercent={voiceSettingsStore.downloadPercent}
+									menuLabel={m.voice_model_menu_label()}
+									loadingLabel={m.voice_settings_loading_models()}
+									onSelectModel={(modelId) => {
+										void voiceSettingsStore.setSelectedModelId(modelId);
+									}}
+									onDownloadModel={(modelId) => {
+										void voiceSettingsStore.downloadModel(modelId);
+									}}
+								/>
+							<AgentInputMicButton
+								visualState={getMicButtonVisualState(currentVoiceState.phase)}
+								downloadPercent={currentVoiceState.downloadPercent}
+								title={resolveVoiceMicLabel(currentVoiceState)}
+								ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
 								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
+								onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+								onpointerup={() => currentVoiceState.onMicPointerUp()}
+								onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+								onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
 							/>
 							</div>
 						{/if}
 					{/if}
 				</div>
 			{/if}
-		{/snippet}
-		</InputContainer>
+			{/snippet}
+		</SharedAgentPanelComposer>
 	{/if}
 </div>
 
