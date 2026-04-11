@@ -1,15 +1,10 @@
 <script lang="ts">
-import { AgentPanelPermissionBar as SharedAgentPanelPermissionBar } from "@acepe/ui/agent-panel";
 import {
-	ArrowsLeftRight,
-	File,
-	GlobeHemisphereWest,
-	MagnifyingGlass,
-	PencilSimple,
-	ShieldWarning,
-	Terminal,
-	Trash,
-} from "phosphor-svelte";
+	AgentPanelPermissionBar as SharedAgentPanelPermissionBar,
+	AgentPanelPermissionBarIcon,
+	AgentPanelPermissionBarProgress,
+	AgentPanelPermissionBarActions,
+} from "@acepe/ui/agent-panel";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../application/dto/session-entry.js";
@@ -17,8 +12,6 @@ import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { Colors, COLOR_NAMES } from "../../utils/colors.js";
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-import PermissionActionBar from "./permission-action-bar.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
 import { extractCompactPermissionDisplay } from "./permission-display.js";
 import {
@@ -75,17 +68,6 @@ const isRepresentedByToolCall = $derived.by(() => {
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
 const effectiveTurnState = $derived(turnStateProp ?? sessionStore.getHotState(sessionId)?.turnState);
-const progressLabel = $derived.by(() => {
-	if (!sessionProgress) {
-		return "";
-	}
-
-	const currentStep =
-		sessionProgress.completed + 1 <= sessionProgress.total
-			? sessionProgress.completed + 1
-			: sessionProgress.total;
-	return `Permission ${currentStep} of ${sessionProgress.total}`;
-});
 const currentToolCall = $derived.by((): ToolCall | null => {
 	const toolCallId = currentPermission?.tool?.callID;
 	if (!toolCallId) {
@@ -114,7 +96,6 @@ const showEditPreview = $derived(
 		showCommandWhenRepresented || !isRepresentedByToolCall ? compactDisplay.command : null}
 	{@const filePath = compactDisplay.filePath}
 	{@const verb = compactDisplay.label}
-	{@const purpleColor = Colors[COLOR_NAMES.PURPLE]}
 	<SharedAgentPanelPermissionBar
 		{verb}
 		{filePath}
@@ -122,40 +103,28 @@ const showEditPreview = $derived(
 		{command}
 	>
 		{#snippet leading()}
-			{#if kind === "edit"}
-				<PencilSimple weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "read"}
-				<File weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "execute"}
-				<Terminal weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "search"}
-				<MagnifyingGlass weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "fetch" || kind === "web_search"}
-				<GlobeHemisphereWest weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "delete"}
-				<Trash weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else if kind === "move"}
-				<ArrowsLeftRight weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-			{:else}
-				<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
-			{/if}
+			<AgentPanelPermissionBarIcon {kind} color={Colors[COLOR_NAMES.PURPLE]} />
 		{/snippet}
 
 		{#snippet progress()}
 			{#if sessionProgress}
-				<VoiceDownloadProgress
-					ariaLabel={progressLabel}
-					compact={true}
-					label=""
-					percent={sessionProgress.total > 0 ? Math.round(((sessionProgress.completed + 1) / sessionProgress.total) * 100) : 0}
-					segmentCount={sessionProgress.total}
-					showPercent={false}
+				<AgentPanelPermissionBarProgress
+					completed={sessionProgress.completed}
+					total={sessionProgress.total}
 				/>
 			{/if}
 		{/snippet}
 
 		{#snippet actionBar()}
-			<PermissionActionBar permission={currentPermission} hideHeader />
+			<AgentPanelPermissionBarActions
+				allowLabel={m.permission_allow()}
+				alwaysAllowLabel={m.permission_always_allow()}
+				denyLabel={m.permission_deny()}
+				showAlwaysAllow={currentPermission.always !== undefined && currentPermission.always.length > 0}
+				onAllow={() => permissionStore.reply(currentPermission.id, "once")}
+				onAlwaysAllow={() => permissionStore.reply(currentPermission.id, "always")}
+				onDeny={() => permissionStore.reply(currentPermission.id, "reject")}
+			/>
 		{/snippet}
 
 		{#snippet editPreview()}
