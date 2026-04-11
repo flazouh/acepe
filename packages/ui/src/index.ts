@@ -100,7 +100,6 @@ export {
 } from "./components/agent-panel/index.js";
 export {
 	AgentPanelScene,
-	AgentPanelSceneComposer,
 	AgentPanelSceneConversation,
 	AgentPanelSceneEntry,
 	AgentPanelSceneHeader,

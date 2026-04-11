@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 
 import AgentPanelScene from "./agent-panel-scene.svelte";
 import {
-	AgentPanelSceneComposer,
 	AgentPanelSceneEntry,
 	AgentPanelSceneHeader,
 	AgentPanelSceneReviewCard,
@@ -14,7 +13,6 @@ import {
 
 test("scene renderer exports are defined", () => {
 	expect(AgentPanelScene).toBeDefined();
-	expect(AgentPanelSceneComposer).toBeDefined();
 	expect(AgentPanelSceneEntry).toBeDefined();
 	expect(AgentPanelSceneHeader).toBeDefined();
 	expect(AgentPanelSceneReviewCard).toBeDefined();

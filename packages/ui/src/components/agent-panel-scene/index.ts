@@ -1,5 +1,4 @@
 export { default as AgentPanelScene } from "./agent-panel-scene.svelte";
-export { default as AgentPanelSceneComposer } from "./agent-panel-scene-composer.svelte";
 export { default as AgentPanelSceneConversation } from "./agent-panel-scene-conversation.svelte";
 export { default as AgentPanelSceneEntry } from "./agent-panel-scene-entry.svelte";
 export { default as AgentPanelSceneHeader } from "./agent-panel-scene-header.svelte";

@@ -16,6 +16,23 @@ const scene: AgentPanelSceneModel = {
 		entries: [],
 		isStreaming: false,
 	},
+	composer: {
+		draftText: "",
+		placeholder: "Ask a question or describe a task...",
+		submitLabel: "Send",
+		canSubmit: true,
+		selectedModel: {
+			id: "claude-sonnet-4",
+			label: "Claude Sonnet 4",
+		},
+		actions: [
+			{
+				id: "composer.submit",
+				label: "Send",
+				state: "enabled",
+			},
+		],
+	},
 };
 </script>
 

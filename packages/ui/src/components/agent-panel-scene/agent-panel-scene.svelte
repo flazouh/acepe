@@ -3,8 +3,8 @@
 	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "../agent-panel/types.js";
 
 	import AgentPanelShell from "../agent-panel/agent-panel-shell.svelte";
+	import AgentPanelComposer from "../agent-panel/agent-panel-composer.svelte";
 	import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
-	import AgentPanelSceneComposer from "./agent-panel-scene-composer.svelte";
 	import AgentPanelSceneConversation from "./agent-panel-scene-conversation.svelte";
 	import AgentPanelSceneHeader from "./agent-panel-scene-header.svelte";
 	import AgentPanelSceneReviewCard from "./agent-panel-scene-review-card.svelte";
@@ -117,7 +117,7 @@
 		{#if composerOverride}
 			{@render composerOverride()}
 		{:else if scene.composer}
-			<AgentPanelSceneComposer
+			<AgentPanelComposer
 				composer={scene.composer}
 				{actionCallbacks}
 				onDraftTextChange={onComposerDraftTextChange}
