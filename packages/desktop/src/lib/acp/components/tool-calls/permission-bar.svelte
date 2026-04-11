@@ -1,5 +1,5 @@
 <script lang="ts">
-import { FilePathBadge } from "@acepe/ui/file-path-badge";
+import { AgentPanelPermissionBar as SharedAgentPanelPermissionBar } from "@acepe/ui/agent-panel";
 import {
 	ArrowsLeftRight,
 	File,
@@ -12,6 +12,8 @@ import {
 } from "phosphor-svelte";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
+import type { SessionEntry } from "../../application/dto/session-entry.js";
+import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { Colors, COLOR_NAMES } from "../../utils/colors.js";
@@ -31,6 +33,8 @@ interface Props {
 	projectPath?: string | null;
 	showCommandWhenRepresented?: boolean;
 	showCompactEditPreview?: boolean;
+	entries?: readonly SessionEntry[];
+	turnState?: TurnState;
 }
 
 let {
@@ -40,18 +44,21 @@ let {
 	projectPath = null,
 	showCommandWhenRepresented = false,
 	showCompactEditPreview = false,
+	entries: entriesProp,
+	turnState: turnStateProp,
 }: Props = $props();
 
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
+
+const effectiveEntries = $derived(entriesProp ?? sessionStore.getEntries(sessionId));
 
 const pendingPermissions = $derived.by(() => {
 	if (permission) {
 		return [permission];
 	}
 
-	const entries = sessionStore.getEntries(sessionId);
-	return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), entries);
+	return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), effectiveEntries);
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
 const isRepresentedByToolCall = $derived.by(() => {
@@ -63,11 +70,11 @@ const isRepresentedByToolCall = $derived.by(() => {
 		currentPermission,
 		sessionId,
 		sessionStore.getOperationStore(),
-		sessionStore.getEntries(sessionId)
+		effectiveEntries
 	);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
-const hotState = $derived(sessionStore.getHotState(sessionId));
+const effectiveTurnState = $derived(turnStateProp ?? sessionStore.getHotState(sessionId)?.turnState);
 const progressLabel = $derived.by(() => {
 	if (!sessionProgress) {
 		return "";
@@ -85,9 +92,8 @@ const currentToolCall = $derived.by((): ToolCall | null => {
 		return null;
 	}
 
-	const entries = sessionStore.getEntries(sessionId);
-	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		const entry = entries[index];
+	for (let index = effectiveEntries.length - 1; index >= 0; index -= 1) {
+		const entry = effectiveEntries[index];
 		if (entry.type === "tool_call" && entry.message.id === toolCallId) {
 			return entry.message;
 		}
@@ -109,122 +115,59 @@ const showEditPreview = $derived(
 	{@const filePath = compactDisplay.filePath}
 	{@const verb = compactDisplay.label}
 	{@const purpleColor = Colors[COLOR_NAMES.PURPLE]}
-	<div class="w-full">
-		<div
-			class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-muted/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
-		>
-			<div class="flex w-full items-start justify-between gap-1.5">
-				<div class="flex min-w-0 w-full items-center gap-1.5 text-[0.6875rem]">
-					<span
-						class="inline-flex shrink-0 items-center justify-center"
-						aria-label={verb}
-						title={verb}
-					>
-						{#if kind === "edit"}
-							<PencilSimple weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "read"}
-							<File weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "execute"}
-							<Terminal weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "search"}
-							<MagnifyingGlass weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "fetch" || kind === "web_search"}
-							<GlobeHemisphereWest weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "delete"}
-							<Trash weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else if kind === "move"}
-							<ArrowsLeftRight weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
-						{:else}
-							<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
-						{/if}
-					</span>
-					<span class="shrink-0 text-[10px] font-medium text-muted-foreground">{verb}</span>
-					{#if filePath && !showEditPreview}
-						<div class="min-w-0 flex-1 cursor-pointer">
-							<FilePathBadge {filePath} interactive={false} />
-						</div>
-					{/if}
-				</div>
+	<SharedAgentPanelPermissionBar
+		{verb}
+		{filePath}
+		showFilePath={!showEditPreview}
+		{command}
+	>
+		{#snippet leading()}
+			{#if kind === "edit"}
+				<PencilSimple weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "read"}
+				<File weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "execute"}
+				<Terminal weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "search"}
+				<MagnifyingGlass weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "fetch" || kind === "web_search"}
+				<GlobeHemisphereWest weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "delete"}
+				<Trash weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else if kind === "move"}
+				<ArrowsLeftRight weight="fill" size={11} class="shrink-0" style="color: {purpleColor}" />
+			{:else}
+				<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
+			{/if}
+		{/snippet}
 
-				{#if sessionProgress}
-					<div class="permission-tally-bar flex shrink-0 items-center self-center">
-						<VoiceDownloadProgress
-							ariaLabel={progressLabel}
-							compact={true}
-							label=""
-							percent={sessionProgress.total > 0 ? Math.round(((sessionProgress.completed + 1) / sessionProgress.total) * 100) : 0}
-							segmentCount={sessionProgress.total}
-							showPercent={false}
-						/>
-					</div>
-				{/if}
-			</div>
+		{#snippet progress()}
+			{#if sessionProgress}
+				<VoiceDownloadProgress
+					ariaLabel={progressLabel}
+					compact={true}
+					label=""
+					percent={sessionProgress.total > 0 ? Math.round(((sessionProgress.completed + 1) / sessionProgress.total) * 100) : 0}
+					segmentCount={sessionProgress.total}
+					showPercent={false}
+				/>
+			{/if}
+		{/snippet}
 
-			<div class="flex w-full items-center">
-				<PermissionActionBar permission={currentPermission} hideHeader />
-			</div>
+		{#snippet actionBar()}
+			<PermissionActionBar permission={currentPermission} hideHeader />
+		{/snippet}
+
+		{#snippet editPreview()}
 			{#if showEditPreview && currentToolCall}
-				<div class="overflow-hidden rounded-md border border-border/60 bg-background/60">
-					<ToolCallEdit
-						toolCall={currentToolCall}
-						turnState={hotState ? hotState.turnState : undefined}
-						projectPath={projectPath ?? undefined}
-						pendingPermission={currentPermission}
-						defaultExpanded={false}
-					/>
-				</div>
+				<ToolCallEdit
+					toolCall={currentToolCall}
+					turnState={effectiveTurnState}
+					projectPath={projectPath ?? undefined}
+					pendingPermission={currentPermission}
+					defaultExpanded={false}
+				/>
 			{/if}
-		</div>
-
-			<!-- Command display for execute permissions -->
-			{#if command}
-				<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-muted/30 px-2 py-0.5">
-					<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70"
-						>$ {command}</code
-					>
-				</div>
-			{/if}
-
-	</div>
+		{/snippet}
+	</SharedAgentPanelPermissionBar>
 {/if}
-
-<style>
-	.permission-card-enter {
-		animation: slideUp 0.2s ease-out;
-	}
-
-	.permission-tally-bar {
-		min-height: 1rem;
-	}
-
-	.permission-tally-bar :global(.voice-download-progress.compact) {
-		gap: 2px;
-	}
-
-	.permission-tally-bar :global(.voice-download-segments) {
-		grid-auto-columns: 3px;
-		gap: 2px;
-		height: 9px;
-	}
-
-	.permission-tally-bar :global(.voice-download-segment) {
-		width: 3px;
-		height: 9px;
-		border-radius: 1.5px;
-	}
-
-	.permission-tally-bar :global(.voice-download-segment-vertical:not(.filled)) {
-		height: 6px;
-	}
-
-	@keyframes slideUp {
-		from {
-			opacity: 0;
-			transform: translateY(8px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-</style>

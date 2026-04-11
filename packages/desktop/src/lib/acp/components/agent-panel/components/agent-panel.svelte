@@ -1780,6 +1780,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 								<PermissionBar
 									sessionId={sessionId}
 									projectPath={effectiveProjectPath ?? sessionProjectPath}
+									entries={sessionEntries}
+									turnState={sessionHotState?.turnState ?? "idle"}
 								/>
 							{/if}
 							{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
