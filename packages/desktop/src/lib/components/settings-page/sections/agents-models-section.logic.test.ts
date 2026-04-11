@@ -64,7 +64,6 @@ describe("getAgentModelDefaultsEntries", () => {
 		variantGroup: "plain",
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "launchProfile",
 		preconnectionSlashMode: "startupGlobal",
 	};
 
@@ -76,7 +75,6 @@ describe("getAgentModelDefaultsEntries", () => {
 		variantGroup: "plain",
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "startupGlobal",
 	};
 
@@ -88,7 +86,6 @@ describe("getAgentModelDefaultsEntries", () => {
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "projectScoped",
 	};
 
@@ -145,7 +142,6 @@ describe("getAgentModelDefaultsEntries", () => {
 					variantGroup: "plain",
 					defaultAlias: "auto",
 					reasoningEffortSupport: false,
-					autonomousApplyStrategy: "postConnect",
 					preconnectionSlashMode: "startupGlobal",
 				},
 			},
@@ -188,7 +184,6 @@ describe("getAgentsByProviderOrder", () => {
 						variantGroup: "plain",
 						defaultAlias: "auto",
 						reasoningEffortSupport: false,
-						autonomousApplyStrategy: "postConnect",
 						preconnectionSlashMode: "startupGlobal",
 					},
 				},
@@ -208,7 +203,6 @@ describe("getAgentsByProviderOrder", () => {
 						variantGroup: "plain",
 						defaultAlias: "default",
 						reasoningEffortSupport: false,
-						autonomousApplyStrategy: "launchProfile",
 						preconnectionSlashMode: "startupGlobal",
 					},
 				},
@@ -231,7 +225,6 @@ describe("getProviderDefaultLabel", () => {
 				variantGroup: "plain",
 				defaultAlias: "auto",
 				reasoningEffortSupport: false,
-				autonomousApplyStrategy: "postConnect",
 				preconnectionSlashMode: "startupGlobal",
 			})
 		).toBe("Auto");
@@ -247,7 +240,6 @@ describe("getProviderDefaultLabel", () => {
 				variantGroup: "plain",
 				defaultAlias: undefined,
 				reasoningEffortSupport: false,
-				autonomousApplyStrategy: "postConnect",
 				preconnectionSlashMode: "projectScoped",
 			})
 		).toBe("Agent default");

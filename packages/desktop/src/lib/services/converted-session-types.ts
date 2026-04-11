@@ -256,7 +256,7 @@ export type InteractionReplyHandler = { kind: InteractionReplyHandlerKind; reque
 /**
  * Permission request data.
  */
-export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
+export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; autoAccepted: boolean; tool?: ToolReference | null }
 
 /**
  * Question request data.

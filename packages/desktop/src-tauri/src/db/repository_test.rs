@@ -185,6 +185,7 @@ mod session_metadata_tests {
                 patterns: vec![],
                 metadata: json!({ "command": "bun test" }),
                 always: vec![],
+                auto_accepted: false,
                 tool: None,
             },
             session_id: Some("session-journal".to_string()),

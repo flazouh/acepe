@@ -960,6 +960,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec![],
+                    auto_accepted: false,
                     tool: None,
                 },
                 session_id: Some("session-1".to_string()),

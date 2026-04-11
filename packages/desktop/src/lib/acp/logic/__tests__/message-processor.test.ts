@@ -351,6 +351,7 @@ describe("MessageProcessor", () => {
 						patterns: ["/**/*.txt"],
 						metadata: {},
 						always: [],
+						autoAccepted: false,
 					},
 					session_id: "session-123",
 				},

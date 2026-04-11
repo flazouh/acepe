@@ -19,7 +19,6 @@ import {
 	resolveProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
 import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
-import type { ExecutionProfileRequest } from "../../../utils/tauri-client/acp.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
@@ -50,7 +49,6 @@ const logger = createLogger({ id: "session-connection-manager", name: "SessionCo
 const CONNECTION_TIMEOUT_MS = 15_000;
 
 interface ConnectSessionOptions {
-	executionProfile?: ExecutionProfileRequest;
 	agentOverrideId?: string;
 }
 
@@ -124,6 +122,10 @@ export class SessionConnectionManager {
 		return modeId === CanonicalModeId.PLAN ? CanonicalModeId.PLAN : CanonicalModeId.BUILD;
 	}
 
+	private supportsAutonomousMode(modeId: string | undefined): boolean {
+		return modeId === CanonicalModeId.BUILD;
+	}
+
 	private resolveProviderMetadata(
 		agentId: string,
 		providerMetadata: ProviderMetadataProjection | null | undefined
@@ -135,35 +137,11 @@ export class SessionConnectionManager {
 		);
 	}
 
-	private getSessionProviderMetadata(
-		sessionId: string
-	): ProviderMetadataProjection | null | undefined {
-		const sessionCapabilities = this.capabilitiesManager.getCapabilities(sessionId);
-		return sessionCapabilities ? sessionCapabilities.providerMetadata : undefined;
-	}
-
-	private applyExecutionProfile(
+	private setSessionAutonomous(
 		sessionId: string,
-		modeId: string,
-		autonomousEnabled: boolean
+		enabled: boolean
 	): ResultAsync<void, AppError> {
-		return api.setExecutionProfile(sessionId, modeId, autonomousEnabled);
-	}
-
-	private shouldReconnectForAutonomous(
-		agentId: string,
-		modeId: string,
-		enabled: boolean,
-		providerMetadata: ProviderMetadataProjection | null | undefined
-	): boolean {
-		if (!enabled || modeId !== CanonicalModeId.BUILD) {
-			return false;
-		}
-
-		return (
-			this.resolveProviderMetadata(agentId, providerMetadata).autonomousApplyStrategy ===
-			"launchProfile"
-		);
+		return api.setSessionAutonomous(sessionId, enabled);
 	}
 
 	private resolveDisplayGroupBaseModelId(group: ModelsForDisplay["groups"][number]): string | null {
@@ -454,13 +432,16 @@ export class SessionConnectionManager {
 						}
 
 						const requestedAutonomous = options.initialAutonomousEnabled === true;
+						const canEnableAutonomous = this.supportsAutonomousMode(
+							currentMode ? currentMode.id : undefined
+						);
 						const applyInitialAutonomous =
-							requestedAutonomous && currentMode
-								? this.applyExecutionProfile(sessionId, currentMode.id, true)
+							requestedAutonomous && canEnableAutonomous
+								? this.setSessionAutonomous(sessionId, true)
 										.map(() => true)
 										.orElse((error) => {
 											logger.warn(
-												"Failed to apply initial autonomous profile after session creation",
+												"Failed to sync initial autonomous policy after session creation",
 												{
 													sessionId,
 													modeId: currentMode ? currentMode.id : null,
@@ -671,29 +652,10 @@ export class SessionConnectionManager {
 			})
 			.andThen(() => {
 				const reconnectHotState = this.stateReader.getHotState(sessionId);
-				const sessionProviderMetadata = this.getSessionProviderMetadata(sessionId);
-				const launchExecutionProfile =
-					options?.executionProfile ??
-					(reconnectHotState.autonomousEnabled &&
-					reconnectHotState.currentMode &&
-					this.shouldReconnectForAutonomous(
-						effectiveAgentId,
-						reconnectHotState.currentMode.id,
-						true,
-						sessionProviderMetadata
-					)
-						? {
-								modeId: reconnectHotState.currentMode.id,
-								autonomousEnabled: true,
-							}
-						: undefined);
-				const shouldRestoreAutonomous =
-					launchExecutionProfile?.autonomousEnabled === true
-						? true
-						: reconnectHotState.autonomousEnabled;
+				const shouldRestoreAutonomous = reconnectHotState.autonomousEnabled;
 
 				return withTimeout(
-					api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId, launchExecutionProfile),
+					api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId),
 					CONNECTION_TIMEOUT_MS,
 					new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
 				)
@@ -821,7 +783,10 @@ export class SessionConnectionManager {
 							currentMode,
 							currentModel,
 						}) => {
-							if (!shouldRestoreAutonomous || !currentMode) {
+							const supportsAutonomous = this.supportsAutonomousMode(
+								currentMode ? currentMode.id : undefined
+							);
+							if (!shouldRestoreAutonomous) {
 								return okAsync({
 									availableModes,
 									availableModels,
@@ -831,29 +796,37 @@ export class SessionConnectionManager {
 									providerMetadata,
 									currentMode,
 									currentModel,
-									autonomousEnabled: shouldRestoreAutonomous,
+									autonomousEnabled: false,
 								});
 							}
 
-							if (
-								launchExecutionProfile &&
-								launchExecutionProfile.modeId === currentMode.id &&
-								launchExecutionProfile.autonomousEnabled === true
-							) {
-								return okAsync({
-									availableModes,
-									availableModels,
-									availableCommands,
-									configOptions,
-									modelsDisplay,
-									providerMetadata,
-									currentMode,
-									currentModel,
-									autonomousEnabled: true,
-								});
+							if (!supportsAutonomous) {
+								return this.setSessionAutonomous(session.id, false)
+									.orElse((error) => {
+										logger.warn(
+											"Failed to clear Autonomous while reconnecting into unsupported mode",
+											{
+												sessionId,
+												modeId: currentMode ? currentMode.id : null,
+												error,
+											}
+										);
+										return okAsync(undefined);
+									})
+									.map(() => ({
+										availableModes,
+										availableModels,
+										availableCommands,
+										configOptions,
+										modelsDisplay,
+										providerMetadata,
+										currentMode,
+										currentModel,
+										autonomousEnabled: false,
+									}));
 							}
 
-							return this.applyExecutionProfile(session.id, currentMode.id, true)
+							return this.setSessionAutonomous(session.id, true)
 								.map(() => ({
 									availableModes,
 									availableModels,
@@ -868,7 +841,7 @@ export class SessionConnectionManager {
 								.orElse((error) => {
 									logger.warn("Failed to restore Autonomous on connect; continuing safely", {
 										sessionId,
-										modeId: currentMode.id,
+										modeId: currentMode ? currentMode.id : null,
 										error,
 									});
 									return okAsync({
@@ -1118,15 +1091,33 @@ export class SessionConnectionManager {
 		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
 		const oldMode = hotState.currentMode;
 		const oldAutonomousEnabled = hotState.autonomousEnabled;
-
-		this.hotStateManager.updateHotState(sessionId, { currentMode: newMode || null });
+		const nextAutonomousEnabled =
+			oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
+		this.hotStateManager.updateHotState(sessionId, {
+			currentMode: newMode || null,
+			autonomousEnabled: nextAutonomousEnabled,
+		});
 		logger.debug("Setting mode (optimistic)", { sessionId, modeId });
 
-		const applyMode = this.applyExecutionProfile(session.id, modeId, oldAutonomousEnabled);
+		const applyMode = api.setMode(session.id, modeId);
 
 		return applyMode
 			.andThen(() => {
 				logger.debug("Mode set successfully", { sessionId, modeId });
+
+				const syncAutonomousPolicy =
+					oldAutonomousEnabled !== nextAutonomousEnabled
+						? this.setSessionAutonomous(session.id, nextAutonomousEnabled)
+						: okAsync(undefined);
+
+				return syncAutonomousPolicy;
+			})
+			.andThen(() => {
+				logger.debug("Session autonomous policy synced for mode change", {
+					sessionId,
+					modeId,
+					autonomousEnabled: nextAutonomousEnabled,
+				});
 
 				// After mode switch succeeds, handle model for new mode
 				if (!newMode) {
@@ -1188,6 +1179,8 @@ export class SessionConnectionManager {
 		}
 
 		const hotState = this.stateReader.getHotState(sessionId);
+		const targetEnabled =
+			enabled && this.supportsAutonomousMode(hotState.currentMode ? hotState.currentMode.id : undefined);
 		if (hotState.autonomousTransition !== "idle") {
 			return errAsync(
 				new AgentError(
@@ -1197,96 +1190,44 @@ export class SessionConnectionManager {
 			);
 		}
 
-		if (!hotState.isConnected) {
+		const previousAutonomousEnabled = hotState.autonomousEnabled;
+		const rollbackAutonomous = (error: AppError) => {
 			this.hotStateManager.updateHotState(sessionId, {
-				autonomousEnabled: enabled,
+				autonomousEnabled: previousAutonomousEnabled,
 				autonomousTransition: "idle",
 			});
-			return okAsync(undefined);
-		}
-
-		const currentModeId = hotState.currentMode ? hotState.currentMode.id : null;
-		if (!currentModeId) {
-			return errAsync(
-				new AgentError(
-					"setAutonomousEnabled",
-					new Error("Current mode is required to apply Autonomous")
-				)
-			);
-		}
-
-		const previousAutonomousEnabled = hotState.autonomousEnabled;
-		const sessionProviderMetadata = this.getSessionProviderMetadata(sessionId);
-		if (
-			this.shouldReconnectForAutonomous(
-				session.agentId,
-				currentModeId,
-				enabled,
-				sessionProviderMetadata
-			)
-		) {
-			if (!eventHandler) {
-				return errAsync(
-					new AgentError(
-						"setAutonomousEnabled",
-						new Error("Session event handler is required to reconnect Autonomous")
-					)
-				);
-			}
-
-			this.hotStateManager.updateHotState(sessionId, {
-				autonomousEnabled: enabled,
-				autonomousTransition: enabled ? "enabling" : "disabling",
+			logger.error("Failed to update Autonomous session policy, rolling back", {
+				sessionId,
+				enabled: targetEnabled,
+				error,
 			});
-			this.disconnectSession(sessionId);
-			return this.connectSession(sessionId, eventHandler, {
-				executionProfile: {
-					modeId: currentModeId,
-					autonomousEnabled: enabled,
-				},
-			})
-				.map(() => {
-					this.hotStateManager.updateHotState(sessionId, {
-						autonomousTransition: "idle",
-					});
-				})
-				.mapErr((error) => {
-					this.hotStateManager.updateHotState(sessionId, {
-						autonomousEnabled: previousAutonomousEnabled,
-						autonomousTransition: "idle",
-					});
-					logger.error("Failed to reconnect Autonomous, rolling back", {
-						sessionId,
-						enabled,
-						error,
-					});
-					return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
-				});
+			return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
+		};
+
+		if (!hotState.isConnected) {
+			this.hotStateManager.updateHotState(sessionId, {
+				autonomousEnabled: targetEnabled,
+				autonomousTransition: "idle",
+			});
+			return this.setSessionAutonomous(sessionId, targetEnabled).mapErr(rollbackAutonomous);
 		}
+
+		void session;
+		void eventHandler;
 
 		this.hotStateManager.updateHotState(sessionId, {
-			autonomousTransition: enabled ? "enabling" : "disabling",
+			autonomousEnabled: targetEnabled,
+			autonomousTransition: targetEnabled ? "enabling" : "disabling",
 		});
 
-		return this.applyExecutionProfile(session.id, currentModeId, enabled)
+		return this.setSessionAutonomous(sessionId, targetEnabled)
 			.map(() => {
 				this.hotStateManager.updateHotState(sessionId, {
-					autonomousEnabled: enabled,
+					autonomousEnabled: targetEnabled,
 					autonomousTransition: "idle",
 				});
 			})
-			.mapErr((error) => {
-				this.hotStateManager.updateHotState(sessionId, {
-					autonomousEnabled: previousAutonomousEnabled,
-					autonomousTransition: "idle",
-				});
-				logger.error("Failed to set Autonomous, rolling back", {
-					sessionId,
-					enabled,
-					error,
-				});
-				return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
-			});
+			.mapErr(rollbackAutonomous);
 	}
 
 	/**

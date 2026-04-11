@@ -138,6 +138,7 @@ fn translate_permission_request(
             patterns: permission_patterns(params),
             metadata: Value::Object(params.clone()),
             always: permission_always_options(method),
+            auto_accepted: false,
             tool: item_id.map(|call_id| ToolReference {
                 message_id: String::new(),
                 call_id,

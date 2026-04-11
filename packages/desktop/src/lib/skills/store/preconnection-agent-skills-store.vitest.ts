@@ -17,7 +17,6 @@ function providerMetadata(
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode,
 	};
 }

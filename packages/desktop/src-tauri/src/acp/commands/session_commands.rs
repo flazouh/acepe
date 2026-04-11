@@ -1,120 +1,14 @@
 use super::*;
-use crate::acp::client::ExecutionProfileRequest;
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
     ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput,
 };
 use crate::acp::session_journal::load_stored_projection;
+use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::redact_session_id;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionMetadataRepository, SessionProjectionSnapshotRepository};
 use sea_orm::DbConn;
-
-pub(crate) fn resume_path_needs_post_connect_execution_profile_reset(
-    agent_id: &CanonicalAgentId,
-) -> bool {
-    crate::acp::parsers::provider_capabilities::find_provider_capabilities_by_id(
-        crate::acp::parsers::provider_capabilities::all_provider_capabilities(),
-        agent_id.as_str(),
-    )
-    .map(|capabilities| {
-        capabilities
-            .session_lifecycle_policy
-            .requires_post_connect_execution_profile_reset
-    })
-    .unwrap_or(true)
-}
-
-fn resolve_launch_execution_profile_mode_id(
-    registry: &Arc<AgentRegistry>,
-    agent_id: &CanonicalAgentId,
-    execution_profile: Option<&ExecutionProfileRequest>,
-) -> Result<Option<String>, SerializableAcpError> {
-    let Some(execution_profile) = execution_profile else {
-        return Ok(None);
-    };
-
-    let provider = registry
-        .get(agent_id)
-        .ok_or_else(|| SerializableAcpError::AgentNotFound {
-            agent_id: agent_id.as_str().to_string(),
-        })?;
-
-    let native_mode_id = provider
-        .map_execution_profile_mode_id(
-            &execution_profile.mode_id,
-            execution_profile.autonomous_enabled,
-        )
-        .ok_or_else(|| SerializableAcpError::ProtocolError {
-            message: format!(
-                "unsupported autonomous execution profile: provider={} ui_mode={} autonomous={}",
-                provider.id(),
-                execution_profile.mode_id,
-                execution_profile.autonomous_enabled
-            ),
-        })?;
-
-    Ok(Some(native_mode_id))
-}
-
-async fn reset_resumed_session_execution_profile(
-    app: &AppHandle,
-    session_id: &str,
-    current_mode_id: &str,
-) -> Result<(), SerializableAcpError> {
-    let session_registry = app.state::<SessionRegistry>();
-    let registry = app.state::<Arc<AgentRegistry>>();
-
-    let agent_id = session_registry.get_agent_id(session_id).ok_or_else(|| {
-        SerializableAcpError::SessionNotFound {
-            session_id: session_id.to_string(),
-        }
-    })?;
-
-    if !resume_path_needs_post_connect_execution_profile_reset(&agent_id) {
-        tracing::debug!(
-            session_id = %session_id,
-            agent_id = %agent_id.as_str(),
-            "Skipping post-connect execution profile reset for provider-managed safe resume"
-        );
-        return Ok(());
-    }
-
-    let provider = registry
-        .get(&agent_id)
-        .ok_or_else(|| SerializableAcpError::AgentNotFound {
-            agent_id: agent_id.as_str().to_string(),
-        })?;
-
-    let native_mode_id = provider
-        .map_execution_profile_mode_id(current_mode_id, false)
-        .ok_or_else(|| SerializableAcpError::ProtocolError {
-            message: format!(
-                "unsupported autonomous execution profile: provider={} ui_mode={} autonomous=false",
-                provider.id(),
-                current_mode_id
-            ),
-        })?;
-
-    let client_mutex = session_registry
-        .get(session_id)
-        .map_err(SerializableAcpError::from)?;
-    let mut client_guard = lock_session_client(
-        &client_mutex,
-        "acp_resume_session: reset execution profile lock",
-    )
-    .await?;
-
-    timeout(
-        SESSION_CLIENT_OPERATION_TIMEOUT,
-        client_guard.set_session_mode(session_id.to_string(), native_mode_id),
-    )
-    .await
-    .map_err(|_| SerializableAcpError::Timeout {
-        operation: "acp_resume_session: reset execution profile".to_string(),
-    })?
-    .map_err(SerializableAcpError::from)
-}
 
 pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
     // Use the runtime root resolver to walk up from cwd and find the
@@ -253,6 +147,25 @@ pub async fn acp_get_event_bridge_info(
             message: "ACP event bridge server not initialized".to_string(),
         }
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn acp_set_session_autonomous(
+    app: AppHandle,
+    session_id: String,
+    enabled: bool,
+) -> Result<(), SerializableAcpError> {
+    tracing::debug!(
+        session_id = %session_id,
+        enabled,
+        "acp_set_session_autonomous called"
+    );
+
+    let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
+    session_policy.set_autonomous(&session_id, enabled);
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -459,7 +372,6 @@ pub async fn acp_resume_session(
     session_id: String,
     cwd: String,
     agent_id: Option<String>,
-    execution_profile: Option<ExecutionProfileRequest>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_resume_session called");
     let db = app.state::<DbConn>();
@@ -475,21 +387,14 @@ pub async fn acp_resume_session(
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
 
     let agent_id_enum = resume_target.descriptor.agent_id.clone();
-    let launch_mode_id = resolve_launch_execution_profile_mode_id(
-        &registry,
-        &agent_id_enum,
-        execution_profile.as_ref(),
-    )?;
-    let force_new_client = launch_mode_id.is_some();
-
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
         &session_registry,
         session_id.clone(),
         cwd_str,
         agent_id_enum.clone(),
-        force_new_client,
-        launch_mode_id,
+        false,
+        None,
         || {
             let app = app.clone();
             let registry = registry.clone();
@@ -516,9 +421,6 @@ pub async fn acp_resume_session(
             .bind_provider_session_id(&session_id, provider_session_id)
             .map_err(SerializableAcpError::from)?;
     }
-
-    reset_resumed_session_execution_profile(&app, &session_id, &result.modes.current_mode_id)
-        .await?;
 
     let replay_context = resume_target.descriptor.clone().into();
     let stored_projection = load_stored_projection(db.inner(), &replay_context)
@@ -623,6 +525,7 @@ pub async fn acp_close_session(
 ) -> Result<(), SerializableAcpError> {
     tracing::info!(session_id = %session_id, "acp_close_session called");
     let session_registry = app.state::<SessionRegistry>();
+    let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let db = app.state::<DbConn>();
 
@@ -645,6 +548,8 @@ pub async fn acp_close_session(
     } else {
         tracing::warn!(session_id = %session_id, "Session not found for cleanup");
     }
+
+    session_policy.remove(&session_id);
 
     // Clean up streaming accumulator state for this session
     crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
@@ -770,6 +675,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec![],
+                    auto_accepted: false,
                     tool: None,
                 }),
             }],
@@ -790,6 +696,7 @@ mod tests {
                 patterns: vec![],
                 metadata: json!({ "command": "bun test" }),
                 always: vec![],
+                auto_accepted: false,
                 tool: None,
             },
             session_id: Some("session-priority".to_string()),

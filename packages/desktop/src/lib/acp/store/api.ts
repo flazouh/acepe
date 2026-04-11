@@ -13,7 +13,6 @@ import type {
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData, ConvertedSession } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
-import type { ExecutionProfileRequest } from "../../utils/tauri-client/acp.js";
 import { AgentError, type AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { AgentAvailabilityKind, PersistedWorkspaceState, ResumeSessionResult } from "./types";
@@ -36,10 +35,9 @@ export function initialize(): ResultAsync<void, AppError> {
 export function resumeSession(
 	sessionId: string,
 	cwd: string,
-	agentId?: string,
-	executionProfile?: ExecutionProfileRequest
+	agentId?: string
 ): ResultAsync<ResumeSessionResult, AppError> {
-	return tauriClient.acp.resumeSession(sessionId, cwd, agentId, executionProfile);
+	return tauriClient.acp.resumeSession(sessionId, cwd, agentId);
 }
 
 /**
@@ -80,14 +78,13 @@ export function setMode(sessionId: string, modeId: string): ResultAsync<void, Ap
 }
 
 /**
- * Apply the provider-owned execution profile for a visible UI mode.
+ * Set the autonomous policy for a session.
  */
-export function setExecutionProfile(
+export function setSessionAutonomous(
 	sessionId: string,
-	modeId: string,
-	autonomousEnabled: boolean
+	enabled: boolean
 ): ResultAsync<void, AppError> {
-	return tauriClient.acp.setExecutionProfile(sessionId, modeId, autonomousEnabled);
+	return tauriClient.acp.setSessionAutonomous(sessionId, enabled);
 }
 
 /** Response shape from session/set_config_option — returns full updated config state. */
@@ -314,7 +311,7 @@ export const api = {
 	sendPrompt,
 	setModel,
 	setMode,
-	setExecutionProfile,
+	setSessionAutonomous,
 	setConfigOption,
 	stopStreaming,
 	closeSession,

@@ -91,6 +91,10 @@ impl TaskReconciler {
         Self::default()
     }
 
+    pub fn parent_for_child(&self, tool_call_id: &str) -> Option<String> {
+        self.child_to_parent.get(tool_call_id).cloned()
+    }
+
     /// Process an incoming tool call.
     ///
     /// Returns outputs to emit to the frontend.

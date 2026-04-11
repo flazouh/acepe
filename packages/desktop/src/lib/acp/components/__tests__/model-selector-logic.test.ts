@@ -506,7 +506,6 @@ describe("model-selector-logic", () => {
 						variantGroup: "reasoningEffort",
 						defaultAlias: undefined,
 						reasoningEffortSupport: true,
-						autonomousApplyStrategy: "postConnect",
 						preconnectionSlashMode: "startupGlobal",
 					},
 				},
@@ -530,7 +529,6 @@ describe("model-selector-logic", () => {
 					variantGroup: "plain",
 					defaultAlias: "default",
 					reasoningEffortSupport: false,
-					autonomousApplyStrategy: "launchProfile",
 					preconnectionSlashMode: "startupGlobal",
 				},
 			},
@@ -554,7 +552,6 @@ describe("model-selector-logic", () => {
 				variantGroup: "plain",
 				defaultAlias: "default",
 				reasoningEffortSupport: false,
-				autonomousApplyStrategy: "launchProfile",
 				preconnectionSlashMode: "startupGlobal",
 			});
 		});

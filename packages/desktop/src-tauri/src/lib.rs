@@ -40,7 +40,7 @@ use acp::commands::{
     acp_list_preconnection_commands, acp_new_session, acp_read_text_file,
     acp_register_custom_agent, acp_reply_interaction, acp_reply_permission, acp_reply_question,
     acp_respond_inbound_request, acp_resume_session, acp_send_prompt, acp_set_config_option,
-    acp_set_execution_profile, acp_set_mode, acp_set_model, acp_uninstall_agent,
+    acp_set_mode, acp_set_model, acp_set_session_autonomous, acp_uninstall_agent,
     acp_write_text_file,
 };
 use acp::event_bridge_server::start_event_bridge_server;
@@ -59,6 +59,7 @@ use acp::projections::ProjectionRegistry;
 use acp::provider::{AgentProvider, CommandAvailabilityCache};
 use acp::providers::CustomAgentConfig;
 use acp::registry::AgentRegistry;
+use acp::session_policy::SessionPolicyRegistry;
 use acp::session_registry::SessionRegistry;
 use checkpoint::commands::{
     checkpoint_create, checkpoint_get_file_content, checkpoint_get_file_diff_content,
@@ -967,6 +968,7 @@ pub fn run() {
 
             // Session client registry
             app.manage(SessionRegistry::new());
+            app.manage(Arc::new(SessionPolicyRegistry::new()));
             app.manage(Arc::new(ProjectionRegistry::new()));
 
             // Terminal manager for process spawning
@@ -1029,7 +1031,7 @@ pub fn run() {
             acp_fork_session,
             acp_set_model,
             acp_set_mode,
-            acp_set_execution_profile,
+            acp_set_session_autonomous,
             acp_set_config_option,
             acp_send_prompt,
             acp_cancel,
@@ -1317,10 +1319,7 @@ mod lib_tests {
         assert_eq!(format_elapsed_label(Duration::from_secs(75)), "1m15s");
         assert_eq!(format_elapsed_label(Duration::from_secs(3_900)), "1h05m");
         assert_eq!(format_delta_label(None), "start");
-        assert_eq!(
-            format_delta_label(Some(Duration::from_millis(85))),
-            "+85ms"
-        );
+        assert_eq!(format_delta_label(Some(Duration::from_millis(85))), "+85ms");
     }
 }
 

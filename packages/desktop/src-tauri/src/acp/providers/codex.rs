@@ -1,7 +1,6 @@
 use super::super::provider::{
     command_exists, AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
-use crate::acp::client::codex_native_config::CODEX_BUILD_FULL_ACCESS_MODE_ID;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::AvailableCommand;
@@ -87,25 +86,6 @@ impl AgentProvider for CodexProvider {
     fn is_available(&self) -> bool {
         agent_installer::get_cached_binary(&CanonicalAgentId::Codex).is_some()
             || command_exists("codex")
-    }
-
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["build"]
-    }
-
-    fn map_execution_profile_mode_id(
-        &self,
-        mode_id: &str,
-        autonomous_enabled: bool,
-    ) -> Option<String> {
-        match (mode_id, autonomous_enabled) {
-            ("build", false) => Some("build".to_string()),
-            ("build", true) => Some(CODEX_BUILD_FULL_ACCESS_MODE_ID.to_string()),
-            ("plan", false) => Some("plan".to_string()),
-            ("plan", true) => None,
-            (_, false) => Some(mode_id.to_string()),
-            (_, true) => None,
-        }
     }
 
     fn load_provider_owned_session<'a>(
@@ -323,22 +303,9 @@ mod tests {
     }
 
     #[test]
-    fn autonomous_execution_maps_build_to_full_access_profile() {
+    fn codex_provider_reports_build_autonomy_support() {
         let provider = CodexProvider;
 
         assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
-        assert_eq!(
-            provider.map_execution_profile_mode_id("build", false),
-            Some("build".to_string())
-        );
-        assert_eq!(
-            provider.map_execution_profile_mode_id("build", true),
-            Some("build-full-access".to_string())
-        );
-        assert_eq!(
-            provider.map_execution_profile_mode_id("plan", false),
-            Some("plan".to_string())
-        );
-        assert_eq!(provider.map_execution_profile_mode_id("plan", true), None);
     }
 }

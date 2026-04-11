@@ -664,8 +664,8 @@ fn test_tool_call_data_deserialize_with_nested_todos() {
         "kind": "think"
     });
 
-    let tool_call: ToolCallData = with_agent(AgentType::ClaudeCode, || serde_json::from_value(json))
-        .unwrap();
+    let tool_call: ToolCallData =
+        with_agent(AgentType::ClaudeCode, || serde_json::from_value(json)).unwrap();
 
     // Verify basic fields
     assert_eq!(tool_call.id, "toolu_015iUjJsFGKqH15doqZ3675Z");
@@ -706,8 +706,8 @@ fn test_tool_call_data_deserialize_with_root_level_todos() {
         "kind": "think"
     });
 
-    let tool_call: ToolCallData = with_agent(AgentType::ClaudeCode, || serde_json::from_value(json))
-        .unwrap();
+    let tool_call: ToolCallData =
+        with_agent(AgentType::ClaudeCode, || serde_json::from_value(json)).unwrap();
 
     let todos = tool_call
         .normalized_todos

@@ -975,6 +975,7 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
             patterns: vec![path.to_string()],
             metadata: json!({}),
             always: vec![],
+            auto_accepted: false,
             tool: None,
         },
         session_id: Some("session-1".to_string()),

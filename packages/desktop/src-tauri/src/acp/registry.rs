@@ -329,6 +329,14 @@ mod tests {
             .iter()
             .find(|agent| agent.id == "claude-code")
             .expect("Claude agent should exist");
+        let cursor = agents
+            .iter()
+            .find(|agent| agent.id == "cursor")
+            .expect("Cursor agent should exist");
+        let opencode = agents
+            .iter()
+            .find(|agent| agent.id == "opencode")
+            .expect("OpenCode agent should exist");
         let codex = agents
             .iter()
             .find(|agent| agent.id == "codex")
@@ -336,6 +344,14 @@ mod tests {
 
         assert_eq!(
             claude.autonomous_supported_mode_ids,
+            vec!["build".to_string()]
+        );
+        assert_eq!(
+            cursor.autonomous_supported_mode_ids,
+            vec!["build".to_string()]
+        );
+        assert_eq!(
+            opencode.autonomous_supported_mode_ids,
             vec!["build".to_string()]
         );
         assert_eq!(

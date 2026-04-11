@@ -87,19 +87,6 @@ impl Default for BackendIdentityPolicy {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SessionLifecyclePolicy {
-    pub requires_post_connect_execution_profile_reset: bool,
-}
-
-impl Default for SessionLifecyclePolicy {
-    fn default() -> Self {
-        Self {
-            requires_post_connect_execution_profile_reset: true,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PlanAdapterPolicy {
     pub parses_wrapper_plan_from_text_stream: bool,
@@ -156,13 +143,6 @@ pub enum FrontendVariantGroup {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum AutonomousApplyStrategy {
-    PostConnect,
-    LaunchProfile,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub enum PreconnectionSlashMode {
     Unsupported,
     StartupGlobal,
@@ -179,7 +159,6 @@ pub struct FrontendProviderProjection {
     pub variant_group: FrontendVariantGroup,
     pub default_alias: Option<&'static str>,
     pub reasoning_effort_support: bool,
-    pub autonomous_apply_strategy: AutonomousApplyStrategy,
     pub preconnection_slash_mode: PreconnectionSlashMode,
 }
 
@@ -193,7 +172,6 @@ impl Default for FrontendProviderProjection {
             variant_group: FrontendVariantGroup::Plain,
             default_alias: None,
             reasoning_effort_support: false,
-            autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
             preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
         }
     }
@@ -315,24 +293,9 @@ pub trait AgentProvider: Send + Sync {
         &["build", "plan"]
     }
 
-    /// Visible UI mode IDs that support wrapper-managed Autonomous execution.
+    /// Visible UI mode IDs that support Acepe-managed Autonomous execution.
     fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &[]
-    }
-
-    /// Map a visible UI mode and Autonomous flag to the provider-native execution profile.
-    ///
-    /// Returning `None` means the provider does not support that combination.
-    fn map_execution_profile_mode_id(
-        &self,
-        mode_id: &str,
-        autonomous_enabled: bool,
-    ) -> Option<String> {
-        if autonomous_enabled {
-            return None;
-        }
-
-        Some(self.map_outbound_mode_id(mode_id))
+        &["build"]
     }
 
     /// Resolve the provider-native runtime mode to apply for the current working directory.
@@ -368,13 +331,6 @@ pub trait AgentProvider: Send + Sync {
     fn backend_identity_policy(&self) -> BackendIdentityPolicy {
         builtin_capabilities_for_provider_id(self.id())
             .map(|capabilities| capabilities.backend_identity_policy)
-            .unwrap_or_default()
-    }
-
-    /// Provider-owned lifecycle policy for reconnect and resume orchestration.
-    fn session_lifecycle_policy(&self) -> SessionLifecyclePolicy {
-        builtin_capabilities_for_provider_id(self.id())
-            .map(|capabilities| capabilities.session_lifecycle_policy)
             .unwrap_or_default()
     }
 

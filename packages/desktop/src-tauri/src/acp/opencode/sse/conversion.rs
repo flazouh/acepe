@@ -1079,6 +1079,7 @@ pub(super) fn convert_permission_asked_to_session_update(
             patterns: event.patterns,
             metadata: event.metadata,
             always: event.always,
+            auto_accepted: false,
             tool: None,
         },
         session_id: Some(session_id),

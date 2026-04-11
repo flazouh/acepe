@@ -6,9 +6,8 @@ use crate::acp::parsers::{
     ClaudeCodeParser, CodexParser, CopilotParser, CursorParser, OpenCodeParser,
 };
 use crate::acp::provider::{
-    AutonomousApplyStrategy, BackendIdentityPolicy, FrontendProviderProjection,
-    FrontendVariantGroup, HistoryReplayFamily, HistoryReplayPolicy, PlanAdapterPolicy,
-    PreconnectionSlashMode, SessionLifecyclePolicy,
+    BackendIdentityPolicy, FrontendProviderProjection, FrontendVariantGroup, HistoryReplayFamily,
+    HistoryReplayPolicy, PlanAdapterPolicy, PreconnectionSlashMode,
 };
 use crate::acp::session_update::PlanSource;
 
@@ -57,7 +56,6 @@ pub struct ProviderCapabilities {
     pub agent: AgentType,
     pub parser: &'static dyn AgentParser,
     pub backend_identity_policy: BackendIdentityPolicy,
-    pub session_lifecycle_policy: SessionLifecyclePolicy,
     pub plan_adapter_policy: PlanAdapterPolicy,
     pub history_replay_policy: HistoryReplayPolicy,
     pub frontend_projection: FrontendProviderProjection,
@@ -102,14 +100,6 @@ const CLAUDE_BACKEND_IDENTITY_POLICY: BackendIdentityPolicy = BackendIdentityPol
     prefers_incoming_provider_session_id_alias: true,
 };
 
-const DEFAULT_LIFECYCLE_POLICY: SessionLifecyclePolicy = SessionLifecyclePolicy {
-    requires_post_connect_execution_profile_reset: true,
-};
-
-const CLAUDE_LIFECYCLE_POLICY: SessionLifecyclePolicy = SessionLifecyclePolicy {
-    requires_post_connect_execution_profile_reset: false,
-};
-
 const DEFAULT_PLAN_ADAPTER_POLICY: PlanAdapterPolicy = PlanAdapterPolicy {
     parses_wrapper_plan_from_text_stream: false,
     finalizes_wrapper_plan_on_turn_end: false,
@@ -132,7 +122,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         agent: AgentType::ClaudeCode,
         parser: &ClaudeCodeParser,
         backend_identity_policy: CLAUDE_BACKEND_IDENTITY_POLICY,
-        session_lifecycle_policy: CLAUDE_LIFECYCLE_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
         frontend_projection: FrontendProviderProjection {
@@ -143,7 +132,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             variant_group: FrontendVariantGroup::Plain,
             default_alias: Some("default"),
             reasoning_effort_support: false,
-            autonomous_apply_strategy: AutonomousApplyStrategy::LaunchProfile,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
         },
         transport_family: TransportFamily::SharedChat,
@@ -160,7 +148,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         agent: AgentType::Copilot,
         parser: &CopilotParser,
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
-        session_lifecycle_policy: DEFAULT_LIFECYCLE_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
         frontend_projection: FrontendProviderProjection {
@@ -171,7 +158,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             variant_group: FrontendVariantGroup::Plain,
             default_alias: None,
             reasoning_effort_support: false,
-            autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
             preconnection_slash_mode: PreconnectionSlashMode::ProjectScoped,
         },
         transport_family: TransportFamily::SharedChat,
@@ -188,7 +174,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         agent: AgentType::OpenCode,
         parser: &OpenCodeParser,
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
-        session_lifecycle_policy: DEFAULT_LIFECYCLE_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
         frontend_projection: FrontendProviderProjection {
@@ -199,7 +184,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             variant_group: FrontendVariantGroup::Plain,
             default_alias: None,
             reasoning_effort_support: false,
-            autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
             preconnection_slash_mode: PreconnectionSlashMode::ProjectScoped,
         },
         transport_family: TransportFamily::OpenCodeEvents,
@@ -216,7 +200,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         agent: AgentType::Cursor,
         parser: &CursorParser,
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
-        session_lifecycle_policy: DEFAULT_LIFECYCLE_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
         frontend_projection: FrontendProviderProjection {
@@ -227,7 +210,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             variant_group: FrontendVariantGroup::Plain,
             default_alias: Some("auto"),
             reasoning_effort_support: false,
-            autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
         },
         transport_family: TransportFamily::CursorAcp,
@@ -244,7 +226,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         agent: AgentType::Codex,
         parser: &CodexParser,
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
-        session_lifecycle_policy: DEFAULT_LIFECYCLE_POLICY,
         plan_adapter_policy: CODEX_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
         frontend_projection: FrontendProviderProjection {
@@ -255,7 +236,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             variant_group: FrontendVariantGroup::ReasoningEffort,
             default_alias: None,
             reasoning_effort_support: true,
-            autonomous_apply_strategy: AutonomousApplyStrategy::PostConnect,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
         },
         transport_family: TransportFamily::CodexAcp,
@@ -347,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn provider_capabilities_capture_identity_and_lifecycle_policy() {
+    fn provider_capabilities_capture_identity_policy() {
         let claude = provider_capabilities(AgentType::ClaudeCode);
         assert!(
             claude
@@ -359,22 +339,12 @@ mod tests {
                 .backend_identity_policy
                 .prefers_incoming_provider_session_id_alias
         );
-        assert!(
-            !claude
-                .session_lifecycle_policy
-                .requires_post_connect_execution_profile_reset
-        );
 
         let cursor = provider_capabilities(AgentType::Cursor);
         assert!(
             !cursor
                 .backend_identity_policy
                 .requires_persisted_provider_session_id
-        );
-        assert!(
-            cursor
-                .session_lifecycle_policy
-                .requires_post_connect_execution_profile_reset
         );
     }
 
@@ -401,9 +371,5 @@ mod tests {
         let copilot = provider_capabilities(AgentType::Copilot);
         assert_eq!(copilot.frontend_projection.display_name, "GitHub Copilot");
         assert!(!copilot.frontend_projection.supports_model_defaults);
-        assert_eq!(
-            copilot.frontend_projection.autonomous_apply_strategy,
-            AutonomousApplyStrategy::PostConnect
-        );
     }
 }

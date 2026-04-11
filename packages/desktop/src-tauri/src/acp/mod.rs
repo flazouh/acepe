@@ -35,6 +35,7 @@ pub mod providers;
 pub mod registry;
 pub mod session_descriptor;
 pub mod session_journal;
+pub mod session_policy;
 pub mod session_registry;
 pub mod session_update;
 pub mod session_update_parser;

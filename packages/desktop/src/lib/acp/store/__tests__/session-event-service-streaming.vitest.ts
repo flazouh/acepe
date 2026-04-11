@@ -603,6 +603,7 @@ describe("SessionEventService streaming delta handling", () => {
 				patterns: ["https://example.com/*"],
 				metadata: { rawInput: { url: "https://example.com" } },
 				always: [],
+				autoAccepted: false,
 				tool: {
 					messageId: "",
 					callId: "tool-fetch-1",
@@ -679,6 +680,7 @@ describe("SessionEventService streaming delta handling", () => {
 					options: [],
 				},
 				always: [],
+				autoAccepted: false,
 				tool: {
 					messageId: "",
 					callId: "tool-edit-1",
@@ -902,6 +904,7 @@ describe("SessionEventService streaming delta handling", () => {
 				patterns: ["/tmp/file.txt"],
 				metadata: { rawInput: { file_path: "/tmp/file.txt" } },
 				always: [],
+				autoAccepted: false,
 				tool: {
 					messageId: "",
 					callId: "tool-write-1",

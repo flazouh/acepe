@@ -117,25 +117,6 @@ impl AgentProvider for ClaudeCodeProvider {
         }
     }
 
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["build"]
-    }
-
-    fn map_execution_profile_mode_id(
-        &self,
-        mode_id: &str,
-        autonomous_enabled: bool,
-    ) -> Option<String> {
-        match (mode_id, autonomous_enabled) {
-            ("build", false) => Some("default".to_string()),
-            ("build", true) => Some("bypassPermissions".to_string()),
-            ("plan", false) => Some("plan".to_string()),
-            ("plan", true) => None,
-            (_, false) => Some(self.map_outbound_mode_id(mode_id)),
-            (_, true) => None,
-        }
-    }
-
     fn resolve_runtime_mode_id(&self, requested_mode_id: Option<&str>, cwd: &Path) -> String {
         resolve_claude_runtime_mode_id(requested_mode_id, cwd)
     }
@@ -495,25 +476,6 @@ mod tests {
         let provider = ClaudeCodeProvider;
 
         assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
-    }
-
-    #[test]
-    fn claude_provider_maps_execution_profiles() {
-        let provider = ClaudeCodeProvider;
-
-        assert_eq!(
-            provider.map_execution_profile_mode_id("build", false),
-            Some("default".to_string())
-        );
-        assert_eq!(
-            provider.map_execution_profile_mode_id("build", true),
-            Some("bypassPermissions".to_string())
-        );
-        assert_eq!(
-            provider.map_execution_profile_mode_id("plan", false),
-            Some("plan".to_string())
-        );
-        assert_eq!(provider.map_execution_profile_mode_id("plan", true), None);
     }
 
     #[test]

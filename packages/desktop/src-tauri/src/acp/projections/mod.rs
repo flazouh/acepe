@@ -297,7 +297,7 @@ impl ProjectionRegistry {
                 snapshot.turn_state = SessionTurnState::Running;
             }
             SessionUpdate::PermissionRequest { permission, .. } => {
-                self.register_permission_interaction(permission);
+                self.register_permission_interaction(permission, snapshot.last_event_seq);
             }
             SessionUpdate::QuestionRequest { question, .. } => {
                 self.register_question_interaction(question);
@@ -631,12 +631,16 @@ impl ProjectionRegistry {
         snapshot.last_event_seq
     }
 
-    fn register_permission_interaction(&self, permission: &PermissionData) {
+    fn register_permission_interaction(&self, permission: &PermissionData, event_seq: i64) {
         let interaction = InteractionSnapshot {
             id: permission.id.clone(),
             session_id: permission.session_id.clone(),
             kind: InteractionKind::Permission,
-            state: InteractionState::Pending,
+            state: if permission.auto_accepted {
+                InteractionState::Approved
+            } else {
+                InteractionState::Pending
+            },
             json_rpc_request_id: permission.json_rpc_request_id,
             reply_handler: permission.reply_handler.clone().or_else(|| {
                 permission
@@ -645,8 +649,14 @@ impl ProjectionRegistry {
                     .or_else(|| Some(InteractionReplyHandler::http(permission.id.clone())))
             }),
             tool_reference: permission.tool.clone(),
-            responded_at_event_seq: None,
-            response: None,
+            responded_at_event_seq: permission.auto_accepted.then_some(event_seq),
+            response: permission
+                .auto_accepted
+                .then_some(InteractionResponse::Permission {
+                    accepted: true,
+                    option_id: Some("allow".to_string()),
+                    reply: Some("once".to_string()),
+                }),
             payload: InteractionPayload::Permission(permission.clone()),
         };
         self.upsert_interaction(interaction);
@@ -1086,6 +1096,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec!["allow_always".to_string()],
+                    auto_accepted: false,
                     tool: Some(ToolReference {
                         message_id: String::new(),
                         call_id: "tool-1".to_string(),
@@ -1157,6 +1168,45 @@ mod tests {
     }
 
     #[test]
+    fn interaction_projection_marks_auto_accepted_permissions_approved() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("session-auto".to_string(), CanonicalAgentId::ClaudeCode);
+
+        registry.apply_session_update(
+            "session-auto",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-auto".to_string(),
+                    session_id: "session-auto".to_string(),
+                    json_rpc_request_id: Some(7),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
+                    permission: "Execute".to_string(),
+                    patterns: vec![],
+                    metadata: json!({ "command": "bun test" }),
+                    always: vec![],
+                    auto_accepted: true,
+                    tool: None,
+                },
+                session_id: Some("session-auto".to_string()),
+            },
+        );
+
+        let permission = registry
+            .interaction("permission-auto")
+            .expect("expected permission interaction");
+        assert_eq!(permission.state, InteractionState::Approved);
+        assert_eq!(permission.responded_at_event_seq, Some(1));
+        assert!(matches!(
+            permission.response,
+            Some(InteractionResponse::Permission {
+                accepted: true,
+                option_id: Some(ref option_id),
+                reply: Some(ref reply),
+            }) if option_id == "allow" && reply == "once"
+        ));
+    }
+
+    #[test]
     fn interaction_projection_resolves_by_id_and_request_id() {
         let registry = ProjectionRegistry::new();
         registry.register_session("session-1".to_string(), CanonicalAgentId::ClaudeCode);
@@ -1173,6 +1223,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec![],
+                    auto_accepted: false,
                     tool: None,
                 },
                 session_id: Some("session-1".to_string()),
@@ -1251,6 +1302,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec![],
+                    auto_accepted: false,
                     tool: None,
                 },
                 session_id: Some("session-1".to_string()),
@@ -1320,6 +1372,7 @@ mod tests {
                     patterns: vec![],
                     metadata: json!({ "command": "bun test" }),
                     always: vec![],
+                    auto_accepted: false,
                     tool: None,
                 }),
             }],

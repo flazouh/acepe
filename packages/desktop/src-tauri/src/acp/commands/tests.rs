@@ -7,8 +7,6 @@ use crate::acp::commands::session_commands::{
     persist_session_metadata_for_cwd, resolve_requested_agent_id, session_metadata_context_from_cwd,
 };
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::parsers::provider_capabilities::all_provider_capabilities;
-use crate::acp::provider::AutonomousApplyStrategy;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
 use crate::db::repository::SessionMetadataRepository;
@@ -433,63 +431,6 @@ fn session_metadata_created_rows_are_detected_as_pending_transcript() {
     };
 
     assert!(row.is_transcript_pending());
-}
-
-#[test]
-fn claude_resume_skips_post_connect_execution_profile_reset() {
-    assert!(!resume_path_needs_post_connect_execution_profile_reset(
-        &CanonicalAgentId::ClaudeCode,
-    ));
-    assert!(resume_path_needs_post_connect_execution_profile_reset(
-        &CanonicalAgentId::Cursor,
-    ));
-}
-
-#[test]
-fn resume_execution_profile_reset_policy_is_capability_driven() {
-    let source = include_str!("session_commands.rs")
-        .split("#[cfg(test)]")
-        .next()
-        .unwrap_or_default();
-
-    assert!(
-        !source.contains("!matches!(agent_id, CanonicalAgentId::ClaudeCode)"),
-        "session commands should not hardcode Claude resume policy"
-    );
-    assert!(
-        source.contains("session_lifecycle_policy"),
-        "session commands should read lifecycle policy from provider capabilities"
-    );
-}
-
-#[test]
-fn resume_lifecycle_policy_matches_frontend_autonomous_strategy() {
-    for capabilities in all_provider_capabilities() {
-        let agent_id = CanonicalAgentId::parse(capabilities.provider_id);
-        let requires_post_connect_reset =
-            resume_path_needs_post_connect_execution_profile_reset(&agent_id);
-
-        assert_eq!(
-            requires_post_connect_reset,
-            capabilities
-                .session_lifecycle_policy
-                .requires_post_connect_execution_profile_reset,
-            "resume helper should mirror provider lifecycle policy for {}",
-            capabilities.provider_id
-        );
-
-        let expected_strategy = if requires_post_connect_reset {
-            AutonomousApplyStrategy::PostConnect
-        } else {
-            AutonomousApplyStrategy::LaunchProfile
-        };
-
-        assert_eq!(
-            capabilities.frontend_projection.autonomous_apply_strategy, expected_strategy,
-            "frontend autonomous strategy should stay aligned with resume lifecycle policy for {}",
-            capabilities.provider_id
-        );
-    }
 }
 
 #[test]

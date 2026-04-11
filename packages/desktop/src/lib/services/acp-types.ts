@@ -56,8 +56,6 @@ export type ConfigOptionValue = { name: string; value: JsonValue; description?: 
  */
 export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[] }
 
-export type ExecutionProfileRequest = { modeId: string; autonomousEnabled: boolean }
-
 export type NewSessionResponse = { sessionId: string; sequenceId?: number | null; models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 
 export type ResumeSessionResponse = { models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
@@ -155,7 +153,7 @@ export type InteractionReplyHandler = { kind: InteractionReplyHandlerKind; reque
 /**
  * Permission request data.
  */
-export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; tool?: ToolReference | null }
+export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; permission: string; patterns: string[]; metadata: JsonValue; always: string[]; autoAccepted: boolean; tool?: ToolReference | null }
 
 /**
  * Question request data.
@@ -191,8 +189,6 @@ export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | 
 
 export type ProviderVariantGroup = "plain" | "reasoningEffort";
 
-export type AutonomousApplyStrategy = "postConnect" | "launchProfile";
-
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
 export type ProviderMetadataProjection = {
@@ -203,7 +199,6 @@ export type ProviderMetadataProjection = {
 	variantGroup: ProviderVariantGroup;
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
-	autonomousApplyStrategy: AutonomousApplyStrategy;
 	preconnectionSlashMode: PreconnectionSlashMode;
 };
 
@@ -218,7 +213,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "launchProfile",
 		preconnectionSlashMode: "startupGlobal",
 	},
 	copilot: {
@@ -229,7 +223,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "projectScoped",
 	},
 	cursor: {
@@ -240,7 +233,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "startupGlobal",
 	},
 	opencode: {
@@ -251,7 +243,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "projectScoped",
 	},
 	codex: {
@@ -262,7 +253,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "reasoningEffort",
 		defaultAlias: undefined,
 		reasoningEffortSupport: true,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "startupGlobal",
 	},
 };
@@ -278,7 +268,6 @@ function cloneProviderMetadataProjection(
 		variantGroup: providerMetadata.variantGroup,
 		defaultAlias: providerMetadata.defaultAlias,
 		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
-		autonomousApplyStrategy: providerMetadata.autonomousApplyStrategy,
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
 	};
 }
@@ -305,7 +294,6 @@ export function resolveProviderMetadataProjection(
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "unsupported",
 	};
 }

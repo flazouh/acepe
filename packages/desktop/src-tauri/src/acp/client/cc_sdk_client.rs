@@ -38,10 +38,11 @@ use crate::acp::projections::{
 };
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_journal::load_stored_projection;
+use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_update::{
     parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
-    ToolCallUpdateData, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
+    ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
     TurnErrorSource,
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
@@ -390,7 +391,9 @@ struct AcepePermissionHandler {
     dispatcher: AcpUiEventDispatcher,
     projection_registry: Arc<ProjectionRegistry>,
     db: Option<DbConn>,
+    session_policy: Arc<SessionPolicyRegistry>,
     tool_call_tracker: Arc<ToolCallIdTracker>,
+    task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
     approval_callback_tracker: Arc<ApprovalCallbackTracker>,
     pending_questions: Arc<Mutex<HashMap<String, PendingQuestionState>>>,
 }
@@ -546,12 +549,46 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
             reusable_approval_key: build_reusable_permission_key(tool_name, input),
             permission_suggestions: _ctx.suggestions.clone(),
         };
+        let has_always_option = tool_request.has_always_option();
+        let auto_accept_reason = self.auto_accept_reason(tool_name, &tool_call_id);
+        if let Some(auto_accept_reason) = auto_accept_reason {
+            tracing::info!(
+                session_id = %self.session_id,
+                request_id = request_id,
+                tool_name = %tool_name,
+                tool_call_id = %tool_call_id,
+                auto_accept_reason = auto_accept_reason,
+                "cc-sdk permission request auto-accepted"
+            );
+            log_debug_event(
+                &self.session_id,
+                "permission.auto_accepted",
+                &serde_json::json!({
+                    "source": "can_use_tool",
+                    "requestId": request_id,
+                    "toolName": tool_name,
+                    "toolCallId": tool_call_id,
+                    "reason": auto_accept_reason,
+                }),
+            );
+            self.dispatcher
+                .enqueue(AcpUiEvent::session_update(build_permission_request_update(
+                    &self.session_id,
+                    &tool_call_id,
+                    request_id,
+                    tool_name,
+                    input,
+                    has_always_option,
+                    self.agent_type,
+                    true,
+                )));
+            return allow_permission_result();
+        }
         let registration = self
             .bridge
             .register_tool(request_id, tool_request.clone())
             .await;
         let rx = registration.receiver;
-        let has_always_option = tool_request.has_always_option();
         log_debug_event(
             &self.session_id,
             "permission.can_use_tool.registered",
@@ -594,6 +631,7 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
                         input,
                         has_always_option,
                         self.agent_type,
+                        false,
                     ),
                 ));
             }
@@ -678,6 +716,8 @@ struct AcepePermissionRequestHook {
     dispatcher: AcpUiEventDispatcher,
     projection_registry: Arc<ProjectionRegistry>,
     db: Option<DbConn>,
+    session_policy: Arc<SessionPolicyRegistry>,
+    task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
     approval_callback_tracker: Arc<ApprovalCallbackTracker>,
 }
 
@@ -721,6 +761,50 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
                 "PermissionRequest",
             )
             .await;
+        if let Some(auto_accept_reason) = auto_accept_reason(
+            &self.session_id,
+            self.agent_type,
+            &self.session_policy,
+            &self.task_reconciler,
+            &request.tool_name,
+            &tool_call_id,
+        ) {
+            tracing::info!(
+                session_id = %self.session_id,
+                request_id = request_id,
+                tool_name = %request.tool_name,
+                tool_call_id = %tool_call_id,
+                auto_accept_reason = auto_accept_reason,
+                "cc-sdk PermissionRequest hook auto-accepted"
+            );
+            log_debug_event(
+                &self.session_id,
+                "permission.auto_accepted",
+                &serde_json::json!({
+                    "source": "PermissionRequest",
+                    "requestId": request_id,
+                    "toolName": request.tool_name,
+                    "toolCallId": tool_call_id,
+                    "reason": auto_accept_reason,
+                }),
+            );
+            return Ok(cc_sdk::HookJSONOutput::Sync(cc_sdk::SyncHookJSONOutput {
+                continue_: Some(true),
+                reason: Some(format!(
+                    "Acepe approval auto-accepted for {}",
+                    request.tool_name
+                )),
+                hook_specific_output: Some(cc_sdk::HookSpecificOutput::PermissionRequest(
+                    cc_sdk::PermissionRequestHookSpecificOutput {
+                        decision: serde_json::json!({
+                            "behavior": "allow",
+                            "updatedInput": request.tool_input,
+                        }),
+                    },
+                )),
+                ..Default::default()
+            }));
+        }
         let permission_suggestions = parse_permission_suggestions(&request.permission_suggestions);
         let hook_request = HookPermissionRequest {
             tool_call_id: tool_call_id.clone(),
@@ -782,6 +866,7 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
                         &request.tool_input,
                         has_always_option,
                         self.agent_type,
+                        false,
                     ),
                 ));
             }
@@ -1095,7 +1180,17 @@ impl ClaudeCcSdkClient {
             dispatcher: self.dispatcher.clone(),
             projection_registry: self.projection_registry.clone(),
             db: self.db.clone(),
+            session_policy: self
+                .app_handle
+                .as_ref()
+                .and_then(|app_handle| {
+                    app_handle
+                        .try_state::<Arc<SessionPolicyRegistry>>()
+                        .map(|state| state.inner().clone())
+                })
+                .unwrap_or_else(|| Arc::new(SessionPolicyRegistry::new())),
             tool_call_tracker: self.tool_call_tracker.clone(),
+            task_reconciler: self.task_reconciler.clone(),
             approval_callback_tracker: self.approval_callback_tracker.clone(),
             pending_questions: self.pending_questions.clone(),
         };
@@ -1106,6 +1201,16 @@ impl ClaudeCcSdkClient {
             dispatcher: self.dispatcher.clone(),
             projection_registry: self.projection_registry.clone(),
             db: self.db.clone(),
+            session_policy: self
+                .app_handle
+                .as_ref()
+                .and_then(|app_handle| {
+                    app_handle
+                        .try_state::<Arc<SessionPolicyRegistry>>()
+                        .map(|state| state.inner().clone())
+                })
+                .unwrap_or_else(|| Arc::new(SessionPolicyRegistry::new())),
+            task_reconciler: self.task_reconciler.clone(),
             approval_callback_tracker: self.approval_callback_tracker.clone(),
         };
 
@@ -1807,6 +1912,7 @@ fn build_permission_request_update(
     raw_input: &Value,
     has_always_option: bool,
     agent_type: AgentType,
+    auto_accepted: bool,
 ) -> SessionUpdate {
     SessionUpdate::PermissionRequest {
         permission: crate::acp::session_update::PermissionData {
@@ -1824,6 +1930,7 @@ fn build_permission_request_update(
             } else {
                 Vec::new()
             },
+            auto_accepted,
             tool: Some(ToolReference {
                 message_id: String::new(),
                 call_id: tool_call_id.to_string(),
@@ -1831,6 +1938,54 @@ fn build_permission_request_update(
         },
         session_id: Some(session_id.to_string()),
     }
+}
+
+fn allow_permission_result() -> cc_sdk::PermissionResult {
+    cc_sdk::PermissionResult::Allow(cc_sdk::PermissionResultAllow {
+        updated_input: None,
+        updated_permissions: None,
+    })
+}
+
+impl AcepePermissionHandler {
+    fn auto_accept_reason(&self, tool_name: &str, tool_call_id: &str) -> Option<&'static str> {
+        auto_accept_reason(
+            &self.session_id,
+            self.agent_type,
+            &self.session_policy,
+            &self.task_reconciler,
+            tool_name,
+            tool_call_id,
+        )
+    }
+}
+
+fn auto_accept_reason(
+    session_id: &str,
+    agent_type: AgentType,
+    session_policy: &SessionPolicyRegistry,
+    task_reconciler: &std::sync::Mutex<TaskReconciler>,
+    tool_name: &str,
+    tool_call_id: &str,
+) -> Option<&'static str> {
+    if is_exit_plan_permission(tool_name, agent_type) {
+        return None;
+    }
+
+    if session_policy.is_autonomous(session_id) {
+        return Some("autonomous");
+    }
+
+    let task_reconciler = task_reconciler
+        .lock()
+        .expect("task reconciler lock should not be poisoned");
+    task_reconciler
+        .parent_for_child(tool_call_id)
+        .map(|_| "child_tool_call")
+}
+
+fn is_exit_plan_permission(tool_name: &str, agent_type: AgentType) -> bool {
+    get_parser(agent_type).detect_tool_kind(tool_name) == ToolKind::ExitPlanMode
 }
 
 fn build_permission_patterns(raw_input: &Value) -> Vec<String> {
@@ -2797,6 +2952,60 @@ mod tests {
         }
     }
 
+    fn make_permission_handler_fixture(
+        session_id: &str,
+        dispatcher: AcpUiEventDispatcher,
+        bridge: Arc<PermissionBridge>,
+        tracker: Arc<ToolCallIdTracker>,
+    ) -> (
+        AcepePermissionHandler,
+        Arc<SessionPolicyRegistry>,
+        Arc<std::sync::Mutex<TaskReconciler>>,
+    ) {
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let session_policy = Arc::new(SessionPolicyRegistry::new());
+        let task_reconciler = Arc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let handler = AcepePermissionHandler {
+            session_id: session_id.to_string(),
+            agent_type: provider.parser_agent_type(),
+            bridge,
+            dispatcher,
+            projection_registry: Arc::new(ProjectionRegistry::new()),
+            db: None,
+            session_policy: Arc::clone(&session_policy),
+            tool_call_tracker: tracker,
+            task_reconciler: Arc::clone(&task_reconciler),
+            approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
+            pending_questions: Arc::new(Mutex::new(HashMap::new())),
+        };
+
+        (handler, session_policy, task_reconciler)
+    }
+
+    fn make_child_read_tool_call(id: &str, parent_id: &str, file_path: &str) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some(file_path.to_string()),
+            },
+            raw_input: Some(serde_json::json!({ "file_path": file_path })),
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: Some(parent_id.to_string()),
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
+
     fn make_child_tool_call(id: &str, name: &str, kind: ToolKind) -> SessionUpdate {
         let arguments = match kind {
             ToolKind::Execute => ToolArguments::Execute {
@@ -3058,6 +3267,7 @@ mod tests {
                         patterns: vec![path.to_string()],
                         metadata: serde_json::json!({}),
                         always: vec![],
+                        auto_accepted: false,
                         tool: None,
                     }),
                 }],
@@ -3524,6 +3734,7 @@ mod tests {
                 patterns: vec![path.to_string()],
                 metadata: serde_json::json!({}),
                 always: vec![],
+                auto_accepted: false,
                 tool: None,
             },
             session_id: Some("session-1".to_string()),
@@ -3650,6 +3861,7 @@ mod tests {
                 patterns: vec![path.to_string()],
                 metadata: serde_json::json!({}),
                 always: vec![],
+                auto_accepted: false,
                 tool: None,
             },
             session_id: Some("session-restore".to_string()),
@@ -3741,6 +3953,7 @@ mod tests {
                 patterns: vec![path.to_string()],
                 metadata: serde_json::json!({}),
                 always: vec![],
+                auto_accepted: false,
                 tool: None,
             },
             session_id: Some("session-1".to_string()),
@@ -4158,6 +4371,8 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
         };
 
@@ -4227,7 +4442,9 @@ mod tests {
             dispatcher: dispatcher.clone(),
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -4239,6 +4456,8 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
         };
 
@@ -4334,6 +4553,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn autonomous_permission_request_hook_does_not_emit_a_second_visible_request() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let bridge = Arc::new(PermissionBridge::new());
+        let tracker = Arc::new(ToolCallIdTracker::new());
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let session_policy = Arc::new(SessionPolicyRegistry::new());
+        let task_reconciler = Arc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        session_policy.set_autonomous("session-auto-hook", true);
+
+        tracker
+            .record("Bash".to_string(), "toolu_auto_hook".to_string())
+            .await;
+
+        let handler = AcepePermissionHandler {
+            session_id: "session-auto-hook".to_string(),
+            agent_type: provider.parser_agent_type(),
+            bridge: bridge.clone(),
+            dispatcher: dispatcher.clone(),
+            projection_registry: Arc::new(ProjectionRegistry::new()),
+            db: None,
+            session_policy: session_policy.clone(),
+            tool_call_tracker: tracker,
+            task_reconciler: task_reconciler.clone(),
+            approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
+            pending_questions: Arc::new(Mutex::new(HashMap::new())),
+        };
+
+        let hook = AcepePermissionRequestHook {
+            session_id: "session-auto-hook".to_string(),
+            agent_type: provider.parser_agent_type(),
+            bridge,
+            dispatcher,
+            projection_registry: Arc::new(ProjectionRegistry::new()),
+            db: None,
+            session_policy,
+            task_reconciler,
+            approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
+        };
+
+        let handler_result = handler
+            .can_use_tool(
+                "Bash",
+                &serde_json::json!({ "command": "git status" }),
+                &cc_sdk::ToolPermissionContext {
+                    signal: None,
+                    suggestions: Vec::new(),
+                },
+            )
+            .await;
+        assert!(matches!(handler_result, cc_sdk::PermissionResult::Allow(_)));
+
+        let hook_result = hook
+            .execute(
+                &cc_sdk::HookInput::PermissionRequest(cc_sdk::PermissionRequestHookInput {
+                    session_id: "session-auto-hook".to_string(),
+                    transcript_path: "/tmp/transcript.jsonl".to_string(),
+                    cwd: "/tmp".to_string(),
+                    permission_mode: Some("default".to_string()),
+                    tool_name: "Bash".to_string(),
+                    tool_input: serde_json::json!({ "command": "git status" }),
+                    permission_suggestions: None,
+                    agent_id: None,
+                    agent_type: None,
+                }),
+                Some("toolu_auto_hook"),
+                &cc_sdk::HookContext { signal: None },
+            )
+            .await
+            .expect("hook execute failed");
+
+        let cc_sdk::HookJSONOutput::Sync(output) = hook_result else {
+            panic!("expected sync hook output");
+        };
+        let serialized = serde_json::to_value(output).expect("serialize hook output");
+        assert_eq!(
+            serialized["hookSpecificOutput"]["decision"]["behavior"],
+            "allow"
+        );
+
+        let captured = sink.lock().expect("sink lock");
+        assert_eq!(
+            captured
+                .iter()
+                .filter(|event| event.event_name == "acp-session-update")
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn respond_selected_question_resolves_updated_input() {
         let client = make_test_client();
         let id = client.permission_bridge.next_id();
@@ -4414,6 +4723,7 @@ mod tests {
             &serde_json::json!({ "command": "ls" }),
             false,
             AgentType::ClaudeCode,
+            false,
         );
 
         match update {
@@ -4426,12 +4736,212 @@ mod tests {
                 assert_eq!(permission.session_id, "test-session");
                 assert_eq!(permission.json_rpc_request_id, Some(42));
                 assert_eq!(permission.permission, "Bash");
+                assert!(!permission.auto_accepted);
                 assert_eq!(
                     permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
                     Some("tool-42")
                 );
             }
             _ => panic!("expected permission request update"),
+        }
+    }
+
+    #[tokio::test]
+    async fn can_use_tool_auto_accepts_when_session_is_autonomous() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let bridge = Arc::new(PermissionBridge::new());
+        let tracker = Arc::new(ToolCallIdTracker::new());
+        tracker
+            .record("Bash".to_string(), "toolu_auto_permission".to_string())
+            .await;
+
+        let (handler, session_policy, _) =
+            make_permission_handler_fixture("session-auto", dispatcher, bridge.clone(), tracker);
+        session_policy.set_autonomous("session-auto", true);
+
+        let context = cc_sdk::ToolPermissionContext {
+            signal: None,
+            suggestions: Vec::new(),
+        };
+        let result = timeout(
+            Duration::from_millis(50),
+            handler.can_use_tool(
+                "Bash",
+                &serde_json::json!({ "command": "git status" }),
+                &context,
+            ),
+        )
+        .await
+        .expect("autonomous permission should resolve immediately");
+
+        assert!(matches!(result, cc_sdk::PermissionResult::Allow(_)));
+        assert!(bridge
+            .resolve_from_ui_result(
+                1,
+                &serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": "allow" }
+                }),
+            )
+            .await
+            .is_none());
+
+        let captured = sink.lock().expect("sink lock");
+        let event = captured
+            .iter()
+            .find(|event| event.event_name == "acp-session-update")
+            .expect("expected session update event");
+        let update = match &event.payload {
+            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => update,
+            other => panic!("expected session update payload, got {:?}", other),
+        };
+
+        match update.as_ref() {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert!(permission.auto_accepted);
+                assert_eq!(permission.permission, "Bash");
+                assert_eq!(
+                    permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("toolu_auto_permission")
+                );
+            }
+            other => panic!("expected permission request update, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn can_use_tool_auto_accepts_child_tool_calls_when_policy_is_off() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let bridge = Arc::new(PermissionBridge::new());
+        let tracker = Arc::new(ToolCallIdTracker::new());
+        tracker
+            .record("Read".to_string(), "toolu_child_permission".to_string())
+            .await;
+
+        let (handler, _session_policy, task_reconciler) =
+            make_permission_handler_fixture("session-child", dispatcher, bridge.clone(), tracker);
+        task_reconciler
+            .lock()
+            .expect("task reconciler lock should not be poisoned")
+            .handle_tool_call(make_child_read_tool_call(
+                "toolu_child_permission",
+                "toolu_parent_task",
+                "/tmp/example.txt",
+            ));
+
+        let context = cc_sdk::ToolPermissionContext {
+            signal: None,
+            suggestions: Vec::new(),
+        };
+        let result = timeout(
+            Duration::from_millis(50),
+            handler.can_use_tool(
+                "Read",
+                &serde_json::json!({ "file_path": "/tmp/example.txt" }),
+                &context,
+            ),
+        )
+        .await
+        .expect("child permission should resolve immediately");
+
+        assert!(matches!(result, cc_sdk::PermissionResult::Allow(_)));
+        assert!(bridge
+            .resolve_from_ui_result(
+                1,
+                &serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": "allow" }
+                }),
+            )
+            .await
+            .is_none());
+
+        let captured = sink.lock().expect("sink lock");
+        let event = captured
+            .iter()
+            .find(|event| event.event_name == "acp-session-update")
+            .expect("expected session update event");
+        let update = match &event.payload {
+            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => update,
+            other => panic!("expected session update payload, got {:?}", other),
+        };
+
+        match update.as_ref() {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert!(permission.auto_accepted);
+                assert_eq!(permission.permission, "Read");
+                assert_eq!(
+                    permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("toolu_child_permission")
+                );
+            }
+            other => panic!("expected permission request update, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn can_use_tool_does_not_auto_accept_exit_plan_permissions() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let bridge = Arc::new(PermissionBridge::new());
+        let tracker = Arc::new(ToolCallIdTracker::new());
+        tracker
+            .record(
+                "ExitPlanMode".to_string(),
+                "toolu_exit_plan_permission".to_string(),
+            )
+            .await;
+
+        let (handler, session_policy, _) = make_permission_handler_fixture(
+            "session-exit-plan",
+            dispatcher,
+            bridge.clone(),
+            tracker,
+        );
+        session_policy.set_autonomous("session-exit-plan", true);
+
+        let context = cc_sdk::ToolPermissionContext {
+            signal: None,
+            suggestions: Vec::new(),
+        };
+        let handler_task = tokio::spawn(async move {
+            handler
+                .can_use_tool("ExitPlanMode", &serde_json::json!({}), &context)
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(5)).await;
+
+        let resolved_kind = bridge
+            .resolve_from_ui_result(
+                1,
+                &serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": "allow" }
+                }),
+            )
+            .await;
+        assert!(matches!(
+            resolved_kind,
+            Some(PendingPermissionKind::Tool { .. })
+        ));
+        assert!(matches!(
+            handler_task.await.expect("handler task failed"),
+            cc_sdk::PermissionResult::Allow(_)
+        ));
+
+        let captured = sink.lock().expect("sink lock");
+        let event = captured
+            .iter()
+            .find(|event| event.event_name == "acp-session-update")
+            .expect("expected session update event");
+        let update = match &event.payload {
+            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => update,
+            other => panic!("expected session update payload, got {:?}", other),
+        };
+
+        match update.as_ref() {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert!(!permission.auto_accepted);
+                assert_eq!(permission.permission, "ExitPlanMode");
+            }
+            other => panic!("expected permission request update, got {:?}", other),
         }
     }
 
@@ -4543,7 +5053,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -4620,7 +5132,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -4712,7 +5226,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -4798,7 +5314,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -4871,7 +5389,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions,
         };
@@ -5029,7 +5549,9 @@ mod tests {
             dispatcher,
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
+            session_policy: Arc::new(SessionPolicyRegistry::new()),
             tool_call_tracker: tracker,
+            task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
             approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
             pending_questions: pending_questions.clone(),
         };

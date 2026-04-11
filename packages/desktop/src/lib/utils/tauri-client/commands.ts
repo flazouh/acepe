@@ -16,7 +16,6 @@ export const ACP_PREFIX = "acp_" as const;
 export const CMD = {
 	acp: {
 		...acp,
-		set_execution_profile: "acp_set_execution_profile",
 		set_config_option: "acp_set_config_option",
 		list_preconnection_commands: "acp_list_preconnection_commands",
 		reply_permission: "acp_reply_permission",

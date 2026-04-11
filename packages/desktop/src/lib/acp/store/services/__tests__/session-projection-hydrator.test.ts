@@ -198,6 +198,7 @@ describe("SessionProjectionHydrator", () => {
 								patterns: ["README.md"],
 								metadata: {},
 								always: ["allow_always"],
+								autoAccepted: false,
 								tool: {
 									messageId: "message-permission",
 									callId: "tool-permission",
@@ -230,6 +231,7 @@ describe("SessionProjectionHydrator", () => {
 								patterns: ["AGENTS.md"],
 								metadata: {},
 								always: ["allow_always"],
+								autoAccepted: false,
 								tool: {
 									messageId: "message-permission",
 									callId: "tool-permission",
@@ -250,6 +252,71 @@ describe("SessionProjectionHydrator", () => {
 		expect(
 			interactions.permissionsPending.get("permission-1")?.members?.map((member) => member.id)
 		).toEqual(["permission-1", "permission-2"]);
+	});
+
+	it("does not surface auto-accepted permissions as pending interactions", async () => {
+		getSessionProjectionMock.mockImplementation(() =>
+			okAsync({
+				session: {
+					session_id: "session-1",
+					agent_id: "codex",
+					last_event_seq: 2,
+					turn_state: "Idle",
+					message_count: 0,
+					last_agent_message_id: null,
+					active_tool_call_ids: [],
+					completed_tool_call_ids: ["tool-permission"],
+				},
+				operations: [],
+				interactions: [
+					{
+						id: "permission-auto",
+						session_id: "session-1",
+						kind: "Permission",
+						state: "Approved",
+						json_rpc_request_id: 77,
+						reply_handler: {
+							kind: "json_rpc",
+							requestId: "77",
+						},
+						tool_reference: {
+							messageId: "message-permission",
+							callId: "tool-permission",
+						},
+						responded_at_event_seq: 2,
+						response: {
+							kind: "permission",
+							accepted: true,
+							option_id: "allow",
+							reply: "once",
+						},
+						payload: {
+							Permission: {
+								id: "permission-auto",
+								sessionId: "session-1",
+								jsonRpcRequestId: 77,
+								permission: "Read",
+								patterns: ["README.md"],
+								metadata: {},
+								always: ["allow_always"],
+								autoAccepted: true,
+								tool: {
+									messageId: "message-permission",
+									callId: "tool-permission",
+								},
+							},
+						},
+					},
+				],
+			})
+		);
+		const interactions = new InteractionStore();
+		const hydrator = new SessionProjectionHydrator(interactions);
+
+		const result = await hydrator.hydrateSession("session-1");
+
+		expect(result.isOk()).toBe(true);
+		expect(interactions.permissionsPending.size).toBe(0);
 	});
 });
 
@@ -292,6 +359,7 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 						patterns: ["README.md"],
 						metadata: { path: "README.md" },
 						always: ["project"],
+						autoAccepted: false,
 						tool: {
 							messageId: "message-permission",
 							callId: "tool-permission",

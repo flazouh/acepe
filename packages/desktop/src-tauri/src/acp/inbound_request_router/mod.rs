@@ -24,6 +24,12 @@ pub(crate) struct SyntheticToolCallContext {
 #[derive(Debug, Clone)]
 pub(crate) enum InboundRoutingDecision {
     Handle(Value),
+    AutoRespond {
+        result: Value,
+        session_id: Option<String>,
+        synthetic_tool_call: Option<Box<SyntheticToolCallContext>>,
+        canonical_interaction: Option<SessionUpdate>,
+    },
     /// Forward to UI, optionally with enrichments to inject into params.toolCall.
     ForwardToUi {
         /// Parsed tool arguments to inject as `parsedArguments` into toolCall metadata.
@@ -51,8 +57,10 @@ pub(crate) async fn route_backend_inbound_request(
         "fs/read_text_file" => fs_handlers::handle_fs_read_text_file(params).await,
         "fs/write_text_file" => fs_handlers::handle_fs_write_text_file(app_handle, params).await,
         "session/request_permission" => {
-            permission_handlers::handle_session_request_permission(params, request_id, agent_type)
-                .await
+            permission_handlers::handle_session_request_permission(
+                app_handle, params, request_id, agent_type,
+            )
+            .await
         }
         "terminal/create" => terminal_handlers::handle_terminal_create(app_handle, params).await,
         "terminal/output" => terminal_handlers::handle_terminal_output(app_handle, params).await,

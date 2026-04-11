@@ -246,6 +246,7 @@ describe("SessionUpdateMatcher", () => {
 						patterns: [],
 						metadata: {},
 						always: [],
+						autoAccepted: false,
 					},
 				},
 				{

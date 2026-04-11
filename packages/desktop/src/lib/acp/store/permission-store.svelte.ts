@@ -53,11 +53,6 @@ export class PermissionStore {
 		return this.interactions.permissionsPending;
 	}
 
-	/** Callback to check if a permission should be auto-accepted (e.g. child sessions or Autonomous). */
-	private shouldAutoAccept:
-		| ((permission: PermissionRequest) => boolean | "child-session" | "autonomous-live")
-		| null = null;
-
 	private countPendingForSession(sessionId: string): number {
 		let count = 0;
 		for (const permission of this.pending.values()) {
@@ -104,16 +99,6 @@ export class PermissionStore {
 		if (this.countPendingForSession(sessionId) === 0) {
 			this.clearSessionProgress(sessionId);
 		}
-	}
-
-	/** Configure auto-accept predicate. Returns a dispose function. */
-	setAutoAccept(
-		fn: (permission: PermissionRequest) => boolean | "child-session" | "autonomous-live"
-	): () => void {
-		this.shouldAutoAccept = fn;
-		return () => {
-			this.shouldAutoAccept = null;
-		};
 	}
 
 	private restorePermissionAfterFailedReply(
@@ -190,31 +175,6 @@ export class PermissionStore {
 			this.notePermissionAdded(permission.sessionId, hadPendingBeforeAdd);
 		} else {
 			this.pending.set(existingGroupedPermission.key, storedPermission);
-		}
-
-		const autoAcceptDecision =
-			this.shouldAutoAccept !== null && !isExitPlanPermission(storedPermission)
-				? this.shouldAutoAccept(storedPermission)
-				: false;
-		const autoAcceptSource =
-			autoAcceptDecision === true
-				? "auto"
-				: autoAcceptDecision === false
-					? null
-					: autoAcceptDecision;
-
-		if (autoAcceptSource) {
-			logger.info("Auto-accepting permission", {
-				permissionId: storedPermission.id,
-				sessionId: storedPermission.sessionId,
-				tool: storedPermission.permission,
-				source: autoAcceptSource,
-			});
-			void this.reply(storedPermission.id, "once").match(
-				() => {},
-				(err) => logger.error("Failed to auto-accept permission", { error: err })
-			);
-			return;
 		}
 
 		logger.debug("Permission request added", {

@@ -11,7 +11,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "launchProfile",
 		preconnectionSlashMode: "startupGlobal",
 	},
 	copilot: {
@@ -22,7 +21,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "projectScoped",
 	},
 	cursor: {
@@ -33,7 +31,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "startupGlobal",
 	},
 	opencode: {
@@ -44,7 +41,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "projectScoped",
 	},
 	codex: {
@@ -55,7 +51,6 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		variantGroup: "reasoningEffort",
 		defaultAlias: undefined,
 		reasoningEffortSupport: true,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "startupGlobal",
 	},
 };
@@ -71,7 +66,6 @@ function cloneProviderMetadataProjection(
 		variantGroup: providerMetadata.variantGroup,
 		defaultAlias: providerMetadata.defaultAlias,
 		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
-		autonomousApplyStrategy: providerMetadata.autonomousApplyStrategy,
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
 	};
 }
@@ -98,7 +92,6 @@ export function resolveProviderMetadataProjection(
 		variantGroup: "plain",
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
-		autonomousApplyStrategy: "postConnect",
 		preconnectionSlashMode: "unsupported",
 	};
 }

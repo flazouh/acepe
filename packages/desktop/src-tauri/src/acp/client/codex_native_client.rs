@@ -16,8 +16,11 @@ use crate::acp::client_loop::{
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::write_serialized_line;
 use crate::acp::error::{AcpError, AcpResult};
+use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::AgentProvider;
+use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
+use crate::acp::session_update::{SessionUpdate, ToolKind};
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::types::{ContentBlock, EmbeddedResource, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
@@ -254,6 +257,7 @@ impl AgentClient for CodexNativeClient {
         let cancel = self.stdout_reader_cancel.clone();
         let active_session_id = self.active_session_id.clone();
         let pending_question_ids = self.pending_question_ids.clone();
+        let stdin_writer = self.stdin_writer.clone();
         let db = self.db.clone();
         let app_handle = self.app_handle.clone();
 
@@ -297,7 +301,49 @@ impl AgentClient for CodexNativeClient {
 
                                 log_streaming_event(&session_id, &message);
 
-                                for update in translate_codex_native_server_message(&session_id, &message) {
+                                let mut auto_accepted_permission = false;
+                                if let Some(auto_accept_reason) = codex_permission_auto_accept_reason(
+                                    app_handle.as_ref(),
+                                    &session_id,
+                                    &message,
+                                ) {
+                                    if let Some(request_id) = message.get("id").and_then(parse_request_id) {
+                                        match write_message(
+                                            &stdin_writer,
+                                            &json!({
+                                                "id": request_id,
+                                                "result": { "decision": "accept" }
+                                            }),
+                                        )
+                                        .await
+                                        {
+                                            Ok(()) => {
+                                                auto_accepted_permission = true;
+                                                tracing::info!(
+                                                    session_id = %session_id,
+                                                    request_id = request_id,
+                                                    auto_accept_reason = auto_accept_reason,
+                                                    "Auto-accepted Codex native permission request"
+                                                );
+                                            }
+                                            Err(error) => {
+                                                tracing::error!(
+                                                    session_id = %session_id,
+                                                    request_id = request_id,
+                                                    error = %error,
+                                                    "Failed to auto-accept Codex native permission request"
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+
+                                let mut updates =
+                                    translate_codex_native_server_message(&session_id, &message);
+                                if auto_accepted_permission {
+                                    mark_permission_updates_auto_accepted(&mut updates);
+                                }
+                                for update in updates {
                                     log_emitted_event(&session_id, &update);
                                     dispatcher.enqueue(AcpUiEvent::session_update(update));
                                 }
@@ -583,6 +629,89 @@ fn parse_request_id(value: &Value) -> Option<u64> {
     value
         .as_u64()
         .or_else(|| value.as_str().and_then(|entry| entry.parse::<u64>().ok()))
+}
+
+fn codex_permission_auto_accept_reason(
+    app_handle: Option<&AppHandle>,
+    session_id: &str,
+    message: &Value,
+) -> Option<&'static str> {
+    let session_policy = app_handle.and_then(|app| {
+        app.try_state::<StdArc<SessionPolicyRegistry>>()
+            .map(|state| state.inner().clone())
+    });
+    let projection_registry = app_handle.and_then(|app| {
+        app.try_state::<StdArc<ProjectionRegistry>>()
+            .map(|state| state.inner().clone())
+    });
+
+    codex_permission_auto_accept_reason_with_state(
+        session_policy.as_deref(),
+        projection_registry.as_deref(),
+        session_id,
+        message,
+    )
+}
+
+fn codex_permission_auto_accept_reason_with_state(
+    session_policy: Option<&SessionPolicyRegistry>,
+    projection_registry: Option<&ProjectionRegistry>,
+    session_id: &str,
+    message: &Value,
+) -> Option<&'static str> {
+    let method = message.get("method").and_then(Value::as_str)?;
+    if !matches!(
+        method,
+        "item/commandExecution/requestApproval"
+            | "item/fileRead/requestApproval"
+            | "item/fileChange/requestApproval"
+    ) {
+        return None;
+    }
+
+    let item_id = message
+        .get("params")
+        .and_then(Value::as_object)
+        .and_then(|params| params.get("itemId"))
+        .and_then(Value::as_str);
+    let operation = item_id.and_then(|tool_call_id| {
+        projection_registry
+            .and_then(|registry| registry.operation_for_tool_call(session_id, tool_call_id))
+    });
+    let effective_kind = operation
+        .as_ref()
+        .and_then(|operation| operation.kind)
+        .unwrap_or_else(|| codex_permission_tool_kind(method));
+
+    if effective_kind == ToolKind::ExitPlanMode {
+        return None;
+    }
+
+    if session_policy.is_some_and(|policy| policy.is_autonomous(session_id)) {
+        return Some("autonomous");
+    }
+
+    operation
+        .as_ref()
+        .and_then(|operation| operation.parent_tool_call_id.as_ref())
+        .map(|_| "child_tool_call")
+}
+
+fn codex_permission_tool_kind(method: &str) -> ToolKind {
+    match method {
+        "item/commandExecution/requestApproval" => ToolKind::Execute,
+        "item/fileRead/requestApproval" => ToolKind::Read,
+        "item/fileChange/requestApproval" => ToolKind::Edit,
+        _ => ToolKind::Other,
+    }
+}
+
+fn mark_permission_updates_auto_accepted(updates: &mut [SessionUpdate]) {
+    for update in updates {
+        if let SessionUpdate::PermissionRequest { permission, .. } = update {
+            permission.auto_accepted = true;
+        }
+    }
 }
 
 fn parse_thread_id(result: &Value) -> Option<String> {
@@ -920,6 +1049,8 @@ async fn persist_provider_thread_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::projections::ProjectionRegistry;
+    use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus};
     use crate::acp::types::ContentBlock;
 
     #[test]
@@ -997,5 +1128,143 @@ mod tests {
                 "turnId": "turn-1",
             })
         );
+    }
+
+    #[test]
+    fn codex_permission_auto_accepts_when_session_is_autonomous() {
+        let session_policy = SessionPolicyRegistry::new();
+        session_policy.set_autonomous("session-1", true);
+
+        let reason = codex_permission_auto_accept_reason_with_state(
+            Some(&session_policy),
+            None,
+            "session-1",
+            &json!({
+                "id": 1,
+                "method": "item/fileRead/requestApproval",
+                "params": {
+                    "itemId": "read-1",
+                    "path": "src/lib.rs"
+                }
+            }),
+        );
+
+        assert_eq!(reason, Some("autonomous"));
+    }
+
+    #[test]
+    fn codex_permission_auto_accepts_child_tool_calls_when_policy_is_off() {
+        let projection_registry = ProjectionRegistry::new();
+        let mut parent = test_tool_call("task-parent", ToolKind::Task, None);
+        let child = test_tool_call(
+            "task-child",
+            ToolKind::Execute,
+            Some("task-parent".to_string()),
+        );
+        parent.task_children = Some(vec![child]);
+        projection_registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: parent,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let reason = codex_permission_auto_accept_reason_with_state(
+            None,
+            Some(&projection_registry),
+            "session-1",
+            &json!({
+                "id": 1,
+                "method": "item/commandExecution/requestApproval",
+                "params": {
+                    "itemId": "task-child",
+                    "command": "go test ./..."
+                }
+            }),
+        );
+
+        assert_eq!(reason, Some("child_tool_call"));
+    }
+
+    #[test]
+    fn codex_permission_does_not_auto_accept_exit_plan_requests() {
+        let session_policy = SessionPolicyRegistry::new();
+        session_policy.set_autonomous("session-1", true);
+        let projection_registry = ProjectionRegistry::new();
+        projection_registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: test_tool_call("plan-1", ToolKind::ExitPlanMode, None),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let reason = codex_permission_auto_accept_reason_with_state(
+            Some(&session_policy),
+            Some(&projection_registry),
+            "session-1",
+            &json!({
+                "id": 1,
+                "method": "item/commandExecution/requestApproval",
+                "params": {
+                    "itemId": "plan-1",
+                    "command": "ExitPlanMode"
+                }
+            }),
+        );
+
+        assert_eq!(reason, None);
+    }
+
+    #[test]
+    fn marks_codex_permission_updates_as_auto_accepted() {
+        let mut updates = translate_codex_native_server_message(
+            "session-1",
+            &json!({
+                "id": 1,
+                "method": "item/fileRead/requestApproval",
+                "params": {
+                    "itemId": "read-1",
+                    "path": "src/lib.rs"
+                }
+            }),
+        );
+
+        mark_permission_updates_auto_accepted(&mut updates);
+
+        assert!(matches!(
+            updates.as_slice(),
+            [SessionUpdate::PermissionRequest { permission, .. }]
+                if permission.auto_accepted
+        ));
+    }
+
+    fn test_tool_call(
+        id: &str,
+        kind: ToolKind,
+        parent_tool_use_id: Option<String>,
+    ) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: format!("tool-{id}"),
+            arguments: ToolArguments::Execute {
+                command: Some("echo hi".to_string()),
+            },
+            raw_input: None,
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(kind),
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
     }
 }

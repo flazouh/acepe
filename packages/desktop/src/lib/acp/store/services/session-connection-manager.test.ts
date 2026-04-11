@@ -17,7 +17,7 @@ const resumeSession = vi.fn();
 const newSession = vi.fn();
 const closeSession = vi.fn();
 const setMode = vi.fn();
-const setExecutionProfile = vi.fn();
+const setSessionAutonomous = vi.fn();
 const setModel = vi.fn();
 const stopStreaming = vi.fn();
 
@@ -27,7 +27,7 @@ vi.mock("../api.js", () => ({
 		newSession,
 		resumeSession,
 		setMode,
-		setExecutionProfile,
+		setSessionAutonomous,
 		setModel,
 		stopStreaming,
 	},
@@ -209,7 +209,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		isSessionModelLoaded.mockReturnValue(true);
 		getCachedModelsDisplay.mockReturnValue(null);
 		getCachedProviderMetadata.mockReturnValue(undefined);
-		setExecutionProfile.mockReturnValue(okAsync(undefined));
+		setSessionAutonomous.mockReturnValue(okAsync(undefined));
 		resumeSession.mockReturnValue(
 			okAsync({
 				modes: {
@@ -269,6 +269,22 @@ describe("SessionConnectionManager.connectSession", () => {
 			autonomousTransition: "idle",
 			currentMode: { id: "build", name: "Build", description: null },
 		});
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "model-a",
+					availableModels: [
+						{ modelId: "model-a", name: "Model A", description: null },
+						{ modelId: "model-b", name: "Model B", description: null },
+					],
+				},
+				availableCommands: [{ name: "compact", description: "Compact session" }],
+			})
+		);
 
 		const manager = createManager({
 			stateReader,
@@ -282,7 +298,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(setExecutionProfile).toHaveBeenCalledWith(sessionId, "plan", true);
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -293,7 +309,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
-	it("launches reconnect Autonomous from provider metadata instead of applying it live", async () => {
+	it("re-syncs autonomous policy after reconnecting a disconnected session", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath,
@@ -332,7 +348,6 @@ describe("SessionConnectionManager.connectSession", () => {
 			variantGroup: "plain",
 			defaultAlias: undefined,
 			reasoningEffortSupport: false,
-			autonomousApplyStrategy: "launchProfile",
 		});
 
 		const manager = createManager({
@@ -347,14 +362,56 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined, {
-			modeId: "build",
-			autonomousEnabled: true,
-		});
-		expect(setExecutionProfile).not.toHaveBeenCalled();
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined);
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 	});
 
-	it("uses cached provider metadata instead of display projection when reconnecting a launch-profile provider", async () => {
+	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			isStreaming: false,
+			status: "idle",
+			autonomousEnabled: true,
+			autonomousTransition: "idle",
+			currentMode: { id: "build", name: "Build", description: null },
+		});
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "plan",
+					availableModes: [{ id: "plan", name: "Plan", description: null }],
+				},
+				models: {
+					currentModelId: "model-a",
+					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				autonomousEnabled: false,
+				currentMode: { id: "plan", name: "Plan", description: undefined },
+			})
+		);
+	});
+
+	it("ignores cached provider metadata when restoring autonomous policy on reconnect", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			...baseSession,
 			agentId: "custom-agent",
@@ -380,7 +437,6 @@ describe("SessionConnectionManager.connectSession", () => {
 					variantGroup: "plain",
 					defaultAlias: undefined,
 					reasoningEffortSupport: false,
-					autonomousApplyStrategy: "postConnect",
 				},
 			},
 		});
@@ -392,8 +448,23 @@ describe("SessionConnectionManager.connectSession", () => {
 			variantGroup: "plain",
 			defaultAlias: undefined,
 			reasoningEffortSupport: false,
-			autonomousApplyStrategy: "launchProfile",
 		});
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "model-a",
+					availableModels: [
+						{ modelId: "model-a", name: "Model A", description: null },
+						{ modelId: "model-b", name: "Model B", description: null },
+					],
+				},
+				availableCommands: [{ name: "compact", description: "Compact session" }],
+			})
+		);
 
 		const manager = createManager({
 			stateReader,
@@ -407,10 +478,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined, {
-			modeId: "build",
-			autonomousEnabled: true,
-		});
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined);
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 	});
 
 	it("restores stored model for current mode on connect", async () => {
@@ -452,7 +521,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", undefined, undefined);
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", undefined);
 	});
 
 	it("passes through an explicit agent override when reconnect is intentionally redirected", async () => {
@@ -470,7 +539,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		});
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, "claude-code", undefined);
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, "claude-code");
 	});
 
 	it("caches resumed capabilities under the effective override agent", async () => {
@@ -491,7 +560,6 @@ describe("SessionConnectionManager.connectSession", () => {
 						variantGroup: "plain",
 						defaultAlias: "default",
 						reasoningEffortSupport: false,
-						autonomousApplyStrategy: "launchProfile",
 					},
 					modelsDisplay: {
 						groups: [],
@@ -533,14 +601,12 @@ describe("SessionConnectionManager.connectSession", () => {
 			}),
 			expect.objectContaining({
 				providerBrand: "claude-code",
-				autonomousApplyStrategy: "launchProfile",
 			})
 		);
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
 			"claude-code",
 			expect.objectContaining({
 				providerBrand: "claude-code",
-				autonomousApplyStrategy: "launchProfile",
 			})
 		);
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
@@ -702,13 +768,11 @@ describe("SessionConnectionManager.connectSession", () => {
 						supportsModelDefaults: true,
 						variantGroup: "reasoningEffort",
 						reasoningEffortSupport: true,
-						autonomousApplyStrategy: "postConnect",
 					}),
 				}),
 			}),
 			expect.objectContaining({
 				providerBrand: "codex",
-				autonomousApplyStrategy: "postConnect",
 			})
 		);
 
@@ -910,7 +974,6 @@ describe("SessionConnectionManager.createSession", () => {
 		getCachedModelsDisplay.mockReturnValue(null);
 		getDefaultModel.mockReturnValue(undefined);
 		setMode.mockReturnValue(okAsync(undefined));
-		setExecutionProfile.mockReturnValue(okAsync(undefined));
 		setModel.mockReturnValue(okAsync(undefined));
 		newSession.mockReturnValue(
 			okAsync({
@@ -990,7 +1053,6 @@ describe("SessionConnectionManager.createSession", () => {
 								variantGroup: "reasoningEffort",
 								defaultAlias: undefined,
 								reasoningEffortSupport: true,
-								autonomousApplyStrategy: "postConnect",
 							},
 						},
 					},
@@ -1410,14 +1472,14 @@ describe("SessionConnectionManager.createSession", () => {
 		);
 		result._unsafeUnwrap();
 
-		expect(setExecutionProfile).toHaveBeenCalledWith(sessionId, "build", true);
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
 		expect(initUpdate?.autonomousEnabled).toBe(true);
 	});
 });
 
-describe("SessionConnectionManager Autonomous execution profile", () => {
+describe("SessionConnectionManager autonomous policy", () => {
 	const sessionId = "session-autonomous";
 	const connectedSession: SessionCold = {
 		id: sessionId,
@@ -1528,10 +1590,10 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 			availableModels: [],
 			availableCommands: [],
 		});
-		setExecutionProfile.mockReturnValue(okAsync(undefined));
+		setSessionAutonomous.mockReturnValue(okAsync(undefined));
 	});
 
-	it("applies Autonomous only after the execution profile succeeds", async () => {
+	it("syncs Autonomous after updating local transition state", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -1554,8 +1616,9 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		const result = await manager.setAutonomousEnabled(sessionId, true);
 		result._unsafeUnwrap();
 
-		expect(setExecutionProfile).toHaveBeenCalledWith(sessionId, "build", true);
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+			autonomousEnabled: true,
 			autonomousTransition: "enabling",
 		});
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
@@ -1592,14 +1655,14 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		const result = await manager.setAutonomousEnabled(sessionId, true);
 		result._unsafeUnwrap();
 
-		expect(setExecutionProfile).not.toHaveBeenCalled();
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
 			autonomousEnabled: true,
 			autonomousTransition: "idle",
 		});
 	});
 
-	it("rolls Autonomous state back when execution profile apply fails", async () => {
+	it("rolls Autonomous state back when backend policy sync fails", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -1609,8 +1672,8 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		setExecutionProfile.mockReturnValue(
-			errAsync(new AgentError("setExecutionProfile", new Error("backend failed")))
+		setSessionAutonomous.mockReturnValue(
+			errAsync(new AgentError("setSessionAutonomous", new Error("backend failed")))
 		);
 
 		const manager = createManager({
@@ -1625,7 +1688,9 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		const result = await manager.setAutonomousEnabled(sessionId, true);
 		expect(result.isErr()).toBe(true);
 
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+			autonomousEnabled: true,
 			autonomousTransition: "enabling",
 		});
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
@@ -1634,7 +1699,7 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		});
 	});
 
-	it("reconnects launch-profile sessions to enable Autonomous instead of applying it live", async () => {
+	it("does not reconnect sessions to enable Autonomous", async () => {
 		const connectedHotState = {
 			isConnected: true,
 			status: "ready",
@@ -1689,7 +1754,6 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 				variantGroup: "plain",
 				defaultAlias: undefined,
 				reasoningEffortSupport: false,
-				autonomousApplyStrategy: "launchProfile",
 			},
 			modelsDisplay: {
 				groups: [],
@@ -1704,12 +1768,10 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 						variantGroup: "plain",
 						defaultAlias: undefined,
 						reasoningEffortSupport: false,
-						autonomousApplyStrategy: "launchProfile",
 					},
 				},
 			},
 		});
-		closeSession.mockReturnValue(okAsync(undefined));
 		resumeSession.mockReturnValue(
 			okAsync({
 				modes: {
@@ -1736,15 +1798,48 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		const result = await manager.setAutonomousEnabled(sessionId, true, createMockEventHandler());
 		expect(result.isOk()).toBe(true);
 
-		expect(closeSession).toHaveBeenCalledWith(sessionId);
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", undefined, {
-			modeId: "build",
-			autonomousEnabled: true,
-		});
-		expect(setExecutionProfile).not.toHaveBeenCalled();
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
+		expect(closeSession).not.toHaveBeenCalled();
+		expect(resumeSession).not.toHaveBeenCalled();
 	});
 
-	it("surfaces the canonical autonomous mode-change error without a fallback retry", async () => {
+	it("rolls Autonomous state back when backend policy sync fails", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "opencode",
+			title: "Autonomous",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		setSessionAutonomous.mockReturnValue(
+			errAsync(new AgentError("setSessionAutonomous", new Error("backend failed")))
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setAutonomousEnabled(sessionId, true);
+		expect(result.isErr()).toBe(true);
+
+		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+			autonomousEnabled: true,
+			autonomousTransition: "enabling",
+		});
+		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
+			autonomousEnabled: false,
+			autonomousTransition: "idle",
+		});
+	});
+
+	it("sets mode without an autonomous execution-profile retry", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "ready",
@@ -1774,15 +1869,8 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 			availableCommands: [],
 			modelsDisplay: undefined,
 		});
-		setExecutionProfile.mockReturnValue(
-			errAsync(
-				new AgentError(
-					"setExecutionProfile",
-					new Error(
-						"unsupported autonomous execution profile: provider=claude-code ui_mode=plan autonomous=true"
-					)
-				)
-			)
+		setMode.mockReturnValue(
+			errAsync(new AgentError("setMode", new Error("backend failed")))
 		);
 
 		const manager = createManager({
@@ -1797,11 +1885,63 @@ describe("SessionConnectionManager Autonomous execution profile", () => {
 		const result = await manager.setMode(sessionId, "plan");
 		expect(result.isErr()).toBe(true);
 
-		expect(setExecutionProfile).toHaveBeenCalledTimes(1);
-		expect(setExecutionProfile).toHaveBeenCalledWith(sessionId, "plan", true);
+		expect(setMode).toHaveBeenCalledTimes(1);
+		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
 			currentMode: { id: "build", name: "Build", description: null },
 			autonomousEnabled: true,
+		});
+	});
+
+	it("disables backend Autonomous when switching from build into plan mode", async () => {
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+			acpSessionId: sessionId,
+			connectionError: null,
+			autonomousEnabled: true,
+			autonomousTransition: "idle",
+			currentModel: null,
+			currentMode: { id: "build", name: "Build", description: null },
+			availableCommands: [],
+			modelPerMode: {},
+			statusChangedAt: Date.now(),
+		});
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		setMode.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
+		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
+		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+			currentMode: { id: "plan", name: "Plan", description: null },
+			autonomousEnabled: false,
 		});
 	});
 });

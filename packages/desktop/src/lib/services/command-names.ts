@@ -3,7 +3,7 @@
 /**
  * ACP (Agent Client Protocol) command names
  */
-export type AcpCommands = { initialize: string; new_session: string; resume_session: string; fork_session: string; set_model: string; set_mode: string; set_execution_profile: string; send_prompt: string; cancel: string; list_agents: string; install_agent: string; uninstall_agent: string; get_capabilities: string }
+export type AcpCommands = { initialize: string; new_session: string; resume_session: string; fork_session: string; set_model: string; set_mode: string; set_session_autonomous: string; send_prompt: string; cancel: string; list_agents: string; install_agent: string; uninstall_agent: string; get_capabilities: string }
 
 /**
  * Session history command names (jsonl-backed session list and messages).
@@ -43,7 +43,7 @@ export const COMMANDS: Commands = {
     "fork_session": "acp_fork_session",
     "set_model": "acp_set_model",
     "set_mode": "acp_set_mode",
-    "set_execution_profile": "acp_set_execution_profile",
+    "set_session_autonomous": "acp_set_session_autonomous",
     "send_prompt": "acp_send_prompt",
     "cancel": "acp_cancel",
     "list_agents": "acp_list_agents",

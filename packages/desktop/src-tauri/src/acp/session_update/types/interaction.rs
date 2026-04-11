@@ -57,8 +57,14 @@ pub struct PermissionData {
     pub patterns: Vec<String>,
     pub metadata: serde_json::Value,
     pub always: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto_accepted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<ToolReference>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// Question option.
