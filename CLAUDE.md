@@ -129,7 +129,8 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 ### TDD Protocol
 
 - Red-green-refactor: prove the bug/behavior with one failing test → smallest fix to turn green → clean up while green.
-- Choose the narrowest valuable test seam. Behavior-focused over implementation-detail. Structural contract tests only for wiring/ownership invariants.
+- Choose the narrowest valuable test seam. Behavior-focused over implementation-detail.
+- NEVER write structural contract tests that `readFileSync` source code and assert on string contents. These break on every refactor and test structure, not behavior. If you need to verify wiring, write a test that exercises the behavior instead.
 - For legacy or unclear behavior, write a characterization test first. Do not “improve” behavior without capturing what exists.
 - Keep tests single-purpose. One failure = one diagnosis.
 
@@ -152,6 +153,23 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
 - Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+
+#### Agent Panel MVC Separation
+
+The agent panel follows a View–Model–Controller split across packages:
+
+| Layer | Package | Role |
+|-------|---------|------|
+| **View** | `@acepe/ui` (`packages/ui/src/components/agent-panel/`) | Presentational components. Accept model data + callbacks via props. No Tauri, stores, or app-specific logic. Enforced by `agent-panel-architecture.test.ts`. |
+| **Model** | `desktop-agent-panel-scene.ts` | Pure function mapper. Converts desktop domain types (SessionEntry, ToolCall, etc.) into `AgentPanelSceneModel`. |
+| **Controller** | `agent-panel.svelte` (monolith) | Reads stores, builds model, routes actions, provides snippet overrides for platform-specific content (terminal, browser, virtualized scroll). |
+| **Scene** | `AgentPanelScene` (`packages/ui/src/components/agent-panel-scene/`) | Convenience renderer. Maps `AgentPanelSceneModel` to `AgentPanel` shell slots. Accepts snippet overrides for platform content. |
+
+**Key rules:**
+- New UI for the agent panel goes in `@acepe/ui` as a presentational component with prop-based data. Labels as props, not i18n imports.
+- `packages/website` renders `@acepe/ui` components with mock data — proves the view layer works independently.
+- Domain controllers (`modified-files-header`, `review-content`) may access domain-specific stores but should compose `@acepe/ui` sub-components for rendering.
+- Desktop wrappers that only add store access should accept data as optional props with store fallback, so they work without stores when rendered from a parent that already has the data.
 
 ### Debugging
 
