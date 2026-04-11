@@ -19,10 +19,8 @@
 		AgentPanelPermissionBarActions,
 		AgentPanelPermissionBarIcon,
 		AgentPanelPermissionBarProgress,
-		AgentPanelPlanHeader,
 		AgentPanelTodoHeader,
 	} from "@acepe/ui/agent-panel";
-	import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 	import type {
 		AgentPanelModifiedFileItem,
 		AgentPanelModifiedFilesTrailingModel,
@@ -30,7 +28,6 @@
 	import LandingDemoFrame from "./landing-demo-frame.svelte";
 	import {
 		AGENT_PANEL_DEMO_DELAYS,
-		AGENT_PANEL_DEMO_PLAN_MARKDOWN,
 		AGENT_PANEL_DEMO_REVIEW_FILES,
 		AGENT_PANEL_DEMO_SCRIPT,
 		buildDemoTodoItems,
@@ -38,16 +35,16 @@
 
 	let visibleCount = $state(0);
 	let animating = $state(false);
-	let showPlanSidebar = $state(true);
 
 	const entries = $derived(AGENT_PANEL_DEMO_SCRIPT.slice(0, visibleCount));
 	const isRunning = $derived(
 		visibleCount > 0 && visibleCount < AGENT_PANEL_DEMO_SCRIPT.length
 	);
 	const isComplete = $derived(visibleCount >= AGENT_PANEL_DEMO_SCRIPT.length);
-	const showSupportWidgets = $derived(visibleCount >= 7);
-	const showPermissionBar = $derived(visibleCount >= 9 && !isComplete);
-	const showModifiedFilesHeader = $derived(visibleCount >= 10);
+
+	const hasEdits = $derived(visibleCount >= 8);
+	const showPermissionBar = $derived(visibleCount >= 8 && visibleCount <= 10);
+
 	const todoItems = $derived(buildDemoTodoItems(visibleCount));
 	const completedTodoCount = $derived(
 		todoItems.filter((item) => item.status === "completed").length
@@ -58,19 +55,15 @@
 				return item;
 			}
 		}
-
 		return null;
 	});
+	const hasTodos = $derived(todoItems.some((item) => item.status !== "pending"));
+
 	const modifiedFiles = $derived<readonly AgentPanelModifiedFileItem[]>(
 		AGENT_PANEL_DEMO_REVIEW_FILES.map((file) => ({
 			id: file.id,
 			filePath: file.label,
-			reviewStatus:
-			file.status === "done"
-					? "accepted"
-					: file.status === "reviewing"
-						? "partial"
-						: "unreviewed",
+			reviewStatus: "unreviewed",
 			additions: Number(file.summary.split(" ")[0]?.replace("+", "") ?? 0),
 			deletions: Number(file.summary.split(" ")[1]?.replace("−", "").replace("-", "") ?? 0),
 		}))
@@ -78,10 +71,9 @@
 	const modifiedFilesTrailingModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 		reviewLabel: "Review",
 		reviewOptions: [],
-		keepState: "applied",
+		keepState: "enabled",
 		keepLabel: "Keep all",
-		appliedLabel: "Reviewed",
-		reviewedCount: 2,
+		reviewedCount: 0,
 		totalCount: 3,
 	});
 
@@ -102,10 +94,6 @@
 		}
 
 		animating = false;
-	}
-
-	function togglePlanSidebar(): void {
-		showPlanSidebar = !showPlanSidebar;
 	}
 
 	onMount(() => {
@@ -145,18 +133,6 @@
 			</AgentPanelHeader>
 		{/snippet}
 
-		{#snippet topBar()}
-			{#if showSupportWidgets}
-				<AgentPanelPlanHeader
-					title="Execution plan ready"
-					isExpanded={showPlanSidebar}
-					expandLabel="Expand plan"
-					collapseLabel="Collapse plan"
-					onToggleSidebar={togglePlanSidebar}
-				/>
-			{/if}
-		{/snippet}
-
 		{#snippet body()}
 			<div class="flex-1 min-h-0 overflow-y-auto px-5 py-4">
 				<div class="mx-auto flex w-full max-w-[60%] flex-col gap-3">
@@ -168,59 +144,59 @@
 		{/snippet}
 
 		{#snippet preComposer()}
-			{#if showSupportWidgets}
-				<div class="flex shrink-0 flex-col gap-0.5">
-					<div class="flex justify-center">
-						<div class="w-full max-w-[60%]">
-							<div class="flex flex-col gap-0.5 px-5">
-								{#if showPermissionBar}
-									<AgentPanelPermissionBar
-										verb="Approval needed"
-										filePath="src/lib/auth/jwt.ts"
-										command="bun test src/lib/auth"
-									>
-										{#snippet leading()}
-											<AgentPanelPermissionBarIcon kind="execute" />
-										{/snippet}
-										{#snippet progress()}
-											<AgentPanelPermissionBarProgress completed={1} total={3} />
-										{/snippet}
-										{#snippet actionBar()}
-											<AgentPanelPermissionBarActions
-												onAllow={() => {}}
-												onDeny={() => {}}
-												showAlwaysAllow={true}
-												onAlwaysAllow={() => {}}
-											/>
-										{/snippet}
-									</AgentPanelPermissionBar>
-								{/if}
+			<div class="flex shrink-0 flex-col gap-0.5">
+				<div class="flex justify-center">
+					<div class="w-full max-w-[60%]">
+						<div class="flex flex-col gap-0.5 px-5">
+							{#if showPermissionBar}
+								<AgentPanelPermissionBar
+									verb="Approval needed"
+									filePath="src/lib/auth/jwt.ts"
+									command="bun test src/lib/auth"
+								>
+									{#snippet leading()}
+										<AgentPanelPermissionBarIcon kind="execute" />
+									{/snippet}
+									{#snippet progress()}
+										<AgentPanelPermissionBarProgress completed={0} total={1} />
+									{/snippet}
+									{#snippet actionBar()}
+										<AgentPanelPermissionBarActions
+											onAllow={() => {}}
+											onDeny={() => {}}
+										/>
+									{/snippet}
+								</AgentPanelPermissionBar>
+							{/if}
 
-								{#if showModifiedFilesHeader}
-									<AgentPanelModifiedFilesHeader visible={true}>
-										{#snippet fileList()}
-											{#each modifiedFiles as file (file.id)}
-												<AgentPanelModifiedFileRow {file} />
-											{/each}
-										{/snippet}
+							{#if hasEdits}
+								<AgentPanelModifiedFilesHeader visible={true}>
+									{#snippet fileList()}
+										{#each modifiedFiles as file (file.id)}
+											<AgentPanelModifiedFileRow {file} />
+										{/each}
+									{/snippet}
 
-										{#snippet leadingContent()}
+									{#snippet leadingContent()}
+										{#if isComplete}
 											<AgentPanelCreatePrButton
 												label="Create PR"
 												insertions={212}
 												deletions={52}
 											/>
-										{/snippet}
+										{/if}
+									{/snippet}
 
-										{#snippet trailingContent(isExpanded: boolean)}
-											<AgentPanelModifiedFilesTrailingControls
-												model={modifiedFilesTrailingModel}
-												{isExpanded}
-											/>
-										{/snippet}
-									</AgentPanelModifiedFilesHeader>
-								{/if}
+									{#snippet trailingContent(isExpanded: boolean)}
+										<AgentPanelModifiedFilesTrailingControls
+											model={modifiedFilesTrailingModel}
+											{isExpanded}
+										/>
+									{/snippet}
+								</AgentPanelModifiedFilesHeader>
+							{/if}
 
+							{#if hasTodos}
 								<AgentPanelTodoHeader
 									items={todoItems}
 									currentTask={currentTodoItem}
@@ -230,12 +206,11 @@
 									allCompletedLabel="All tasks completed"
 									pausedLabel="Tasks paused"
 								/>
-
-							</div>
+							{/if}
 						</div>
 					</div>
 				</div>
-			{/if}
+			</div>
 		{/snippet}
 
 		{#snippet composer()}
@@ -247,7 +222,7 @@
 					>
 						{#snippet content()}
 							<AgentPanelComposerEditor
-								placeholder="Ask your agent to keep going..."
+								placeholder="Ask your agent..."
 								isEmpty={true}
 							>
 								{#snippet trailing()}
@@ -286,22 +261,6 @@
 				{/snippet}
 			</AgentPanelFooter>
 		{/snippet}
-
-		{#snippet trailingPane()}
-			{#if isComplete && showPlanSidebar}
-				<div
-					class="flex h-full min-h-0 shrink-0 flex-col border-l border-border/50"
-					style="min-width: 300px; width: 300px; max-width: 300px;"
-				>
-					<PlanSidebarLayout
-						title="JWT migration plan"
-						slug="jwt-migration"
-						content={AGENT_PANEL_DEMO_PLAN_MARKDOWN}
-						onClose={togglePlanSidebar}
-					/>
-				</div>
-			{/if}
-		{/snippet}
 			</AgentPanel>
 
 			{#if !animating && isComplete}
@@ -310,7 +269,7 @@
 					onclick={() => void play()}
 					class="absolute bottom-20 right-4 rounded-full border border-border bg-muted/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground"
 				>
-					↺ Replay
+					Replay
 				</button>
 			{/if}
 		</div>

@@ -131,12 +131,6 @@ export const AGENT_PANEL_DEMO_DELAYS: readonly number[] = [
 	600,
 ];
 
-export const AGENT_PANEL_DEMO_PLAN_MARKDOWN = `## JWT migration plan
-
-- Replace cookie session validation with signed JWT access tokens.
-- Add refresh-token rotation on every successful refresh request.
-- Update middleware and controller checks before opening a PR.`;
-
 export interface DemoReviewFile {
 	id: string;
 	label: string;
