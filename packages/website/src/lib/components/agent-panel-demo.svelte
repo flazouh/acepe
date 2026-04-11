@@ -3,6 +3,11 @@
 
 	import {
 		AgentPanel,
+		AgentPanelComposer,
+		AgentPanelComposerEditor,
+		AgentPanelComposerSubmitButton,
+		AgentPanelComposerToolbar,
+		AgentPanelComposerToolbarDivider,
 		AgentPanelConversationEntry,
 		AgentPanelCreatePrButton,
 		AgentPanelFooter,
@@ -278,6 +283,41 @@
 					</div>
 				</div>
 			{/if}
+		{/snippet}
+
+		{#snippet composer()}
+			<div class="shrink-0 px-2 pb-2">
+				<div class="mx-auto w-full max-w-[60%]">
+					<AgentPanelComposer
+						class="border-t-0 p-0"
+						inputClass="flex-shrink-0 border border-border bg-input/30"
+					>
+						{#snippet content()}
+							<AgentPanelComposerEditor
+								placeholder="Ask your agent to keep going..."
+								isEmpty={true}
+							>
+								{#snippet trailing()}
+									<AgentPanelComposerSubmitButton
+										intent={isRunning ? "stop" : "send"}
+										disabled={!isRunning}
+									/>
+								{/snippet}
+							</AgentPanelComposerEditor>
+						{/snippet}
+						{#snippet footer()}
+							<AgentPanelComposerToolbar>
+								{#snippet items()}
+									<span class="px-2 text-[11px] text-muted-foreground">Claude 3.7 Sonnet</span>
+									<AgentPanelComposerToolbarDivider />
+									<span class="px-2 text-[11px] text-muted-foreground">acepe</span>
+									<AgentPanelComposerToolbarDivider />
+								{/snippet}
+							</AgentPanelComposerToolbar>
+						{/snippet}
+					</AgentPanelComposer>
+				</div>
+			</div>
 		{/snippet}
 
 		{#snippet footer()}
