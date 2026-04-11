@@ -46,6 +46,15 @@ export type {
 } from "./components/agent-panel/index.js";
 // Agent panel components
 export {
+	AgentInputArtefactBadge,
+	AgentInputAutonomousToggle,
+	AgentInputDivider,
+	AgentInputEditor,
+	AgentInputMicButton,
+	AgentInputPastedTextOverlay,
+	AgentInputToolbar,
+	AgentInputVoiceModelMenu,
+	AgentInputVoiceRecordingOverlay,
 	AgentPanel,
 	AgentAttachedFilePane,
 	AgentPanelBrowserHeader,
