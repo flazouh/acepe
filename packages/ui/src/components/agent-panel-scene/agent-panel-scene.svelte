@@ -53,7 +53,7 @@
 	const strips = $derived(scene.strips ?? []);
 	const cards = $derived(scene.cards ?? []);
 	const sidebars = $derived(scene.sidebars ?? null);
-	const footer = $derived(scene.footer ?? null);
+	const footerModel = $derived(scene.footer ?? null);
 	const planStrips = $derived(strips.filter((s) => s.kind === "plan_header"));
 	const nonPlanStrips = $derived(strips.filter((s) => s.kind !== "plan_header"));
 	const hasPreComposerContent = $derived(nonPlanStrips.length > 0 || cards.length > 0);
@@ -128,21 +128,21 @@
 	{#snippet footer()}
 		{#if footerOverride}
 			{@render footerOverride()}
-		{:else if footer}
+		{:else if footerModel}
 			<AgentPanelFooter
-				browserActive={footer.browserActive}
-				showBrowserToggle={footer.showBrowserToggle}
-				terminalActive={footer.terminalActive}
-				terminalDisabled={footer.terminalDisabled}
-				showTerminalToggle={footer.showTerminalToggle}
+				browserActive={footerModel.browserActive}
+				showBrowserToggle={footerModel.showBrowserToggle}
+				terminalActive={footerModel.terminalActive}
+				terminalDisabled={footerModel.terminalDisabled}
+				showTerminalToggle={footerModel.showTerminalToggle}
 				onToggleBrowser={actionCallbacks["browser.openSidebar"]}
 				onToggleTerminal={undefined}
 			>
-				{#if footer.branchLabel}
-					{#snippet left()}
-						<div class="px-2 text-[10px] font-mono text-muted-foreground">{footer.branchLabel}</div>
-					{/snippet}
-				{/if}
+				{#snippet left()}
+					{#if footerModel.branchLabel}
+						<div class="px-2 text-[10px] font-mono text-muted-foreground">{footerModel.branchLabel}</div>
+					{/if}
+				{/snippet}
 			</AgentPanelFooter>
 		{/if}
 	{/snippet}

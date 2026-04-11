@@ -31,7 +31,7 @@
 		deniedTooltip = "Changes rejected",
 	}: Props = $props();
 
-	function getStatusTooltip(status: ReviewTabStatus): string {
+	function getStatusTooltip(status: AgentPanelFileReviewStatus): string {
 		if (status === "accepted") return acceptedTooltip;
 		if (status === "denied") return deniedTooltip;
 		return partialTooltip;

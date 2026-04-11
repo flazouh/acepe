@@ -10,7 +10,7 @@
 		label?: string;
 		loading?: boolean;
 		mergedLabel?: string;
-		state?: "open" | "merged" | null;
+		mergeState?: "open" | "merged" | null;
 		options?: readonly MergeOption[];
 		onMerge?: (strategyId: string) => void;
 	}
@@ -19,15 +19,15 @@
 		label = "Merge",
 		loading = false,
 		mergedLabel = "Merged",
-		state = "open",
+		mergeState = "open",
 		options = [],
 		onMerge,
 	}: Props = $props();
 
-	let showDropdown = $state(false);
+	let dropdownOpen = $state(false);
 </script>
 
-{#if state === "merged"}
+{#if mergeState === "merged"}
 	<div
 		class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 	>
@@ -56,19 +56,20 @@
 				type="button"
 				class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 outline-none"
 				disabled={loading}
-				onclick={(e) => { e.stopPropagation(); showDropdown = !showDropdown; }}
+				aria-label="Merge options"
+				onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
 			>
 				<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
 					<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
 				</svg>
 			</button>
-			{#if showDropdown}
+			{#if dropdownOpen}
 				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-md border border-border bg-popover p-1 shadow-md">
 					{#each options as option (option.id)}
 						<button
 							type="button"
 							class="w-full rounded-sm px-2 py-1.5 text-left text-[0.6875rem] text-foreground hover:bg-accent cursor-pointer"
-							onclick={() => { onMerge?.(option.id); showDropdown = false; }}
+							onclick={() => { onMerge?.(option.id); dropdownOpen = false; }}
 						>
 							{option.label}
 						</button>
