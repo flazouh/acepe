@@ -29,8 +29,8 @@ describe("scene architecture", () => {
 	);
 
 	test("renders through AgentPanel shell, not its own layout div", () => {
-		expect(sceneSource).toContain('import AgentPanel from "../agent-panel/agent-panel.svelte"');
-		expect(sceneSource).toContain("<AgentPanel");
+		expect(sceneSource).toContain('import AgentPanelShell from "../agent-panel/agent-panel-shell.svelte"');
+		expect(sceneSource).toContain("<AgentPanelShell");
 	});
 
 	test("all snippet override props are optional", () => {

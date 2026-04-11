@@ -2,7 +2,7 @@
 	import type { Snippet } from "svelte";
 	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "../agent-panel/types.js";
 
-	import AgentPanel from "../agent-panel/agent-panel.svelte";
+	import AgentPanelShell from "../agent-panel/agent-panel-shell.svelte";
 	import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 	import AgentPanelSceneComposer from "./agent-panel-scene-composer.svelte";
 	import AgentPanelSceneConversation from "./agent-panel-scene-conversation.svelte";
@@ -59,7 +59,7 @@
 	const hasPreComposerContent = $derived(nonPlanStrips.length > 0 || cards.length > 0);
 </script>
 
-<AgentPanel {widthStyle} {centerColumnStyle} isFullscreen={isFullscreen}>
+<AgentPanelShell {widthStyle} {centerColumnStyle} isFullscreen={isFullscreen}>
 	{#snippet header()}
 		<AgentPanelSceneHeader header={scene.header} {actionCallbacks} {isFullscreen} controls={headerControls} />
 	{/snippet}
@@ -162,4 +162,4 @@
 			{/if}
 		{/snippet}
 	{/if}
-</AgentPanel>
+</AgentPanelShell>
