@@ -1,7 +1,9 @@
 export { default as AgentToolCard } from "./agent-tool-card.svelte";
+export { default as AgentPanel } from "./agent-panel.svelte";
 export { default as AgentPanelLayout } from "./agent-panel-layout.svelte";
 export { default as AgentPanelHeader } from "./agent-panel-header.svelte";
 export { default as AgentPanelStatusIcon } from "./agent-panel-status-icon.svelte";
+export { default as AgentPanelConversationEntry } from "./agent-panel-conversation-entry.svelte";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as AgentToolRow } from "./agent-tool-row.svelte";
@@ -20,22 +22,48 @@ export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";
+export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
+export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
+export { default as AgentPanelInstallCard } from "./agent-install-card.svelte";
+export { default as AgentPanelWorktreeSetupCard } from "./worktree-setup-card.svelte";
+export { default as AgentPanelFooterChrome } from "./agent-panel-footer-chrome.svelte";
+export { default as AgentPanelFooter } from "./agent-panel-footer.svelte";
+export { default as AgentPanelComposer } from "./agent-panel-composer.svelte";
+export { default as AgentPanelReviewContent } from "./agent-panel-review-content.svelte";
+export { default as AgentPanelTerminalDrawer } from "./agent-panel-terminal-drawer.svelte";
+export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
+export { default as AgentPanelBrowserHeader } from "./agent-panel-browser-header.svelte";
+export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
+export { default as AgentPanelStatusStrip } from "./agent-panel-status-strip.svelte";
+export { default as AgentPanelReviewCard } from "./agent-panel-review-card.svelte";
+export { default as AgentPanelPlanHeader } from "./plan-header.svelte";
+export { default as AgentPanelModifiedFileRow } from "./agent-panel-modified-file-row.svelte";
+export { default as AgentPanelModifiedFilesTrailingControls } from "./agent-panel-modified-files-trailing-controls.svelte";
+export { default as AgentPanelModifiedFilesHeader } from "./modified-files-header.svelte";
+export { default as AgentPanelPermissionBar } from "./permission-bar.svelte";
+export { default as AgentPanelQueueCardStrip } from "./queue-card-strip.svelte";
+export { default as AgentPanelPrCard } from "./agent-panel-pr-card.svelte";
+export { default as AgentPanelPrStatusCard } from "./pr-status-card.svelte";
+export { default as AgentPanelTodoHeader } from "./todo-header.svelte";
 export {
-	AgentPanelScene,
-	AgentPanelSceneComposer,
-	AgentPanelSceneConversation,
-	AgentPanelSceneEntry,
-	AgentPanelSceneHeader as AgentPanelSceneHeaderRenderer,
-	AgentPanelSceneReviewCard,
-	AgentPanelSceneSidebar,
-	AgentPanelSceneStatusStrip,
-} from "../agent-panel-scene/index.js";
+	AGENT_PANEL_DEFERRED_PANE_DEFAULTS,
+	AGENT_PANEL_PHASE1_PARITY_STATES,
+} from "./parity-fixtures.js";
+export type {
+	AgentPanelDeferredPaneDefinition,
+	AgentPanelDeferredPaneFamily,
+	AgentPanelPhase1ParityStateId,
+	AgentPanelParityStateDefinition,
+} from "./parity-fixtures.js";
+export { default as AgentPanelShell } from "./agent-panel-shell.svelte";
+export { default as AgentPanelStatePanel } from "./agent-panel-state-panel.svelte";
 export type { AgentGridItem } from "./agent-selection-grid-types.js";
 export type {
 	AgentPanelActionCallbacks,
 	AgentPanelActionDescriptor,
 	AgentPanelActionId,
 	AgentPanelActionState,
+	AgentPanelActionDescriptor as AgentPanelSharedActionDescriptor,
 	AgentPanelAttachedFilePaneModel,
 	AgentPanelAttachedFileTab,
 	AgentPanelBadge,
@@ -48,15 +76,29 @@ export type {
 	AgentPanelConversationEntry as AgentPanelSceneEntryModel,
 	AgentPanelConversationModel,
 	AgentPanelHeaderModel,
+	AgentPanelFileReviewStatus,
 	AgentPanelMetaItem,
+	AgentPanelModifiedFileItem,
+	AgentPanelModifiedFilesReviewOption,
+	AgentPanelModifiedFilesTrailingModel,
 	AgentPanelPlanSidebarItem,
 	AgentPanelPlanSidebarModel,
 	AgentPanelSceneModel,
+	AgentPanelSessionStatus,
 	AgentPanelSessionStatus as AgentPanelSceneStatus,
 	AgentPanelSidebarModel,
 	AgentPanelStripKind,
 	AgentPanelStripModel,
-} from "@acepe/agent-panel-contract";
+	AgentPanelComposerCopy,
+	AgentPanelFooterModel,
+	AgentPanelTerminalTab,
+	AgentPanelTerminalModel,
+	AgentPanelReviewFileTab,
+	AgentPanelReviewModel,
+	AgentPanelPrCardModel,
+	AgentPanelPrCommitItem,
+	AgentPanelQueuedMessage,
+} from "./types.js";
 
 export type {
 	AgentSessionStatus,
@@ -74,3 +116,4 @@ export type {
 	AgentQuestionOption,
 	AgentQuestion,
 } from "./types.js";
+export { AGENT_PANEL_ACTION_IDS } from "./types.js";

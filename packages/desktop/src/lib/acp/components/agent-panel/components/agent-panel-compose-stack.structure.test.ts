@@ -11,10 +11,7 @@ const prStatusCardSource = readFileSync(
 	resolve(__dirname, "../../pr-status-card/pr-status-card.svelte"),
 	"utf8"
 );
-const queueCardStripSource = readFileSync(
-	resolve(__dirname, "../../queue-card-strip.svelte"),
-	"utf8"
-);
+// TodoHeader still exists for kanban-view; the agent panel now renders SharedTodoHeader directly
 const todoHeaderSource = readFileSync(resolve(__dirname, "../../todo-header.svelte"), "utf8");
 const worktreeSetupCardSource = readFileSync(
 	resolve(__dirname, "./worktree-setup-card.svelte"),
@@ -34,7 +31,6 @@ describe("agent panel compose stack", () => {
 	it("keeps the above-composer cards edge-to-edge inside that shared rail", () => {
 		expect(modifiedFilesHeaderSource).not.toContain('<div class="w-full px-5">');
 		expect(prStatusCardSource).not.toContain('<div class="w-full px-5">');
-		expect(queueCardStripSource).not.toContain('<div class="w-full px-5">');
 		expect(todoHeaderSource).not.toContain("{compact ? '' : 'px-5'}");
 		expect(worktreeSetupCardSource).not.toContain('<div class="w-full px-5">');
 		expect(agentErrorCardSource).not.toContain('<div class="w-full px-5">');

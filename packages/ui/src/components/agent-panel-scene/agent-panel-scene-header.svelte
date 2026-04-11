@@ -1,9 +1,10 @@
 <script lang="ts">
+	import type { Snippet } from "svelte";
 	import type {
 		AgentPanelActionCallbacks,
 		AgentPanelActionDescriptor,
 		AgentPanelHeaderModel,
-	} from "@acepe/agent-panel-contract";
+	} from "../agent-panel/types.js";
 
 	import { Button } from "../button/index.js";
 	import AgentPanelHeader from "../agent-panel/agent-panel-header.svelte";
@@ -13,9 +14,10 @@
 		header: AgentPanelHeaderModel;
 		actionCallbacks?: AgentPanelActionCallbacks;
 		isFullscreen?: boolean;
+		controls?: Snippet;
 	}
 
-	let { header, actionCallbacks = {}, isFullscreen = false }: Props = $props();
+	let { header, actionCallbacks = {}, isFullscreen = false, controls }: Props = $props();
 
 	const visibleActions = $derived((header.actions ?? []).filter((action) => action.state !== "hidden"));
 
@@ -40,6 +42,7 @@
 		isFullscreen={isFullscreen}
 		projectName={header.projectLabel ?? undefined}
 		projectColor={header.projectColor ?? undefined}
+		{controls}
 	>
 		{#snippet statusIndicator()}
 			<AgentPanelStatusIcon status={header.status} />

@@ -1,6 +1,9 @@
 <script lang="ts">
-	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "@acepe/agent-panel-contract";
+	import type { Snippet } from "svelte";
+	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "../agent-panel/types.js";
 
+	import AgentPanel from "../agent-panel/agent-panel.svelte";
+	import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 	import AgentPanelSceneComposer from "./agent-panel-scene-composer.svelte";
 	import AgentPanelSceneConversation from "./agent-panel-scene-conversation.svelte";
 	import AgentPanelSceneHeader from "./agent-panel-scene-header.svelte";
@@ -13,7 +16,18 @@
 		actionCallbacks?: AgentPanelActionCallbacks;
 		onComposerDraftTextChange?: (value: string) => void;
 		iconBasePath?: string;
-		isFullscreen?: boolean;
+		widthStyle?: string;
+		centerColumnStyle?: string;
+		headerControls?: Snippet;
+		topBarOverride?: Snippet;
+		conversationBody?: Snippet;
+		preComposerOverride?: Snippet;
+		composerOverride?: Snippet;
+		footerOverride?: Snippet;
+		bottomDrawer?: Snippet;
+		reviewPaneBody?: Snippet;
+		leadingPane?: Snippet;
+		trailingPaneOverride?: Snippet;
 	}
 
 	let {
@@ -21,41 +35,131 @@
 		actionCallbacks = {},
 		onComposerDraftTextChange,
 		iconBasePath = "",
-		isFullscreen = false,
+		widthStyle = "",
+		centerColumnStyle = "",
+		headerControls,
+		topBarOverride,
+		conversationBody,
+		preComposerOverride,
+		composerOverride,
+		footerOverride,
+		bottomDrawer,
+		reviewPaneBody,
+		leadingPane,
+		trailingPaneOverride,
 	}: Props = $props();
 
+	const isFullscreen = $derived(scene.chrome?.isFullscreen ?? false);
 	const strips = $derived(scene.strips ?? []);
 	const cards = $derived(scene.cards ?? []);
 	const sidebars = $derived(scene.sidebars ?? null);
+	const footer = $derived(scene.footer ?? null);
+	const planStrips = $derived(strips.filter((s) => s.kind === "plan_header"));
+	const nonPlanStrips = $derived(strips.filter((s) => s.kind !== "plan_header"));
+	const hasPreComposerContent = $derived(nonPlanStrips.length > 0 || cards.length > 0);
 </script>
 
-<div class="flex h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-accent/20">
-	<div class="flex min-w-0 flex-1 flex-col">
-		<AgentPanelSceneHeader header={scene.header} {actionCallbacks} {isFullscreen} />
+<AgentPanel {widthStyle} {centerColumnStyle} isFullscreen={isFullscreen}>
+	{#snippet header()}
+		<AgentPanelSceneHeader header={scene.header} {actionCallbacks} {isFullscreen} controls={headerControls} />
+	{/snippet}
 
-		{#if cards.length > 0 || strips.length > 0}
-			<div class="shrink-0 space-y-2 border-b border-border/50 px-3 py-3">
-				{#each strips as strip (strip.id)}
+	{#if leadingPane}
+		{#snippet leadingPane()}
+			{@render leadingPane()}
+		{/snippet}
+	{/if}
+
+	{#if reviewPaneBody}
+		{#snippet reviewPane()}
+			{@render reviewPaneBody()}
+		{/snippet}
+	{/if}
+
+	{#if topBarOverride || planStrips.length > 0}
+		{#snippet topBar()}
+			{#if topBarOverride}
+				{@render topBarOverride()}
+			{:else}
+				{#each planStrips as strip (strip.id)}
 					<AgentPanelSceneStatusStrip {strip} {actionCallbacks} />
 				{/each}
-				{#each cards as card (card.id)}
-					<AgentPanelSceneReviewCard {card} {actionCallbacks} />
-				{/each}
-			</div>
+			{/if}
+		{/snippet}
+	{/if}
+
+	{#snippet body()}
+		{#if conversationBody}
+			{@render conversationBody()}
+		{:else}
+			<AgentPanelSceneConversation conversation={scene.conversation} {iconBasePath} />
 		{/if}
+	{/snippet}
 
-		<AgentPanelSceneConversation conversation={scene.conversation} {iconBasePath} />
+	{#if preComposerOverride || hasPreComposerContent}
+		{#snippet preComposer()}
+			{#if preComposerOverride}
+				{@render preComposerOverride()}
+			{:else}
+				<div class="shrink-0 space-y-2 px-3 py-2">
+					{#each nonPlanStrips as strip (strip.id)}
+						<AgentPanelSceneStatusStrip {strip} {actionCallbacks} />
+					{/each}
+					{#each cards as card (card.id)}
+						<AgentPanelSceneReviewCard {card} {actionCallbacks} />
+					{/each}
+				</div>
+			{/if}
+		{/snippet}
+	{/if}
 
-		{#if scene.composer}
+	{#snippet composer()}
+		{#if composerOverride}
+			{@render composerOverride()}
+		{:else if scene.composer}
 			<AgentPanelSceneComposer
 				composer={scene.composer}
 				{actionCallbacks}
 				onDraftTextChange={onComposerDraftTextChange}
 			/>
 		{/if}
-	</div>
+	{/snippet}
 
-	{#if sidebars}
-		<AgentPanelSceneSidebar sidebars={sidebars} {actionCallbacks} />
+	{#snippet footer()}
+		{#if footerOverride}
+			{@render footerOverride()}
+		{:else if footer}
+			<AgentPanelFooter
+				browserActive={footer.browserActive}
+				showBrowserToggle={footer.showBrowserToggle}
+				terminalActive={footer.terminalActive}
+				terminalDisabled={footer.terminalDisabled}
+				showTerminalToggle={footer.showTerminalToggle}
+				onToggleBrowser={actionCallbacks["browser.openSidebar"]}
+				onToggleTerminal={undefined}
+			>
+				{#if footer.branchLabel}
+					{#snippet left()}
+						<div class="px-2 text-[10px] font-mono text-muted-foreground">{footer.branchLabel}</div>
+					{/snippet}
+				{/if}
+			</AgentPanelFooter>
+		{/if}
+	{/snippet}
+
+	{#if bottomDrawer}
+		{#snippet bottomDrawer()}
+			{@render bottomDrawer()}
+		{/snippet}
 	{/if}
-</div>
+
+	{#if trailingPaneOverride || sidebars}
+		{#snippet trailingPane()}
+			{#if trailingPaneOverride}
+				{@render trailingPaneOverride()}
+			{:else if sidebars}
+				<AgentPanelSceneSidebar {sidebars} {actionCallbacks} />
+			{/if}
+		{/snippet}
+	{/if}
+</AgentPanel>

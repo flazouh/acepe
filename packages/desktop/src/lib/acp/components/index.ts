@@ -12,7 +12,6 @@ export { default as ModeSelector } from "./mode-selector.svelte";
 export { default as ModelSelector } from "./model-selector.svelte";
 export { default as PanelTabs } from "./panel-tabs.svelte";
 export { default as PlanDialog } from "./plan-dialog.svelte";
-export { default as PlanHeader } from "./plan-header.svelte";
 export { PlanSidebar } from "./plan-sidebar/index.js";
 export { default as PlanView } from "./plan-view.svelte";
 export { default as ProjectHeader } from "./project-header.svelte";

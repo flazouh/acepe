@@ -1,4 +1,5 @@
 <script lang="ts">
+import { AgentPanel } from "@acepe/ui/agent-panel";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import { listen } from "@tauri-apps/api/event";
@@ -40,11 +41,15 @@ import ModifiedFilesHeader, {
 } from "../../modified-files/modified-files-header.svelte";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
+import { AgentPanelPlanHeader as SharedPlanHeader } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
-import PlanHeader from "../../plan-header.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
-import QueueCardStrip from "../../queue-card-strip.svelte";
-import TodoHeader from "../../todo-header.svelte";
+import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agent-panel";
+import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
+import { AgentPanelTodoHeader as SharedTodoHeader } from "@acepe/ui/agent-panel";
+import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
+import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js";
+import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "../../worktree-toggle/worktree-storage.js";
@@ -136,6 +141,7 @@ const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const connectionStore = getConnectionStore();
 const agentStore = getAgentStore();
+const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 
@@ -1500,21 +1506,76 @@ function handleCheckpointRevertComplete() {
 		checkpointStore.loadCheckpoints(sessionId);
 	}
 }
+
+const todoManager = getTodoStateManager();
+const todoState = $derived.by(() => {
+	if (!sessionId) return null;
+	const threadData: ThreadWithEntries = {
+		entries: sessionEntries,
+		isConnected: sessionHotState?.isConnected ?? false,
+		status: sessionStatus ?? "idle",
+		isStreaming: sessionIsStreaming,
+	};
+	const result = todoManager.getTodoState(sessionId, threadData);
+	return result.isOk() ? result.value : null;
+});
+const showTodoHeader = $derived(todoState !== null && todoState.totalCount > 0);
+
+function getTodoMarkdown(): string {
+	if (!todoState) return "";
+	const header = "| # | Task | Status | Duration |";
+	const separator = "|---|------|--------|----------|";
+	const rows = todoState.items.map((todo, index) => {
+		const num = index + 1;
+		const statusLabel =
+			todo.status === "completed" ? "Done"
+				: todo.status === "in_progress" ? "Running"
+				: todo.status === "cancelled" ? "Cancelled"
+				: "Pending";
+		const durationMs = todo.duration;
+		let duration = "";
+		if (durationMs !== null && durationMs !== undefined) {
+			const seconds = Math.floor(durationMs / 1000);
+			if (seconds < 60) duration = `${seconds}s`;
+			else {
+				const minutes = Math.floor(seconds / 60);
+				const remainingSeconds = seconds % 60;
+				if (minutes < 60) duration = `${minutes}m ${remainingSeconds}s`;
+				else {
+					const hours = Math.floor(minutes / 60);
+					const remainingMinutes = minutes % 60;
+					duration = `${hours}h ${remainingMinutes}m`;
+				}
+			}
+		}
+		return `| ${num} | ${todo.content} | ${statusLabel} | ${duration} |`;
+	});
+	return [header, separator, ...rows].join("\n");
+}
+
+const queueVersion = $derived.by(() => {
+	if (!sessionId) return 0;
+	const version = messageQueueStore.versions.get(sessionId);
+	return version !== undefined ? version : 0;
+});
+const queueMessages = $derived.by(() => {
+	if (!sessionId) return [];
+	queueVersion;
+	return messageQueueStore.getQueue(sessionId);
+});
+const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessionId) : false);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-	class="flex h-full shrink-0 grow-0 min-h-0 bg-card rounded-lg overflow-hidden relative border border-border {isFullscreen
-		? ''
-		: 'border-r-0'} {panelState.isDraggingEdge ? 'select-none' : ''}"
-	style={widthStyle}
+<AgentPanel
+	widthStyle={widthStyle}
+	centerColumnStyle={agentContentColumnStyle}
+	{isFullscreen}
+	isDraggingEdge={panelState.isDraggingEdge}
 	ondragstart={panelState.handleDragStart.bind(panelState)}
 	onclick={handlePanelClick}
 	onkeydown={handlePanelKeyDown}
 >
-	<!-- Main Panel Content -->
-	<div class="flex flex-col flex-1 min-w-0 min-h-0">
-		<!-- Header includes fullscreen toggle, so it must remain visible in fullscreen mode -->
+	{#snippet header()}
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
@@ -1555,349 +1616,400 @@ function handleCheckpointRevertComplete() {
 			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
 			onExportJson={sessionId ? handleExportJson : undefined}
 		/>
+	{/snippet}
 
-		<!-- Content Row -->
-		<div class="flex flex-row flex-1 min-h-0 min-w-0 gap-0 overflow-hidden">
-			{#if panelId && attachedFilePanels.length > 0}
-				<AgentAttachedFilePane
-					ownerPanelId={panelId}
-					filePanels={attachedFilePanels}
-					activeFilePanelId={activeAttachedFilePanelId}
-					projects={allProjects}
-					columnWidth={ATTACHED_COLUMN_WIDTH}
-					isFullscreenEmbedded={isFullscreen}
-					onSelectFilePanel={(ownerPanelId, filePanelId) =>
-						onSelectAttachedFilePanel?.(ownerPanelId, filePanelId)}
-					onCloseFilePanel={(filePanelId) => onCloseAttachedFilePanel?.(filePanelId)}
-					onResizeFilePanel={(filePanelId, delta) =>
-						onResizeAttachedFilePanel?.(filePanelId, delta)}
-				/>
-			{/if}
+	{#snippet leadingPane()}
+		{#if panelId && attachedFilePanels.length > 0}
+			<AgentAttachedFilePane
+				ownerPanelId={panelId}
+				filePanels={attachedFilePanels}
+				activeFilePanelId={activeAttachedFilePanelId}
+				projects={allProjects}
+				columnWidth={ATTACHED_COLUMN_WIDTH}
+				isFullscreenEmbedded={isFullscreen}
+				onSelectFilePanel={(ownerPanelId, filePanelId) =>
+					onSelectAttachedFilePanel?.(ownerPanelId, filePanelId)}
+				onCloseFilePanel={(filePanelId) => onCloseAttachedFilePanel?.(filePanelId)}
+				onResizeFilePanel={(filePanelId, delta) =>
+					onResizeAttachedFilePanel?.(filePanelId, delta)}
+			/>
+		{/if}
+	{/snippet}
 
-			<!-- Review Pane (embedded, left of conversation) -->
-			{#if reviewFilesState}
-				<div
-					class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
-					style="min-width: {REVIEW_COLUMN_WIDTH}px; width: {REVIEW_COLUMN_WIDTH}px; max-width: {REVIEW_COLUMN_WIDTH}px; flex-basis: {REVIEW_COLUMN_WIDTH}px;"
-					style:display={reviewMode ? undefined : "none"}
-				>
-					<AgentPanelReviewContent
-						modifiedFilesState={reviewFilesState}
-						selectedFileIndex={reviewFileIndex}
-						{sessionId}
-						projectPath={sessionProjectPath}
-						isActive={reviewMode}
-						onClose={() => onExitReviewMode?.()}
-						onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
-						onExpandToFullscreen={sessionId && onOpenFullscreenReview
-							? () => onOpenFullscreenReview(sessionId, reviewFileIndex)
-							: undefined}
-					/>
-				</div>
-			{/if}
-
+	{#snippet reviewPane()}
+		{#if reviewFilesState}
 			<div
-				class="flex h-full flex-col min-h-0 min-w-0 overflow-hidden flex-1"
-				style={agentContentColumnStyle}
+				class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
+				style="min-width: {REVIEW_COLUMN_WIDTH}px; width: {REVIEW_COLUMN_WIDTH}px; max-width: {REVIEW_COLUMN_WIDTH}px; flex-basis: {REVIEW_COLUMN_WIDTH}px;"
+				style:display={reviewMode ? undefined : "none"}
 			>
-				<!-- Plan Header (single-line bar that toggles sidebar — hidden when sidebar is open) -->
-				{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
-					<PlanHeader
-						plan={planState.plan}
-						isExpanded={showPlanSidebar}
-						onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
-					/>
-				{/if}
-
-				<!-- Plan Dialog (for fullscreen viewing) -->
-				{#if planState.plan}
-					<PlanDialog
-						plan={planState.plan}
-						open={panelState.showPlanDialog}
-						onOpenChange={(open) => (panelState.showPlanDialog = open)}
-						projectPath={sessionProjectPath ?? undefined}
-					/>
-				{/if}
-
-				<!-- Content Area -->
-				<div class="relative flex-1 min-h-0 overflow-hidden flex flex-col">
-					{#if showCheckpointTimeline && sessionProjectPath && sessionId}
-						<!-- Checkpoint Timeline (full panel view) -->
-						<CheckpointTimeline
-							{sessionId}
-							projectPath={sessionProjectPath}
-							{checkpoints}
-							isLoading={isLoadingCheckpoints}
-							onClose={handleCloseCheckpointTimeline}
-							onRevertComplete={handleCheckpointRevertComplete}
-						/>
-					{:else}
-						<!-- Normal conversation content -->
-						<div class="flex-1 min-h-0 mb-2">
-							<AgentPanelContent
-								bind:this={contentRef}
-								panelId={effectivePanelId}
-								{viewState}
-								{sessionId}
-								{sessionEntries}
-								sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
-								{allProjects}
-								bind:scrollContainer
-								bind:scrollViewport={contentScrollViewport}
-								bind:isAtBottom={contentIsAtBottom}
-								bind:isAtTop={contentIsAtTop}
-								bind:isStreaming={contentIsStreaming}
-								onProjectAgentSelected={handleProjectAgentSelected}
-								onRetryConnection={handleRetryConnection}
-								onCancelConnection={handleCancelConnection}
-								{agentIconSrc}
-								isFullscreen={centeredFullscreenContent}
-								{availableAgents}
-								{effectiveTheme}
-								{modifiedFilesState}
-							/>
-						</div>
-						{#if viewState.kind === "conversation" && !contentIsAtTop}
-							<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-								<button
-									class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
-									onclick={scrollToTop}
-									aria-label={m.agent_panel_scroll_top()}
-								>
-									<ArrowUp class="h-4 w-4" />
-								</button>
-							</div>
-						{/if}
-						{#if viewState.kind === "conversation" && !contentIsAtBottom}
-							<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-								<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
-							</div>
-						{/if}
-					{/if}
-				</div>
-
-				<!-- Input Area - show for conversation, ready, or error (inline error card replaces full-panel takeover) -->
-				{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-					{#if worktreeDeleted}
-						<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
-							<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
-								<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-									<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
-									<span class="text-[0.6875rem] text-muted-foreground">
-										{m.worktree_deleted_banner()}
-									</span>
-								</div>
-							</div>
-						</div>
-					{/if}
-						<div class="flex shrink-0 flex-col gap-0.5">
-							<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
-								<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-									<div class="flex flex-col gap-0.5 px-5">
-										{#if showInlineErrorCard}
-											<AgentErrorCard
-												title="Connection error"
-												summary={errorInfo.details?.split("\n")[0]?.slice(0, 80) ?? "Failed to connect to agent"}
-												details={errorInfo.details ?? "Unknown error"}
-												onRetry={handleRetryConnection}
-												onDismiss={handleDismissError}
-												onCreateIssue={handleCreateIssueFromError}
-											/>
-										{/if}
-										{#if worktreeSetupState?.isVisible}
-											<WorktreeSetupCard state={worktreeSetupState} />
-										{/if}
-										{#if agentInstallState}
-											<AgentInstallCard
-												agentId={agentInstallState.agentId}
-												agentName={agentInstallState.agentName}
-												stage={agentInstallState.stage}
-												progress={agentInstallState.progress}
-											/>
-										{/if}
-										{#if sessionId}
-											<PermissionBar
-												sessionId={sessionId}
-												projectPath={effectiveProjectPath ?? sessionProjectPath}
-											/>
-										{/if}
-										{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
-											{#key prCardRenderKey}
-												<PrStatusCard
-													projectPath={effectivePathForGit}
-													prNumber={createdPr}
-													isCreating={createPrRunning}
-													prDetails={prDetails}
-													fetchError={prFetchError}
-													streamingData={streamingShipData}
-												/>
-											{/key}
-										{/if}
-										{#if modifiedFilesState}
-											<ModifiedFilesHeader
-												{modifiedFilesState}
-												{sessionId}
-												{onEnterReviewMode}
-												onOpenFullscreenReview={onOpenFullscreenReview && sessionId
-													? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
-													: undefined}
-												onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
-												createPrLoading={createPrRunning}
-												{createPrLabel}
-												onMerge={createdPr && prDetails && prDetails.state !== "MERGED"
-													? (strategy) => void handleMergePr(strategy)
-													: undefined}
-												merging={mergePrRunning}
-												prState={prDetails ? prDetails.state : null}
-												{availableAgents}
-												currentAgentId={sessionAgentId ? sessionAgentId : selectedAgentId}
-												currentModelId={sessionCurrentModelId}
-												{effectiveTheme}
-											/>
-										{/if}
-										<TodoHeader
-											{sessionId}
-											entries={sessionEntries}
-											isConnected={sessionHotState?.isConnected ?? false}
-											status={sessionStatus ?? "idle"}
-											isStreaming={sessionIsStreaming}
-										/>
-										{#if sessionId}
-											<QueueCardStrip {sessionId} />
-										{/if}
-									</div>
-								</div>
-							</div>
-							<div
-								class="shrink-0 px-2 pb-2 {centeredFullscreenContent ? 'flex justify-center' : ''}"
-								data-input-area
-							>
-								<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-									{#key inputRenderKey}
-										<AgentInput
-											sessionId={sessionId ?? undefined}
-											{sessionStatus}
-											sessionIsConnected={sessionHotState?.isConnected ?? false}
-											{sessionIsStreaming}
-											{sessionCanSubmit}
-											{sessionShowStop}
-											disableSend={disableSendForFailedFirstSend}
-											{panelId}
-											voiceSessionId={panelId}
-											projectPath={worktreeToggleProjectPath ?? undefined}
-											projectName={effectiveProjectName ?? undefined}
-											worktreePath={effectiveActiveWorktreePath ?? undefined}
-											{worktreePending}
-											onWorktreeCreating={() => {
-												worktreeSetupState = createWorktreeCreationState({
-													projectPath:
-														worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
-												});
-											}}
-											onWorktreeCreated={(path) => {
-												activeWorktreePath = path;
-												activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
-											}}
-											{selectedAgentId}
-											{availableAgents}
-											{onAgentChange}
-											pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
-											onSessionCreated={handleSessionCreated}
-											onWillSend={prepareForNextUserReveal}
-											onToolbarWidthChange={(w) => {
-												toolbarMinWidth = w;
-											}}
-										>
-											{#snippet checkpointButton()}
-												{#if sessionProjectPath && checkpoints.length > 0}
-													<EmbeddedIconButton
-														active={showCheckpointTimeline}
-														title={m.checkpoint_toggle_tooltip()}
-														ariaLabel={m.checkpoint_toggle_tooltip()}
-														onclick={handleToggleCheckpointTimeline}
-													>
-														<Clock class="h-3.5 w-3.5" weight="fill" />
-													</EmbeddedIconButton>
-												{/if}
-											{/snippet}
-										</AgentInput>
-									{/key}
-								</div>
-							</div>
-						</div>
-					<!-- Footer bar: worktree picker (left) + terminal toggle (right) -->
-					{#if worktreeToggleProjectPath && panelId}
-						<AgentPanelFooter
-							{panelId}
-							projectPath={worktreeToggleProjectPath}
-							activeWorktreePath={effectiveActiveWorktreePath}
-							effectiveCwd={effectivePathForGit}
-							{globalWorktreeDefault}
-							{worktreeDeleted}
-							{hasEdits}
-							{hasMessages}
-							{isTerminalDrawerOpen}
-							isBrowserSidebarOpen={showBrowserSidebar}
-							onToggleBrowser={() => {
-								if (panelId) {
-									panelStore.toggleBrowserSidebar(panelId);
-								}
-							}}
-							onToggleTerminal={() => {
-								if (panelId && effectivePathForGit) {
-									panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-								}
-							}}
-							onWorktreeCreated={handleWorktreeCreated}
-							onWorktreeRenamed={handleWorktreeRenamed}
-							onPendingChange={(pending) => { worktreePending = pending; }}
-						/>
-					{/if}
-
-					<!-- Embedded terminal drawer (below footer) -->
-					{#if isTerminalDrawerOpen && panelId && effectivePathForGit}
-						<AgentPanelTerminalDrawer
-							{panelId}
-							effectiveCwd={effectivePathForGit}
-							embeddedTerminals={panelStore.embeddedTerminals}
-							onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
-						/>
-					{/if}
-				{/if}
-			</div>
-
-			<!-- Plan Sidebar (embedded, right side of content row) -->
-			{#if hasPlan && planState.plan && showPlanSidebar && panelId}
-				<PlanSidebar
-					plan={planState.plan}
-					projectPath={sessionProjectPath ?? undefined}
-					sessionId={sessionId ?? undefined}
-					columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
-					onOpenFullscreen={() => panelState.openPlanDialog()}
-					onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
+				<AgentPanelReviewContent
+					modifiedFilesState={reviewFilesState}
+					selectedFileIndex={reviewFileIndex}
+					{sessionId}
+					projectPath={sessionProjectPath}
+					isActive={reviewMode}
+					onClose={() => onExitReviewMode?.()}
+					onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
+					onExpandToFullscreen={sessionId && onOpenFullscreenReview
+						? () => onOpenFullscreenReview(sessionId, reviewFileIndex)
+						: undefined}
 				/>
-			{/if}
+			</div>
+		{/if}
+	{/snippet}
 
-			<!-- Browser Sidebar (embedded, right side of content row) -->
-			{#if showBrowserSidebar && panelId}
-				<div
-					class="flex flex-col h-full border-l border-border/50 shrink-0"
-					style="min-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; max-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px;"
-				>
-					<BrowserPanelComponent
-						panelId="embedded-browser-{panelId}"
-						url={browserSidebarUrl ?? "https://www.google.com"}
-						title="Browser"
-						width={BROWSER_SIDEBAR_COLUMN_WIDTH}
-						isFillContainer={true}
-						onClose={() => panelStore.setBrowserSidebarExpanded(panelId, false)}
-						onResize={() => {}}
-					/>
+	{#snippet topBar()}
+		{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
+			<SharedPlanHeader
+				title={planState.plan.title}
+				isExpanded={showPlanSidebar}
+				expandLabel={m.plan_sidebar_expand()}
+				collapseLabel={m.plan_sidebar_collapse()}
+				onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
+			/>
+		{/if}
+
+		{#if planState.plan}
+			<PlanDialog
+				plan={planState.plan}
+				open={panelState.showPlanDialog}
+				onOpenChange={(open) => (panelState.showPlanDialog = open)}
+				projectPath={sessionProjectPath ?? undefined}
+			/>
+		{/if}
+	{/snippet}
+
+	{#snippet body()}
+		{#if showCheckpointTimeline && sessionProjectPath && sessionId}
+			<CheckpointTimeline
+				{sessionId}
+				projectPath={sessionProjectPath}
+				{checkpoints}
+				isLoading={isLoadingCheckpoints}
+				onClose={handleCloseCheckpointTimeline}
+				onRevertComplete={handleCheckpointRevertComplete}
+			/>
+		{:else}
+			<div class="flex-1 min-h-0 mb-2">
+				<AgentPanelContent
+					bind:this={contentRef}
+					panelId={effectivePanelId}
+					{viewState}
+					{sessionId}
+					{sessionEntries}
+					sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
+					{allProjects}
+					bind:scrollContainer
+					bind:scrollViewport={contentScrollViewport}
+					bind:isAtBottom={contentIsAtBottom}
+					bind:isAtTop={contentIsAtTop}
+					bind:isStreaming={contentIsStreaming}
+					onProjectAgentSelected={handleProjectAgentSelected}
+					onRetryConnection={handleRetryConnection}
+					onCancelConnection={handleCancelConnection}
+					{agentIconSrc}
+					isFullscreen={centeredFullscreenContent}
+					{availableAgents}
+					{effectiveTheme}
+					{modifiedFilesState}
+				/>
+			</div>
+			{#if viewState.kind === "conversation" && !contentIsAtTop}
+				<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+					<button
+						class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
+						onclick={scrollToTop}
+						aria-label={m.agent_panel_scroll_top()}
+					>
+						<ArrowUp class="h-4 w-4" />
+					</button>
 				</div>
 			{/if}
-		</div>
+			{#if viewState.kind === "conversation" && !contentIsAtBottom}
+				<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+					<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
+				</div>
+			{/if}
+		{/if}
+	{/snippet}
 
-		<!-- Resize Edge -->
+	{#snippet preComposer()}
+		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+			{#if worktreeDeleted}
+				<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
+					<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
+						<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
+							<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+							<span class="text-[0.6875rem] text-muted-foreground">
+								{m.worktree_deleted_banner()}
+							</span>
+						</div>
+					</div>
+				</div>
+			{/if}
+			<div class="flex shrink-0 flex-col gap-0.5">
+				<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
+					<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
+						<div class="flex flex-col gap-0.5 px-5">
+							{#if showInlineErrorCard}
+								<AgentErrorCard
+									title="Connection error"
+									summary={errorInfo.details?.split("\n")[0]?.slice(0, 80) ?? "Failed to connect to agent"}
+									details={errorInfo.details ?? "Unknown error"}
+									onRetry={handleRetryConnection}
+									onDismiss={handleDismissError}
+									onCreateIssue={handleCreateIssueFromError}
+								/>
+							{/if}
+							{#if worktreeSetupState?.isVisible}
+								<WorktreeSetupCard state={worktreeSetupState} />
+							{/if}
+							{#if agentInstallState}
+								<AgentInstallCard
+									agentId={agentInstallState.agentId}
+									agentName={agentInstallState.agentName}
+									stage={agentInstallState.stage}
+									progress={agentInstallState.progress}
+								/>
+							{/if}
+							{#if sessionId}
+								<PermissionBar
+									sessionId={sessionId}
+									projectPath={effectiveProjectPath ?? sessionProjectPath}
+								/>
+							{/if}
+							{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
+								{#key prCardRenderKey}
+									<PrStatusCard
+										projectPath={effectivePathForGit}
+										prNumber={createdPr}
+										isCreating={createPrRunning}
+										prDetails={prDetails}
+										fetchError={prFetchError}
+										streamingData={streamingShipData}
+									/>
+								{/key}
+							{/if}
+							{#if modifiedFilesState}
+								<ModifiedFilesHeader
+									{modifiedFilesState}
+									{sessionId}
+									{onEnterReviewMode}
+									onOpenFullscreenReview={onOpenFullscreenReview && sessionId
+										? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
+										: undefined}
+									onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
+									createPrLoading={createPrRunning}
+									{createPrLabel}
+									onMerge={createdPr && prDetails && prDetails.state !== "MERGED"
+										? (strategy) => void handleMergePr(strategy)
+										: undefined}
+									merging={mergePrRunning}
+									prState={prDetails ? prDetails.state : null}
+									{availableAgents}
+									currentAgentId={sessionAgentId ? sessionAgentId : selectedAgentId}
+									currentModelId={sessionCurrentModelId}
+									{effectiveTheme}
+								/>
+							{/if}
+							{#if showTodoHeader && todoState}
+								<SharedTodoHeader
+									items={todoState.items}
+									currentTask={todoState.currentTask}
+									completedCount={todoState.completedCount}
+									totalCount={todoState.totalCount}
+									isLive={todoState.isLive}
+									allCompletedLabel={m.todo_all_completed()}
+									pausedLabel={m.todo_tasks_paused()}
+								>
+									{#snippet copyButton()}
+										<CopyButton getText={getTodoMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
+									{/snippet}
+								</SharedTodoHeader>
+							{/if}
+							{#if sessionId && queueMessages.length > 0}
+								<SharedQueueCardStrip
+									messages={queueMessages.map((msg) => ({
+										id: msg.id,
+										content: msg.content,
+										attachmentCount: msg.attachments.length,
+									}))}
+									isPaused={queueIsPaused}
+									queueLabel={m.agent_input_queued_messages()}
+									pausedLabel={m.agent_input_queue_paused()}
+									resumeLabel={m.agent_input_queue_resume()}
+									clearLabel={m.agent_input_queue_clear()}
+									editLabel={m.common_edit()}
+									deleteLabel={m.common_delete()}
+									sendLabel={m.agent_input_send_message()}
+									saveLabel={m.common_save()}
+									cancelLabel={m.common_cancel()}
+									onSaveEdit={(messageId, content) => {
+										if (sessionId) messageQueueStore.updateMessage(sessionId, messageId, content);
+									}}
+									onRemove={(messageId) => {
+										if (sessionId) messageQueueStore.removeMessage(sessionId, messageId);
+									}}
+									onClear={() => { if (sessionId) messageQueueStore.clearQueue(sessionId); }}
+									onResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
+									onSendNow={(messageId) => {
+										if (sessionId) messageQueueStore.sendNow(sessionId, messageId);
+									}}
+								/>
+							{/if}
+						</div>
+					</div>
+				</div>
+			</div>
+		{/if}
+	{/snippet}
+
+	{#snippet composer()}
+		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+			<div
+				class="shrink-0 px-2 pb-2 {centeredFullscreenContent ? 'flex justify-center' : ''}"
+				data-input-area
+			>
+				<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
+					{#key inputRenderKey}
+						<AgentInput
+							sessionId={sessionId ?? undefined}
+							{sessionStatus}
+							sessionIsConnected={sessionHotState?.isConnected ?? false}
+							{sessionIsStreaming}
+							{sessionCanSubmit}
+							{sessionShowStop}
+							disableSend={disableSendForFailedFirstSend}
+							{panelId}
+							voiceSessionId={panelId}
+							projectPath={worktreeToggleProjectPath ?? undefined}
+							projectName={effectiveProjectName ?? undefined}
+							worktreePath={effectiveActiveWorktreePath ?? undefined}
+							{worktreePending}
+							onWorktreeCreating={() => {
+								worktreeSetupState = createWorktreeCreationState({
+									projectPath:
+										worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
+								});
+							}}
+							onWorktreeCreated={(path) => {
+								activeWorktreePath = path;
+								activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
+							}}
+							{selectedAgentId}
+							{availableAgents}
+							{onAgentChange}
+							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
+							onSessionCreated={handleSessionCreated}
+							onWillSend={prepareForNextUserReveal}
+							onToolbarWidthChange={(w) => {
+								toolbarMinWidth = w;
+							}}
+						>
+							{#snippet checkpointButton()}
+								{#if sessionProjectPath && checkpoints.length > 0}
+									<EmbeddedIconButton
+										active={showCheckpointTimeline}
+										title={m.checkpoint_toggle_tooltip()}
+										ariaLabel={m.checkpoint_toggle_tooltip()}
+										onclick={handleToggleCheckpointTimeline}
+									>
+										<Clock class="h-3.5 w-3.5" weight="fill" />
+									</EmbeddedIconButton>
+								{/if}
+							{/snippet}
+						</AgentInput>
+					{/key}
+				</div>
+			</div>
+		{/if}
+	{/snippet}
+
+	{#snippet footer()}
+		{#if
+			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+			worktreeToggleProjectPath &&
+			panelId
+		}
+			<AgentPanelFooter
+				{panelId}
+				projectPath={worktreeToggleProjectPath}
+				activeWorktreePath={effectiveActiveWorktreePath}
+				effectiveCwd={effectivePathForGit}
+				{isFullscreen}
+				{globalWorktreeDefault}
+				{worktreeDeleted}
+				{hasEdits}
+				{hasMessages}
+				{isTerminalDrawerOpen}
+				isBrowserSidebarOpen={showBrowserSidebar}
+				onToggleBrowser={() => {
+					if (panelId) {
+						panelStore.toggleBrowserSidebar(panelId);
+					}
+				}}
+				onToggleTerminal={() => {
+					if (panelId && effectivePathForGit) {
+						panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+					}
+				}}
+				onWorktreeCreated={handleWorktreeCreated}
+				onWorktreeRenamed={handleWorktreeRenamed}
+				onPendingChange={(pending) => {
+					worktreePending = pending;
+				}}
+			/>
+		{/if}
+	{/snippet}
+
+	{#snippet bottomDrawer()}
+		{#if
+			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+			isTerminalDrawerOpen &&
+			panelId &&
+			effectivePathForGit
+		}
+			<AgentPanelTerminalDrawer
+				{panelId}
+				effectiveCwd={effectivePathForGit}
+				embeddedTerminals={panelStore.embeddedTerminals}
+				onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
+			/>
+		{/if}
+	{/snippet}
+
+	{#snippet trailingPane()}
+		{#if hasPlan && planState.plan && showPlanSidebar && panelId}
+			<PlanSidebar
+				plan={planState.plan}
+				projectPath={sessionProjectPath ?? undefined}
+				sessionId={sessionId ?? undefined}
+				columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
+				onOpenFullscreen={() => panelState.openPlanDialog()}
+				onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
+			/>
+		{/if}
+
+		{#if showBrowserSidebar && panelId}
+			<div
+				class="flex flex-col h-full border-l border-border/50 shrink-0"
+				style="min-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; max-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px;"
+			>
+				<BrowserPanelComponent
+					panelId="embedded-browser-{panelId}"
+					url={browserSidebarUrl ?? "https://www.google.com"}
+					title="Browser"
+					width={BROWSER_SIDEBAR_COLUMN_WIDTH}
+					isFillContainer={true}
+					onClose={() => panelStore.setBrowserSidebarExpanded(panelId, false)}
+					onResize={() => {}}
+				/>
+			</div>
+		{/if}
+	{/snippet}
+
+	{#snippet resizeEdge()}
 		{#if !isFullscreen}
 			<AgentPanelResizeEdge
 				isDragging={panelState.isDraggingEdge}
@@ -1906,5 +2018,5 @@ function handleCheckpointRevertComplete() {
 				onPointerUp={() => panelState.handlePointerUpEdge()}
 			/>
 		{/if}
-	</div>
-</div>
+	{/snippet}
+</AgentPanel>

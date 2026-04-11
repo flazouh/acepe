@@ -74,6 +74,9 @@ export interface AgentToolEntry {
 	taskPrompt?: string | null;
 	taskResultText?: string | null;
 	taskChildren?: AnyAgentEntry[];
+	todos?: AgentTodoItem[];
+	question?: AgentQuestion | null;
+	lintDiagnostics?: LintDiagnostic[];
 }
 
 export interface AgentThinkingEntry {
@@ -106,6 +109,12 @@ export interface AgentTodoItem {
 	duration?: number | null;
 }
 
+export interface AgentPanelQueuedMessage {
+	id: string;
+	content: string;
+	attachmentCount: number;
+}
+
 /** Normalized question option */
 export interface AgentQuestionOption {
 	label: string;
@@ -126,4 +135,349 @@ export interface LintDiagnostic {
 	line?: number | null;
 	message?: string | null;
 	severity?: string | null;
+}
+
+type ValueOf<T> = T[keyof T];
+
+export const AGENT_PANEL_ACTION_IDS = {
+	header: {
+		copySessionMarkdown: "header.copySessionMarkdown",
+		openInFinder: "header.openInFinder",
+		toggleFullscreen: "header.toggleFullscreen",
+		closePanel: "header.closePanel",
+		createIssueReport: "header.createIssueReport",
+	},
+	composer: {
+		submit: "composer.submit",
+		attachFile: "composer.attachFile",
+		stop: "composer.stop",
+		selectModel: "composer.selectModel",
+	},
+	review: {
+		nextFile: "review.nextFile",
+		previousFile: "review.previousFile",
+		openFullscreen: "review.openFullscreen",
+		exitReview: "review.exitReview",
+	},
+	worktree: {
+		create: "worktree.create",
+		close: "worktree.close",
+		remove: "worktree.remove",
+		toggleDefault: "worktree.toggleDefault",
+	},
+	plan: {
+		openDialog: "plan.openDialog",
+		toggleSidebar: "plan.toggleSidebar",
+		refresh: "plan.refresh",
+	},
+	permission: {
+		allow: "permission.allow",
+		deny: "permission.deny",
+		answerQuestion: "permission.answerQuestion",
+	},
+	queue: {
+		openItem: "queue.openItem",
+		dismissItem: "queue.dismissItem",
+	},
+	attachment: {
+		selectTab: "attachment.selectTab",
+		closeTab: "attachment.closeTab",
+		resizePane: "attachment.resizePane",
+	},
+	browser: {
+		openSidebar: "browser.openSidebar",
+		closeSidebar: "browser.closeSidebar",
+		refresh: "browser.refresh",
+	},
+	status: {
+		retry: "status.retry",
+		install: "status.install",
+	},
+} as const;
+
+type HeaderActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.header>;
+type ComposerActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.composer>;
+type ReviewActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.review>;
+type WorktreeActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.worktree>;
+type PlanActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.plan>;
+type PermissionActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.permission>;
+type QueueActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.queue>;
+type AttachmentActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.attachment>;
+type BrowserActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.browser>;
+type StatusActionId = ValueOf<typeof AGENT_PANEL_ACTION_IDS.status>;
+
+type AttachmentScopedActionId = `${AttachmentActionId}:${string}`;
+
+export type AgentPanelActionId =
+	| HeaderActionId
+	| ComposerActionId
+	| ReviewActionId
+	| WorktreeActionId
+	| PlanActionId
+	| PermissionActionId
+	| QueueActionId
+	| AttachmentActionId
+	| AttachmentScopedActionId
+	| BrowserActionId
+	| StatusActionId;
+
+export type AgentPanelActionState = "enabled" | "disabled" | "busy" | "hidden";
+
+export interface AgentPanelActionDescriptor {
+	id: AgentPanelActionId;
+	label?: string;
+	description?: string | null;
+	state?: AgentPanelActionState;
+	disabledReason?: string | null;
+	destructive?: boolean;
+}
+
+export type AgentPanelActionCallbacks = Partial<Record<AgentPanelActionId, () => void>>;
+
+export type AgentPanelSessionStatus = AgentSessionStatus;
+
+export interface AgentPanelBadge {
+	id: string;
+	label: string;
+	tone?: "neutral" | "info" | "success" | "warning" | "danger";
+}
+
+export interface AgentPanelMetaItem {
+	id: string;
+	label: string;
+	value?: string | null;
+}
+
+export interface AgentPanelHeaderModel {
+	title: string;
+	subtitle?: string | null;
+	status: AgentPanelSessionStatus;
+	agentLabel?: string | null;
+	projectLabel?: string | null;
+	projectColor?: string | null;
+	branchLabel?: string | null;
+	badges?: readonly AgentPanelBadge[];
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export type AgentPanelStripKind =
+	| "modified_files"
+	| "queue"
+	| "todo_header"
+	| "permission_bar"
+	| "plan_header";
+
+export interface AgentPanelStripModel {
+	id: string;
+	kind: AgentPanelStripKind;
+	title: string;
+	description?: string | null;
+	items?: readonly AgentPanelMetaItem[];
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export interface AgentPanelCardModel {
+	id: string;
+	kind: "review" | "pr_status" | "worktree_setup" | "install" | "error";
+	title: string;
+	description?: string | null;
+	meta?: readonly AgentPanelMetaItem[];
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export interface AgentPanelChromeModel {
+	isFullscreen?: boolean;
+	isFocused?: boolean;
+	showScrollToBottom?: boolean;
+	showTerminalDrawer?: boolean;
+}
+
+export interface AgentPanelComposerAttachment {
+	id: string;
+	label: string;
+	kind: "file" | "folder" | "image" | "other";
+	detail?: string | null;
+}
+
+export interface AgentPanelComposerSelectedModel {
+	id: string;
+	label: string;
+	subtitle?: string | null;
+	projectLabel?: string | null;
+}
+
+export interface AgentPanelComposerCopy {
+	attachLabel?: string | null;
+	modelLabel?: string | null;
+	submitLabel?: string | null;
+	stopLabel?: string | null;
+}
+
+export interface AgentPanelComposerModel {
+	draftText: string;
+	placeholder: string;
+	submitLabel: string;
+	canSubmit: boolean;
+	disabledReason?: string | null;
+	isWaitingForSession?: boolean;
+	isStreaming?: boolean;
+	selectedModel?: AgentPanelComposerSelectedModel | null;
+	attachments?: readonly AgentPanelComposerAttachment[];
+	actions: readonly AgentPanelActionDescriptor[];
+	copy?: AgentPanelComposerCopy | null;
+}
+
+export interface AgentPanelPrCommitItem {
+	sha: string;
+	message: string;
+	insertions?: number;
+	deletions?: number;
+	onClick?: (event: MouseEvent) => void;
+}
+
+export interface AgentPanelPrCardModel {
+	mode: "pr" | "streaming" | "creating" | "pending";
+	number?: number | null;
+	title?: string | null;
+	state?: "OPEN" | "CLOSED" | "MERGED" | null;
+	additions?: number;
+	deletions?: number;
+	descriptionHtml?: string | null;
+	commits?: readonly AgentPanelPrCommitItem[];
+	isStreaming?: boolean;
+	generatingLabel?: string;
+	creatingLabel?: string;
+	onOpen?: (event: MouseEvent) => void;
+}
+
+export type AgentPanelFileReviewStatus = "accepted" | "partial" | "denied" | "unreviewed";
+
+export interface AgentPanelModifiedFileItem {
+	id: string;
+	filePath: string;
+	fileName?: string | null;
+	reviewStatus?: AgentPanelFileReviewStatus;
+	additions: number;
+	deletions: number;
+	onSelect?: () => void;
+}
+
+export interface AgentPanelModifiedFilesReviewOption {
+	id: string;
+	label: string;
+	kind?: "panel" | "fullscreen";
+	onSelect?: () => void;
+}
+
+export interface AgentPanelModifiedFilesTrailingModel {
+	reviewLabel: string;
+	reviewOptions: readonly AgentPanelModifiedFilesReviewOption[];
+	onReview?: () => void;
+	keepState: "enabled" | "disabled" | "applied";
+	keepLabel: string;
+	appliedLabel?: string;
+	onKeep?: () => void;
+	reviewedCount: number;
+	totalCount: number;
+}
+
+export type AgentPanelConversationEntry = AnyAgentEntry;
+
+export interface AgentPanelConversationModel {
+	entries: readonly AgentPanelConversationEntry[];
+	isStreaming: boolean;
+	isAtTop?: boolean;
+	isAtBottom?: boolean;
+}
+
+export interface AgentPanelPlanSidebarItem {
+	id: string;
+	label: string;
+	status?: "pending" | "in_progress" | "done" | "blocked";
+	description?: string | null;
+}
+
+export interface AgentPanelPlanSidebarModel {
+	title: string;
+	items: readonly AgentPanelPlanSidebarItem[];
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export interface AgentPanelAttachedFileTab {
+	id: string;
+	title: string;
+	path?: string | null;
+	language?: string | null;
+	contentPreview?: string | null;
+	isActive: boolean;
+	selectActionId?: AgentPanelActionId | null;
+	closeActionId?: AgentPanelActionId | null;
+}
+
+export interface AgentPanelAttachedFilePaneModel {
+	tabs: readonly AgentPanelAttachedFileTab[];
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export interface AgentPanelBrowserSidebarModel {
+	url: string;
+	title?: string | null;
+	actions: readonly AgentPanelActionDescriptor[];
+}
+
+export interface AgentPanelSidebarModel {
+	plan?: AgentPanelPlanSidebarModel | null;
+	attachedFiles?: AgentPanelAttachedFilePaneModel | null;
+	browser?: AgentPanelBrowserSidebarModel | null;
+}
+
+export interface AgentPanelFooterModel {
+	branchLabel?: string | null;
+	showBrowserToggle?: boolean;
+	browserActive?: boolean;
+	showTerminalToggle?: boolean;
+	terminalActive?: boolean;
+	terminalDisabled?: boolean;
+}
+
+export interface AgentPanelTerminalTab {
+	id: string;
+	label: string;
+	isActive: boolean;
+}
+
+export interface AgentPanelTerminalModel {
+	tabs: readonly AgentPanelTerminalTab[];
+	height?: number | null;
+}
+
+export interface AgentPanelReviewFileTab {
+	id: string;
+	label: string;
+	isActive: boolean;
+}
+
+export interface AgentPanelReviewModel {
+	fileTabs: readonly AgentPanelReviewFileTab[];
+	currentFileIndex: number;
+	totalFiles: number;
+	currentHunkIndex?: number | null;
+	totalHunks?: number | null;
+}
+
+export type AgentPanelSceneEntryModel = AgentPanelConversationEntry;
+
+export interface AgentPanelSceneModel {
+	panelId: string;
+	status: AgentPanelSessionStatus;
+	header: AgentPanelHeaderModel;
+	conversation: AgentPanelConversationModel;
+	composer?: AgentPanelComposerModel | null;
+	strips?: readonly AgentPanelStripModel[];
+	cards?: readonly AgentPanelCardModel[];
+	sidebars?: AgentPanelSidebarModel | null;
+	chrome?: AgentPanelChromeModel | null;
+	footer?: AgentPanelFooterModel | null;
+	terminal?: AgentPanelTerminalModel | null;
+	review?: AgentPanelReviewModel | null;
 }

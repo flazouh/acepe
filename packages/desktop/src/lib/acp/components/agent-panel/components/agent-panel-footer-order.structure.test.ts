@@ -9,8 +9,8 @@ describe("agent panel footer order", () => {
 		const permissionBarIndex = source.indexOf("<PermissionBar");
 		const prStatusCardIndex = source.indexOf("<PrStatusCard");
 		const modifiedFilesHeaderIndex = source.indexOf("<ModifiedFilesHeader");
-		const todoHeaderIndex = source.indexOf("<TodoHeader");
-		const queueCardStripIndex = source.indexOf("<QueueCardStrip");
+		const todoHeaderIndex = source.indexOf("<SharedTodoHeader");
+		const queueCardStripIndex = source.indexOf("<SharedQueueCardStrip");
 		const agentInputIndex = source.indexOf("<AgentInput");
 
 		expect(permissionBarIndex).toBeGreaterThan(-1);

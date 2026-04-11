@@ -4,12 +4,12 @@ export {
 	type AgentPanelActionDescriptor,
 	type AgentPanelActionId,
 	type AgentPanelActionState,
-} from "./agent-panel-action-contract";
+} from "./agent-panel-action-contract.js";
 export {
 	type AgentPanelComposerAttachment,
 	type AgentPanelComposerModel,
 	type AgentPanelComposerSelectedModel,
-} from "./agent-panel-composer-model";
+} from "./agent-panel-composer-model.js";
 export {
 	type AgentPanelAssistantEntry,
 	type AgentPanelConversationEntry,
@@ -25,7 +25,7 @@ export {
 	type AgentPanelToolStatus,
 	type AgentPanelUserEntry,
 	type AgentPanelWebSearchLink,
-} from "./agent-panel-conversation-model";
+} from "./agent-panel-conversation-model.js";
 export {
 	type AgentPanelAttachedFilePaneModel,
 	type AgentPanelAttachedFileTab,
@@ -33,15 +33,20 @@ export {
 	type AgentPanelPlanSidebarItem,
 	type AgentPanelPlanSidebarModel,
 	type AgentPanelSidebarModel,
-} from "./agent-panel-sidebar-model";
+} from "./agent-panel-sidebar-model.js";
 export {
 	type AgentPanelBadge,
 	type AgentPanelCardModel,
 	type AgentPanelChromeModel,
+	type AgentPanelFooterModel,
 	type AgentPanelHeaderModel,
 	type AgentPanelMetaItem,
+	type AgentPanelReviewFileTab,
+	type AgentPanelReviewModel,
 	type AgentPanelSceneModel,
 	type AgentPanelSessionStatus,
 	type AgentPanelStripKind,
 	type AgentPanelStripModel,
-} from "./agent-panel-scene-model";
+	type AgentPanelTerminalModel,
+	type AgentPanelTerminalTab,
+} from "./agent-panel-scene-model.js";

@@ -1,7 +1,7 @@
-import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract";
-import type { AgentPanelComposerModel } from "./agent-panel-composer-model";
-import type { AgentPanelConversationModel } from "./agent-panel-conversation-model";
-import type { AgentPanelSidebarModel } from "./agent-panel-sidebar-model";
+import type { AgentPanelActionDescriptor } from "./agent-panel-action-contract.js";
+import type { AgentPanelComposerModel } from "./agent-panel-composer-model.js";
+import type { AgentPanelConversationModel } from "./agent-panel-conversation-model.js";
+import type { AgentPanelSidebarModel } from "./agent-panel-sidebar-model.js";
 
 export type AgentPanelSessionStatus =
 	| "empty"
@@ -68,6 +68,40 @@ export interface AgentPanelChromeModel {
 	showTerminalDrawer?: boolean;
 }
 
+export interface AgentPanelFooterModel {
+	branchLabel?: string | null;
+	showBrowserToggle?: boolean;
+	browserActive?: boolean;
+	showTerminalToggle?: boolean;
+	terminalActive?: boolean;
+	terminalDisabled?: boolean;
+}
+
+export interface AgentPanelTerminalTab {
+	id: string;
+	label: string;
+	isActive: boolean;
+}
+
+export interface AgentPanelTerminalModel {
+	tabs: readonly AgentPanelTerminalTab[];
+	height?: number | null;
+}
+
+export interface AgentPanelReviewFileTab {
+	id: string;
+	label: string;
+	isActive: boolean;
+}
+
+export interface AgentPanelReviewModel {
+	fileTabs: readonly AgentPanelReviewFileTab[];
+	currentFileIndex: number;
+	totalFiles: number;
+	currentHunkIndex?: number | null;
+	totalHunks?: number | null;
+}
+
 export interface AgentPanelSceneModel {
 	panelId: string;
 	status: AgentPanelSessionStatus;
@@ -78,4 +112,7 @@ export interface AgentPanelSceneModel {
 	cards?: readonly AgentPanelCardModel[];
 	sidebars?: AgentPanelSidebarModel | null;
 	chrome?: AgentPanelChromeModel | null;
+	footer?: AgentPanelFooterModel | null;
+	terminal?: AgentPanelTerminalModel | null;
+	review?: AgentPanelReviewModel | null;
 }
