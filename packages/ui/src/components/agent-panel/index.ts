@@ -42,9 +42,13 @@ export { default as AgentPanelModifiedFilesTrailingControls } from "./agent-pane
 export { default as AgentPanelModifiedFilesHeader } from "./modified-files-header.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
+export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export { default as AgentInputDivider } from "./agent-input-divider.svelte";
 export { default as AgentInputEditor } from "./agent-input-editor.svelte";
+export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";
+export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
+export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.svelte";
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export { default as AgentInputVoiceModelMenu } from "./agent-input-voice-model-menu.svelte";

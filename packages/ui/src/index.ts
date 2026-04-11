@@ -48,9 +48,13 @@ export type {
 export {
 	AgentInputArtefactBadge,
 	AgentInputAutonomousToggle,
+	AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
+	AgentInputMetricsChip,
 	AgentInputMicButton,
+	AgentInputModeSelector,
+	AgentInputModelTrigger,
 	AgentInputPastedTextOverlay,
 	AgentInputToolbar,
 	AgentInputVoiceModelMenu,

@@ -1,11 +1,12 @@
 <script lang="ts">
-import { CaretDown, Wrench } from "phosphor-svelte";
-
 import {
 	AgentInputAutonomousToggle,
 	AgentInputDivider,
 	AgentInputEditor,
+	AgentInputMetricsChip,
 	AgentInputMicButton,
+	AgentInputModeSelector,
+	AgentInputModelTrigger,
 	AgentInputToolbar,
 	AgentPanelComposer,
 	AgentPanelScene,
@@ -27,6 +28,11 @@ const scene: AgentPanelSceneModel = {
 		isStreaming: false,
 	},
 };
+
+const availableModes = [
+	{ id: "plan" },
+	{ id: "build" },
+] as const;
 </script>
 
 <LandingDemoFrame>
@@ -49,9 +55,11 @@ const scene: AgentPanelSceneModel = {
 					{#snippet footer()}
 						<AgentInputToolbar>
 							{#snippet items()}
-								<button type="button" class="inline-flex items-center justify-center h-7 w-7 text-muted-foreground hover:text-foreground" title="Plan mode">
-									<Wrench class="h-3.5 w-3.5" weight="regular" />
-								</button>
+								<AgentInputModeSelector
+									{availableModes}
+									currentModeId="build"
+									onModeChange={() => {}}
+								/>
 								<AgentInputDivider />
 								<AgentInputAutonomousToggle
 									active={false}
@@ -59,14 +67,11 @@ const scene: AgentPanelSceneModel = {
 									onToggle={() => {}}
 								/>
 								<AgentInputDivider />
-								<button type="button" class="inline-flex items-center gap-1 h-7 px-2 text-[11px] text-foreground hover:text-foreground">
-									<span>Claude Sonnet 4</span>
-									<CaretDown class="h-2.5 w-2.5" weight="bold" />
-								</button>
+								<AgentInputModelTrigger label="Claude Sonnet 4" />
 								<AgentInputDivider />
 							{/snippet}
 							{#snippet trailing()}
-								<span class="px-2 font-mono text-[10px] text-muted-foreground tabular-nums">0/200k</span>
+								<AgentInputMetricsChip label="0/200k" percent={0} />
 								<AgentInputMicButton visualState="mic" title="Record" />
 							{/snippet}
 						</AgentInputToolbar>
