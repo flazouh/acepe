@@ -20,22 +20,17 @@
 		AgentPanelPermissionBarIcon,
 		AgentPanelPermissionBarProgress,
 		AgentPanelPlanHeader,
-		AgentPanelPrCard,
 		AgentPanelTodoHeader,
-		AgentPanelQueueCardStrip,
 	} from "@acepe/ui/agent-panel";
 	import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 	import type {
 		AgentPanelModifiedFileItem,
 		AgentPanelModifiedFilesTrailingModel,
-		AgentPanelPrCardModel,
 	} from "@acepe/ui/agent-panel";
 	import LandingDemoFrame from "./landing-demo-frame.svelte";
 	import {
 		AGENT_PANEL_DEMO_DELAYS,
 		AGENT_PANEL_DEMO_PLAN_MARKDOWN,
-		AGENT_PANEL_DEMO_PR_DESCRIPTION_HTML,
-		AGENT_PANEL_DEMO_QUEUE_MESSAGES,
 		AGENT_PANEL_DEMO_REVIEW_FILES,
 		AGENT_PANEL_DEMO_SCRIPT,
 		buildDemoTodoItems,
@@ -52,9 +47,7 @@
 	const isComplete = $derived(visibleCount >= AGENT_PANEL_DEMO_SCRIPT.length);
 	const showSupportWidgets = $derived(visibleCount >= 7);
 	const showPermissionBar = $derived(visibleCount >= 9 && !isComplete);
-	const showModifiedFilesHeader = $derived(visibleCount >= 10)
-	const showPrCard = $derived(visibleCount >= 12);
-	const showQueue = $derived(visibleCount >= 14);
+	const showModifiedFilesHeader = $derived(visibleCount >= 10);
 	const todoItems = $derived(buildDemoTodoItems(visibleCount));
 	const completedTodoCount = $derived(
 		todoItems.filter((item) => item.status === "completed").length
@@ -67,15 +60,6 @@
 		}
 
 		return null;
-	});
-	const prCardModel = $derived<AgentPanelPrCardModel>({
-		mode: "pr",
-		number: 90,
-		title: "JWT migration ready for review",
-		state: "OPEN",
-		additions: 158,
-		deletions: 29,
-		descriptionHtml: AGENT_PANEL_DEMO_PR_DESCRIPTION_HTML,
 	});
 	const modifiedFiles = $derived<readonly AgentPanelModifiedFileItem[]>(
 		AGENT_PANEL_DEMO_REVIEW_FILES.map((file) => ({
@@ -145,14 +129,6 @@
 				sessionStatus={isComplete ? "done" : isRunning ? "running" : "idle"}
 				projectName="acepe"
 				projectColor="#7C3AED"
-				subtitle={isComplete ? "Ready to review" : "Live agent session"}
-				agentLabel="Claude Code"
-				badges={[
-					{
-						id: "badge-status",
-						label: isComplete ? "Complete" : "Streaming",
-					},
-				]}
 				showTrailingBorder={false}
 			>
 				{#snippet controls()}
@@ -220,10 +196,6 @@
 									</AgentPanelPermissionBar>
 								{/if}
 
-								{#if showPrCard}
-									<AgentPanelPrCard visible={true} model={prCardModel} initiallyExpanded={true} />
-								{/if}
-
 								{#if showModifiedFilesHeader}
 									<AgentPanelModifiedFilesHeader visible={true}>
 										{#snippet fileList()}
@@ -259,25 +231,6 @@
 									pausedLabel="Tasks paused"
 								/>
 
-								{#if showQueue}
-									<AgentPanelQueueCardStrip
-										messages={AGENT_PANEL_DEMO_QUEUE_MESSAGES}
-										isPaused={false}
-										queueLabel="Queued messages"
-										pausedLabel="Queue paused"
-										resumeLabel="Resume"
-										clearLabel="Clear"
-										editLabel="Edit"
-										deleteLabel="Delete"
-										sendLabel="Send"
-										saveLabel="Save"
-										cancelLabel="Cancel"
-										onSaveEdit={() => undefined}
-										onRemove={() => undefined}
-										onClear={() => undefined}
-										onSendNow={() => undefined}
-									/>
-								{/if}
 							</div>
 						</div>
 					</div>
