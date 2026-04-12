@@ -16,15 +16,15 @@ use serde_json::json;
 #[derive(Debug, Clone)]
 pub(crate) struct RawToolCallUpdateInput {
     pub id: String,
+    pub provider_tool_name: Option<String>,
+    pub provider_declared_kind: Option<ToolKind>,
     pub status: Option<ToolCallStatus>,
     pub result: Option<serde_json::Value>,
     pub content: Option<serde_json::Value>,
     pub title: Option<String>,
     pub locations: Option<serde_json::Value>,
     pub streaming_input_delta: Option<String>,
-    pub tool_name: Option<String>,
     pub raw_input: Option<serde_json::Value>,
-    pub kind: Option<ToolKind>,
 }
 
 /// Raw tool call input used only for conversion to ToolCallData.
@@ -32,10 +32,10 @@ pub(crate) struct RawToolCallUpdateInput {
 #[derive(Debug, Clone)]
 pub(crate) struct RawToolCallInput {
     pub id: String,
-    pub name: String,
+    pub provider_tool_name: Option<String>,
+    pub provider_declared_kind: Option<ToolKind>,
     pub arguments: serde_json::Value,
     pub status: ToolCallStatus,
-    pub kind: Option<ToolKind>,
     pub title: Option<String>,
     pub suppress_title_read_path_hint: bool,
     pub parent_tool_use_id: Option<String>,
@@ -124,7 +124,7 @@ pub(crate) fn build_tool_call_update_from_raw(
     let agent = parser.agent_type();
     let session_key = session_id.unwrap_or(raw.id.as_str());
     let tool_call_id = &raw.id;
-    let provided_tool_name = raw.tool_name.as_deref().unwrap_or("");
+    let provided_tool_name = raw.provider_tool_name.as_deref().unwrap_or("");
     let tool_name = if provided_tool_name.eq_ignore_ascii_case("unknown") {
         ""
     } else {
@@ -214,10 +214,10 @@ pub(crate) fn build_tool_call_update_from_raw(
         .and_then(extract_content_blocks_from_value);
 
     let identity_hints = ToolClassificationHints {
-        name: raw.tool_name.as_deref(),
+        name: raw.provider_tool_name.as_deref(),
         title: raw.title.as_deref(),
-        kind: raw.kind,
-        kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+        kind: raw.provider_declared_kind,
+        kind_hint: raw.provider_declared_kind.as_ref().map(ToolKind::as_str),
         locations: locations.as_deref(),
     };
     let classified_arguments = raw
@@ -310,10 +310,10 @@ pub(crate) fn canonical_operation_event_from_tool_call(
                 &tool_call.id,
                 raw_input,
                 ToolClassificationHints {
-                    name: Some(&tool_call.name),
+                    name: None,
                     title: tool_call.title.as_deref(),
-                    kind: tool_call.kind,
-                    kind_hint: tool_call.kind.as_ref().map(ToolKind::as_str),
+                    kind: None,
+                    kind_hint: None,
                     locations: tool_call.locations.as_deref(),
                 },
             )
@@ -324,12 +324,22 @@ pub(crate) fn canonical_operation_event_from_tool_call(
             arguments: tool_call.arguments.clone(),
             semantic_source: ToolSemanticSource::Unknown,
         });
+    let provider_tool_name = if tool_call.raw_input.is_some() {
+        None
+    } else {
+        Some(tool_call.name.clone())
+    };
+    let provider_declared_kind = if tool_call.raw_input.is_some() {
+        None
+    } else {
+        tool_call.kind
+    };
 
     CanonicalOperationEvent {
         transport_id: tool_call.id.clone(),
         provider: agent.as_str().to_string(),
-        provider_tool_name: Some(tool_call.name.clone()),
-        provider_declared_kind: tool_call.kind,
+        provider_tool_name,
+        provider_declared_kind,
         semantic_kind: classified.kind,
         semantic_source: classified.semantic_source,
         payload: classified.arguments.clone(),
@@ -488,10 +498,10 @@ pub(crate) fn build_tool_call_from_raw(
         &raw.id,
         &raw.arguments,
         ToolClassificationHints {
-            name: Some(&raw.name),
+            name: raw.provider_tool_name.as_deref(),
             title: raw.title.as_deref(),
-            kind: raw.kind,
-            kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+            kind: raw.provider_declared_kind,
+            kind_hint: raw.provider_declared_kind.as_ref().map(ToolKind::as_str),
             locations: None,
         },
     );
@@ -514,15 +524,15 @@ pub(crate) fn build_tool_call_from_raw(
         parser.agent_type(),
     );
 
-    ToolCallData {
-        id: raw.id.clone(),
-        name: classified.name,
-        arguments,
-        raw_input: Some(raw.arguments.clone()),
-        status,
-        result: None,
-        kind: Some(classified.kind),
-        title: raw.title,
+        ToolCallData {
+            id: raw.id.clone(),
+            name: classified.name,
+            arguments,
+            raw_input: Some(raw.arguments.clone()),
+            status,
+            result: None,
+            kind: Some(classified.kind),
+            title: raw.title,
         locations: None,
         skill_meta: None,
         normalized_questions,
@@ -649,10 +659,10 @@ mod tests {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "test-id".to_string(),
-            name: String::new(),
+            provider_tool_name: None,
+            provider_declared_kind: Some(parser.detect_tool_kind(kind)),
             arguments: json!({}),
             status: ToolCallStatus::Pending,
-            kind: Some(parser.detect_tool_kind(kind)),
             title: title.map(|t| t.to_string()),
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -827,13 +837,13 @@ mod tests {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "toolu_raw_input".to_string(),
-            name: "Bash".to_string(),
+            provider_tool_name: Some("Bash".to_string()),
+            provider_declared_kind: Some(ToolKind::Execute),
             arguments: json!({
                 "command": "echo hi",
                 "description": "Say hi"
             }),
             status: ToolCallStatus::InProgress,
-            kind: Some(ToolKind::Execute),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -856,13 +866,13 @@ mod tests {
         let parser = &CursorParser as &dyn AgentParser;
         let raw = RawToolCallInput {
             id: "toolu_partial_read".to_string(),
-            name: "Read".to_string(),
+            provider_tool_name: Some("Read".to_string()),
+            provider_declared_kind: Some(ToolKind::Read),
             arguments: json!({
                 "offset": 0,
                 "limit": 200
             }),
             status: ToolCallStatus::Pending,
-            kind: Some(ToolKind::Read),
             title: Some("Read /repo/src/lib.rs".to_string()),
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -884,10 +894,10 @@ mod tests {
         let parser = get_parser(AgentType::Copilot);
         let raw = RawToolCallInput {
             id: "tool-search".to_string(),
-            name: "unknown".to_string(),
+            provider_tool_name: None,
+            provider_declared_kind: Some(ToolKind::Other),
             arguments: json!({ "query": "operation", "path": "/tmp" }),
             status: ToolCallStatus::Completed,
-            kind: Some(ToolKind::Other),
             title: Some("rg".to_string()),
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -900,7 +910,9 @@ mod tests {
         assert_eq!(canonical.provider, "copilot");
         assert_eq!(canonical.transport_id, "tool-search");
         assert_eq!(canonical.semantic_kind, ToolKind::Search);
-        assert_eq!(canonical.semantic_source, ToolSemanticSource::ToolName);
+        assert_eq!(canonical.semantic_source, ToolSemanticSource::PayloadHint);
+        assert_eq!(canonical.provider_declared_kind, None);
+        assert_eq!(canonical.provider_tool_name, None);
     }
 
     #[test]
@@ -908,10 +920,10 @@ mod tests {
         let parser = get_parser(AgentType::Copilot);
         let raw = RawToolCallInput {
             id: "tool-unknown".to_string(),
-            name: "unknown".to_string(),
+            provider_tool_name: None,
+            provider_declared_kind: Some(ToolKind::Other),
             arguments: json!({ "mystery": "value" }),
             status: ToolCallStatus::Pending,
-            kind: Some(ToolKind::Other),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -1001,15 +1013,15 @@ mod tests {
                 get_parser(AgentType::Codex),
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
+                    provider_tool_name: None,
+                    provider_declared_kind: Some(ToolKind::Execute),
                     status: Some(ToolCallStatus::InProgress),
                     result: None,
                     content: None,
                     title: None,
                     locations: None,
                     streaming_input_delta: Some(r#"{"command":"ls -la"}"#.to_string()),
-                    tool_name: None,
                     raw_input: None,
-                    kind: Some(ToolKind::Execute),
                 },
                 Some(session_id),
             );
@@ -1040,15 +1052,15 @@ mod tests {
                 get_parser(AgentType::Codex),
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
+                    provider_tool_name: None,
+                    provider_declared_kind: Some(ToolKind::Execute),
                     status: Some(ToolCallStatus::InProgress),
                     result: None,
                     content: None,
                     title: None,
                     locations: None,
                     streaming_input_delta: Some(r#"{"command":"pwd"}"#.to_string()),
-                    tool_name: None,
                     raw_input: None,
-                    kind: Some(ToolKind::Execute),
                 },
                 Some(session_id),
             );
@@ -1062,15 +1074,15 @@ mod tests {
                 get_parser(AgentType::Codex),
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
+                    provider_tool_name: None,
+                    provider_declared_kind: Some(ToolKind::Execute),
                     status: Some(ToolCallStatus::InProgress),
                     result: None,
                     content: None,
                     title: None,
                     locations: None,
                     streaming_input_delta: Some("x".repeat(1_048_576)),
-                    tool_name: None,
                     raw_input: None,
-                    kind: Some(ToolKind::Execute),
                 },
                 Some(session_id),
             );

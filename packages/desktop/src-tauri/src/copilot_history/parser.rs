@@ -278,10 +278,10 @@ pub(crate) fn convert_events_to_updates(
                 for tool_request in data.tool_requests {
                     let raw = RawToolCallInput {
                         id: tool_request.tool_call_id,
-                        name: tool_request.name,
+                        provider_tool_name: Some(tool_request.name),
+                        provider_declared_kind: None,
                         arguments: tool_request.arguments,
                         status: ToolCallStatus::Pending,
-                        kind: None,
                         title: tool_request.title,
                         suppress_title_read_path_hint: false,
                         parent_tool_use_id: None,
@@ -313,10 +313,10 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::ToolExecutionStart(data) => {
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    name: data.tool_name,
+                    provider_tool_name: Some(data.tool_name),
+                    provider_declared_kind: None,
                     arguments: data.arguments,
                     status: ToolCallStatus::InProgress,
-                    kind: None,
                     title: None,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -333,6 +333,8 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::ToolExecutionComplete(data) => {
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
+                    provider_tool_name: data.tool_name,
+                    provider_declared_kind: None,
                     status: Some(if data.success {
                         ToolCallStatus::Completed
                     } else {
@@ -343,9 +345,7 @@ pub(crate) fn convert_events_to_updates(
                     title: None,
                     locations: None,
                     streaming_input_delta: None,
-                    tool_name: data.tool_name,
                     raw_input: data.raw_input,
-                    kind: None,
                 };
                 updates.push((
                     timestamp_ms,
@@ -363,14 +363,14 @@ pub(crate) fn convert_events_to_updates(
                     .or_else(|| Some("Task".to_string()));
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    name: "Task".to_string(),
+                    provider_tool_name: Some("Task".to_string()),
+                    provider_declared_kind: Some(ToolKind::Task),
                     arguments: json!({
                         "description": title.clone(),
                         "prompt": data.agent_description,
                         "subagent_type": data.agent_name
                     }),
                     status: ToolCallStatus::InProgress,
-                    kind: Some(ToolKind::Task),
                     title,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -387,6 +387,8 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::SubagentCompleted(data) => {
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
+                    provider_tool_name: Some("Task".to_string()),
+                    provider_declared_kind: Some(ToolKind::Task),
                     status: Some(ToolCallStatus::Completed),
                     result: Some(json!({
                         "agentName": data.agent_name,
@@ -396,9 +398,7 @@ pub(crate) fn convert_events_to_updates(
                     title: None,
                     locations: None,
                     streaming_input_delta: None,
-                    tool_name: Some("Task".to_string()),
                     raw_input: None,
-                    kind: Some(ToolKind::Task),
                 };
                 updates.push((
                     timestamp_ms,

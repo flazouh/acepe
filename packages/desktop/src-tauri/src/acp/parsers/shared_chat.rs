@@ -171,29 +171,29 @@ pub(crate) fn parse_tool_call_update(
         .and_then(|c| c.get("streamingInputDelta"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    let tool_name = data
+    let provider_tool_name = data
         .get("_meta")
         .and_then(|m| m.get("claudeCode"))
         .and_then(|c| c.get("toolName"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     let raw_input = data.get("rawInput").cloned().filter(|v| !v.is_null());
-    let kind = data
+    let provider_declared_kind = data
         .get("kind")
         .and_then(|v| v.as_str())
         .map(normalize_tool_kind);
 
     Ok(RawToolCallUpdateInput {
         id,
+        provider_tool_name,
+        provider_declared_kind,
         status,
         result,
         content,
         title,
         locations,
         streaming_input_delta,
-        tool_name,
         raw_input,
-        kind,
     })
 }
 

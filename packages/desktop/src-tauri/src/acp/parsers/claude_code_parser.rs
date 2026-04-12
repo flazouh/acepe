@@ -3,7 +3,6 @@
 use crate::acp::parsers::adapters::ClaudeCodeAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::claude_code::parse_edit_arguments;
-use crate::acp::parsers::kind::infer_kind_from_payload;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::shared_chat::{
     detect_update_type, infer_tool_kind_from_raw_arguments, parse_tool_call_update,
@@ -161,17 +160,7 @@ impl ClaudeCodeParser {
                 .unwrap_or("pending"),
         );
 
-        let kind = explicit_name
-            .as_deref()
-            .map(ClaudeCodeAdapter::normalize)
-            .filter(|kind| *kind != ToolKind::Other)
-            .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
-            .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
-            .unwrap_or(ToolKind::Other);
-
-        let name = explicit_name
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string());
+        let provider_declared_kind = kind_hint.map(|hint| ClaudeCodeAdapter::normalize(hint));
 
         let parent_tool_use_id = data
             .get("_meta")
@@ -182,10 +171,10 @@ impl ClaudeCodeParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            provider_tool_name: explicit_name,
+            provider_declared_kind,
             arguments,
             status,
-            kind: Some(kind),
             title,
             suppress_title_read_path_hint: false,
             parent_tool_use_id,

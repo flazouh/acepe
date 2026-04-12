@@ -159,15 +159,8 @@ impl CopilotParser {
                 .unwrap_or("pending"),
         );
 
-        let kind = explicit_name
-            .as_deref()
-            .map(CopilotAdapter::normalize)
-            .filter(|kind| *kind != ToolKind::Other)
-            .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
-            .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
-            .unwrap_or(ToolKind::Other);
-
-        let name = explicit_name.unwrap_or_else(|| "unknown".to_string());
+        let provider_declared_kind = infer_tool_kind_from_raw_arguments(&arguments)
+            .or_else(|| kind_hint.map(|hint| CopilotAdapter::normalize(hint)));
 
         let parent_tool_use_id = data
             .get("_meta")
@@ -178,10 +171,10 @@ impl CopilotParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            provider_tool_name: explicit_name,
+            provider_declared_kind,
             arguments,
             status,
-            kind: Some(kind),
             title,
             suppress_title_read_path_hint: false,
             parent_tool_use_id,

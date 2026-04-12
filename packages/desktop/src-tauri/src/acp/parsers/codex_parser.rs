@@ -160,32 +160,6 @@ impl CodexParser {
         })
     }
 
-    fn infer_name(
-        explicit_name: Option<&str>,
-        id: &str,
-        title: Option<&str>,
-        inferred_kind: ToolKind,
-    ) -> String {
-        if let Some(name) = explicit_name
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return name.to_string();
-        }
-
-        if inferred_kind == ToolKind::WebSearch {
-            return "WebSearch".to_string();
-        }
-
-        if let Some(title_value) = title.map(str::trim).filter(|value| !value.is_empty()) {
-            if id.starts_with("web_search_") || kind_utils::is_web_search_title(title_value) {
-                return "WebSearch".to_string();
-            }
-        }
-
-        kind_utils::canonical_name_for_kind(inferred_kind).to_string()
-    }
-
     fn merge_outer_arguments(raw: &serde_json::Value) -> serde_json::Value {
         let Some(inner) = raw.get("arguments").and_then(|value| value.as_object()) else {
             return raw.clone();
@@ -445,7 +419,6 @@ impl CodexParser {
             .filter(|value| !value.is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| "unknown".to_string());
-        let kind = Some(inferred_kind);
         let mut arguments = if inferred_kind == ToolKind::Other {
             raw_arguments
         } else {
@@ -472,10 +445,10 @@ impl CodexParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            provider_tool_name: Some(name),
+            provider_declared_kind: Some(inferred_kind),
             arguments,
             status,
-            kind,
             title,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -559,13 +532,8 @@ impl CodexParser {
                 Self::add_mcp_command_if_missing(arguments);
             }
         }
-        let tool_name = Some(Self::infer_name(
-            explicit_name,
-            &id,
-            title.as_deref(),
-            inferred_kind,
-        ));
-        let kind = Some(inferred_kind);
+        let provider_tool_name = explicit_name.map(str::to_string);
+        let provider_declared_kind = Some(inferred_kind);
 
         let locations = data.get("locations").cloned();
 
@@ -582,15 +550,15 @@ impl CodexParser {
 
         Ok(RawToolCallUpdateInput {
             id,
+            provider_tool_name,
+            provider_declared_kind,
             status: Some(status),
             result,
             content: None,
             title,
             locations,
             streaming_input_delta: None,
-            tool_name,
             raw_input,
-            kind,
         })
     }
 

@@ -146,10 +146,10 @@ impl OpenCodeParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            provider_tool_name: Some(name),
+            provider_declared_kind: Some(kind),
             arguments,
             status: ToolCallStatus::Pending,
-            kind: Some(kind),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -171,15 +171,15 @@ impl OpenCodeParser {
 
         Ok(RawToolCallUpdateInput {
             id,
+            provider_tool_name: None,
+            provider_declared_kind: None,
             status: Some(ToolCallStatus::Completed),
             result,
             content: None,
             title: None,
             locations: None,
             streaming_input_delta: None,
-            tool_name: None,
             raw_input: None,
-            kind: None,
         })
     }
 
