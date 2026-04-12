@@ -29,6 +29,7 @@ let scrollElement = $state<HTMLDivElement | null>(null);
 let boardElement = $state<HTMLDivElement | null>(null);
 let overlays = $state<readonly KanbanBoardMotionOverlayState[]>([]);
 let reducedMotion = $state(false);
+let animatingCardIds = $state<ReadonlySet<string>>(new Set());
 
 const lastKnownPositions = new Map<string, { placement: KanbanScenePlacement; rect: KanbanBoardRect }>();
 const activeHostNodes = new Map<string, HTMLDivElement>();
@@ -65,6 +66,9 @@ function cancelOverlay(cardId: string): void {
 	}
 
 	overlays = overlays.filter((overlay) => overlay.cardId !== cardId);
+	const nextAnimating = new Set(animatingCardIds);
+	nextAnimating.delete(cardId);
+	animatingCardIds = nextAnimating;
 }
 
 function cancelDeferredMeasurement(cardId: string): void {
@@ -88,9 +92,11 @@ function seedLastKnownPosition(
 ): void {
 	const rect = measureHostRect(node);
 	if (!rect) {
+		console.log(`[kanban-motion] seed FAILED (no rect) card=${card.id} col=${placement.columnId}`);
 		return;
 	}
 
+	console.log(`[kanban-motion] seed card=${card.id} col=${placement.columnId} rect=`, rect);
 	lastKnownPositions.set(card.id, {
 		placement,
 		rect,
@@ -118,14 +124,18 @@ function maybeAnimatePlacementChange(
 	nextPlacement: KanbanScenePlacement,
 	currentRect: KanbanBoardRect
 ): void {
+	console.log(`[kanban-motion] maybeAnimate card=${card.id} from=${previousPlacement.columnId} to=${nextPlacement.columnId}`);
 	if (!scrollElement) {
+		console.log(`[kanban-motion] BAIL: no scrollElement`);
 		return;
 	}
 
 	const previousPosition = lastKnownPositions.get(card.id);
 	if (!previousPosition) {
+		console.log(`[kanban-motion] BAIL: no previousPosition for ${card.id}`);
 		return;
 	}
+	console.log(`[kanban-motion] previousPosition rect=`, previousPosition.rect, `currentRect=`, currentRect);
 
 	const originViewportRect = measureViewportRect(previousPlacement.columnId);
 	const destinationViewportRect = measureViewportRect(nextPlacement.columnId);
@@ -156,12 +166,19 @@ function maybeAnimatePlacementChange(
 	});
 
 	if (!plan) {
+		console.log(`[kanban-motion] BAIL: buildKanbanBoardMotionPlan returned null`);
 		return;
 	}
 
+	console.log(`[kanban-motion] PLAN: mode=${plan.mode} duration=${plan.durationMs}ms origin=`, plan.originRect, `dest=`, plan.destinationRect);
 	cancelOverlay(card.id);
+	const nextAnimating = new Set(animatingCardIds);
+	nextAnimating.add(card.id);
+	animatingCardIds = nextAnimating;
 	overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "start"));
+	console.log(`[kanban-motion] overlay START created, overlays count=${overlays.length}`);
 	const timeoutId = window.setTimeout(() => {
+		console.log(`[kanban-motion] overlay CLEANUP for ${card.id}`);
 		cancelOverlay(card.id);
 	}, plan.durationMs + 40);
 	overlayTimeouts.set(card.id, timeoutId);
@@ -171,6 +188,7 @@ function maybeAnimatePlacementChange(
 			return;
 		}
 		overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "end"));
+		console.log(`[kanban-motion] overlay TRANSITIONED to END phase`);
 	});
 	overlayAnimationFrames.set(card.id, animationFrameId);
 }
@@ -238,6 +256,7 @@ function registerHost(
 	node: HTMLDivElement,
 	placement: KanbanScenePlacement
 ): () => void {
+	console.log(`[kanban-motion] registerHost card=${card.id} col=${placement.columnId} boardReady=${!!boardElement} scrollReady=${!!scrollElement}`);
 	if (!boardElement || !scrollElement) {
 		cancelDeferredMeasurement(card.id);
 		const frameId = window.requestAnimationFrame(() => {
@@ -322,6 +341,7 @@ onMount(() => {
 
 	const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const hostMutationObserver = new MutationObserver((mutations) => {
+		console.log(`[kanban-motion] MutationObserver fired, ${mutations.length} mutation(s)`);
 		for (const mutation of mutations) {
 			if (mutation.type !== "attributes" || mutation.attributeName !== "data-column-id") {
 				continue;
@@ -331,7 +351,10 @@ onMount(() => {
 			}
 
 			const cardId = mutation.target.getAttribute("data-card-id");
+			const newColumnId = mutation.target.getAttribute("data-column-id");
+			console.log(`[kanban-motion] data-column-id changed: card=${cardId} old=${mutation.oldValue} new=${newColumnId}`);
 			if (!cardId || !mutation.oldValue) {
+				console.log(`[kanban-motion] BAIL: missing cardId or oldValue`);
 				continue;
 			}
 
@@ -376,6 +399,9 @@ onMount(() => {
 			attributeFilter: ["data-column-id"],
 			attributeOldValue: true,
 		});
+		console.log(`[kanban-motion] MutationObserver attached to boardElement`);
+	} else {
+		console.log(`[kanban-motion] WARNING: boardElement not ready at onMount, observer NOT attached`);
 	}
 
 	return () => {
@@ -411,6 +437,7 @@ onMount(() => {
 						<KanbanBoardCardHost
 							card={cardPlacement.card}
 							placement={cardPlacement.placement}
+							isAnimating={animatingCardIds.has(cardPlacement.placement.cardId)}
 							registerHost={registerHost}
 							renderer={cardRenderer}
 						/>
