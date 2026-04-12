@@ -1,9 +1,12 @@
 use serde::Serialize;
 use specta::Type;
 
+use crate::acp::client_session::{SessionModelState, SessionModes};
+
 use super::{
-    AvailableCommandsData, ConfigOptionUpdateData, ContentChunk, CurrentModeData, PermissionData,
-    PlanData, QuestionData, ToolCallData, ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
+    AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
+    ContentChunk, CurrentModeData, PermissionData, PlanData, QuestionData, ToolCallData,
+    ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
 };
 
 /// Session update types from ACP protocol.
@@ -110,6 +113,27 @@ pub enum SessionUpdate {
     /// Usage/cost and token telemetry from the agent (adapter-agnostic).
     /// Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
     UsageTelemetryUpdate { data: UsageTelemetryData },
+
+    /// Emitted by the async resume task when session connection completes successfully.
+    /// Carries the session capabilities so the frontend can populate hot state.
+    ConnectionComplete {
+        session_id: String,
+        attempt_id: u64,
+        models: SessionModelState,
+        modes: SessionModes,
+        #[serde(default)]
+        available_commands: Vec<AvailableCommand>,
+        #[serde(default)]
+        config_options: Vec<ConfigOptionData>,
+        autonomous_enabled: bool,
+    },
+
+    /// Emitted by the async resume task when session connection fails.
+    ConnectionFailed {
+        session_id: String,
+        attempt_id: u64,
+        error: String,
+    },
 }
 
 impl SessionUpdate {
@@ -130,6 +154,8 @@ impl SessionUpdate {
             SessionUpdate::TurnComplete { session_id, .. } => session_id.as_deref(),
             SessionUpdate::TurnError { session_id, .. } => session_id.as_deref(),
             SessionUpdate::UsageTelemetryUpdate { data, .. } => Some(data.session_id.as_str()),
+            SessionUpdate::ConnectionComplete { session_id, .. } => Some(session_id.as_str()),
+            SessionUpdate::ConnectionFailed { session_id, .. } => Some(session_id.as_str()),
         }
     }
 }

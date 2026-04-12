@@ -19,6 +19,10 @@ import {
 	resolveProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
 import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
+import type {
+	AvailableCommand,
+	ConfigOptionData,
+} from "../../../services/converted-session-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
@@ -28,7 +32,10 @@ import { createLogger } from "../../utils/logger.js";
 import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
 import { api } from "../api.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
-import type { SessionEventService } from "../session-event-service.svelte.js";
+import type {
+	SessionEventService,
+	SessionEventServiceCallbacks,
+} from "../session-event-service.svelte.js";
 import type { Mode, Model, SessionCold } from "../types.js";
 import type {
 	ICapabilitiesManager,
@@ -42,16 +49,14 @@ import type {
 const logger = createLogger({ id: "session-connection-manager", name: "SessionConnectionManager" });
 
 /**
- * Frontend connection timeout (ms).
- * Defense-in-depth: the Rust side has SESSION_CLIENT_OPERATION_TIMEOUT (30s),
- * but if that fails to fire, this ensures the UI doesn't hang forever.
- *
- * Must be *above* the Rust timeout — cold resume of Copilot sessions
- * (subprocess spawn + initialize + history replay) routinely takes 19-21s,
- * well within the 30s backend budget. A 15s frontend timeout caused spurious
- * "Session connection timed out" errors on every app/HMR restart.
+ * Watchdog timeout (ms) — pure defense-in-depth.
+ * The authoritative timeout lives in Rust (45s). This watchdog fires only
+ * if the Rust task panics or the SSE bridge drops the lifecycle event.
  */
-const CONNECTION_TIMEOUT_MS = 45_000;
+const WATCHDOG_TIMEOUT_MS = 90_000;
+
+/** Global attempt counter for stale-event detection. */
+let nextAttemptId = 1;
 
 interface ConnectSessionOptions {
 	agentOverrideId?: string;
@@ -61,28 +66,6 @@ type ProviderAwareSessionModelState = AcpSessionModelState & {
 	readonly providerMetadata?: ProviderMetadataProjection | null;
 	readonly modelsDisplay?: ModelsForDisplay | null;
 };
-
-/**
- * Wrap a ResultAsync with a timeout. If the timeout fires first, the
- * returned ResultAsync resolves to the given timeoutError.
- */
-function withTimeout<T, E>(ra: ResultAsync<T, E>, ms: number, timeoutError: E): ResultAsync<T, E> {
-	return ResultAsync.fromPromise(
-		Promise.race([
-			ra.match(
-				(value) => ({ ok: true as const, value }),
-				(error) => ({ ok: false as const, error })
-			),
-			new Promise<{ ok: false; error: E }>((resolve) =>
-				setTimeout(() => resolve({ ok: false, error: timeoutError }), ms)
-			),
-		]).then((result) => {
-			if (result.ok) return result.value;
-			throw result.error;
-		}),
-		(error) => error as E
-	);
-}
 
 function getProviderAwareSessionModelState(
 	modelState: AcpSessionModelState | null | undefined
@@ -590,6 +573,11 @@ export class SessionConnectionManager {
 
 	/**
 	 * Connect to a session (resume or create ACP connection).
+	 *
+	 * Fire-and-forget: sends the resume invoke to Rust (which returns immediately
+	 * after validation), then waits for a connectionComplete/connectionFailed
+	 * lifecycle event via the SSE bridge. Hot-state population happens in the
+	 * onConnectionComplete callback.
 	 */
 	connectSession(
 		sessionId: string,
@@ -651,11 +639,15 @@ export class SessionConnectionManager {
 			connectionError: null,
 		});
 
-		// Always send projectPath as the base CWD. The backend will override it
-		// with the descriptor's worktree path when it still exists on disk, avoiding
-		// the case where the frontend sends stale workspace metadata back as resume
-		// authority.
 		const resumeCwd = session.projectPath;
+		const attemptId = nextAttemptId++;
+		const reconnectHotState = this.stateReader.getHotState(sessionId);
+		const resumeLaunchModeId = this.resolveResumeLaunchModeId(
+			effectiveAgentId,
+			reconnectHotState.currentMode ? reconnectHotState.currentMode.id : undefined
+		);
+
+		// Fire-and-forget: send resume invoke, which returns after validation only
 		const connection = preferencesStore
 			.ensureLoaded()
 			.orElse((error) => {
@@ -666,298 +658,97 @@ export class SessionConnectionManager {
 				});
 				return okAsync(undefined);
 			})
-			.andThen(() => {
-				const reconnectHotState = this.stateReader.getHotState(sessionId);
-				const shouldRestoreAutonomous = reconnectHotState.autonomousEnabled;
-				const resumeLaunchModeId = this.resolveResumeLaunchModeId(
-					effectiveAgentId,
-					reconnectHotState.currentMode ? reconnectHotState.currentMode.id : undefined
-				);
-
-				return withTimeout(
-					resumeLaunchModeId === undefined
-						? api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId)
-						: api.resumeSession(
-								sessionId,
-								resumeCwd,
-								options?.agentOverrideId,
-								resumeLaunchModeId
-							),
-					CONNECTION_TIMEOUT_MS,
-					new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
+			.andThen(() =>
+				api.resumeSession(
+					sessionId,
+					resumeCwd,
+					attemptId,
+					options?.agentOverrideId,
+					resumeLaunchModeId ?? undefined
 				)
-					.andThen((result) => preferencesStore.ensureLoaded().map(() => result))
-					.andThen((result) => {
-						this.connectionManager.setConnecting(sessionId, false);
-						const modelState = getProviderAwareSessionModelState(result.models);
-						const {
-							availableModels: rawModels = [],
-							currentModelId,
-							modelsDisplay: rawModelsDisplay,
-							providerMetadata: rawProviderMetadata,
-						} = modelState;
-						const providerMetadata = this.resolveProviderMetadata(
-							effectiveAgentId,
-							rawProviderMetadata
-						);
-						const modelsDisplay =
-							normalizeModelsForDisplay(
-								effectiveAgentId,
-								rawModelsDisplay,
-								effectiveAgentId,
-								providerMetadata
-							) ?? undefined;
-
-						const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-							id: m.id,
-							name: m.name,
-							description: m.description ?? undefined,
-						}));
-
-						const availableModels: Model[] = rawModels.map((m) => ({
-							id: m.modelId,
-							name: m.name,
-							description: m.description ?? undefined,
-						}));
-						const availableCommands = result.availableCommands ?? [];
-						const configOptions = result.configOptions ?? [];
-
-						const currentMode =
-							availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
-						const initialModel = this.resolveCurrentModel(
-							effectiveAgentId,
-							availableModels,
-							currentModelId,
-							modelsDisplay,
-							providerMetadata
-						);
-
-						const storedModelId = currentMode?.id
-							? preferencesStore.getSessionModelForMode(sessionId, currentMode.id)
-							: undefined;
-						const hasStoredModel = typeof storedModelId === "string" && storedModelId.length > 0;
-						const storedModelValid =
-							hasStoredModel && availableModels.some((m) => m.id === storedModelId);
-						const canSeedSessionModel = preferencesStore.isSessionModelLoaded();
-
-						if (storedModelValid && storedModelId && storedModelId !== initialModel?.id) {
-							const storedModel = availableModels.find((m) => m.id === storedModelId) ?? null;
-							logger.debug("Restoring stored session model for mode", {
-								sessionId,
-								modeId: currentMode?.id,
-								modelId: storedModelId,
-							});
-							return withTimeout(
-								api.setModel(sessionId, storedModelId),
-								CONNECTION_TIMEOUT_MS,
-								new ConnectionError(`setModel timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
-							)
-								.map(() => ({
-									availableModes,
-									availableModels,
-									availableCommands,
-									configOptions,
-									modelsDisplay: modelsDisplay,
-									providerMetadata,
-									currentMode,
-									currentModel: storedModel ?? initialModel,
-								}))
-								.mapErr((err) => {
-									logger.warn("Failed to restore session model", {
-										sessionId,
-										modelId: storedModelId,
-										error: err,
-									});
-									return err;
-								})
-								.orElse(() =>
-									okAsync({
-										availableModes,
-										availableModels,
-										availableCommands,
-										configOptions,
-										modelsDisplay: modelsDisplay,
-										providerMetadata,
-										currentMode,
-										currentModel: initialModel,
-									})
-								);
-						}
-
-						if (!hasStoredModel && canSeedSessionModel && currentMode && initialModel?.id) {
-							preferencesStore.setSessionModelForMode(sessionId, currentMode.id, initialModel.id);
-						}
-
-						return okAsync({
-							availableModes,
-							availableModels,
-							availableCommands,
-							configOptions,
-							modelsDisplay: modelsDisplay,
-							providerMetadata,
-							currentMode,
-							currentModel: initialModel,
-						});
-					})
-					.andThen(
-						({
-							availableModes,
-							availableModels,
-							availableCommands,
-							configOptions,
-							modelsDisplay,
-							providerMetadata,
-							currentMode,
-							currentModel,
-						}) => {
-							const supportsAutonomous = this.supportsAutonomousMode(
-								currentMode ? currentMode.id : undefined
-							);
-							if (!shouldRestoreAutonomous) {
-								return okAsync({
-									availableModes,
-									availableModels,
-									availableCommands,
-									configOptions,
-									modelsDisplay,
-									providerMetadata,
-									currentMode,
-									currentModel,
-									autonomousEnabled: false,
-								});
-							}
-
-							if (!supportsAutonomous) {
-								return this.setSessionAutonomous(session.id, false)
-									.orElse((error) => {
-										logger.warn(
-											"Failed to clear Autonomous while reconnecting into unsupported mode",
-											{
-												sessionId,
-												modeId: currentMode ? currentMode.id : null,
-												error,
-											}
-										);
-										return okAsync(undefined);
-									})
-									.map(() => ({
-										availableModes,
-										availableModels,
-										availableCommands,
-										configOptions,
-										modelsDisplay,
-										providerMetadata,
-										currentMode,
-										currentModel,
-										autonomousEnabled: false,
-									}));
-							}
-
-							return this.setSessionAutonomous(session.id, true)
-								.map(() => ({
-									availableModes,
-									availableModels,
-									availableCommands,
-									configOptions,
-									modelsDisplay,
-									providerMetadata,
-									currentMode,
-									currentModel,
-									autonomousEnabled: true,
-								}))
-								.orElse((error) => {
-									logger.warn("Failed to restore Autonomous on connect; continuing safely", {
-										sessionId,
-										modeId: currentMode ? currentMode.id : null,
-										error,
-									});
-									return okAsync({
-										availableModes,
-										availableModels,
-										availableCommands,
-										configOptions,
-										modelsDisplay,
-										providerMetadata,
-										currentMode,
-										currentModel,
-										autonomousEnabled: false,
-									});
-								});
-						}
-					);
-			})
-			.map(
-				({
-					availableModes,
-					availableModels,
-					availableCommands,
-					configOptions,
-					modelsDisplay,
-					providerMetadata,
-					currentMode,
-					currentModel,
-					autonomousEnabled,
-				}) => {
-					// Cache available models and modes for settings/optimistic display
-					preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
-					preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-					preferencesStore.updateModelsDisplayCache(
-						effectiveAgentId,
-						modelsDisplay,
-						providerMetadata
-					);
-					preferencesStore.updateModesCache(effectiveAgentId, availableModes);
-					logger.info("Provider model capabilities on session resume", {
-						sessionId,
-						agentId: effectiveAgentId,
-						availableModelIds: availableModels.map((model) => model.id),
-						currentModelId: currentModel?.id ?? null,
-						cachedModelIds: preferencesStore
-							.getCachedModels(effectiveAgentId)
-							.map((model) => model.id),
-					});
-
-					// Store capabilities separately from cold data
-					this.capabilitiesManager.updateCapabilities(sessionId, {
-						availableModes,
-						availableModels,
-						availableCommands,
-						modelsDisplay,
-						providerMetadata,
-					});
-
-					this.pendingConnections.delete(sessionId);
-
-					// Update state machine: connecting → success → warming up → capabilities loaded
-					this.connectionManager.sendConnectionSuccess(sessionId);
-					this.connectionManager.sendCapabilitiesLoaded(sessionId);
-
-					// Transition content state to LOADED so the UI shows the conversation.
-					// For Codex, content arrives via ACP streaming; for disk-based agents,
-					// content may already be LOADED from preloadSessions (idempotent).
-					this.connectionManager.sendContentLoad(sessionId);
-					this.connectionManager.sendContentLoaded(sessionId);
-
-					this.hotStateManager.updateHotState(sessionId, {
-						status: "ready",
-						turnState: "idle",
-						isConnected: true,
-						acpSessionId: sessionId,
-						autonomousEnabled,
-						autonomousTransition: "idle",
-						currentMode,
-						currentModel,
-						availableCommands,
-						configOptions,
-						connectionError: null,
-					});
-
-					// Resume can emit events before connect finishes. Flush buffered events now.
-					this.eventService.flushPendingEvents(sessionId, eventHandler);
-
-					return this.stateReader.getSessionCold(sessionId)!;
-				}
 			)
+			.andThen(() => {
+				// Wait for the lifecycle event from the SSE bridge
+				return ResultAsync.fromPromise(
+					new Promise<SessionCold>((resolve, reject) => {
+						const watchdog = setTimeout(() => {
+							logger.error(
+								"Watchdog: no lifecycle event received within timeout",
+								{ sessionId, attemptId, watchdogMs: WATCHDOG_TIMEOUT_MS }
+							);
+							cleanup();
+							reject(
+								new ConnectionError(
+									`Watchdog timeout: no response from Rust within ${WATCHDOG_TIMEOUT_MS / 1000}s`
+								)
+							);
+						}, WATCHDOG_TIMEOUT_MS);
+
+						const cleanup = () => {
+							clearTimeout(watchdog);
+							this.eventService.setCallbacks({
+								...this.currentCallbacks(),
+								onConnectionComplete: this.savedCallbacks?.onConnectionComplete,
+								onConnectionFailed: this.savedCallbacks?.onConnectionFailed,
+							});
+						};
+
+						// Save existing callbacks and install our listeners
+						this.savedCallbacks = {
+							onConnectionComplete: this.currentCallbacks().onConnectionComplete,
+							onConnectionFailed: this.currentCallbacks().onConnectionFailed,
+						};
+
+						this.eventService.setCallbacks({
+							...this.currentCallbacks(),
+							onConnectionComplete: (sid, aid, data) => {
+								// Forward to any previously-registered handler
+								this.savedCallbacks?.onConnectionComplete?.(sid, aid, data);
+								if (sid !== sessionId || aid !== attemptId) {
+									logger.debug("Ignoring stale connectionComplete", {
+										sessionId: sid,
+										attemptId: aid,
+										expectedAttemptId: attemptId,
+									});
+									return;
+								}
+								cleanup();
+								this.handleConnectionComplete(
+									sessionId,
+									effectiveAgentId,
+									data,
+									eventHandler
+								);
+								const cold = this.stateReader.getSessionCold(sessionId);
+								if (cold) {
+									resolve(cold);
+								} else {
+									reject(new SessionNotFoundError(sessionId));
+								}
+							},
+							onConnectionFailed: (sid, aid, error) => {
+								// Forward to any previously-registered handler
+								this.savedCallbacks?.onConnectionFailed?.(sid, aid, error);
+								if (sid !== sessionId || aid !== attemptId) {
+									logger.debug("Ignoring stale connectionFailed", {
+										sessionId: sid,
+										attemptId: aid,
+										expectedAttemptId: attemptId,
+									});
+									return;
+								}
+								cleanup();
+								reject(new ConnectionError(error));
+							},
+						});
+					}),
+					(err) => err as AppError
+				);
+			})
+			.map((cold) => {
+				this.pendingConnections.delete(sessionId);
+				return cold;
+			})
 			.mapErr((error) => {
 				this.pendingConnections.delete(sessionId);
 				this.connectionManager.setConnecting(sessionId, false);
@@ -999,6 +790,126 @@ export class SessionConnectionManager {
 
 		this.pendingConnections.set(sessionId, connection);
 		return connection;
+	}
+
+	/** Saved callbacks for restoring after connection resolution. */
+	private savedCallbacks?: {
+		onConnectionComplete?: SessionEventServiceCallbacks["onConnectionComplete"];
+		onConnectionFailed?: SessionEventServiceCallbacks["onConnectionFailed"];
+	};
+
+	/** Get the current callbacks from the event service. */
+	private currentCallbacks(): SessionEventServiceCallbacks {
+		return this.eventService.getCallbacks();
+	}
+
+	/**
+	 * Handle connectionComplete lifecycle event — populate hot state and capabilities.
+	 * This logic was previously inline in the blocking connectSession chain.
+	 */
+	private handleConnectionComplete(
+		sessionId: string,
+		effectiveAgentId: string,
+		data: {
+			models: AcpSessionModelState;
+			modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
+			availableCommands: AvailableCommand[];
+			configOptions: ConfigOptionData[];
+			autonomousEnabled: boolean;
+		},
+		eventHandler: SessionEventHandler
+	): void {
+		const modelState = getProviderAwareSessionModelState(data.models);
+		const {
+			availableModels: rawModels = [],
+			currentModelId,
+			modelsDisplay: rawModelsDisplay,
+			providerMetadata: rawProviderMetadata,
+		} = modelState;
+		const providerMetadata = this.resolveProviderMetadata(
+			effectiveAgentId,
+			rawProviderMetadata as ProviderMetadataProjection | undefined
+		);
+		const modelsDisplay =
+			normalizeModelsForDisplay(
+				effectiveAgentId,
+				rawModelsDisplay as ModelsForDisplay | undefined,
+				effectiveAgentId,
+				providerMetadata
+			) ?? undefined;
+
+		const availableModes: Mode[] = (data.modes?.availableModes ?? []).map((m) => ({
+			id: m.id,
+			name: m.name,
+			description: m.description ?? undefined,
+		}));
+
+		const availableModels: Model[] = rawModels.map((m) => ({
+			id: m.modelId,
+			name: m.name,
+			description: m.description ?? undefined,
+		}));
+		const availableCommands = data.availableCommands ?? [];
+		const configOptions = data.configOptions ?? [];
+
+		const currentMode =
+			availableModes.find((m) => m.id === data.modes?.currentModeId) ?? null;
+		const initialModel = this.resolveCurrentModel(
+			effectiveAgentId,
+			availableModels,
+			currentModelId,
+			modelsDisplay,
+			providerMetadata
+		);
+
+		// Cache available models and modes for settings/optimistic display
+		preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
+		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
+		preferencesStore.updateModelsDisplayCache(
+			effectiveAgentId,
+			modelsDisplay,
+			providerMetadata
+		);
+		preferencesStore.updateModesCache(effectiveAgentId, availableModes);
+		logger.info("Provider model capabilities on session resume", {
+			sessionId,
+			agentId: effectiveAgentId,
+			availableModelIds: availableModels.map((model) => model.id),
+			currentModelId: initialModel?.id ?? null,
+		});
+
+		// Store capabilities separately from cold data
+		this.capabilitiesManager.updateCapabilities(sessionId, {
+			availableModes,
+			availableModels,
+			availableCommands,
+			modelsDisplay,
+			providerMetadata,
+		});
+
+		this.connectionManager.setConnecting(sessionId, false);
+
+		// Update state machine: connecting → success → warming up → capabilities loaded
+		this.connectionManager.sendConnectionSuccess(sessionId);
+		this.connectionManager.sendCapabilitiesLoaded(sessionId);
+
+		// Transition content state to LOADED so the UI shows the conversation.
+		this.connectionManager.sendContentLoad(sessionId);
+		this.connectionManager.sendContentLoaded(sessionId);
+
+		this.hotStateManager.updateHotState(sessionId, {
+			status: "ready",
+			turnState: "idle",
+			isConnected: true,
+			acpSessionId: sessionId,
+			autonomousEnabled: data.autonomousEnabled,
+			autonomousTransition: "idle",
+			currentMode,
+			currentModel: initialModel,
+			availableCommands,
+			configOptions,
+			connectionError: null,
+		});
 	}
 
 	/**

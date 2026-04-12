@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		AppWindow,
 		ArrowsLeftRight,
 		File,
 		GlobeHemisphereWest,
@@ -33,6 +34,8 @@
 	<Trash weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "move"}
 	<ArrowsLeftRight weight="fill" {size} class="shrink-0" style="color: {color}" />
+{:else if kind === "browser"}
+	<AppWindow weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else}
 	<ShieldWarning weight="fill" size={size - 1} class="shrink-0" style="color: {color}" />
 {/if}

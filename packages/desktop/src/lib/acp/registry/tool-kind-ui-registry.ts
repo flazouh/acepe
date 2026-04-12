@@ -64,7 +64,7 @@ function getDeleteSubtitle(toolCall: ToolCall): string {
 /**
  * Format raw tool names into readable titles for "other" tool kind.
  */
-function formatOtherToolName(name: string): string {
+export function formatOtherToolName(name: string): string {
 	// MCP-style names are often "mcp__server__ToolName" - display only final segment.
 	const mcpSegments = name.split("__").filter((segment) => segment.length > 0);
 	const baseName = mcpSegments.length > 0 ? mcpSegments[mcpSegments.length - 1] : name;
@@ -79,6 +79,44 @@ function formatOtherToolName(name: string): string {
 		.filter((word) => word.length > 0)
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
+}
+
+/**
+ * Extract the function segment from an MCP-style browser tool name.
+ * "mcp__tauri__webview_screenshot" → "webview_screenshot"
+ * "tauri-webview_screenshot" → "webview_screenshot"
+ */
+function extractBrowserFuncName(name: string): string {
+	const segments = name.split("__").filter((s) => s.length > 0);
+	const last = segments[segments.length - 1] ?? name;
+	const dashIdx = last.indexOf("-");
+	return dashIdx >= 0 ? last.slice(dashIdx + 1) : last;
+}
+
+const BROWSER_TITLE_MAP: Record<string, string> = {
+	webview_screenshot: "Screenshot",
+	webview_find_element: "Find Element",
+	webview_interact: "Interact",
+	webview_keyboard: "Keyboard",
+	webview_wait_for: "Wait For",
+	webview_get_styles: "Get Styles",
+	webview_execute_js: "Execute JS",
+	webview_dom_snapshot: "DOM Snapshot",
+	webview_select_element: "Select Element",
+	webview_get_pointed_element: "Get Pointed Element",
+	ipc_execute_command: "IPC Command",
+	ipc_monitor: "IPC Monitor",
+	ipc_get_captured: "IPC Captured",
+	ipc_emit_event: "IPC Emit",
+	ipc_get_backend_state: "Backend State",
+	driver_session: "Driver Session",
+	manage_window: "Manage Window",
+	read_logs: "Read Logs",
+	list_devices: "List Devices",
+};
+
+function formatBrowserTitle(funcName: string): string {
+	return BROWSER_TITLE_MAP[funcName] ?? formatOtherToolName(funcName);
 }
 
 /**
@@ -377,6 +415,28 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		subtitle: (toolCall) => {
 			const taskId = toolCall.arguments.kind === "taskOutput" ? toolCall.arguments.task_id : null;
 			return typeof taskId === "string" ? truncateText(taskId, 40) : "";
+		},
+	},
+
+	browser: {
+		title: (toolCall) => {
+			const name = toolCall.name;
+			const funcName = extractBrowserFuncName(name);
+			return formatBrowserTitle(funcName);
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "browser") return "";
+			const raw = toolCall.arguments.raw;
+			if (typeof raw !== "object" || raw === null) return "";
+			const obj = raw as Record<string, unknown>;
+			const action = typeof obj.action === "string" ? obj.action : null;
+			const selector = typeof obj.selector === "string" ? obj.selector : null;
+			const script = typeof obj.script === "string" ? obj.script : null;
+			if (action && selector) return `${action} → ${truncateText(selector, 30)}`;
+			if (action) return action;
+			if (selector) return truncateText(selector, 40);
+			if (script) return truncateText(script.replace(/\s+/g, " "), 40);
+			return "";
 		},
 	},
 

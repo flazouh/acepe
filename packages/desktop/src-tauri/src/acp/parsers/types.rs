@@ -465,7 +465,17 @@ pub(crate) fn parse_todo_write(
     name: &str,
     arguments: &serde_json::Value,
 ) -> Option<Vec<ParsedTodo>> {
-    if name != "TodoWrite" {
+    if !matches!(
+        name,
+        "TodoWrite"
+            | "todo_write"
+            | "updateTodos"
+            | "update_todos"
+            | "markTodo"
+            | "mark_todo"
+            | "task_list"
+            | "taskList"
+    ) {
         return None;
     }
 

@@ -8,7 +8,6 @@ import type { InitializeResponse } from "../types/initialize-response.js";
 import type { ModeId } from "../types/mode-id.js";
 import type { ModelId } from "../types/model-id.js";
 import type { NewSessionResponse } from "../types/new-session-response.js";
-import type { ResumeSessionResponse } from "../types/resume-session-response.js";
 import type { SessionId } from "../types/session-id.js";
 import type { SessionResponse } from "../types/session-response.js";
 import { createLogger } from "../utils/logger.js";
@@ -167,30 +166,30 @@ export class AcpClient {
 	resumeSession(
 		sessionId: SessionId,
 		cwd: string,
+		attemptId: number,
 		agentId?: string,
 		launchModeId?: string
-	): ResultAsync<ResumeSessionResponse, AcpError> {
+	): ResultAsync<void, AcpError> {
 		this.logger.debug(
 			"resumeSession() called with sessionId:",
 			sessionId,
 			"cwd:",
 			cwd,
+			"attemptId:",
+			attemptId,
 			"agentId:",
 			agentId,
 			"launchModeId:",
 			launchModeId
 		);
 		return tauriClient.acp
-			.resumeSession(sessionId, cwd, agentId, launchModeId)
+			.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId)
 			.mapErr((error) => this.deserializeTauriError(error, "Failed to resume session"))
-			.map((response) => {
-				// Per ACP protocol: ResumeSessionResponse does NOT include sessionId
-				this.logger.debug("Session resumed:", {
+			.map(() => {
+				this.logger.debug("Session resume invoke accepted (fire-and-forget)", {
 					sessionId,
-					modesCount: (response as ResumeSessionResponse).modes.availableModes.length,
-					currentMode: (response as ResumeSessionResponse).modes.currentModeId,
+					attemptId,
 				});
-				return response as ResumeSessionResponse;
 			})
 			.mapErr((error) => {
 				this.logger.error("Resume session failed:", error);
@@ -218,27 +217,20 @@ export class AcpClient {
 	}
 
 	/**
-	 * Resumes an existing session and returns a discriminated union response.
-	 * This is the type-safe alternative to resumeSession() that eliminates unsafe type assertions.
+	 * Resumes an existing session (fire-and-forget).
+	 * Completion/failure will arrive via connectionComplete/connectionFailed lifecycle events.
 	 *
-	 * @param sessionId - The session ID to resume
-	 * @param cwd - Current working directory for the session
-	 * @param agentId - Optional agent ID to use for the session
-	 * @returns ResultAsync containing the discriminated union session response or an error
+	 * @deprecated Use resumeSession() directly — this wrapper no longer adds value
+	 * since resume is now fire-and-forget and doesn't return session response data.
 	 */
 	resumeSessionSafe(
 		sessionId: SessionId,
 		cwd: string,
+		attemptId: number,
 		agentId?: string,
 		launchModeId?: string
-	): ResultAsync<SessionResponse, AcpError> {
-		return this.resumeSession(sessionId, cwd, agentId, launchModeId)
-			.map((response) => ({
-				type: "resume" as const,
-				models: response.models,
-				modes: response.modes,
-			}))
-			.mapErr((error) => error);
+	): ResultAsync<void, AcpError> {
+		return this.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId);
 	}
 
 	/**

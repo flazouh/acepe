@@ -97,6 +97,8 @@ describe("convertTaskChildren", () => {
 			["think", "think"],
 			["task", "task"],
 			["task_output", "task_output"],
+			["skill", "skill"],
+			["browser", "browser"],
 		] as const)("maps '%s' to '%s'", (input, expected) => {
 			const children = [createChild({ id: "t1", kind: input, status: "completed" })];
 			const result = convertTaskChildren(children);
@@ -106,7 +108,6 @@ describe("convertTaskChildren", () => {
 		it.each([
 			"todo",
 			"question",
-			"skill",
 			"move",
 			"enter_plan_mode",
 			"exit_plan_mode",

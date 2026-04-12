@@ -145,6 +145,13 @@ impl AcpUiEvent {
         );
         Ok(())
     }
+
+    /// Publish directly to the event hub, bypassing the rate-limited dispatch loop.
+    /// Used for lifecycle events (connectionComplete/connectionFailed) that must
+    /// not be delayed or dropped.
+    pub fn publish_direct(&self, hub: &AcpEventHubState) -> Result<(), serde_json::Error> {
+        self.publish(hub)
+    }
 }
 
 #[derive(Debug, Clone)]

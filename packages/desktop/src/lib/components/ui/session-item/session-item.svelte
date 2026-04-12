@@ -18,15 +18,20 @@ import {
 } from "$lib/acp/constants/thread-list-constants.js";
 import { formatTimeAgo } from "$lib/acp/logic/thread-list-date-utils.js";
 import { getPanelStore } from "$lib/acp/store/index.js";
+import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import { extractTodoProgress } from "$lib/acp/components/session-list/session-list-logic.js";
+import {
+	deriveCompactActivityKind,
+	projectActivityEntryFromSessionEntries,
+} from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
-import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
@@ -71,6 +76,7 @@ let {
 
 const themeState = useTheme();
 const panelStore = getPanelStore();
+const sessionStore = getSessionStore();
 const worktreeDeleted = $derived(session.worktreeDeleted ?? false);
 
 function getThemedAgentIcon(agentId?: string): string {
@@ -107,28 +113,6 @@ function handleSelect() {
 function handleChevronClick(event: MouseEvent) {
 	event.stopPropagation();
 	onToggleExpand?.();
-}
-
-async function handleOpenRawFile() {
-	await tauriClient.shell
-		.getSessionFilePath(session.id, session.projectPath)
-		.andThen((path) => openFileInEditor(path))
-		.match(
-			() => toast.success(m.thread_export_raw_success()),
-			(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
-		);
-}
-
-async function handleOpenInAcepe() {
-	await tauriClient.shell.getSessionFilePath(session.id, session.projectPath).match(
-		(fullPath) => {
-			const parts = fullPath.split(/[/\\]/);
-			const fileName = parts.pop() ?? fullPath;
-			const dirPath = parts.join("/") || "/";
-			panelStore.openFilePanel(fileName, dirPath);
-		},
-		(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
-	);
 }
 
 async function handleArchive() {
@@ -210,6 +194,35 @@ const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const isStreaming = $derived(session.activity?.isStreaming ?? false);
+const hotState = $derived(sessionStore.getHotState(session.id));
+const activityProjection = $derived.by(() => {
+	const sessionState = hotState.sessionState;
+	const activityKind = sessionState ? sessionState.activity.kind : "idle";
+	const compactActivityKind = deriveCompactActivityKind(null, hotState.status);
+	const resolvedActivityKind = activityKind === "idle" ? compactActivityKind : activityKind;
+
+	if (resolvedActivityKind === "idle") {
+		return null;
+	}
+
+	const entries = sessionStore.getEntries(session.id);
+	const todoProgressInfo = extractTodoProgress(entries);
+	const todoProgress = todoProgressInfo
+		? {
+				current: todoProgressInfo.current,
+				total: todoProgressInfo.total,
+				label: todoProgressInfo.label,
+			}
+		: null;
+
+	return projectActivityEntryFromSessionEntries({
+		entries,
+		activityKind: resolvedActivityKind,
+		todoProgress,
+		includeLastCompletedTool: false,
+	});
+});
+const projectedIsStreaming = $derived(activityProjection?.isStreaming ?? isStreaming);
 const displayTitle = $derived(getSessionDisplayName(session));
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
@@ -368,11 +381,6 @@ const highlightCtx = getSessionListHighlightContext();
 								class="min-w-[180px]"
 								onclick={(e: MouseEvent) => e.stopPropagation()}
 							>
-								{#if onRename}
-									<DropdownMenu.Item onSelect={openRenameEditor} class="cursor-pointer">
-										{m.file_list_rename()}
-									</DropdownMenu.Item>
-								{/if}
 								<DropdownMenu.Item class="cursor-pointer">
 									<CopyButton
 										text={session.id}
@@ -382,21 +390,11 @@ const highlightCtx = getSessionListHighlightContext();
 										size={16}
 									/>
 								</DropdownMenu.Item>
-								<DropdownMenu.Item class="cursor-pointer">
-									<CopyButton
-										getText={() => getSessionDisplayName(session)}
-										variant="menu"
-										label={m.session_menu_copy_title()}
-										hideIcon
-										size={16}
-									/>
-								</DropdownMenu.Item>
-								<DropdownMenu.Item onSelect={handleOpenRawFile} class="cursor-pointer">
-									{m.session_menu_open_raw_file()}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item onSelect={handleOpenInAcepe} class="cursor-pointer">
-									{m.session_menu_open_in_acepe()}
-								</DropdownMenu.Item>
+								{#if onRename}
+									<DropdownMenu.Item onSelect={openRenameEditor} class="cursor-pointer">
+										{m.file_list_rename()}
+									</DropdownMenu.Item>
+								{/if}
 								{#if onExportMarkdown || onExportJson}
 									<DropdownMenu.Separator />
 									<DropdownMenu.Sub>
@@ -459,17 +457,19 @@ const highlightCtx = getSessionListHighlightContext();
 					deletions={session.deletions ?? 0}
 					{titleContent}
 					{agentBadge}
-					{isStreaming}
+					isStreaming={projectedIsStreaming}
 					trailingAction={actionsVisible ? rowActions : undefined}
-					taskDescription={null}
-					taskSubagentSummaries={[]}
-					showTaskSubagentList={false}
-					fileToolDisplayText={null}
-					toolContent={null}
-					showToolShimmer={false}
+					taskDescription={activityProjection?.taskDescription ?? null}
+					taskSubagentSummaries={activityProjection?.taskSubagentSummaries ?? []}
+					taskSubagentTools={activityProjection?.taskSubagentTools ?? []}
+					latestTaskSubagentTool={activityProjection?.latestTaskSubagentTool ?? null}
+					showTaskSubagentList={activityProjection?.showTaskSubagentList ?? false}
+					fileToolDisplayText={activityProjection?.fileToolDisplayText ?? null}
+					toolContent={activityProjection?.isFileTool ? null : (activityProjection?.toolContent ?? null)}
+					showToolShimmer={activityProjection?.showToolShimmer ?? false}
 					statusText={null}
 					showStatusShimmer={false}
-					todoProgress={null}
+					todoProgress={activityProjection?.todoProgress ?? null}
 					currentQuestion={null}
 					totalQuestions={0}
 					hasMultipleQuestions={false}

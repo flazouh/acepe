@@ -30,15 +30,17 @@ export function initialize(): ResultAsync<void, AppError> {
 
 /**
  * Resume an existing session using backend-owned descriptor resolution.
- * `agentId` is only for explicit override flows.
+ * Fire-and-forget: returns immediately after validation. Completion/failure
+ * arrives via connectionComplete/connectionFailed events through the SSE bridge.
  */
 export function resumeSession(
 	sessionId: string,
 	cwd: string,
+	attemptId: number,
 	agentId?: string,
 	launchModeId?: string
-): ResultAsync<ResumeSessionResult, AppError> {
-	return tauriClient.acp.resumeSession(sessionId, cwd, agentId, launchModeId);
+): ResultAsync<void, AppError> {
+	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId);
 }
 
 /**

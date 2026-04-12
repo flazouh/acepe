@@ -12,6 +12,7 @@
 	import AgentToolReadLints from "../agent-panel/agent-tool-read-lints.svelte";
 	import AgentToolRow from "../agent-panel/agent-tool-row.svelte";
 	import AgentToolSearch from "../agent-panel/agent-tool-search.svelte";
+	import AgentToolSkill from "../agent-panel/agent-tool-skill.svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentToolTodo from "../agent-panel/agent-tool-todo.svelte";
 	import AgentToolWebSearch from "../agent-panel/agent-tool-web-search.svelte";
@@ -90,6 +91,9 @@
 						}))
 					: undefined,
 				webSearchSummary: child.webSearchSummary,
+				skillName: child.skillName,
+				skillArgs: child.skillArgs,
+				skillDescription: child.skillDescription,
 				taskDescription: child.taskDescription,
 				taskPrompt: child.taskPrompt,
 				taskResultText: child.taskResultText,
@@ -195,6 +199,13 @@
 		query={entry.query ?? entry.subtitle ?? null}
 		links={entry.webSearchLinks ? Array.from(entry.webSearchLinks) : []}
 		summary={entry.webSearchSummary ?? null}
+		status={entry.status}
+	/>
+{:else if isToolCall(entry) && entry.kind === "skill"}
+	<AgentToolSkill
+		skillName={entry.skillName}
+		skillArgs={entry.skillArgs}
+		description={entry.skillDescription}
 		status={entry.status}
 	/>
 {:else if isToolCall(entry) && (entry.kind === "task" || entry.kind === "task_output")}

@@ -27,8 +27,10 @@ export type AgentToolKind =
 	| "fetch"
 	| "web_search"
 	| "think"
+	| "skill"
 	| "task"
 	| "task_output"
+	| "browser"
 	| "other";
 
 export interface AgentUserEntry {
@@ -50,6 +52,7 @@ export interface AgentToolEntry {
 	kind?: AgentToolKind;
 	title: string;
 	subtitle?: string;
+	detailsText?: string | null;
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
 	status: AgentToolStatus;
@@ -69,6 +72,9 @@ export interface AgentToolEntry {
 	// Web search-specific
 	webSearchLinks?: AgentWebSearchLink[];
 	webSearchSummary?: string | null;
+	skillName?: string | null;
+	skillArgs?: string | null;
+	skillDescription?: string | null;
 	// Task-specific
 	taskDescription?: string | null;
 	taskPrompt?: string | null;

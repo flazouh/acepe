@@ -15,6 +15,7 @@ import {
 
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../../application/dto/session.js";
+import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
@@ -23,6 +24,7 @@ import type { ToolKind } from "../../../types/tool-kind.js";
 import type { JsonValue } from "../../../../services/converted-session-types.js";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
+import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
 import { parseToolResultWithExitCode } from "../../tool-calls/tool-call-execute/logic/parse-tool-result.js";
 import { parseSearchResult } from "../../tool-calls/tool-call-search/logic/parse-grep-output.js";
 import { parseWebSearchResult } from "../../tool-calls/tool-call-web-search/logic/parse-web-search-result.js";
@@ -218,8 +220,10 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 		kind === "search" ||
 		kind === "fetch" ||
 		kind === "think" ||
+		kind === "skill" ||
 		kind === "task" ||
-		kind === "task_output"
+		kind === "task_output" ||
+		kind === "browser"
 	) {
 		return kind;
 	}
@@ -243,6 +247,7 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 	if (kind === "move") return "Move";
 	if (kind === "skill") return "Skill";
 	if (kind === "tool_search") return "Tool search";
+	if (kind === "browser") return "Browser";
 	if (kind === "enter_plan_mode") return "Enter plan mode";
 	if (kind === "exit_plan_mode") return "Exit plan mode";
 	if (kind === "create_plan") return "Create plan";
@@ -250,7 +255,10 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 }
 
 function resolveToolTitle(toolCall: ToolCall, kind: ToolKind, turnState: TurnState | undefined): string {
-	const semanticTitle = getDefaultToolTitle(kind, turnState) || toolCall.name;
+	const semanticTitle =
+		kind === "other"
+			? formatOtherToolName(toolCall.name)
+			: (getDefaultToolTitle(kind, turnState) || toolCall.name);
 	const rawTitle = toolCall.title?.trim();
 
 	if (!rawTitle) {
@@ -258,8 +266,9 @@ function resolveToolTitle(toolCall: ToolCall, kind: ToolKind, turnState: TurnSta
 	}
 
 	if (
-		kind === "delete" &&
-		rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0
+		(kind === "delete" &&
+			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
+		kind === "skill"
 	) {
 		return semanticTitle;
 	}
@@ -282,6 +291,16 @@ function getToolSubtitle(toolCall: ToolCall): string | undefined {
 
 	if (toolCall.arguments.kind === "think") {
 		return toolCall.arguments.description ?? undefined;
+	}
+
+	if (toolCall.arguments.kind === "other") {
+		const raw = toolCall.arguments.raw;
+		if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+			const intent = raw.intent;
+			if (typeof intent === "string" && intent.trim().length > 0) {
+				return intent.trim();
+			}
+		}
 	}
 
 	const firstTodo = toolCall.normalizedTodos?.find((todo) => todo.status === "in_progress");
@@ -319,6 +338,35 @@ function getToolFilePath(toolCall: ToolCall): string | undefined {
 	}
 
 	return undefined;
+}
+
+function serializeOtherToolDetails(toolCall: ToolCall): string | null {
+	if (toolCall.kind !== "other") {
+		return null;
+	}
+
+	return JSON.stringify(
+		{
+			id: toolCall.id,
+			name: toolCall.name,
+			kind: toolCall.kind,
+			title: toolCall.title,
+			status: toolCall.status,
+			arguments: toolCall.arguments,
+			rawInput: toolCall.rawInput,
+			result: toolCall.result,
+			locations: toolCall.locations,
+			skillMeta: toolCall.skillMeta,
+			normalizedQuestions: toolCall.normalizedQuestions,
+			normalizedTodos: toolCall.normalizedTodos,
+			parentToolUseId: toolCall.parentToolUseId,
+			questionAnswer: toolCall.questionAnswer,
+			awaitingPlanApproval: toolCall.awaitingPlanApproval,
+			planApprovalRequestId: toolCall.planApprovalRequestId,
+		},
+		null,
+		2
+	);
 }
 
 function mapQuestion(
@@ -422,7 +470,9 @@ function mapSearchPayload(toolCall: ToolCall): {
 	return {
 		searchFiles: Array.from(parsedResult.files),
 		searchResultCount:
-			parsedResult.mode === "content" ? parsedResult.numFiles : parsedResult.files.length,
+			parsedResult.mode === "content"
+				? (parsedResult.numMatches ?? parsedResult.numFiles)
+				: parsedResult.files.length,
 	};
 }
 
@@ -543,6 +593,7 @@ function mapToolCallEntry(
 	const subtitle = getToolSubtitle(toolCall);
 	const searchPayload = mapSearchPayload(toolCall);
 	const webSearchPayload = mapWebSearchPayload(toolCall);
+	const skillPayload = extractSkillCallInput(toolCall.arguments);
 	const status = mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
 
 	return {
@@ -551,6 +602,7 @@ function mapToolCallEntry(
 		kind: normalizeToolKind(kind),
 		title: resolveToolTitle(toolCall, kind, turnState),
 		subtitle,
+		detailsText: serializeOtherToolDetails(toolCall),
 		filePath: getToolFilePath(toolCall),
 		status,
 		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
@@ -569,6 +621,9 @@ function mapToolCallEntry(
 		resultText: mapFetchResultText(toolCall),
 		webSearchLinks: webSearchPayload.webSearchLinks,
 		webSearchSummary: webSearchPayload.webSearchSummary,
+		skillName: skillPayload.skill,
+		skillArgs: skillPayload.args,
+		skillDescription: toolCall.skillMeta?.description ?? null,
 		taskDescription: mapTaskDescription(toolCall),
 		taskPrompt: toolCall.arguments.kind === "think" ? (toolCall.arguments.prompt ?? null) : null,
 		taskResultText: mapTaskResultText(toolCall),

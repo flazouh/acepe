@@ -20,6 +20,8 @@ export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
+export { default as AgentToolOther } from "./agent-tool-other.svelte";
+export { default as AgentToolBrowser } from "./agent-tool-browser.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";
 export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";

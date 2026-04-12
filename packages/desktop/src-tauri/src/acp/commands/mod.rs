@@ -61,3 +61,6 @@ type SessionClientArc = Arc<SessionClientMutex>;
 const SESSION_CLIENT_LOCK_TIMEOUT: Duration = Duration::from_secs(3);
 const SESSION_CLIENT_OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 const INBOUND_RESPONSE_TIMEOUT: Duration = Duration::from_secs(8);
+/// Single authoritative timeout for the entire async resume task.
+/// Encompasses all sub-operations (lock, resume/create, seed, etc.).
+const RESUME_SESSION_TIMEOUT: Duration = Duration::from_secs(45);

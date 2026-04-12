@@ -10,7 +10,10 @@
 	import AgentToolExecute from "./agent-tool-execute.svelte";
 	import AgentToolSearch from "./agent-tool-search.svelte";
 	import AgentToolFetch from "./agent-tool-fetch.svelte";
+	import AgentToolOther from "./agent-tool-other.svelte";
+	import AgentToolBrowser from "./agent-tool-browser.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
+	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
 	import { TextShimmer } from "../text-shimmer/index.js";
 
@@ -112,6 +115,22 @@
 							summary={entry.webSearchSummary ?? null}
 							status={entry.status}
 						/>
+					{:else if entry.kind === "other"}
+						<AgentToolOther
+							title={entry.title}
+							subtitle={entry.subtitle ?? null}
+							detailsText={entry.detailsText ?? null}
+							status={entry.status}
+						/>
+					{:else if entry.kind === "browser"}
+						<AgentToolBrowser
+							title={entry.title}
+							subtitle={entry.subtitle ?? null}
+							detailsText={entry.detailsText ?? null}
+							status={entry.status}
+						/>
+					{:else if entry.todos && entry.todos.length > 0}
+						<AgentToolTodo todos={entry.todos} isLive={entry.status === "running"} />
 					{:else if entry.kind === "task"}
 						<AgentToolTask
 							description={entry.taskDescription ?? entry.title}

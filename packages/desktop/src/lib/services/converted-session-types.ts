@@ -3,6 +3,9 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+// Types referenced by ConnectionComplete lifecycle event
+import type { SessionModelState, SessionModes } from "./acp-types.js";
+
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
  */
@@ -45,7 +48,16 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Usage/cost and token telemetry from the agent (adapter-agnostic).
  * Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
  */
-{ type: "usageTelemetryUpdate"; data: UsageTelemetryData }
+{ type: "usageTelemetryUpdate"; data: UsageTelemetryData } | 
+/**
+ * Emitted by the async resume task when session connection completes successfully.
+ * Carries the session capabilities so the frontend can populate hot state.
+ */
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands: AvailableCommand[]; config_options: ConfigOptionData[]; autonomous_enabled: boolean } | 
+/**
+ * Emitted by the async resume task when session connection fails.
+ */
+{ type: "connectionFailed"; session_id: string; attempt_id: number; error: string }
 
 export type ChunkAggregationHint = "boundaryCarryover"
 
@@ -134,7 +146,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null } |
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool call update data.
@@ -327,7 +339,7 @@ export type PlanConfidence = "high" | "medium"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "other"
+export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "other"
 
 /**
  * Tool call status.

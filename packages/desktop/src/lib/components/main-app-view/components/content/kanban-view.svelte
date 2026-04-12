@@ -23,11 +23,9 @@ import {
 	copySessionToClipboard,
 	copyTextToClipboard,
 } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
-import { getOpenInFinderTarget } from "$lib/acp/components/agent-panel/logic/open-in-finder-target.js";
 import {
-	getQueueItemTaskDisplay,
-	getQueueItemToolDisplay,
-} from "$lib/acp/components/queue/queue-item-display.js";
+	projectActivityEntry,
+} from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
 import { visiblePermissionsForSessionBar } from "$lib/acp/components/tool-calls/permission-visibility.js";
@@ -38,7 +36,6 @@ import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import { WorktreeToggleControl } from "$lib/acp/components/worktree-toggle/index.js";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
-import { resolveCompactToolDisplay } from "$lib/acp/components/tool-calls/tool-definition-registry.js";
 import {
 	deriveSessionTitleFromUserInput,
 	formatSessionTitleForDisplay,
@@ -74,7 +71,7 @@ import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
 import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
 import { ResultAsync } from "neverthrow";
 import { Robot } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -353,22 +350,25 @@ const threadBoard = $derived.by(() => buildThreadBoard(threadBoardSources));
 function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 	const isWorking =
 		item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";
-
-	const toolDisplay = (() => {
-		const currentToolDisplay = getQueueItemToolDisplay({
-			activityKind: item.state.activity.kind,
-			currentStreamingToolCall: item.currentStreamingToolCall,
-			currentToolKind: item.currentToolKind,
-			lastToolCall: isWorking ? null : item.lastToolCall,
-			lastToolKind: isWorking ? null : item.lastToolKind,
-		});
-
-		if (!currentToolDisplay || currentToolDisplay.toolKind === "think") {
-			return null;
-		}
-
-		return currentToolDisplay;
-	})();
+	const todoProgress = item.todoProgress
+		? {
+				current: item.todoProgress.current,
+				total: item.todoProgress.total,
+				label: item.todoProgress.label,
+			}
+		: null;
+	const activityProjection = projectActivityEntry({
+		activityKind: item.state.activity.kind,
+		currentStreamingToolCall: item.currentStreamingToolCall,
+		currentToolKind: item.currentToolKind,
+		lastToolCall: isWorking ? null : item.lastToolCall,
+		lastToolKind: isWorking ? null : item.lastToolKind,
+		todoProgress,
+	});
+	const toolDisplay =
+		activityProjection.selectedTool && activityProjection.toolKind !== "think"
+			? activityProjection.selectedTool
+			: null;
 
 	const activityText: string | null = (() => {
 		if (!isWorking) return null;
@@ -377,19 +377,19 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 	})();
 
 	const isStreaming = isWorking;
-	const taskDisplay = getQueueItemTaskDisplay(
-		toolDisplay ? toolDisplay.toolCall : null,
-		toolDisplay ? toolDisplay.toolKind : null,
-		toolDisplay ? toolDisplay.turnState : undefined
-	);
 	const taskCard: KanbanTaskCardData | null = (() => {
-		if (!taskDisplay.showTaskSubagentList || taskDisplay.taskSubagentTools.length === 0) {
+		if (
+			!activityProjection.showTaskSubagentList ||
+			activityProjection.taskSubagentTools.length === 0
+		) {
 			return null;
 		}
 
-		const summary = taskDisplay.taskDescription
-			? taskDisplay.taskDescription
-			: (taskDisplay.taskSubagentSummaries[taskDisplay.taskSubagentSummaries.length - 1] ?? null);
+		const summary = activityProjection.taskDescription
+			? activityProjection.taskDescription
+			: (activityProjection.taskSubagentSummaries[
+					activityProjection.taskSubagentSummaries.length - 1
+				] ?? null);
 		if (!summary) {
 			return null;
 		}
@@ -397,19 +397,14 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		return {
 			summary,
 			isStreaming,
-			latestTool: taskDisplay.latestTaskSubagentTool,
-			toolCalls: taskDisplay.taskSubagentTools,
+			latestTool: activityProjection.latestTaskSubagentTool,
+			toolCalls: activityProjection.taskSubagentTools,
 		};
 	})();
 
 	const latestTool: KanbanToolData | null = (() => {
 		if (taskCard) return null;
-		if (!toolDisplay) return null;
-		return resolveCompactToolDisplay({
-			toolCall: toolDisplay.toolCall,
-			toolKind: toolDisplay.toolKind,
-			turnState: toolDisplay.turnState,
-		});
+		return activityProjection.latestTool;
 	})();
 	const hasUnseenCompletion =
 		item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;
@@ -431,13 +426,7 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 			: item.state.connection === "error"
 				? "Connection error"
 				: null,
-		todoProgress: item.todoProgress
-			? {
-					current: item.todoProgress.current,
-					total: item.todoProgress.total,
-					label: item.todoProgress.label,
-				}
-			: null,
+		todoProgress,
 		taskCard,
 		latestTool,
 		hasUnseenCompletion,
@@ -501,7 +490,6 @@ function buildSceneMenuActions(): readonly KanbanSceneMenuAction[] {
 		{ id: "copy-title", label: m.session_menu_copy_title() },
 		{ id: "open-raw", label: m.session_menu_open_raw_file() },
 		{ id: "open-in-acepe", label: m.session_menu_open_in_acepe() },
-		{ id: "open-in-finder", label: m.thread_open_in_finder() },
 		{ id: "export-markdown", label: m.session_menu_export_markdown() },
 		{ id: "export-json", label: m.session_menu_export_json() },
 	];
@@ -695,34 +683,6 @@ function handleDialogClosePanel(panelId: string): void {
 	panelStore.closePanel(panelId);
 }
 
-async function handleOpenInFinder(item: ThreadBoardItem): Promise<void> {
-	const metadata = sessionStore.getSessionMetadata(item.sessionId);
-	const target = getOpenInFinderTarget({
-		sessionId: item.sessionId,
-		projectPath: item.projectPath,
-		agentId: item.agentId,
-		sourcePath: metadata ? metadata.sourcePath : null,
-	});
-
-	if (!target) {
-		toast.error(m.thread_open_in_finder_error_no_thread());
-		return;
-	}
-
-	if (target.kind === "reveal") {
-		await revealInFinder(target.path).match(
-			() => undefined,
-			() => toast.error(m.thread_open_in_finder_error())
-		);
-		return;
-	}
-
-	await tauriClient.shell.openInFinder(target.sessionId, target.projectPath).match(
-		() => undefined,
-		() => toast.error(m.thread_open_in_finder_error())
-	);
-}
-
 async function handleOpenRawFile(item: ThreadBoardItem): Promise<void> {
 	await tauriClient.shell
 		.getSessionFilePath(item.sessionId, item.projectPath)
@@ -814,9 +774,6 @@ async function handleMenuAction(sessionId: string, actionId: string): Promise<vo
 			return;
 		case "open-in-acepe":
 			await handleOpenInAcepe(item);
-			return;
-		case "open-in-finder":
-			await handleOpenInFinder(item);
 			return;
 		case "export-markdown":
 			await handleExportMarkdown(item);

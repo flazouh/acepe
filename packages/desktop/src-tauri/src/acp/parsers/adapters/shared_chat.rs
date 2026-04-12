@@ -5,6 +5,7 @@
 //! can depend on neutral ownership instead of each other.
 
 use super::any_eq;
+use crate::acp::parsers::kind::is_browser_tool_name;
 use crate::acp::session_update::ToolKind;
 
 pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
@@ -14,7 +15,11 @@ pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
         name
     };
 
-    if any_eq(clean_name, &["read", "readfile", "read_file"]) {
+    if is_browser_tool_name(clean_name) || is_browser_tool_name(name) {
+        return ToolKind::Browser;
+    }
+
+    if any_eq(clean_name, &["read", "readfile", "read_file", "view"]) {
         return ToolKind::Read;
     }
     if clean_name.eq_ignore_ascii_case("notebookread") {
@@ -68,7 +73,22 @@ pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
     if any_eq(clean_name, &["taskoutput", "task_output"]) {
         return ToolKind::TaskOutput;
     }
-    if any_eq(clean_name, &["todowrite", "todo", "todoread"]) {
+    if any_eq(
+        clean_name,
+        &[
+            "todowrite",
+            "todo_write",
+            "todo",
+            "todoread",
+            "updatetodos",
+            "update_todos",
+            "marktodo",
+            "mark_todo",
+            "tasklist",
+            "task_list",
+            "todos",
+        ],
+    ) {
         return ToolKind::Todo;
     }
     if any_eq(clean_name, &["askuser", "askuserquestion", "question"]) {
@@ -108,5 +128,32 @@ mod tests {
     fn maps_rg_and_ripgrep_to_search() {
         assert_eq!(normalize_shared_chat_tool_name("rg"), ToolKind::Search);
         assert_eq!(normalize_shared_chat_tool_name("ripgrep"), ToolKind::Search);
+    }
+
+    #[test]
+    fn maps_view_to_read() {
+        assert_eq!(normalize_shared_chat_tool_name("view"), ToolKind::Read);
+    }
+
+    #[test]
+    fn maps_copilot_todo_aliases_to_todo() {
+        assert_eq!(normalize_shared_chat_tool_name("update_todos"), ToolKind::Todo);
+        assert_eq!(normalize_shared_chat_tool_name("mark_todo"), ToolKind::Todo);
+    }
+
+    #[test]
+    fn maps_mcp_browser_tool_names_to_browser() {
+        assert_eq!(
+            normalize_shared_chat_tool_name("mcp__tauri__webview_execute_js"),
+            ToolKind::Browser
+        );
+        assert_eq!(
+            normalize_shared_chat_tool_name("mcp__tauri__driver_session"),
+            ToolKind::Browser
+        );
+        assert_eq!(
+            normalize_shared_chat_tool_name("mcp__tauri__read_logs"),
+            ToolKind::Browser
+        );
     }
 }

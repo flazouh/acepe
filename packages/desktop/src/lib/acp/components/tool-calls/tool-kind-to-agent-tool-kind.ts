@@ -16,12 +16,13 @@ const TOOL_KIND_TO_AGENT_TOOL_KIND: Record<ToolKind, AgentToolKind> = {
 	task_output: "task_output",
 	todo: "other",
 	question: "other",
-	skill: "other",
+	skill: "skill",
 	move: "other",
 	enter_plan_mode: "other",
 	exit_plan_mode: "other",
 	create_plan: "other",
 	tool_search: "other",
+	browser: "browser",
 	other: "other",
 };
 

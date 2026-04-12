@@ -343,6 +343,9 @@ pub(crate) fn parse_tool_kind_arguments(
             query: extract_parser_string(raw_arguments, &["query"]),
             max_results: raw_arguments.get("max_results").and_then(|v| v.as_u64()),
         },
+        ToolKind::Browser => ToolArguments::Browser {
+            raw: raw_arguments.clone(),
+        },
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),
         },

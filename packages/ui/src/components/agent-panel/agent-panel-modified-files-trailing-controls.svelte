@@ -2,6 +2,7 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Button } from "../button/index.js";
 	import { ArrowsOut, CaretDown, Check, CheckCircle, FileCode, SidebarSimple } from "phosphor-svelte";
+	import { Colors } from "../../lib/colors.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
 
@@ -28,7 +29,7 @@ const showReviewAction = $derived((model.reviewOptions?.length ?? 0) > 0 || Bool
 				class="rounded-none border-0 bg-transparent shadow-none"
 				onclick={() => model.onReview?.()}
 			>
-				<FileCode size={11} weight="fill" class="shrink-0" />
+				<FileCode size={11} weight="fill" class="shrink-0" style="color: {Colors.purple}" />
 				{model.reviewLabel}
 			</Button>
 			{#if model.reviewOptions.length > 0}

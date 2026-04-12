@@ -19,10 +19,12 @@ describe("kanban empty-column contract", () => {
 		const source = readFileSync(kanbanViewPath, "utf8");
 
 		expect(source).toContain("const SECTION_ORDER: readonly ThreadBoardStatus[] = [");
-		expect(source).toContain(
-			'const SECTION_ORDER: readonly ThreadBoardStatus[] = [\n\t\t"answer_needed",\n\t\t"planning",\n\t\t"working",\n\t\t"needs_review",\n\t\t"idle",\n\t];'
-		);
-		expect(source).toContain("SECTION_ORDER.map((sectionId) => {");
+		expect(source).toContain('"answer_needed"');
+		expect(source).toContain('"planning"');
+		expect(source).toContain('"working"');
+		expect(source).toContain('"needs_review"');
+		expect(source).toContain('"idle"');
+		expect(source).toContain("return SECTION_ORDER.map((sectionId) => {");
 		expect(source).toContain("buildThreadBoard(");
 		expect(source).not.toContain(
 			"const section = queueStore.sections.find((section) => section.id === sectionId);"
@@ -36,7 +38,7 @@ describe("kanban empty-column contract", () => {
 		const source = readFileSync(kanbanViewPath, "utf8");
 
 		expect(source).toContain('class="flex h-full min-h-0 min-w-0 flex-1 flex-col"');
-		expect(source).toContain('class="min-h-0 min-w-0 flex-1"');
+		expect(source).toContain('class="min-h-0 min-w-0 flex-1 overflow-hidden"');
 	});
 
 	it("opens the full thread UI in a dialog without leaving kanban", () => {
@@ -58,14 +60,14 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("getQueueItemTaskDisplay");
+		expect(source).toContain("projectActivityEntry");
 		expect(source).toContain("taskCard: KanbanTaskCardData | null");
 		expect(source).toContain("projectPath={item.projectPath}");
 		expect(source).toContain(
 			'import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte"'
 		);
 		expect(source).toContain("buildQueueItemQuestionUiState");
-		expect(source).toContain("questionIndexBySession = $state(new SvelteMap");
+		expect(source).toContain("questionIndexBySession = $state(");
 		expect(source).toContain("function getCurrentQuestionIndex(item: ThreadBoardItem): number");
 		expect(source).toContain(
 			"function handlePrevQuestion(sessionId: string, currentQuestionIndex: number): void"
@@ -74,14 +76,8 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("<PermissionBar");
 		expect(source).toContain("sessionId={item.sessionId}");
 		expect(source).toContain("projectPath={item.projectPath}");
-		expect(source).toContain("<AttentionQueueQuestionCard");
-		expect(source).toContain("{currentQuestionIndex}");
-		expect(source).toContain(
-			"onPrevQuestion={() => handlePrevQuestion(card.id, currentQuestionIndex)}"
-		);
-		expect(source).toContain(
-			"onNextQuestion={() => handleNextQuestion(card.id, currentQuestionIndex, questionUiState.totalQuestions)}"
-		);
+		expect(source).toContain("onQuestionPrev={handlePrevQuestion}");
+		expect(source).toContain("onQuestionNext={handleNextQuestion}");
 		expect(source).not.toContain("<PendingPermissionCard permission={permission} />");
 	});
 
@@ -92,30 +88,24 @@ describe("kanban empty-column contract", () => {
 		const source = readFileSync(kanbanViewPath, "utf8");
 
 		expect(source).not.toContain("const kanbanFooterBySessionId = $derived.by(() => {");
-		expect(source).toContain("{@const permission = item ? getPermissionRequest(item) : null}");
-		expect(source).toContain("{@const questionUiState = item ? getQuestionUiState(item) : null}");
+		expect(source).toContain("<KanbanSceneBoard");
+		expect(source).toContain("{#snippet permissionFooterRenderer(card: KanbanSceneCardData, _permissionFooterData)}");
+		expect(source).toContain("{#snippet todoSectionRenderer(card: KanbanSceneCardData)}");
 		expect(source).toContain(
 			"{@const hotState = item ? sessionStore.getHotState(item.sessionId) : null}"
 		);
-		expect(source).toContain(
-			'{@const showFooter =\n\t\t\t\t\tpermission !== null ||\n\t\t\t\t\tquestionUiState !== null ||\n\t\t\t\t\titem.state.pendingInput.kind === "plan_approval"}'
-		);
-		expect(source).toContain("{#if item}");
-		expect(source).toContain("<KanbanCard {card} onclick={() => handleCardClick(card.id)}");
-		expect(source).toContain("showFooter={showFooter}");
+		expect(source).toContain("onMenuAction={(cardId: string, actionId: string) => {");
 		expect(source).not.toContain("flushFooter={showComposer}");
-		expect(source).not.toContain("{#snippet footer()}\n\t\t\t\t\t\t{#if item}");
 	});
 
-	it("falls back to a bare kanban card when there is no context or action footer content", () => {
+	it("delegates bare card rendering to KanbanSceneBoard instead of inline branches", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain(
-			"{:else}\n\t\t\t\t\t<KanbanCard {card} onclick={() => handleCardClick(card.id)} />"
-		);
+		expect(source).toContain("<KanbanSceneBoard");
+		expect(source).not.toContain("<KanbanCard {card} onclick={() => handleCardClick(card.id)}");
 	});
 
 	it("renders the compact composer in an embedded voice layout with a smaller submit button", () => {
@@ -132,46 +122,32 @@ describe("kanban empty-column contract", () => {
 		expect(composerSource).toContain("py-0.5");
 	});
 
-	it("renders a compact header session actions menu for kanban cards", () => {
+	it("builds scene-level menu actions for kanban cards", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
+		expect(source).toContain("copySessionToClipboard");
+		expect(source).toContain("copyTextToClipboard");
 		expect(source).toContain(
-			'import CopyButton from "$lib/acp/components/messages/copy-button.svelte"'
+			'from "$lib/acp/components/agent-panel/logic/clipboard-manager.js"'
 		);
-		expect(source).toContain(
-			'import { copySessionToClipboard, copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js"'
-		);
-		expect(source).toContain(
+		expect(source).not.toContain(
 			'import { getOpenInFinderTarget } from "$lib/acp/components/agent-panel/logic/open-in-finder-target.js"'
 		);
-		expect(source).toContain(
-			'import { openFileInEditor, revealInFinder, tauriClient } from "$lib/utils/tauri-client.js"'
-		);
-		expect(source).toContain('import { IconDotsVertical } from "@tabler/icons-svelte"');
+		expect(source).toContain('import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js"');
 		expect(source).toContain("function handleCloseSession(item: ThreadBoardItem)");
+		expect(source).toContain("function buildSceneMenuActions(): readonly KanbanSceneMenuAction[] {");
 		expect(source).toContain('let activeDialogMode = $state<KanbanThreadDialogMode>("inspect");');
 		expect(source).toContain('activeDialogMode = "inspect";');
 		expect(source).toContain('activeDialogMode = "close-panel";');
 		expect(source).toContain("function handleDialogClosePanel(panelId: string): void {");
 		expect(source).toContain("panelStore.closePanel(panelId);");
-		expect(source).toContain("{#snippet menu()}");
-		expect(source).not.toContain(
-			'import { OverflowMenuTriggerAction } from "@acepe/ui/panel-header"'
-		);
-		expect(source).toContain("<DropdownMenu.Trigger");
-		expect(source).toContain('aria-label="More actions"');
-		expect(source).toContain(
-			'class="shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"'
-		);
-		expect(source).toContain('<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />');
-		expect(source).not.toContain("hover:bg-accent");
-		expect(source).toContain("label={m.session_menu_copy_id()}");
-		expect(source).toContain("{m.thread_open_in_finder()}");
-		expect(source).toContain("{m.session_menu_export()}");
-		expect(source).not.toContain("{m.common_close()}");
+		expect(source).toContain('{ id: "copy-id", label: m.session_menu_copy_id() }');
+		expect(source).toContain('{ id: "export-markdown", label: m.session_menu_export_markdown() }');
+		expect(source).toContain('{ id: "export-json", label: m.session_menu_export_json() }');
+		expect(source).toContain("onMenuAction={(cardId: string, actionId: string) => {");
 		expect(source).toContain("mode={activeDialogMode}");
 		expect(source).toContain("onClosePanel={handleDialogClosePanel}");
 	});
@@ -197,12 +173,13 @@ describe("kanban empty-column contract", () => {
 
 		expect(source).not.toContain("function getKanbanPreviewMarkdown(");
 		expect(source).not.toContain("previewMarkdown");
-		expect(source).toContain(
-			'const isWorking = item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";'
-		);
+		expect(source).toContain('item.state.activity.kind === "streaming"');
+		expect(source).toContain('item.state.activity.kind === "thinking"');
+		expect(source).toContain("const activityProjection = projectActivityEntry({");
 		expect(source).toContain("lastToolCall: isWorking ? null : item.lastToolCall,");
 		expect(source).toContain("lastToolKind: isWorking ? null : item.lastToolKind,");
-		expect(source).toContain('currentToolDisplay.toolKind === "think"');
+		expect(source).toContain('activityProjection.toolKind !== "think"');
+		expect(source).toContain("const toolDisplay =");
 		expect(source).toContain("if (!isWorking) return null;");
 		expect(source).toContain("if (toolDisplay) return null;");
 		expect(source).toContain('return "Thinking…";');
@@ -236,9 +213,8 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain(
-			'const hasUnseenCompletion = item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;'
-		);
+		expect(source).toContain("const hasUnseenCompletion =");
+		expect(source).toContain('item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;');
 		expect(source).toContain("hasUnseenCompletion,");
 	});
 
@@ -248,14 +224,12 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
+		expect(source).toContain("projectActivityEntry");
 		expect(source).toContain(
-			'import { resolveCompactToolDisplay } from "$lib/acp/components/tool-calls/tool-definition-registry.js"'
+			'from "$lib/acp/components/activity-entry/activity-entry-projection.js"'
 		);
 		expect(source).not.toContain("getToolCompactDisplayText");
-		expect(source).toContain("return resolveCompactToolDisplay({");
-		expect(source).toContain("toolCall: toolDisplay.toolCall,");
-		expect(source).toContain("toolKind: toolDisplay.toolKind,");
-		expect(source).toContain("turnState: toolDisplay.turnState,");
+		expect(source).toContain("return activityProjection.latestTool;");
 	});
 
 	it("prefers the compact subtitle for execute tools when there is no file path", () => {
@@ -264,7 +238,7 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("resolveCompactToolDisplay");
+		expect(source).toContain("activityProjection.latestTool");
 		expect(source).not.toContain("getToolKindSubtitle(toolDisplay.toolKind, tc)");
 	});
 });

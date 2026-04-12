@@ -27,7 +27,6 @@ import {
 	nextSequentialFileIndex,
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
-	shouldShowReviewNextFileCta,
 } from "../../review-panel/review-session-state.js";
 import ReviewTabStrip from "../../review-panel/review-tab-strip.svelte";
 
@@ -61,7 +60,6 @@ type ResolvedHunkAction = {
 	readonly action: "accept" | "reject";
 };
 let resolvedActionsByFile = new SvelteMap<string, ReadonlyArray<ResolvedHunkAction>>();
-let justAcceptedFile = $state(false);
 let hydratedRevisionSignature = $state<string | null>(null);
 
 const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
@@ -76,9 +74,6 @@ const fileStatusArray = $derived.by(
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
 const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
-const showReviewNextCta = $derived(
-	shouldShowReviewNextFileCta(justAcceptedFile, nextFileIdx !== null)
-);
 
 const hunkStats = $derived.by(() => {
 	const state = diffViewStateRef;
@@ -245,13 +240,6 @@ function handleRejectFile(): void {
 	diffViewStateRef.rejectActiveHunk();
 }
 
-function handleReviewNextFile(): void {
-	justAcceptedFile = false;
-	if (nextFileIdx !== null) {
-		onFileIndexChange(nextFileIdx);
-	}
-}
-
 function handlePrevFile(): void {
 	if (prevFileIdx !== null) {
 		onFileIndexChange(prevFileIdx);
@@ -317,19 +305,6 @@ function handleKeydown(event: KeyboardEvent): void {
 		diffViewStateRef?.rejectFirstPendingHunk();
 	}
 }
-
-// Show "Review next file" CTA when all hunks are resolved
-$effect(() => {
-	if (!hunkStats.hasPending && hunkStats.hunkTotal > 0) {
-		justAcceptedFile = true;
-	}
-});
-
-$effect(() => {
-	void selectedFileIndex;
-	void selectedFile;
-	justAcceptedFile = false;
-});
 
 $effect(() => {
 	const fp = selectedFile?.filePath;
@@ -463,14 +438,12 @@ $effect(() => {
 				hasPrevPendingFile={prevFileIdx !== null}
 				hasNextPendingFile={nextFileIdx !== null}
 				hasPendingHunks={hunkStats.hasPending}
-				showReviewNextFileCta={showReviewNextCta}
 				onPrevHunk={handlePrevHunk}
 				onNextHunk={handleNextHunk}
 				onPrevFile={handlePrevFile}
 				onNextFile={handleNextFile}
 				onAcceptFile={handleAcceptFile}
 				onRejectFile={handleRejectFile}
-				onReviewNextFile={handleReviewNextFile}
 			/>
 		{/if}
 	{/snippet}

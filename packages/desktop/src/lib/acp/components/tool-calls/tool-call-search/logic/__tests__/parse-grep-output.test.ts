@@ -142,6 +142,17 @@ describe("parseSearchResult", () => {
 			})
 		);
 	});
+
+	it("parses object content output even when mode is missing", () => {
+		const parsed = parseSearchResult({
+			content: "/path/file.rs:10:first match\n/path/file.rs:24:second match",
+		});
+
+		expect(parsed.mode).toBe("content");
+		expect(parsed.numFiles).toBe(1);
+		expect(parsed.numMatches).toBe(2);
+		expect(parsed.matches).toHaveLength(2);
+	});
 });
 
 describe("highlightMatches", () => {

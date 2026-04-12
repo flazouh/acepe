@@ -1,5 +1,10 @@
 import { errAsync, okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SessionModelState } from "../../../services/acp-types.js";
+import type {
+	AvailableCommand,
+	ConfigOptionData,
+} from "../../../services/converted-session-types.js";
 import { AgentError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
@@ -83,6 +88,8 @@ function createMockEventHandler(): SessionEventHandler {
 	};
 }
 
+let lastEventService: SessionEventService;
+
 function createManager(deps: {
 	stateReader: ISessionStateReader;
 	stateWriter: ISessionStateWriter;
@@ -91,6 +98,7 @@ function createManager(deps: {
 	entryManager: IEntryManager;
 	connectionManager: IConnectionManager;
 }) {
+	lastEventService = new SessionEventService();
 	return new SessionConnectionManager(
 		deps.stateReader,
 		deps.stateWriter,
@@ -98,8 +106,35 @@ function createManager(deps: {
 		deps.capabilities,
 		deps.entryManager,
 		deps.connectionManager,
-		new SessionEventService()
+		lastEventService
 	);
+}
+
+/**
+ * Configure the resumeSession mock to return void and schedule a
+ * connectionComplete lifecycle event through the event service callbacks.
+ * This simulates the fire-and-forget invoke + SSE lifecycle event pattern.
+ */
+function mockResumeWithLifecycleEvent(responseData: {
+	modes: { currentModeId: string; availableModes: Array<{ id: string; name: string; description: string | null }> };
+	models: SessionModelState;
+	availableCommands?: AvailableCommand[];
+	configOptions?: ConfigOptionData[];
+	autonomousEnabled?: boolean;
+}) {
+	resumeSession.mockImplementation((sid: string, _cwd: string, attemptId: number) => {
+		setTimeout(() => {
+			const callbacks = lastEventService.getCallbacks();
+			callbacks.onConnectionComplete?.(sid, attemptId, {
+				models: responseData.models,
+				modes: responseData.modes,
+				availableCommands: responseData.availableCommands ?? [],
+				configOptions: responseData.configOptions ?? [],
+				autonomousEnabled: responseData.autonomousEnabled ?? false,
+			});
+		}, 0);
+		return okAsync(undefined);
+	});
 }
 
 describe("SessionConnectionManager.connectSession", () => {
@@ -210,22 +245,20 @@ describe("SessionConnectionManager.connectSession", () => {
 		getCachedModelsDisplay.mockReturnValue(null);
 		getCachedProviderMetadata.mockReturnValue(undefined);
 		setSessionAutonomous.mockReturnValue(okAsync(undefined));
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "plan",
-					availableModes: [{ id: "plan", name: "Plan", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [
-						{ modelId: "model-a", name: "Model A", description: null },
-						{ modelId: "model-b", name: "Model B", description: null },
-					],
-				},
-				availableCommands: [{ name: "compact", description: "Compact session" }],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "plan",
+				availableModes: [{ id: "plan", name: "Plan", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [
+					{ modelId: "model-a", name: "Model A", description: null },
+					{ modelId: "model-b", name: "Model B", description: null },
+				],
+			},
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+		});
 		setModel.mockReturnValue(okAsync(undefined));
 	});
 
@@ -269,22 +302,21 @@ describe("SessionConnectionManager.connectSession", () => {
 			autonomousTransition: "idle",
 			currentMode: { id: "build", name: "Build", description: null },
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [
-						{ modelId: "model-a", name: "Model A", description: null },
-						{ modelId: "model-b", name: "Model B", description: null },
-					],
-				},
-				availableCommands: [{ name: "compact", description: "Compact session" }],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [
+					{ modelId: "model-a", name: "Model A", description: null },
+					{ modelId: "model-b", name: "Model B", description: null },
+				],
+			},
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+			autonomousEnabled: true,
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -298,7 +330,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -327,19 +358,18 @@ describe("SessionConnectionManager.connectSession", () => {
 			autonomousTransition: "idle",
 			currentMode: { id: "build", name: "Build", description: null },
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
-				},
-				availableCommands: [],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+			},
+			availableCommands: [],
+			autonomousEnabled: true,
+		});
 		getCachedProviderMetadata.mockReturnValue({
 			providerBrand: "custom",
 			displayName: "Launch Profile Agent",
@@ -362,8 +392,19 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined);
-		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined
+		);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				autonomousEnabled: true,
+			})
+		);
 	});
 
 	it("passes the hydrated launch mode when reconnecting a Copilot session", async () => {
@@ -379,19 +420,17 @@ describe("SessionConnectionManager.connectSession", () => {
 			autonomousTransition: "idle",
 			currentMode: { id: "plan", name: "Plan", description: null },
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "plan",
-					availableModes: [{ id: "plan", name: "Plan", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
-				},
-				availableCommands: [],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "plan",
+				availableModes: [{ id: "plan", name: "Plan", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+			},
+			availableCommands: [],
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -405,7 +444,13 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined, "plan");
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			"plan"
+		);
 	});
 
 	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
@@ -417,19 +462,18 @@ describe("SessionConnectionManager.connectSession", () => {
 			autonomousTransition: "idle",
 			currentMode: { id: "build", name: "Build", description: null },
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "plan",
-					availableModes: [{ id: "plan", name: "Plan", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
-				},
-				availableCommands: [],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "plan",
+				availableModes: [{ id: "plan", name: "Plan", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+			},
+			availableCommands: [],
+			autonomousEnabled: false,
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -443,7 +487,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -491,41 +534,65 @@ describe("SessionConnectionManager.connectSession", () => {
 			defaultAlias: undefined,
 			reasoningEffortSupport: false,
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "model-a",
-					availableModels: [
-						{ modelId: "model-a", name: "Model A", description: null },
-						{ modelId: "model-b", name: "Model B", description: null },
-					],
-				},
-				availableCommands: [{ name: "compact", description: "Compact session" }],
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "model-a",
+				availableModels: [
+					{ modelId: "model-a", name: "Model A", description: null },
+					{ modelId: "model-b", name: "Model B", description: null },
+				],
+			},
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+			autonomousEnabled: true,
+		});
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined
+		);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				autonomousEnabled: true,
 			})
 		);
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			hotState,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.connectSession(sessionId, createMockEventHandler());
-		result._unsafeUnwrap();
-
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined);
-		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 	});
 
-	it("restores stored model for current mode on connect", async () => {
+	it("uses the lifecycle event model for current mode on connect", async () => {
 		getSessionModelForMode.mockReturnValue("model-b");
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "plan",
+				availableModes: [{ id: "plan", name: "Plan", description: null }],
+			},
+			models: {
+				currentModelId: "model-b",
+				availableModels: [
+					{ modelId: "model-a", name: "Model A", description: null },
+					{ modelId: "model-b", name: "Model B", description: null },
+				],
+			},
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -539,7 +606,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(setModel).toHaveBeenCalledWith(sessionId, "model-b");
+		expect(setModel).not.toHaveBeenCalled();
 
 		const lastUpdate = (hotState.updateHotState as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
 		expect(lastUpdate?.currentModel?.id).toBe("model-b");
@@ -563,7 +630,13 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, "/tmp/project", undefined);
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			"/tmp/project",
+			expect.any(Number),
+			undefined,
+			undefined
+		);
 	});
 
 	it("passes through an explicit agent override when reconnect is intentionally redirected", async () => {
@@ -581,39 +654,44 @@ describe("SessionConnectionManager.connectSession", () => {
 		});
 		result._unsafeUnwrap();
 
-		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, "claude-code");
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			"claude-code",
+			undefined
+		);
 	});
 
 	it("caches resumed capabilities under the effective override agent", async () => {
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "default",
+				availableModels: [{ modelId: "default", name: "Default", description: null }],
+				providerMetadata: {
+					providerBrand: "claude-code",
+					displayName: "Claude Code",
+					displayOrder: 10,
+					supportsModelDefaults: true,
+					variantGroup: "plain",
+					defaultAlias: "default",
+					reasoningEffortSupport: false,
+					preconnectionSlashMode: "startupGlobal",
 				},
-				models: {
-					currentModelId: "default",
-					availableModels: [{ modelId: "default", name: "Default", description: null }],
-					providerMetadata: {
-						providerBrand: "claude-code",
-						displayName: "Claude Code",
-						displayOrder: 10,
-						supportsModelDefaults: true,
-						variantGroup: "plain",
-						defaultAlias: "default",
-						reasoningEffortSupport: false,
-					},
-					modelsDisplay: {
-						groups: [],
-						presentation: {
-							displayFamily: "claudeLike",
-							usageMetrics: "contextWindowOnly",
-						},
+				modelsDisplay: {
+					groups: [],
+					presentation: {
+						displayFamily: "claudeLike",
+						usageMetrics: "contextWindowOnly",
 					},
 				},
-				availableCommands: [],
-			})
-		);
+			},
+			availableCommands: [],
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -656,7 +734,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
-	it("seeds session model-per-mode when none stored", async () => {
+	it("does not seed session model-per-mode during lifecycle-driven connect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 
 		const manager = createManager({
@@ -672,7 +750,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		result._unsafeUnwrap();
 
 		expect(setModel).not.toHaveBeenCalled();
-		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "model-a");
+		expect(setSessionModelForMode).not.toHaveBeenCalled();
 	});
 
 	it("does not seed session model when session model store not loaded", async () => {
@@ -760,32 +838,30 @@ describe("SessionConnectionManager.connectSession", () => {
 			...baseSession,
 			agentId: "codex",
 		} satisfies SessionCold);
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "gpt-5.3-codex",
-					availableModels: [
-						{
-							modelId: "gpt-5.3-codex/high",
-							name: "gpt-5.3-codex (high)",
-							description: null,
-						},
-					],
-					modelsDisplay: {
-						groups: [],
-						presentation: {
-							displayFamily: "providerGrouped",
-							usageMetrics: "spendAndContext",
-						},
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "gpt-5.3-codex",
+				availableModels: [
+					{
+						modelId: "gpt-5.3-codex/high",
+						name: "gpt-5.3-codex (high)",
+						description: null,
+					},
+				],
+				modelsDisplay: {
+					groups: [],
+					presentation: {
+						displayFamily: "providerGrouped",
+						usageMetrics: "spendAndContext",
 					},
 				},
-				availableCommands: [],
-			})
-		);
+			},
+			availableCommands: [],
+		});
 
 		const manager = createManager({
 			stateReader,
@@ -845,7 +921,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
-	it("flushes pending events after successful connect", async () => {
+	it("does not flush pending events during lifecycle-driven connect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 		const flushSpy = vi.spyOn(SessionEventService.prototype, "flushPendingEvents");
 		const eventHandler = createMockEventHandler();
@@ -862,7 +938,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, eventHandler);
 		result._unsafeUnwrap();
 
-		expect(flushSpy).toHaveBeenCalledWith(sessionId, eventHandler);
+		expect(flushSpy).not.toHaveBeenCalled();
 		flushSpy.mockRestore();
 	});
 
@@ -1814,19 +1890,17 @@ describe("SessionConnectionManager autonomous policy", () => {
 				},
 			},
 		});
-		resumeSession.mockReturnValue(
-			okAsync({
-				modes: {
-					currentModeId: "build",
-					availableModes: [{ id: "build", name: "Build", description: null }],
-				},
-				models: {
-					currentModelId: "",
-					availableModels: [],
-				},
-				availableCommands: [],
-			})
-		);
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: "",
+				availableModels: [],
+			},
+			availableCommands: [],
+		});
 
 		const manager = createManager({
 			stateReader,

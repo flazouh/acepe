@@ -62,6 +62,10 @@ pub fn infer_kind_from_payload(
             {
                 return Some(ToolKind::Search);
             }
+            // Browser / webview automation
+            if is_browser_tool_name(&t) {
+                return Some(ToolKind::Browser);
+            }
         }
     }
 
@@ -93,6 +97,7 @@ pub fn infer_kind_from_payload(
         "create_plan" | "createplan" | "create-plan" => Some(ToolKind::CreatePlan),
         "task_output" | "taskoutput" | "task-output" => Some(ToolKind::TaskOutput),
         "tool_search" | "toolsearch" | "tool-search" => Some(ToolKind::ToolSearch),
+        "browser" => Some(ToolKind::Browser),
         _ => None,
     }
 }
@@ -121,6 +126,7 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
         ToolKind::CreatePlan => "Create Plan",
         ToolKind::TaskOutput => "Task Output",
         ToolKind::ToolSearch => "Tool Search",
+        ToolKind::Browser => "Browser",
         ToolKind::Other => "Tool",
     }
 }
@@ -133,6 +139,51 @@ pub fn display_name_for_tool(kind: ToolKind, raw_name: &str) -> String {
     } else {
         raw_name.to_string()
     }
+}
+
+/// Browser tool name patterns from MCP bridge naming conventions.
+const BROWSER_TOOL_SEGMENTS: &[&str] = &[
+    "webview_screenshot",
+    "webview_find_element",
+    "webview_interact",
+    "webview_keyboard",
+    "webview_wait_for",
+    "webview_get_styles",
+    "webview_execute_js",
+    "webview_dom_snapshot",
+    "webview_select_element",
+    "webview_get_pointed_element",
+    "ipc_execute_command",
+    "ipc_monitor",
+    "ipc_get_captured",
+    "ipc_emit_event",
+    "ipc_get_backend_state",
+    "driver_session",
+    "manage_window",
+    "read_logs",
+    "list_devices",
+];
+
+/// Check whether a tool name looks like a browser/webview automation tool.
+///
+/// Handles MCP naming conventions: `mcp__server__func`, `server-func`, or plain `func`.
+pub fn is_browser_tool_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+
+    // Extract the function segment from MCP naming: mcp__server__func → func, server-func → func
+    let func_segment = if lower.contains("__") {
+        lower.rsplit("__").next().unwrap_or(&lower)
+    } else if lower.contains('-') {
+        // server-func_name → func_name (take after first hyphen group that looks like a server prefix)
+        // But "webview_screenshot" itself has underscores, so match the suffix
+        &lower
+    } else {
+        &lower
+    };
+
+    BROWSER_TOOL_SEGMENTS
+        .iter()
+        .any(|segment| func_segment == *segment || lower.ends_with(segment))
 }
 
 /// Check whether a tool-call ID looks like a web search.
@@ -290,6 +341,38 @@ mod tests {
         assert_eq!(canonical_name_for_kind(ToolKind::WebSearch), "Web Search");
         assert_eq!(canonical_name_for_kind(ToolKind::CreatePlan), "Create Plan");
         assert_eq!(canonical_name_for_kind(ToolKind::TaskOutput), "Task Output");
+        assert_eq!(canonical_name_for_kind(ToolKind::Browser), "Browser");
         assert_eq!(canonical_name_for_kind(ToolKind::Other), "Tool");
+    }
+
+    #[test]
+    fn detects_browser_tool_names() {
+        // MCP naming: mcp__server__func
+        assert!(is_browser_tool_name("mcp__tauri__webview_screenshot"));
+        assert!(is_browser_tool_name("mcp__tauri__driver_session"));
+        assert!(is_browser_tool_name("mcp__tauri__ipc_execute_command"));
+        assert!(is_browser_tool_name("mcp__tauri__manage_window"));
+        assert!(is_browser_tool_name("mcp__tauri__read_logs"));
+        // Plain func name
+        assert!(is_browser_tool_name("webview_execute_js"));
+        assert!(is_browser_tool_name("webview_dom_snapshot"));
+        // Hyphenated server prefix
+        assert!(is_browser_tool_name("tauri-webview_interact"));
+        // Not browser tools
+        assert!(!is_browser_tool_name("read_file"));
+        assert!(!is_browser_tool_name("bash"));
+        assert!(!is_browser_tool_name("mcp__server__some_tool"));
+    }
+
+    #[test]
+    fn infers_browser_from_title_when_kind_other() {
+        assert_eq!(
+            infer_kind_from_payload("id", Some("webview_screenshot"), Some("other")),
+            Some(ToolKind::Browser)
+        );
+        assert_eq!(
+            infer_kind_from_payload("id", Some("driver_session"), None),
+            Some(ToolKind::Browser)
+        );
     }
 }

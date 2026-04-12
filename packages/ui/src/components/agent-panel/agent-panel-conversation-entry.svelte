@@ -7,6 +7,8 @@
 	import AgentToolQuestion from "./agent-tool-question.svelte";
 	import AgentToolRead from "./agent-tool-read.svelte";
 	import AgentToolReadLints from "./agent-tool-read-lints.svelte";
+	import AgentToolOther from "./agent-tool-other.svelte";
+	import AgentToolBrowser from "./agent-tool-browser.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import AgentToolSearch from "./agent-tool-search.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
@@ -92,6 +94,20 @@
 		query={entry.query ?? entry.subtitle ?? null}
 		links={entry.webSearchLinks ?? []}
 		summary={entry.webSearchSummary ?? null}
+		status={entry.status}
+	/>
+{:else if isToolCall(entry) && entry.kind === "other"}
+	<AgentToolOther
+		title={entry.title}
+		subtitle={entry.subtitle ?? null}
+		detailsText={entry.detailsText ?? null}
+		status={entry.status}
+	/>
+{:else if isToolCall(entry) && entry.kind === "browser"}
+	<AgentToolBrowser
+		title={entry.title}
+		subtitle={entry.subtitle ?? null}
+		detailsText={entry.detailsText ?? null}
 		status={entry.status}
 	/>
 {:else if isToolCall(entry) && (entry.kind === "task" || entry.kind === "task_output")}

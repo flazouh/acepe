@@ -148,7 +148,7 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(screen.queryByText("New thread")).toBeNull();
 	});
 
-	it("does not expose a delete action in the overflow menu", async () => {
+	it("keeps the overflow menu limited to copy and export actions", async () => {
 		render(AgentPanelHeader, {
 			pendingProjectSelection: false,
 			isConnecting: false,
@@ -183,7 +183,8 @@ describe("AgentPanelHeader project-header style", () => {
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
 
-		expect(screen.getByRole("menuitem", { name: m.thread_open_in_finder() })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: m.session_menu_copy_id() })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: m.thread_open_in_finder() })).toBeNull();
 		expect(screen.queryByRole("menuitem", { name: m.session_menu_delete() })).toBeNull();
 	});
 });

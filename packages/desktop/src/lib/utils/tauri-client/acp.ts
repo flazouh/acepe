@@ -30,10 +30,17 @@ export const acp = {
 	resumeSession: (
 		sessionId: string,
 		cwd: string,
+		attemptId: number,
 		agentId?: string,
 		launchModeId?: string
-	): ResultAsync<ResumeSessionResult, AppError> => {
-		return invokeAsync(CMD.acp.resume_session, { sessionId, cwd, agentId, launchModeId });
+	): ResultAsync<void, AppError> => {
+		return invokeAsync(CMD.acp.resume_session, {
+			sessionId,
+			cwd,
+			attemptId,
+			agentId,
+			launchModeId,
+		});
 	},
 
 	forkSession: (

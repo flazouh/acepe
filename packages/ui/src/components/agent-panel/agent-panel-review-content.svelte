@@ -16,15 +16,13 @@
 		{@render header()}
 	</div>
 
-	<div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-		<div class="flex-1 min-h-0 overflow-auto">
+	<div class="flex-1 min-h-0 relative overflow-hidden">
+		<div class="absolute inset-0 overflow-auto">
 			{@render body()}
 		</div>
 
 		{#if footer}
-			<div class="shrink-0">
-				{@render footer()}
-			</div>
+			{@render footer()}
 		{/if}
 	</div>
 </div>

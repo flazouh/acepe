@@ -106,6 +106,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
+connectionComplete: () => "connectionComplete",
+connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -134,6 +136,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
+connectionComplete: () => "connectionComplete",
+connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -168,6 +172,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
+connectionComplete: () => "connectionComplete",
+connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -198,6 +204,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
+connectionComplete: () => "connectionComplete",
+connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -281,6 +289,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
+connectionComplete: () => "connectionComplete",
+connectionFailed: () => "connectionFailed",
 			};
 
 			for (const update of metadataUpdates) {

@@ -233,12 +233,37 @@ export class ToolCallManager implements IToolCallManager {
 			const completedAtMs =
 				existingToolCall.completedAtMs ??
 				(isTerminalStatus(nextStatus ?? data.status) ? nowMs() : undefined);
-			const nextKind =
+			const shouldPromoteTaskToQuestion =
 				existingToolCall.kind === "task" &&
 				data.kind === "question" &&
-				(data.normalizedQuestions?.length ?? 0) > 0
+				(data.normalizedQuestions?.length ?? 0) > 0;
+			const shouldUpgradeGenericKind =
+				(existingToolCall.kind === undefined || existingToolCall.kind === "other") &&
+				data.kind !== undefined &&
+				data.kind !== "other";
+			const nextKind = shouldPromoteTaskToQuestion
+				? data.kind
+				: shouldUpgradeGenericKind
 					? data.kind
 					: (existingToolCall.kind ?? data.kind);
+			if (
+				existingToolCall.kind !== data.kind &&
+				(existingToolCall.kind === "other" || data.kind === "skill")
+			) {
+				logger.warn("Reconciling tool kind on existing entry", {
+					sessionId,
+					toolCallId: data.id,
+					existingKind: existingToolCall.kind,
+					incomingKind: data.kind,
+					resolvedKind: nextKind,
+					shouldPromoteTaskToQuestion,
+					shouldUpgradeGenericKind,
+					existingArgumentsKind: existingToolCall.arguments.kind,
+					incomingArgumentsKind: data.arguments.kind,
+					title: data.title ?? existingToolCall.title,
+					name: data.name,
+				});
+			}
 			const nextAwaitingPlanApproval = data.awaitingPlanApproval;
 			const nextPlanApprovalRequestId = nextAwaitingPlanApproval
 				? (data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId)

@@ -10,6 +10,7 @@ import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
+import ToolCallBrowser from "./tool-call-browser.svelte";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
@@ -112,8 +113,9 @@ function resolveToolEntryTitle(options: ToolDisplayOptions, kind: ToolKind): str
 	}
 
 	if (
-		kind === "delete" &&
-		rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0
+		(kind === "delete" &&
+			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
+		kind === "skill"
 	) {
 		return semanticTitle;
 	}
@@ -199,6 +201,7 @@ const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 	task_output: createToolDefinition("task_output", ToolCallTaskOutput),
 	skill: createToolDefinition("skill", ToolCallSkill),
 	tool_search: createToolDefinition("tool_search", ToolCallToolSearch),
+	browser: createToolDefinition("browser", ToolCallBrowser),
 	other: createToolDefinition("other", ToolCallFallback),
 };
 

@@ -10,6 +10,7 @@ export type AgentPanelToolKind =
 	| "fetch"
 	| "web_search"
 	| "think"
+	| "skill"
 	| "task"
 	| "task_output"
 	| "other";
@@ -82,6 +83,9 @@ export interface AgentPanelToolCallEntry {
 	resultText?: string | null;
 	webSearchLinks?: readonly AgentPanelWebSearchLink[];
 	webSearchSummary?: string | null;
+	skillName?: string | null;
+	skillArgs?: string | null;
+	skillDescription?: string | null;
 	taskDescription?: string | null;
 	taskPrompt?: string | null;
 	taskResultText?: string | null;

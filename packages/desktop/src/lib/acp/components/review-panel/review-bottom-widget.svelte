@@ -1,6 +1,5 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
-import { EmbeddedIconButton, HeaderActionCell } from "@acepe/ui/panel-header";
 import { CaretDown } from "phosphor-svelte";
 import { CaretLeft } from "phosphor-svelte";
 import { CaretRight } from "phosphor-svelte";
@@ -19,14 +18,12 @@ interface Props {
 	hasPrevPendingFile: boolean;
 	hasNextPendingFile: boolean;
 	hasPendingHunks: boolean;
-	showReviewNextFileCta: boolean;
 	onPrevHunk: () => void;
 	onNextHunk: () => void;
 	onPrevFile: () => void;
 	onNextFile: () => void;
 	onAcceptFile: () => void;
 	onRejectFile: () => void;
-	onReviewNextFile: () => void;
 }
 
 let {
@@ -39,116 +36,111 @@ let {
 	hasPrevPendingFile,
 	hasNextPendingFile,
 	hasPendingHunks,
-	showReviewNextFileCta,
 	onPrevHunk,
 	onNextHunk,
 	onPrevFile,
 	onNextFile,
 	onAcceptFile,
 	onRejectFile,
-	onReviewNextFile,
 }: Props = $props();
 
-/** Embedded design: matches EmbeddedIconButton (h-7, no border, no rounding, hover:accent/50) */
-const embeddedButtonClass =
-	"h-7 inline-flex items-center justify-center px-2 text-xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:pointer-events-none";
+const navBtnClass =
+	"h-6 w-6 inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/50 disabled:opacity-40 disabled:pointer-events-none";
 </script>
 
 <div
-	class="shrink-0 flex items-center h-7 border-t border-border/50"
+	class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 pointer-events-auto"
 	role="toolbar"
 	aria-label="Review controls"
 >
-	<!-- Undo / Keep -->
-	<div class="flex items-stretch" data-header-control>
-		{#if showReviewNextFileCta}
-			<button
-				type="button"
-				class="h-7 px-2.5 text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 inline-flex items-center gap-1"
-				onclick={onReviewNextFile}
-			>
-				{m.review_next_file()}
-				<CaretRight class="h-3 w-3" weight="fill" />
-			</button>
-		{:else}
-			<button
-				type="button"
-				class="{embeddedButtonClass} gap-1"
-				disabled={!hasPendingHunks}
-				title={m.review_reject_file()}
-				onclick={onRejectFile}
-				data-header-control
-			>
-				<XCircle class="h-3 w-3 shrink-0" weight="fill" style="color: {Colors.red}" />
-				{m.review_undo()}
-			</button>
-			<button
-				type="button"
-				class="{embeddedButtonClass} gap-1"
-				disabled={!hasPendingHunks}
-				title={m.review_accept_file()}
-				onclick={onAcceptFile}
-				data-header-control
-			>
-				<CheckCircle class="h-3 w-3 shrink-0 text-success" weight="fill" />
-				{m.review_keep()}
-			</button>
-		{/if}
+	<!-- Accept / Reject action group -->
+	<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
+		<button
+			type="button"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
+			style="background: color-mix(in srgb, {Colors.red} 8%, transparent); color: {Colors.red};"
+			disabled={!hasPendingHunks}
+			title={m.review_reject_file()}
+			onclick={onRejectFile}
+		>
+			<XCircle class="h-3 w-3 shrink-0" weight="fill" />
+			{m.review_undo()}
+		</button>
+		<div class="w-px bg-border/50"></div>
+		<button
+			type="button"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
+			style="background: color-mix(in srgb, {Colors.green} 8%, transparent); color: {Colors.green};"
+			disabled={!hasPendingHunks}
+			title={m.review_accept_file()}
+			onclick={onAcceptFile}
+		>
+			<CheckCircle class="h-3 w-3 shrink-0" weight="fill" />
+			{m.review_keep()}
+		</button>
 	</div>
 
-	<!-- Hunk navigation: ^ current/total v -->
+	<!-- Hunk navigation group -->
 	{#if hunkTotal > 1}
-		<HeaderActionCell>
-			<EmbeddedIconButton
+		<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
+			<button
+				type="button"
+				class={navBtnClass}
 				disabled={!hasPrevHunk}
 				title={m.review_prev_hunk()}
-				ariaLabel={m.review_prev_hunk()}
+				aria-label={m.review_prev_hunk()}
 				onclick={onPrevHunk}
 			>
-				<CaretUp class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				<CaretUp class="h-3 w-3" weight="fill" />
+			</button>
 			<span
-				class="h-7 inline-flex items-center justify-center px-1 text-xs tabular-nums min-w-[2rem]"
+				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
 				aria-label="Hunk {hunkCurrent} of {hunkTotal}"
 			>
 				{hunkCurrent}/{hunkTotal}
 			</span>
-			<EmbeddedIconButton
+			<button
+				type="button"
+				class={navBtnClass}
 				disabled={!hasNextHunk}
 				title={m.review_next_hunk()}
-				ariaLabel={m.review_next_hunk()}
+				aria-label={m.review_next_hunk()}
 				onclick={onNextHunk}
 			>
-				<CaretDown class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
-		</HeaderActionCell>
+				<CaretDown class="h-3 w-3" weight="fill" />
+			</button>
+		</div>
 	{/if}
 
-	<!-- File navigation: < current/total > -->
+	<!-- File navigation group -->
 	{#if fileTotal > 1}
-		<HeaderActionCell>
-			<EmbeddedIconButton
+		<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
+			<button
+				type="button"
+				class={navBtnClass}
 				disabled={!hasPrevPendingFile}
 				title={m.review_prev_file()}
-				ariaLabel={m.review_prev_file()}
+				aria-label={m.review_prev_file()}
 				onclick={onPrevFile}
 			>
-				<CaretLeft class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				<CaretLeft class="h-3 w-3" weight="fill" />
+			</button>
 			<span
-				class="h-7 inline-flex items-center justify-center px-1 text-xs tabular-nums min-w-[2rem]"
+				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
 				aria-label="File {fileCurrent} of {fileTotal}"
 			>
 				{fileCurrent}/{fileTotal}
 			</span>
-			<EmbeddedIconButton
+			<button
+				type="button"
+				class={navBtnClass}
 				disabled={!hasNextPendingFile}
 				title={m.review_next_file()}
-				ariaLabel={m.review_next_file()}
+				aria-label={m.review_next_file()}
 				onclick={onNextFile}
 			>
-				<CaretRight class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
-		</HeaderActionCell>
+				<CaretRight class="h-3 w-3" weight="fill" />
+			</button>
+		</div>
 	{/if}
 </div>

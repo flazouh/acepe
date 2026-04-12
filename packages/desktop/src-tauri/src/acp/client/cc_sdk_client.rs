@@ -2264,7 +2264,9 @@ async fn should_suppress_update_while_awaiting_stream_only_question(
         | SessionUpdate::CurrentModeUpdate { .. }
         | SessionUpdate::ConfigOptionUpdate { .. }
         | SessionUpdate::PermissionRequest { .. }
-        | SessionUpdate::UserMessageChunk { .. } => true,
+        | SessionUpdate::UserMessageChunk { .. }
+        | SessionUpdate::ConnectionComplete { .. }
+        | SessionUpdate::ConnectionFailed { .. } => true,
     }
 }
 

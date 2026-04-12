@@ -14,7 +14,7 @@ let { sessionCount = 3, isExpanded = true }: Props = $props();
 </script>
 
 <div
-	class="flex flex-col overflow-hidden border border-border rounded-lg bg-card/50 min-w-0"
+	class="flex flex-col overflow-hidden border border-border rounded-lg bg-card min-w-0"
 	data-slot="project-card-skeleton"
 >
 	<!-- Project header skeleton - matches ProjectHeader (name truncates in real UI) -->

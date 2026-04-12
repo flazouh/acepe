@@ -12,6 +12,8 @@ import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 import type {
+	AvailableCommand,
+	ConfigOptionData,
 	JsonValue,
 	PlanData,
 	SessionUpdate,
@@ -19,6 +21,7 @@ import type {
 	ToolCallUpdateData,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
+import type { SessionModelState } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
@@ -213,10 +216,27 @@ export interface SessionEventServiceCallbacks {
 	onQuestionRequest?: (question: QuestionRequest) => void;
 	onPlanUpdate?: (sessionId: string, planData: PlanData) => void;
 	onTurnComplete?: (sessionId: string) => void;
+	onConnectionComplete?: (
+		sessionId: string,
+		attemptId: number,
+		data: {
+			models: SessionModelState;
+			modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
+			availableCommands: AvailableCommand[];
+			configOptions: ConfigOptionData[];
+			autonomousEnabled: boolean;
+		}
+	) => void;
+	onConnectionFailed?: (sessionId: string, attemptId: number, error: string) => void;
 }
 
 function shouldBypassDisconnectedBuffer(update: SessionUpdate): boolean {
-	return update.type === "permissionRequest" || update.type === "questionRequest";
+	return (
+		update.type === "permissionRequest" ||
+		update.type === "questionRequest" ||
+		update.type === "connectionComplete" ||
+		update.type === "connectionFailed"
+	);
 }
 
 export class SessionEventService {
@@ -267,6 +287,13 @@ export class SessionEventService {
 	 */
 	setCallbacks(callbacks: SessionEventServiceCallbacks): void {
 		this.callbacks = callbacks;
+	}
+
+	/**
+	 * Get the current callbacks (for layered override patterns).
+	 */
+	getCallbacks(): SessionEventServiceCallbacks {
+		return this.callbacks;
 	}
 
 	/**
@@ -665,6 +692,32 @@ export class SessionEventService {
 				});
 				break;
 			}
+
+			case "connectionComplete":
+				logger.info("Connection complete event received", {
+					sessionId,
+					attemptId: update.attempt_id,
+					autonomousEnabled: update.autonomous_enabled,
+				});
+				this.callbacks.onConnectionComplete?.(sessionId, update.attempt_id, {
+					models: update.models,
+					modes: update.modes,
+					availableCommands: update.available_commands,
+					configOptions: update.config_options,
+					autonomousEnabled: update.autonomous_enabled,
+				});
+				// Flush buffered events now that connection is established
+				this.flushPendingEvents(sessionId, handler);
+				break;
+
+			case "connectionFailed":
+				logger.error("Connection failed event received", {
+					sessionId,
+					attemptId: update.attempt_id,
+					error: update.error,
+				});
+				this.callbacks.onConnectionFailed?.(sessionId, update.attempt_id, update.error);
+				break;
 
 			default: {
 				update satisfies never;

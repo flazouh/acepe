@@ -112,52 +112,30 @@ export class ConnectionManager {
 	private connect(thread: ThreadState): ResultAsync<ThreadConnection, ConnectionManagerError> {
 		this.logger.info("Connecting thread:", thread.id, "to agent:", thread.agentId);
 
-		// Try to resume existing session if thread has history
-		// For historical threads (from .jsonl files), the thread.id is the session ID
-		const hasHistory = thread.source === "historical" || thread.entries.length > 0;
-		const sessionIdToResume = hasHistory ? thread.id : null;
-
-		// Use discriminated union types for type-safe session response handling
-		const sessionResultAsync = sessionIdToResume
-			? this.acpClient
-					.resumeSessionSafe(sessionIdToResume, thread.projectPath, thread.agentId)
-					.orElse((error) => {
-						this.logger.warn(
-							"Resume failed for thread:",
-							thread.id,
-							"falling back to new session. Error:",
-							error.message
-						);
-						return this.acpClient.createSession(thread.projectPath, thread.agentId);
-					})
-			: this.acpClient.createSession(thread.projectPath, thread.agentId);
+		// NOTE: resumeSessionSafe is now fire-and-forget (void return).
+		// This legacy ConnectionManager is unused — only createSession path remains functional.
+		const sessionResultAsync = this.acpClient.createSession(thread.projectPath, thread.agentId);
 
 		return sessionResultAsync
 			.map((sessionResponse) => {
-				// Build capabilities from session response
-				// TECH-DEBT: canResume/canFork should come from ACP when supported
+				if (sessionResponse.type !== "new") {
+					throw new Error("Expected new session response from createSession");
+				}
 				const capabilities: SessionCapabilities = {
-					canResume: true, // Enable resume capability
+					canResume: true,
 					canFork: false,
 					supportedModes: sessionResponse.modes.availableModes.map((m: { id: string }) => m.id),
 					supportedModels: sessionResponse.models.availableModels.map(
 						(m: { modelId: string }) => m.modelId
 					),
-					// Store full mode/model objects for UI pickers
 					availableModes: sessionResponse.modes.availableModes,
 					availableModels: sessionResponse.models.availableModels,
 					currentModeId: sessionResponse.modes.currentModeId,
 					currentModelId: sessionResponse.models.currentModelId,
 				};
 
-				// Extract the ACP session ID using type-safe discriminated union pattern matching
-				const acpSessionId =
-					sessionResponse.type === "resume"
-						? sessionIdToResume! // We know this exists because we only call resumeSessionSafe when sessionIdToResume is truthy
-						: sessionResponse.sessionId;
-
 				const connection: ThreadConnection = {
-					acpSessionId,
+					acpSessionId: sessionResponse.sessionId,
 					capabilities,
 					connectedAt: new Date(),
 				};
@@ -166,9 +144,7 @@ export class ConnectionManager {
 					"Thread connected:",
 					thread.id,
 					"ACP session:",
-					connection.acpSessionId,
-					"Session type:",
-					sessionResponse.type
+					connection.acpSessionId
 				);
 
 				return connection;

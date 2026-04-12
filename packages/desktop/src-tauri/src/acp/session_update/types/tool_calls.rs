@@ -32,6 +32,7 @@ pub enum ToolKind {
     ExitPlanMode,
     CreatePlan,
     ToolSearch,
+    Browser,
     Other,
 }
 
@@ -58,6 +59,7 @@ impl ToolKind {
             ToolKind::ExitPlanMode => "exit_plan_mode",
             ToolKind::CreatePlan => "create_plan",
             ToolKind::ToolSearch => "tool_search",
+            ToolKind::Browser => "browser",
             ToolKind::Other => "other",
         }
     }
@@ -206,6 +208,9 @@ pub enum ToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         max_results: Option<u64>,
     },
+    Browser {
+        raw: serde_json::Value,
+    },
     Other {
         raw: serde_json::Value,
     },
@@ -234,6 +239,7 @@ impl ToolArguments {
             ToolArguments::Delete { .. } => ToolKind::Delete,
             ToolArguments::PlanMode { .. } => ToolKind::Other,
             ToolArguments::ToolSearch { .. } => ToolKind::ToolSearch,
+            ToolArguments::Browser { .. } => ToolKind::Browser,
             ToolArguments::Other { .. } => ToolKind::Other,
         }
     }

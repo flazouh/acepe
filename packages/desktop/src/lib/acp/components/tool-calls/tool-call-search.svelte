@@ -91,7 +91,9 @@ const searchResult = $derived(parseSearchResult(toolCall.result, toolResponseMet
 // Derive file list (for files mode) and result count
 const files = $derived(searchResult.files);
 const resultCount = $derived(
-	searchResult.mode === "content" ? searchResult.numFiles : searchResult.files.length
+	searchResult.mode === "content"
+		? (searchResult.numMatches ?? searchResult.numFiles)
+		: searchResult.files.length
 );
 
 // Map tool status to AgentToolStatus

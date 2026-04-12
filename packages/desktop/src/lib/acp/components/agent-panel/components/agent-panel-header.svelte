@@ -15,6 +15,7 @@ import {
 import { ArrowUUpLeft } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
+import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
 
@@ -38,12 +39,9 @@ let {
 	hideProjectBadge = false,
 	onClose,
 	onToggleFullscreen,
-	onOpenInFinder,
 	onCopyStreamingLogPath,
 	onExportRawStreaming,
 	displayTitle = null,
-	onOpenRawFile,
-	onOpenInAcepe,
 	onExportMarkdown,
 	onExportJson,
 	onScrollToTop,
@@ -162,18 +160,14 @@ const panelHeaderClass = $derived(
 					<OverflowMenuTriggerAction title="More actions" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" class="min-w-[180px]">
-					{#if onOpenRawFile}
-						<DropdownMenu.Item onSelect={() => onOpenRawFile?.()} class="cursor-pointer">
-							{m.session_menu_open_raw_file()}
-						</DropdownMenu.Item>
-					{/if}
-					{#if onOpenInAcepe}
-						<DropdownMenu.Item onSelect={() => onOpenInAcepe?.()} class="cursor-pointer">
-							{m.session_menu_open_in_acepe()}
-						</DropdownMenu.Item>
-					{/if}
-					<DropdownMenu.Item onSelect={() => onOpenInFinder?.()} class="cursor-pointer">
-						{m.thread_open_in_finder()}
+					<DropdownMenu.Item class="cursor-pointer">
+						<CopyButton
+							text={sessionId ?? ""}
+							variant="menu"
+							label={m.session_menu_copy_id()}
+							hideIcon
+							size={16}
+						/>
 					</DropdownMenu.Item>
 					{#if hasExportSubmenu}
 						<DropdownMenu.Separator />

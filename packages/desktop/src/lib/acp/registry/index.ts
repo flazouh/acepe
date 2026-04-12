@@ -1,4 +1,5 @@
 export {
+	formatOtherToolName,
 	getToolCompactDisplayText,
 	getToolKindFilePath,
 	getToolKindSubtitle,

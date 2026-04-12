@@ -27,7 +27,6 @@ import {
 	nextSequentialFileIndex,
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
-	shouldShowReviewNextFileCta,
 } from "./review-session-state.js";
 import ReviewTabStrip from "./review-tab-strip.svelte";
 
@@ -69,7 +68,6 @@ type ResolvedHunkAction = {
 	readonly action: "accept" | "reject";
 };
 let resolvedActionsByFile = new SvelteMap<string, ReadonlyArray<ResolvedHunkAction>>();
-let justAcceptedFile = $state(false);
 
 // Current file
 const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
@@ -83,9 +81,6 @@ const fileStatusArray = $derived.by(
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
 const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
-const showReviewNextCta = $derived(
-	shouldShowReviewNextFileCta(justAcceptedFile, nextFileIdx !== null)
-);
 
 // Bottom widget state from diff when available
 const hunkStats = $derived.by(() => {
@@ -255,13 +250,6 @@ function handleRejectFile(): void {
 	diffViewStateRef.rejectActiveHunk();
 }
 
-function handleReviewNextFile(): void {
-	justAcceptedFile = false;
-	if (nextFileIdx !== null) {
-		onSelectFile(nextFileIdx);
-	}
-}
-
 function handlePrevFile(): void {
 	if (prevFileIdx !== null) {
 		onSelectFile(prevFileIdx);
@@ -289,20 +277,6 @@ function _handleScrollTop(): void {
 function _handleScrollBottom(): void {
 	diffViewStateRef?.scrollToBottom();
 }
-
-// Show "Review next file" CTA when all hunks are resolved
-$effect(() => {
-	if (!hunkStats.hasPending && hunkStats.hunkTotal > 0) {
-		justAcceptedFile = true;
-	}
-});
-
-// Reset justAcceptedFile when switching files
-$effect(() => {
-	void selectedFileIndex;
-	void selectedFile;
-	justAcceptedFile = false;
-});
 
 // Clear diff ref when switching files (ReviewPanelDiff will call onDiffStateReady for new file)
 $effect(() => {
@@ -378,40 +352,17 @@ function handlePointerUp() {
 		</HeaderActionCell>
 	</EmbeddedPanelHeader>
 
-	<!-- Content: Diff view (scrollable) + embedded footer bar -->
-	<div class="flex-1 min-h-0 flex flex-col">
+	<!-- Content: Diff view (scrollable) -->
+	<div class="flex-1 min-h-0 overflow-auto">
 		{#if selectedFile}
 			{#key selectedFile.filePath}
-				<div class="flex-1 min-h-0 overflow-auto">
-					<ReviewPanelDiff
-						file={selectedFile}
-						{projectPath}
-						onHunkAccept={handleHunkAccept}
-						onHunkReject={handleHunkReject}
-						onDiffStateReady={handleDiffStateReady}
-					/>
-				</div>
-				<div class="shrink-0">
-					<ReviewBottomWidget
-						hunkCurrent={hunkStats.hunkCurrent}
-						hunkTotal={hunkStats.hunkTotal}
-						{fileCurrent}
-						{fileTotal}
-						hasPrevHunk={hunkStats.hasPrev}
-						hasNextHunk={hunkStats.hasNext}
-						hasPrevPendingFile={prevFileIdx !== null}
-						hasNextPendingFile={nextFileIdx !== null}
-						hasPendingHunks={hunkStats.hasPending}
-						showReviewNextFileCta={showReviewNextCta}
-						onPrevHunk={handlePrevHunk}
-						onNextHunk={handleNextHunk}
-						onPrevFile={handlePrevFile}
-						onNextFile={handleNextFile}
-						onAcceptFile={handleAcceptFile}
-						onRejectFile={handleRejectFile}
-						onReviewNextFile={handleReviewNextFile}
-					/>
-				</div>
+				<ReviewPanelDiff
+					file={selectedFile}
+					{projectPath}
+					onHunkAccept={handleHunkAccept}
+					onHunkReject={handleHunkReject}
+					onDiffStateReady={handleDiffStateReady}
+				/>
 			{/key}
 		{:else}
 			<div class="flex flex-col gap-2 p-4">
@@ -421,6 +372,27 @@ function handlePointerUp() {
 			</div>
 		{/if}
 	</div>
+
+	<!-- Floating review toolbar — positioned over the panel -->
+	{#if selectedFile}
+		<ReviewBottomWidget
+			hunkCurrent={hunkStats.hunkCurrent}
+			hunkTotal={hunkStats.hunkTotal}
+			{fileCurrent}
+			{fileTotal}
+			hasPrevHunk={hunkStats.hasPrev}
+			hasNextHunk={hunkStats.hasNext}
+			hasPrevPendingFile={prevFileIdx !== null}
+			hasNextPendingFile={nextFileIdx !== null}
+			hasPendingHunks={hunkStats.hasPending}
+			onPrevHunk={handlePrevHunk}
+			onNextHunk={handleNextHunk}
+			onPrevFile={handlePrevFile}
+			onNextFile={handleNextFile}
+			onAcceptFile={handleAcceptFile}
+			onRejectFile={handleRejectFile}
+		/>
+	{/if}
 
 	{#if !isFullscreenEmbedded}
 		<!-- Resize Edge -->

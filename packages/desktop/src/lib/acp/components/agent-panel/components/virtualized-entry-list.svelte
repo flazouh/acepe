@@ -481,7 +481,12 @@ export function scrollToTop() {
 
 function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool_call" }>): boolean {
 	const routeKey = resolveToolRouteKey(entry.message, entry.message.kind ?? "other");
-	return routeKey === "edit" || routeKey === "read" || routeKey === "question";
+	return (
+		routeKey === "edit" ||
+		routeKey === "read" ||
+		routeKey === "question" ||
+		routeKey === "skill"
+	);
 }
 </script>
 

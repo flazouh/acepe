@@ -477,9 +477,6 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 									<GitPullRequest size={12} weight="bold" class="shrink-0 text-muted-foreground" />
 									PR settings
 								</div>
-								<p class="mt-1 text-[0.625rem] leading-relaxed text-muted-foreground/70">
-									Choose the agent, choose the model, and save review instructions. Acepe appends the response format and git context automatically.
-								</p>
 							</div>
 
 							<div class="border-b border-border/50 px-3 py-2.5">
@@ -566,9 +563,6 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 											<NotePencil size={10} weight="bold" class="shrink-0" />
 											PR instructions
 										</div>
-										<p class="mt-1 text-[0.625rem] leading-relaxed text-muted-foreground/65">
-											{promptPreviewHelperText}
-										</p>
 									</div>
 									<div class="flex shrink-0 items-center gap-1.5">
 										<button

@@ -862,6 +862,58 @@ mod tests {
         }
     }
 
+    #[test]
+    fn assistant_view_tool_request_replays_as_read_tool_call() {
+        let jsonl = r#"
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-1","name":"view","arguments":{"path":"/repo/src/file.rs","view_range":[1,80]},"intentionSummary":"view the file at /repo/src/file.rs."}]},"timestamp":"2026-04-10T00:00:02Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Read));
+                match &message.arguments {
+                    crate::acp::session_update::ToolArguments::Read { file_path } => {
+                        assert_eq!(file_path.as_deref(), Some("/repo/src/file.rs"));
+                    }
+                    other => panic!("expected read arguments, got {other:?}"),
+                }
+            }
+            other => panic!("expected tool call entry, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn assistant_update_todos_tool_request_replays_as_todo_tool_call() {
+        let jsonl = r#"
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-1","name":"update_todos","arguments":{"todos":[{"content":"Inspect warning payload","activeForm":"Inspecting warning payload","status":"in_progress"}]},"intentionSummary":"update the task list"}]},"timestamp":"2026-04-10T00:00:02Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Todo));
+                let todos = message
+                    .normalized_todos
+                    .as_ref()
+                    .expect("normalized todos should be present");
+                assert_eq!(todos.len(), 1);
+                assert_eq!(todos[0].content, "Inspect warning payload");
+            }
+            other => panic!("expected tool call entry, got {other:?}"),
+        }
+    }
+
     #[tokio::test]
     async fn parse_copilot_session_rejects_path_outside_root() {
         let root = tempdir().expect("tempdir");

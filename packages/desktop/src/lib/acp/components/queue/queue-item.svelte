@@ -18,10 +18,6 @@ import { XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import * as m from "$lib/paraglide/messages.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
-import {
-	getToolCompactDisplayText,
-	getToolKindFilePath,
-} from "../../registry/tool-kind-ui-registry.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
 import { getQuestionStore } from "../../store/question-store.svelte.js";
@@ -39,7 +35,7 @@ import {
 } from "../tool-calls/permission-display.js";
 import { getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
 import { isExitPlanPermission } from "../../utils/exit-plan-permission.js";
-import { getQueueItemTaskDisplay, getQueueItemToolDisplay } from "./queue-item-display.js";
+import { projectActivityEntry } from "../activity-entry/activity-entry-projection.js";
 import {
 	buildQueueItemQuestionUiState,
 	type QuestionSelectionReader,
@@ -222,18 +218,29 @@ const statusText = $derived.by(() => {
 
 const showShimmer = $derived(isThinking && !hasPendingQuestion && !hasPendingPlanApproval);
 
-const toolDisplay = $derived.by(() =>
-	getQueueItemToolDisplay({
+const todoProgress = $derived<ActivityEntryTodoProgress | null>(
+	item.todoProgress
+		? {
+				current: item.todoProgress.current,
+				total: item.todoProgress.total,
+				label: item.todoProgress.label,
+			}
+		: null
+);
+
+const activityProjection = $derived.by(() =>
+	projectActivityEntry({
 		activityKind: item.state.activity.kind,
 		currentStreamingToolCall: item.currentStreamingToolCall,
 		currentToolKind: item.currentToolKind,
 		lastToolCall: item.lastToolCall,
 		lastToolKind: item.lastToolKind,
+		todoProgress,
 	})
 );
-const displayedToolIsStreaming = $derived(toolDisplay?.isStreaming ?? false);
-const effectiveToolCall = $derived(toolDisplay?.toolCall ?? null);
-const effectiveToolKind = $derived(toolDisplay?.toolKind ?? null);
+const displayedToolIsStreaming = $derived(activityProjection.isStreaming);
+const effectiveToolCall = $derived(activityProjection.toolCall);
+const effectiveToolKind = $derived(activityProjection.toolKind);
 const planApprovalToolCall = $derived.by(() => {
 	if (!pendingPlanApproval) {
 		return null;
@@ -257,28 +264,9 @@ const planApprovalPrompt = $derived(
 	planApprovalToolCall?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running()
 );
 
-const toolContent = $derived.by(() => {
-	if (!toolDisplay) return null;
-	return getToolCompactDisplayText(
-		toolDisplay.toolKind,
-		toolDisplay.toolCall,
-		toolDisplay.turnState
-	);
-});
-
-const toolFilePath = $derived.by(() => {
-	if (!effectiveToolCall || !effectiveToolKind) return null;
-	const path = getToolKindFilePath(effectiveToolKind, effectiveToolCall);
-	if (!path) return null;
-	return makeWorkspaceRelative(path, item.projectPath);
-});
-
-const isFileTool = $derived(
-	effectiveToolKind === "read" || effectiveToolKind === "edit" || effectiveToolKind === "delete"
-);
-const showToolShimmer = $derived(
-	(effectiveToolKind === "think" || effectiveToolKind === "task") && displayedToolIsStreaming
-);
+const toolContent = $derived(activityProjection.toolContent);
+const isFileTool = $derived(activityProjection.isFileTool);
+const showToolShimmer = $derived(activityProjection.showToolShimmer);
 
 const mode = $derived<ActivityEntryMode>(
 	item.currentModeId === CanonicalModeId.PLAN
@@ -288,18 +276,11 @@ const mode = $derived<ActivityEntryMode>(
 			: null
 );
 
-const taskDisplay = $derived.by(() =>
-	getQueueItemTaskDisplay(
-		effectiveToolCall,
-		effectiveToolKind,
-		displayedToolIsStreaming ? "streaming" : "completed"
-	)
-);
-const taskDescription = $derived(taskDisplay.taskDescription);
-const taskSubagentSummaries = $derived(taskDisplay.taskSubagentSummaries);
-const taskSubagentTools = $derived(taskDisplay.taskSubagentTools);
-const latestTaskSubagentTool = $derived(taskDisplay.latestTaskSubagentTool);
-const showTaskSubagentList = $derived(taskDisplay.showTaskSubagentList);
+const taskDescription = $derived(activityProjection.taskDescription);
+const taskSubagentSummaries = $derived(activityProjection.taskSubagentSummaries);
+const taskSubagentTools = $derived(activityProjection.taskSubagentTools);
+const latestTaskSubagentTool = $derived(activityProjection.latestTaskSubagentTool);
+const showTaskSubagentList = $derived(activityProjection.showTaskSubagentList);
 
 let now = $state(Date.now());
 $effect(() => {
@@ -309,35 +290,7 @@ $effect(() => {
 	return () => clearInterval(interval);
 });
 const timeAgo = $derived(formatTimeAgo(item.lastActivityAt, now));
-const fileToolDisplayText = $derived.by(() => {
-	if (!isFileTool || !toolFilePath || !effectiveToolKind) {
-		return null;
-	}
-
-	const fileName = toolFilePath.split("/").pop() ?? toolFilePath;
-	const verb =
-		effectiveToolKind === "read"
-			? displayedToolIsStreaming
-				? m.tool_read_running()
-				: m.tool_read_completed()
-			: effectiveToolKind === "edit"
-				? displayedToolIsStreaming
-					? m.tool_edit_running()
-					: m.tool_edit_completed()
-				: displayedToolIsStreaming
-					? m.tool_delete_running()
-					: m.tool_delete_completed();
-	return `${verb} ${fileName}`;
-});
-const todoProgress = $derived<ActivityEntryTodoProgress | null>(
-	item.todoProgress
-		? {
-				current: item.todoProgress.current,
-				total: item.todoProgress.total,
-				label: item.todoProgress.label,
-			}
-		: null
-);
+const fileToolDisplayText = $derived(activityProjection.fileToolDisplayText);
 const uiCurrentQuestion = $derived<ActivityEntryQuestion | null>(
 	currentQuestion
 		? {

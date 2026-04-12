@@ -286,6 +286,31 @@ describe("desktop agent panel scene adapter", () => {
 				},
 			},
 			{
+				id: "search-content-1",
+				type: "tool_call",
+				message: {
+					id: "search-content-1",
+					name: "rg",
+					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
+					rawInput: null,
+					status: "completed",
+					result: {
+						content: "12:jwt sign\n28:jwt verify",
+					},
+					kind: "search",
+					title: "rg",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+			{
 				id: "web-1",
 				type: "tool_call",
 				message: {
@@ -395,6 +420,40 @@ describe("desktop agent panel scene adapter", () => {
 					planApprovalRequestId: null,
 				},
 			},
+			{
+				id: "skill-1",
+				type: "tool_call",
+				message: {
+					id: "skill-1",
+					name: "Skill",
+					arguments: {
+						kind: "think",
+						description: null,
+						prompt: null,
+						subagent_type: null,
+						skill: "frontend-design",
+						skill_args: null,
+						raw: { skill: "frontend-design" },
+					},
+					rawInput: { skill: "frontend-design" },
+					status: "completed",
+					result: null,
+					kind: "skill",
+					title: "Using skill: frontend-design",
+					locations: null,
+					skillMeta: {
+						description: "Build web interfaces with genuine design quality.",
+						filePath: null,
+					},
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
 		];
 
 		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
@@ -412,10 +471,15 @@ describe("desktop agent panel scene adapter", () => {
 		});
 		expect(conversation.entries[2]).toMatchObject({
 			type: "tool_call",
+			kind: "search",
+			searchResultCount: 2,
+		});
+		expect(conversation.entries[3]).toMatchObject({
+			type: "tool_call",
 			kind: "web_search",
 			webSearchSummary: "Found references",
 		});
-		expect(conversation.entries[3]).toMatchObject({
+		expect(conversation.entries[4]).toMatchObject({
 			type: "tool_call",
 			lintDiagnostics: [
 				{
@@ -426,7 +490,7 @@ describe("desktop agent panel scene adapter", () => {
 				},
 			],
 		});
-		expect(conversation.entries[4]).toMatchObject({
+		expect(conversation.entries[5]).toMatchObject({
 			type: "tool_call",
 			lintDiagnostics: [
 				{
@@ -437,11 +501,17 @@ describe("desktop agent panel scene adapter", () => {
 				},
 			],
 		});
-		expect(conversation.entries[5]).toMatchObject({
+		expect(conversation.entries[6]).toMatchObject({
 			type: "tool_call",
 			kind: "task_output",
 			taskDescription: "Task: subagent-1",
 			taskResultText: "subagent finished",
+		});
+		expect(conversation.entries[7]).toMatchObject({
+			type: "tool_call",
+			kind: "skill",
+			skillName: "frontend-design",
+			skillDescription: "Build web interfaces with genuine design quality.",
 		});
 	});
 
@@ -516,6 +586,45 @@ describe("desktop agent panel scene adapter", () => {
 		expect(taskEntry.taskChildren[0]).toMatchObject({
 			type: "tool_call",
 			kind: "search",
+			status: "done",
+		});
+	});
+
+	it("renders unknown tools as named tool cards instead of a generic Tool label", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-1",
+				type: "tool_call",
+				message: {
+					id: "tool-1",
+					name: "report_intent",
+					arguments: { kind: "other", raw: { intent: "Viewing extracted lines" } },
+					rawInput: { intent: "Viewing extracted lines" },
+					status: "completed",
+					result: null,
+					kind: "other",
+					title: null,
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "other",
+			title: "Report Intent",
+			subtitle: "Viewing extracted lines",
+			detailsText: expect.stringContaining('"name": "report_intent"'),
 			status: "done",
 		});
 	});

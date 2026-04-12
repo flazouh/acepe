@@ -20,9 +20,9 @@
 
 <!--
 	Card wrapper — matches the per-project card in session-list-ui.svelte:
-	  flex flex-col overflow-hidden border border-border rounded-lg bg-card/50
+	  flex flex-col overflow-hidden border border-border rounded-lg bg-card
 -->
-<div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card/50" {style}>
+<div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card" {style}>
 	<!-- Header row -->
 	{#if header}
 		{@render header()}

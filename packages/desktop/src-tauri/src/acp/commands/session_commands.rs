@@ -380,9 +380,10 @@ pub async fn acp_new_session(
 
 /// Resume an existing ACP session.
 ///
-/// Creates a new client and subprocess for the resumed session.
-/// Per ACP protocol: ResumeSessionResponse does NOT include sessionId.
-/// The session_id is the one provided in the request parameters.
+/// Fire-and-forget: validates inputs synchronously, then spawns an async task
+/// for the heavy work (client creation, protocol resume, history replay).
+/// Completion/failure is signaled via `SessionUpdate::ConnectionComplete` /
+/// `SessionUpdate::ConnectionFailed` events through the SSE bridge.
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_resume_session(
@@ -391,8 +392,11 @@ pub async fn acp_resume_session(
     cwd: String,
     agent_id: Option<String>,
     launch_mode_id: Option<String>,
-) -> Result<ResumeSessionResponse, SerializableAcpError> {
-    tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_resume_session called");
+    attempt_id: u64,
+) -> Result<(), SerializableAcpError> {
+    tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, attempt_id, "acp_resume_session called");
+
+    // --- Synchronous validation (fast, fails the invoke if invalid) ---
     let db = app.state::<DbConn>();
     let resume_target =
         resolve_resume_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
@@ -401,25 +405,136 @@ pub async fn acp_resume_session(
         ProjectAccessReason::SessionResume,
     )?;
     let registry = app.state::<Arc<AgentRegistry>>();
-    let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
-    let session_registry = app.state::<SessionRegistry>();
-    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
 
     let agent_id_enum = resume_target.descriptor.agent_id.clone();
     let resolved_launch_mode_id =
         resolve_resume_launch_mode_id(&registry, &agent_id_enum, launch_mode_id.as_deref())?;
+
+    // Clone values needed for the async task
+    let app_clone = app.clone();
+    let resume_descriptor = resume_target.descriptor.clone();
+
+    // --- Spawn the async task for heavy work ---
+    tokio::spawn(async move {
+        let result = timeout(
+            RESUME_SESSION_TIMEOUT,
+            async_resume_session_work(
+                &app_clone,
+                &session_id,
+                cwd,
+                agent_id_enum,
+                resolved_launch_mode_id,
+                &resume_descriptor,
+            ),
+        )
+        .await;
+
+        // Resolve the outcome and emit the lifecycle event
+        let hub = app_clone
+            .try_state::<Arc<AcpEventHubState>>()
+            .map(|s| s.inner().clone());
+
+        match result {
+            Ok(Ok(response)) => {
+                let policy_registry = app_clone.state::<Arc<SessionPolicyRegistry>>();
+                let autonomous_enabled =
+                    policy_registry.is_autonomous(&session_id);
+                let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
+                    session_id: session_id.clone(),
+                    attempt_id,
+                    models: response.models,
+                    modes: response.modes,
+                    available_commands: response.available_commands,
+                    config_options: response.config_options,
+                    autonomous_enabled,
+                };
+                emit_lifecycle_event(&hub, update, &session_id);
+                tracing::info!(
+                    session_id = %session_id,
+                    attempt_id,
+                    "Async resume completed successfully"
+                );
+            }
+            Ok(Err(error)) => {
+                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                    session_id: session_id.clone(),
+                    attempt_id,
+                    error: error.to_string(),
+                };
+                emit_lifecycle_event(&hub, update, &session_id);
+                tracing::error!(
+                    session_id = %session_id,
+                    attempt_id,
+                    error = %error,
+                    "Async resume failed"
+                );
+            }
+            Err(_elapsed) => {
+                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                    session_id: session_id.clone(),
+                    attempt_id,
+                    error: format!(
+                        "Session resume timed out after {}s",
+                        RESUME_SESSION_TIMEOUT.as_secs()
+                    ),
+                };
+                emit_lifecycle_event(&hub, update, &session_id);
+                tracing::error!(
+                    session_id = %session_id,
+                    attempt_id,
+                    timeout_secs = RESUME_SESSION_TIMEOUT.as_secs(),
+                    "Async resume timed out"
+                );
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
+fn emit_lifecycle_event(
+    hub: &Option<Arc<AcpEventHubState>>,
+    update: crate::acp::session_update::SessionUpdate,
+    session_id: &str,
+) {
+    let Some(hub) = hub else {
+        tracing::warn!(session_id = %session_id, "Event hub unavailable, lifecycle event dropped");
+        return;
+    };
+    let event = crate::acp::ui_event_dispatcher::AcpUiEvent::session_update(update);
+    if let Err(err) = event.publish_direct(hub) {
+        tracing::error!(session_id = %session_id, error = %err, "Failed to publish lifecycle event");
+    }
+}
+
+/// The heavy async work extracted from `acp_resume_session`.
+/// This runs inside `tokio::spawn` under a `RESUME_SESSION_TIMEOUT` deadline.
+async fn async_resume_session_work(
+    app: &AppHandle,
+    session_id: &str,
+    cwd: PathBuf,
+    agent_id_enum: CanonicalAgentId,
+    resolved_launch_mode_id: Option<String>,
+    resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
+) -> Result<ResumeSessionResponse, SerializableAcpError> {
+    let registry = app.state::<Arc<AgentRegistry>>();
+    let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+    let session_registry = app.state::<SessionRegistry>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
         &session_registry,
-        session_id.clone(),
+        session_id.to_string(),
         cwd_str,
         agent_id_enum.clone(),
         resolved_launch_mode_id.is_some(),
         resolved_launch_mode_id,
         || {
             let app = app.clone();
-            let registry = registry.clone();
-            let opencode_manager = opencode_manager.clone();
+            let registry = registry.inner().clone();
+            let opencode_manager = opencode_manager.inner().clone();
             let agent_id_enum = agent_id_enum.clone();
             let cwd = cwd.clone();
             async move {
@@ -437,13 +552,14 @@ pub async fn acp_resume_session(
     )
     .await?;
 
-    if let Some(provider_session_id) = resume_target.descriptor.provider_session_id.as_deref() {
+    if let Some(provider_session_id) = resume_descriptor.provider_session_id.as_deref() {
         session_registry
-            .bind_provider_session_id(&session_id, provider_session_id)
+            .bind_provider_session_id(session_id, provider_session_id)
             .map_err(SerializableAcpError::from)?;
     }
 
-    let replay_context = resume_target.descriptor.clone().into();
+    let db = app.state::<DbConn>();
+    let replay_context = resume_descriptor.clone().into();
     let stored_projection = load_stored_projection(db.inner(), &replay_context)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
@@ -454,7 +570,7 @@ pub async fn acp_resume_session(
     if let Some(stored_projection) = stored_projection {
         projection_registry.restore_session_projection(stored_projection);
     }
-    projection_registry.register_session(session_id.clone(), agent_id_enum.clone());
+    projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
     Ok(result)
 }

@@ -296,7 +296,7 @@ export function parseSearchResult(
 		}
 
 		// Check for text output
-		const output = obj.output ?? obj.stdout;
+		const output = obj.output ?? obj.stdout ?? obj.content ?? obj.detailedContent;
 		if (typeof output === "string") {
 			// Handle grep-style line output in stdout (e.g. "6:match")
 			const grepMatches = parseGrepContent(output, searchPath);

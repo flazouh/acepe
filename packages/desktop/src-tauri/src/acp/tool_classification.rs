@@ -1,6 +1,6 @@
 use crate::acp::parsers::kind::{
-    canonical_name_for_kind, infer_kind_from_payload, is_web_search_id, is_web_search_title,
-    looks_like_web_search_arguments,
+    canonical_name_for_kind, infer_kind_from_payload, is_browser_tool_name, is_web_search_id,
+    is_web_search_title, looks_like_web_search_arguments,
 };
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
 use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind};
@@ -202,6 +202,24 @@ fn resolve_identity_impl(
         .unwrap_or(ToolKind::Other);
     let kind = apply_web_search_promotion(kind, id, hints.title, raw_arguments);
 
+    let name_is_browser = explicit_name.map(is_browser_tool_name).unwrap_or(false);
+    let title_is_browser = hints.title.map(is_browser_tool_name).unwrap_or(false);
+    let id_is_browser = is_browser_tool_name(id);
+    let kind = if (name_is_browser || title_is_browser || id_is_browser)
+        && matches!(
+            kind,
+            ToolKind::Other
+                | ToolKind::Read
+                | ToolKind::Execute
+                | ToolKind::Search
+                | ToolKind::Fetch
+        )
+    {
+        ToolKind::Browser
+    } else {
+        kind
+    };
+
     let name = if let Some(name) = explicit_name {
         name.to_string()
     } else if kind != ToolKind::Other {
@@ -373,5 +391,25 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Read);
         assert_eq!(classified.name, "Read");
+    }
+
+    #[test]
+    fn raw_browser_tool_name_overrides_generic_read_hint() {
+        let parser = CopilotParser;
+        let classified = classify_raw_tool_call(
+            &parser,
+            "tool-browser",
+            &serde_json::json!({ "source": "console" }),
+            ToolClassificationHints {
+                name: Some("mcp__tauri__read_logs"),
+                title: Some("mcp__tauri__read_logs"),
+                kind: Some(ToolKind::Read),
+                kind_hint: Some("read"),
+                locations: None,
+            },
+        );
+
+        assert_eq!(classified.kind, ToolKind::Browser);
+        assert_eq!(classified.name, "mcp__tauri__read_logs");
     }
 }

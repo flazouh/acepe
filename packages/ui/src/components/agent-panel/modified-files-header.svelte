@@ -27,7 +27,7 @@
 {#if visible}
 	<div class="w-full">
 		{#if isExpanded && fileList}
-			<div class="rounded-t-md bg-muted overflow-hidden border border-b-0 border-border">
+			<div class="rounded-t-md bg-input/30 overflow-hidden border border-b-0 border-border">
 				<div class="flex flex-col p-1 max-h-[300px] overflow-y-auto">
 					{@render fileList()}
 				</div>
@@ -44,7 +44,7 @@
 					toggleExpanded();
 				}
 			}}
-			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-muted hover:bg-muted/80 transition-colors cursor-pointer {isExpanded
+			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 cursor-pointer {isExpanded
 				? 'rounded-t-none border-t-0'
 				: ''}"
 		>

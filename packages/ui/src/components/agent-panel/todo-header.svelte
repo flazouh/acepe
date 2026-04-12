@@ -55,7 +55,7 @@
 {#if shouldRender}
 	<div class="w-full">
 		{#if !compact && isExpanded}
-			<div class="rounded-t-md bg-muted overflow-hidden border border-b-0 border-border">
+			<div class="rounded-t-md bg-input/30 overflow-hidden border border-b-0 border-border">
 				<div class="flex flex-col max-h-[300px] overflow-y-auto">
 					{#each items as item, index (index)}
 						{@const isInProgress = item.status === "in_progress"}
@@ -132,7 +132,7 @@
 						toggleExpanded();
 					}
 				}}
-				class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted hover:bg-muted/80 transition-colors cursor-pointer {isExpanded
+				class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-input/30 cursor-pointer {isExpanded
 					? 'rounded-t-none border-t-0'
 					: ''}"
 			>

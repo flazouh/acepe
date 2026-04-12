@@ -229,6 +229,7 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
         ToolArguments::ToolSearch { query, max_results } => {
             query.is_none() || max_results.is_none()
         }
+        ToolArguments::Browser { .. } => false,
         ToolArguments::Other { .. } => tool_arguments_detail_score(arguments) == 0,
     }
 }
@@ -409,6 +410,9 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
         ToolArguments::PlanMode { mode } => usize::from(mode.is_some()),
         ToolArguments::ToolSearch { query, max_results } => {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
+        }
+        ToolArguments::Browser { raw } => {
+            if raw.is_null() { 0 } else { 1 }
         }
         ToolArguments::Other { raw } => {
             if raw.is_null() {

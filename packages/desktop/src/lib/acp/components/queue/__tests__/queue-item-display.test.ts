@@ -45,6 +45,38 @@ function createReadToolCall(id: string, status: ToolCall["status"]): ToolCall {
 	};
 }
 
+function createTodoToolCall(id: string, status: ToolCall["status"]): ToolCall {
+	return {
+		id,
+		name: "update_todos",
+		kind: "todo",
+		arguments: {
+			kind: "other",
+			raw: {
+				todos: [
+					{
+						content: "Verify live rendering",
+						activeForm: "Keep todo active",
+						status: "in_progress",
+					},
+				],
+			},
+		},
+		normalizedTodos: [
+			{
+				content: "Verify live rendering",
+				activeForm: "Keep todo active",
+				status: "in_progress",
+				startedAt: null,
+				completedAt: null,
+				duration: null,
+			},
+		],
+		status,
+		awaitingPlanApproval: false,
+	};
+}
+
 function createSearchToolCall(id: string, status: ToolCall["status"]): ToolCall {
 	return {
 		id,
@@ -177,6 +209,29 @@ describe("getQueueItemTaskDisplay", () => {
 				status: "running",
 			},
 		]);
+	});
+
+	it("prefers todo-like child tools over trailing reads in compact task summaries", () => {
+		const taskTool = createTaskToolCall([
+			createTodoToolCall("child-todo", "in_progress"),
+			createReadToolCall("child-read", "completed"),
+		]);
+
+		const display = getQueueItemTaskDisplay(taskTool, "task", "streaming");
+
+		expect(display.taskDescription).toBe("Keep todo active");
+		expect(display.latestTaskSubagentTool).toEqual({
+			id: "child-todo",
+			kind: "other",
+			title: "Keep todo active",
+			filePath: undefined,
+			status: "running",
+		});
+		expect(display.taskSubagentTools[display.taskSubagentTools.length - 1]).toMatchObject({
+			id: "child-todo",
+			title: "Updating todos",
+			subtitle: "Keep todo active",
+		});
 	});
 
 	it("falls back to the parent task description when no child subagents exist", () => {

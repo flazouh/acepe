@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconArrowUp } from "@tabler/icons-svelte";
+	import { ArrowUp, PencilSimple, Trash } from "phosphor-svelte";
 	import type { AgentPanelQueuedMessage } from "./types.js";
 
 	import { Button } from "../button/index.js";
@@ -131,37 +131,36 @@
 								{/if}
 							</div>
 
-							<div class="flex items-center gap-1 shrink-0" role="none">
+							<div class="flex items-center gap-0.5 shrink-0" role="none">
 								<Button
-									variant="headerAction"
+									variant="ghost"
 									size="icon-sm"
 									class="size-6"
 									aria-label={editLabel}
 									title={editLabel}
 									onclick={() => handleStartEdit(message.id, message.content)}
 								>
-									{editLabel}
+									<PencilSimple weight="fill" class="h-3 w-3" />
 								</Button>
 								<Button
-									variant="headerAction"
+									variant="ghost"
 									size="icon-sm"
 									class="size-6"
 									aria-label={deleteLabel}
 									title={deleteLabel}
 									onclick={() => handleRemove(message.id)}
 								>
-									{deleteLabel}
+									<Trash weight="fill" class="h-3 w-3" />
 								</Button>
 								<Button
 									type="button"
 									size="sm"
-									class="h-6 rounded-full border-transparent bg-foreground px-2.5 text-[10px] text-background shadow-none hover:bg-foreground/85"
+									class="size-6 rounded-full border-transparent bg-foreground p-0 text-background shadow-none hover:bg-foreground/85"
 									aria-label={sendLabel}
 									title={sendLabel}
 									onclick={() => onSendNow(message.id)}
 								>
-									<IconArrowUp class="h-2.5 w-2.5" />
-									<span>{sendLabel}</span>
+									<ArrowUp weight="bold" class="h-3 w-3" />
 								</Button>
 							</div>
 						{/if}
