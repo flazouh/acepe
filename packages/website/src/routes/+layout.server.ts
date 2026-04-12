@@ -21,7 +21,6 @@ async function getGitHubStars(): Promise<number | null> {
 	return data.stargazers_count ?? null;
 }
 
-<<<<<<< HEAD
 export const load: LayoutServerLoad = async ({ url }) => {
 	if (shouldUsePitchStaticLayoutLoad(url.pathname)) {
 		return {
