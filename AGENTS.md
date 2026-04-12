@@ -154,6 +154,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
 - Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+- Do not frame work as a migration, coexistence plan, or cutover strategy. Assume speed-of-light execution: design and plan for the clean replacement architecture directly, with old paths removed rather than accommodated in parallel.
 
 ### Debugging
 
