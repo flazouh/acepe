@@ -37,6 +37,7 @@ interface Props {
 	/** When true, hide the body content (tool calls, activity text). Used when a permission request is shown instead. */
 	hideBody?: boolean;
 	menu?: Snippet;
+	presentationMode?: "live" | "ghost";
 }
 
 let {
@@ -52,18 +53,20 @@ let {
 	flushFooter = false,
 	hideBody = false,
 	menu,
+	presentationMode = "live",
 }: Props = $props();
 
 const title = $derived(card.title ? capitalizeLeadingCharacter(card.title) : "Untitled session");
 const hasDiff = $derived(card.diffInsertions > 0 || card.diffDeletions > 0);
-const isInteractive = $derived(Boolean(onclick));
+const isGhost = $derived(presentationMode === "ghost");
+const isInteractive = $derived(!isGhost && Boolean(onclick));
 const showBody = $derived(
 	!hideBody && Boolean(card.taskCard || card.latestTool || card.activityText || card.errorText)
 );
 const hasTodoSection = $derived(todoSection !== undefined);
 const hasFooterContent = $derived(card.todoProgress !== null && !hasTodoSection ? true : showTally);
-const hasMenu = $derived(showMenu && menu !== undefined);
-const hasClose = $derived(Boolean(onClose));
+const hasMenu = $derived(!isGhost && showMenu && menu !== undefined);
+const hasClose = $derived(!isGhost && Boolean(onClose));
 const headerDiffDivider = $derived(hasMenu ? true : hasClose);
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -79,7 +82,9 @@ function handleKeydown(event: KeyboardEvent): void {
 <div
 	class="shrink-0 flex flex-col overflow-hidden rounded-sm border border-border/60 bg-accent/30 transition-all duration-150 {isInteractive
 		? 'cursor-pointer hover:border-border hover:bg-accent/45 hover:shadow-[0_8px_24px_-16px_rgba(0,0,0,0.9)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0'
-		: ''}"
+		: isGhost
+			? 'shadow-[0_12px_32px_-20px_rgba(0,0,0,0.9)]'
+			: ''}"
 	onclick={onclick}
 	onkeydown={handleKeydown}
 	role={onclick ? "button" : undefined}
@@ -114,7 +119,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					</div>
 				</HeaderActionCell>
 			{/if}
-			{#if menu}
+			{#if hasMenu && menu}
 				<HeaderActionCell withDivider={true}>
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
@@ -122,7 +127,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					</div>
 				</HeaderActionCell>
 			{/if}
-			{#if onClose}
+			{#if hasClose && onClose}
 				<HeaderActionCell withDivider={false}>
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
@@ -208,7 +213,7 @@ function handleKeydown(event: KeyboardEvent): void {
 		{/if}
 
 		<!-- Footer slot (question / permission / composer) -->
-		{#if showFooter && footer}
+		{#if !isGhost && showFooter && footer}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="border-t border-border/40 {flushFooter ? '' : 'px-1.5 py-1'}" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 				{@render footer()}
@@ -216,7 +221,7 @@ function handleKeydown(event: KeyboardEvent): void {
 		{/if}
 	{:else}
 		<!-- Footer slot (question / permission / composer) -->
-		{#if showFooter && footer}
+		{#if !isGhost && showFooter && footer}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="border-t border-border/40 {flushFooter ? '' : 'px-1.5 py-1'}" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 				{@render footer()}

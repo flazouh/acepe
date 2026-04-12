@@ -106,6 +106,7 @@ function createCard(params: {
 		title: params.title,
 		agentIconSrc: params.agentIconSrc,
 		agentLabel: params.agentLabel,
+		isAutoMode: false,
 		projectName: params.projectName,
 		projectColor: params.projectColor,
 		activityText: params.activityText ? params.activityText : null,

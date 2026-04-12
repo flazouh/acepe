@@ -16,9 +16,13 @@ export type {
 } from "./types.js";
 export type {
 	KanbanSceneCardData,
+	KanbanSceneColumnData,
 	KanbanSceneColumnGroup,
 	KanbanSceneFooterData,
 	KanbanSceneMenuAction,
+	KanbanSceneModel,
+	KanbanScenePlacement,
+	KanbanScenePlacementSource,
 	KanbanScenePermissionFooterData,
 	KanbanScenePlanApprovalFooterData,
 	KanbanSceneQuestionFooterData,
