@@ -249,4 +249,60 @@ describe("ActivityEntry todo progress", () => {
 		expect(queryByText(fullPath)).toBeNull();
 		expect(card?.querySelectorAll("svg[fill='currentColor']").length).toBeGreaterThan(0);
 	});
+
+	it("renders a gerund tool label with a tiny file chip in the compact activity row", () => {
+		const fullPath = "packages/ui/src/components/attention-queue/attention-queue-entry.svelte";
+		const { container, getByText, queryByText } = render(ActivityEntry, {
+			selected: false,
+			onSelect: vi.fn(),
+			mode: null,
+			title: "Queue item",
+			timeAgo: "1m",
+			insertions: 0,
+			deletions: 0,
+			isStreaming: true,
+			taskDescription: null,
+			taskSubagentSummaries: [],
+			showTaskSubagentList: false,
+			latestToolDisplay: {
+				id: "tool-edit-1",
+				title: "Editing",
+				filePath: fullPath,
+				status: "running",
+			},
+			fileToolDisplayText: "Edit attention-queue-entry.svelte",
+			toolContent: null,
+			showToolShimmer: false,
+			statusText: null,
+			showStatusShimmer: false,
+			todoProgress: null,
+			currentQuestion: null,
+			totalQuestions: 0,
+			hasMultipleQuestions: false,
+			currentQuestionIndex: 0,
+			questionId: "",
+			questionProgress: [],
+			currentQuestionAnswered: false,
+			currentAnswerDisplay: "",
+			currentQuestionOptions: [],
+			otherText: "",
+			otherPlaceholder: "Other",
+			showOtherInput: true,
+			showSubmitButton: false,
+			canSubmit: false,
+			submitLabel: "Submit",
+			onOptionSelect: vi.fn(),
+			onOtherInput: vi.fn(),
+			onOtherKeydown: vi.fn(),
+			onSubmitAll: vi.fn(),
+			onPrevQuestion: vi.fn(),
+			onNextQuestion: vi.fn(),
+		});
+
+		expect(getByText("Editing")).toBeTruthy();
+		expect(
+			container.querySelector(`[data-file-path='${fullPath}'] .file-name`)?.textContent
+		).toContain("attention-queue-entry.svelte");
+		expect(queryByText("Edit attention-queue-entry.svelte")).toBeNull();
+	});
 });

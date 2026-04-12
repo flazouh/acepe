@@ -19,7 +19,8 @@ export type InlineArtefactSegment =
 /** Prefix that opens every inline artefact token (`@[type:value]`). */
 export const INLINE_TOKEN_PREFIX = "@[";
 
-const INLINE_ARTEFACT_PATTERN = String.raw`@\[(file|image|text|text_ref|command|skill):([^\]]+)\]`;
+/** Matches `@[type:value]` tokens, including truncated ones missing the closing `]`. */
+const INLINE_ARTEFACT_PATTERN = String.raw`@\[(file|image|text|text_ref|command|skill):([^\]]+)\]?`;
 const INLINE_ARTEFACT_REGEX = new RegExp(INLINE_ARTEFACT_PATTERN, "g");
 const INLINE_TEXT_PREVIEW_LIMIT = 24;
 const INLINE_TEXT_TITLE_LIMIT = 500;

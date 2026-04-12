@@ -166,6 +166,8 @@ export interface PanelHotState {
 	readonly planSidebarExpanded: boolean;
 	/** Draft message text in the input field */
 	readonly messageDraft: string;
+	/** Provisional autonomous state used before a real session exists. */
+	readonly provisionalAutonomousEnabled: boolean;
 	/** Pending full composer restore after a failed first-send handoff. */
 	readonly pendingComposerRestore: ComposerRestoreSnapshot | null;
 	/** Monotonic version used to remount the composer when restore data is queued. */
@@ -197,6 +199,7 @@ export const DEFAULT_PANEL_HOT_STATE: PanelHotState = {
 	browserSidebarExpanded: false,
 	browserSidebarUrl: null,
 	messageDraft: "",
+	provisionalAutonomousEnabled: false,
 	pendingComposerRestore: null,
 	composerRestoreVersion: 0,
 	embeddedTerminalDrawerOpen: false,

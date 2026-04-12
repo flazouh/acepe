@@ -1,21 +1,21 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	createPitchUrl,
-	exportPitchPdf,
-	waitForPitchReady,
-} from "../../../../scripts/export-pitch-pdf.js";
+import { exportPitchPdf } from "../../../../scripts/export-pitch-pdf.js";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url }) => {
 	const tempDirectory = await mkdtemp(join(tmpdir(), "acepe-pitch-"));
 	const outputPath = join(tempDirectory, "acepe-investor-pitch.pdf");
-	const pitchUrl = createPitchUrl(url.origin);
+	const requestedPort = Number.parseInt(url.port, 10);
+	const port = Number.isFinite(requestedPort) && requestedPort > 0 ? requestedPort : 4173;
 
 	try {
-		await waitForPitchReady(pitchUrl);
-		await exportPitchPdf(pitchUrl, outputPath);
+		await exportPitchPdf({
+			baseUrl: url.origin,
+			outputPath,
+			port,
+		});
 
 		const pdf = await readFile(outputPath);
 

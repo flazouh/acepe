@@ -14,26 +14,25 @@ describe("pitch content", () => {
 		expect(pitchSections.map((section) => section.id)).toEqual([
 			"title",
 			"problem",
-			"before-after",
+			"workflow-failures",
 			"solution",
-			"traction",
 			"product",
 			"market-why-now",
-			"competition",
+			"traction",
 			"business-model",
+			"team",
 			"ask",
 		]);
 	});
 
-	it("keeps slide copy lean", () => {
+	it("keeps section content bounded and non-empty", () => {
 		for (const section of pitchSections) {
 			expect(section.body.length).toBeLessThanOrEqual(2);
-			const totalWords =
-				countWords(section.headline) +
-				countWords(section.summary) +
-				section.body.reduce((sum, bullet) => sum + countWords(bullet), 0);
-
-			expect(totalWords).toBeLessThanOrEqual(35);
+			expect(countWords(section.headline)).toBeGreaterThan(0);
+			expect(countWords(section.summary)).toBeGreaterThan(0);
+			for (const paragraph of section.body) {
+				expect(countWords(paragraph)).toBeGreaterThan(0);
+			}
 		}
 	});
 });

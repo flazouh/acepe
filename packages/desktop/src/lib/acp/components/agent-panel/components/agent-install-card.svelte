@@ -1,8 +1,8 @@
 <script lang="ts">
-import { AgentPanelInstallCard as SharedAgentPanelInstallCard } from "@acepe/ui/agent-panel";
-import { Spinner } from "$lib/components/ui/spinner/index.js";
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-import * as m from "$lib/paraglide/messages.js";
+	import { VoiceDownloadProgress } from "@acepe/ui";
+	import { AgentPanelInstallCard as SharedAgentPanelInstallCard } from "@acepe/ui/agent-panel";
+	import { Spinner } from "$lib/components/ui/spinner/index.js";
+	import * as m from "$lib/paraglide/messages.js";
 import AgentIcon from "../../agent-icon.svelte";
 
 interface Props {

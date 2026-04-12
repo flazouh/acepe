@@ -16,14 +16,10 @@ describe("kanban card null guards", () => {
 		expect(source).toContain('status={taskCard.isStreaming ? "running" : "done"}');
 		expect(source).toContain("children={taskCard.toolCalls}");
 		expect(source).toContain("{@const latestTool = card.latestTool}");
-		expect(source).toContain("title={latestTool.title}");
-		expect(source).toContain("filePath={latestTool.filePath}");
-		expect(source).toContain("status={latestTool.status}");
+		expect(source).toContain("<AgentCompactToolDisplay tool={latestTool} />");
 		expect(source).not.toContain("description={card.taskCard.summary}");
 		expect(source).not.toContain("status={card.taskCard.isStreaming ? \"running\" : \"done\"}");
 		expect(source).not.toContain("children={card.taskCard.toolCalls}");
-		expect(source).not.toContain("title={card.latestTool.title}");
-		expect(source).not.toContain("filePath={card.latestTool.filePath}");
-		expect(source).not.toContain("status={card.latestTool.status}");
+		expect(source).not.toContain("<AgentCompactToolDisplay tool={card.latestTool} />");
 	});
 });

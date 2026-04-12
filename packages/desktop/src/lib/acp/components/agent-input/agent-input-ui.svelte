@@ -250,7 +250,13 @@ const autonomousSupportState = $derived.by(() =>
 	})
 );
 
-let provisionalAutonomousEnabled = $state(false);
+const provisionalAutonomousEnabled = $derived.by(() => {
+	if (props.panelId) {
+		return panelStore.getHotState(props.panelId).provisionalAutonomousEnabled;
+	}
+
+	return false;
+});
 
 const autonomousToggleActive = $derived(
 	sessionHotState ? sessionHotState.autonomousEnabled : provisionalAutonomousEnabled
@@ -1388,7 +1394,9 @@ async function handleModeChange(modeId: string) {
 			agents: agentStore.agents,
 		}).supported
 	) {
-		provisionalAutonomousEnabled = false;
+		if (props.panelId) {
+			panelStore.setProvisionalAutonomousEnabled(props.panelId, false);
+		}
 		autonomousStatusMessage =
 			"Autonomous turned off because this mode is unsupported for the current agent.";
 	}
@@ -1400,8 +1408,12 @@ async function handleAutonomousToggle(): Promise<void> {
 	}
 
 	if (!props.sessionId) {
-		provisionalAutonomousEnabled = !provisionalAutonomousEnabled;
-		if (!provisionalAutonomousEnabled) {
+		if (!props.panelId) {
+			return;
+		}
+		const nextEnabled = !provisionalAutonomousEnabled;
+		panelStore.setProvisionalAutonomousEnabled(props.panelId, nextEnabled);
+		if (!nextEnabled) {
 			autonomousStatusMessage = "Future actions now require approval again.";
 		}
 		return;

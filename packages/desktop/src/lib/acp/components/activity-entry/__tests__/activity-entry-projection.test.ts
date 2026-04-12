@@ -115,6 +115,8 @@ describe("projectActivityEntry", () => {
 		});
 
 		expect(projection.fileToolDisplayText).toContain("alpha.ts");
+		expect(projection.latestToolEntry?.title).toBe("Read");
+		expect(projection.latestToolEntry?.filePath).toBe("/repo/alpha.ts");
 		expect(projection.latestTool?.filePath).toBe("/repo/alpha.ts");
 	});
 });

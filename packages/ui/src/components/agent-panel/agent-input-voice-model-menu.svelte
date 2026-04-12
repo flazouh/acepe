@@ -7,8 +7,9 @@
 <script lang="ts">
 	import { Check, DotsThreeVertical, DownloadSimple } from "phosphor-svelte";
 
+	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { PillButton } from "../pill-button/index.js";
+	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
 
 	export interface AgentInputVoiceModel {
 		id: string;
@@ -108,31 +109,27 @@
 						</div>
 
 						{#if isDownloading}
-							<div class="flex items-center gap-[2px]" aria-label="Downloading {model.name}">
-								{#each Array(20) as _, i (i)}
-									<div
-										class="rounded-full transition-all duration-150 {downloadPercent >= (i + 1) * 5
-											? 'h-[9px] w-[3px] bg-foreground'
-											: 'h-[6px] w-[3px] bg-foreground/25'}"
-									></div>
-								{/each}
-							</div>
+							<VoiceDownloadProgress
+								ariaLabel={`Downloading ${model.name}`}
+								compact={true}
+								label=""
+								percent={downloadPercent}
+								segmentCount={20}
+								showPercent={false}
+							/>
 						{:else}
-							<PillButton
-								variant="invert"
-								size="xs"
+							<Button
+								variant="headerAction"
+								size="headerAction"
+								class="shrink-0 gap-1 font-mono text-[0.625rem]"
 								onclick={(e: MouseEvent) => {
 									e.stopPropagation();
 									onDownloadModel(model.id);
 								}}
 							>
-								{#snippet children()}
-									<span class="font-mono">{formatBytes(model.sizeBytes)}</span>
-								{/snippet}
-								{#snippet trailingIcon()}
-									<DownloadSimple class="size-2.5" weight="bold" />
-								{/snippet}
-							</PillButton>
+								<span>{formatBytes(model.sizeBytes)}</span>
+								<DownloadSimple class="size-2.5" weight="bold" />
+							</Button>
 						{/if}
 					</div>
 				{/if}

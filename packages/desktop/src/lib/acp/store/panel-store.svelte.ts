@@ -1072,6 +1072,10 @@ export class PanelStore {
 		return this.getHotState(panelId).messageDraft;
 	}
 
+	setProvisionalAutonomousEnabled(panelId: string, enabled: boolean): void {
+		this.updateHotState(panelId, { provisionalAutonomousEnabled: enabled });
+	}
+
 	setPendingComposerRestore(
 		panelId: string,
 		restore: NonNullable<PanelHotState["pendingComposerRestore"]>

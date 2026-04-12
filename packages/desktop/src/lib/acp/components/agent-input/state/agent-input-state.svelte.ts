@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { okAsync, Result, ResultAsync } from "neverthrow";
+import { okAsync, ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
@@ -347,45 +347,69 @@ export class AgentInputState {
 		listenerKind: "hover" | "drop" | "leave",
 		unlisten: UnlistenFn
 	): void {
+		const managedUnlisten = this.createManagedUnlisten(unlisten);
+
 		if (this.isDestroyed) {
-			this.runUnlisten(listenerKind, unlisten);
+			this.runUnlisten(listenerKind, managedUnlisten);
 			return;
 		}
 
 		if (listenerKind === "hover") {
-			this.unlistenFileDropHover = unlisten;
+			this.unlistenFileDropHover = managedUnlisten;
 			return;
 		}
 
 		if (listenerKind === "drop") {
-			this.unlistenFileDrop = unlisten;
+			this.unlistenFileDrop = managedUnlisten;
 			return;
 		}
 
-		this.unlistenFileDropCancelled = unlisten;
+		this.unlistenFileDropCancelled = managedUnlisten;
+	}
+
+	private createManagedUnlisten(unlisten: UnlistenFn): UnlistenFn {
+		let isActive = true;
+
+		return async () => {
+			if (!isActive) {
+				return;
+			}
+
+			isActive = false;
+			await unlisten();
+		};
+	}
+
+	private normalizeUnlistenError(error: unknown): Error {
+		if (error instanceof Error) {
+			return error;
+		}
+
+		return new Error(String(error));
+	}
+
+	private isMissingTauriListenerError(error: Error): boolean {
+		return error.message.includes("listeners[eventId].handlerId");
 	}
 
 	private runUnlisten(listenerKind: string, unlisten: UnlistenFn): void {
-		Result.fromThrowable(
-			() => {
-				unlisten();
-			},
-			(error) => {
-				if (error instanceof Error) {
-					return error;
+		void Promise.resolve()
+			.then(() => unlisten())
+			.catch((rawError) => {
+				const error = this.normalizeUnlistenError(rawError);
+				if (this.isMissingTauriListenerError(error)) {
+					this.logger.debug("Drag-drop listener already removed during teardown", {
+						listenerKind,
+						error,
+					});
+					return;
 				}
 
-				return new Error(String(error));
-			}
-		)().match(
-			() => {},
-			(error) => {
 				this.logger.warn("Failed to unregister drag-drop listener", {
 					listenerKind,
 					error,
 				});
-			}
-		);
+			});
 	}
 
 	private clearDragDropListener(listenerKind: "hover" | "drop" | "leave"): void {

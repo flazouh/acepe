@@ -45,8 +45,14 @@ pub(crate) fn extract_parser_string_list(
 pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
     let file_path = extract_parser_string(raw_arguments, &["file_path", "filePath", "path"]);
     let move_from = extract_parser_string(raw_arguments, &["move_from", "moveFrom"]);
-    let old_string = extract_parser_string(raw_arguments, &["old_string", "oldString", "oldText"]);
-    let new_string = extract_parser_string(raw_arguments, &["new_string", "newString", "newText"]);
+    let old_string = extract_parser_string(
+        raw_arguments,
+        &["old_string", "oldString", "oldText", "old_str"],
+    );
+    let new_string = extract_parser_string(
+        raw_arguments,
+        &["new_string", "newString", "newText", "new_str"],
+    );
     let content = extract_parser_string(raw_arguments, &["content"]);
 
     ToolArguments::Edit {

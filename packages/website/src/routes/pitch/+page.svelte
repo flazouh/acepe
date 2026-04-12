@@ -1,69 +1,36 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground } from "@acepe/ui";
-import { formatPitchProofValue, pitchSections } from "$lib/pitch/content.js";
+	import { BrandLockup, BrandShaderBackground } from '@acepe/ui';
+	import { formatPitchProofValue, pitchSections } from '$lib/pitch/content.js';
 
-const workflowComparison = [
-	{
-		label: "Before",
-		accentClass: "border-destructive/30 bg-destructive/6",
-		badgeClass: "text-destructive/80 bg-destructive/10",
-		steps: [
-			"One terminal per agent",
-			"Manual conflict hunting",
-			"Missed permission prompts",
-			"No shared ship-ready state",
-		],
-	},
-	{
-		label: "After",
-		accentClass: "border-accent/40 bg-accent/8",
-		badgeClass: "text-foreground bg-accent/15",
-		steps: [
-			"One workspace for all agents",
-			"Attention queue surfaces blockers",
-			"Checkpoint diffs before merge",
-			"Clear ship-ready status",
-		],
-	},
-] as const;
+	const thesisBeatLabels = {
+		'platform-neutral': 'Platform-neutral control plane',
+		'why-acepe-wins': 'Acepe wins at the operating layer',
+		'team-workflow-wedge': 'Team workflow wedge first',
+		'raise-unlock': 'Raise unlocks faster execution',
+		'first-party-agent-upside': 'First-party agent is upside',
+		'why-now-urgency': 'Why now urgency',
+	} as const;
 
-const marketSizingInputs = [
-	{ label: "Developers", value: "30M+", detail: "AI-assisted developers" },
-	{ label: "Target wedge", value: "1%", detail: "Early multi-agent teams" },
-	{ label: "Annual seat ACV", value: "$348", detail: "$29 per seat / month" },
-	{ label: "Starting SAM", value: "$104M+", detail: "30M x 1% x $348" },
-] as const;
+	const positioningRows = [
+		{ approach: 'Terminal CLI', agents: 'One at a time', visibility: 'Scrollback', governance: 'None' },
+		{ approach: 'IDE extensions', agents: 'Built-in only', visibility: 'Editor tab', governance: 'Per-file' },
+		{ approach: 'Acepe', agents: 'Any ACP agent', visibility: 'Attention queue', governance: 'Checkpoints + review' },
+	] as const;
 
-const competitionPoints = [
-	{ name: "Terminal CLIs", note: "single-session tools", x: "18%", y: "22%", highlight: false },
-	{ name: "IDE copilots", note: "editor-native agents", x: "34%", y: "38%", highlight: false },
-	{
-		name: "PR / CI automation",
-		note: "review after execution",
-		x: "70%",
-		y: "30%",
-		highlight: false,
-	},
-	{ name: "Acepe", note: "live, governed multi-agent work", x: "76%", y: "78%", highlight: true },
-] as const;
+	const tiers = [
+		{ name: 'Solo', price: 'Free', features: 'Desktop app, all agents, checkpoints, SQL Studio, Git integration' },
+		{ name: 'Team', price: 'Per seat / mo', features: 'Shared visibility, approval workflows, session handoff, coordination' },
+		{ name: 'Enterprise', price: 'Custom', features: 'SSO, audit trails, governance policies, remote agent execution' },
+	] as const;
 
-const tiers = [
-	{ name: "Solo", price: "Free forever", features: "Full workspace. Unlimited local sessions." },
-	{ name: "Team", price: "$29 / seat / mo", features: "Shared visibility. Approvals. Handoffs." },
-	{
-		name: "Enterprise",
-		price: "Custom",
-		features: "SSO. Audit trails. Governance. Remote agents.",
-	},
-] as const;
+	const milestones = [
+		{ area: 'Team features', detail: 'Shared workspaces, approval workflows, session handoff' },
+		{ area: 'Remote agents', detail: 'Cloud-hosted sessions with full Acepe observability' },
+		{ area: 'Go-to-market', detail: 'Developer community, content, early enterprise pilots' },
+		{ area: 'First-party agent', detail: 'Acepe-native agent optimized for the platform context model' },
+	] as const;
 
-const milestones = [
-	{ area: "Team workflows", detail: "Shared workspaces, approvals, session handoff" },
-	{ area: "Go-to-market", detail: "Developer content and design partners" },
-	{ area: "Remote agents", detail: "Cloud-hosted sessions with Acepe observability" },
-] as const;
-
-const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as const;
+	const workflowSteps = ['Launch', 'Monitor', 'Unblock', 'Review', 'Ship'] as const;
 </script>
 
 <svelte:head>
@@ -141,12 +108,14 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 </svelte:head>
 
 <div class="bg-background text-foreground relative isolate min-h-screen overflow-hidden">
+	<BrandShaderBackground class="pointer-events-none opacity-80" fallback="gradient" />
+
 	<main data-pitch-root class="relative">
 		<div data-pitch-stack class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12 sm:px-8 lg:px-12">
 		<nav
 			data-pitch-print-hidden
 			aria-label="Pitch section navigation"
-			class="bg-card/70 border-border/60 sticky top-4 z-10 flex flex-wrap items-center gap-2 rounded-2xl border p-3 backdrop-blur"
+			class="bg-card/70 border-border/60 sticky top-4 z-10 flex flex-wrap gap-2 rounded-2xl border p-3 backdrop-blur"
 		>
 			{#each pitchSections as section}
 				<a
@@ -156,14 +125,6 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 					{section.title}
 				</a>
 			{/each}
-			<div class="ml-auto">
-				<a
-					href="/pitch/export"
-					class="bg-foreground text-background hover:opacity-90 inline-flex rounded-full px-4 py-2 text-xs font-semibold tracking-[0.16em] uppercase transition-opacity"
-				>
-					Export PDF
-				</a>
-			</div>
 		</nav>
 
 			{#each pitchSections as section, index}
@@ -194,10 +155,8 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</p>
 						</div>
 						<div class="relative mt-auto grid gap-4 sm:grid-cols-2">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-2xl border px-4 py-4">
-									<p class="text-sm font-medium tracking-[-0.02em]">{bullet}</p>
-								</div>
+							{#each section.body as paragraph}
+								<p class="text-sm leading-6 text-pretty opacity-80">{paragraph}</p>
 							{/each}
 						</div>
 
@@ -210,15 +169,15 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
 						<div class="relative grid gap-4 sm:grid-cols-2">
-							{#each section.body as bullet, i}
+							{#each section.body as paragraph, i}
 								<div class="bg-destructive/5 border-destructive/20 rounded-2xl border p-5">
 									<p class="text-destructive/80 mb-2 text-[10px] font-semibold tracking-wider uppercase">Pain point {i + 1}</p>
-									<p class="text-base leading-6 font-medium">{bullet}</p>
+									<p class="text-sm leading-6">{paragraph}</p>
 								</div>
 							{/each}
 						</div>
 
-					{:else if section.id === 'before-after'}
+					{:else if section.id === 'workflow-failures'}
 						<div class="relative flex flex-col gap-3">
 							<p class="text-muted-foreground text-xs font-semibold tracking-[0.2em] uppercase">{section.title}</p>
 							<h2 id={`${section.id}-headline`} class="max-w-4xl text-3xl leading-tight font-semibold tracking-[-0.04em] sm:text-4xl">
@@ -226,27 +185,11 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</h2>
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
-						<div class="relative grid gap-4 lg:grid-cols-2">
-							{#each workflowComparison as column}
-								<div class={`rounded-[24px] border p-5 ${column.accentClass}`}>
-									<span class={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold tracking-[0.18em] uppercase ${column.badgeClass}`}>
-										{column.label}
-									</span>
-									<ul class="mt-4 space-y-3">
-										{#each column.steps as step}
-											<li class="flex items-start gap-3 text-sm leading-6">
-												<span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"></span>
-												<span>{step}</span>
-											</li>
-										{/each}
-									</ul>
-								</div>
-							{/each}
-						</div>
-						<div class="relative flex flex-wrap gap-3">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-full border px-3 py-1.5 text-xs font-medium">
-									{bullet}
+						<div class="relative space-y-3">
+							{#each section.body as paragraph}
+								<div class="bg-background/40 border-border/40 flex items-start gap-3 rounded-xl border p-4">
+									<span class="text-destructive/60 mt-0.5 shrink-0 text-base" aria-hidden="true">&#x2717;</span>
+									<p class="text-sm leading-6">{paragraph}</p>
 								</div>
 							{/each}
 						</div>
@@ -260,11 +203,9 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							<p class="text-muted-foreground max-w-2xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
 						<div class="relative grid gap-6 lg:grid-cols-[1fr_1fr]">
-							<div class="grid gap-3">
-								{#each section.body as bullet}
-									<div class="bg-background/45 border-border/40 rounded-2xl border px-4 py-4">
-										<p class="text-sm font-medium tracking-[-0.02em]">{bullet}</p>
-									</div>
+							<div class="space-y-3">
+								{#each section.body as paragraph}
+									<p class="text-sm leading-6 text-pretty">{paragraph}</p>
 								{/each}
 							</div>
 							<div data-pitch-diagram class="flex flex-col gap-0 text-xs">
@@ -289,44 +230,12 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</div>
 						</div>
 
-					{:else if section.id === 'traction'}
-						<div class="relative flex flex-col gap-3">
-							<p class="text-muted-foreground text-xs font-semibold tracking-[0.2em] uppercase">{section.title}</p>
-							<h2 id={`${section.id}-headline`} class="max-w-4xl text-3xl leading-tight font-semibold tracking-[-0.04em] sm:text-4xl">
-								{section.headline}
-							</h2>
-							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
-						</div>
-						{#if section.proofItems}
-							<div class="relative grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-								{#each section.proofItems as proofItem}
-									<div class="bg-background/60 border-border/50 rounded-[24px] border p-5">
-										<p class="text-muted-foreground mb-3 text-[10px] font-semibold tracking-wider uppercase">{proofItem.label}</p>
-										<p class="text-5xl leading-none font-semibold tracking-[-0.06em] sm:text-6xl">
-											{formatPitchProofValue(proofItem)}
-										</p>
-										{#if proofItem.note}
-											<p class="text-muted-foreground/70 mt-3 text-xs leading-5">{proofItem.note}</p>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{/if}
-						<div class="relative flex flex-wrap gap-3">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-full border px-3 py-1.5 text-xs font-medium">
-									{bullet}
-								</div>
-							{/each}
-						</div>
-
 					{:else if section.id === 'product'}
 						<div class="relative flex flex-col gap-3">
 							<p class="text-muted-foreground text-xs font-semibold tracking-[0.2em] uppercase">{section.title}</p>
 							<h2 id={`${section.id}-headline`} class="max-w-4xl text-3xl leading-tight font-semibold tracking-[-0.04em] sm:text-4xl">
 								{section.headline}
 							</h2>
-							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
 						<div class="relative flex flex-wrap items-center gap-2">
 							{#each workflowSteps as step, i}
@@ -345,10 +254,8 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							/>
 						</div>
 						<div class="relative grid gap-4 sm:grid-cols-2">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-2xl border px-4 py-4">
-									<p class="text-xs leading-5 font-medium">{bullet}</p>
-								</div>
+							{#each section.body as paragraph}
+								<p class="text-xs leading-5 text-pretty opacity-80">{paragraph}</p>
 							{/each}
 						</div>
 
@@ -361,33 +268,36 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
 						<div class="relative grid gap-6 lg:grid-cols-[1fr_1fr]">
-							<div class="space-y-4">
-								<div class="bg-accent/10 border-accent/30 rounded-[24px] border p-5">
-									<p class="text-muted-foreground text-[10px] font-semibold tracking-[0.18em] uppercase">Bottom-up formula</p>
-									<p class="mt-3 text-3xl leading-tight font-semibold tracking-[-0.05em]">
-										30M+ developers x 1% x $348 = $104M+
-									</p>
-								</div>
-								<div class="grid gap-3">
-									{#each section.body as bullet}
-										<div class="bg-background/45 border-border/40 rounded-2xl border px-4 py-4">
-											<p class="text-sm font-medium tracking-[-0.02em]">{bullet}</p>
-										</div>
-									{/each}
-								</div>
-							</div>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{#each marketSizingInputs as input}
-									<div class="bg-background/45 border-border/40 rounded-[24px] border p-5">
-										<p class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">{input.label}</p>
-										<p class="mt-3 text-3xl leading-none font-semibold tracking-[-0.05em]">{input.value}</p>
-										<p class="text-muted-foreground mt-2 text-xs leading-5">{input.detail}</p>
-									</div>
+							<div class="space-y-3">
+								{#each section.body as paragraph}
+									<p class="text-sm leading-6 text-pretty">{paragraph}</p>
 								{/each}
+							</div>
+							<div data-pitch-table class="bg-background/40 overflow-hidden rounded-xl border border-border/50">
+								<table class="w-full text-xs">
+									<thead>
+										<tr class="border-b border-border/40 bg-background/60">
+											<th class="px-3 py-2 text-left font-semibold">Approach</th>
+											<th class="px-3 py-2 text-left font-semibold">Agents</th>
+											<th class="px-3 py-2 text-left font-semibold">Visibility</th>
+											<th class="px-3 py-2 text-left font-semibold">Governance</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each positioningRows as row}
+											<tr class="border-b border-border/20 last:border-0 {row.approach === 'Acepe' ? 'bg-accent/15' : ''}">
+												<td class="px-3 py-2 font-medium {row.approach === 'Acepe' ? 'text-foreground' : 'text-muted-foreground'}">{row.approach}</td>
+												<td class="px-3 py-2 text-muted-foreground">{row.agents}</td>
+												<td class="px-3 py-2 text-muted-foreground">{row.visibility}</td>
+												<td class="px-3 py-2 text-muted-foreground">{row.governance}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
 							</div>
 						</div>
 
-					{:else if section.id === 'competition'}
+					{:else if section.id === 'traction'}
 						<div class="relative flex flex-col gap-3">
 							<p class="text-muted-foreground text-xs font-semibold tracking-[0.2em] uppercase">{section.title}</p>
 							<h2 id={`${section.id}-headline`} class="max-w-4xl text-3xl leading-tight font-semibold tracking-[-0.04em] sm:text-4xl">
@@ -395,42 +305,22 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</h2>
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
-						<div class="relative rounded-[28px] border border-border/50 bg-background/35 p-6">
-							<div class="pointer-events-none absolute inset-x-14 top-1/2 h-px -translate-y-1/2 bg-border/50"></div>
-							<div class="pointer-events-none absolute inset-y-14 left-1/2 w-px -translate-x-1/2 bg-border/50"></div>
-							<div class="text-muted-foreground absolute top-4 left-6 text-[10px] font-semibold tracking-wider uppercase">
-								Low governance
-							</div>
-							<div class="text-muted-foreground absolute top-4 right-6 text-[10px] font-semibold tracking-wider uppercase">
-								High governance
-							</div>
-							<div class="text-muted-foreground absolute bottom-4 left-6 text-[10px] font-semibold tracking-wider uppercase">
-								Single-agent
-							</div>
-							<div class="text-muted-foreground absolute bottom-4 right-6 text-[10px] font-semibold tracking-wider uppercase">
-								Multi-agent
-							</div>
-							<div class="relative h-[19rem]">
-								{#each competitionPoints as point}
-									<div
-										class={`absolute w-36 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-3 py-2 text-center shadow-sm ${
-											point.highlight
-												? 'border-accent/50 bg-accent/15 text-foreground'
-												: 'border-border/50 bg-background/70 text-muted-foreground'
-										}`}
-										style={`left: ${point.x}; top: ${point.y};`}
-									>
-										<p class={`text-sm font-semibold ${point.highlight ? 'tracking-[-0.03em]' : ''}`}>{point.name}</p>
-										<p class="mt-1 text-[11px] leading-4 opacity-80">{point.note}</p>
+						{#if section.proofItems}
+							<div class="relative grid gap-4 sm:grid-cols-2">
+								{#each section.proofItems as proofItem}
+									<div class="bg-background/60 border-border/50 rounded-2xl border p-5">
+										<p class="text-muted-foreground mb-1 text-[10px] font-semibold tracking-wider uppercase">{proofItem.label}</p>
+										<p class="text-xl font-semibold">{formatPitchProofValue(proofItem)}</p>
+										{#if proofItem.note}
+											<p class="text-muted-foreground/70 mt-2 text-xs leading-5">{proofItem.note}</p>
+										{/if}
 									</div>
 								{/each}
 							</div>
-						</div>
-						<div class="relative flex flex-wrap gap-3">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-full border px-3 py-1.5 text-xs font-medium">
-									{bullet}
-								</div>
+						{/if}
+						<div class="relative space-y-3">
+							{#each section.body as paragraph}
+								<p class="text-sm leading-6 text-pretty opacity-80">{paragraph}</p>
 							{/each}
 						</div>
 
@@ -451,11 +341,9 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 								</div>
 							{/each}
 						</div>
-						<div class="relative flex flex-wrap gap-3">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-full border px-3 py-1.5 text-xs font-medium">
-									{bullet}
-								</div>
+						<div class="relative space-y-3">
+							{#each section.body as paragraph}
+								<p class="text-sm leading-6 text-pretty opacity-80">{paragraph}</p>
 							{/each}
 						</div>
 
@@ -470,26 +358,18 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</h2>
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
-						<div class="relative grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-							<div class="bg-background/50 border-border/50 rounded-[24px] border p-5">
-								<p class="text-[10px] font-semibold tracking-wider uppercase">Founder proof</p>
-								<ul class="mt-4 space-y-3">
-									{#each section.body as bullet}
-										<li class="flex items-start gap-3 text-sm leading-6">
-											<span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"></span>
-											<span>{bullet}</span>
-										</li>
-									{/each}
-								</ul>
-							</div>
-							<div class="grid gap-3 sm:grid-cols-3">
-								{#each milestones as milestone}
-									<div class="bg-background/50 border-border/50 rounded-xl border p-4">
-										<p class="text-sm font-semibold">{milestone.area}</p>
-										<p class="text-muted-foreground mt-1 text-xs leading-5">{milestone.detail}</p>
-									</div>
-								{/each}
-							</div>
+						<div class="relative grid gap-3 sm:grid-cols-2">
+							{#each milestones as milestone}
+								<div class="bg-background/50 border-border/50 rounded-xl border p-4">
+									<p class="mb-1 text-sm font-semibold">{milestone.area}</p>
+									<p class="text-muted-foreground text-xs leading-5">{milestone.detail}</p>
+								</div>
+							{/each}
+						</div>
+						<div class="relative space-y-3">
+							{#each section.body as paragraph}
+								<p class="text-sm leading-6 text-pretty opacity-80">{paragraph}</p>
+							{/each}
 						</div>
 						<div class="relative mt-auto">
 							<BrandLockup class="gap-2 opacity-60" markClass="h-5 w-5" wordmarkClass="text-xs tracking-[0.22em]" />
@@ -503,11 +383,17 @@ const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as cons
 							</h2>
 							<p class="text-muted-foreground max-w-3xl text-base leading-7 sm:text-lg">{section.summary}</p>
 						</div>
-						<div class="relative grid max-w-3xl gap-3">
-							{#each section.body as bullet}
-								<div class="bg-background/45 border-border/40 rounded-2xl border px-4 py-4">
-									<p class="text-sm font-medium tracking-[-0.02em]">{bullet}</p>
-								</div>
+						<div class="relative max-w-3xl space-y-4">
+							{#each section.body as paragraph}
+								<p class="text-base leading-7 text-pretty">{paragraph}</p>
+							{/each}
+						</div>
+					{/if}
+
+					{#if section.thesisBeats.length > 0}
+						<div class="relative mt-auto flex flex-wrap gap-1.5">
+							{#each section.thesisBeats as thesisBeat}
+								<span class="bg-accent/8 text-muted-foreground rounded-md px-2 py-0.5 text-[10px]">{thesisBeatLabels[thesisBeat]}</span>
 							{/each}
 						</div>
 					{/if}

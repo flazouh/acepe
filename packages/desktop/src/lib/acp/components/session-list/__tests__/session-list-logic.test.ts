@@ -10,6 +10,7 @@ import {
 	extractCurrentToolInfo,
 	extractLastToolInfo,
 	extractTodoProgress,
+	filterLiveSessions,
 } from "../session-list-logic.js";
 import type { SessionListItem } from "../session-list-types.js";
 
@@ -42,7 +43,50 @@ describe("createDisplayItems", () => {
 		);
 
 		expect(items).toHaveLength(1);
+		expect(items[0]?.isLive).toBe(false);
 		expect(items[0]?.prNumber).toBe(314);
+	});
+
+	it("marks streaming and open sessions as live", () => {
+		const now = new Date("2024-01-01T00:00:00.000Z");
+		const sessions = [
+			{
+				id: "streaming-session",
+				title: "Streaming",
+				projectPath: "/repo",
+				agentId: "claude-code",
+				status: "ready" as const,
+				entryCount: 0,
+				isConnected: true,
+				isStreaming: true,
+				createdAt: now,
+				updatedAt: now,
+				parentId: null,
+			},
+			{
+				id: "open-session",
+				title: "Open",
+				projectPath: "/repo",
+				agentId: "claude-code",
+				status: "ready" as const,
+				entryCount: 0,
+				isConnected: true,
+				isStreaming: false,
+				createdAt: now,
+				updatedAt: now,
+				parentId: null,
+			},
+		];
+
+		const items = createDisplayItems(
+			sessions,
+			new Map([["/repo", "repo"]]),
+			new Map(),
+			new Set(["open-session"]),
+			() => []
+		);
+
+		expect(items.map((item) => item.isLive)).toEqual([true, true]);
 	});
 
 	it("uses checkpoint diff stats (not entries) for performance", () => {
@@ -155,6 +199,7 @@ describe("createSessionGroups", () => {
 			agentId: "claude-code",
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			isLive: false,
 			isOpen: false,
 			activity: null,
 			parentId: null,
@@ -168,6 +213,7 @@ describe("createSessionGroups", () => {
 			agentId: "cursor",
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			isLive: false,
 			isOpen: false,
 			activity: null,
 			parentId: null,
@@ -181,6 +227,7 @@ describe("createSessionGroups", () => {
 			agentId: "claude-code",
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			isLive: false,
 			isOpen: false,
 			activity: null,
 			parentId: null,
@@ -209,6 +256,7 @@ describe("buildSessionRows", () => {
 				agentId: "claude-code",
 				createdAt: new Date("2024-01-02T00:00:00.000Z"),
 				updatedAt: new Date("2024-01-02T00:00:00.000Z"),
+				isLive: false,
 				isOpen: false,
 				activity: null,
 				parentId: "missing-parent",
@@ -222,6 +270,7 @@ describe("buildSessionRows", () => {
 				agentId: "claude-code",
 				createdAt: new Date("2024-01-01T00:00:00.000Z"),
 				updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+				isLive: false,
 				isOpen: false,
 				activity: null,
 				parentId: null,
@@ -235,6 +284,43 @@ describe("buildSessionRows", () => {
 		expect(rows[0].depth).toBe(0);
 		expect(rows[1].item.id).toBe("root-1");
 		expect(rows[1].depth).toBe(0);
+	});
+});
+
+describe("filterLiveSessions", () => {
+	it("keeps only sessions marked live", () => {
+		const items: SessionListItem[] = [
+			{
+				id: "live-session",
+				title: "Live",
+				projectPath: "/path/1",
+				projectName: "project1",
+				projectColor: undefined,
+				agentId: "claude-code",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				isLive: true,
+				isOpen: false,
+				activity: null,
+				parentId: null,
+			},
+			{
+				id: "historical-session",
+				title: "Historical",
+				projectPath: "/path/1",
+				projectName: "project1",
+				projectColor: undefined,
+				agentId: "claude-code",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				isLive: false,
+				isOpen: false,
+				activity: null,
+				parentId: null,
+			},
+		];
+
+		expect(filterLiveSessions(items).map((item) => item.id)).toEqual(["live-session"]);
 	});
 });
 

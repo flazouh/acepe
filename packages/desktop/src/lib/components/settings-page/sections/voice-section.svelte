@@ -1,5 +1,6 @@
 <script lang="ts">
-import { AgentToolCard } from "@acepe/ui/agent-panel";
+	import { VoiceDownloadProgress } from "@acepe/ui";
+	import { AgentToolCard } from "@acepe/ui/agent-panel";
 import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -10,8 +11,7 @@ import { DownloadSimple } from "phosphor-svelte";
 import { Microphone } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-import { Switch } from "$lib/components/ui/switch/index.js";
+	import { Switch } from "$lib/components/ui/switch/index.js";
 import * as m from "$lib/paraglide/messages.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 

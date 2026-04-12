@@ -60,6 +60,10 @@ export interface ActivityEntryProjection extends ActivityTaskProjection {
 	readonly toolContent: string | null;
 	readonly showToolShimmer: boolean;
 	readonly todoProgress: ActivityEntryTodoProgress | null;
+	readonly latestToolEntry: Pick<
+		AgentToolEntry,
+		"id" | "kind" | "title" | "subtitle" | "filePath" | "status"
+	> | null;
 	readonly latestTool: CompactToolDisplay | null;
 }
 
@@ -68,6 +72,10 @@ export interface SessionEntryActivityProjectionInput {
 	readonly activityKind: CompactActivityKind;
 	readonly todoProgress: ActivityEntryTodoProgress | null;
 	readonly includeLastCompletedTool: boolean;
+}
+
+export function isActiveCompactActivityKind(activityKind: CompactActivityKind): boolean {
+	return activityKind === "streaming" || activityKind === "thinking";
 }
 
 export function deriveCompactActivityKind(
@@ -338,6 +346,14 @@ export function projectActivityEntry(
 					turnState,
 				})
 			: null;
+	const latestToolEntry =
+		toolCall && toolKind && !hasTaskCard && toolKind !== "think"
+			? resolveFullToolEntry({
+					toolCall,
+					toolKind,
+					turnState,
+				})
+			: null;
 
 	return {
 		selectedTool,
@@ -354,8 +370,25 @@ export function projectActivityEntry(
 		toolContent,
 		showToolShimmer,
 		todoProgress: input.todoProgress,
+		latestToolEntry,
 		latestTool,
 	};
+}
+
+export function projectSessionPreviewActivity(
+	input: ActivityEntryProjectionInput
+): ActivityEntryProjection {
+	const lastToolCall = isActiveCompactActivityKind(input.activityKind) ? null : input.lastToolCall;
+	const lastToolKind = isActiveCompactActivityKind(input.activityKind) ? null : input.lastToolKind;
+
+	return projectActivityEntry({
+		activityKind: input.activityKind,
+		currentStreamingToolCall: input.currentStreamingToolCall,
+		currentToolKind: input.currentToolKind,
+		lastToolCall,
+		lastToolKind,
+		todoProgress: input.todoProgress,
+	});
 }
 
 export function projectActivityEntryFromSessionEntries(
@@ -369,7 +402,7 @@ export function projectActivityEntryFromSessionEntries(
 			: null;
 	const lastToolKind = lastToolCall?.kind ?? null;
 
-	return projectActivityEntry({
+	return projectSessionPreviewActivity({
 		activityKind: input.activityKind,
 		currentStreamingToolCall,
 		currentToolKind,

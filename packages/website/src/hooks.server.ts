@@ -1,12 +1,13 @@
 import type { Handle } from "@sveltejs/kit";
+import { env } from "$env/dynamic/private";
 import { sequence } from "@sveltejs/kit/hooks";
 import { paraglideMiddleware } from "$lib/paraglide/server";
 import { maybeGetDatabaseUrl } from "$lib/server/db/database-url";
 import { runMigrations } from "$lib/server/db/migrate";
 import { logger } from "$lib/server/logger";
 
-// Run migrations on startup
-if (maybeGetDatabaseUrl()) {
+// Skip startup migrations during local pitch export preview.
+if (env.ACEPE_PITCH_EXPORT !== "1" && maybeGetDatabaseUrl()) {
 	runMigrations().catch((err) => {
 		logger.error({ err }, "Failed to run database migrations");
 	});

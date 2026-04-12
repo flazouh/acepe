@@ -2,6 +2,7 @@
 import { DiffPill } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { IconArrowDown } from "@tabler/icons-svelte";
 import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
@@ -44,6 +45,7 @@ import ProjectHeader from "../project-header.svelte";
 import ProjectHeaderAgentStrip from "../project-header-agent-strip.svelte";
 import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import { ProjectLetterBadge } from "@acepe/ui";
+import { filterLiveSessions } from "./session-list-logic.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
 
@@ -153,6 +155,7 @@ const expandedFolders = new SvelteSet<string>();
 
 // Per-project view mode (hydrated from persisted state in one-time effect)
 const projectViewModes = new SvelteMap<string, ProjectViewMode>();
+const showHistoricalProjects = new SvelteSet<string>();
 
 // Which project (if any) is showing the agent strip (opened via plus icon)
 let projectPathShowingAgentStrip = $state<string | null>(null);
@@ -240,6 +243,18 @@ function setProjectViewMode(projectPath: string, mode: ProjectViewMode) {
 	) {
 		loadProjectFiles(projectPath);
 	}
+}
+
+function isShowingHistorical(projectPath: string): boolean {
+	return showHistoricalProjects.has(projectPath);
+}
+
+function toggleHistoricalSessions(projectPath: string): void {
+	if (showHistoricalProjects.has(projectPath)) {
+		showHistoricalProjects.delete(projectPath);
+		return;
+	}
+	showHistoricalProjects.add(projectPath);
 }
 
 /**
@@ -715,9 +730,7 @@ function openCreateBranchDialog(projectPath: string): void {
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
 				{#each sessionGroups as group (group.projectPath)}
 					{@const viewMode = getProjectViewMode(group.projectPath)}
-					<div
-						class="flex flex-col overflow-hidden border border-border rounded-lg bg-card min-w-0"
-					>
+					<div class="flex min-w-0 flex-col overflow-hidden rounded-lg bg-card/50">
 						<!-- Real project header (only sessions are loading) -->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<div
@@ -739,7 +752,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							{#if projectPathShowingAgentStrip === group.projectPath}
 								<!-- Empty header: only agent strip visible (agents left, cancel right) -->
 								<div
-									class="flex flex-1 w-full min-w-0 border-b border-border/50"
+									class="flex w-full min-w-0 flex-1 rounded-md bg-background/30"
 									role="presentation"
 									onclick={(e) => e.stopPropagation()}
 									onkeydown={(e) => e.stopPropagation()}
@@ -770,7 +783,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									projectColor={group.projectColor}
 									projectName={group.projectName}
 									expanded={true}
-									class="flex-1 min-w-0 cursor-pointer hover:bg-accent/50 transition-colors"
+									class="group min-w-0 flex-1 cursor-pointer transition-colors"
 								>
 									{#snippet actions()}
 										<div
@@ -793,7 +806,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											/>
 										{#if shouldShowProjectCreateButton()}
 											<div
-												class="flex items-center border-l border-border/50"
+												class="flex items-center border-l border-border/30"
 												role="presentation"
 												onclick={(e) => {
 													e.stopPropagation();
@@ -809,7 +822,7 @@ function openCreateBranchDialog(projectPath: string): void {
 													<Tooltip.Trigger>
 														<button
 															type="button"
-															class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+															class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
 															aria-label={m.thread_list_new_session_in_project({
 																projectName: group.projectName,
 															})}
@@ -831,7 +844,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							{/if}
 						</div>
 						<!-- Session list skeleton (sessions are what we're loading) -->
-						<div class="flex-1 min-h-0 overflow-auto p-0">
+						<div class="flex-1 min-h-0 overflow-auto px-0.5 pb-0.5">
 							<SessionListSkeleton sessionCount={3} />
 						</div>
 					</div>
@@ -856,8 +869,12 @@ function openCreateBranchDialog(projectPath: string): void {
 				{@const filesLoading = loadingFilesProjects.has(group.projectPath)}
 				{@const filesError = filesErrorByProject.get(group.projectPath)}
 				{@const flattenedFiles = getFlattenedFiles(group.projectPath)}
+				{@const liveSessions = filterLiveSessions(group.sessions)}
+				{@const showingHistorical = isShowingHistorical(group.projectPath)}
+				{@const visibleSessions = showingHistorical ? group.sessions : liveSessions}
+				{@const historicalCount = group.sessions.length - liveSessions.length}
 				<div
-					class="flex flex-col overflow-hidden border border-border rounded-lg bg-card"
+					class="flex flex-col overflow-hidden rounded-lg bg-card/50"
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
@@ -883,7 +900,7 @@ function openCreateBranchDialog(projectPath: string): void {
 					{#if projectPathShowingAgentStrip === group.projectPath}
 						<!-- Empty header: only agent strip visible (agents left, cancel right) -->
 						<div
-							class="flex flex-1 w-full min-w-0 border-b border-border/50"
+							class="flex w-full min-w-0 flex-1 rounded-md bg-background/30"
 							role="presentation"
 							onclick={(e) => e.stopPropagation()}
 							onkeydown={(e) => e.stopPropagation()}
@@ -914,7 +931,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							projectColor={group.projectColor}
 							projectName={group.projectName}
 							expanded={isExpanded}
-							class="group flex-1 min-w-0 cursor-pointer hover:bg-accent/50 transition-colors"
+							class="group min-w-0 flex-1 cursor-pointer transition-colors"
 						>
 							{#snippet actions()}
 								<div
@@ -937,7 +954,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									/>
 									{#if shouldShowProjectCreateButton()}
 										<div
-											class="flex shrink-0 items-center border-l border-border/50"
+											class="flex shrink-0 items-center border-l border-border/30"
 											role="presentation"
 											onclick={(e) => {
 												e.stopPropagation();
@@ -953,7 +970,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												<Tooltip.Trigger>
 													<button
 														type="button"
-														class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+														class="inline-flex h-7 w-7 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
 														aria-label={m.thread_list_new_session_in_project({
 															projectName: group.projectName,
 														})}
@@ -979,12 +996,42 @@ function openCreateBranchDialog(projectPath: string): void {
 					{#if isExpanded}
 						{#if viewMode === "sessions"}
 							<!-- Sessions view - use simple overflow for scrolling -->
-							<div class="min-h-0 overflow-auto p-0">
+							<div class="min-h-0 overflow-auto px-0.5 pb-0.5">
 								{#if scanningProjectPaths.has(group.projectPath) && group.sessions.length === 0}
 									<SessionListSkeleton sessionCount={3} />
+								{:else if historicalCount > 0}
+									{#if visibleSessions.length > 0}
+										<VirtualizedSessionList
+											sessions={visibleSessions}
+											{selectedSessionId}
+											onSelectSession={handleSessionSelect}
+											{onOpenPr}
+											onArchive={onArchiveSession}
+											{onRenameSession}
+											{onExportMarkdown}
+											{onExportJson}
+										/>
+									{/if}
+									<div class="flex justify-center my-1">
+									<Button
+										variant="ghost"
+										size="sm"
+										class="gap-0.5 text-[10px] text-muted-foreground hover:text-foreground h-6 px-2"
+										onclick={() => toggleHistoricalSessions(group.projectPath)}
+									>
+										{showingHistorical
+											? "Hide historical sessions"
+											: `Show historical sessions (${historicalCount})`}
+										{#if showingHistorical}
+											<ChevronUp class="size-3" />
+										{:else}
+											<ChevronDown class="size-3" />
+										{/if}
+									</Button>
+									</div>
 								{:else}
 									<VirtualizedSessionList
-										sessions={group.sessions}
+										sessions={visibleSessions}
 										{selectedSessionId}
 										onSelectSession={handleSessionSelect}
 										{onOpenPr}
@@ -997,10 +1044,10 @@ function openCreateBranchDialog(projectPath: string): void {
 							</div>
 						{:else}
 							<!-- Files view -->
-							<ScrollArea class="min-h-0">
+							<ScrollArea class="min-h-0 px-0.5 pb-0.5">
 								{#if filesLoading}
 									<!-- Loading skeleton for files -->
-									<div class="flex flex-col gap-0.5 p-1">
+									<div class="flex flex-col gap-0.5 p-0.5">
 										{#each Array.from({ length: 5 }, (_, i) => i) as index (index)}
 											<div class="px-2 py-1.5 flex items-center gap-2">
 												<Skeleton class="h-3.5 w-3.5 shrink-0 rounded" />
@@ -1010,17 +1057,17 @@ function openCreateBranchDialog(projectPath: string): void {
 									</div>
 								{:else if filesError}
 									<!-- Error state -->
-									<div class="px-3 py-2 text-xs text-destructive">
+									<div class="px-2.5 py-2 text-xs text-destructive">
 										{filesError}
 									</div>
 								{:else if flattenedFiles.length === 0}
 									<!-- Empty files -->
-									<div class="px-3 py-2 text-xs text-muted-foreground">
+									<div class="px-2.5 py-2 text-xs text-muted-foreground">
 										{m.file_list_empty()}
 									</div>
 								{:else}
 									<!-- File tree -->
-									<div class="flex flex-col gap-0.5 p-1">
+									<div class="flex flex-col gap-0.5 p-0.5">
 										{#each flattenedFiles as { node, projectPath: projPath } (`${projPath}:${node.path}`)}
 											<FileTreeItem
 												{node}
@@ -1053,7 +1100,7 @@ function openCreateBranchDialog(projectPath: string): void {
 						{@const totalDel = gitData.gitStatus?.reduce((s, f) => s + f.deletions, 0) ?? 0}
 						{@const ahead = gitData.remoteStatus?.ahead ?? 0}
 						{@const behind = gitData.remoteStatus?.behind ?? 0}
-						<div class="shrink-0 flex items-center border-t border-border/50">
+						<div class="shrink-0 flex items-center border-t border-border/30">
 							<!-- Branch picker segment (branch name + diff only) -->
 							<DropdownMenu.Root
 								open={openBranchPickerProject === group.projectPath}
@@ -1065,7 +1112,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									{#snippet child({ props })}
 										<button
 											{...props}
-											class="flex items-center gap-1 flex-1 min-w-0 h-7 px-2 text-xs hover:bg-accent transition-colors cursor-pointer"
+											class="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-background/70"
 										>
 											<GitBranch
 												class="h-3 w-3 shrink-0"
@@ -1169,7 +1216,7 @@ function openCreateBranchDialog(projectPath: string): void {
 
 							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
 							<div
-								class="flex items-center shrink-0 border-l border-border/50 text-[11px] font-mono leading-none text-muted-foreground"
+								class="flex items-center shrink-0 border-l border-border/30 text-[11px] font-mono leading-none text-muted-foreground"
 							>
 								{#if ahead > 0 || behind > 0}
 									<span class="inline-flex h-7 items-center gap-1.5 px-1.5">
@@ -1195,7 +1242,7 @@ function openCreateBranchDialog(projectPath: string): void {
 													<Tooltip.Trigger>
 														<button
 															type="button"
-															class="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded text-[10px] font-medium bg-muted/80 hover:bg-accent text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+															class="inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/70 px-1 text-[10px] font-medium text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-40"
 															disabled={pullingProjects.has(group.projectPath)}
 															onclick={(e) => handlePullRemote(e, group.projectPath)}
 														>
@@ -1213,11 +1260,11 @@ function openCreateBranchDialog(projectPath: string): void {
 							</div>
 
 							<!-- Action buttons: Fetch + Source Control -->
-							<div class="flex items-center border-l border-border/50">
+							<div class="flex items-center border-l border-border/30">
 								<Tooltip.Root>
 									<Tooltip.Trigger>
 										<button
-											class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+											class="inline-flex h-7 w-7 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 											disabled={isFetching}
 											onclick={(e) => handleFetchRemote(e, group.projectPath)}
 										>
@@ -1235,7 +1282,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									<Tooltip.Root>
 										<Tooltip.Trigger>
 											<button
-												class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors border-l border-border/50"
+												class="inline-flex h-7 w-7 cursor-pointer items-center justify-center border-l border-border/30 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
 												onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
 											>
 												<GitBranch class="h-3 w-3" weight="fill" />
@@ -1248,9 +1295,9 @@ function openCreateBranchDialog(projectPath: string): void {
 						</div>
 					{:else if nonGitProjects.has(group.projectPath)}
 						<!-- Non-git repo: show initialize button in branch picker style -->
-						<div class="shrink-0 flex items-center border-t border-border/50">
+						<div class="shrink-0 flex items-center border-t border-border/30">
 							<button
-								class="flex items-center gap-1 flex-1 min-w-0 h-7 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+								class="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 								disabled={initializingGitProject === group.projectPath}
 								onclick={(e) => handleInitGitRepo(e, group.projectPath)}
 							>

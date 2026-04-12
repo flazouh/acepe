@@ -63,6 +63,7 @@ import {
 import * as m from "$lib/paraglide/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
+import { createAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { createDismissedTipsStore } from "$lib/stores/dismissed-tips-store.svelte.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
@@ -163,6 +164,7 @@ const chatPreferencesStore = createChatPreferencesStore();
 // Notification popup stores
 const windowFocusStore = createWindowFocusStore();
 const notificationPrefsStore = createNotificationPreferencesStore();
+const attentionQueueStore = createAttentionQueueStore();
 const dismissedTipsStore = createDismissedTipsStore();
 void dismissedTipsStore.initialize();
 
@@ -917,6 +919,7 @@ onMount(async () => {
 	// Initialize notification popup stores
 	windowFocusStore.initialize();
 	notificationPrefsStore.initialize();
+	void attentionQueueStore.initialize();
 
 	// Initialize voice settings (loads persisted prefs + model list from backend)
 	void voiceSettingsStore.initialize();
@@ -1120,7 +1123,17 @@ onDestroy(() => {
 			<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
 				{#if showSidebar && viewState.sidebarOpen}
 					<div class="shrink-0 flex flex-col h-full min-h-0 transition-[transform,opacity] duration-200 ease-out">
-						<AppSidebar {projectManager} state={viewState} />
+						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
+							<AppSidebar {projectManager} state={viewState} />
+							{#snippet failed(error, reset)}
+								<div class="flex flex-1 items-center justify-center p-4">
+									<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
+										<span>{m.error_boundary_sidebar_failed()}</span>
+										<button class="underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+									</div>
+								</div>
+							{/snippet}
+						</svelte:boundary>
 					</div>
 				{/if}
 				<main
@@ -1140,13 +1153,23 @@ onDestroy(() => {
 							/>
 						</div>
 					{/if}
-					{#if showPanelsContainer}
-						<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-							<PanelsContainer {projectManager} state={viewState} />
-						</div>
-					{:else if viewState.initializationComplete}
-						<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />
-					{/if}
+					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
+						{#if showPanelsContainer}
+							<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+								<PanelsContainer {projectManager} state={viewState} />
+							</div>
+						{:else if viewState.initializationComplete}
+							<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />
+						{/if}
+						{#snippet failed(error, reset)}
+							<div class="flex flex-1 items-center justify-center p-4">
+								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
+									<span>{m.error_boundary_panel_failed()}</span>
+									<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+								</div>
+							</div>
+						{/snippet}
+					</svelte:boundary>
 				</main>
 			</div>
 		{/if}

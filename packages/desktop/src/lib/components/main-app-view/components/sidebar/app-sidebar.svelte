@@ -19,6 +19,7 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
@@ -44,6 +45,7 @@ const agentPreferencesStore = getAgentPreferencesStore();
 const agentStore = getAgentStore();
 const archiveStore = getSessionArchiveStore();
 const themeState = useTheme();
+const attentionQueueStore = getAttentionQueueStore();
 
 function handleSelectSession(sessionId: string, sessionInfo?: SessionListItem) {
 	appState.handleSelectSession(sessionId, sessionInfo).mapErr(() => {
@@ -244,7 +246,7 @@ const visibleSessions = $derived.by(() => {
 
 <AppSidebarLayout>
 	{#snippet queueSection()}
-		{#if panelStore.viewMode !== "kanban"}
+		{#if panelStore.viewMode !== "kanban" && attentionQueueStore.enabled}
 			<AppQueueRow {projectManager} state={appState} />
 		{/if}
 	{/snippet}

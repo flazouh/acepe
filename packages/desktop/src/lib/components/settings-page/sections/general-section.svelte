@@ -10,12 +10,14 @@ import { Switch } from "$lib/components/ui/switch/index.js";
 import { getLocale, setLocale } from "$lib/i18n/store.svelte.js";
 import { getLanguageMetadata } from "$lib/i18n/utils.js";
 import * as m from "$lib/paraglide/messages.js";
+import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import SettingsControlCard from "../settings-control-card.svelte";
 import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const notifPrefs = getNotificationPreferencesStore();
+const attentionQueue = getAttentionQueueStore();
 
 const languages = getLanguageMetadata();
 let currentLocale = $state(getLocale());
@@ -114,6 +116,17 @@ async function handleResetDatabase() {
 				checked={notifPrefs.completionsEnabled}
 				onCheckedChange={(checked) => {
 					notifPrefs.setCompletionsEnabled(checked === true);
+				}}
+			/>
+		</SettingsControlCard>
+		<SettingsControlCard
+			label="Attention queue"
+			description="Show an attention queue in the sidebar listing sessions that need your input or are actively working."
+		>
+			<Switch
+				checked={attentionQueue.enabled}
+				onCheckedChange={(checked) => {
+					void attentionQueue.setEnabled(checked === true);
 				}}
 			/>
 		</SettingsControlCard>

@@ -181,6 +181,7 @@ The agent panel follows a View–Model–Controller split across packages:
 
 - NEVER run `bun dev` — the user manages the dev server.
 - NEVER run `git stash` without explicit user consent.
+- NEVER set `core.bare=true` in this repository's root `.git/config` or otherwise convert this checkout into a bare repository. If bare-style workflows are needed, use a separate bare mirror or linked worktree instead of changing the active checkout.
 
 ## Detailed Guides
 

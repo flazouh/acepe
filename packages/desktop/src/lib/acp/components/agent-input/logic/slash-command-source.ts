@@ -32,12 +32,6 @@ export function resolveSlashCommandSource(input: {
 				tokenType: "command",
 			};
 		}
-
-		return {
-			source: "none",
-			commands: [],
-			tokenType: "command",
-		};
 	}
 
 	if (input.selectedAgentId && input.preconnectionCommands.length > 0) {

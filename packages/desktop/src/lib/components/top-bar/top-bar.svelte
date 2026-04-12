@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button } from "@acepe/ui/button";
+import { Button, VoiceDownloadProgress } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
@@ -26,7 +26,6 @@ import { slide } from "svelte/transition";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { ThemeToggle } from "$lib/components/theme/index.js";
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";

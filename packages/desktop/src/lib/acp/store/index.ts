@@ -74,6 +74,11 @@ export {
 	PlanPreferenceStore,
 } from "./plan-preference-store.svelte.js";
 export { createPlanStore, getPlanStore, PlanStore } from "./plan-store.svelte.js";
+export {
+	createQuestionSelectionStore,
+	getQuestionSelectionStore,
+	QuestionSelectionStore,
+} from "./question-selection-store.svelte.js";
 export { createQuestionStore, getQuestionStore, QuestionStore } from "./question-store.svelte.js";
 export type { QueueItem } from "./queue/index.js";
 // Queue store

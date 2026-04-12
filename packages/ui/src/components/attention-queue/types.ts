@@ -22,6 +22,15 @@ export interface ActivityEntryTodoProgress {
   readonly label: string;
 }
 
+export interface ActivityEntryToolDisplay {
+  readonly id: string;
+  readonly kind?: import("../agent-panel/types.js").AgentToolKind;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly filePath?: string;
+  readonly status: "pending" | "running" | "done" | "error";
+}
+
 export interface ActivityEntryQuestion {
   readonly question: string;
   readonly multiSelect: boolean;

@@ -1,7 +1,6 @@
 <script lang="ts">
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-import { IconDotsVertical } from "@tabler/icons-svelte";
-import { Button } from "@acepe/ui/button";
+	import { IconDotsVertical } from "@tabler/icons-svelte";
+	import { Button, VoiceDownloadProgress } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	CloseAction,
@@ -69,6 +68,7 @@ const demoCardBase: KanbanCardData = {
 	title: "Refactor auth module",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "acepe",
 	projectColor: "#9858FF",
 	activityText: null,
@@ -89,6 +89,7 @@ const demoCardStreaming: KanbanCardData = {
 	title: "Add i18n support",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: true,
 	projectName: "web",
 	projectColor: "#3B82F6",
 	activityText: "Thinking…",
@@ -109,6 +110,7 @@ const demoCardWithTool: KanbanCardData = {
 	title: "Fix login redirect",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "acepe",
 	projectColor: "#9858FF",
 	activityText: null,
@@ -135,6 +137,7 @@ const demoCardError: KanbanCardData = {
 	title: "Deploy pipeline",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "infra",
 	projectColor: "#EF4444",
 	activityText: null,
@@ -155,6 +158,7 @@ const demoCardNeedsReview: KanbanCardData = {
 	title: "Review kanban status transitions",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "desktop",
 	projectColor: "#4AD0FF",
 	activityText: null,
@@ -200,6 +204,7 @@ const demoCardSubagent: KanbanCardData = {
 	title: "Inspect queue reconciliation",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: true,
 	projectName: "desktop",
 	projectColor: "#22C55E",
 	activityText: null,
@@ -258,6 +263,7 @@ const demoCardMultiSubagent: KanbanCardData = {
 	title: "Repair kanban subagent visibility",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: true,
 	projectName: "desktop",
 	projectColor: "#F59E0B",
 	activityText: null,
@@ -289,6 +295,7 @@ const demoCardPermission: KanbanCardData = {
 	title: "Approve workspace command",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "acepe",
 	projectColor: "#9858FF",
 	activityText: "Thinking…",
@@ -309,6 +316,7 @@ const demoCardQuestion: KanbanCardData = {
 	title: "Choose the migration runner",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
+	isAutoMode: false,
 	projectName: "desktop",
 	projectColor: "#22C55E",
 	activityText: null,

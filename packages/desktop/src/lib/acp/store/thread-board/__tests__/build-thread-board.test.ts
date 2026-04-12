@@ -72,6 +72,8 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		panelId: overrides.panelId !== undefined ? overrides.panelId : "panel-1",
 		sessionId: overrides.sessionId !== undefined ? overrides.sessionId : "session-1",
 		agentId: overrides.agentId !== undefined ? overrides.agentId : "claude",
+		autonomousEnabled:
+			overrides.autonomousEnabled !== undefined ? overrides.autonomousEnabled : false,
 		projectPath: overrides.projectPath !== undefined ? overrides.projectPath : "/test/project",
 		projectName: overrides.projectName !== undefined ? overrides.projectName : "project",
 		projectColor: overrides.projectColor !== undefined ? overrides.projectColor : "#ffffff",

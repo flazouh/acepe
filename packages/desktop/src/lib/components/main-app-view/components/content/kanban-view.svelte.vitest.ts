@@ -60,7 +60,7 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("projectActivityEntry");
+		expect(source).toContain("projectSessionPreviewActivity");
 		expect(source).toContain("taskCard: KanbanTaskCardData | null");
 		expect(source).toContain("projectPath={item.projectPath}");
 		expect(source).toContain(
@@ -79,6 +79,16 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("onQuestionPrev={handlePrevQuestion}");
 		expect(source).toContain("onQuestionNext={handleNextQuestion}");
 		expect(source).not.toContain("<PendingPermissionCard permission={permission} />");
+	});
+
+	it("mirrors provisional autonomous state onto optimistic kanban cards", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
+
+		const source = readFileSync(kanbanViewPath, "utf8");
+
+		expect(source).toContain("const hotState = panelStore.getHotState(panel.id);");
+		expect(source).toContain("isAutoMode: hotState.provisionalAutonomousEnabled");
 	});
 
 	it("omits the kanban footer wrapper when there is no footer content", () => {
@@ -173,11 +183,10 @@ describe("kanban empty-column contract", () => {
 
 		expect(source).not.toContain("function getKanbanPreviewMarkdown(");
 		expect(source).not.toContain("previewMarkdown");
-		expect(source).toContain('item.state.activity.kind === "streaming"');
-		expect(source).toContain('item.state.activity.kind === "thinking"');
-		expect(source).toContain("const activityProjection = projectActivityEntry({");
-		expect(source).toContain("lastToolCall: isWorking ? null : item.lastToolCall,");
-		expect(source).toContain("lastToolKind: isWorking ? null : item.lastToolKind,");
+		expect(source).toContain("isActiveCompactActivityKind");
+		expect(source).toContain("const activityProjection = projectSessionPreviewActivity({");
+		expect(source).toContain("lastToolCall: item.lastToolCall,");
+		expect(source).toContain("lastToolKind: item.lastToolKind,");
 		expect(source).toContain('activityProjection.toolKind !== "think"');
 		expect(source).toContain("const toolDisplay =");
 		expect(source).toContain("if (!isWorking) return null;");
@@ -202,8 +211,8 @@ describe("kanban empty-column contract", () => {
 
 		expect(source).toContain("currentStreamingToolCall: item.currentStreamingToolCall,");
 		expect(source).toContain("currentToolKind: item.currentToolKind,");
-		expect(source).toContain("lastToolCall: isWorking ? null : item.lastToolCall,");
-		expect(source).toContain("lastToolKind: isWorking ? null : item.lastToolKind,");
+		expect(source).toContain("lastToolCall: item.lastToolCall,");
+		expect(source).toContain("lastToolKind: item.lastToolKind,");
 		expect(source).not.toContain("showHistoricalActivity");
 	});
 
@@ -218,13 +227,25 @@ describe("kanban empty-column contract", () => {
 		expect(source).toContain("hasUnseenCompletion,");
 	});
 
+	it("marks needs-review items seen when kanban is already surfacing them", () => {
+		expect(existsSync(kanbanViewPath)).toBe(true);
+		if (!existsSync(kanbanViewPath)) return;
+
+		const source = readFileSync(kanbanViewPath, "utf8");
+
+		expect(source).toContain("const unseenStore = getUnseenStore();");
+		expect(source).toContain("$effect(() => {");
+		expect(source).toContain('if (group.status !== "needs_review") {');
+		expect(source).toContain("unseenStore.markSeen(item.panelId);");
+	});
+
 	it("maps live kanban tool rows to a simple verb plus optional file chip", () => {
 		expect(existsSync(kanbanViewPath)).toBe(true);
 		if (!existsSync(kanbanViewPath)) return;
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("projectActivityEntry");
+		expect(source).toContain("projectSessionPreviewActivity");
 		expect(source).toContain(
 			'from "$lib/acp/components/activity-entry/activity-entry-projection.js"'
 		);

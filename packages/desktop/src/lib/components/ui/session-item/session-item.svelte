@@ -1,36 +1,54 @@
 <script lang="ts">
-import { ActivityEntry, ProjectLetterBadge } from "@acepe/ui";
+import type { ActivityEntryQuestion } from "@acepe/ui";
+import { ActivityEntry, ProjectLetterBadge, RichTokenText } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconChevronDown } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { IconDotsVertical } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
+import { COLOR_NAMES, Colors } from "$lib/acp/utils/colors.js";
 import { tick } from "svelte";
+import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
+import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { toast } from "svelte-sonner";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import { getSessionListHighlightContext } from "$lib/acp/components/session-list/session-list-highlight-context.js";
+import {
+	extractPermissionCommand,
+	extractPermissionFilePath,
+} from "$lib/acp/components/tool-calls/permission-display.js";
 import {
 	AGENT_ICON_BASE_CLASS,
 	getAgentIcon,
 	UNKNOWN_TIME_TEXT,
 } from "$lib/acp/constants/thread-list-constants.js";
 import { formatTimeAgo } from "$lib/acp/logic/thread-list-date-utils.js";
-import { getPanelStore } from "$lib/acp/store/index.js";
+import {
+	getInteractionStore,
+	getQuestionSelectionStore,
+	getQuestionStore,
+} from "$lib/acp/store/index.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
+import { formatRichSessionTitle, formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { extractTodoProgress } from "$lib/acp/components/session-list/session-list-logic.js";
 import {
 	deriveCompactActivityKind,
-	projectActivityEntryFromSessionEntries,
+	findCurrentStreamingToolCall,
+	findLastToolCall,
+	isActiveCompactActivityKind,
+	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
+import { deriveQueueSessionState } from "$lib/acp/store/queue/utils.js";
+import { classifyThreadBoardState } from "$lib/acp/store/thread-board/build-thread-board.js";
+import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-queue";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 
@@ -75,9 +93,18 @@ let {
 }: Props = $props();
 
 const themeState = useTheme();
-const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
+const interactionStore = getInteractionStore();
+const questionStore = getQuestionStore();
+const selectionStore = getQuestionSelectionStore();
+const operationStore = sessionStore.getOperationStore();
 const worktreeDeleted = $derived(session.worktreeDeleted ?? false);
+const QUESTION_COLORS = [
+	Colors[COLOR_NAMES.GREEN],
+	Colors[COLOR_NAMES.RED],
+	Colors[COLOR_NAMES.PINK],
+	Colors[COLOR_NAMES.ORANGE],
+];
 
 function getThemedAgentIcon(agentId?: string): string {
 	return getAgentIcon(agentId ?? "claude-code", themeState.effectiveTheme);
@@ -144,7 +171,7 @@ function openRenameEditor() {
 		return;
 	}
 
-	renameDraft = getSessionDisplayName(session);
+	renameDraft = displayTitle;
 	isRenaming = true;
 	isActionsMenuOpen = false;
 	void tick().then(() => {
@@ -167,7 +194,7 @@ function submitRename() {
 	}
 
 	const trimmedTitle = renameDraft.trim();
-	const currentTitle = getSessionDisplayName(session);
+	const currentTitle = displayTitle;
 	if (trimmedTitle === "" || trimmedTitle === currentTitle) {
 		closeRenameEditor();
 		return;
@@ -193,39 +220,209 @@ function handleRenameKeydown(event: KeyboardEvent) {
 const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
-const isStreaming = $derived(session.activity?.isStreaming ?? false);
+const entries = $derived(sessionStore.getEntries(session.id));
+const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
 const hotState = $derived(sessionStore.getHotState(session.id));
-const activityProjection = $derived.by(() => {
-	const sessionState = hotState.sessionState;
-	const activityKind = sessionState ? sessionState.activity.kind : "idle";
-	const compactActivityKind = deriveCompactActivityKind(null, hotState.status);
-	const resolvedActivityKind = activityKind === "idle" ? compactActivityKind : activityKind;
+const previewActivityKind = $derived(deriveCompactActivityKind(runtimeState, hotState.status));
+const currentStreamingToolCall = $derived(findCurrentStreamingToolCall(entries));
+const lastToolCall = $derived(findLastToolCall(entries));
+const currentToolKind = $derived(currentStreamingToolCall?.kind ?? null);
+const lastToolKind = $derived(lastToolCall?.kind ?? null);
+const interactionSnapshot = $derived.by(() =>
+	buildSessionOperationInteractionSnapshot(session.id, operationStore, interactionStore)
+);
+const pendingQuestion = $derived(interactionSnapshot.pendingQuestion);
+const pendingPermission = $derived(interactionSnapshot.pendingPermission);
+const pendingPlanApproval = $derived(interactionSnapshot.pendingPlanApproval);
+const questionId = $derived(pendingQuestion?.tool?.callID ?? pendingQuestion?.id ?? "");
+let currentQuestionIndex = $state(0);
+let lastQuestionId = "";
 
-	if (resolvedActivityKind === "idle") {
+$effect(() => {
+	const pendingQuestionId = pendingQuestion?.id;
+
+	if (!pendingQuestionId) {
+		lastQuestionId = "";
+		currentQuestionIndex = 0;
+		return;
+	}
+
+	if (pendingQuestionId === lastQuestionId) {
+		return;
+	}
+
+	lastQuestionId = pendingQuestionId;
+	currentQuestionIndex = 0;
+});
+
+const questionUiState = $derived.by(() =>
+	buildQueueItemQuestionUiState({
+		pendingQuestion,
+		questionId,
+		currentQuestionIndex,
+		questionColors: QUESTION_COLORS,
+		selectionReader: {
+			hasSelections(questionIdValue, questionIndex) {
+				return selectionStore.hasSelections(questionIdValue, questionIndex);
+			},
+			isOptionSelected(questionIdValue, questionIndex, optionLabel) {
+				return selectionStore.isOptionSelected(questionIdValue, questionIndex, optionLabel);
+			},
+			isOtherActive(questionIdValue, questionIndex) {
+				return selectionStore.isOtherActive(questionIdValue, questionIndex);
+			},
+			getOtherText(questionIdValue, questionIndex) {
+				return selectionStore.getOtherText(questionIdValue, questionIndex);
+			},
+		},
+	})
+);
+const totalQuestions = $derived(questionUiState.totalQuestions);
+const hasMultipleQuestions = $derived(questionUiState.hasMultipleQuestions);
+const currentQuestion = $derived(questionUiState.currentQuestion);
+const currentQuestionAnswered = $derived(questionUiState.currentQuestionAnswered);
+const questionProgress = $derived(questionUiState.questionProgress);
+const currentQuestionOptions = $derived(questionUiState.currentQuestionOptions);
+const isSingleQuestionSingleSelect = $derived(questionUiState.isSingleQuestionSingleSelect);
+const showOtherInput = $derived(questionUiState.showOtherInput);
+const otherText = $derived(questionUiState.otherText);
+const canSubmit = $derived(questionUiState.canSubmit);
+const showSubmitButton = $derived(questionUiState.showSubmitButton);
+const currentAnswerDisplay = $derived.by(() => {
+	if (!currentQuestion || !questionId) {
+		return "";
+	}
+
+	return selectionStore
+		.getAnswers(questionId, currentQuestionIndex, currentQuestion.multiSelect)
+		.join(", ");
+});
+const permissionDisplay = $derived.by(() => {
+	if (!pendingPermission) {
 		return null;
 	}
 
-	const entries = sessionStore.getEntries(session.id);
+	const command = extractPermissionCommand(pendingPermission);
+	const filePath = extractPermissionFilePath(pendingPermission);
+	const relativePath = filePath ? makeWorkspaceRelative(filePath, session.projectPath) : null;
+	const permissionVerb = pendingPermission.permission.split(" ")[0] ?? pendingPermission.permission;
+
+	if (relativePath) {
+		return `${permissionVerb} ${relativePath}`;
+	}
+
+	if (command) {
+		return `${permissionVerb} ${command}`;
+	}
+
+	return pendingPermission.permission;
+});
+const statusText = $derived.by(() => {
+	const sessionState = hotState.sessionState;
+	if (!sessionState) {
+		return null;
+	}
+
+	if (pendingQuestion) {
+		return null;
+	}
+
+	if (pendingPermission) {
+		return permissionDisplay;
+	}
+
+	if (pendingPlanApproval) {
+		return pendingPlanApproval.source === "exit_plan_mode"
+			? "Review plan before building"
+			: "Plan approval needed";
+	}
+
+	if (sessionState.connection === "error") {
+		return hotState.connectionError ?? "Connection error";
+	}
+
+	if (previewActivityKind === "thinking") {
+		return m.waiting_planning_next_moves();
+	}
+
+	if (sessionState.attention.hasUnseenCompletion) {
+		return "Ready for review";
+	}
+
+	return null;
+});
+const showStatusShimmer = $derived(
+	previewActivityKind === "thinking" && !pendingQuestion && !pendingPlanApproval
+);
+const uiCurrentQuestion = $derived<ActivityEntryQuestion | null>(
+	currentQuestion
+		? {
+				question: currentQuestion.question,
+				multiSelect: currentQuestion.multiSelect,
+				options: currentQuestion.options.map((option) => ({ label: option.label })),
+			}
+		: null
+);
+const todoProgress = $derived.by(() => {
 	const todoProgressInfo = extractTodoProgress(entries);
-	const todoProgress = todoProgressInfo
+	return todoProgressInfo
 		? {
 				current: todoProgressInfo.current,
 				total: todoProgressInfo.total,
 				label: todoProgressInfo.label,
 			}
 		: null;
+});
+const queueSessionState = $derived.by(() =>
+	deriveQueueSessionState({
+		isStreaming: previewActivityKind === "streaming",
+		isThinking: previewActivityKind === "thinking",
+		status: hotState.status,
+		currentModeId: hotState.currentMode?.id ?? null,
+		currentStreamingToolCall,
+		pendingQuestion,
+		pendingPlanApproval,
+		pendingPermission,
+		hasUnseenCompletion: hotState.sessionState?.attention.hasUnseenCompletion ?? false,
+	})
+);
+const activityProjection = $derived.by(() => {
+	if (!isActiveCompactActivityKind(previewActivityKind)) {
+		return null;
+	}
 
-	return projectActivityEntryFromSessionEntries({
-		entries,
-		activityKind: resolvedActivityKind,
+	return projectSessionPreviewActivity({
+		activityKind: previewActivityKind,
+		currentStreamingToolCall,
+		currentToolKind,
+		lastToolCall,
+		lastToolKind,
 		todoProgress,
-		includeLastCompletedTool: false,
 	});
 });
-const projectedIsStreaming = $derived(activityProjection?.isStreaming ?? isStreaming);
-const displayTitle = $derived(getSessionDisplayName(session));
+const projectedIsStreaming = $derived(
+	activityProjection?.isStreaming ?? previewActivityKind === "streaming"
+);
+const richTitleResult = $derived(formatRichSessionTitle(session.title, session.projectName));
+const displayTitle = $derived(richTitleResult.plainText);
+const richTitle = $derived(richTitleResult.richText);
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
+const sessionBoardStatus = $derived(
+	classifyThreadBoardState({
+		currentModeId: hotState.currentMode?.id ?? null,
+		connectionError: hotState.connectionError,
+		state: queueSessionState,
+	})
+);
+const sessionStatusSectionId = $derived<SectionedFeedSectionId | null>(
+	sessionBoardStatus === "idle" ? null : sessionBoardStatus
+);
+const sessionStatusIconColor = $derived.by((): string | null => {
+	if (!sessionStatusSectionId) return null;
+	if (sessionStatusSectionId === "needs_review") return Colors[COLOR_NAMES.PURPLE];
+	return sectionColor(sessionStatusSectionId);
+});
 let isRowHovered = $state(false);
 let isActionsMenuOpen = $state(false);
 let isRenaming = $state(false);
@@ -261,6 +458,88 @@ $effect(() => {
 });
 
 const highlightCtx = getSessionListHighlightContext();
+
+function submitAllAnswers() {
+	if (!pendingQuestion || !questionId) return;
+
+	const answers = pendingQuestion.questions.map((question, questionIndex) => ({
+		questionIndex,
+		answers: selectionStore.getAnswers(questionId, questionIndex, question.multiSelect),
+	}));
+
+	selectionStore.clearQuestion(questionId);
+	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
+}
+
+function handleOptionSelect(optionLabel: string) {
+	if (!pendingQuestion || !questionId || !currentQuestion) return;
+
+	if (currentQuestion.multiSelect) {
+		selectionStore.toggleOption(questionId, currentQuestionIndex, optionLabel);
+		return;
+	}
+
+	selectionStore.setSingleOption(questionId, currentQuestionIndex, optionLabel);
+
+	if (isSingleQuestionSingleSelect) {
+		requestAnimationFrame(() => {
+			submitAllAnswers();
+		});
+		return;
+	}
+
+	if (hasMultipleQuestions && currentQuestionIndex < totalQuestions - 1) {
+		currentQuestionIndex += 1;
+	}
+}
+
+function handleOtherInput(value: string) {
+	if (!questionId) return;
+	selectionStore.setOtherText(questionId, currentQuestionIndex, value);
+
+	if (value.trim() && !selectionStore.isOtherActive(questionId, currentQuestionIndex)) {
+		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, true);
+		if (!currentQuestion?.multiSelect) {
+			selectionStore.clearSelections(questionId, currentQuestionIndex);
+		}
+	}
+
+	if (!value.trim() && selectionStore.isOtherActive(questionId, currentQuestionIndex)) {
+		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, false);
+	}
+}
+
+function handleOtherKeydown(key: string) {
+	if (!questionId) return;
+
+	const otherValue = selectionStore.getOtherText(questionId, currentQuestionIndex).trim();
+
+	if (key === "Enter" && otherValue && pendingQuestion) {
+		if (totalQuestions === 1) {
+			submitAllAnswers();
+		} else if (currentQuestionIndex < totalQuestions - 1) {
+			currentQuestionIndex += 1;
+		} else {
+			submitAllAnswers();
+		}
+	}
+
+	if (key === "Escape") {
+		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, false);
+	}
+}
+
+function handlePrevQuestion() {
+	if (currentQuestionIndex > 0) {
+		currentQuestionIndex -= 1;
+	}
+}
+
+function handleNextQuestion() {
+	if (currentQuestionIndex < totalQuestions - 1) {
+		currentQuestionIndex += 1;
+	}
+}
 </script>
 
 <Tooltip.Root>
@@ -298,17 +577,13 @@ const highlightCtx = getSessionListHighlightContext();
 
 			<div class="flex-1 min-w-0">
 			{#snippet agentBadge()}
-				{#if isStreaming}
-					<Spinner class="{getAgentIconClass()} m-0.5" />
-				{:else}
-					<img
-						src={getThemedAgentIcon(session.agentId)}
-						alt={m.alt_agent_icon()}
-						class="{getAgentIconClass()} shrink-0 m-0.5"
-						width="12"
-						height="12"
-					/>
-				{/if}
+				<img
+					src={getThemedAgentIcon(session.agentId)}
+					alt={m.alt_agent_icon()}
+					class="{getAgentIconClass()} shrink-0 m-0.5"
+					width="12"
+					height="12"
+				/>
 				{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
 					<ProjectLetterBadge
 						name={session.projectName}
@@ -438,6 +713,10 @@ const highlightCtx = getSessionListHighlightContext();
 							onclick={(event: MouseEvent) => event.stopPropagation()}
 							aria-label="Rename session"
 						/>
+					{:else if richTitle}
+						<div class="truncate" title={displayTitle}>
+							<RichTokenText text={richTitle} class="text-xs font-medium" />
+						</div>
 					{:else}
 						<div class="text-xs font-medium truncate" title={displayTitle}>
 							{displayTitle}
@@ -453,6 +732,8 @@ const highlightCtx = getSessionListHighlightContext();
 					mode={null}
 					title={displayTitle}
 					timeAgo={queueTimeAgo}
+					statusSectionId={sessionStatusSectionId}
+					statusIconColor={sessionStatusIconColor}
 					insertions={session.insertions ?? 0}
 					deletions={session.deletions ?? 0}
 					{titleContent}
@@ -464,50 +745,40 @@ const highlightCtx = getSessionListHighlightContext();
 					taskSubagentTools={activityProjection?.taskSubagentTools ?? []}
 					latestTaskSubagentTool={activityProjection?.latestTaskSubagentTool ?? null}
 					showTaskSubagentList={activityProjection?.showTaskSubagentList ?? false}
+					latestToolDisplay={activityProjection?.latestToolEntry ?? null}
 					fileToolDisplayText={activityProjection?.fileToolDisplayText ?? null}
 					toolContent={activityProjection?.isFileTool ? null : (activityProjection?.toolContent ?? null)}
 					showToolShimmer={activityProjection?.showToolShimmer ?? false}
-					statusText={null}
-					showStatusShimmer={false}
+					{statusText}
+					{showStatusShimmer}
 					todoProgress={activityProjection?.todoProgress ?? null}
-					currentQuestion={null}
-					totalQuestions={0}
-					hasMultipleQuestions={false}
-					currentQuestionIndex={0}
-					questionId=""
-					questionProgress={[]}
-					currentQuestionAnswered={false}
-					currentAnswerDisplay=""
-					currentQuestionOptions={[]}
-					otherText=""
-					otherPlaceholder=""
-					showSubmitButton={false}
-					canSubmit={false}
-					submitLabel=""
-					onOptionSelect={() => {
-						return;
-					}}
-					onOtherInput={() => {
-						return;
-					}}
-					onOtherKeydown={() => {
-						return;
-					}}
-					onSubmitAll={() => {
-						return;
-					}}
-					onPrevQuestion={() => {
-						return;
-					}}
-					onNextQuestion={() => {
-						return;
-					}}
+					currentQuestion={uiCurrentQuestion}
+					{totalQuestions}
+					{hasMultipleQuestions}
+					{currentQuestionIndex}
+					{questionId}
+					{questionProgress}
+					{currentQuestionAnswered}
+					{currentAnswerDisplay}
+					{currentQuestionOptions}
+					{otherText}
+					otherPlaceholder={m.question_other_placeholder()}
+					{showOtherInput}
+					{showSubmitButton}
+					{canSubmit}
+					submitLabel={m.common_submit()}
+					onOptionSelect={handleOptionSelect}
+					onOtherInput={handleOtherInput}
+					onOtherKeydown={handleOtherKeydown}
+					onSubmitAll={submitAllAnswers}
+					onPrevQuestion={handlePrevQuestion}
+					onNextQuestion={handleNextQuestion}
 				/>
 			</div>
 		</div>
 		{/snippet}
 	</Tooltip.Trigger>
 	<Tooltip.Content side="right" sideOffset={8} class="max-w-60">
-		{getSessionDisplayName(session)}
+		{displayTitle}
 	</Tooltip.Content>
 </Tooltip.Root>

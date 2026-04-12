@@ -53,7 +53,7 @@ export function shouldLoadRemotePreconnectionCommands(input: {
 		return false;
 	}
 
-	if (!input.agentId || input.hasConnectedSession || !input.projectPath) {
+	if (!input.agentId || !input.projectPath) {
 		return false;
 	}
 

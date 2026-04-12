@@ -992,6 +992,38 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
+    fn copilot_parses_edit_arguments_with_short_snake_case_keys() {
+        let data = json!({
+            "toolCallId": "tool-edit-short-snake",
+            "status": "pending",
+            "_meta": {
+                "claudeCode": {
+                    "toolName": "Edit"
+                }
+            },
+            "rawInput": {
+                "path": "/path/to/file.ts",
+                "old_str": "old content",
+                "new_str": "new content"
+            }
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+        assert!(result.is_ok());
+        let tool_call = result.unwrap();
+        match tool_call.arguments {
+            ToolArguments::Edit { edits } => {
+                let e = edits.first().expect("edit entry");
+                assert_eq!(e.file_path().map(String::as_str), Some("/path/to/file.ts"));
+                assert_eq!(e.old_text().map(String::as_str), Some("old content"));
+                assert_eq!(e.new_text().map(String::as_str), Some("new content"));
+            }
+            _ => panic!("Expected edit tool arguments"),
+        }
+    }
+
+    #[test]
     fn parses_normalized_questions_for_ask_user_question_tool() {
         let data = json!({
             "toolCallId": "tool-question-123",
@@ -2291,6 +2323,37 @@ mod parse_tool_call_update_from_acp {
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             let update = result.unwrap();
             assert!(matches!(update.arguments, Some(ToolArguments::Edit { .. })));
+        });
+    }
+
+    #[test]
+    fn copilot_tool_call_update_maps_short_snake_case_edit_arguments() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-copilot-edit-short-snake",
+                "status": "completed",
+                "kind": "edit",
+                "rawInput": {
+                    "path": "/tmp/example.ts",
+                    "old_str": "const value = 1;",
+                    "new_str": "const value = 2;"
+                }
+            });
+
+            let result: Result<ToolCallUpdateData, serde_json::Error> =
+                parse_tool_call_update_from_acp(&data, None);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let update = result.unwrap();
+            match update.arguments {
+                Some(ToolArguments::Edit { edits }) => {
+                    let edit = edits.first().expect("edit entry");
+                    assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/example.ts"));
+                    assert_eq!(edit.old_text().map(String::as_str), Some("const value = 1;"));
+                    assert_eq!(edit.new_text().map(String::as_str), Some("const value = 2;"));
+                }
+                other => panic!("Expected edit tool arguments, got {:?}", other),
+            }
         });
     }
 

@@ -1,6 +1,8 @@
 const FALLBACK_SESSION_TITLES = new Set(["New Thread", "New session", "New Session", "Loading..."]);
 const GENERATED_SESSION_TITLE_PATTERN = /^Session [a-f0-9-]{6,}$/i;
 const MAX_DERIVED_TITLE_CHARS = 100;
+/** Matches complete `@[type:value]` tokens and incomplete ones truncated without closing `]`. */
+const INLINE_TOKEN_PATTERN = /@\[(file|image|text|text_ref|command|skill):[^\]]+\]?/;
 
 /**
  * Strips system artifacts and metadata tags from session titles.
@@ -19,12 +21,100 @@ export function stripArtifactsFromTitle(title: string): string {
 	}
 	cleaned = cleaned
 		// Match attachment tokens: @[file:...], @[image:...], @[text:...], @[command:...], @[skill:...]
-		.replace(/@\[(file|image|text|command|skill):[^\]]+\]/g, "")
+		// Also matches truncated tokens missing closing ] (e.g. from title truncation)
+		.replace(/@\[(file|image|text|command|skill):[^\]]+\]?/g, "")
 		// Match expanded attachment refs: [Attached image: ...], [Attached file: ...]
 		.replace(/\[Attached (?:image|file|PDF): [^\]]+\]/g, "")
 		.trim();
 
 	return cleaned;
+}
+
+/**
+ * Strips XML tags and expanded attachment refs from a title, but preserves
+ * inline `@[type:value]` tokens so they can be rendered as visual chips.
+ */
+export function stripXmlArtifactsFromTitle(title: string): string {
+	let cleaned = title;
+	const xmlTagPattern = /<([a-zA-Z][a-zA-Z0-9_-]*)[^>]*>[\s\S]*?(?:<\/\1[^>]*>|(?=<[a-zA-Z])|$)/g;
+	let prev = "";
+	while (cleaned !== prev) {
+		prev = cleaned;
+		cleaned = cleaned.replace(xmlTagPattern, "");
+	}
+	cleaned = cleaned
+		// Strip expanded attachment refs but keep @[type:value] tokens
+		.replace(/\[Attached (?:image|file|PDF): [^\]]+\]/g, "")
+		// Collapse literal \n and real newlines into spaces
+		.replace(/\\n/g, " ")
+		.replace(/\r?\n/g, " ")
+		.trim();
+
+	return cleaned;
+}
+
+/**
+ * Returns true when the title contains at least one inline artefact token.
+ */
+export function titleHasInlineTokens(title: string): boolean {
+	return INLINE_TOKEN_PATTERN.test(title);
+}
+
+/**
+ * Format a session title for rich display, returning both the token-preserved
+ * title for chip rendering and the plain text for tooltip/accessibility.
+ *
+ * `richText` is non-null when the title contains `@[type:value]` tokens
+ * that should be rendered as chips. `plainText` is always the fully-stripped
+ * display title (same as `formatSessionTitleForDisplay`).
+ */
+export function formatRichSessionTitle(
+	title: string | null | undefined,
+	projectName?: string | null,
+	unknownProjectName?: string
+): { richText: string | null; plainText: string } {
+	const plainText = formatSessionTitleForDisplay(title, projectName, unknownProjectName);
+
+	if (!title) {
+		return { richText: null, plainText };
+	}
+
+	const semiCleaned = stripXmlArtifactsFromTitle(title);
+	if (semiCleaned === "" || !titleHasInlineTokens(semiCleaned)) {
+		return { richText: null, plainText };
+	}
+
+	// Capitalize the first non-token text character
+	const capitalized = capitalizeRichTitle(semiCleaned);
+	return { richText: capitalized, plainText };
+}
+
+/**
+ * Capitalize the first text character in a string that may start with
+ * `@[type:value]` tokens. Tokens are skipped so that "fix bug" becomes
+ * "Fix bug" even when preceded by "@[file:/a.ts] ".
+ */
+function capitalizeRichTitle(text: string): string {
+	// Find first character that isn't part of a token
+	let i = 0;
+	while (i < text.length) {
+		// Skip tokens
+		if (text[i] === "@" && text[i + 1] === "[") {
+			const closingBracket = text.indexOf("]", i + 2);
+			if (closingBracket !== -1) {
+				i = closingBracket + 1;
+				continue;
+			}
+		}
+		// Skip whitespace
+		if (text[i] === " ") {
+			i++;
+			continue;
+		}
+		// Found a non-token, non-whitespace character — capitalize it
+		return text.slice(0, i) + text[i].toUpperCase() + text.slice(i + 1);
+	}
+	return text;
 }
 
 /**

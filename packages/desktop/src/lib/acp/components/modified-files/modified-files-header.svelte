@@ -600,6 +600,9 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 									onclick={(e: MouseEvent) => e.stopPropagation()}
 									onkeydown={(e: KeyboardEvent) => e.stopPropagation()}
 								></textarea>
+								<p class="mt-2 text-[0.625rem] leading-snug text-muted-foreground/70">
+									{promptPreviewHelperText}
+								</p>
 							</div>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>

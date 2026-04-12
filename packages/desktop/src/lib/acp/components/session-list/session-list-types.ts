@@ -51,6 +51,8 @@ export interface SessionListItem {
 	sourcePath?: string;
 	createdAt: Date;
 	updatedAt: Date;
+	/** True when the session should be shown by default in the sidebar */
+	isLive: boolean;
 	isOpen: boolean;
 	/** Activity info (only populated for streaming sessions) */
 	activity: SessionActivityInfo | null;

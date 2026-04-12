@@ -2,14 +2,11 @@ import { writeFile } from "node:fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const waitForPitchReady = vi.fn(async () => undefined);
-const exportPitchPdf = vi.fn(async (_pitchUrl: string, outputPath: string) => {
-	await writeFile(outputPath, "%PDF /Type /Page");
+const exportPitchPdf = vi.fn(async (options: { outputPath: string }) => {
+	await writeFile(options.outputPath, "%PDF /Type /Page");
 });
 
 vi.mock("../../../../scripts/export-pitch-pdf.js", () => ({
-	createPitchUrl: (baseUrl: string) => `${baseUrl}/pitch`,
-	waitForPitchReady,
 	exportPitchPdf,
 }));
 
@@ -17,7 +14,6 @@ const { GET } = await import("./+server");
 
 describe("pitch export route", () => {
 	beforeEach(() => {
-		waitForPitchReady.mockClear();
 		exportPitchPdf.mockClear();
 	});
 
@@ -31,8 +27,11 @@ describe("pitch export route", () => {
 			'attachment; filename="acepe-investor-pitch.pdf"'
 		);
 		expect(response.headers.get("Cache-Control")).toBe("no-store");
-		expect(waitForPitchReady).toHaveBeenCalledWith("http://127.0.0.1:4173/pitch");
-		expect(exportPitchPdf).toHaveBeenCalledTimes(1);
+		expect(exportPitchPdf).toHaveBeenCalledWith({
+			baseUrl: "http://127.0.0.1:4173",
+			outputPath: expect.stringContaining("acepe-investor-pitch.pdf"),
+			port: 4173,
+		});
 
 		const payload = Buffer.from(await response.arrayBuffer()).toString("utf8");
 

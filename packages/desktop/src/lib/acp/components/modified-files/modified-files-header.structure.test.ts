@@ -3,10 +3,20 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const source = readFileSync(resolve(__dirname, "./modified-files-header.svelte"), "utf8");
+const trailingControlsSource = readFileSync(
+	resolve(
+		__dirname,
+		"../../../../../../ui/src/components/agent-panel/agent-panel-modified-files-trailing-controls.svelte"
+	),
+	"utf8"
+);
 const prSettingsPopoverStart = source.indexOf(
 	'<DropdownMenu.Content align="start" class="w-[420px] overflow-hidden p-0" sideOffset={6}>'
 );
-const prSettingsPopoverEnd = source.indexOf("<!-- Review split button -->", prSettingsPopoverStart);
+const prSettingsPopoverEnd = source.indexOf(
+	"<!-- Merge split button: shown after PR is created -->",
+	prSettingsPopoverStart
+);
 const prSettingsPopoverSource =
 	prSettingsPopoverStart >= 0 && prSettingsPopoverEnd >= 0
 		? source.slice(prSettingsPopoverStart, prSettingsPopoverEnd)
@@ -19,7 +29,7 @@ describe("modified-files-header structure", () => {
 			'<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />'
 		);
 		expect(source).toContain(
-			'class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors cursor-pointer'
+			'class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"'
 		);
 		expect(source).toContain("group-hover/open-pr:text-success");
 	});
@@ -33,20 +43,20 @@ describe("modified-files-header structure", () => {
 	it("renders an applied keep-all state as a neutral disabled button once every file is accepted", () => {
 		expect(source).toContain("const isKeepAllApplied = $derived.by(() => {");
 		expect(source).not.toContain('from "$lib/paraglide/messages/review_applied.js"');
-		expect(source).toContain("m.review_applied()");
-		expect(source).toContain("<CheckCircle");
-		expect(source).toContain(
+		expect(source).toContain('appliedLabel: m.review_applied()');
+		expect(trailingControlsSource).toContain("<CheckCircle");
+		expect(trailingControlsSource).toContain(
 			'<Button variant="headerAction" size="headerAction" disabled class="disabled:opacity-100">'
 		);
-		expect(source).toContain(
+		expect(trailingControlsSource).toContain(
 			'<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />'
 		);
-		expect(source).not.toContain("border-success/30 bg-success/10");
+		expect(trailingControlsSource).not.toContain("border-success/30 bg-success/10");
 	});
 
 	it("renders review before keep in the right-side action cluster", () => {
-		const reviewButtonIndex = source.indexOf("{m.modified_files_review_button()}");
-		const keepButtonIndex = source.indexOf("{m.review_keep()}");
+		const reviewButtonIndex = trailingControlsSource.indexOf("{model.reviewLabel}");
+		const keepButtonIndex = trailingControlsSource.indexOf("{model.keepLabel}");
 
 		expect(reviewButtonIndex).toBeGreaterThan(-1);
 		expect(keepButtonIndex).toBeGreaterThan(-1);
@@ -63,9 +73,8 @@ describe("modified-files-header structure", () => {
 		expect(prSettingsPopoverSource).toContain("PR instructions");
 		expect(prSettingsPopoverSource).toContain("Save prompt");
 		expect(prSettingsPopoverSource).toContain("Reset");
-		expect(prSettingsPopoverSource).toContain(
-			"Acepe appends the response format and git context automatically."
-		);
+		expect(source).toContain("const promptPreviewHelperText = $derived.by(() => {");
+		expect(prSettingsPopoverSource).toContain("{promptPreviewHelperText}");
 		expect(prSettingsPopoverSource).not.toContain("<DropdownMenu.SubTrigger");
 		expect(prSettingsPopoverSource).not.toContain("Session default");
 		expect(prSettingsPopoverSource).not.toContain("Agent default");

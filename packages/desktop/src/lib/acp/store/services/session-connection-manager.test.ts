@@ -7,6 +7,7 @@ import type {
 } from "../../../services/converted-session-types.js";
 import { AgentError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
+import type { ConnectionCompleteData } from "../session-event-service.svelte.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import type { SessionCold, SessionHotState } from "../types.js";
 import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
@@ -89,6 +90,13 @@ function createMockEventHandler(): SessionEventHandler {
 }
 
 let lastEventService: SessionEventService;
+let nextLifecycleResult: ConnectionCompleteData;
+
+beforeAll(async () => {
+	const modulePath = "./session-connection-manager.js?session-connection-manager-test" as string;
+	const module = (await import(modulePath)) as typeof import("./session-connection-manager.js");
+	SessionConnectionManager = module.SessionConnectionManager;
+});
 
 function createManager(deps: {
 	stateReader: ISessionStateReader;
@@ -99,6 +107,10 @@ function createManager(deps: {
 	connectionManager: IConnectionManager;
 }) {
 	lastEventService = new SessionEventService();
+	vi.spyOn(lastEventService, "waitForLifecycleEvent").mockImplementation(() => ({
+		promise: Promise.resolve(nextLifecycleResult),
+		cancel: vi.fn(),
+	}));
 	return new SessionConnectionManager(
 		deps.stateReader,
 		deps.stateWriter,
@@ -112,7 +124,7 @@ function createManager(deps: {
 
 /**
  * Configure the resumeSession mock to return void and schedule a
- * connectionComplete lifecycle event through the event service callbacks.
+ * connectionComplete lifecycle event through the event service update handler.
  * This simulates the fire-and-forget invoke + SSE lifecycle event pattern.
  */
 function mockResumeWithLifecycleEvent(responseData: {
@@ -122,19 +134,14 @@ function mockResumeWithLifecycleEvent(responseData: {
 	configOptions?: ConfigOptionData[];
 	autonomousEnabled?: boolean;
 }) {
-	resumeSession.mockImplementation((sid: string, _cwd: string, attemptId: number) => {
-		setTimeout(() => {
-			const callbacks = lastEventService.getCallbacks();
-			callbacks.onConnectionComplete?.(sid, attemptId, {
-				models: responseData.models,
-				modes: responseData.modes,
-				availableCommands: responseData.availableCommands ?? [],
-				configOptions: responseData.configOptions ?? [],
-				autonomousEnabled: responseData.autonomousEnabled ?? false,
-			});
-		}, 0);
-		return okAsync(undefined);
-	});
+	nextLifecycleResult = {
+		models: responseData.models,
+		modes: responseData.modes,
+		availableCommands: responseData.availableCommands ?? [],
+		configOptions: responseData.configOptions ?? [],
+		autonomousEnabled: responseData.autonomousEnabled ?? false,
+	};
+	resumeSession.mockReturnValue(okAsync(undefined));
 }
 
 describe("SessionConnectionManager.connectSession", () => {
@@ -225,11 +232,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		sendResponseComplete: vi.fn(),
 		initializeConnectedSession: vi.fn(),
 	};
-
-	beforeAll(async () => {
-		const module = await import("./session-connection-manager.js");
-		SessionConnectionManager = module.SessionConnectionManager;
-	});
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -921,7 +923,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
-	it("does not flush pending events during lifecycle-driven connect", async () => {
+	it("flushes pending events after lifecycle-driven connect completes", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 		const flushSpy = vi.spyOn(SessionEventService.prototype, "flushPendingEvents");
 		const eventHandler = createMockEventHandler();
@@ -938,7 +940,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, eventHandler);
 		result._unsafeUnwrap();
 
-		expect(flushSpy).not.toHaveBeenCalled();
+		expect(flushSpy).toHaveBeenCalledWith(sessionId, eventHandler);
 		flushSpy.mockRestore();
 	});
 
@@ -2148,11 +2150,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		sendResponseComplete: vi.fn(),
 		initializeConnectedSession: vi.fn(),
 	};
-
-	beforeAll(async () => {
-		const module = await import("./session-connection-manager.js");
-		SessionConnectionManager = module.SessionConnectionManager;
-	});
 
 	beforeEach(() => {
 		vi.clearAllMocks();
