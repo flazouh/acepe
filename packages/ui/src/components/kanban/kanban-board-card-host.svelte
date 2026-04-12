@@ -9,6 +9,7 @@
 		renderer: Snippet<[KanbanSceneCardData]>;
 		isGhost?: boolean;
 		isInert?: boolean;
+		isAnimating?: boolean;
 		registerHost?: (
 			card: KanbanSceneCardData,
 			node: HTMLDivElement,
@@ -16,7 +17,7 @@
 		) => (() => void) | void;
 	}
 
-	let { card, placement, renderer, isGhost = false, isInert = false, registerHost }: Props = $props();
+	let { card, placement, renderer, isGhost = false, isInert = false, isAnimating = false, registerHost }: Props = $props();
 	let hostElement = $state<HTMLDivElement | null>(null);
 
 	function buildRegistrationKey(nextPlacement: KanbanScenePlacement): string {
@@ -44,6 +45,7 @@
 			}
 
 			const nextKey = buildRegistrationKey(nextParams.placement);
+			console.log(`[kanban-motion] host sync card=${nextParams.card.id} key=${nextKey} prevKey=${registrationKey}`);
 			if (registrationKey === nextKey) {
 				return;
 			}
@@ -56,7 +58,8 @@
 
 		return {
 			update(nextParams) {
-				registrationKey = buildRegistrationKey(nextParams.placement);
+				console.log(`[kanban-motion] host action UPDATE card=${nextParams.card.id} col=${nextParams.placement.columnId}`);
+				sync(nextParams);
 			},
 			destroy() {
 				cleanup?.();
@@ -71,7 +74,8 @@
 	bind:this={hostElement}
 	use:registerCardHost={{ card, placement, registerHost }}
 	class="min-w-0"
-	aria-hidden={isGhost ? true : undefined}
+	class:invisible={isAnimating}
+	aria-hidden={isGhost || isAnimating ? true : undefined}
 	data-card-id={card.id}
 	data-column-id={placement.columnId}
 	data-placement-index={placement.index}
