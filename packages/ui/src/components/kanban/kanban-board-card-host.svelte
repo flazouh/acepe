@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import type { Snippet } from "svelte";
 
 	import type { KanbanSceneCardData, KanbanScenePlacement } from "./kanban-scene-types.js";
@@ -20,22 +19,57 @@
 	let { card, placement, renderer, isGhost = false, isInert = false, registerHost }: Props = $props();
 	let hostElement = $state<HTMLDivElement | null>(null);
 
-	onMount(() => {
-		if (!hostElement || !registerHost) {
-			return;
-		}
+	function buildRegistrationKey(nextPlacement: KanbanScenePlacement): string {
+		return `${nextPlacement.columnId}:${nextPlacement.index}:${nextPlacement.orderKey}:${nextPlacement.source}`;
+	}
 
-		const cleanup = registerHost(card, hostElement, placement);
-		return () => {
-			if (cleanup) {
-				cleanup();
+	function registerCardHost(
+		node: HTMLDivElement,
+		params: {
+			card: KanbanSceneCardData;
+			placement: KanbanScenePlacement;
+			registerHost?: (
+				card: KanbanSceneCardData,
+				hostNode: HTMLDivElement,
+				hostPlacement: KanbanScenePlacement
+			) => (() => void) | void;
+		}
+	): { update: (nextParams: typeof params) => void; destroy: () => void } {
+		let registrationKey: string | null = null;
+		let cleanup: (() => void) | null = null;
+
+		const sync = (nextParams: typeof params): void => {
+			if (!nextParams.registerHost) {
+				return;
 			}
+
+			const nextKey = buildRegistrationKey(nextParams.placement);
+			if (registrationKey === nextKey) {
+				return;
+			}
+
+			cleanup = nextParams.registerHost(nextParams.card, node, nextParams.placement) ?? cleanup;
+			registrationKey = nextKey;
 		};
-	});
+
+		sync(params);
+
+		return {
+			update(nextParams) {
+				registrationKey = buildRegistrationKey(nextParams.placement);
+			},
+			destroy() {
+				cleanup?.();
+				cleanup = null;
+				registrationKey = null;
+			},
+		}
+	}
 </script>
 
 <div
 	bind:this={hostElement}
+	use:registerCardHost={{ card, placement, registerHost }}
 	class="min-w-0"
 	aria-hidden={isGhost ? true : undefined}
 	data-card-id={card.id}

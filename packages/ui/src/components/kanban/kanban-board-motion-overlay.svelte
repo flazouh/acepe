@@ -13,15 +13,26 @@
 
 	function buildOverlayStyle(overlay: KanbanBoardMotionOverlay): string {
 		const rect = overlay.phase === "start" ? overlay.originRect : overlay.destinationRect;
-		const opacity = overlay.phase === "start" ? 0.9 : 0;
-		return `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;opacity:${opacity};transition-duration:${overlay.durationMs}ms;`;
+		const opacity = overlay.phase === "start" ? 1 : 0;
+		const easing = "cubic-bezier(0.16,1,0.3,1)";
+		const d = overlay.durationMs;
+		const fadeDelay = Math.round(d * 0.6);
+		const fadeDuration = d - fadeDelay;
+		return [
+			`left:${rect.left}px`,
+			`top:${rect.top}px`,
+			`width:${rect.width}px`,
+			`height:${rect.height}px`,
+			`opacity:${opacity}`,
+			`transition:left ${d}ms ${easing},top ${d}ms ${easing},width ${d}ms ${easing},height ${d}ms ${easing},opacity ${fadeDuration}ms ease-out ${fadeDelay}ms`,
+		].join(";") + ";";
 	}
 </script>
 
 <div class="pointer-events-none absolute inset-0 z-20 overflow-hidden" aria-hidden="true">
 	{#each overlays as overlay (overlay.cardId)}
 		<div
-			class="absolute overflow-hidden rounded-lg transition-[left,top,width,height,opacity] ease-out"
+			class="absolute overflow-hidden rounded-lg"
 			data-motion-mode={overlay.mode}
 			style={buildOverlayStyle(overlay)}
 		>
