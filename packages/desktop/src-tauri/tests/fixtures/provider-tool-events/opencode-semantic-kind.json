@@ -1,0 +1,17 @@
+{
+  "agent": "opencode",
+  "payload": {
+    "id": "tool-opencode-task",
+    "type": "tool-invocation",
+    "name": "task",
+    "input": {
+      "description": "Run a subagent",
+      "prompt": "Investigate the authentication flow"
+    }
+  },
+  "expected": {
+    "kind": "task",
+    "argument_kind": "think",
+    "description": "Run a subagent"
+  }
+}

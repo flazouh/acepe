@@ -1,15 +1,10 @@
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel";
 import type { Component } from "svelte";
-import {
-	getToolKindFilePath,
-	getToolKindSubtitle,
-	getToolKindTitle,
-} from "../../registry/tool-kind-ui-registry.js";
 import type { TurnState } from "../../store/types.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
+import { buildToolPresentation, type ToolRouteKey } from "./tool-presentation.js";
 import ToolCallBrowser from "./tool-call-browser.svelte";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
@@ -31,8 +26,6 @@ import ToolCallThink from "./tool-call-think.svelte";
 import ToolCallTodo from "./tool-call-todo.svelte";
 import ToolCallToolSearch from "./tool-call-tool-search.svelte";
 import ToolCallWebSearch from "./tool-call-web-search.svelte";
-import { toAgentToolKind } from "./tool-kind-to-agent-tool-kind.js";
-
 export type ToolDetailComponentProps = {
 	toolCall: ToolCall;
 	turnState?: TurnState;
@@ -60,39 +53,6 @@ export interface ToolDefinition {
 	buildCompactEntry: (options: ToolDisplayOptions) => CompactToolDisplay;
 }
 
-function mapAgentToolStatus(
-	toolCall: ToolCall,
-	turnState: TurnState | undefined,
-	parentCompleted: boolean
-): AgentToolStatus {
-	if (toolCall.status === "failed") {
-		return "error";
-	}
-
-	if (toolCall.status === "completed") {
-		return "done";
-	}
-
-	const hasResult = toolCall.result !== null && toolCall.result !== undefined;
-	if (hasResult) {
-		return "done";
-	}
-
-	if (parentCompleted) {
-		return "done";
-	}
-
-	if (toolCall.status === "in_progress" && turnState === "streaming") {
-		return "running";
-	}
-
-	if (toolCall.status === "in_progress" && turnState !== undefined && turnState !== "streaming") {
-		return "done";
-	}
-
-	return "pending";
-}
-
 function compactToolEntry(entry: AgentToolEntry): CompactToolDisplay {
 	return {
 		id: entry.id,
@@ -103,41 +63,22 @@ function compactToolEntry(entry: AgentToolEntry): CompactToolDisplay {
 	};
 }
 
-function resolveToolEntryTitle(options: ToolDisplayOptions, kind: ToolKind): string {
-	const semanticTitle =
-		getToolKindTitle(kind, options.toolCall, options.turnState) ?? options.toolCall.name;
-	const rawTitle = options.toolCall.title?.trim();
-
-	if (!rawTitle) {
-		return semanticTitle;
-	}
-
-	if (
-		(kind === "delete" &&
-			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
-		kind === "skill"
-	) {
-		return semanticTitle;
-	}
-
-	return rawTitle;
-}
-
 function buildDefaultFullEntry(options: ToolDisplayOptions): AgentToolEntry {
-	const kind = options.toolKind ?? options.toolCall.kind ?? "other";
+	const presentation = buildToolPresentation({
+		toolCall: options.toolCall,
+		toolKind: options.toolKind,
+		turnState: options.turnState,
+		parentCompleted: options.parentCompleted,
+	});
 
 	return {
 		id: options.toolCall.id,
 		type: "tool_call",
-		kind: toAgentToolKind(kind),
-		title: resolveToolEntryTitle(options, kind),
-		subtitle: getToolKindSubtitle(kind, options.toolCall) || undefined,
-		filePath: getToolKindFilePath(kind, options.toolCall) ?? undefined,
-		status: mapAgentToolStatus(
-			options.toolCall,
-			options.turnState,
-			options.parentCompleted === true
-		),
+		kind: presentation.agentKind,
+		title: presentation.title,
+		subtitle: presentation.subtitle,
+		filePath: presentation.filePath,
+		status: presentation.agentStatus,
 	};
 }
 
@@ -208,9 +149,8 @@ const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 const FALLBACK_TOOL_DEFINITION = createToolDefinition("other", ToolCallFallback);
 
 export function getToolDefinition(toolCall: ToolCall, toolKind?: ToolKind | null): ToolDefinition {
-	const resolvedKind = toolKind ?? toolCall.kind ?? "other";
-	const routeKey = resolveToolRouteKey(toolCall, resolvedKind);
-	return TOOL_DEFINITIONS[routeKey] ?? FALLBACK_TOOL_DEFINITION;
+	const presentation = buildToolPresentation({ toolCall, toolKind });
+	return TOOL_DEFINITIONS[presentation.routeKey] ?? FALLBACK_TOOL_DEFINITION;
 }
 
 export function resolveFullToolEntry(options: ToolDisplayOptions): AgentToolEntry {

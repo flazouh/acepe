@@ -85,32 +85,13 @@ export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
 export type ChunkAggregationHint = "boundaryCarryover"
 
 /**
- * A single file edit entry within an Edit tool call.
+ * A single canonical file delta within an Edit tool call.
  * 
- * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
- * or Codex's multi-entry `changes` map). Each entry represents one file's change.
+ * A single `Edit` tool call may touch multiple files (e.g. OpenCode patch text
+ * or Codex changes maps). Each entry must declare its semantic edit variant
+ * explicitly instead of relying on a bag of optional transport-era fields.
  */
-export type EditEntry = { 
-/**
- * Path of the file being edited.
- */
-filePath?: string | null; 
-/**
- * Original path when the edit entry represents a rename/move inside a multi-file edit patch.
- */
-moveFrom?: string | null; 
-/**
- * Text being replaced (None = new file or full-file write).
- */
-oldString?: string | null; 
-/**
- * Replacement text (standard edit).
- */
-newString?: string | null; 
-/**
- * Full file content (create/overwrite variant).
- */
-content?: string | null }
+export type EditDelta = { type: "replaceText"; file_path?: string | null; move_from?: string | null; old_text?: string | null; new_text?: string | null } | { type: "writeFile"; file_path?: string | null; move_from?: string | null; previous_content?: string | null; content?: string | null } | { type: "deleteFile"; file_path?: string | null; old_text?: string | null }
 
 /**
  * Tool arguments discriminated by tool kind.
@@ -123,7 +104,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null } |
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditDelta[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool reference for permission/question requests.

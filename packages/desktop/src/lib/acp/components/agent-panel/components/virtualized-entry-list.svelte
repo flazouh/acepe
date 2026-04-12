@@ -10,7 +10,7 @@ import AssistantMessage from "../../messages/assistant-message.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import UserMessage from "../../messages/user-message.svelte";
 import { ToolCallRouter } from "../../tool-calls/index.js";
-import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
+import { buildToolPresentation } from "../../tool-calls/tool-presentation.js";
 import {
 	createAutoScroll,
 	type ScrollPositionProvider,
@@ -480,13 +480,7 @@ export function scrollToTop() {
 }
 
 function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool_call" }>): boolean {
-	const routeKey = resolveToolRouteKey(entry.message, entry.message.kind ?? "other");
-	return (
-		routeKey === "edit" ||
-		routeKey === "read" ||
-		routeKey === "question" ||
-		routeKey === "skill"
-	);
+	return buildToolPresentation({ toolCall: entry.message }).useDesktopRenderer;
 }
 </script>
 

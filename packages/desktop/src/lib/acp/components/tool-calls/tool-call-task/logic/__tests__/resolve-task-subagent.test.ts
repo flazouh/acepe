@@ -93,7 +93,7 @@ describe("resolveTaskSubagent", () => {
 
 		const streamingArgs: ToolArguments = {
 			kind: "edit",
-			edits: [{ filePath: "/tmp/test.md", content: "# not a task" }],
+			edits: [{ type: "writeFile", file_path: "/tmp/test.md", previous_content: null, content: "# not a task"  }],
 		};
 
 		const result = resolveTaskSubagent(toolCall, streamingArgs);

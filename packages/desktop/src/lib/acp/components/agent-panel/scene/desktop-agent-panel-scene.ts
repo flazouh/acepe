@@ -28,7 +28,7 @@ import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.j
 import { parseToolResultWithExitCode } from "../../tool-calls/tool-call-execute/logic/parse-tool-result.js";
 import { parseSearchResult } from "../../tool-calls/tool-call-search/logic/parse-grep-output.js";
 import { parseWebSearchResult } from "../../tool-calls/tool-call-web-search/logic/parse-web-search-result.js";
-import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
+import { buildToolPresentation } from "../../tool-calls/tool-presentation.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
 export interface DesktopAgentPanelHeaderInput {
@@ -119,36 +119,6 @@ function createAttachmentScopedActionId(
 	return scopedActionId;
 }
 
-function mapToolStatus(
-	toolCall: ToolCall,
-	turnState: TurnState | undefined,
-	parentCompleted: boolean,
-	isActiveToolCall: boolean
-): "pending" | "running" | "done" | "error" {
-	if (toolCall.status === "failed") {
-		return "error";
-	}
-
-	if (toolCall.status === "completed") {
-		return "done";
-	}
-
-	const hasResult = toolCall.result !== null && toolCall.result !== undefined;
-	if (hasResult || parentCompleted) {
-		return "done";
-	}
-
-	if (!isActiveToolCall || turnState !== "streaming") {
-		return "done";
-	}
-
-	if (toolCall.status === "in_progress") {
-		return "running";
-	}
-
-	return "pending";
-}
-
 function getActiveTailToolCallId(
 	children: readonly ToolCall[] | null | undefined,
 	turnState: TurnState | undefined,
@@ -199,83 +169,6 @@ function getActiveRootToolCallId(
 	return toolCall.id;
 }
 
-function normalizeToolKind(kind: ToolKind | null | undefined) {
-	if (!kind) {
-		return "other";
-	}
-
-	if (kind === "glob") {
-		return "search";
-	}
-
-	if (kind === "web_search") {
-		return "web_search";
-	}
-
-	if (
-		kind === "read" ||
-		kind === "edit" ||
-		kind === "delete" ||
-		kind === "execute" ||
-		kind === "search" ||
-		kind === "fetch" ||
-		kind === "think" ||
-		kind === "skill" ||
-		kind === "task" ||
-		kind === "task_output" ||
-		kind === "browser"
-	) {
-		return kind;
-	}
-
-	return "other";
-}
-
-function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): string {
-	if (kind === "execute") return "Run";
-	if (kind === "read") return "Read";
-	if (kind === "edit") return "Edit";
-	if (kind === "delete") return "Delete";
-	if (kind === "search" || kind === "glob") return "Search";
-	if (kind === "fetch") return "Fetch";
-	if (kind === "web_search") return "Web search";
-	if (kind === "think") return "Thinking";
-	if (kind === "task") return turnState === "streaming" ? "Task running" : "Task completed";
-	if (kind === "task_output") return "Task output";
-	if (kind === "todo") return turnState === "streaming" ? "Todo running" : "Todo completed";
-	if (kind === "question") return turnState === "streaming" ? "Question running" : "Question completed";
-	if (kind === "move") return "Move";
-	if (kind === "skill") return "Skill";
-	if (kind === "tool_search") return "Tool search";
-	if (kind === "browser") return "Browser";
-	if (kind === "enter_plan_mode") return "Enter plan mode";
-	if (kind === "exit_plan_mode") return "Exit plan mode";
-	if (kind === "create_plan") return "Create plan";
-	return "Tool";
-}
-
-function resolveToolTitle(toolCall: ToolCall, kind: ToolKind, turnState: TurnState | undefined): string {
-	const semanticTitle =
-		kind === "other"
-			? formatOtherToolName(toolCall.name)
-			: (getDefaultToolTitle(kind, turnState) || toolCall.name);
-	const rawTitle = toolCall.title?.trim();
-
-	if (!rawTitle) {
-		return semanticTitle;
-	}
-
-	if (
-		(kind === "delete" &&
-			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
-		kind === "skill"
-	) {
-		return semanticTitle;
-	}
-
-	return rawTitle;
-}
-
 function getToolSubtitle(toolCall: ToolCall): string | undefined {
 	if (toolCall.arguments.kind === "execute") {
 		return toolCall.arguments.command ?? undefined;
@@ -311,30 +204,6 @@ function getToolSubtitle(toolCall: ToolCall): string | undefined {
 	const firstQuestion = toolCall.normalizedQuestions?.[0];
 	if (firstQuestion) {
 		return firstQuestion.question;
-	}
-
-	return undefined;
-}
-
-function getToolFilePath(toolCall: ToolCall): string | undefined {
-	if (toolCall.arguments.kind === "read") {
-		return toolCall.arguments.file_path ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "search") {
-		return toolCall.arguments.file_path ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "edit") {
-		return toolCall.arguments.edits[0]?.filePath ?? toolCall.arguments.edits[0]?.moveFrom ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "delete") {
-		return toolCall.arguments.file_path ?? toolCall.arguments.file_paths?.[0] ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "move") {
-		return toolCall.arguments.to ?? toolCall.arguments.from ?? undefined;
 	}
 
 	return undefined;
@@ -528,8 +397,8 @@ function mapLintDiagnostics(
 			severity?: string | null;
 	  }[]
 	| undefined {
-	const resolvedKind = toolCall.kind ?? "other";
-	if (resolveToolRouteKey(toolCall, resolvedKind) !== "read_lints") {
+	const presentation = buildToolPresentation({ toolCall });
+	if (presentation.routeKey !== "read_lints") {
 		return undefined;
 	}
 
@@ -588,23 +457,28 @@ function mapToolCallEntry(
 	parentCompleted: boolean,
 	activeToolCallId: string | null
 ): AgentPanelSceneEntryModel {
-	const kind = toolCall.kind ?? "other";
-	const parsedResult = kind === "execute" ? parseToolResultWithExitCode(toolCall.result) : null;
+	const presentation = buildToolPresentation({
+		toolCall,
+		turnState,
+		parentCompleted,
+		isActiveToolCall: toolCall.id === activeToolCallId,
+	});
+	const parsedResult =
+		presentation.resolvedKind === "execute" ? parseToolResultWithExitCode(toolCall.result) : null;
 	const subtitle = getToolSubtitle(toolCall);
 	const searchPayload = mapSearchPayload(toolCall);
 	const webSearchPayload = mapWebSearchPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
-	const status = mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
 
 	return {
 		id: toolCall.id,
 		type: "tool_call",
-		kind: normalizeToolKind(kind),
-		title: resolveToolTitle(toolCall, kind, turnState),
-		subtitle,
+		kind: presentation.sceneKind,
+		title: presentation.title,
+		subtitle: subtitle ?? presentation.subtitle,
 		detailsText: serializeOtherToolDetails(toolCall),
-		filePath: getToolFilePath(toolCall),
-		status,
+		filePath: presentation.filePath,
+		status: presentation.sceneStatus,
 		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
 		stdout: parsedResult?.stdout ? stripAnsiCodes(parsedResult.stdout) : null,
 		stderr: parsedResult?.stderr ? stripAnsiCodes(parsedResult.stderr) : null,
@@ -627,7 +501,11 @@ function mapToolCallEntry(
 		taskDescription: mapTaskDescription(toolCall),
 		taskPrompt: toolCall.arguments.kind === "think" ? (toolCall.arguments.prompt ?? null) : null,
 		taskResultText: mapTaskResultText(toolCall),
-		taskChildren: mapTaskChildren(toolCall.taskChildren, turnState, status === "done"),
+		taskChildren: mapTaskChildren(
+			toolCall.taskChildren,
+			turnState,
+			presentation.sceneStatus === "done"
+		),
 		todos: mapTodos(toolCall),
 		question: mapQuestion(toolCall),
 		lintDiagnostics: mapLintDiagnostics(toolCall),

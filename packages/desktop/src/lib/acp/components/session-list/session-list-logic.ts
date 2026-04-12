@@ -19,6 +19,13 @@ import type { ToolKind } from "../../types/tool-kind.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { truncateText } from "../../utils/tool-state-utils.js";
 
+function extractLegacyEditPath(edit: object | null | undefined): string | null {
+	if (!edit) return null;
+	if (!("filePath" in edit)) return null;
+	const filePath = edit.filePath;
+	return typeof filePath === "string" ? filePath : null;
+}
+
 /**
  * Pure logic functions for session list computations.
  * All functions are pure - no side effects, no runes.
@@ -54,7 +61,8 @@ function extractToolTarget(toolCall: ToolCall, kind: ToolKind): string {
 			return "";
 		case "edit":
 			if (args.kind === "edit") {
-				const path = args.edits[0]?.filePath;
+				const firstEdit = args.edits[0];
+				const path = firstEdit?.file_path ?? extractLegacyEditPath(firstEdit ?? null);
 				return path ? path.split("/").pop() || path : "";
 			}
 			return "";

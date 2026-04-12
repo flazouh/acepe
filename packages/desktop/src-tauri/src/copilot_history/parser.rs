@@ -876,7 +876,10 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Read));
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Read)
+                );
                 match &message.arguments {
                     crate::acp::session_update::ToolArguments::Read { file_path } => {
                         assert_eq!(file_path.as_deref(), Some("/repo/src/file.rs"));
@@ -902,7 +905,10 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Todo));
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Todo)
+                );
                 let todos = message
                     .normalized_todos
                     .as_ref()

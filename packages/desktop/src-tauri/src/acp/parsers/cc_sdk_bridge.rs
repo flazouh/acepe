@@ -1268,7 +1268,10 @@ mod tests {
                 match &update.streaming_arguments {
                     Some(ToolArguments::Edit { edits }) => {
                         assert_eq!(edits.len(), 1);
-                        assert_eq!(edits[0].file_path.as_deref(), Some("/tmp/demo.txt"));
+                        assert_eq!(
+                            edits[0].file_path().map(String::as_str),
+                            Some("/tmp/demo.txt")
+                        );
                     }
                     other => panic!("expected streamed edit arguments, got {:?}", other),
                 }

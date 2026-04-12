@@ -1,0 +1,23 @@
+{
+  "agent": "copilot",
+  "payload": {
+    "toolCallId": "web_search_0",
+    "_meta": {
+      "claudeCode": {
+        "toolName": "web_search"
+      }
+    },
+    "kind": "fetch",
+    "status": "pending",
+    "title": "Search the web",
+    "rawInput": {
+      "description": "Search the web",
+      "query": "jwt tokens"
+    }
+  },
+  "expected": {
+    "kind": "web_search",
+    "argument_kind": "web_search",
+    "query": "jwt tokens"
+  }
+}

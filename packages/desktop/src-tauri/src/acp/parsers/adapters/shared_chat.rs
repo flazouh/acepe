@@ -137,7 +137,10 @@ mod tests {
 
     #[test]
     fn maps_copilot_todo_aliases_to_todo() {
-        assert_eq!(normalize_shared_chat_tool_name("update_todos"), ToolKind::Todo);
+        assert_eq!(
+            normalize_shared_chat_tool_name("update_todos"),
+            ToolKind::Todo
+        );
         assert_eq!(normalize_shared_chat_tool_name("mark_todo"), ToolKind::Todo);
     }
 

@@ -277,13 +277,13 @@ fn degraded_state_from_fragments(
             raw_result_fragment: raw_result.cloned(),
             raw_content_fragment: raw_content.cloned(),
         }),
-        ToolArguments::Edit { edits } if edits.iter().all(|edit| {
-            edit.file_path.is_none()
-                && edit.move_from.is_none()
-                && edit.old_string.is_none()
-                && edit.new_string.is_none()
-                && edit.content.is_none()
-        }) =>
+        ToolArguments::Edit { edits }
+            if edits.iter().all(|edit| {
+                edit.file_path().is_none()
+                    && edit.move_from().is_none()
+                    && edit.old_text().is_none()
+                    && edit.new_text().is_none()
+            }) =>
         {
             Some(DegradedToolState {
                 reason: "empty_edit_payload".to_string(),
@@ -357,10 +357,13 @@ pub(crate) fn canonical_operation_event_from_tool_call_update(
     tool_call_id: &str,
     update: &ToolCallUpdateData,
 ) -> Option<CanonicalOperationEvent> {
-    let raw_input = update.arguments.as_ref().and_then(|arguments| match arguments {
-        ToolArguments::Other { raw } => Some(raw),
-        _ => None,
-    });
+    let raw_input = update
+        .arguments
+        .as_ref()
+        .and_then(|arguments| match arguments {
+            ToolArguments::Other { raw } => Some(raw),
+            _ => None,
+        });
 
     let classified = if let Some(raw_input_value) = raw_input {
         classify_raw_tool_call(
@@ -524,15 +527,15 @@ pub(crate) fn build_tool_call_from_raw(
         parser.agent_type(),
     );
 
-        ToolCallData {
-            id: raw.id.clone(),
-            name: classified.name,
-            arguments,
-            raw_input: Some(raw.arguments.clone()),
-            status,
-            result: None,
-            kind: Some(classified.kind),
-            title: raw.title,
+    ToolCallData {
+        id: raw.id.clone(),
+        name: classified.name,
+        arguments,
+        raw_input: Some(raw.arguments.clone()),
+        status,
+        result: None,
+        kind: Some(classified.kind),
+        title: raw.title,
         locations: None,
         skill_meta: None,
         normalized_questions,
@@ -935,7 +938,10 @@ mod tests {
 
         assert_eq!(canonical.semantic_kind, ToolKind::Other);
         assert_eq!(
-            canonical.degraded.as_ref().map(|value| value.reason.as_str()),
+            canonical
+                .degraded
+                .as_ref()
+                .map(|value| value.reason.as_str()),
             Some("unclassified_tool_payload")
         );
     }

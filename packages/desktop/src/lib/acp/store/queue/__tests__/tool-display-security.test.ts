@@ -23,23 +23,26 @@ function makeThinkToolCall(description: string): ToolCall {
 	};
 }
 
-function makeReadToolCall(filePath: string): ToolCall {
+function makeReadToolCall(file_path: string): ToolCall {
 	return {
 		id: "tool-1",
 		name: "Read",
 		kind: "read",
-		arguments: { kind: "read", file_path: filePath },
+		arguments: { kind: "read", file_path },
 		status: "pending",
 		awaitingPlanApproval: false,
 	};
 }
 
-function makeEditToolCall(filePath: string): ToolCall {
+function makeEditToolCall(file_path: string): ToolCall {
 	return {
 		id: "tool-1",
 		name: "Edit",
 		kind: "edit",
-		arguments: { kind: "edit", edits: [{ filePath }] },
+		arguments: {
+			kind: "edit",
+			edits: [{ type: "replaceText", file_path, old_text: null, new_text: null }],
+		},
 		status: "pending",
 		awaitingPlanApproval: false,
 	};

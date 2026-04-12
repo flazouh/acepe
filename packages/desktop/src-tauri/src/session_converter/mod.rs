@@ -562,7 +562,7 @@ mod tests {
         match tool_entry {
             StoredEntry::ToolCall { id, message, .. } => {
                 assert_eq!(id, "tool-1");
-                assert_eq!(message.name, "Read");
+                assert_eq!(message.name, "read_file");
                 assert_eq!(message.status, ToolCallStatus::Completed);
                 assert_eq!(
                     message.result,

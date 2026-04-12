@@ -1,0 +1,18 @@
+{
+  "agent": "copilot",
+  "payload": {
+    "toolCallId": "tool-copilot-task",
+    "status": "pending",
+    "title": "Explain codebase overview",
+    "rawInput": {
+      "agent_type": "explore",
+      "description": "Explain codebase overview",
+      "prompt": "Explore the repository and summarize it."
+    }
+  },
+  "expected": {
+    "kind": "task",
+    "argument_kind": "think",
+    "description": "Explain codebase overview"
+  }
+}

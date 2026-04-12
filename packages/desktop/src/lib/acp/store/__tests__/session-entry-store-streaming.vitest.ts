@@ -47,7 +47,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+					edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -60,7 +60,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			applyStreamingArguments(store, "session1", "tool1", {
 				kind: "edit",
 				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
+					{ type: "replaceText", file_path: "/path/to/file.ts", old_text: null, new_text: "content" },
 				],
 			});
 
@@ -68,7 +68,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			expect(result).toEqual({
 				kind: "edit",
 				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
+					{ type: "replaceText", file_path: "/path/to/file.ts", old_text: null, new_text: "content" },
 				],
 			});
 		});
@@ -131,7 +131,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+					edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -143,16 +143,16 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			});
 			applyStreamingArguments(store, "session1", "tool1", {
 				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v1", content: null }],
+				edits: [{ type: "replaceText", file_path: "/a", old_text: null, new_text: "v1" }],
 			});
 			applyStreamingArguments(store, "session1", "tool1", {
 				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
+				edits: [{ type: "replaceText", file_path: "/a", old_text: null, new_text: "v2" }],
 			});
 
 			expect(store.getStreamingArguments("tool1")).toEqual({
 				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
+				edits: [{ type: "replaceText", file_path: "/a", old_text: null, new_text: "v2" }],
 			});
 		});
 	});
@@ -170,7 +170,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				name: "Edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+					edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
 				},
 				status: "pending",
 				kind: "edit",
@@ -182,7 +182,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			});
 			applyStreamingArguments(store, "session1", "tool1", {
 				kind: "edit",
-				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
+				edits: [{ type: "replaceText", file_path: "/x", old_text: null, new_text: "content" }],
 			});
 
 			expect(store.getStreamingArguments("tool1")).toBeDefined();

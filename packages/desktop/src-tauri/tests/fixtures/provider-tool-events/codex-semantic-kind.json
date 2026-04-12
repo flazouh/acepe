@@ -1,0 +1,24 @@
+{
+  "agent": "codex",
+  "payload": {
+    "type": "tool_use",
+    "id": "tool-codex-move",
+    "name": "Move file",
+    "input": {
+      "command": ["/bin/zsh", "-lc", "mv /tmp/a /tmp/b"],
+      "parsed_cmd": [
+        {
+          "type": "move",
+          "from": "/tmp/a",
+          "to": "/tmp/b"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "kind": "move",
+    "argument_kind": "move",
+    "from": "/tmp/a",
+    "to": "/tmp/b"
+  }
+}

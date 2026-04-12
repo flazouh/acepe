@@ -18,12 +18,12 @@ use crate::acp::projections::{
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, CanonicalOperationEvent, ChunkAggregationHint,
     CommandInput, ConfigOptionData, ConfigOptionUpdateData, ConfigOptionValue, ContentChunk,
-    CurrentModeData, DegradedToolState, EditEntry, InteractionReplyHandler,
+    CurrentModeData, DegradedToolState, EditDelta, InteractionReplyHandler,
     InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep,
-    PlanStepStatus, QuestionData, QuestionItem, QuestionOption, SessionUpdate, SkillMeta,
-    TodoItem, TodoStatus, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdateData, ToolKind, ToolReference, ToolSemanticSource, TurnErrorData, TurnErrorInfo,
-    TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    PlanStepStatus, QuestionData, QuestionItem, QuestionOption, SessionUpdate, SkillMeta, TodoItem,
+    TodoStatus, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData,
+    ToolKind, ToolReference, ToolSemanticSource, TurnErrorData, TurnErrorInfo, TurnErrorKind,
+    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -261,7 +261,7 @@ pub fn export_all_types() {
     export_type!(ChunkAggregationHint);
     export_type!(ContentChunk);
     export_type!(ToolCallData);
-    export_type!(EditEntry);
+    export_type!(EditDelta);
     export_type!(ToolArguments);
     export_type!(ToolCallUpdateData);
     export_type!(PlanData);
@@ -368,7 +368,7 @@ pub fn export_all_types() {
     export_acp_type!(ToolKind);
     export_acp_type!(ToolCallStatus);
     export_acp_type!(ChunkAggregationHint);
-    export_acp_type!(EditEntry);
+    export_acp_type!(EditDelta);
     export_acp_type!(ToolArguments);
     export_acp_type!(ToolReference);
     export_acp_type!(QuestionOption);

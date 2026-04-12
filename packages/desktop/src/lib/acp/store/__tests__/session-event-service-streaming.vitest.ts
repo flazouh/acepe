@@ -315,9 +315,9 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/Users/example/.claude/plans/test.md",
-							oldString: null,
-							newString: null,
+							type: "writeFile",
+							file_path: "/Users/example/.claude/plans/test.md",
+							previous_content: null,
 							content: "# Plan",
 						},
 					],
@@ -338,9 +338,9 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/Users/example/.claude/plans/test.md",
-							oldString: null,
-							newString: null,
+							type: "writeFile",
+							file_path: "/Users/example/.claude/plans/test.md",
+							previous_content: null,
 							content: "# Plan",
 						},
 					],
@@ -636,7 +636,7 @@ describe("SessionEventService streaming delta handling", () => {
 					name: "Edit",
 					arguments: {
 						kind: "edit",
-						edits: [{ filePath: null, oldString: null, newString: null, content: null }],
+						edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
 					},
 					status: "pending",
 					result: null,
@@ -670,10 +670,10 @@ describe("SessionEventService streaming delta handling", () => {
 						kind: "edit",
 						edits: [
 							{
-								filePath: "/tmp/example.ts",
-								oldString: "before",
-								newString: "after",
-								content: "after",
+								type: "replaceText",
+								file_path: "/tmp/example.ts",
+								old_text: "before",
+								new_text: "after",
 							},
 						],
 					},
@@ -697,10 +697,10 @@ describe("SessionEventService streaming delta handling", () => {
 				kind: "edit",
 				edits: [
 					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-						content: "after",
+						type: "replaceText",
+						file_path: "/tmp/example.ts",
+						old_text: "before",
+						new_text: "after",
 					},
 				],
 			},
@@ -902,7 +902,7 @@ describe("SessionEventService streaming delta handling", () => {
 				jsonRpcRequestId: 42,
 				permission: "Write",
 				patterns: ["/tmp/file.txt"],
-				metadata: { rawInput: { file_path: "/tmp/file.txt" } },
+				metadata: { rawInput: { type: "replaceText", file_path: "/tmp/file.txt" , old_text: null, new_text: null } },
 				always: [],
 				autoAccepted: false,
 				tool: {
@@ -1175,7 +1175,10 @@ describe("SessionEventService streaming delta handling", () => {
 				name: "Edit",
 				status: "pending",
 				kind: "edit",
-				arguments: { kind: "edit", edits: [{}] },
+				arguments: {
+				kind: "edit",
+				edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
+			},
 				title: "apply_patch",
 				awaitingPlanApproval: false,
 			},
@@ -1446,9 +1449,9 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "link.txt",
-							oldString: null,
-							newString: null,
+							type: "writeFile",
+							file_path: "link.txt",
+							previous_content: null,
 							content: "https://example.com",
 						},
 					],
@@ -1469,7 +1472,7 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						expect.objectContaining({
-							filePath: "link.txt",
+							file_path: "link.txt",
 						}),
 					],
 				},
@@ -1920,10 +1923,10 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/repo/src/file.ts",
-							oldString: "before",
-							newString: null,
-							content: null,
+							type: "replaceText",
+							file_path: "/repo/src/file.ts",
+							old_text: "before",
+							new_text: null,
 						},
 					],
 				},
@@ -1940,10 +1943,10 @@ describe("SessionEventService streaming delta handling", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/repo/src/file.ts",
-							oldString: "before",
-							newString: "after",
-							content: null,
+							type: "replaceText",
+							file_path: "/repo/src/file.ts",
+							old_text: "before",
+							new_text: "after",
 						},
 					],
 				},

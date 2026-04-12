@@ -453,13 +453,12 @@ fn extract_tool_fields(item_type: &str, item: &serde_json::Map<String, Value>) -
                 name: "Edit".to_string(),
                 kind: ToolKind::Edit,
                 arguments: ToolArguments::Edit {
-                    edits: vec![crate::acp::session_update::EditEntry {
-                        file_path: Some(path),
-                        move_from: None,
-                        old_string: None,
-                        new_string: None,
-                        content: None,
-                    }],
+                    edits: vec![crate::acp::session_update::EditDelta::replace_text(
+                        Some(path),
+                        None,
+                        None,
+                        None,
+                    )],
                 },
                 title,
             }
@@ -1152,7 +1151,10 @@ mod tests {
                 match &tool_call.arguments {
                     ToolArguments::Edit { edits } => {
                         assert_eq!(edits.len(), 1);
-                        assert_eq!(edits[0].file_path.as_deref(), Some("/tmp/example.rs"));
+                        assert_eq!(
+                            edits[0].file_path().map(String::as_str),
+                            Some("/tmp/example.rs")
+                        );
                     }
                     other => panic!("Expected Edit arguments, got {other:?}"),
                 }
@@ -1233,7 +1235,10 @@ mod tests {
                 match update.arguments.as_ref() {
                     Some(ToolArguments::Edit { edits }) => {
                         assert_eq!(edits.len(), 1);
-                        assert_eq!(edits[0].file_path.as_deref(), Some("/tmp/example.rs"));
+                        assert_eq!(
+                            edits[0].file_path().map(String::as_str),
+                            Some("/tmp/example.rs")
+                        );
                     }
                     other => panic!("Expected Edit arguments, got {other:?}"),
                 }

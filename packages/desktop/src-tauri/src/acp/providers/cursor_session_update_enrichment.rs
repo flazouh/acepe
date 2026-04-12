@@ -197,11 +197,10 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
             file_paths,
         } => file_path.is_none() && file_paths.as_ref().is_none_or(|paths| paths.is_empty()),
         ToolArguments::Edit { edits } => edits.first().is_none_or(|edit| {
-            edit.file_path.is_none()
-                || edit.move_from.is_none()
-                || edit.old_string.is_none()
-                || edit.new_string.is_none()
-                || edit.content.is_none()
+            edit.file_path().is_none()
+                || edit.move_from().is_none()
+                || edit.old_text().is_none()
+                || edit.new_text().is_none()
         }),
         ToolArguments::Execute { command } => command.is_none(),
         ToolArguments::Search { query, file_path } => query.is_none() || file_path.is_none(),
@@ -369,11 +368,10 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
     match arguments {
         ToolArguments::Read { file_path } => usize::from(file_path.is_some()),
         ToolArguments::Edit { edits } => edits.first().map_or(0, |e| {
-            usize::from(e.file_path.is_some())
-                + usize::from(e.move_from.is_some())
-                + usize::from(e.old_string.is_some())
-                + usize::from(e.new_string.is_some())
-                + usize::from(e.content.is_some())
+            usize::from(e.file_path().is_some())
+                + usize::from(e.move_from().is_some())
+                + usize::from(e.old_text().is_some())
+                + usize::from(e.new_text().is_some())
         }),
         ToolArguments::Execute { command } => usize::from(command.is_some()),
         ToolArguments::Search { query, file_path } => {
@@ -412,7 +410,11 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
         }
         ToolArguments::Browser { raw } => {
-            if raw.is_null() { 0 } else { 1 }
+            if raw.is_null() {
+                0
+            } else {
+                1
+            }
         }
         ToolArguments::Other { raw } => {
             if raw.is_null() {
@@ -677,13 +679,12 @@ mod tests {
                 normalized_todos: None,
                 normalized_questions: None,
                 streaming_arguments: Some(ToolArguments::Edit {
-                    edits: vec![crate::acp::session_update::EditEntry {
-                        file_path: Some("/tmp/new.rs".to_string()),
-                        move_from: None,
-                        old_string: None,
-                        new_string: None,
-                        content: None,
-                    }],
+                    edits: vec![crate::acp::session_update::EditDelta::replace_text(
+                        Some("/tmp/new.rs".to_string()),
+                        None,
+                        None,
+                        None,
+                    )],
                 }),
                 streaming_plan: None,
                 arguments: None,
@@ -699,8 +700,8 @@ mod tests {
                 match update.streaming_arguments {
                     Some(ToolArguments::Edit { edits }) => {
                         let edit = edits.first().expect("edit entry");
-                        assert_eq!(edit.file_path.as_deref(), Some("/tmp/new.rs"));
-                        assert_eq!(edit.move_from.as_deref(), Some("/tmp/old.rs"));
+                        assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/new.rs"));
+                        assert_eq!(edit.move_from().map(String::as_str), Some("/tmp/old.rs"));
                     }
                     other => panic!("Expected streaming edit arguments, got {:?}", other),
                 }

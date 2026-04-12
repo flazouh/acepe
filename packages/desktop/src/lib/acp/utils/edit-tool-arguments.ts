@@ -1,4 +1,4 @@
-import type { EditEntry, ToolArguments } from "../../services/converted-session-types.js";
+import type { EditDelta, ToolArguments } from "../../services/converted-session-types.js";
 
 function normalizeNullableString(value: string | null | undefined): string | null {
 	return typeof value === "string" ? value : null;
@@ -6,7 +6,7 @@ function normalizeNullableString(value: string | null | undefined): string | nul
 
 export function getEditEntries(
 	toolArguments: ToolArguments | null | undefined
-): readonly EditEntry[] {
+): readonly EditDelta[] {
 	if (!toolArguments || toolArguments.kind !== "edit") {
 		return [];
 	}
@@ -20,10 +20,34 @@ export function getEditEntries(
 
 export function getFirstEditEntry(
 	toolArguments: ToolArguments | null | undefined
-): EditEntry | null {
+): EditDelta | null {
 	const edits = getEditEntries(toolArguments);
 	const firstEdit = edits[0];
 	return firstEdit ? firstEdit : null;
+}
+
+function getEntryFilePath(entry: EditDelta): string | null {
+	return normalizeNullableString(entry.file_path);
+}
+
+function getEntryOldString(entry: EditDelta): string | null {
+	if (entry.type === "writeFile") {
+		return normalizeNullableString(entry.previous_content);
+	}
+
+	return normalizeNullableString(entry.old_text);
+}
+
+function getEntryNewString(entry: EditDelta): string | null {
+	if (entry.type === "writeFile") {
+		return normalizeNullableString(entry.content);
+	}
+
+	if (entry.type === "replaceText") {
+		return normalizeNullableString(entry.new_text);
+	}
+
+	return null;
 }
 
 export function getEditFilePath(toolArguments: ToolArguments | null | undefined): string | null {
@@ -32,7 +56,7 @@ export function getEditFilePath(toolArguments: ToolArguments | null | undefined)
 		return null;
 	}
 
-	return normalizeNullableString(firstEdit.filePath);
+	return getEntryFilePath(firstEdit);
 }
 
 export function getEditOldString(toolArguments: ToolArguments | null | undefined): string | null {
@@ -41,7 +65,7 @@ export function getEditOldString(toolArguments: ToolArguments | null | undefined
 		return null;
 	}
 
-	return normalizeNullableString(firstEdit.oldString);
+	return getEntryOldString(firstEdit);
 }
 
 export function getEditNewString(toolArguments: ToolArguments | null | undefined): string | null {
@@ -50,7 +74,7 @@ export function getEditNewString(toolArguments: ToolArguments | null | undefined
 		return null;
 	}
 
-	return normalizeNullableString(firstEdit.newString);
+	return getEntryNewString(firstEdit);
 }
 
 export function getEditContent(toolArguments: ToolArguments | null | undefined): string | null {
@@ -59,7 +83,7 @@ export function getEditContent(toolArguments: ToolArguments | null | undefined):
 		return null;
 	}
 
-	return normalizeNullableString(firstEdit.content);
+	return firstEdit.type === "writeFile" ? normalizeNullableString(firstEdit.content) : null;
 }
 
 export function getEditPreviewContent(
@@ -75,7 +99,7 @@ export function getEditPreviewContent(
 
 export function withSingleEditEntry(
 	_toolArguments: Extract<ToolArguments, { kind: "edit" }>,
-	entry: EditEntry
+	entry: EditDelta
 ): Extract<ToolArguments, { kind: "edit" }> {
 	return {
 		kind: "edit",

@@ -3,9 +3,7 @@ use crate::acp::parsers::kind::{
     is_web_search_title, looks_like_web_search_arguments,
 };
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
-use crate::acp::session_update::{
-    ToolArguments, ToolCallLocation, ToolKind, ToolSemanticSource,
-};
+use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind, ToolSemanticSource};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ToolClassificationHints<'a> {
@@ -228,8 +226,7 @@ fn resolve_identity_impl(
                 | ToolKind::Execute
                 | ToolKind::Search
                 | ToolKind::Fetch
-        )
-    {
+        ) {
         semantic_source = ToolSemanticSource::BrowserOverride;
         ToolKind::Browser
     } else {

@@ -1,5 +1,6 @@
 //! Parser for Cursor agent.
 
+use crate::acp::parsers::acp_fields;
 use crate::acp::parsers::adapters::CursorAdapter;
 use crate::acp::parsers::argument_enrichment::inject_path_hint;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
@@ -10,7 +11,6 @@ use crate::acp::parsers::types::{
     parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
     ParsedUsageTelemetry, UpdateType,
 };
-use crate::acp::parsers::acp_fields;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
@@ -112,7 +112,9 @@ impl CursorParser {
         title: Option<&str>,
         raw_arguments: &serde_json::Value,
     ) -> Option<ToolKind> {
-        let pattern = raw_arguments.get("pattern").and_then(|value| value.as_str())?;
+        let pattern = raw_arguments
+            .get("pattern")
+            .and_then(|value| value.as_str())?;
         let title = title.map(str::trim).unwrap_or_default();
         if title.starts_with("Find ")
             && (pattern.contains('*')
@@ -289,15 +291,11 @@ impl CursorParser {
             .filter(|value| !value.is_empty())
             .map(str::to_string);
         let provider_tool_name = raw_name.or_else(|| title.clone());
-        let provider_declared_kind = Self::infer_kind_from_title_and_arguments(
-            title.as_deref(),
-            &raw_arguments,
-        )
-            .or_else(|| provider_tool_name
-            .as_deref()
-            .map(CursorAdapter::normalize))
-            .filter(|kind| *kind != ToolKind::Other)
-            .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize));
+        let provider_declared_kind =
+            Self::infer_kind_from_title_and_arguments(title.as_deref(), &raw_arguments)
+                .or_else(|| provider_tool_name.as_deref().map(CursorAdapter::normalize))
+                .filter(|kind| *kind != ToolKind::Other)
+                .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize));
 
         let has_locations = data
             .get(acp_fields::LOCATIONS)

@@ -794,12 +794,14 @@ mod tests {
                 ToolArguments::Edit { edits } => {
                     let e = edits.first().expect("edit entry");
                     assert_eq!(
-                        e.file_path.as_deref(),
+                        e.file_path().map(String::as_str),
                         Some("/Users/example/Downloads/sample-go-project/README.md")
                     );
-                    assert_eq!(e.old_string, None);
-                    assert_eq!(e.new_string.as_deref(), Some("# sample-go-project"));
-                    assert_eq!(e.content.as_deref(), Some("# sample-go-project"));
+                    assert_eq!(e.old_text(), None);
+                    assert_eq!(
+                        e.new_text().map(String::as_str),
+                        Some("# sample-go-project")
+                    );
                 }
                 other => panic!("expected edit arguments, got {:?}", other),
             }
@@ -824,19 +826,15 @@ mod tests {
                 ToolArguments::Edit { edits } => {
                     let e = edits.first().expect("edit entry");
                     assert_eq!(
-                        e.file_path.as_deref(),
+                        e.file_path().map(String::as_str),
                         Some("/Users/example/Downloads/sample-go-project/block.go")
                     );
                     assert_eq!(
-                        e.old_string.as_deref(),
+                        e.old_text().map(String::as_str),
                         Some("package main\n\nfunc main() {}")
                     );
                     assert_eq!(
-                        e.new_string.as_deref(),
-                        Some("package main\n\nfunc main() {\n\tprintln(\"hi\")\n}")
-                    );
-                    assert_eq!(
-                        e.content.as_deref(),
+                        e.new_text().map(String::as_str),
                         Some("package main\n\nfunc main() {\n\tprintln(\"hi\")\n}")
                     );
                 }
@@ -921,11 +919,10 @@ mod tests {
                 match parsed {
                     ToolArguments::Edit { edits } => {
                         let e = edits.first().expect("edit entry");
-                        assert_eq!(e.file_path.as_deref(), Some(expected_path));
+                        assert_eq!(e.file_path().map(String::as_str), Some(expected_path));
                         assert!(
-                            e.content.as_deref() == Some(expected_content)
-                                || e.new_string.as_deref() == Some(expected_content),
-                            "expected content/new_string for parser {}",
+                            e.new_text().map(String::as_str) == Some(expected_content),
+                            "expected canonical new_text for parser {}",
                             parser.agent_type().as_str()
                         );
                     }
@@ -967,10 +964,9 @@ mod tests {
                 match parsed {
                     ToolArguments::Edit { edits } => {
                         let e = edits.first().expect("edit entry");
-                        assert_eq!(e.file_path.as_deref(), Some(expected_path));
-                        assert_eq!(e.old_string.as_deref(), Some(expected_old));
-                        assert_eq!(e.new_string.as_deref(), Some(expected_new));
-                        assert_eq!(e.content.as_deref(), Some(expected_new));
+                        assert_eq!(e.file_path().map(String::as_str), Some(expected_path));
+                        assert_eq!(e.old_text().map(String::as_str), Some(expected_old));
+                        assert_eq!(e.new_text().map(String::as_str), Some(expected_new));
                     }
                     other => panic!(
                         "expected edit arguments for parser {}, got {:?}",

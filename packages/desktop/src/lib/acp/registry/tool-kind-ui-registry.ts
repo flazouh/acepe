@@ -155,8 +155,16 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			// Show diff stats if completed
 			if (status.isSuccess && toolCall.arguments.kind === "edit") {
 				const firstEdit = toolCall.arguments.edits[0];
-				const oldStr = firstEdit?.oldString ?? "";
-				const newStr = firstEdit?.newString ?? "";
+				const oldStr =
+					firstEdit?.type === "writeFile"
+						? (firstEdit.previous_content ?? "")
+						: (firstEdit?.old_text ?? "");
+				const newStr =
+					firstEdit?.type === "writeFile"
+						? (firstEdit.content ?? "")
+						: firstEdit?.type === "replaceText"
+							? (firstEdit.new_text ?? "")
+							: "";
 				const { added, removed } = calculateDiffStats(oldStr, newStr);
 				return m.tool_edit_completed_stats({ added, removed });
 			}
@@ -164,10 +172,10 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			return m.tool_edit_completed();
 		},
 		filePath: (toolCall) =>
-			toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null,
+			toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.file_path ?? null) : null,
 		tooltipContent: (toolCall) => {
 			const filePath =
-				toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null;
+				toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.file_path ?? null) : null;
 			return filePath ? getDisplayPath(filePath) : "";
 		},
 	},

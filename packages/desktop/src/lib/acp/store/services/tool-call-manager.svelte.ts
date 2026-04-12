@@ -18,6 +18,7 @@ import type {
 	ToolCallStatus,
 } from "../../../services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
+import type { Operation } from "../../types/operation.js";
 import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
 import { OperationStore } from "../operation-store.svelte.js";
@@ -29,6 +30,9 @@ import type { IToolCallManager } from "./interfaces/tool-call-manager-interface.
 
 const logger = createLogger({ id: "tool-call-manager", name: "ToolCallManager" });
 
+type LegacyTextContentBlock = { type: "content"; content: { type: "text"; text: string } };
+type ResultContentBlock = ContentBlock | LegacyTextContentBlock;
+
 /**
  * Determine if a tool call entry should be marked as streaming based on its status.
  * Tool calls are streaming when pending or in progress, not streaming when completed or failed.
@@ -37,38 +41,11 @@ export function isToolCallStreaming(status: ToolCallStatus | null | undefined): 
 	return status === "pending" || status === "in_progress";
 }
 
-function isTerminalStatus(status: ToolCallStatus | null | undefined): boolean {
-	return status === "completed" || status === "failed";
-}
-
-function nowMs(): number {
-	return Date.now();
-}
-
-/**
- * Prevent status regressions when replayed historical events arrive out-of-order.
- * A terminal tool call should never be downgraded back to pending/in_progress.
- */
-function resolveNextStatus(
-	currentStatus: ToolCallStatus | null | undefined,
-	nextStatus: ToolCallStatus | null | undefined
-): ToolCallStatus | null | undefined {
-	if (!nextStatus) {
-		return currentStatus;
-	}
-
-	if (isTerminalStatus(currentStatus) && !isTerminalStatus(nextStatus)) {
-		return currentStatus;
-	}
-
-	return nextStatus;
-}
-
 /**
  * Extract result text from content blocks.
  */
 export function extractResultFromContent(
-	content: ContentBlock[] | null | undefined
+	content: ResultContentBlock[] | null | undefined
 ): string | null {
 	if (!content || !Array.isArray(content) || content.length === 0) {
 		return null;
@@ -76,66 +53,17 @@ export function extractResultFromContent(
 
 	const textParts: string[] = [];
 	for (const block of content) {
-		if (block && typeof block === "object") {
-			const anyBlock = block as Record<string, unknown>;
-			if (anyBlock.type === "content" && anyBlock.content) {
-				const innerContent = anyBlock.content as Record<string, unknown>;
-				if (innerContent.type === "text" && typeof innerContent.text === "string") {
-					textParts.push(innerContent.text);
-				}
-			} else if (block.type === "text" && "text" in block) {
-				textParts.push(block.text);
-			}
+		if (block.type === "text") {
+			textParts.push(block.text);
+			continue;
+		}
+
+		if (block.type === "content" && block.content.type === "text") {
+			textParts.push(block.content.text);
 		}
 	}
 
 	return textParts.length > 0 ? textParts.join("\n") : null;
-}
-
-function mergeEditEntries(
-	currentEdits: Extract<ToolArguments, { kind: "edit" }>["edits"],
-	incomingEdits: Extract<ToolArguments, { kind: "edit" }>["edits"]
-): Extract<ToolArguments, { kind: "edit" }>["edits"] {
-	const maxLength = Math.max(currentEdits.length, incomingEdits.length);
-	const merged: Extract<ToolArguments, { kind: "edit" }>["edits"] = [];
-
-	for (let index = 0; index < maxLength; index += 1) {
-		const currentEdit = currentEdits[index];
-		const incomingEdit = incomingEdits[index];
-
-		if (currentEdit && incomingEdit) {
-			merged.push({
-				filePath: incomingEdit.filePath ?? currentEdit.filePath,
-				moveFrom: incomingEdit.moveFrom ?? currentEdit.moveFrom,
-				oldString: incomingEdit.oldString ?? currentEdit.oldString,
-				newString: incomingEdit.newString ?? currentEdit.newString,
-				content: incomingEdit.content ?? currentEdit.content,
-			});
-			continue;
-		}
-
-		if (incomingEdit) {
-			merged.push(incomingEdit);
-			continue;
-		}
-
-		if (currentEdit) {
-			merged.push(currentEdit);
-		}
-	}
-
-	return merged;
-}
-
-function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments): ToolArguments {
-	if (currentArgs.kind === "edit" && nextArgs.kind === "edit") {
-		return {
-			kind: "edit",
-			edits: mergeEditEntries(currentArgs.edits, nextArgs.edits),
-		};
-	}
-
-	return nextArgs;
 }
 
 function hasMaterializedToolUpdateFields(update: ToolCallUpdate): boolean {
@@ -157,6 +85,67 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 	const hasStreamingFields =
 		update.streamingArguments != null || update.streamingInputDelta != null;
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
+}
+
+function projectOperationToToolCall(
+	operation: Operation,
+	taskChildren: ToolCall[] | null | undefined
+): ToolCall {
+	return {
+		id: operation.toolCallId,
+		name: operation.name,
+		rawInput: operation.rawInput,
+		arguments: operation.arguments,
+		status: operation.status,
+		result: operation.result,
+		kind: operation.kind,
+		title: operation.title,
+		locations: operation.locations,
+		skillMeta: operation.skillMeta,
+		normalizedQuestions: operation.normalizedQuestions,
+		normalizedTodos: operation.normalizedTodos,
+		parentToolUseId: operation.parentToolCallId,
+		taskChildren,
+		questionAnswer: operation.questionAnswer,
+		awaitingPlanApproval: operation.awaitingPlanApproval,
+		planApprovalRequestId: operation.planApprovalRequestId,
+		progressiveArguments: operation.progressiveArguments,
+		startedAtMs: operation.startedAtMs,
+		completedAtMs: operation.completedAtMs,
+	};
+}
+
+function createIncomingToolCall(
+	data: ToolCallData,
+	options?: {
+		progressiveArguments?: ToolArguments;
+		startedAtMs?: number;
+		completedAtMs?: number;
+		taskChildren?: ToolCall[] | null;
+	}
+): ToolCall {
+	return {
+		id: data.id,
+		name: data.name,
+		rawInput: data.rawInput,
+		arguments: data.arguments,
+		status: data.status,
+		result: data.result,
+		kind: data.kind,
+		title: data.title,
+		locations: data.locations,
+		skillMeta: data.skillMeta,
+		normalizedQuestions: data.normalizedQuestions,
+		normalizedTodos: data.normalizedTodos,
+		parentToolUseId: data.parentToolUseId,
+		taskChildren: options?.taskChildren ?? data.taskChildren,
+		questionAnswer: data.questionAnswer,
+		awaitingPlanApproval: data.awaitingPlanApproval,
+		planApprovalRequestId: data.planApprovalRequestId,
+		progressiveArguments: options?.progressiveArguments,
+		startedAtMs: options?.startedAtMs,
+		completedAtMs: options?.completedAtMs,
+	};
 }
 
 export class ToolCallManager implements IToolCallManager {
@@ -227,82 +216,28 @@ export class ToolCallManager implements IToolCallManager {
 			const entry = existingRef.entry;
 			if (!isToolCallEntry(entry)) return ok(undefined);
 
+			this.ensureOperationTracked(sessionId, entry);
 			const existingToolCall = entry.message;
-			const nextStatus = resolveNextStatus(existingToolCall.status, data.status);
-			const startedAtMs = existingToolCall.startedAtMs ?? entry.timestamp?.getTime() ?? nowMs();
-			const completedAtMs =
-				existingToolCall.completedAtMs ??
-				(isTerminalStatus(nextStatus ?? data.status) ? nowMs() : undefined);
-			const shouldPromoteTaskToQuestion =
-				existingToolCall.kind === "task" &&
-				data.kind === "question" &&
-				(data.normalizedQuestions?.length ?? 0) > 0;
-			const shouldUpgradeGenericKind =
-				(existingToolCall.kind === undefined || existingToolCall.kind === "other") &&
-				data.kind !== undefined &&
-				data.kind !== "other";
-			const nextKind = shouldPromoteTaskToQuestion
-				? data.kind
-				: shouldUpgradeGenericKind
-					? data.kind
-					: (existingToolCall.kind ?? data.kind);
-			if (
-				existingToolCall.kind !== data.kind &&
-				(existingToolCall.kind === "other" || data.kind === "skill")
-			) {
-				logger.warn("Reconciling tool kind on existing entry", {
-					sessionId,
-					toolCallId: data.id,
-					existingKind: existingToolCall.kind,
-					incomingKind: data.kind,
-					resolvedKind: nextKind,
-					shouldPromoteTaskToQuestion,
-					shouldUpgradeGenericKind,
-					existingArgumentsKind: existingToolCall.arguments.kind,
-					incomingArgumentsKind: data.arguments.kind,
-					title: data.title ?? existingToolCall.title,
-					name: data.name,
-				});
-			}
-			const nextAwaitingPlanApproval = data.awaitingPlanApproval;
-			const nextPlanApprovalRequestId = nextAwaitingPlanApproval
-				? (data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId)
-				: null;
-			const nextProgressiveArguments = isTerminalStatus(nextStatus ?? data.status)
-				? undefined
-				: existingToolCall.progressiveArguments;
-			const updatedToolCall: ToolCall = {
-				...existingToolCall,
-				name: data.name,
-				arguments: mergeToolArguments(existingToolCall.arguments, data.arguments),
-				rawInput: data.rawInput ?? existingToolCall.rawInput,
-				status: nextStatus ?? existingToolCall.status,
-				result: data.result ?? existingToolCall.result,
-				kind: nextKind,
-				title: data.title ?? existingToolCall.title,
-				locations: data.locations ?? existingToolCall.locations,
-				skillMeta: data.skillMeta ?? existingToolCall.skillMeta,
-				normalizedQuestions: data.normalizedQuestions ?? existingToolCall.normalizedQuestions,
-				normalizedTodos: data.normalizedTodos ?? existingToolCall.normalizedTodos,
-				parentToolUseId: data.parentToolUseId ?? existingToolCall.parentToolUseId,
-				// Backend sends pre-assembled taskChildren - use incoming if present, else keep existing
-				taskChildren: data.taskChildren ?? existingToolCall.taskChildren,
-				questionAnswer: data.questionAnswer ?? existingToolCall.questionAnswer,
-				awaitingPlanApproval: nextAwaitingPlanApproval,
-				planApprovalRequestId: nextPlanApprovalRequestId,
-				progressiveArguments: nextProgressiveArguments,
-				startedAtMs,
-				completedAtMs,
-			};
+			const nextTaskChildren = data.taskChildren ?? existingToolCall.taskChildren;
+			const operation = this.operationStore.upsertFromToolCall(
+				sessionId,
+				entry.id,
+				createIncomingToolCall(data, {
+					progressiveArguments: existingToolCall.progressiveArguments,
+					startedAtMs: existingToolCall.startedAtMs,
+					completedAtMs: existingToolCall.completedAtMs,
+					taskChildren: nextTaskChildren,
+				})
+			);
+			const updatedToolCall = projectOperationToToolCall(operation, nextTaskChildren);
 
 			const updatedEntry: SessionEntry = {
 				...entry,
 				message: updatedToolCall,
-				isStreaming: isToolCallStreaming(nextStatus),
+				isStreaming: isToolCallStreaming(updatedToolCall.status),
 			};
 
 			this.updateToolCallEntryRef(sessionId, existingRef, updatedEntry);
-			this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 			// Re-index children in case taskChildren was added/updated
 			this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -316,39 +251,22 @@ export class ToolCallManager implements IToolCallManager {
 		}
 
 		// Create new tool call entry - taskChildren already assembled by backend
-		const createdAtMs = nowMs();
-		const newToolCall: ToolCall = {
-			id: data.id,
-			name: data.name,
-			arguments: data.arguments,
-			status: data.status,
-			result: data.result,
-			kind: data.kind,
-			title: data.title,
-			locations: data.locations,
-			skillMeta: data.skillMeta,
-			normalizedQuestions: data.normalizedQuestions,
-			normalizedTodos: data.normalizedTodos,
-			parentToolUseId: data.parentToolUseId,
-			taskChildren: data.taskChildren,
-			awaitingPlanApproval: data.awaitingPlanApproval,
-			planApprovalRequestId: data.planApprovalRequestId,
-			questionAnswer: data.questionAnswer,
-			progressiveArguments: undefined,
-			startedAtMs: createdAtMs,
-			completedAtMs: isTerminalStatus(data.status) ? createdAtMs : undefined,
-		};
+		const operation = this.operationStore.upsertFromToolCall(
+			sessionId,
+			data.id,
+			createIncomingToolCall(data)
+		);
+		const newToolCall = projectOperationToToolCall(operation, data.taskChildren);
 
 		const newEntry: SessionEntry = {
 			id: data.id,
 			type: "tool_call",
 			message: newToolCall,
-			timestamp: new Date(createdAtMs),
+			timestamp: new Date(operation.startedAtMs ?? Date.now()),
 			isStreaming: isToolCallStreaming(data.status),
 		};
 
 		this.entryStore.addEntry(sessionId, newEntry);
-		this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
 
 		// Index children for O(1) lookup during child updates
 		this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -369,10 +287,6 @@ export class ToolCallManager implements IToolCallManager {
 	updateEntry(sessionId: string, update: ToolCallUpdate): Result<void, AppError> {
 		this.rememberToolCallSession(sessionId, update.toolCallId);
 
-		// Extract result from update.result, update.rawOutput, or content (as fallback)
-		const extractedResult =
-			update.result ?? update.rawOutput ?? extractResultFromContent(update.content);
-
 		const entryRef = this.findToolCallEntryRef(sessionId, update.toolCallId);
 
 		if (!entryRef) {
@@ -390,33 +304,22 @@ export class ToolCallManager implements IToolCallManager {
 				toolCallId: update.toolCallId,
 			});
 
-			const createdAtMs = nowMs();
-			const newToolCall: ToolCall = {
-				id: update.toolCallId,
-				name: "Tool",
-				arguments: update.arguments ?? { kind: "other", raw: {} },
-				status: update.status ?? "pending",
-				result: extractedResult,
-				title: update.title,
-				locations: update.locations,
-				normalizedTodos: update.normalizedTodos,
-				normalizedQuestions: update.normalizedQuestions,
-				awaitingPlanApproval: false,
-				progressiveArguments: update.streamingArguments ?? undefined,
-				startedAtMs: createdAtMs,
-				completedAtMs: isTerminalStatus(update.status) ? createdAtMs : undefined,
-			};
+			const operation = this.operationStore.upsertFromToolCallUpdate(
+				sessionId,
+				update.toolCallId,
+				update
+			);
+			const newToolCall = projectOperationToToolCall(operation, undefined);
 
 			const newEntry: SessionEntry = {
 				id: update.toolCallId,
 				type: "tool_call",
 				message: newToolCall,
-				timestamp: new Date(createdAtMs),
-				isStreaming: isToolCallStreaming(update.status),
+				timestamp: new Date(operation.startedAtMs ?? Date.now()),
+				isStreaming: isToolCallStreaming(newToolCall.status),
 			};
 
 			this.entryStore.addEntry(sessionId, newEntry);
-			this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
 			return ok(undefined);
 		}
 
@@ -427,64 +330,22 @@ export class ToolCallManager implements IToolCallManager {
 		}
 
 		const toolCall = entry.message;
-
-		// Determine the result to use:
-		// - If extractedResult is null, keep existing toolCall.result
-		// - If toolCall.result is a structured object (e.g., {numFiles: 4}) and extractedResult
-		//   is just a string (text from content), preserve the structured result
-		// - Otherwise, use extractedResult
-		const isStructuredResult =
-			toolCall.result !== null &&
-			typeof toolCall.result === "object" &&
-			!Array.isArray(toolCall.result);
-		const isTextExtracted = typeof extractedResult === "string";
-		const shouldPreserveStructuredResult = isStructuredResult && isTextExtracted;
-		const incomingStatus = update.status ?? toolCall.status;
-		const newStatus = resolveNextStatus(toolCall.status, incomingStatus);
-		const startedAtMs = toolCall.startedAtMs ?? entry.timestamp?.getTime() ?? nowMs();
-		const completedAtMs =
-			toolCall.completedAtMs ?? (isTerminalStatus(newStatus) ? nowMs() : undefined);
-		const rawNextArguments = update.arguments ?? update.streamingArguments ?? toolCall.arguments;
-		const nextArguments =
-			rawNextArguments === toolCall.arguments
-				? toolCall.arguments
-				: mergeToolArguments(toolCall.arguments, rawNextArguments);
-		const nextProgressiveArguments = isTerminalStatus(newStatus)
-			? undefined
-			: (update.arguments ?? null) != null
-				? undefined
-				: (update.streamingArguments ?? toolCall.progressiveArguments);
-
-		const updatedToolCall: ToolCall = {
-			...toolCall,
-			status: newStatus ?? toolCall.status,
-			result: shouldPreserveStructuredResult
-				? toolCall.result
-				: (extractedResult ?? toolCall.result),
-			title: update.title ?? toolCall.title,
-			locations: update.locations ?? toolCall.locations,
-			arguments: nextArguments,
-			// Progressive normalized data from streaming accumulator
-			normalizedTodos: update.normalizedTodos ?? toolCall.normalizedTodos,
-			normalizedQuestions: update.normalizedQuestions ?? toolCall.normalizedQuestions,
-			progressiveArguments: nextProgressiveArguments,
-			startedAtMs,
-			completedAtMs,
-		};
+		this.ensureOperationTracked(sessionId, entry);
+		const operation = this.operationStore.upsertFromToolCallUpdate(sessionId, entry.id, update);
+		const updatedToolCall = projectOperationToToolCall(operation, toolCall.taskChildren);
 
 		// Determine streaming state from status after regression protection
 		const updatedEntry: SessionEntry = {
 			...entry,
 			message: updatedToolCall,
-			isStreaming: isToolCallStreaming(newStatus),
+			isStreaming: isToolCallStreaming(updatedToolCall.status),
 		};
 
 		this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
-		this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 		// Clean up streaming arguments when tool reaches a terminal status.
 		// At this point the entry has authoritative data and streaming args are redundant.
-		if (newStatus === "completed" || newStatus === "failed") {
+		if (updatedToolCall.status === "completed" || updatedToolCall.status === "failed") {
 			this.clearStreamingArguments(update.toolCallId);
 		}
 
@@ -646,6 +507,19 @@ export class ToolCallManager implements IToolCallManager {
 		updatedEntry: SessionEntry
 	): void {
 		this.entryStore.updateEntry(sessionId, ref.index, updatedEntry);
+	}
+
+	private ensureOperationTracked(sessionId: string, entry: SessionEntry): void {
+		if (!isToolCallEntry(entry)) {
+			return;
+		}
+
+		const existingOperation = this.operationStore.getByToolCallId(sessionId, entry.message.id);
+		if (existingOperation != null) {
+			return;
+		}
+
+		this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
 	}
 
 	/**

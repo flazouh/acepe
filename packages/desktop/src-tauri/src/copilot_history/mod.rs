@@ -341,33 +341,10 @@ fn merge_replay_tool_arguments(current: ToolArguments, incoming: ToolArguments) 
 }
 
 fn merge_replay_edit_entries(
-    current: Vec<crate::acp::session_update::EditEntry>,
-    incoming: Vec<crate::acp::session_update::EditEntry>,
-) -> Vec<crate::acp::session_update::EditEntry> {
-    let max_len = current.len().max(incoming.len());
-    let mut merged = Vec::with_capacity(max_len);
-
-    for index in 0..max_len {
-        let current_entry = current.get(index).cloned();
-        let incoming_entry = incoming.get(index).cloned();
-
-        let next_entry = match (current_entry, incoming_entry) {
-            (Some(current_value), Some(incoming_value)) => crate::acp::session_update::EditEntry {
-                file_path: incoming_value.file_path.or(current_value.file_path),
-                move_from: incoming_value.move_from.or(current_value.move_from),
-                old_string: incoming_value.old_string.or(current_value.old_string),
-                new_string: incoming_value.new_string.or(current_value.new_string),
-                content: incoming_value.content.or(current_value.content),
-            },
-            (Some(current_value), None) => current_value,
-            (None, Some(incoming_value)) => incoming_value,
-            (None, None) => continue,
-        };
-
-        merged.push(next_entry);
-    }
-
-    merged
+    current: Vec<crate::acp::session_update::EditDelta>,
+    incoming: Vec<crate::acp::session_update::EditDelta>,
+) -> Vec<crate::acp::session_update::EditDelta> {
+    crate::acp::tool_call_presentation::merge_edit_entries(current, incoming)
 }
 
 fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallData {
