@@ -226,6 +226,7 @@ flowchart TB
 
     U1 --> U2
     U1 --> U3
+    U2 --> U3
     U2 --> U4
     U3 --> U4
     U4 --> U5

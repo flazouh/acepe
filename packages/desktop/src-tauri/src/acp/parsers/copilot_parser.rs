@@ -160,6 +160,7 @@ impl CopilotParser {
         );
 
         let provider_declared_kind = infer_tool_kind_from_raw_arguments(&arguments)
+            .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
             .or_else(|| kind_hint.map(|hint| CopilotAdapter::normalize(hint)));
 
         let parent_tool_use_id = data
@@ -180,5 +181,27 @@ impl CopilotParser {
             parent_tool_use_id,
             task_children: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn falls_back_to_title_inference_when_tool_name_is_missing() {
+        let parser = CopilotParser;
+        let raw = parser
+            .parse_tool_call_impl(&json!({
+                "toolCallId": "tool-1",
+                "title": "Read file",
+                "kind": "other",
+                "rawInput": { "path": "/tmp/example.rs" },
+                "status": "pending"
+            }))
+            .expect("tool call should parse");
+
+        assert_eq!(raw.provider_declared_kind, Some(ToolKind::Read));
     }
 }

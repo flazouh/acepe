@@ -299,4 +299,32 @@ describe("OperationStore", () => {
 
 		expect(operation).toBeNull();
 	});
+
+	it("keeps ambiguous aliases closed on later upserts", () => {
+		const operationStore = new OperationStore();
+		const entryStore = new SessionEntryStore(operationStore);
+
+		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "npm test"));
+		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-2", "npm test"));
+		entryStore.updateToolCallEntry("session-1", {
+			toolCallId: "tool-1",
+			status: "completed",
+			result: "done",
+			content: null,
+			rawOutput: null,
+			title: null,
+			locations: null,
+			normalizedTodos: null,
+			normalizedQuestions: null,
+			arguments: { kind: "execute", command: "npm test" },
+		});
+
+		const commandProof = createExecuteCommandIdentityProof("npm test");
+		expect(commandProof).not.toBeNull();
+		const operation = commandProof
+			? operationStore.findByIdentity("session-1", commandProof)
+			: null;
+
+		expect(operation).toBeNull();
+	});
 });

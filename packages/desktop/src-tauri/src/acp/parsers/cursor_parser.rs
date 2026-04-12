@@ -286,6 +286,7 @@ impl CursorParser {
 
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, Some(&raw_arguments));
+        let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
         let raw_name = tool_name_ref
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -293,7 +294,7 @@ impl CursorParser {
         let provider_tool_name = raw_name.or_else(|| title.clone());
         let provider_declared_kind =
             Self::infer_kind_from_title_and_arguments(title.as_deref(), &raw_arguments)
-                .or_else(|| provider_tool_name.as_deref().map(CursorAdapter::normalize))
+                .or_else(|| Some(CursorAdapter::normalize(&effective_name)))
                 .filter(|kind| *kind != ToolKind::Other)
                 .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize));
 
@@ -410,14 +411,17 @@ impl CursorParser {
 
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, raw_input.as_ref());
+        let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
         let provider_tool_name = tool_name_ref
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string);
         let provider_declared_kind = if synthesized_edit {
-            None
+            Some(ToolKind::Edit)
         } else {
-            acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize)
+            Some(CursorAdapter::normalize(&effective_name))
+                .filter(|kind| *kind != ToolKind::Other)
+                .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize))
         };
 
         let status = Some(
@@ -552,7 +556,7 @@ mod tests {
 
         assert_eq!(update.id, "tool_test-edit-001");
         assert_eq!(update.status, Some(ToolCallStatus::Completed));
-        assert_eq!(update.provider_declared_kind, None);
+        assert_eq!(update.provider_declared_kind, Some(ToolKind::Edit));
 
         // raw_input should be the synthesized diff object
         let raw_input = update.raw_input.unwrap();
@@ -587,5 +591,21 @@ mod tests {
         // Should use the existing rawInput, not the synthesized one
         let raw_input = update.raw_input.unwrap();
         assert_eq!(raw_input["file_path"], "/tmp/foo.rs");
+    }
+
+    #[test]
+    fn cursor_tool_call_uses_effective_title_name_for_kind_inference() {
+        let parser = CursorParser;
+        let raw = parser
+            .parse_acp_tool_call(&json!({
+                "toolCallId": "tool-read-1",
+                "title": "Read /tmp/example.rs",
+                "kind": "other",
+                "rawInput": {},
+                "status": "pending"
+            }))
+            .expect("tool call should parse");
+
+        assert_eq!(raw.provider_declared_kind, Some(ToolKind::Read));
     }
 }

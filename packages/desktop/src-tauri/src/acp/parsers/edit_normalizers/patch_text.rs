@@ -278,9 +278,11 @@ fn parse_file_diff_section(file_path: &str, diff_lines: &str) -> EditDelta {
             previous_content: None,
             content: Some(content),
         },
-        (Some(old_text), None) => EditDelta::DeleteFile {
+        (Some(old_text), None) => EditDelta::ReplaceText {
             file_path: Some(file_path.to_string()),
+            move_from: None,
             old_text: Some(old_text),
+            new_text: Some(String::new()),
         },
         (None, None) => EditDelta::ReplaceText {
             file_path: Some(file_path.to_string()),
@@ -578,6 +580,33 @@ mod tests {
                     edits[0].new_text().map(String::as_str),
                     Some("Literal text: *** End Patch should appear in file")
                 );
+            }
+            other => panic!("Expected Edit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_patch_text_keeps_deletion_only_update_hunks_as_replace_text() {
+        let patch = r#"*** Begin Patch
+*** Update File: src/remove-lines.ts
+@@
+-line one
+-line two
+*** End Patch"#;
+
+        let raw = serde_json::json!({ "patch_text": patch });
+        let result = parse_patch_text(&raw).expect("should parse deletion-only update");
+
+        match result {
+            ToolArguments::Edit { edits } => {
+                assert_eq!(edits.len(), 1);
+                match &edits[0] {
+                    EditDelta::ReplaceText { old_text, new_text, .. } => {
+                        assert_eq!(old_text.as_deref(), Some("line one\nline two"));
+                        assert_eq!(new_text.as_deref(), Some(""));
+                    }
+                    other => panic!("Expected ReplaceText, got {other:?}"),
+                }
             }
             other => panic!("Expected Edit, got {other:?}"),
         }

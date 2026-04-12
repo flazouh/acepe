@@ -160,7 +160,8 @@ impl ClaudeCodeParser {
                 .unwrap_or("pending"),
         );
 
-        let provider_declared_kind = kind_hint.map(|hint| ClaudeCodeAdapter::normalize(hint));
+        let provider_declared_kind =
+            kind_hint.map(|hint| ClaudeCodeAdapter::normalize(hint.trim()));
 
         let parent_tool_use_id = data
             .get("_meta")
@@ -185,7 +186,9 @@ impl ClaudeCodeParser {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::acp::parsers::shared_chat::parse_usage_telemetry;
+    use serde_json::json;
 
     #[test]
     fn parses_context_window_from_result_model_usage() {
@@ -210,5 +213,20 @@ mod tests {
 
         assert_eq!(parsed.session_id, "ses-123");
         assert_eq!(parsed.context_window_size, Some(200000));
+    }
+
+    #[test]
+    fn trims_kind_hint_before_normalizing() {
+        let parser = ClaudeCodeParser;
+        let raw = parser
+            .parse_tool_call_impl(&json!({
+                "toolCallId": "tool-1",
+                "kind": "  read  ",
+                "rawInput": {},
+                "status": "pending"
+            }))
+            .expect("tool call should parse");
+
+        assert_eq!(raw.provider_declared_kind, Some(ToolKind::Read));
     }
 }

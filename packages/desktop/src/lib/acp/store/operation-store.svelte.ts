@@ -640,7 +640,7 @@ export class OperationStore {
 				value: alias.value,
 			});
 			const existingAliasOperationId = this.operationIdByIdentityKey.get(aliasKey);
-			if (existingAliasOperationId == null || existingAliasOperationId === nextOperation.id) {
+			if (!this.operationIdByIdentityKey.has(aliasKey) || existingAliasOperationId === nextOperation.id) {
 				this.operationIdByIdentityKey.set(aliasKey, nextOperation.id);
 				continue;
 			}

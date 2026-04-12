@@ -305,7 +305,7 @@ pub(crate) fn canonical_operation_event_from_tool_call(
         .raw_input
         .as_ref()
         .map(|raw_input| {
-            classify_raw_tool_call(
+            let classified = classify_raw_tool_call(
                 parser,
                 &tool_call.id,
                 raw_input,
@@ -314,6 +314,23 @@ pub(crate) fn canonical_operation_event_from_tool_call(
                     title: tool_call.title.as_deref(),
                     kind: None,
                     kind_hint: None,
+                    locations: tool_call.locations.as_deref(),
+                },
+            );
+
+            if classified.kind != ToolKind::Other || tool_call.kind.is_none() {
+                return classified;
+            }
+
+            classify_raw_tool_call(
+                parser,
+                &tool_call.id,
+                raw_input,
+                ToolClassificationHints {
+                    name: Some(&tool_call.name),
+                    title: tool_call.title.as_deref(),
+                    kind: tool_call.kind,
+                    kind_hint: tool_call.kind.map(|kind| kind.as_str()),
                     locations: tool_call.locations.as_deref(),
                 },
             )
@@ -944,6 +961,35 @@ mod tests {
                 .map(|value| value.reason.as_str()),
             Some("unclassified_tool_payload")
         );
+    }
+
+    #[test]
+    fn canonical_operation_event_preserves_existing_semantics_for_sparse_raw_input() {
+        let tool_call = ToolCallData {
+            id: "tool-read".to_string(),
+            name: "Read".to_string(),
+            kind: Some(ToolKind::Read),
+            arguments: ToolArguments::Read {
+                file_path: Some("/tmp/example.rs".to_string()),
+            },
+            status: ToolCallStatus::Completed,
+            result: None,
+            title: Some("Read /tmp/example.rs".to_string()),
+            locations: None,
+            raw_input: Some(json!({ "path": "/tmp/example.rs" })),
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+            parent_tool_use_id: None,
+            task_children: None,
+        };
+
+        let canonical = canonical_operation_event_from_tool_call(AgentType::Copilot, &tool_call);
+
+        assert_eq!(canonical.semantic_kind, ToolKind::Read);
     }
 
     // --- extract_backtick_command unit tests ---
