@@ -20,8 +20,6 @@ import {
 } from "../../../services/acp-provider-metadata.js";
 import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
 import type {
-	AvailableCommand,
-	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
@@ -33,8 +31,8 @@ import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
 import { api } from "../api.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import type {
+	ConnectionCompleteData,
 	SessionEventService,
-	SessionEventServiceCallbacks,
 } from "../session-event-service.svelte.js";
 import type { Mode, Model, SessionCold } from "../types.js";
 import type {
@@ -576,8 +574,8 @@ export class SessionConnectionManager {
 	 *
 	 * Fire-and-forget: sends the resume invoke to Rust (which returns immediately
 	 * after validation), then waits for a connectionComplete/connectionFailed
-	 * lifecycle event via the SSE bridge. Hot-state population happens in the
-	 * onConnectionComplete callback.
+	 * lifecycle event via the SSE bridge. Hot-state population happens after
+	 * the lifecycle waiter resolves.
 	 */
 	connectSession(
 		sessionId: string,
@@ -647,79 +645,11 @@ export class SessionConnectionManager {
 			reconnectHotState.currentMode ? reconnectHotState.currentMode.id : undefined
 		);
 
-		// Install lifecycle callbacks BEFORE firing the invoke to prevent a race
-		// where Rust's tokio::spawn completes (fast path — existing client) and the
-		// SSE event arrives before the .andThen() callback installs listeners.
-		const lifecyclePromise = new Promise<SessionCold>((resolve, reject) => {
-			const watchdog = setTimeout(() => {
-				logger.error(
-					"Watchdog: no lifecycle event received within timeout",
-					{ sessionId, attemptId, watchdogMs: WATCHDOG_TIMEOUT_MS }
-				);
-				cleanupCallbacks();
-				reject(
-					new ConnectionError(
-						`Watchdog timeout: no response from Rust within ${WATCHDOG_TIMEOUT_MS / 1000}s`
-					)
-				);
-			}, WATCHDOG_TIMEOUT_MS);
-
-			const cleanupCallbacks = () => {
-				clearTimeout(watchdog);
-				this.eventService.setCallbacks({
-					...this.currentCallbacks(),
-					onConnectionComplete: this.savedCallbacks?.onConnectionComplete,
-					onConnectionFailed: this.savedCallbacks?.onConnectionFailed,
-				});
-			};
-
-			// Save existing callbacks and install our listeners
-			this.savedCallbacks = {
-				onConnectionComplete: this.currentCallbacks().onConnectionComplete,
-				onConnectionFailed: this.currentCallbacks().onConnectionFailed,
-			};
-
-			this.eventService.setCallbacks({
-				...this.currentCallbacks(),
-				onConnectionComplete: (sid, aid, data) => {
-					this.savedCallbacks?.onConnectionComplete?.(sid, aid, data);
-					if (sid !== sessionId || aid !== attemptId) {
-						logger.debug("Ignoring stale connectionComplete", {
-							sessionId: sid,
-							attemptId: aid,
-							expectedAttemptId: attemptId,
-						});
-						return;
-					}
-					cleanupCallbacks();
-					this.handleConnectionComplete(
-						sessionId,
-						effectiveAgentId,
-						data,
-						eventHandler
-					);
-					const cold = this.stateReader.getSessionCold(sessionId);
-					if (cold) {
-						resolve(cold);
-					} else {
-						reject(new SessionNotFoundError(sessionId));
-					}
-				},
-				onConnectionFailed: (sid, aid, error) => {
-					this.savedCallbacks?.onConnectionFailed?.(sid, aid, error);
-					if (sid !== sessionId || aid !== attemptId) {
-						logger.debug("Ignoring stale connectionFailed", {
-							sessionId: sid,
-							attemptId: aid,
-							expectedAttemptId: attemptId,
-						});
-						return;
-					}
-					cleanupCallbacks();
-					reject(new ConnectionError(error));
-				},
-			});
-		});
+		const lifecycleWaiter = this.eventService.waitForLifecycleEvent(
+			sessionId,
+			attemptId,
+			WATCHDOG_TIMEOUT_MS
+		);
 
 		// Fire-and-forget: send resume invoke, then wait for lifecycle event
 		const connection = preferencesStore
@@ -742,8 +672,17 @@ export class SessionConnectionManager {
 				)
 			)
 			.andThen(() =>
-				ResultAsync.fromPromise(lifecyclePromise, (err) => err as AppError)
+				ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError)
 			)
+			.andThen((data) => {
+				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
+				this.eventService.flushPendingEvents(sessionId, eventHandler);
+				const cold = this.stateReader.getSessionCold(sessionId);
+				if (!cold) {
+					return errAsync(new SessionNotFoundError(sessionId));
+				}
+				return okAsync(cold);
+			})
 			.map((cold) => {
 				this.pendingConnections.delete(sessionId);
 				return cold;
@@ -751,6 +690,7 @@ export class SessionConnectionManager {
 			.mapErr((error) => {
 				this.pendingConnections.delete(sessionId);
 				this.connectionManager.setConnecting(sessionId, false);
+				lifecycleWaiter.cancel();
 				this.eventService.clearReplaySuppressionForSession(sessionId);
 
 				const errorMessage = error instanceof Error ? error.message : String(error);
@@ -791,17 +731,6 @@ export class SessionConnectionManager {
 		return connection;
 	}
 
-	/** Saved callbacks for restoring after connection resolution. */
-	private savedCallbacks?: {
-		onConnectionComplete?: SessionEventServiceCallbacks["onConnectionComplete"];
-		onConnectionFailed?: SessionEventServiceCallbacks["onConnectionFailed"];
-	};
-
-	/** Get the current callbacks from the event service. */
-	private currentCallbacks(): SessionEventServiceCallbacks {
-		return this.eventService.getCallbacks();
-	}
-
 	/**
 	 * Handle connectionComplete lifecycle event — populate hot state and capabilities.
 	 * This logic was previously inline in the blocking connectSession chain.
@@ -809,14 +738,7 @@ export class SessionConnectionManager {
 	private handleConnectionComplete(
 		sessionId: string,
 		effectiveAgentId: string,
-		data: {
-			models: AcpSessionModelState;
-			modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
-			availableCommands: AvailableCommand[];
-			configOptions: ConfigOptionData[];
-			autonomousEnabled: boolean;
-		},
-		eventHandler: SessionEventHandler
+		data: ConnectionCompleteData
 	): void {
 		const modelState = getProviderAwareSessionModelState(data.models);
 		const {

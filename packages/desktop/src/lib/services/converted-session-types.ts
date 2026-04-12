@@ -676,7 +676,11 @@ export type UserSettingKey =
 /**
  * Set of dismissed tooltip keys (JSON array of string keys)
  */
-"dismissed_tooltips"
+"dismissed_tooltips" | 
+/**
+ * Whether the attention queue panel is shown in the sidebar (boolean, default false)
+ */
+"attention_queue_enabled"
 
 /**
  * Information about a single indexed file.

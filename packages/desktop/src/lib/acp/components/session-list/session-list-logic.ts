@@ -225,6 +225,8 @@ export function createDisplayItems(
 		const diffStats = getCheckpoints
 			? computeStatsFromCheckpoints(getCheckpoints(session.id))
 			: null;
+		const isOpen = openSessionIds.has(session.id);
+		const isLive = isOpen || activity !== null;
 
 		return {
 			id: session.id,
@@ -236,7 +238,8 @@ export function createDisplayItems(
 			sourcePath: session.sourcePath,
 			createdAt: session.createdAt,
 			updatedAt: session.updatedAt,
-			isOpen: openSessionIds.has(session.id),
+			isLive,
+			isOpen,
 			activity,
 			parentId: session.parentId,
 			insertions: diffStats?.insertions ?? 0,
@@ -265,6 +268,22 @@ export function filterItems(
 		(item) =>
 			item.title.toLowerCase().includes(query) || item.projectName.toLowerCase().includes(query)
 	);
+}
+
+/**
+ * Returns true if a session is "live" — currently open in a panel or actively streaming.
+ * Live sessions are always shown; historical sessions require the user to opt in.
+ */
+export function isLiveSession(item: SessionListItem): boolean {
+	return item.isLive;
+}
+
+/**
+ * Filters a session group's sessions to only live sessions.
+ * A session is live if it has an open panel or is actively streaming.
+ */
+export function filterLiveSessions(sessions: readonly SessionListItem[]): SessionListItem[] {
+	return sessions.filter(isLiveSession);
 }
 
 /**

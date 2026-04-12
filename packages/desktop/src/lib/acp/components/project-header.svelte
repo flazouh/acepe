@@ -54,17 +54,21 @@ const resolvedColor = $derived(
 </script>
 
 <div
-	class="shrink-0 flex items-center {expanded ? 'border-b border-border/50' : ''} {className}"
+	class="shrink-0 flex items-center rounded-md {expanded ? 'bg-background/30' : ''} {className}"
 >
 	<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 		<ProjectLetterBadge name={displayName} color={resolvedColor} size={16} />
 	</div>
 	<div
-		class="flex items-center flex-1 min-w-0 h-7 pl-2.5 pr-2 cursor-pointer hover:bg-accent/50 transition-colors"
+		class="flex items-center flex-1 min-w-0 h-7 pl-2 pr-2 cursor-pointer rounded-md hover:bg-background/70 transition-colors"
 	>
-		<span class="text-[11px] font-medium font-mono text-foreground truncate">{displayName}</span>
+		<span
+			class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70 transition-colors group-hover:text-foreground/85"
+		>
+			{displayName}
+		</span>
 		<CaretDown
-			class="h-3 w-3 shrink-0 text-muted-foreground ml-auto transition-transform duration-200 {expanded
+			class="ml-auto h-3 w-3 shrink-0 text-muted-foreground/55 transition-transform duration-200 {expanded
 				? 'rotate-180'
 				: ''}"
 			weight="bold"
@@ -72,7 +76,7 @@ const resolvedColor = $derived(
 	</div>
 	{#if trailing}
 		<div
-			class="flex items-center border-l border-border/50"
+			class="flex items-center border-l border-border/30"
 			role="presentation"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
@@ -81,7 +85,7 @@ const resolvedColor = $derived(
 		</div>
 	{/if}
 	{#if actions}
-		<div class="flex items-center border-l border-border/50">
+		<div class="flex items-center border-l border-border/30">
 			{@render actions()}
 		</div>
 	{/if}

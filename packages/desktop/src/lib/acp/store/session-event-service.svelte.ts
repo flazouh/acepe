@@ -211,23 +211,28 @@ function toPermissionToolReference(
 	};
 }
 
+/** Data payload delivered with a connectionComplete lifecycle event. */
+export interface ConnectionCompleteData {
+	models: SessionModelState;
+	modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
+	availableCommands: AvailableCommand[];
+	configOptions: ConfigOptionData[];
+	autonomousEnabled: boolean;
+}
+
 export interface SessionEventServiceCallbacks {
 	onPermissionRequest?: (permission: PermissionRequest) => void;
 	onQuestionRequest?: (question: QuestionRequest) => void;
 	onPlanUpdate?: (sessionId: string, planData: PlanData) => void;
 	onTurnComplete?: (sessionId: string) => void;
-	onConnectionComplete?: (
-		sessionId: string,
-		attemptId: number,
-		data: {
-			models: SessionModelState;
-			modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
-			availableCommands: AvailableCommand[];
-			configOptions: ConfigOptionData[];
-			autonomousEnabled: boolean;
-		}
-	) => void;
-	onConnectionFailed?: (sessionId: string, attemptId: number, error: string) => void;
+}
+
+/** Internal entry for a pending lifecycle waiter. */
+interface LifecycleWaiter {
+	attemptId: number;
+	resolve: (data: ConnectionCompleteData) => void;
+	reject: (error: Error) => void;
+	timeoutId: ReturnType<typeof setTimeout>;
 }
 
 function shouldBypassDisconnectedBuffer(update: SessionUpdate): boolean {
@@ -282,6 +287,9 @@ export class SessionEventService {
 	// Callbacks for permission/question handling
 	private callbacks: SessionEventServiceCallbacks = {};
 
+	// Lifecycle waiters — per-session promises awaiting connectionComplete/connectionFailed
+	private lifecycleWaiters = new Map<string, LifecycleWaiter>();
+
 	/**
 	 * Set callbacks for handling permission and question requests.
 	 */
@@ -290,10 +298,87 @@ export class SessionEventService {
 	}
 
 	/**
-	 * Get the current callbacks (for layered override patterns).
+	 * Subscribe to the lifecycle outcome for a single connect attempt.
+	 * Returns a promise that resolves on connectionComplete, rejects on
+	 * connectionFailed or timeout. Subscription is automatically cleaned
+	 * up on resolution — call `cancel()` to clean up early (e.g. if the
+	 * invoke itself fails before Rust can emit an event).
+	 *
+	 * MUST be called BEFORE firing the Tauri invoke so the listener is
+	 * in place before the SSE event can possibly arrive.
 	 */
-	getCallbacks(): SessionEventServiceCallbacks {
-		return this.callbacks;
+	waitForLifecycleEvent(
+		sessionId: string,
+		attemptId: number,
+		timeoutMs: number
+	): { promise: Promise<ConnectionCompleteData>; cancel: () => void } {
+		// Cancel any stale waiter for the same session (defensive)
+		this.cancelLifecycleWaiter(sessionId);
+
+		let waiterResolve!: (data: ConnectionCompleteData) => void;
+		let waiterReject!: (error: Error) => void;
+		const promise = new Promise<ConnectionCompleteData>((resolve, reject) => {
+			waiterResolve = resolve;
+			waiterReject = reject;
+		});
+
+		const timeoutId = setTimeout(() => {
+			const waiter = this.takeLifecycleWaiter(sessionId, attemptId);
+			if (!waiter) {
+				return;
+			}
+			waiter.reject(
+				new Error(`Watchdog timeout: no response from Rust within ${timeoutMs / 1000}s`)
+			);
+		}, timeoutMs);
+
+		this.lifecycleWaiters.set(sessionId, {
+			attemptId,
+			resolve: waiterResolve,
+			reject: waiterReject,
+			timeoutId,
+		});
+
+		const cancel = () => {
+			this.cancelLifecycleWaiter(sessionId, attemptId);
+		};
+
+		return { promise, cancel };
+	}
+
+	/**
+	 * Cancel a pending lifecycle waiter without resolving or rejecting.
+	 */
+	cancelLifecycleWaiter(sessionId: string, attemptId?: number): void {
+		const waiter = this.lifecycleWaiters.get(sessionId);
+		if (waiter) {
+			if (attemptId !== undefined && waiter.attemptId !== attemptId) {
+				return;
+			}
+			clearTimeout(waiter.timeoutId);
+			this.lifecycleWaiters.delete(sessionId);
+		}
+	}
+
+	private takeLifecycleWaiter(
+		sessionId: string,
+		attemptId: number
+	): LifecycleWaiter | undefined {
+		const waiter = this.lifecycleWaiters.get(sessionId);
+		if (!waiter) {
+			return undefined;
+		}
+		if (waiter.attemptId !== attemptId) {
+			logger.debug("Ignoring stale lifecycle event", {
+				sessionId,
+				attemptId,
+				expectedAttemptId: waiter.attemptId,
+			});
+			return undefined;
+		}
+		clearTimeout(waiter.timeoutId);
+		this.lifecycleWaiters.delete(sessionId);
+		return waiter;
 	}
 
 	/**
@@ -492,6 +577,34 @@ export class SessionEventService {
 
 		// Record raw event for debugging (dev mode only)
 		rawStreamingStore.record(sessionId, update);
+
+		if (update.type === "connectionComplete") {
+			logger.info("Connection complete event received", {
+				sessionId,
+				attemptId: update.attempt_id,
+				autonomousEnabled: update.autonomous_enabled,
+			});
+			this.takeLifecycleWaiter(sessionId, update.attempt_id)?.resolve({
+				models: update.models,
+				modes: update.modes,
+				availableCommands: update.available_commands ?? [],
+				configOptions: update.config_options ?? [],
+				autonomousEnabled: update.autonomous_enabled,
+			});
+			return;
+		}
+
+		if (update.type === "connectionFailed") {
+			logger.error("Connection failed event received", {
+				sessionId,
+				attemptId: update.attempt_id,
+				error: update.error,
+			});
+			this.takeLifecycleWaiter(sessionId, update.attempt_id)?.reject(
+				new Error(update.error)
+			);
+			return;
+		}
 
 		// Check if session exists in store.
 		// Do NOT gate on preloaded/entries, because freshly resumed sessions can have zero entries.
@@ -692,32 +805,6 @@ export class SessionEventService {
 				});
 				break;
 			}
-
-			case "connectionComplete":
-				logger.info("Connection complete event received", {
-					sessionId,
-					attemptId: update.attempt_id,
-					autonomousEnabled: update.autonomous_enabled,
-				});
-				this.callbacks.onConnectionComplete?.(sessionId, update.attempt_id, {
-					models: update.models,
-					modes: update.modes,
-					availableCommands: update.available_commands,
-					configOptions: update.config_options,
-					autonomousEnabled: update.autonomous_enabled,
-				});
-				// Flush buffered events now that connection is established
-				this.flushPendingEvents(sessionId, handler);
-				break;
-
-			case "connectionFailed":
-				logger.error("Connection failed event received", {
-					sessionId,
-					attemptId: update.attempt_id,
-					error: update.error,
-				});
-				this.callbacks.onConnectionFailed?.(sessionId, update.attempt_id, update.error);
-				break;
 
 			default: {
 				update satisfies never;

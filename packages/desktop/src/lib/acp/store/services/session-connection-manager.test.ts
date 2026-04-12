@@ -1,5 +1,5 @@
 import { errAsync, okAsync } from "neverthrow";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionModelState } from "../../../services/acp-types.js";
 import type {
 	AvailableCommand,
@@ -9,14 +9,13 @@ import { AgentError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import type { SessionCold, SessionHotState } from "../types.js";
+import { SessionConnectionManager } from "./session-connection-manager.js";
 import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
 import type { IConnectionManager } from "./interfaces/connection-manager.js";
 import type { IEntryManager } from "./interfaces/entry-manager.js";
 import type { IHotStateManager } from "./interfaces/hot-state-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
-
-let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 
 const resumeSession = vi.fn();
 const newSession = vi.fn();
@@ -112,7 +111,7 @@ function createManager(deps: {
 
 /**
  * Configure the resumeSession mock to return void and schedule a
- * connectionComplete lifecycle event through the event service callbacks.
+ * connectionComplete lifecycle event through the event service update handler.
  * This simulates the fire-and-forget invoke + SSE lifecycle event pattern.
  */
 function mockResumeWithLifecycleEvent(responseData: {
@@ -123,21 +122,27 @@ function mockResumeWithLifecycleEvent(responseData: {
 	autonomousEnabled?: boolean;
 }) {
 	resumeSession.mockImplementation((sid: string, _cwd: string, attemptId: number) => {
-		setTimeout(() => {
-			const callbacks = lastEventService.getCallbacks();
-			callbacks.onConnectionComplete?.(sid, attemptId, {
-				models: responseData.models,
-				modes: responseData.modes,
-				availableCommands: responseData.availableCommands ?? [],
-				configOptions: responseData.configOptions ?? [],
-				autonomousEnabled: responseData.autonomousEnabled ?? false,
-			});
-		}, 0);
+		const eventService = lastEventService;
+		queueMicrotask(() => {
+			eventService.handleSessionUpdate(
+				{
+					type: "connectionComplete",
+					session_id: sid,
+					attempt_id: attemptId,
+					models: responseData.models,
+					modes: responseData.modes,
+					available_commands: responseData.availableCommands ?? [],
+					config_options: responseData.configOptions ?? [],
+					autonomous_enabled: responseData.autonomousEnabled ?? false,
+				},
+				createMockEventHandler()
+			);
+		});
 		return okAsync(undefined);
 	});
 }
 
-describe("SessionConnectionManager.connectSession", () => {
+describe.sequential("SessionConnectionManager.connectSession", () => {
 	const sessionId = "session-1";
 	const projectPath = "/tmp/project";
 	const agentId = "opencode";
@@ -225,11 +230,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		sendResponseComplete: vi.fn(),
 		initializeConnectedSession: vi.fn(),
 	};
-
-	beforeAll(async () => {
-		const module = await import("./session-connection-manager.js");
-		SessionConnectionManager = module.SessionConnectionManager;
-	});
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -921,7 +921,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
-	it("does not flush pending events during lifecycle-driven connect", async () => {
+	it("flushes pending events after lifecycle-driven connect completes", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 		const flushSpy = vi.spyOn(SessionEventService.prototype, "flushPendingEvents");
 		const eventHandler = createMockEventHandler();
@@ -938,7 +938,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, eventHandler);
 		result._unsafeUnwrap();
 
-		expect(flushSpy).not.toHaveBeenCalled();
+		expect(flushSpy).toHaveBeenCalledWith(sessionId, eventHandler);
 		flushSpy.mockRestore();
 	});
 
@@ -1007,7 +1007,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 });
 
-describe("SessionConnectionManager.createSession", () => {
+describe.sequential("SessionConnectionManager.createSession", () => {
 	const sessionId = "session-new";
 	const projectPath = "/tmp/project";
 	const agentId = "codex";
@@ -1597,7 +1597,7 @@ describe("SessionConnectionManager.createSession", () => {
 	});
 });
 
-describe("SessionConnectionManager autonomous policy", () => {
+describe.sequential("SessionConnectionManager autonomous policy", () => {
 	const sessionId = "session-autonomous";
 	const connectedSession: SessionCold = {
 		id: sessionId,
@@ -2062,7 +2062,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 });
 
-describe("SessionConnectionManager.cancelStreaming", () => {
+describe.sequential("SessionConnectionManager.cancelStreaming", () => {
 	const sessionId = "session-cancel";
 
 	const connectedSession: SessionCold = {
@@ -2149,11 +2149,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		initializeConnectedSession: vi.fn(),
 	};
 
-	beforeAll(async () => {
-		const module = await import("./session-connection-manager.js");
-		SessionConnectionManager = module.SessionConnectionManager;
-	});
-
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
@@ -2206,7 +2201,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	});
 });
 
-describe("SessionConnectionManager.disconnectSession", () => {
+describe.sequential("SessionConnectionManager.disconnectSession", () => {
 	it("clears available commands when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
