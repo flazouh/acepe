@@ -8,12 +8,12 @@
 		buildKanbanBoardMotionPlan,
 		upsertKanbanBoardMotionOverlay,
 		type KanbanBoardMotionPlan,
-		type KanbanBoardMotionOverlay,
+		type KanbanBoardMotionOverlay as KanbanBoardMotionOverlayState,
 		type KanbanBoardRect,
 	} from "./kanban-board-motion.js";
 
 	import KanbanBoardCardHost from "./kanban-board-card-host.svelte";
-	import KanbanBoardMotionOverlay from "./kanban-board-motion-overlay.svelte";
+	import KanbanBoardMotionOverlayLayer from "./kanban-board-motion-overlay.svelte";
 	import KanbanColumn from "./kanban-column.svelte";
 
 interface Props {
@@ -27,7 +27,7 @@ let { layout, cardRenderer, emptyHint, ghostRenderer }: Props = $props();
 
 let scrollElement = $state<HTMLDivElement | null>(null);
 let boardElement = $state<HTMLDivElement | null>(null);
-let overlays = $state<readonly KanbanBoardMotionOverlay[]>([]);
+let overlays = $state<readonly KanbanBoardMotionOverlayState[]>([]);
 let reducedMotion = $state(false);
 
 const pendingOrigins = new Map<string, { placement: KanbanScenePlacement; rect: KanbanBoardRect }>();
@@ -203,8 +203,8 @@ function registerHost(
 
 function createOverlay(
 	plan: KanbanBoardMotionPlan,
-	phase: KanbanBoardMotionOverlay["phase"]
-): KanbanBoardMotionOverlay {
+	phase: KanbanBoardMotionOverlayState["phase"]
+): KanbanBoardMotionOverlayState {
 	return {
 		cardId: plan.cardId,
 		card: plan.card,
@@ -277,6 +277,6 @@ onMount(() => {
 				{/snippet}
 			</KanbanColumn>
 		{/each}
-		<KanbanBoardMotionOverlay {overlays} {ghostRenderer} />
+		<KanbanBoardMotionOverlayLayer {overlays} {ghostRenderer} />
 	</div>
 </div>

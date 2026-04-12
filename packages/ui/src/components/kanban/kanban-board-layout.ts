@@ -44,7 +44,7 @@ function comparePlacements(left: KanbanScenePlacement, right: KanbanScenePlaceme
 export function buildKanbanSceneModelFromGroups(
 	groups: readonly KanbanSceneColumnGroup[]
 ): KanbanSceneModel {
-	const columns: KanbanSceneModel["columns"] = [];
+	const columns: KanbanSceneModel["columns"][number][] = [];
 	const cards: KanbanSceneCardData[] = [];
 	const placements: KanbanScenePlacement[] = [];
 
