@@ -88,6 +88,52 @@ pub enum ToolCallStatus {
     Failed,
 }
 
+/// The strongest signal that determined the canonical semantic kind for a tool event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolSemanticSource {
+    ToolName,
+    ProviderDeclaredKind,
+    PayloadHint,
+    SerializedArguments,
+    LocationHint,
+    TitleHint,
+    ParsedArguments,
+    WebSearchPromotion,
+    BrowserOverride,
+    Unknown,
+}
+
+/// Safe structured fallback when canonicalization cannot fully recover semantics.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DegradedToolState {
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_input_fragment: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_result_fragment: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_content_fragment: Option<serde_json::Value>,
+}
+
+/// Canonical operation-event envelope derived from tool transport.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalOperationEvent {
+    pub transport_id: String,
+    pub provider: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_tool_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_declared_kind: Option<ToolKind>,
+    pub semantic_kind: ToolKind,
+    pub semantic_source: ToolSemanticSource,
+    pub payload: ToolArguments,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub degraded: Option<DegradedToolState>,
+}
+
 /// Skill metadata for skill tool calls.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

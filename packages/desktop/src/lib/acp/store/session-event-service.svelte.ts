@@ -702,8 +702,8 @@ export class SessionEventService {
 				this.callbacks.onConnectionComplete?.(sessionId, update.attempt_id, {
 					models: update.models,
 					modes: update.modes,
-					availableCommands: update.available_commands,
-					configOptions: update.config_options,
+					availableCommands: update.available_commands ?? [],
+					configOptions: update.config_options ?? [],
 					autonomousEnabled: update.autonomous_enabled,
 				});
 				// Flush buffered events now that connection is established

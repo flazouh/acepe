@@ -1,7 +1,8 @@
 use super::deserialize::parser_error_to_de_error;
 use super::normalize::derive_normalized_questions_and_todos;
 use super::types::{
-    ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind,
+    CanonicalOperationEvent, DegradedToolState, ToolArguments, ToolCallData, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolSemanticSource,
 };
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
@@ -261,6 +262,140 @@ pub(crate) fn build_tool_call_update_from_raw(
         arguments,
         failure_reason: None,
     }
+}
+
+fn degraded_state_from_fragments(
+    payload: &ToolArguments,
+    raw_input: Option<&serde_json::Value>,
+    raw_result: Option<&serde_json::Value>,
+    raw_content: Option<&serde_json::Value>,
+) -> Option<DegradedToolState> {
+    match payload {
+        ToolArguments::Other { .. } => Some(DegradedToolState {
+            reason: "unclassified_tool_payload".to_string(),
+            raw_input_fragment: raw_input.cloned(),
+            raw_result_fragment: raw_result.cloned(),
+            raw_content_fragment: raw_content.cloned(),
+        }),
+        ToolArguments::Edit { edits } if edits.iter().all(|edit| {
+            edit.file_path.is_none()
+                && edit.move_from.is_none()
+                && edit.old_string.is_none()
+                && edit.new_string.is_none()
+                && edit.content.is_none()
+        }) =>
+        {
+            Some(DegradedToolState {
+                reason: "empty_edit_payload".to_string(),
+                raw_input_fragment: raw_input.cloned(),
+                raw_result_fragment: raw_result.cloned(),
+                raw_content_fragment: raw_content.cloned(),
+            })
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn canonical_operation_event_from_tool_call(
+    agent: AgentType,
+    tool_call: &ToolCallData,
+) -> CanonicalOperationEvent {
+    let parser = get_parser(agent);
+    let classified = tool_call
+        .raw_input
+        .as_ref()
+        .map(|raw_input| {
+            classify_raw_tool_call(
+                parser,
+                &tool_call.id,
+                raw_input,
+                ToolClassificationHints {
+                    name: Some(&tool_call.name),
+                    title: tool_call.title.as_deref(),
+                    kind: tool_call.kind,
+                    kind_hint: tool_call.kind.as_ref().map(ToolKind::as_str),
+                    locations: tool_call.locations.as_deref(),
+                },
+            )
+        })
+        .unwrap_or_else(|| crate::acp::tool_classification::ClassifiedToolData {
+            name: tool_call.name.clone(),
+            kind: tool_call.kind.unwrap_or(ToolKind::Other),
+            arguments: tool_call.arguments.clone(),
+            semantic_source: ToolSemanticSource::Unknown,
+        });
+
+    CanonicalOperationEvent {
+        transport_id: tool_call.id.clone(),
+        provider: agent.as_str().to_string(),
+        provider_tool_name: Some(tool_call.name.clone()),
+        provider_declared_kind: tool_call.kind,
+        semantic_kind: classified.kind,
+        semantic_source: classified.semantic_source,
+        payload: classified.arguments.clone(),
+        degraded: degraded_state_from_fragments(
+            &classified.arguments,
+            tool_call.raw_input.as_ref(),
+            tool_call.result.as_ref(),
+            None,
+        ),
+    }
+}
+
+pub(crate) fn canonical_operation_event_from_tool_call_update(
+    agent: AgentType,
+    tool_call_id: &str,
+    update: &ToolCallUpdateData,
+) -> Option<CanonicalOperationEvent> {
+    let raw_input = update.arguments.as_ref().and_then(|arguments| match arguments {
+        ToolArguments::Other { raw } => Some(raw),
+        _ => None,
+    });
+
+    let classified = if let Some(raw_input_value) = raw_input {
+        classify_raw_tool_call(
+            get_parser(agent),
+            tool_call_id,
+            raw_input_value,
+            ToolClassificationHints {
+                name: None,
+                title: update.title.as_deref(),
+                kind: None,
+                kind_hint: None,
+                locations: update.locations.as_deref(),
+            },
+        )
+    } else if let Some(arguments) = update.arguments.as_ref() {
+        crate::acp::tool_classification::ClassifiedToolData {
+            name: "unknown".to_string(),
+            kind: arguments.tool_kind(),
+            arguments: arguments.clone(),
+            semantic_source: ToolSemanticSource::ParsedArguments,
+        }
+    } else {
+        return None;
+    };
+
+    let raw_content_value = update
+        .content
+        .as_ref()
+        .and_then(|content| serde_json::to_value(content).ok());
+
+    Some(CanonicalOperationEvent {
+        transport_id: tool_call_id.to_string(),
+        provider: agent.as_str().to_string(),
+        provider_tool_name: None,
+        provider_declared_kind: None,
+        semantic_kind: classified.kind,
+        semantic_source: classified.semantic_source,
+        payload: classified.arguments.clone(),
+        degraded: degraded_state_from_fragments(
+            &classified.arguments,
+            raw_input,
+            update.result.as_ref(),
+            raw_content_value.as_ref(),
+        ),
+    })
 }
 
 fn normalize_count_only_search_result(
@@ -742,6 +877,55 @@ mod tests {
             }
             other => panic!("expected Read arguments, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn canonical_operation_event_captures_provider_and_semantic_source() {
+        let parser = get_parser(AgentType::Copilot);
+        let raw = RawToolCallInput {
+            id: "tool-search".to_string(),
+            name: "unknown".to_string(),
+            arguments: json!({ "query": "operation", "path": "/tmp" }),
+            status: ToolCallStatus::Completed,
+            kind: Some(ToolKind::Other),
+            title: Some("rg".to_string()),
+            suppress_title_read_path_hint: false,
+            parent_tool_use_id: None,
+            task_children: None,
+        };
+
+        let tool_call = build_tool_call_from_raw(parser, raw);
+        let canonical = canonical_operation_event_from_tool_call(AgentType::Copilot, &tool_call);
+
+        assert_eq!(canonical.provider, "copilot");
+        assert_eq!(canonical.transport_id, "tool-search");
+        assert_eq!(canonical.semantic_kind, ToolKind::Search);
+        assert_eq!(canonical.semantic_source, ToolSemanticSource::ToolName);
+    }
+
+    #[test]
+    fn canonical_operation_event_marks_unclassified_payload_as_degraded() {
+        let parser = get_parser(AgentType::Copilot);
+        let raw = RawToolCallInput {
+            id: "tool-unknown".to_string(),
+            name: "unknown".to_string(),
+            arguments: json!({ "mystery": "value" }),
+            status: ToolCallStatus::Pending,
+            kind: Some(ToolKind::Other),
+            title: None,
+            suppress_title_read_path_hint: false,
+            parent_tool_use_id: None,
+            task_children: None,
+        };
+
+        let tool_call = build_tool_call_from_raw(parser, raw);
+        let canonical = canonical_operation_event_from_tool_call(AgentType::Copilot, &tool_call);
+
+        assert_eq!(canonical.semantic_kind, ToolKind::Other);
+        assert_eq!(
+            canonical.degraded.as_ref().map(|value| value.reason.as_str()),
+            Some("unclassified_tool_payload")
+        );
     }
 
     // --- extract_backtick_command unit tests ---

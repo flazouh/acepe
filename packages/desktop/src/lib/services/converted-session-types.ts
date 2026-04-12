@@ -3,9 +3,6 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-// Types referenced by ConnectionComplete lifecycle event
-import type { SessionModelState, SessionModes } from "./acp-types.js";
-
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
  */
@@ -23,6 +20,35 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
 contextWindowSize?: number | null }
+
+export type AvailableModel = { modelId: string; name: string; description?: string | null }
+
+export type AvailableMode = { id: string; name: string; description?: string | null }
+
+/**
+ * Pre-computed model info for display. Frontend uses this directly.
+ */
+export type DisplayableModel = { modelId: string; displayName: string; description?: string | null }
+
+/**
+ * Generic group of models. Label can be provider, base model name, or empty.
+ */
+export type DisplayModelGroup = { label: string; models: DisplayableModel[] }
+
+export type ModelDisplayFamily = "claudeLike" | "codexReasoningEffort" | "providerGrouped"
+
+export type UsageMetricsPresentation = "contextWindowOnly" | "spendAndContext"
+
+export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }
+
+/**
+ * Display-ready model structure. Single representation—flat = one group.
+ */
+export type ModelsForDisplay = { groups: DisplayModelGroup[]; presentation?: ModelPresentationMetadata }
+
+export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay }
+
+export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
 /**
  * Session update types from ACP protocol.
@@ -53,7 +79,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands: AvailableCommand[]; config_options: ConfigOptionData[]; autonomous_enabled: boolean } | 
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } | 
 /**
  * Emitted by the async resume task when session connection fails.
  */
@@ -342,6 +368,11 @@ export type PlanConfidence = "high" | "medium"
 export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "other"
 
 /**
+ * The strongest signal that determined the canonical semantic kind for a tool event.
+ */
+export type ToolSemanticSource = "tool_name" | "provider_declared_kind" | "payload_hint" | "serialized_arguments" | "location_hint" | "title_hint" | "parsed_arguments" | "web_search_promotion" | "browser_override" | "unknown"
+
+/**
  * Tool call status.
  */
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
@@ -350,6 +381,16 @@ export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
  * Tool call location.
  */
 export type ToolCallLocation = { path: string }
+
+/**
+ * Safe structured fallback when canonicalization cannot fully recover semantics.
+ */
+export type DegradedToolState = { reason: string; rawInputFragment?: JsonValue | null; rawResultFragment?: JsonValue | null; rawContentFragment?: JsonValue | null }
+
+/**
+ * Canonical operation-event envelope derived from tool transport.
+ */
+export type CanonicalOperationEvent = { transportId: string; provider: string; providerToolName?: string | null; providerDeclaredKind?: ToolKind | null; semanticKind: ToolKind; semanticSource: ToolSemanticSource; payload: ToolArguments; degraded?: DegradedToolState | null }
 
 /**
  * Available command with metadata.
