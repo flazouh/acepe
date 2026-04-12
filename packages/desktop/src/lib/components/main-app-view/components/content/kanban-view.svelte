@@ -4,10 +4,10 @@ import {
 	DialogContent,
 	type AgentToolKind,
 	type KanbanCardData,
-	type KanbanColumnGroup,
 	KanbanSceneBoard,
 	type KanbanSceneCardData,
-	type KanbanSceneColumnGroup,
+	type KanbanSceneColumnData,
+	type KanbanSceneModel,
 	type KanbanSceneMenuAction,
 	type KanbanTaskCardData,
 	type KanbanToolData,
@@ -93,6 +93,10 @@ import {
 	resolveEmptyStateWorktreePendingForProjectChange,
 } from "./logic/empty-state-send-state.js";
 import { resolveKanbanNewSessionDefaults } from "./kanban-new-session-dialog-state.js";
+import {
+	buildDesktopKanbanScene,
+	type DesktopKanbanSceneEntry,
+} from "./desktop-kanban-scene.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -610,20 +614,58 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 	return cards;
 }
 
-const groups = $derived.by((): readonly KanbanColumnGroup[] => {
-	const optimisticKanbanCards = buildOptimisticKanbanCards();
-
-	return SECTION_ORDER.map((sectionId) => {
-		const section = threadBoard.find((group) => group.status === sectionId);
-		const sectionCards = section ? section.items.map(mapItemToCard) : [];
-		return {
+const sceneColumns = $derived.by((): readonly KanbanSceneColumnData[] => {
+	const columns: KanbanSceneColumnData[] = [];
+	for (const sectionId of SECTION_ORDER) {
+		columns.push({
 			id: sectionId,
 			label: SECTION_LABELS[sectionId](),
-			items:
-				sectionId === "working"
-					? optimisticKanbanCards.map((item) => item.card).concat(sectionCards)
-					: sectionCards,
-		};
+		});
+	}
+	return columns;
+});
+
+const sceneModel = $derived.by((): KanbanSceneModel => {
+	const optimisticKanbanCards = buildOptimisticKanbanCards();
+	const entries: DesktopKanbanSceneEntry[] = [];
+
+	for (let index = 0; index < optimisticKanbanCards.length; index += 1) {
+		const optimisticCard = optimisticKanbanCards[index];
+		if (!optimisticCard) {
+			continue;
+		}
+		entries.push({
+			columnId: "working",
+			card: buildSceneCard(optimisticCard.card),
+			orderKey: `optimistic:${index}:${optimisticCard.panelId}`,
+			source: "optimistic",
+		});
+	}
+
+	for (const sectionId of SECTION_ORDER) {
+		const section = threadBoard.find((group) => group.status === sectionId);
+		if (!section) {
+			continue;
+		}
+
+		for (let index = 0; index < section.items.length; index += 1) {
+			const item = section.items[index];
+			if (!item) {
+				continue;
+			}
+
+			entries.push({
+				columnId: sectionId,
+				card: buildSceneCard(mapItemToCard(item)),
+				orderKey: `session:${sectionId}:${item.lastActivityAt}:${item.sessionId}`,
+				source: "session",
+			});
+		}
+	}
+
+	return buildDesktopKanbanScene({
+		columns: sceneColumns,
+		entries,
 	});
 });
 
@@ -650,14 +692,6 @@ const liveInteractionBySessionId = $derived.by(() => {
 		);
 	}
 	return map;
-});
-
-const sceneGroups = $derived.by((): readonly KanbanSceneColumnGroup[] => {
-	return groups.map((group) => ({
-		id: group.id,
-		label: group.label,
-		items: group.items.map((card) => buildSceneCard(card)),
-	}));
 });
 
 const optimisticCardLookup = $derived.by(() => {
@@ -1302,7 +1336,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 		<KanbanSceneBoard
-			groups={sceneGroups}
+			model={sceneModel}
 			emptyHint="No sessions"
 			onCardClick={handleCardClick}
 			onCardClose={(cardId: string) => {

@@ -64,6 +64,27 @@ export interface KanbanSceneCardData extends KanbanCardData {
 	readonly flushFooter: boolean;
 }
 
+export interface KanbanSceneColumnData {
+	readonly id: SectionedFeedSectionId;
+	readonly label: string;
+}
+
+export type KanbanScenePlacementSource = "session" | "optimistic";
+
+export interface KanbanScenePlacement {
+	readonly cardId: string;
+	readonly columnId: SectionedFeedSectionId;
+	readonly index: number;
+	readonly orderKey: string;
+	readonly source: KanbanScenePlacementSource;
+}
+
+export interface KanbanSceneModel {
+	readonly columns: readonly KanbanSceneColumnData[];
+	readonly cards: readonly KanbanSceneCardData[];
+	readonly placements: readonly KanbanScenePlacement[];
+}
+
 export interface KanbanSceneColumnGroup {
 	readonly id: SectionedFeedSectionId;
 	readonly label: string;
