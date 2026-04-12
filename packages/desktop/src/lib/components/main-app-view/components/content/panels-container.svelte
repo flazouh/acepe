@@ -253,62 +253,72 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						: null
 					: null}
 				<div class="relative h-full min-h-0 min-w-0 flex-1">
-					<AgentPanel
-						panelId={fullscreenPanelSnapshot.panelId}
-						sessionId={fullscreenPanelSnapshot.sessionId}
-						width={fullscreenPanelSnapshot.width}
-						pendingProjectSelection={fullscreenPanelSnapshot.pendingProjectSelection}
-						isWaitingForSession={fullscreenPanelSnapshot.isWaitingForSession}
-						projectCount={projectManager.projectCount}
-						allProjects={projectManager.projects}
-						{project}
-						{selectedAgentId}
-						{availableAgents}
-						onAgentChange={(agentId) =>
-							state.handlePanelAgentChange(fullscreenPanelSnapshot.panelId, agentId)}
-						{effectiveTheme}
-						isFullscreen={true}
-						isFocused={panelStore.focusedPanelId === fullscreenPanelSnapshot.panelId}
-						onClose={() => state.handleClosePanel(fullscreenPanelSnapshot.panelId)}
-						onCreateSessionForProject={(project) =>
-							state
-								.handleCreateSessionForProject(fullscreenPanelSnapshot.panelId, project)
-								.mapErr(() => {
-									// Error handling is done in the handler
-								})}
-						onSessionCreated={(sessionId) =>
-							panelStore.updatePanelSession(fullscreenPanelSnapshot.panelId, sessionId)}
-						onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
-						onToggleFullscreen={() =>
-							state.handleToggleFullscreen(fullscreenPanelSnapshot.panelId)}
-						onFocus={() => state.handleFocusPanel(fullscreenPanelSnapshot.panelId)}
-						hideProjectBadge={hideEmbeddedProjectBadge}
-						reviewMode={fullscreenPanelSnapshot.reviewMode}
-						reviewFilesState={fullscreenPanelSnapshot.reviewFilesState}
-						reviewFileIndex={fullscreenPanelSnapshot.reviewFileIndex}
-						onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
-							panelStore.enterReviewMode(
-								fullscreenPanelSnapshot.panelId,
-								modifiedFilesState,
-								initialFileIndex
+					<svelte:boundary onerror={(e) => console.error('[boundary:agent-panel]', fullscreenPanelSnapshot.panelId, e)}>
+						<AgentPanel
+							panelId={fullscreenPanelSnapshot.panelId}
+							sessionId={fullscreenPanelSnapshot.sessionId}
+							width={fullscreenPanelSnapshot.width}
+							pendingProjectSelection={fullscreenPanelSnapshot.pendingProjectSelection}
+							isWaitingForSession={fullscreenPanelSnapshot.isWaitingForSession}
+							projectCount={projectManager.projectCount}
+							allProjects={projectManager.projects}
+							{project}
+							{selectedAgentId}
+							{availableAgents}
+							onAgentChange={(agentId) =>
+								state.handlePanelAgentChange(fullscreenPanelSnapshot.panelId, agentId)}
+							{effectiveTheme}
+							isFullscreen={true}
+							isFocused={panelStore.focusedPanelId === fullscreenPanelSnapshot.panelId}
+							onClose={() => state.handleClosePanel(fullscreenPanelSnapshot.panelId)}
+							onCreateSessionForProject={(project) =>
+								state
+									.handleCreateSessionForProject(fullscreenPanelSnapshot.panelId, project)
+									.mapErr(() => {
+										// Error handling is done in the handler
+									})}
+							onSessionCreated={(sessionId) =>
+								panelStore.updatePanelSession(fullscreenPanelSnapshot.panelId, sessionId)}
+							onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
+							onToggleFullscreen={() =>
+								state.handleToggleFullscreen(fullscreenPanelSnapshot.panelId)}
+							onFocus={() => state.handleFocusPanel(fullscreenPanelSnapshot.panelId)}
+							hideProjectBadge={hideEmbeddedProjectBadge}
+							reviewMode={fullscreenPanelSnapshot.reviewMode}
+							reviewFilesState={fullscreenPanelSnapshot.reviewFilesState}
+							reviewFileIndex={fullscreenPanelSnapshot.reviewFileIndex}
+							onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
+								panelStore.enterReviewMode(
+									fullscreenPanelSnapshot.panelId,
+									modifiedFilesState,
+									initialFileIndex
+								)}
+							onExitReviewMode={() => panelStore.exitReviewMode(fullscreenPanelSnapshot.panelId)}
+							onReviewFileIndexChange={(index) =>
+								panelStore.setReviewFileIndex(fullscreenPanelSnapshot.panelId, index)}
+							onOpenFullscreenReview={fullscreenPanelSnapshot.sessionId
+								? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
+								: undefined}
+							attachedFilePanels={panelStore.getAttachedFilePanels(fullscreenPanelSnapshot.panelId)}
+							activeAttachedFilePanelId={panelStore.getActiveFilePanelId(
+								fullscreenPanelSnapshot.panelId
 							)}
-						onExitReviewMode={() => panelStore.exitReviewMode(fullscreenPanelSnapshot.panelId)}
-						onReviewFileIndexChange={(index) =>
-							panelStore.setReviewFileIndex(fullscreenPanelSnapshot.panelId, index)}
-						onOpenFullscreenReview={fullscreenPanelSnapshot.sessionId
-							? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
-							: undefined}
-						attachedFilePanels={panelStore.getAttachedFilePanels(fullscreenPanelSnapshot.panelId)}
-						activeAttachedFilePanelId={panelStore.getActiveFilePanelId(
-							fullscreenPanelSnapshot.panelId
-						)}
-						onSelectAttachedFilePanel={(ownerPanelId, panelId) =>
-							panelStore.setActiveAttachedFilePanel(ownerPanelId, panelId)}
-						onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
-						onResizeAttachedFilePanel={(panelId, delta) =>
-							panelStore.resizeFilePanel(panelId, delta)}
-						onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
-					/>
+							onSelectAttachedFilePanel={(ownerPanelId, panelId) =>
+								panelStore.setActiveAttachedFilePanel(ownerPanelId, panelId)}
+							onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
+							onResizeAttachedFilePanel={(panelId, delta) =>
+								panelStore.resizeFilePanel(panelId, delta)}
+							onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
+						/>
+						{#snippet failed(error, reset)}
+							<div class="flex flex-1 items-center justify-center p-4">
+								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
+									<span>{m.error_boundary_panel_failed()}</span>
+									<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+								</div>
+							</div>
+						{/snippet}
+					</svelte:boundary>
 				</div>
 			{:else if fullscreenTopLevelPanel.kind === "file"}
 				{@const filePanel = fullscreenTopLevelPanel.panel}
@@ -445,50 +455,60 @@ const terminalTabsPanelStore = $derived.by(() => ({
 									? panel.selectedAgentId
 									: null
 								: null}
-							<AgentPanel
-								panelId={panel.id}
-								sessionId={panel.sessionId}
-								width={panel.width || 100}
-								pendingProjectSelection={panel.pendingProjectSelection}
-								isWaitingForSession={panel.isWaitingForSession}
-								projectCount={projectManager.projectCount}
-								allProjects={projectManager.projects}
-								{project}
-								{selectedAgentId}
-								{availableAgents}
-								onAgentChange={(agentId) => state.handlePanelAgentChange(panel.id, agentId)}
-								{effectiveTheme}
-								isFullscreen={panelStore.fullscreenPanelId === panel.id}
-								isFocused={panelStore.focusedPanelId === panel.id}
-								onClose={() => state.handleClosePanel(panel.id)}
-								onCreateSessionForProject={(project) =>
-									state.handleCreateSessionForProject(panel.id, project).mapErr(() => {
-										// Error handling is done in the handler
-									})}
-								onSessionCreated={(sessionId) => panelStore.updatePanelSession(panel.id, sessionId)}
-								onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
-								onToggleFullscreen={() => state.handleToggleFullscreen(panel.id)}
-								onFocus={() => state.handleFocusPanel(panel.id)}
-								hideProjectBadge={hideEmbeddedProjectBadge}
-								reviewMode={panel.reviewMode}
-								reviewFilesState={panel.reviewFilesState}
-								reviewFileIndex={panel.reviewFileIndex}
-								onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
-									panelStore.enterReviewMode(panel.id, modifiedFilesState, initialFileIndex)}
-								onExitReviewMode={() => panelStore.exitReviewMode(panel.id)}
-								onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panel.id, index)}
-								onOpenFullscreenReview={panel.sessionId
-									? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
-									: undefined}
-								attachedFilePanels={panelStore.getAttachedFilePanels(panel.id)}
-								activeAttachedFilePanelId={panelStore.getActiveFilePanelId(panel.id)}
-								onSelectAttachedFilePanel={(ownerPanelId, panelId) =>
-									panelStore.setActiveAttachedFilePanel(ownerPanelId, panelId)}
-								onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
-								onResizeAttachedFilePanel={(panelId, delta) =>
-									panelStore.resizeFilePanel(panelId, delta)}
-								onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
-							/>
+							<svelte:boundary onerror={(e) => console.error('[boundary:agent-panel]', panel.id, e)}>
+								<AgentPanel
+									panelId={panel.id}
+									sessionId={panel.sessionId}
+									width={panel.width || 100}
+									pendingProjectSelection={panel.pendingProjectSelection}
+									isWaitingForSession={panel.isWaitingForSession}
+									projectCount={projectManager.projectCount}
+									allProjects={projectManager.projects}
+									{project}
+									{selectedAgentId}
+									{availableAgents}
+									onAgentChange={(agentId) => state.handlePanelAgentChange(panel.id, agentId)}
+									{effectiveTheme}
+									isFullscreen={panelStore.fullscreenPanelId === panel.id}
+									isFocused={panelStore.focusedPanelId === panel.id}
+									onClose={() => state.handleClosePanel(panel.id)}
+									onCreateSessionForProject={(project) =>
+										state.handleCreateSessionForProject(panel.id, project).mapErr(() => {
+											// Error handling is done in the handler
+										})}
+									onSessionCreated={(sessionId) => panelStore.updatePanelSession(panel.id, sessionId)}
+									onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
+									onToggleFullscreen={() => state.handleToggleFullscreen(panel.id)}
+									onFocus={() => state.handleFocusPanel(panel.id)}
+									hideProjectBadge={hideEmbeddedProjectBadge}
+									reviewMode={panel.reviewMode}
+									reviewFilesState={panel.reviewFilesState}
+									reviewFileIndex={panel.reviewFileIndex}
+									onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
+										panelStore.enterReviewMode(panel.id, modifiedFilesState, initialFileIndex)}
+									onExitReviewMode={() => panelStore.exitReviewMode(panel.id)}
+									onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panel.id, index)}
+									onOpenFullscreenReview={panel.sessionId
+										? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
+										: undefined}
+									attachedFilePanels={panelStore.getAttachedFilePanels(panel.id)}
+									activeAttachedFilePanelId={panelStore.getActiveFilePanelId(panel.id)}
+									onSelectAttachedFilePanel={(ownerPanelId, panelId) =>
+										panelStore.setActiveAttachedFilePanel(ownerPanelId, panelId)}
+									onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
+									onResizeAttachedFilePanel={(panelId, delta) =>
+										panelStore.resizeFilePanel(panelId, delta)}
+									onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
+								/>
+								{#snippet failed(error, reset)}
+									<div class="flex flex-1 items-center justify-center p-4">
+										<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
+											<span>{m.error_boundary_panel_failed()}</span>
+											<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+										</div>
+									</div>
+								{/snippet}
+							</svelte:boundary>
 					{/each}
 			{/snippet}
 

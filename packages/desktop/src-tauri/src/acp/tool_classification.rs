@@ -69,16 +69,6 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
         return Some(ToolKind::Skill);
     }
 
-    if object.contains_key("description")
-        || object.contains_key("prompt")
-        || object.contains_key("agent_type")
-        || object.contains_key("agentType")
-        || object.contains_key("subagent_type")
-        || object.contains_key("subagentType")
-    {
-        return Some(ToolKind::Task);
-    }
-
     if object.contains_key("from")
         || object.contains_key("to")
         || object.contains_key("source")
@@ -89,9 +79,11 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
 
     let has_edit_markers = object.contains_key("old_string")
         || object.contains_key("oldString")
+        || object.contains_key("old_str")
         || object.contains_key("oldText")
         || object.contains_key("new_string")
         || object.contains_key("newString")
+        || object.contains_key("new_str")
         || object.contains_key("newText")
         || (object.contains_key("content")
             && (object.contains_key("file_path")
@@ -119,6 +111,16 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
         || object.contains_key("uri")
     {
         return Some(ToolKind::Read);
+    }
+
+    if object.contains_key("description")
+        || object.contains_key("prompt")
+        || object.contains_key("agent_type")
+        || object.contains_key("agentType")
+        || object.contains_key("subagent_type")
+        || object.contains_key("subagentType")
+    {
+        return Some(ToolKind::Task);
     }
 
     None
@@ -213,8 +215,7 @@ fn resolve_identity_impl(
                 | ToolKind::Execute
                 | ToolKind::Search
                 | ToolKind::Fetch
-        )
-    {
+        ) {
         ToolKind::Browser
     } else {
         kind
@@ -411,5 +412,50 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Browser);
         assert_eq!(classified.name, "mcp__tauri__read_logs");
+    }
+
+    #[test]
+    fn raw_old_str_and_new_str_markers_infer_edit_kind() {
+        let parser = CopilotParser;
+        let classified = classify_raw_tool_call(
+            &parser,
+            "tool-edit",
+            &serde_json::json!({
+                "path": "/tmp/file.ts",
+                "old_str": "const value = 1;",
+                "new_str": "const value = 2;"
+            }),
+            ToolClassificationHints {
+                name: Some("unknown"),
+                title: Some("Editing /tmp/file.ts"),
+                kind: Some(ToolKind::Other),
+                kind_hint: Some("other"),
+                locations: None,
+            },
+        );
+
+        assert_eq!(classified.kind, ToolKind::Edit);
+        assert_eq!(classified.name, "Edit");
+    }
+
+    #[test]
+    fn serialized_description_and_query_do_not_promote_to_task() {
+        let classified = classify_serialized_tool_call(
+            AgentType::Copilot,
+            "tool-sql",
+            &serde_json::json!({
+                "description": "Create planning todos",
+                "query": "INSERT INTO todos VALUES ('todo-1')"
+            }),
+            ToolClassificationHints {
+                name: Some("unknown"),
+                title: Some("Create planning todos"),
+                kind: Some(ToolKind::Other),
+                kind_hint: Some("other"),
+                locations: None,
+            },
+        );
+
+        assert_ne!(classified.kind, ToolKind::Task);
     }
 }

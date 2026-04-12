@@ -1,13 +1,12 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, TextShimmer } from "@acepe/ui";
+	import { BrandLockup, BrandShaderBackground, TextShimmer, VoiceDownloadProgress } from "@acepe/ui";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { onMount } from "svelte";
 import {
 	isUpdaterInstallInProgress,
 	type UpdaterBannerState,
 } from "$lib/components/main-app-view/logic/updater-state.js";
-import VoiceDownloadProgress from "$lib/components/voice-download-progress.svelte";
-import { Button } from "$lib/components/ui/button/index.js";
+	import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as m from "$lib/paraglide/messages.js";
 

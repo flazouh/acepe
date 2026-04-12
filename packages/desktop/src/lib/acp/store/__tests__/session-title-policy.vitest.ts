@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
 	deriveSessionTitleFromUserInput,
+	formatRichSessionTitle,
 	formatSessionTitleForDisplay,
 	getTitleUpdateFromUserMessage,
 	isFallbackSessionTitle,
 	normalizeTitleForDisplay,
 	stripArtifactsFromTitle,
+	stripXmlArtifactsFromTitle,
+	titleHasInlineTokens,
 } from "../session-title-policy.js";
 
 describe("session-title-policy", () => {
@@ -136,5 +139,124 @@ describe("session-title-policy", () => {
 		// A title with both artifacts AND real content should not trigger derivation
 		const mixedTitle = "<ide_opened_file>File</ide_opened_file>Real content here";
 		expect(getTitleUpdateFromUserMessage(mixedTitle, "Some message")).toBeNull();
+	});
+
+	describe("stripXmlArtifactsFromTitle", () => {
+		it("strips XML tags but preserves @[type:value] tokens", () => {
+			const title =
+				"<ide_opened_file>File</ide_opened_file>@[image:/screenshot.png] Fix bug";
+			expect(stripXmlArtifactsFromTitle(title)).toBe("@[image:/screenshot.png] Fix bug");
+		});
+
+		it("preserves title with only tokens", () => {
+			expect(stripXmlArtifactsFromTitle("@[image:/a.png] @[file:/b.ts]")).toBe(
+				"@[image:/a.png] @[file:/b.ts]"
+			);
+		});
+
+		it("returns title unchanged when no artifacts", () => {
+			expect(stripXmlArtifactsFromTitle("Simple title")).toBe("Simple title");
+		});
+
+		it("strips expanded refs but keeps tokens", () => {
+			expect(
+				stripXmlArtifactsFromTitle("[Attached image: /a.png] @[file:/b.ts] Fix")
+			).toBe("@[file:/b.ts] Fix");
+		});
+
+		it("returns empty string for XML-only title", () => {
+			expect(
+				stripXmlArtifactsFromTitle("<ide_opened_file>File</ide_opened_file>")
+			).toBe("");
+		});
+
+		it("normalizes newlines in rich title", () => {
+			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\nFix bug")).toBe(
+				"@[file:/a.ts] Fix bug"
+			);
+		});
+
+		it("normalizes literal backslash-n", () => {
+			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\\nFix bug")).toBe(
+				"@[file:/a.ts] Fix bug"
+			);
+		});
+
+		it("preserves truncated tokens missing closing bracket", () => {
+			expect(
+				stripXmlArtifactsFromTitle("@[image:/var/folders/rw/long-path-here...")
+			).toBe("@[image:/var/folders/rw/long-path-here...");
+		});
+	});
+
+	describe("titleHasInlineTokens", () => {
+		it("returns true for titles with tokens", () => {
+			expect(titleHasInlineTokens("@[file:/app.ts] Fix bug")).toBe(true);
+			expect(titleHasInlineTokens("@[image:/screenshot.png]")).toBe(true);
+			expect(titleHasInlineTokens("@[text:SGVsbG8=]")).toBe(true);
+		});
+
+		it("returns false for plain titles", () => {
+			expect(titleHasInlineTokens("Simple title")).toBe(false);
+			expect(titleHasInlineTokens("")).toBe(false);
+		});
+
+		it("returns true for truncated tokens missing closing bracket", () => {
+			expect(titleHasInlineTokens("@[image:/var/folders/rw/long-path...")).toBe(true);
+		});
+	});
+
+	describe("formatRichSessionTitle", () => {
+		it("returns richText when title has tokens", () => {
+			const result = formatRichSessionTitle("@[file:/app.ts] Fix bug", "acepe");
+			expect(result.richText).toBe("@[file:/app.ts] Fix bug");
+			expect(result.plainText).toBe("Fix bug");
+		});
+
+		it("returns null richText when title has no tokens", () => {
+			const result = formatRichSessionTitle("Simple title", "acepe");
+			expect(result.richText).toBeNull();
+			expect(result.plainText).toBe("Simple title");
+		});
+
+		it("returns richText for token-only title with fallback plainText", () => {
+			const result = formatRichSessionTitle("@[image:/screenshot.png]", "acepe");
+			expect(result.richText).toBe("@[image:/screenshot.png]");
+			expect(result.plainText).toBe("Conversation in acepe");
+		});
+
+		it("strips XML tags from richText but preserves tokens", () => {
+			const result = formatRichSessionTitle(
+				"<ide_opened_file>File</ide_opened_file>@[file:/app.ts] Fix auth",
+				"acepe"
+			);
+			expect(result.richText).toBe("@[file:/app.ts] Fix auth");
+			expect(result.plainText).toBe("Fix auth");
+		});
+
+		it("capitalizes first non-token text character in richText", () => {
+			const result = formatRichSessionTitle("@[file:/app.ts] fix bug", "acepe");
+			expect(result.richText).toBe("@[file:/app.ts] Fix bug");
+		});
+
+		it("returns null richText for null/undefined title", () => {
+			expect(formatRichSessionTitle(null, "acepe").richText).toBeNull();
+			expect(formatRichSessionTitle(undefined, "acepe").richText).toBeNull();
+		});
+
+		it("returns null richText for empty title", () => {
+			const result = formatRichSessionTitle("", "acepe");
+			expect(result.richText).toBeNull();
+			expect(result.plainText).toBe("Conversation in acepe");
+		});
+
+		it("handles truncated tokens missing closing bracket", () => {
+			const result = formatRichSessionTitle(
+				"@[image:/var/folders/rw/long-path-here...",
+				"acepe"
+			);
+			expect(result.richText).toBe("@[image:/var/folders/rw/long-path-here...");
+			expect(result.plainText).toBe("Conversation in acepe");
+		});
 	});
 });

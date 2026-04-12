@@ -9,6 +9,7 @@ export interface KanbanToolData {
 	readonly id: string;
 	readonly kind?: AgentToolKind;
 	readonly title: string;
+	readonly subtitle?: string;
 	readonly filePath?: string;
 	readonly status: AgentToolStatus;
 }
@@ -23,8 +24,11 @@ export interface KanbanTaskCardData {
 export interface KanbanCardData {
 	readonly id: string;
 	readonly title: string | null;
+	/** Token-preserved title for rendering artifact chips. When non-null, render via RichTokenText. */
+	readonly richTitle?: string | null;
 	readonly agentIconSrc: string;
 	readonly agentLabel: string;
+	readonly isAutoMode: boolean;
 	readonly projectName: string;
 	readonly projectColor: string;
 	readonly activityText: string | null;

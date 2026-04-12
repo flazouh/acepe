@@ -14,7 +14,7 @@ use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tauri::{AppHandle, Manager};
 
@@ -109,32 +109,7 @@ impl AgentProvider for CopilotProvider {
                 return Ok(Vec::new());
             };
 
-            let agents_root = cwd.join(".agents");
-            let skills_root = agents_root.join("skills");
-            let nested_skill_commands =
-                crate::acp::preconnection_slash::load_preconnection_commands_from_root(
-                    &skills_root,
-                )
-                .await?;
-            let nested_agent_commands =
-                crate::acp::preconnection_slash::load_preconnection_commands_from_root(
-                    &agents_root,
-                )
-                .await?;
-            let flat_agent_commands =
-                crate::acp::preconnection_slash::load_preconnection_commands_from_flat_markdown_root(
-                    &agents_root,
-                )
-                .await?;
-
-            Ok(
-                crate::acp::preconnection_slash::dedupe_preconnection_commands(
-                    nested_skill_commands
-                        .into_iter()
-                        .chain(nested_agent_commands)
-                        .chain(flat_agent_commands),
-                ),
-            )
+            load_copilot_preconnection_commands(cwd, dirs::home_dir().as_deref()).await
         })
     }
 
@@ -234,6 +209,51 @@ fn filtered_env() -> HashMap<String, String> {
     crate::shell_env::build_env(crate::shell_env::EnvStrategy::Allowlist(ALLOWED_ENV_KEYS))
 }
 
+async fn load_copilot_preconnection_commands(
+    cwd: &Path,
+    home_dir: Option<&Path>,
+) -> Result<Vec<AvailableCommand>, String> {
+    let agent_roots = copilot_agent_roots(cwd, home_dir);
+    let skill_roots = agent_roots
+        .iter()
+        .map(|root: &PathBuf| root.join("skills"))
+        .collect::<Vec<_>>();
+
+    let nested_skill_commands =
+        crate::acp::preconnection_slash::load_preconnection_commands_from_roots(&skill_roots)
+            .await?;
+    let nested_agent_commands =
+        crate::acp::preconnection_slash::load_preconnection_commands_from_roots(&agent_roots)
+            .await?;
+
+    let mut flat_agent_commands = Vec::new();
+    for root in &agent_roots {
+        let commands =
+            crate::acp::preconnection_slash::load_preconnection_commands_from_flat_markdown_root(
+                root,
+            )
+            .await?;
+        flat_agent_commands.extend(commands);
+    }
+
+    Ok(crate::acp::preconnection_slash::dedupe_preconnection_commands(
+        nested_skill_commands
+            .into_iter()
+            .chain(nested_agent_commands)
+            .chain(flat_agent_commands),
+    ))
+}
+
+fn copilot_agent_roots(cwd: &Path, home_dir: Option<&Path>) -> Vec<PathBuf> {
+    let mut roots = vec![cwd.join(".agents")];
+
+    if let Some(home_dir) = home_dir {
+        roots.push(home_dir.join(".agents"));
+    }
+
+    roots
+}
+
 fn copilot_debug_binary_override() -> Option<String> {
     let override_value = std::env::var(COPILOT_BINARY_OVERRIDE_ENV).ok()?;
     let trimmed = override_value.trim();
@@ -298,6 +318,14 @@ mod tests {
     use crate::acp::client::{AvailableModel, SessionModelState, SessionModes};
     use serde_json::json;
     use std::fs;
+    use tempfile::tempdir;
+
+    fn skill_file_content(name: &str, description: &str) -> String {
+        format!(
+            "---\nname: \"{}\"\ndescription: \"{}\"\n---\n\n# {}\n",
+            name, description, name
+        )
+    }
 
     #[test]
     fn resolve_spawn_configs_prefers_cached_binary_before_debug_override() {
@@ -406,8 +434,63 @@ mod tests {
     }
 
     #[test]
+    fn copilot_agent_roots_prioritize_project_before_home() {
+        let roots = copilot_agent_roots(Path::new("/repo"), Some(Path::new("/Users/tester")));
+
+        assert_eq!(
+            roots,
+            vec![
+                PathBuf::from("/repo/.agents"),
+                PathBuf::from("/Users/tester/.agents"),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn copilot_preconnection_commands_merge_home_and_project_agents() {
+        let temp = tempdir().expect("temp dir");
+        let project = temp.path().join("project");
+        let home = temp.path().join("home");
+
+        tokio::fs::create_dir_all(project.join(".agents/skills/systematic-debugging"))
+            .await
+            .expect("create project skill dir");
+        tokio::fs::create_dir_all(home.join(".agents/skills/ce-review"))
+            .await
+            .expect("create home skill dir");
+        tokio::fs::write(
+            project.join(".agents/skills/systematic-debugging/SKILL.md"),
+            skill_file_content(
+                "systematic-debugging",
+                "Project-specific systematic debugging flow",
+            ),
+        )
+        .await
+        .expect("write project skill");
+        tokio::fs::write(
+            home.join(".agents/skills/ce-review/SKILL.md"),
+            skill_file_content("ce-review", "Review code changes"),
+        )
+        .await
+        .expect("write home skill");
+
+        let commands = load_copilot_preconnection_commands(&project, Some(&home))
+            .await
+            .expect("load commands");
+
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].name, "systematic-debugging");
+        assert_eq!(
+            commands[0].description,
+            "Project-specific systematic debugging flow"
+        );
+        assert_eq!(commands[1].name, "ce-review");
+        assert_eq!(commands[1].description, "Review code changes");
+    }
+
+    #[test]
     fn configured_copilot_model_prefers_project_config_over_user_config() {
-        let temp = tempfile::tempdir().expect("tempdir");
+        let temp = tempdir().expect("tempdir");
         let home = temp.path().join("home");
         let project = temp.path().join("project");
         fs::create_dir_all(home.join(".copilot")).expect("create user copilot dir");

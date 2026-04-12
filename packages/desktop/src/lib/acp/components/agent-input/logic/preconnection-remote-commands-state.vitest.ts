@@ -90,6 +90,31 @@ describe("PreconnectionRemoteCommandsState", () => {
 		expect(fetchFn).toHaveBeenCalledTimes(1);
 	});
 
+	it("loads project-scoped commands even after a session is connected", async () => {
+		fetchFn.mockReturnValueOnce(
+			okAsync([makeCommand("systematic-debugging", "Debug methodically")])
+		);
+
+		const state = new PreconnectionRemoteCommandsState(fetchFn);
+		const result = await state.ensureLoaded({
+			agentId: "copilot",
+			hasConnectedSession: true,
+			projectPath: "/repo",
+			preconnectionSlashMode: "projectScoped",
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(fetchFn).toHaveBeenCalledWith("/repo", "copilot");
+		expect(
+			state.getCommands({
+				agentId: "copilot",
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+				skillCommands: [],
+			})
+		).toEqual([makeCommand("systematic-debugging", "Debug methodically")]);
+	});
+
 	it("clears the loading marker after a fetch failure", async () => {
 		fetchFn.mockReturnValueOnce(
 			errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
@@ -109,7 +134,7 @@ describe("PreconnectionRemoteCommandsState", () => {
 });
 
 describe("shouldLoadRemotePreconnectionCommands", () => {
-	it("only loads for project-scoped providers before connection when a project path is present", () => {
+	it("loads for project-scoped providers whenever a project path is present", () => {
 		expect(
 			shouldLoadRemotePreconnectionCommands({
 				agentId: "opencode",
@@ -130,7 +155,7 @@ describe("shouldLoadRemotePreconnectionCommands", () => {
 				alreadyLoaded: false,
 				alreadyLoading: false,
 			})
-		).toBe(false);
+		).toBe(true);
 
 		expect(
 			shouldLoadRemotePreconnectionCommands({

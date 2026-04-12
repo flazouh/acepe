@@ -78,6 +78,8 @@ pub enum UserSettingKey {
     GitMergeStrategyPreference,
     /// Set of dismissed tooltip keys (JSON array of string keys)
     DismissedTooltips,
+    /// Whether the attention queue panel is shown in the sidebar (boolean)
+    AttentionQueueEnabled,
 }
 
 impl UserSettingKey {
@@ -123,6 +125,7 @@ impl UserSettingKey {
             UserSettingKey::GitTextGenerationAgent => "git_text_generation_agent",
             UserSettingKey::GitMergeStrategyPreference => "git_merge_strategy_preference",
             UserSettingKey::DismissedTooltips => "dismissed_tooltips",
+            UserSettingKey::AttentionQueueEnabled => "attention_queue_enabled",
         }
     }
 }
@@ -167,6 +170,7 @@ mod tests {
             "voice_enabled",
             "git_text_generation_agent",
             "dismissed_tooltips",
+            "attention_queue_enabled",
         ];
 
         for key in keys {

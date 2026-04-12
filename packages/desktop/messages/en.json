@@ -611,7 +611,7 @@
 	"tool_notebook_edit_completed": "Edited notebook",
 	"tool_bash_preparing": "Generating command",
 	"tool_bash_running": "Running command",
-	"tool_bash_completed": "Ran command",
+	"tool_bash_completed": "Executed",
 	"tool_kill_shell_running": "Killing shell",
 	"tool_kill_shell_completed": "Killed shell",
 	"tool_task_output_running": "Getting output",
@@ -777,6 +777,7 @@
 	"permission_deny": "Deny",
 	"permission_allow": "Allow",
 	"permission_always_allow": "Always",
+	"permission_autonomous": "Autonomous",
 	"tool_fetch_fetching": "Fetching",
 	"tool_fetch_fetched": "Fetched",
 	"tool_fetch_failed": "Fetch failed",
@@ -871,5 +872,9 @@
 	"voice_error_load_failed": "Failed to load model",
 	"voice_error_transcription_timeout": "Transcription timed out",
 	"voice_model_menu_label": "Voice model",
-	"voice_model_menu_downloading": "Downloading…"
+	"voice_model_menu_downloading": "Downloading…",
+	"error_boundary_panel_failed": "This panel encountered an error.",
+	"error_boundary_sidebar_failed": "Sidebar encountered an error.",
+	"error_boundary_session_item_failed": "Failed to render session.",
+	"error_boundary_retry": "Retry"
 }

@@ -154,6 +154,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
 - Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+- Do not frame work as a migration, coexistence plan, or cutover strategy. Assume speed-of-light execution: design and plan for the clean replacement architecture directly, with old paths removed rather than accommodated in parallel.
 
 ### Debugging
 
@@ -163,6 +164,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - NEVER run `bun dev` — the user manages the dev server.
 - NEVER run `git stash` without explicit user consent.
+- NEVER set `core.bare=true` in this repository's root `.git/config` or otherwise convert this checkout into a bare repository. If bare-style workflows are needed, use a separate bare mirror or linked worktree instead of changing the active checkout.
 
 ## Detailed Guides
 

@@ -881,6 +881,7 @@ function handleSubmit(panel: DemoPanel): void {
 									<AgentPanelPermissionBar
 										verb="Edit"
 										filePath="packages/ui/src/components/agent-panel/agent-panel-shell.svelte"
+										hasProgress={true}
 									>
 										{#snippet leading()}
 											<AgentPanelPermissionBarIcon kind="edit" />

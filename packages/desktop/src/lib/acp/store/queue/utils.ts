@@ -90,18 +90,34 @@ function computeSessionDiffStats(session: QueueSessionSnapshot): {
  */
 export type ProjectColorLookup = (projectPath: string) => string | null;
 
-function getQueueConnectionState(
-	session: QueueSessionSnapshot
-): ReturnType<typeof statusToConnectionState> {
-	if (session.isThinking) {
-		return "awaitingResponse";
-	}
+export interface QueueSessionStateInput {
+	readonly isStreaming: boolean;
+	readonly isThinking: boolean;
+	readonly status: SessionStatus;
+	readonly currentModeId: string | null;
+	readonly currentStreamingToolCall: ToolCall | null;
+	readonly pendingQuestion: QuestionRequest | null;
+	readonly pendingPlanApproval: PlanApprovalInteraction | null;
+	readonly pendingPermission: PermissionRequest | null;
+	readonly hasUnseenCompletion: boolean;
+}
 
-	if (session.isStreaming) {
-		return "streaming";
-	}
+export function deriveQueueSessionState(input: QueueSessionStateInput) {
+	const connectionState = input.isThinking
+		? "awaitingResponse"
+		: input.isStreaming
+			? "streaming"
+			: statusToConnectionState(input.status);
 
-	return statusToConnectionState(session.status);
+	return deriveSessionState({
+		connectionState,
+		modeId: input.currentModeId,
+		tool: input.currentStreamingToolCall,
+		pendingQuestion: input.pendingQuestion,
+		pendingPlanApproval: input.pendingPlanApproval,
+		pendingPermission: input.pendingPermission,
+		hasUnseenCompletion: input.hasUnseenCompletion,
+	});
 }
 
 /**
@@ -131,10 +147,12 @@ export function buildQueueItem(
 	const todoProgress = extractTodoProgress(session.entries);
 
 	// Compute the unified session state
-	const state = deriveSessionState({
-		connectionState: getQueueConnectionState(session),
-		modeId: session.currentModeId,
-		tool: currentStreamingToolCall,
+	const state = deriveQueueSessionState({
+		isStreaming: session.isStreaming,
+		isThinking: session.isThinking,
+		status: session.status,
+		currentModeId: session.currentModeId,
+		currentStreamingToolCall,
 		pendingQuestion,
 		pendingPlanApproval,
 		pendingPermission,

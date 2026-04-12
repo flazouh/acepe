@@ -1,12 +1,13 @@
 <script lang="ts">
-import type { Snippet } from "svelte";
-import { X } from "phosphor-svelte";
-import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
-import AgentToolRow from "../agent-panel/agent-tool-row.svelte";
-import { DiffPill } from "../diff-pill/index.js";
-import { capitalizeLeadingCharacter } from "../../lib/utils.js";
-import {
-	EmbeddedIconButton,
+	import type { Snippet } from "svelte";
+	import { Robot, X } from "phosphor-svelte";
+	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
+	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
+	import { DiffPill } from "../diff-pill/index.js";
+	import { Colors } from "../../lib/colors.js";
+	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
+	import {
+		EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderCell,
@@ -14,6 +15,7 @@ import {
 } from "../panel-header/index.js";
 import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
+import { RichTokenText } from "../rich-token-text/index.js";
 import { TextShimmer } from "../text-shimmer/index.js";
 import type { KanbanCardData } from "./types.js";
 
@@ -91,7 +93,18 @@ function handleKeydown(event: KeyboardEvent): void {
 				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} sequenceId={card.sequenceId} class="shrink-0" />
 			</HeaderCell>
 			<HeaderCell>
-				<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+				<div class="flex items-center gap-1">
+					<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+					{#if card.isAutoMode}
+						<div
+							class="flex h-3.5 w-3.5 items-center justify-center"
+							aria-label="Auto mode"
+							title="Auto mode"
+						>
+							<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
+						</div>
+					{/if}
+				</div>
 			</HeaderCell>
 			<HeaderTitleCell compactPadding></HeaderTitleCell>
 			{#if hasDiff}
@@ -124,15 +137,19 @@ function handleKeydown(event: KeyboardEvent): void {
 		</EmbeddedPanelHeader>
 	</div>
 
-	<div class="border-b border-border/40 px-1.5 py-1" data-testid="kanban-card-title">
+	<div class="border-b border-border/40 px-1.5 py-1" data-testid="kanban-card-title" title={title}>
 		<div class="min-w-0">
-			<span class="block text-xs font-medium leading-tight text-foreground">{title}</span>
+			{#if card.richTitle}
+				<RichTokenText text={card.richTitle} class="text-xs font-medium leading-tight text-foreground" />
+			{:else}
+				<span class="block text-xs font-medium leading-tight text-foreground">{title}</span>
+			{/if}
 		</div>
 	</div>
 
 	<!-- Content: task card, activity text, or latest tool -->
 	{#if showBody}
-		<div class="flex flex-col gap-1 px-1 pt-1 pb-1">
+		<div class="flex flex-col gap-1 px-1.5 py-1">
 			{#if card.taskCard}
 				{@const taskCard = card.taskCard}
 				<AgentToolTask
@@ -144,15 +161,9 @@ function handleKeydown(event: KeyboardEvent): void {
 				/>
 			{:else if card.latestTool}
 				{@const latestTool = card.latestTool}
-				<AgentToolRow
-					title={latestTool.title}
-					filePath={latestTool.filePath}
-					status={latestTool.status}
-					kind={latestTool.kind}
-					iconBasePath="/svgs/icons"
-				/>
+				<AgentCompactToolDisplay tool={latestTool} />
 			{:else if card.activityText}
-				<div class="font-mono text-[10px] text-muted-foreground">
+				<div class="text-xs text-muted-foreground">
 					{#if card.isStreaming}
 						<TextShimmer class="block truncate">{card.activityText}</TextShimmer>
 					{:else}
@@ -162,7 +173,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			{/if}
 
 			{#if card.errorText}
-				<span class="truncate text-[10px] text-red-500">{card.errorText}</span>
+				<span class="truncate text-xs text-red-500">{card.errorText}</span>
 			{/if}
 		</div>
 	{/if}

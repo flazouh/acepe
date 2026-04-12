@@ -24,7 +24,8 @@ import {
 	copyTextToClipboard,
 } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import {
-	projectActivityEntry,
+	isActiveCompactActivityKind,
+	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
@@ -38,6 +39,7 @@ import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/wor
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
 import {
 	deriveSessionTitleFromUserInput,
+	formatRichSessionTitle,
 	formatSessionTitleForDisplay,
 } from "$lib/acp/store/session-title-policy.js";
 import {
@@ -319,6 +321,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
+			autonomousEnabled: hotState.autonomousEnabled,
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,
@@ -348,8 +351,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 const threadBoard = $derived.by(() => buildThreadBoard(threadBoardSources));
 
 function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
-	const isWorking =
-		item.state.activity.kind === "streaming" || item.state.activity.kind === "thinking";
+	const isWorking = isActiveCompactActivityKind(item.state.activity.kind);
 	const todoProgress = item.todoProgress
 		? {
 				current: item.todoProgress.current,
@@ -357,12 +359,12 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 				label: item.todoProgress.label,
 			}
 		: null;
-	const activityProjection = projectActivityEntry({
+	const activityProjection = projectSessionPreviewActivity({
 		activityKind: item.state.activity.kind,
 		currentStreamingToolCall: item.currentStreamingToolCall,
 		currentToolKind: item.currentToolKind,
-		lastToolCall: isWorking ? null : item.lastToolCall,
-		lastToolKind: isWorking ? null : item.lastToolKind,
+		lastToolCall: item.lastToolCall,
+		lastToolKind: item.lastToolKind,
 		todoProgress,
 	});
 	const toolDisplay =
@@ -404,16 +406,21 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 
 	const latestTool: KanbanToolData | null = (() => {
 		if (taskCard) return null;
+		if (!isWorking) return null;
 		return activityProjection.latestTool;
 	})();
 	const hasUnseenCompletion =
 		item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;
 
+	const richTitleResult = formatRichSessionTitle(item.title, item.projectName);
+
 	return {
 		id: item.sessionId,
-		title: getSessionDisplayName(item),
+		title: richTitleResult.plainText,
+		richTitle: richTitleResult.richText,
 		agentIconSrc: getAgentIcon(item.agentId, themeState.effectiveTheme),
 		agentLabel: item.agentId,
+		isAutoMode: item.autonomousEnabled,
 		projectName: item.projectName,
 		projectColor: item.projectColor,
 		activityText,
@@ -512,6 +519,7 @@ function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
 		title: card.title,
 		agentIconSrc: card.agentIconSrc,
 		agentLabel: card.agentLabel,
+		isAutoMode: card.isAutoMode,
 		projectName: card.projectName,
 		projectColor: card.projectColor,
 		activityText: card.activityText,
@@ -569,6 +577,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				title,
 				agentIconSrc: getAgentIcon(panel.selectedAgentId, themeState.effectiveTheme),
 				agentLabel: panel.selectedAgentId,
+				isAutoMode: false,
 				projectName: project ? project.name : m.project_unknown(),
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
 				activityText,

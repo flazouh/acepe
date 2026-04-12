@@ -10,6 +10,7 @@ export interface ThreadBoardSource {
 	readonly panelId: string;
 	readonly sessionId: string;
 	readonly agentId: string;
+	readonly autonomousEnabled: boolean;
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
@@ -32,6 +33,7 @@ export interface ThreadBoardItem {
 	readonly panelId: string;
 	readonly sessionId: string;
 	readonly agentId: string;
+	readonly autonomousEnabled: boolean;
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;

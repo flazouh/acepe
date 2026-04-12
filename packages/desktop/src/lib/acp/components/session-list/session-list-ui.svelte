@@ -2,6 +2,7 @@
 import { DiffPill } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { IconArrowDown } from "@tabler/icons-svelte";
 import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
@@ -999,17 +1000,6 @@ function openCreateBranchDialog(projectPath: string): void {
 								{#if scanningProjectPaths.has(group.projectPath) && group.sessions.length === 0}
 									<SessionListSkeleton sessionCount={3} />
 								{:else if historicalCount > 0}
-									<div class="px-2.5 pt-1.5">
-										<button
-											type="button"
-											class="text-xs text-muted-foreground transition-colors hover:text-foreground"
-											onclick={() => toggleHistoricalSessions(group.projectPath)}
-										>
-											{showingHistorical
-												? "Hide historical sessions"
-												: `Show historical sessions (${historicalCount})`}
-										</button>
-									</div>
 									{#if visibleSessions.length > 0}
 										<VirtualizedSessionList
 											sessions={visibleSessions}
@@ -1022,6 +1012,23 @@ function openCreateBranchDialog(projectPath: string): void {
 											{onExportJson}
 										/>
 									{/if}
+									<div class="flex justify-center my-1">
+									<Button
+										variant="ghost"
+										size="sm"
+										class="gap-0.5 text-[10px] text-muted-foreground hover:text-foreground h-6 px-2"
+										onclick={() => toggleHistoricalSessions(group.projectPath)}
+									>
+										{showingHistorical
+											? "Hide historical sessions"
+											: `Show historical sessions (${historicalCount})`}
+										{#if showingHistorical}
+											<ChevronUp class="size-3" />
+										{:else}
+											<ChevronDown class="size-3" />
+										{/if}
+									</Button>
+									</div>
 								{:else}
 									<VirtualizedSessionList
 										sessions={visibleSessions}

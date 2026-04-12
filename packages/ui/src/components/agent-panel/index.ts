@@ -7,6 +7,7 @@ export { default as AgentPanelConversationEntry } from "./agent-panel-conversati
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as AgentToolRow } from "./agent-tool-row.svelte";
+export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
 export { default as AgentToolExecute } from "./agent-tool-execute.svelte";
 export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolFetch } from "./agent-tool-fetch.svelte";

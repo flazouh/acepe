@@ -92,6 +92,7 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		await flushAsync();
 
 		state.destroy();
+		await flushAsync();
 
 		expect(unlistenHover).toHaveBeenCalledTimes(1);
 
@@ -193,5 +194,20 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		});
 
 		expect(state.isDragHovering).toBe(false);
+	});
+
+	it("does not crash when Tauri already removed drag-drop listeners during destroy", async () => {
+		listenMock.mockImplementation(() =>
+			Promise.resolve(async () => {
+				throw new TypeError("undefined is not an object (evaluating 'listeners[eventId].handlerId')");
+			})
+		);
+
+		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
+		state.initialize();
+		await flushAsync();
+
+		expect(() => state.destroy()).not.toThrow();
+		await flushAsync();
 	});
 });

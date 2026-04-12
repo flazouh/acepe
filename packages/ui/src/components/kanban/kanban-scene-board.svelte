@@ -93,6 +93,7 @@ function resolveSceneCard(card: KanbanCardData): KanbanSceneCardData | null {
 		title: card.title,
 		agentIconSrc: card.agentIconSrc,
 		agentLabel: card.agentLabel,
+		isAutoMode: card.isAutoMode,
 		projectName: card.projectName,
 		projectColor: card.projectColor,
 		activityText: card.activityText,

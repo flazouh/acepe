@@ -1,5 +1,6 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
+import * as m from "$lib/paraglide/messages.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { SessionItem } from "$lib/components/ui/session-item/index.js";
 import {
@@ -142,38 +143,45 @@ setSessionListHighlightContext(highlightContext);
 		aria-hidden="true"
 	></div>
 	{#each rows as row (row.item.id)}
-		<SessionItem
-			thread={{
-				id: row.item.id,
-				title: row.item.title,
-				projectPath: row.item.projectPath,
-				projectName: row.item.projectName,
-				projectColor: row.item.projectColor,
-				agentId: row.item.agentId,
-				createdAt: row.item.createdAt,
-				updatedAt: row.item.updatedAt,
-				activity: row.item.activity,
-				insertions: row.item.insertions,
-				deletions: row.item.deletions,
-				entryCount: row.item.entryCount,
-				worktreePath: row.item.worktreePath,
-				worktreeDeleted: row.item.worktreeDeleted,
-				prNumber: row.item.prNumber,
-				prState: row.item.prState,
-				sequenceId: row.item.sequenceId,
-			}}
-			selected={selectedSessionId === row.item.id}
-			isOpen={row.item.isOpen}
-			depth={row.depth}
-			hasChildren={row.hasChildren}
-			isExpanded={row.isExpanded}
-			onSelect={() => handleSessionSelect(row.item)}
-			onToggleExpand={() => handleToggleExpand(row.item.id)}
-			onOpenPr={onOpenPr ? () => onOpenPr(row.item) : undefined}
-			onRename={onRenameSession ? (title) => onRenameSession(row.item, title) : undefined}
-			{onArchive}
-			{onExportMarkdown}
-			{onExportJson}
-		/>
+		<svelte:boundary onerror={(e) => console.error('[boundary:session-item]', row.item.id, e)}>
+			<SessionItem
+				thread={{
+					id: row.item.id,
+					title: row.item.title,
+					projectPath: row.item.projectPath,
+					projectName: row.item.projectName,
+					projectColor: row.item.projectColor,
+					agentId: row.item.agentId,
+					createdAt: row.item.createdAt,
+					updatedAt: row.item.updatedAt,
+					activity: row.item.activity,
+					insertions: row.item.insertions,
+					deletions: row.item.deletions,
+					entryCount: row.item.entryCount,
+					worktreePath: row.item.worktreePath,
+					worktreeDeleted: row.item.worktreeDeleted,
+					prNumber: row.item.prNumber,
+					prState: row.item.prState,
+					sequenceId: row.item.sequenceId,
+				}}
+				selected={selectedSessionId === row.item.id}
+				isOpen={row.item.isOpen}
+				depth={row.depth}
+				hasChildren={row.hasChildren}
+				isExpanded={row.isExpanded}
+				onSelect={() => handleSessionSelect(row.item)}
+				onToggleExpand={() => handleToggleExpand(row.item.id)}
+				onOpenPr={onOpenPr ? () => onOpenPr(row.item) : undefined}
+				onRename={onRenameSession ? (title) => onRenameSession(row.item, title) : undefined}
+				{onArchive}
+				{onExportMarkdown}
+				{onExportJson}
+			/>
+			{#snippet failed(error, reset)}
+				<div class="px-3 py-1.5 text-[10px] text-muted-foreground">
+					{m.error_boundary_session_item_failed()}
+				</div>
+			{/snippet}
+		</svelte:boundary>
 	{/each}
 </div>

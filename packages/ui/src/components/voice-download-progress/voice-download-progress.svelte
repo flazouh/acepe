@@ -1,31 +1,31 @@
 <script lang="ts">
-import {
-	buildVoiceDownloadSegments,
-	formatVoiceDownloadPercent,
-} from "./voice-download-progress.js";
+	import {
+		buildVoiceDownloadSegments,
+		formatVoiceDownloadPercent,
+	} from "./voice-download-progress.js";
 
-interface Props {
-	ariaLabel: string;
-	compact: boolean;
-	fillWidth?: boolean;
-	label: string;
-	percent: number;
-	segmentCount: number;
-	showPercent?: boolean;
-}
+	interface Props {
+		ariaLabel: string;
+		compact: boolean;
+		fillWidth?: boolean;
+		label: string;
+		percent: number;
+		segmentCount: number;
+		showPercent?: boolean;
+	}
 
-const {
-	ariaLabel,
-	compact,
-	fillWidth = false,
-	label,
-	percent,
-	segmentCount,
-	showPercent = true,
-}: Props = $props();
+	const {
+		ariaLabel,
+		compact,
+		fillWidth = false,
+		label,
+		percent,
+		segmentCount,
+		showPercent = true,
+	}: Props = $props();
 
-const percentLabel = $derived(formatVoiceDownloadPercent(percent));
-const segments = $derived(buildVoiceDownloadSegments(percent, segmentCount));
+	const percentLabel = $derived(formatVoiceDownloadPercent(percent));
+	const segments = $derived(buildVoiceDownloadSegments(percent, segmentCount));
 </script>
 
 <div
@@ -81,7 +81,7 @@ const segments = $derived(buildVoiceDownloadSegments(percent, segmentCount));
 		width: 3px;
 		height: 8px;
 		border-radius: 1px;
-		background: color-mix(in oklab, var(--foreground) 10%, transparent);
+		background: color-mix(in oklab, var(--token-plan-icon-dark) 24%, transparent);
 		transition: background-color 180ms ease-out, opacity 180ms ease-out, transform 180ms ease-out;
 		opacity: 0.55;
 		transform-origin: bottom center;
@@ -92,7 +92,7 @@ const segments = $derived(buildVoiceDownloadSegments(percent, segmentCount));
 	}
 
 	.voice-download-segment.filled {
-		background: var(--primary);
+		background: var(--token-plan-icon-dark);
 		opacity: 1;
 	}
 

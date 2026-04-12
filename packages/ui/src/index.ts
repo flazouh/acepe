@@ -270,6 +270,13 @@ export {
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
 export {
+	VoiceDownloadProgress,
+	buildVoiceDownloadSegments,
+	clampVoiceDownloadPercent,
+	countFilledVoiceDownloadSegments,
+	formatVoiceDownloadPercent,
+} from "./components/voice-download-progress/index.js";
+export {
 	InlineArtefactBadge,
 	buildInlineArtefactIconClassName,
 	buildInlineArtefactLabelClassName,

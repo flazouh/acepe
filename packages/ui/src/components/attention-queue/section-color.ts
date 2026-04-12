@@ -17,3 +17,11 @@ export function sectionColor(id: SectionedFeedSectionId): string {
 			return Colors.red;
 	}
 }
+
+export function sectionAccentColor(id: SectionedFeedSectionId): string {
+	if (id === "needs_review") {
+		return Colors.purple;
+	}
+
+	return sectionColor(id);
+}

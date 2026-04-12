@@ -2,18 +2,24 @@
 import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
+import { CheckCircle, FileCode, Keyboard, Warning } from "phosphor-svelte";
+
+import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 import type { AgentToolEntry, AgentToolKind, AgentToolStatus } from "../agent-panel/types.js";
+import { BuildIcon, PlanIcon } from "../icons/index.js";
 import { TextShimmer } from "../text-shimmer/index.js";
 import { DiffPill } from "../diff-pill/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
 import AttentionQueueQuestionCard from "./attention-queue-question-card.svelte";
 import FeedItem from "./attention-queue-item.svelte";
+import type { SectionedFeedSectionId } from "./types.js";
 import type {
 	ActivityEntryMode,
 	ActivityEntryQuestion,
 	ActivityEntryQuestionOption,
 	ActivityEntryQuestionProgress,
+	ActivityEntryToolDisplay,
 	ActivityEntryTodoProgress,
 } from "./types.js";
 
@@ -31,6 +37,8 @@ interface Props {
 	mode: ActivityEntryMode;
 	title: string;
 	timeAgo: string | null;
+	statusSectionId?: SectionedFeedSectionId | null;
+	statusIconColor?: string | null;
 	insertions: number;
 	deletions: number;
 	projectBadge?: Snippet;
@@ -41,6 +49,7 @@ interface Props {
 	taskDescription: string | null;
 	taskSubagentSummaries: readonly string[];
 	showTaskSubagentList: boolean;
+	latestToolDisplay?: ActivityEntryToolDisplay | null;
 	fileToolDisplayText: string | null;
 	toolContent: string | null;
 	showToolShimmer: boolean;
@@ -84,6 +93,8 @@ let {
 	mode,
 	title,
 	timeAgo,
+	statusSectionId = null,
+	statusIconColor = null,
 	insertions,
 	deletions,
 	projectBadge,
@@ -94,6 +105,7 @@ let {
 	taskDescription,
 	taskSubagentSummaries,
 	showTaskSubagentList,
+	latestToolDisplay = null,
 	fileToolDisplayText,
 	toolContent,
 	showToolShimmer,
@@ -158,6 +170,7 @@ const showMainRow = $derived(!currentQuestion);
 const hasMainRowContent = $derived(
 	Boolean(
 			taskWidgetSummary ||
+			latestToolDisplay ||
 			fileToolDisplayText ||
 			toolContent ||
 			statusText ||
@@ -200,13 +213,31 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 			{#if trailingAction}
 				{@render trailingAction()}
 			{:else}
-				{#if timeAgo}
+				{#if !statusSectionId && timeAgo}
 					<span class="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{timeAgo}</span>
 				{/if}
 
 				<div class="text-[10px] shrink-0 tabular-nums text-muted-foreground/70">
 					<DiffPill {insertions} {deletions} variant="plain" />
 				</div>
+
+				{#if statusSectionId}
+					<span class="inline-flex shrink-0 items-center justify-center">
+						{#if statusSectionId === "answer_needed"}
+							<Keyboard class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
+						{:else if statusSectionId === "working"}
+							<BuildIcon size="sm" class="shrink-0" />
+						{:else if statusSectionId === "planning"}
+							<PlanIcon size="sm" />
+						{:else if statusSectionId === "needs_review"}
+							<FileCode class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
+						{:else if statusSectionId === "idle"}
+							<CheckCircle class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
+						{:else if statusSectionId === "error"}
+							<Warning class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
+						{/if}
+					</span>
+				{/if}
 			{/if}
 		</div>
 
@@ -232,7 +263,13 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 				</div>
 			{:else}
 				<div class="flex items-start gap-1.5">
-					{#if fileToolDisplayText}
+					{#if latestToolDisplay}
+						<AgentCompactToolDisplay
+							tool={latestToolDisplay}
+							class="max-w-[60%] text-[10px]"
+							fileChipClass="max-w-[9.5rem] font-normal text-muted-foreground/60"
+						/>
+					{:else if fileToolDisplayText}
 						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
 							{#if isStreaming}
 								<TextShimmer class="truncate">{fileToolDisplayText}</TextShimmer>

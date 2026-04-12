@@ -17,9 +17,15 @@ pub(crate) fn infer_tool_kind_from_raw_arguments(
     if object.contains_key("file_path")
         || object.contains_key("filePath")
         || object.contains_key("path")
+        || object.contains_key("query")
+        || object.contains_key("cmd")
         || object.contains_key("command")
         || object.contains_key("pattern")
         || object.contains_key("url")
+        || object.contains_key("from")
+        || object.contains_key("to")
+        || object.contains_key("source")
+        || object.contains_key("destination")
     {
         return None;
     }
@@ -131,6 +137,22 @@ pub(crate) fn detect_update_type(data: &serde_json::Value) -> Result<UpdateType,
     Err(ParseError::UnknownUpdateType(
         "Could not determine update type".to_string(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::infer_tool_kind_from_raw_arguments;
+    use crate::acp::session_update::ToolKind;
+
+    #[test]
+    fn description_and_query_do_not_infer_task_kind() {
+        let inferred = infer_tool_kind_from_raw_arguments(&serde_json::json!({
+            "description": "Create planning todos",
+            "query": "INSERT INTO todos VALUES ('todo-1')"
+        }));
+
+        assert_ne!(inferred, Some(ToolKind::Task));
+    }
 }
 
 pub(crate) fn parse_tool_call_update(

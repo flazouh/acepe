@@ -9,9 +9,13 @@
 		command?: string | null;
 		showFilePath?: boolean;
 		leading: Snippet;
+		trailing?: Snippet;
+		hasTrailing?: boolean;
 		progress?: Snippet;
+		hasProgress?: boolean;
 		actionBar: Snippet;
 		editPreview?: Snippet;
+		hasEditPreview?: boolean;
 	}
 
 	let {
@@ -20,15 +24,19 @@
 		command = null,
 		showFilePath = true,
 		leading,
+		trailing,
+		hasTrailing = false,
 		progress,
+		hasProgress = false,
 		actionBar,
 		editPreview,
+		hasEditPreview = false,
 	}: Props = $props();
 </script>
 
 <div class="w-full">
 	<div
-		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-muted permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
+		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-input/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
 	>
 		<div class="flex w-full items-start justify-between gap-1.5">
 			<div class="flex min-w-0 w-full items-center gap-1.5 text-[0.6875rem]">
@@ -43,18 +51,23 @@
 				{/if}
 			</div>
 
-			{#if progress}
-				<div class="permission-tally-bar flex shrink-0 items-center self-center">
-					{@render progress()}
-				</div>
-			{/if}
+			<div class="flex shrink-0 items-center gap-1.5 self-center">
+				{#if progress && hasProgress}
+					<div class="permission-tally-bar flex shrink-0 items-center">
+						{@render progress()}
+					</div>
+				{/if}
+				{#if trailing && hasTrailing}
+					{@render trailing()}
+				{/if}
+			</div>
 		</div>
 
 		<div class="flex w-full items-center">
 			{@render actionBar()}
 		</div>
 
-		{#if editPreview}
+		{#if editPreview && hasEditPreview}
 			<div class="overflow-hidden rounded-md border border-border bg-background">
 				{@render editPreview()}
 			</div>
@@ -62,7 +75,7 @@
 	</div>
 
 	{#if command}
-		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-muted px-2 py-0.5">
+		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-input/30 px-2 py-0.5">
 			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70">
 				$ {command}
 			</code>

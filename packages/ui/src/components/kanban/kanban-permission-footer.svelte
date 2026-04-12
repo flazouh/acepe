@@ -67,16 +67,16 @@
 				$ {permission.command}
 			</code>
 		{/if}
-		<div class="mt-0.5 flex gap-1">
+		<div class="mt-0.5 flex flex-wrap gap-1">
 			<button
-				class="flex-1 rounded-sm bg-green-600/20 px-2 py-1 text-[10px] font-medium text-green-500 hover:bg-green-600/30 active:bg-green-600/40"
+				class="flex-1 rounded-sm border border-green-600/40 bg-green-600/30 px-2 py-1 text-[10px] font-medium text-green-400 hover:bg-green-600/40 active:bg-green-600/50"
 				onclick={handleApprove}
 			>
 				{approveLabel}
 			</button>
 			{#if allowAlwaysLabel && onAllowAlways}
 				<button
-					class="flex-1 rounded-sm bg-primary/15 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/25 active:bg-primary/35"
+					class="flex-1 rounded-sm border border-primary/40 bg-primary/25 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/35 active:bg-primary/45"
 					onclick={(event: MouseEvent) => {
 						event.stopPropagation();
 						onAllowAlways();
@@ -86,7 +86,7 @@
 				</button>
 			{/if}
 			<button
-				class="flex-1 rounded-sm bg-red-600/20 px-2 py-1 text-[10px] font-medium text-red-500 hover:bg-red-600/30 active:bg-red-600/40"
+				class="flex-1 rounded-sm border border-red-600/40 bg-red-600/30 px-2 py-1 text-[10px] font-medium text-red-400 hover:bg-red-600/40 active:bg-red-600/50"
 				onclick={handleReject}
 			>
 				{rejectLabel}

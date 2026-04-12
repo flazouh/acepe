@@ -7,45 +7,59 @@ function isActiveActivity(activity: ActivityState): boolean {
 	return activity.kind === "streaming" || activity.kind === "thinking";
 }
 
-function resolveEffectiveModeId(source: ThreadBoardSource): string | null {
-	if (source.currentModeId !== null) {
-		return source.currentModeId;
+function resolveEffectiveModeId(input: Pick<ThreadBoardSource, "currentModeId" | "state">): string | null {
+	if (input.currentModeId !== null) {
+		return input.currentModeId;
 	}
 
-	if (source.state.activity.kind === "streaming") {
-		return source.state.activity.modeId;
+	if (input.state.activity.kind === "streaming") {
+		return input.state.activity.modeId;
 	}
 
 	return null;
 }
 
-export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoardStatus {
-	const pendingInput = source.state.pendingInput;
+export interface ThreadBoardStatusInput {
+	readonly currentModeId: string | null;
+	readonly connectionError: string | null;
+	readonly state: ThreadBoardSource["state"];
+}
+
+export function classifyThreadBoardState(input: ThreadBoardStatusInput): ThreadBoardStatus {
+	const pendingInput = input.state.pendingInput;
 	if (pendingInput.kind !== "none") {
 		return "answer_needed";
 	}
 
-	if (source.state.connection === "error" || source.connectionError !== null) {
+	if (input.state.connection === "error" || input.connectionError !== null) {
 		return "error";
 	}
 
-	if (isActiveActivity(source.state.activity)) {
-		const modeId = resolveEffectiveModeId(source);
+	if (isActiveActivity(input.state.activity)) {
+		const modeId = resolveEffectiveModeId(input);
 		if (modeId === "plan") {
 			return "planning";
 		}
 		return "working";
 	}
 
-	if (source.state.activity.kind === "paused") {
+	if (input.state.activity.kind === "paused") {
 		return "working";
 	}
 
-	if (source.state.attention.hasUnseenCompletion) {
+	if (input.state.attention.hasUnseenCompletion) {
 		return "needs_review";
 	}
 
 	return "idle";
+}
+
+export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoardStatus {
+	return classifyThreadBoardState({
+		currentModeId: source.currentModeId,
+		connectionError: source.connectionError,
+		state: source.state,
+	});
 }
 
 function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus): ThreadBoardItem {
@@ -53,6 +67,7 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		panelId: source.panelId,
 		sessionId: source.sessionId,
 		agentId: source.agentId,
+		autonomousEnabled: source.autonomousEnabled,
 		projectPath: source.projectPath,
 		projectName: source.projectName,
 		projectColor: source.projectColor,

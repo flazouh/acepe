@@ -1,8 +1,7 @@
 <script lang="ts">
-import { Colors } from "../../lib/colors.js";
-import type { Snippet } from "svelte";
-import { sectionColor } from "../attention-queue/section-color.js";
-import FeedSectionHeader from "../attention-queue/feed-section-header.svelte";
+	import type { Snippet } from "svelte";
+	import { sectionAccentColor } from "../attention-queue/section-color.js";
+	import FeedSectionHeader from "../attention-queue/feed-section-header.svelte";
 import type { KanbanCardData, KanbanColumnGroup } from "./types.js";
 
 interface Props {
@@ -22,7 +21,7 @@ let { group, cardRenderer, emptyHint }: Props = $props();
 		sectionId={group.id}
 		label={group.label}
 		count={group.items.length}
-		color={group.id === "needs_review" ? Colors.purple : sectionColor(group.id)}
+		color={sectionAccentColor(group.id)}
 		needsReviewIcon="file-code"
 	/>
 	<div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-y-contain p-0.5">

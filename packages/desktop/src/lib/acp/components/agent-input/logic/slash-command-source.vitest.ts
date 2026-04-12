@@ -5,7 +5,7 @@ import {
 } from "./slash-command-source.js";
 
 describe("resolveSlashCommandSource", () => {
-	it("does not fall back to preconnection commands once a session is connected", () => {
+	it("falls back to preconnection commands when a connected session has no live commands", () => {
 		const source = resolveSlashCommandSource({
 			liveCommands: [],
 			hasConnectedSession: true,
@@ -14,9 +14,9 @@ describe("resolveSlashCommandSource", () => {
 		});
 
 		expect(source).toEqual({
-			source: "none",
-			commands: [],
-			tokenType: "command",
+			source: "preconnection",
+			commands: [{ name: "ce:review", description: "Review changes" }],
+			tokenType: "skill",
 		});
 	});
 
@@ -32,6 +32,21 @@ describe("resolveSlashCommandSource", () => {
 			source: "preconnection",
 			commands: [{ name: "ce:plan", description: "Plan work" }],
 			tokenType: "skill",
+		});
+	});
+
+	it("prefers live commands over preconnection commands once connected", () => {
+		const source = resolveSlashCommandSource({
+			liveCommands: [{ name: "compact", description: "Compact the session" }],
+			hasConnectedSession: true,
+			selectedAgentId: "copilot",
+			preconnectionCommands: [{ name: "systematic-debugging", description: "Debug carefully" }],
+		});
+
+		expect(source).toEqual({
+			source: "live",
+			commands: [{ name: "compact", description: "Compact the session" }],
+			tokenType: "command",
 		});
 	});
 });

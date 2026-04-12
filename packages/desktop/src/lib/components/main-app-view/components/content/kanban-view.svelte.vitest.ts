@@ -60,7 +60,7 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("projectActivityEntry");
+		expect(source).toContain("projectSessionPreviewActivity");
 		expect(source).toContain("taskCard: KanbanTaskCardData | null");
 		expect(source).toContain("projectPath={item.projectPath}");
 		expect(source).toContain(
@@ -173,11 +173,10 @@ describe("kanban empty-column contract", () => {
 
 		expect(source).not.toContain("function getKanbanPreviewMarkdown(");
 		expect(source).not.toContain("previewMarkdown");
-		expect(source).toContain('item.state.activity.kind === "streaming"');
-		expect(source).toContain('item.state.activity.kind === "thinking"');
-		expect(source).toContain("const activityProjection = projectActivityEntry({");
-		expect(source).toContain("lastToolCall: isWorking ? null : item.lastToolCall,");
-		expect(source).toContain("lastToolKind: isWorking ? null : item.lastToolKind,");
+		expect(source).toContain("isActiveCompactActivityKind");
+		expect(source).toContain("const activityProjection = projectSessionPreviewActivity({");
+		expect(source).toContain("lastToolCall: item.lastToolCall,");
+		expect(source).toContain("lastToolKind: item.lastToolKind,");
 		expect(source).toContain('activityProjection.toolKind !== "think"');
 		expect(source).toContain("const toolDisplay =");
 		expect(source).toContain("if (!isWorking) return null;");
@@ -202,8 +201,8 @@ describe("kanban empty-column contract", () => {
 
 		expect(source).toContain("currentStreamingToolCall: item.currentStreamingToolCall,");
 		expect(source).toContain("currentToolKind: item.currentToolKind,");
-		expect(source).toContain("lastToolCall: isWorking ? null : item.lastToolCall,");
-		expect(source).toContain("lastToolKind: isWorking ? null : item.lastToolKind,");
+		expect(source).toContain("lastToolCall: item.lastToolCall,");
+		expect(source).toContain("lastToolKind: item.lastToolKind,");
 		expect(source).not.toContain("showHistoricalActivity");
 	});
 
@@ -224,7 +223,7 @@ describe("kanban empty-column contract", () => {
 
 		const source = readFileSync(kanbanViewPath, "utf8");
 
-		expect(source).toContain("projectActivityEntry");
+		expect(source).toContain("projectSessionPreviewActivity");
 		expect(source).toContain(
 			'from "$lib/acp/components/activity-entry/activity-entry-projection.js"'
 		);

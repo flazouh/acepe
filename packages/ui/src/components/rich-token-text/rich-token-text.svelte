@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
 	import { tokenizeInlineArtefacts } from "../../lib/inline-artefact/index.js";
+	import { cn } from "../../lib/utils.js";
 	import { InlineArtefactBadge } from "../inline-artefact-badge/index.js";
 
 	interface Props {
@@ -14,7 +15,7 @@
 	const segments = $derived(tokenizeInlineArtefacts(text));
 </script>
 
-<span class="text-sm leading-relaxed break-words {className}">
+<span class={cn("text-sm leading-relaxed break-words", className)}>
 	{#each segments as segment, i (i)}
 		{#if segment.kind === "text"}
 			<span class="whitespace-pre-wrap">{segment.text}</span>
