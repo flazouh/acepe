@@ -76,7 +76,7 @@ const resolvedColor = $derived(
 	</div>
 	{#if trailing}
 		<div
-			class="flex items-center border-l border-border/30"
+			class="flex items-center gap-0.5"
 			role="presentation"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
@@ -85,7 +85,7 @@ const resolvedColor = $derived(
 		</div>
 	{/if}
 	{#if actions}
-		<div class="flex items-center border-l border-border/30">
+		<div class="flex items-center gap-0.5 pr-0.5">
 			{@render actions()}
 		</div>
 	{/if}

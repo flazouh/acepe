@@ -163,8 +163,8 @@
     }
   },
   "scripts": {
-    "test": "bun test $(find src -type f -name '*.test.ts')",
-    "test:run": "bun test $(find src -type f -name '*.test.ts')"
+    "test": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')",
+    "test:run": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')"
   },
   "peerDependencies": {
     "bits-ui": "^2.14.4",

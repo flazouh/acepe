@@ -85,6 +85,7 @@ function createState(options?: {
 		toggleFullscreen: vi.fn(),
 		isPanelInReviewMode: vi.fn(() => false),
 		setPanelAgent: vi.fn(),
+		spawnPanel: vi.fn(() => createAgentPanel("/repo")),
 		focusedTopLevelPanel,
 		focusedPanel: options?.focusedPanelProjectPath
 			? { projectPath: options.focusedPanelProjectPath }
@@ -249,6 +250,22 @@ describe("MainAppViewState file explorer", () => {
 
 		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("panel-1", "cursor");
 		expect(setSelectedAgentIds).not.toHaveBeenCalled();
+	});
+
+	it("routes project-scoped thread creation through the override when one is registered", () => {
+		const { state, panelStore } = createState({
+			projects: [{ path: "/repo", name: "Repo" }],
+		});
+		const override = vi.fn();
+		state.onNewThreadOverride = override;
+
+		state.handleNewThreadForProject("/repo", "cursor");
+
+		expect(override).toHaveBeenCalledWith({
+			projectPath: "/repo",
+			agentId: "cursor",
+		});
+		expect(panelStore.spawnPanel).not.toHaveBeenCalled();
 	});
 
 	it("opens issue drafts with the system browser opener", () => {

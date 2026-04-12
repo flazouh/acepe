@@ -13,7 +13,7 @@ interface Props {
 let { sessionCount = 3, isExpanded = true }: Props = $props();
 </script>
 
-<div class="flex min-w-0 flex-col overflow-hidden rounded-lg bg-card/50" data-slot="project-card-skeleton">
+<div class="flex min-w-0 flex-col overflow-hidden rounded-lg bg-card/75" data-slot="project-card-skeleton">
 	<!-- Project header skeleton - matches ProjectHeader (name truncates in real UI) -->
 	<div class="flex min-w-0 shrink-0 items-center gap-2 rounded-md bg-background/30 px-2 py-1" aria-hidden="true">
 		<!-- Letter badge (ProjectLetterBadge default size 20px) -->

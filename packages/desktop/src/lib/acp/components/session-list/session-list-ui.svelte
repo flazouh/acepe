@@ -730,7 +730,7 @@ function openCreateBranchDialog(projectPath: string): void {
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
 				{#each sessionGroups as group (group.projectPath)}
 					{@const viewMode = getProjectViewMode(group.projectPath)}
-					<div class="flex min-w-0 flex-col overflow-hidden rounded-lg bg-card/50">
+					<div class="flex min-w-0 flex-col overflow-hidden rounded-md bg-card/75">
 						<!-- Real project header (only sessions are loading) -->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<div
@@ -806,7 +806,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											/>
 										{#if shouldShowProjectCreateButton()}
 											<div
-												class="flex items-center border-l border-border/30"
+												class="flex items-center"
 												role="presentation"
 												onclick={(e) => {
 													e.stopPropagation();
@@ -822,7 +822,7 @@ function openCreateBranchDialog(projectPath: string): void {
 													<Tooltip.Trigger>
 														<button
 															type="button"
-															class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+															class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 															aria-label={m.thread_list_new_session_in_project({
 																projectName: group.projectName,
 															})}
@@ -874,7 +874,7 @@ function openCreateBranchDialog(projectPath: string): void {
 				{@const visibleSessions = showingHistorical ? group.sessions : liveSessions}
 				{@const historicalCount = group.sessions.length - liveSessions.length}
 				<div
-					class="flex flex-col overflow-hidden rounded-lg bg-card/50"
+					class="flex flex-col overflow-hidden rounded-md bg-card/75"
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
@@ -935,7 +935,7 @@ function openCreateBranchDialog(projectPath: string): void {
 						>
 							{#snippet actions()}
 								<div
-									class="flex shrink-0 items-center"
+									class="flex shrink-0 items-center gap-0.5 pr-0.5"
 									role="presentation"
 									onclick={(e) => e.stopPropagation()}
 									onkeydown={(e) => e.stopPropagation()}
@@ -954,7 +954,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									/>
 									{#if shouldShowProjectCreateButton()}
 										<div
-											class="flex shrink-0 items-center border-l border-border/30"
+											class="flex shrink-0 items-center"
 											role="presentation"
 											onclick={(e) => {
 												e.stopPropagation();
@@ -970,7 +970,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												<Tooltip.Trigger>
 													<button
 														type="button"
-														class="inline-flex h-7 w-7 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+														class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 														aria-label={m.thread_list_new_session_in_project({
 															projectName: group.projectName,
 														})}
@@ -1215,9 +1215,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							</DropdownMenu.Root>
 
 							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
-							<div
-								class="flex items-center shrink-0 border-l border-border/30 text-[11px] font-mono leading-none text-muted-foreground"
-							>
+							<div class="flex items-center shrink-0 text-[11px] font-mono leading-none text-muted-foreground">
 								{#if ahead > 0 || behind > 0}
 									<span class="inline-flex h-7 items-center gap-1.5 px-1.5">
 										{#if ahead > 0}
@@ -1260,11 +1258,11 @@ function openCreateBranchDialog(projectPath: string): void {
 							</div>
 
 							<!-- Action buttons: Fetch + Source Control -->
-							<div class="flex items-center border-l border-border/30">
+							<div class="flex items-center gap-0.5 pl-0.5">
 								<Tooltip.Root>
 									<Tooltip.Trigger>
 										<button
-											class="inline-flex h-7 w-7 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+											class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 											disabled={isFetching}
 											onclick={(e) => handleFetchRemote(e, group.projectPath)}
 										>
@@ -1278,14 +1276,14 @@ function openCreateBranchDialog(projectPath: string): void {
 										<span>{isFetching ? "Fetching…" : "Fetch remote"}</span>
 									</Tooltip.Content>
 								</Tooltip.Root>
-								{#if onOpenGitPanel}
-									<Tooltip.Root>
-										<Tooltip.Trigger>
-											<button
-												class="inline-flex h-7 w-7 cursor-pointer items-center justify-center border-l border-border/30 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
-												onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
-											>
-												<GitBranch class="h-3 w-3" weight="fill" />
+									{#if onOpenGitPanel}
+										<Tooltip.Root>
+											<Tooltip.Trigger>
+												<button
+													class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+													onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
+												>
+													<GitBranch class="h-3 w-3" weight="fill" />
 											</button>
 										</Tooltip.Trigger>
 										<Tooltip.Content>Source Control</Tooltip.Content>
