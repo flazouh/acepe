@@ -1034,12 +1034,13 @@ mod tests {
             id: "tool-1".to_string(),
             name: "Edit".to_string(),
             arguments: ToolArguments::Edit {
-                edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                    Some("/tmp/example.rs".to_string()),
-                    None,
-                    Some("before".to_string()),
-                    Some("after".to_string()),
-                )],
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: Some("/tmp/example.rs".to_string()),
+                    move_from: None,
+                    old_string: Some("before".to_string()),
+                    new_string: Some("after".to_string()),
+                    content: None,
+                }],
             },
             raw_input: None,
             status: ToolCallStatus::Pending,
@@ -1060,9 +1061,13 @@ mod tests {
             id: "tool-1".to_string(),
             name: "Edit".to_string(),
             arguments: ToolArguments::Edit {
-                edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                    None, None, None, None,
-                )],
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: None,
+                    move_from: None,
+                    old_string: None,
+                    new_string: None,
+                    content: None,
+                }],
             },
             raw_input: None,
             status: ToolCallStatus::Completed,
@@ -1092,12 +1097,9 @@ mod tests {
             ReconcilerOutput::EmitToolCallUpdate(update) => match update.arguments.as_ref() {
                 Some(ToolArguments::Edit { edits }) => {
                     let first_edit = edits.first().expect("expected edit entry");
-                    assert_eq!(
-                        first_edit.file_path().map(String::as_str),
-                        Some("/tmp/example.rs")
-                    );
-                    assert_eq!(first_edit.old_text().map(String::as_str), Some("before"));
-                    assert_eq!(first_edit.new_text().map(String::as_str), Some("after"));
+                    assert_eq!(first_edit.file_path.as_deref(), Some("/tmp/example.rs"));
+                    assert_eq!(first_edit.old_string.as_deref(), Some("before"));
+                    assert_eq!(first_edit.new_string.as_deref(), Some("after"));
                 }
                 other => panic!("Expected edit arguments, got {:?}", other),
             },
@@ -1371,12 +1373,13 @@ mod tests {
             id: "tool-1".to_string(),
             name: "Edit".to_string(),
             arguments: ToolArguments::Edit {
-                edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                    Some("/tmp/example.rs".to_string()),
-                    None,
-                    Some("before".to_string()),
-                    Some("after".to_string()),
-                )],
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: Some("/tmp/example.rs".to_string()),
+                    move_from: None,
+                    old_string: Some("before".to_string()),
+                    new_string: Some("after".to_string()),
+                    content: None,
+                }],
             },
             raw_input: None,
             status: ToolCallStatus::InProgress,
@@ -1408,9 +1411,13 @@ mod tests {
             streaming_arguments: None,
             streaming_plan: None,
             arguments: Some(ToolArguments::Edit {
-                edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                    None, None, None, None,
-                )],
+                edits: vec![crate::acp::session_update::EditEntry {
+                    file_path: None,
+                    move_from: None,
+                    old_string: None,
+                    new_string: None,
+                    content: None,
+                }],
             }),
             failure_reason: None,
         };
@@ -1420,12 +1427,9 @@ mod tests {
         match &tool_call.arguments {
             ToolArguments::Edit { edits } => {
                 let first_edit = edits.first().expect("expected edit entry");
-                assert_eq!(
-                    first_edit.file_path().map(String::as_str),
-                    Some("/tmp/example.rs")
-                );
-                assert_eq!(first_edit.old_text().map(String::as_str), Some("before"));
-                assert_eq!(first_edit.new_text().map(String::as_str), Some("after"));
+                assert_eq!(first_edit.file_path.as_deref(), Some("/tmp/example.rs"));
+                assert_eq!(first_edit.old_string.as_deref(), Some("before"));
+                assert_eq!(first_edit.new_string.as_deref(), Some("after"));
             }
             other => panic!("Expected edit arguments, got {:?}", other),
         }

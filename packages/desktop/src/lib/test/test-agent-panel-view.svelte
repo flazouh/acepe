@@ -158,10 +158,9 @@ That's all for now!`,
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: "/Users/test/project/src/example.ts",
-							old_text: "function hello() {\n  console.log('Hello');\n}",
-							new_text: "function hello() {\n  console.log('Hello, World!');\n}",
+							filePath: "/Users/test/project/src/example.ts",
+							oldString: "function hello() {\n  console.log('Hello');\n}",
+							newString: "function hello() {\n  console.log('Hello, World!');\n}",
 						},
 					],
 				},

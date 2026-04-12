@@ -1,4 +1,4 @@
-use crate::acp::session_update::{EditDelta, ToolArguments, ToolCallLocation};
+use crate::acp::session_update::{EditEntry, ToolArguments, ToolCallLocation};
 
 pub(crate) fn title_is_placeholder(title: Option<&str>) -> bool {
     matches!(
@@ -46,87 +46,10 @@ pub(crate) fn synthesize_locations(arguments: &ToolArguments) -> Option<Vec<Tool
     })
 }
 
-fn merge_optional_string(incoming: Option<String>, current: Option<String>) -> Option<String> {
-    incoming.or(current)
-}
-
-fn merge_edit_delta(current: EditDelta, incoming: EditDelta) -> EditDelta {
-    match (current, incoming) {
-        (
-            EditDelta::ReplaceText {
-                file_path: current_file_path,
-                move_from: current_move_from,
-                old_text: current_old_text,
-                new_text: current_new_text,
-            },
-            EditDelta::ReplaceText {
-                file_path: incoming_file_path,
-                move_from: incoming_move_from,
-                old_text: incoming_old_text,
-                new_text: incoming_new_text,
-            },
-        ) => EditDelta::ReplaceText {
-            file_path: merge_optional_string(incoming_file_path, current_file_path),
-            move_from: merge_optional_string(incoming_move_from, current_move_from),
-            old_text: merge_optional_string(incoming_old_text, current_old_text),
-            new_text: merge_optional_string(incoming_new_text, current_new_text),
-        },
-        (
-            EditDelta::WriteFile {
-                file_path: current_file_path,
-                move_from: current_move_from,
-                previous_content: current_previous_content,
-                content: current_content,
-            },
-            EditDelta::WriteFile {
-                file_path: incoming_file_path,
-                move_from: incoming_move_from,
-                previous_content: incoming_previous_content,
-                content: incoming_content,
-            },
-        ) => EditDelta::WriteFile {
-            file_path: merge_optional_string(incoming_file_path, current_file_path),
-            move_from: merge_optional_string(incoming_move_from, current_move_from),
-            previous_content: merge_optional_string(
-                incoming_previous_content,
-                current_previous_content,
-            ),
-            content: merge_optional_string(incoming_content, current_content),
-        },
-        (
-            EditDelta::DeleteFile {
-                file_path: current_file_path,
-                old_text: current_old_text,
-            },
-            EditDelta::DeleteFile {
-                file_path: incoming_file_path,
-                old_text: incoming_old_text,
-            },
-        ) => EditDelta::DeleteFile {
-            file_path: merge_optional_string(incoming_file_path, current_file_path),
-            old_text: merge_optional_string(incoming_old_text, current_old_text),
-        },
-        (current_value, incoming_value) => {
-            if edit_delta_detail_score(&incoming_value) >= edit_delta_detail_score(&current_value) {
-                incoming_value
-            } else {
-                current_value
-            }
-        }
-    }
-}
-
-fn edit_delta_detail_score(edit: &EditDelta) -> usize {
-    usize::from(edit.file_path().is_some())
-        + usize::from(edit.move_from().is_some())
-        + usize::from(edit.old_text().is_some())
-        + usize::from(edit.new_text().is_some())
-}
-
 pub(crate) fn merge_edit_entries(
-    current: Vec<EditDelta>,
-    incoming: Vec<EditDelta>,
-) -> Vec<EditDelta> {
+    current: Vec<EditEntry>,
+    incoming: Vec<EditEntry>,
+) -> Vec<EditEntry> {
     let max_len = current.len().max(incoming.len());
     let mut merged = Vec::with_capacity(max_len);
 
@@ -135,9 +58,13 @@ pub(crate) fn merge_edit_entries(
         let incoming_entry = incoming.get(index).cloned();
 
         let next_entry = match (current_entry, incoming_entry) {
-            (Some(current_value), Some(incoming_value)) => {
-                merge_edit_delta(current_value, incoming_value)
-            }
+            (Some(current_value), Some(incoming_value)) => EditEntry {
+                file_path: incoming_value.file_path.or(current_value.file_path),
+                move_from: incoming_value.move_from.or(current_value.move_from),
+                old_string: incoming_value.old_string.or(current_value.old_string),
+                new_string: incoming_value.new_string.or(current_value.new_string),
+                content: incoming_value.content.or(current_value.content),
+            },
             (Some(current_value), None) => current_value,
             (None, Some(incoming_value)) => incoming_value,
             (None, None) => continue,
@@ -182,19 +109,19 @@ fn extract_paths(arguments: &ToolArguments) -> Option<Vec<String>> {
             .or_else(|| file_path.clone().map(|path| vec![path])),
         ToolArguments::Edit { edits, .. } => edits
             .first()
-            .and_then(|edit| edit.file_path().cloned())
+            .and_then(|edit| edit.file_path.clone())
             .map(|path| vec![path]),
         ToolArguments::Glob { path, .. } => path.clone().map(|value| vec![value]),
         _ => None,
     }
 }
 
-fn synthesize_edit_title(edit: &EditDelta) -> Option<String> {
-    if let (Some(from), Some(to)) = (edit.move_from(), edit.file_path()) {
+fn synthesize_edit_title(edit: &EditEntry) -> Option<String> {
+    if let (Some(from), Some(to)) = (edit.move_from.as_ref(), edit.file_path.as_ref()) {
         return Some(format!("Rename {} -> {}", from, to));
     }
 
-    edit.file_path().map(|path| format!("Edit {}", path))
+    edit.file_path.as_ref().map(|path| format!("Edit {}", path))
 }
 
 #[cfg(test)]
@@ -252,12 +179,13 @@ mod tests {
 
         assert_eq!(
             synthesize_title(&ToolArguments::Edit {
-                edits: vec![EditDelta::write_file(
-                    Some("/tmp/new.rs".to_string()),
-                    Some("/tmp/old.rs".to_string()),
-                    None,
-                    None,
-                )],
+                edits: vec![EditEntry {
+                    file_path: Some("/tmp/new.rs".to_string()),
+                    move_from: Some("/tmp/old.rs".to_string()),
+                    old_string: None,
+                    new_string: None,
+                    content: None,
+                }],
             }),
             Some("Rename /tmp/old.rs -> /tmp/new.rs".to_string())
         );
@@ -273,12 +201,13 @@ mod tests {
     #[test]
     fn synthesizes_locations_from_canonical_arguments() {
         let locations = synthesize_locations(&ToolArguments::Edit {
-            edits: vec![EditDelta::write_file(
-                Some("/tmp/file.rs".to_string()),
-                None,
-                None,
-                None,
-            )],
+            edits: vec![EditEntry {
+                file_path: Some("/tmp/file.rs".to_string()),
+                move_from: None,
+                old_string: None,
+                new_string: None,
+                content: None,
+            }],
         })
         .expect("locations");
 
@@ -301,26 +230,29 @@ mod tests {
 
     #[test]
     fn merges_sparse_edit_entries_without_dropping_richer_metadata() {
-        let current = vec![EditDelta::write_file(
-            Some("/tmp/new.rs".to_string()),
-            Some("/tmp/old.rs".to_string()),
-            Some("before".to_string()),
-            Some("after".to_string()),
-        )];
-        let incoming = vec![EditDelta::write_file(
-            None,
-            None,
-            None,
-            Some("full content".to_string()),
-        )];
+        let current = vec![EditEntry {
+            file_path: Some("/tmp/new.rs".to_string()),
+            move_from: Some("/tmp/old.rs".to_string()),
+            old_string: Some("before".to_string()),
+            new_string: Some("after".to_string()),
+            content: None,
+        }];
+        let incoming = vec![EditEntry {
+            file_path: None,
+            move_from: None,
+            old_string: None,
+            new_string: None,
+            content: Some("full content".to_string()),
+        }];
 
         let merged = merge_edit_entries(current, incoming);
 
         assert_eq!(merged.len(), 1);
         let edit = &merged[0];
-        assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/new.rs"));
-        assert_eq!(edit.move_from().map(String::as_str), Some("/tmp/old.rs"));
-        assert_eq!(edit.old_text().map(String::as_str), Some("before"));
-        assert_eq!(edit.new_text().map(String::as_str), Some("full content"));
+        assert_eq!(edit.file_path.as_deref(), Some("/tmp/new.rs"));
+        assert_eq!(edit.move_from.as_deref(), Some("/tmp/old.rs"));
+        assert_eq!(edit.old_string.as_deref(), Some("before"));
+        assert_eq!(edit.new_string.as_deref(), Some("after"));
+        assert_eq!(edit.content.as_deref(), Some("full content"));
     }
 }

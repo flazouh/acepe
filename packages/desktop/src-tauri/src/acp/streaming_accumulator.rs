@@ -852,7 +852,7 @@ mod tests {
         match second.streaming_arguments.expect("streaming args expected") {
             ToolArguments::Edit { edits } => {
                 let e = edits.first().expect("edit entry");
-                assert_eq!(e.file_path().map(String::as_str), Some("/tmp/test.rs"));
+                assert_eq!(e.file_path.as_deref(), Some("/tmp/test.rs"));
             }
             other => panic!("Expected Edit after seed, got {:?}", other),
         }

@@ -4,18 +4,6 @@ import type { ToolCall } from "../../../../../types/tool-call.js";
 
 import { createFileInfo } from "../create-file-info.js";
 
-function replaceTextEdit(
-	file_path?: string,
-	old_text?: string | null,
-	new_text?: string | null
-) {
-	return { type: "replaceText" as const, file_path, old_text, new_text };
-}
-
-function writeFileEdit(file_path?: string, content?: string | null, previous_content?: string | null) {
-	return { type: "writeFile" as const, file_path, previous_content, content };
-}
-
 describe("createFileInfo", () => {
 	it("should extract file path and name", () => {
 		const toolCall: ToolCall = {
@@ -23,7 +11,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("src/lib/utils.ts", undefined, "export const x = 1;")],
+				edits: [{ filePath: "src/lib/utils.ts", newString: "export const x = 1;" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -41,7 +29,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit(undefined, undefined, "content")],
+				edits: [{ newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -59,7 +47,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit(undefined, undefined, "content")],
+				edits: [{ newString: "content" }],
 			},
 			locations: [{ path: "/tmp/location-fallback.md" }],
 			status: "completed",
@@ -78,7 +66,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("/tmp/from-arguments.md", undefined, "content")],
+				edits: [{ filePath: "/tmp/from-arguments.md", newString: "content" }],
 			},
 			locations: [{ path: "/tmp/from-location.md" }],
 			status: "completed",
@@ -98,11 +86,11 @@ describe("createFileInfo", () => {
 			arguments: {
 				kind: "edit",
 				edits: [
-					replaceTextEdit(
-						"test.ts",
-						"line1\nline2\nline3",
-						"line1\nline2\nline3\nline4\nline5"
-					),
+					{
+						filePath: "test.ts",
+						oldString: "line1\nline2\nline3",
+						newString: "line1\nline2\nline3\nline4\nline5",
+					},
 				],
 			},
 			status: "completed",
@@ -125,7 +113,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [writeFileEdit("test.ts", "line1\nline2\nline3")],
+				edits: [{ filePath: "test.ts", content: "line1\nline2\nline3" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -146,7 +134,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("test.ts")],
+				edits: [{ filePath: "test.ts" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -163,7 +151,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("README.md", undefined, "# Title")],
+				edits: [{ filePath: "README.md", newString: "# Title" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -180,7 +168,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("script.ts", undefined, "export const x = 1;")],
+				edits: [{ filePath: "script.ts", newString: "export const x = 1;" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -197,7 +185,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("readme.MD", undefined, "# Title")],
+				edits: [{ filePath: "readme.MD", newString: "# Title" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -214,7 +202,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("src/file.ts", undefined, "content")],
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -225,7 +213,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("src/file.ts", undefined, "content")],
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,
@@ -236,7 +224,7 @@ describe("createFileInfo", () => {
 			name: "edit",
 			arguments: {
 				kind: "edit",
-				edits: [replaceTextEdit("src/file.ts", undefined, "content")],
+				edits: [{ filePath: "src/file.ts", newString: "content" }],
 			},
 			status: "completed",
 			awaitingPlanApproval: false,

@@ -524,9 +524,11 @@ export class MainAppViewState {
 	 */
 	/**
 	 * Optional override for new-thread behavior (e.g. kanban dialog).
-	 * When set, CMD+T calls this instead of spawning a panel.
+	 * When set, new-thread requests call this instead of spawning a panel.
 	 */
-	onNewThreadOverride: (() => void) | null = null;
+	onNewThreadOverride:
+		| ((request?: { readonly projectPath?: string; readonly agentId?: string }) => void)
+		| null = null;
 
 	handleNewThread(): void {
 		// Defensive guard: don't allow new thread if projectCount is unknown or 0
@@ -572,6 +574,14 @@ export class MainAppViewState {
 	handleNewThreadForProject(projectPath: string, agentId?: string): void {
 		const project = this.projectManager.projects.find((p) => p.path === projectPath);
 		if (!project) {
+			return;
+		}
+
+		if (this.onNewThreadOverride) {
+			this.onNewThreadOverride({
+				projectPath: project.path,
+				agentId,
+			});
 			return;
 		}
 

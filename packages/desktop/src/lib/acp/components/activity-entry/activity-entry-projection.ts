@@ -11,10 +11,10 @@ import type { SessionStatus } from "../../application/dto/session-status.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
-import { buildToolPresentation } from "../tool-calls/tool-presentation.js";
 import {
 	compactAgentToolEntry,
 	resolveCompactToolDisplay,
+	resolveFullToolEntry,
 	type CompactToolDisplay,
 } from "../tool-calls/tool-definition-registry.js";
 
@@ -192,13 +192,13 @@ function getChildSummary(child: ToolCall): string | null {
 		}
 	}
 
-	const presentation = buildToolPresentation({ toolCall: child });
-	const subtitle = presentation.subtitle?.trim();
+	const entry = resolveFullToolEntry({ toolCall: child });
+	const subtitle = entry.subtitle?.trim();
 	if (subtitle && subtitle.length > 0) {
 		return subtitle;
 	}
 
-	const title = presentation.title.trim();
+	const title = entry.title.trim();
 	return title.length > 0 ? title : null;
 }
 

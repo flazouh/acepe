@@ -127,10 +127,6 @@ name = "e2e_migration_test"
 path = "tests/e2e_migration_test.rs"
 
 [[test]]
-name = "provider_operation_conformance"
-path = "tests/provider_operation_conformance.rs"
-
-[[test]]
 name = "startup_scan_benchmark"
 path = "tests/startup_scan_benchmark.rs"
 required-features = ["manual-test-targets"]

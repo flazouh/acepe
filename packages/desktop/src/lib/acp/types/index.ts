@@ -4,18 +4,15 @@
 export type { AvailableModel } from "../../services/acp-types.js";
 export type {
 	AvailableCommandsData,
-	CanonicalOperationEvent,
 	ConfigOptionUpdateData,
 	ContentBlock,
 	ContentChunk,
 	CurrentModeData,
-	DegradedToolState,
 	PermissionData,
 	PlanData,
 	QuestionData,
 	SessionUpdate,
 	ToolCallData,
-	ToolSemanticSource,
 	ToolCallUpdateData,
 } from "../../services/converted-session-types.js";
 // Session types

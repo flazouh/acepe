@@ -3,6 +3,9 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+// Types referenced by ConnectionComplete lifecycle event
+import type { SessionModelState, SessionModes } from "./acp-types.js";
+
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
  */
@@ -20,35 +23,6 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
 contextWindowSize?: number | null }
-
-export type AvailableModel = { modelId: string; name: string; description?: string | null }
-
-export type AvailableMode = { id: string; name: string; description?: string | null }
-
-/**
- * Pre-computed model info for display. Frontend uses this directly.
- */
-export type DisplayableModel = { modelId: string; displayName: string; description?: string | null }
-
-/**
- * Generic group of models. Label can be provider, base model name, or empty.
- */
-export type DisplayModelGroup = { label: string; models: DisplayableModel[] }
-
-export type ModelDisplayFamily = "claudeLike" | "codexReasoningEffort" | "providerGrouped"
-
-export type UsageMetricsPresentation = "contextWindowOnly" | "spendAndContext"
-
-export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }
-
-/**
- * Display-ready model structure. Single representation—flat = one group.
- */
-export type ModelsForDisplay = { groups: DisplayModelGroup[]; presentation?: ModelPresentationMetadata }
-
-export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay }
-
-export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
 /**
  * Session update types from ACP protocol.
@@ -79,7 +53,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } | 
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands: AvailableCommand[]; config_options: ConfigOptionData[]; autonomous_enabled: boolean } | 
 /**
  * Emitted by the async resume task when session connection fails.
  */
@@ -134,13 +108,32 @@ awaitingPlanApproval: boolean;
 planApprovalRequestId?: number | null }
 
 /**
- * A single canonical file delta within an Edit tool call.
+ * A single file edit entry within an Edit tool call.
  * 
- * A single `Edit` tool call may touch multiple files (e.g. OpenCode patch text
- * or Codex changes maps). Each entry must declare its semantic edit variant
- * explicitly instead of relying on a bag of optional transport-era fields.
+ * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
+ * or Codex's multi-entry `changes` map). Each entry represents one file's change.
  */
-export type EditDelta = { type: "replaceText"; file_path?: string | null; move_from?: string | null; old_text?: string | null; new_text?: string | null } | { type: "writeFile"; file_path?: string | null; move_from?: string | null; previous_content?: string | null; content?: string | null } | { type: "deleteFile"; file_path?: string | null; old_text?: string | null }
+export type EditEntry = { 
+/**
+ * Path of the file being edited.
+ */
+filePath?: string | null; 
+/**
+ * Original path when the edit entry represents a rename/move inside a multi-file edit patch.
+ */
+moveFrom?: string | null; 
+/**
+ * Text being replaced (None = new file or full-file write).
+ */
+oldString?: string | null; 
+/**
+ * Replacement text (standard edit).
+ */
+newString?: string | null; 
+/**
+ * Full file content (create/overwrite variant).
+ */
+content?: string | null }
 
 /**
  * Tool arguments discriminated by tool kind.
@@ -153,7 +146,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null } |
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditDelta[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool call update data.
@@ -349,11 +342,6 @@ export type PlanConfidence = "high" | "medium"
 export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "other"
 
 /**
- * The strongest signal that determined the canonical semantic kind for a tool event.
- */
-export type ToolSemanticSource = "tool_name" | "provider_declared_kind" | "payload_hint" | "serialized_arguments" | "location_hint" | "title_hint" | "parsed_arguments" | "web_search_promotion" | "browser_override" | "unknown"
-
-/**
  * Tool call status.
  */
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
@@ -362,16 +350,6 @@ export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
  * Tool call location.
  */
 export type ToolCallLocation = { path: string }
-
-/**
- * Safe structured fallback when canonicalization cannot fully recover semantics.
- */
-export type DegradedToolState = { reason: string; rawInputFragment?: JsonValue | null; rawResultFragment?: JsonValue | null; rawContentFragment?: JsonValue | null }
-
-/**
- * Canonical operation-event envelope derived from tool transport.
- */
-export type CanonicalOperationEvent = { transportId: string; provider: string; providerToolName?: string | null; providerDeclaredKind?: ToolKind | null; semanticKind: ToolKind; semanticSource: ToolSemanticSource; payload: ToolArguments; degraded?: DegradedToolState | null }
 
 /**
  * Available command with metadata.

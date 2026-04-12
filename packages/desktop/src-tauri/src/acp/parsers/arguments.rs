@@ -7,7 +7,7 @@
 use crate::acp::parsers::argument_enrichment::{
     parse_parsed_cmd_move, parse_parsed_cmd_path, parse_parsed_cmd_query,
 };
-use crate::acp::session_update::{EditDelta, ToolArguments, ToolKind};
+use crate::acp::session_update::{EditEntry, ToolArguments, ToolKind};
 
 pub(crate) fn extract_parser_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
@@ -56,20 +56,12 @@ pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) ->
     let content = extract_parser_string(raw_arguments, &["content"]);
 
     ToolArguments::Edit {
-        edits: vec![if content.is_some() && new_string.is_none() {
-            EditDelta::WriteFile {
-                file_path,
-                move_from,
-                previous_content: old_string,
-                content,
-            }
-        } else {
-            EditDelta::ReplaceText {
-                file_path,
-                move_from,
-                old_text: old_string,
-                new_text: new_string.or(content),
-            }
+        edits: vec![EditEntry {
+            file_path,
+            move_from,
+            old_string,
+            new_string,
+            content,
         }],
     }
 }

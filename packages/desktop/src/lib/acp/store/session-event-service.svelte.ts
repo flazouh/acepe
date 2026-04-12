@@ -33,7 +33,6 @@ import {
 } from "../types/reply-handler.js";
 import { createLogger } from "../utils/logger.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
-import { createToolCallIdentityProof } from "./operation-store.svelte.js";
 import { enrichExistingToolCallFromPermission } from "./services/permission-tool-call-enricher.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
@@ -92,11 +91,6 @@ function hasToolCallEntry(
 	return handler
 		.getEntries(sessionId)
 		.some((entry) => entry.type === "tool_call" && entry.message.id === toolCallId);
-}
-
-function createTransportIdentityFingerprint(sessionId: string, toolCallId: string): string {
-	const proof = createToolCallIdentityProof(toolCallId);
-	return `${sessionId}|${proof.kind}|${proof.proof}|${proof.value}`;
 }
 
 function hashReplayFingerprint(input: string): string {
@@ -812,31 +806,6 @@ export class SessionEventService {
 				break;
 			}
 
-			case "connectionComplete":
-				logger.info("Connection complete event received", {
-					sessionId,
-					attemptId: update.attempt_id,
-					autonomousEnabled: update.autonomous_enabled,
-				});
-				this.callbacks.onConnectionComplete?.(sessionId, update.attempt_id, {
-					models: update.models,
-					modes: update.modes,
-					availableCommands: update.available_commands ?? [],
-					configOptions: update.config_options ?? [],
-					autonomousEnabled: update.autonomous_enabled,
-				});
-				// Flush buffered events now that connection is established
-				this.flushPendingEvents(sessionId, handler);
-				break;
-
-			case "connectionFailed":
-				logger.error("Connection failed event received", {
-					sessionId,
-					attemptId: update.attempt_id,
-					error: update.error,
-				});
-				this.callbacks.onConnectionFailed?.(sessionId, update.attempt_id, update.error);
-				break;
 			default: {
 				update satisfies never;
 			}
@@ -977,13 +946,13 @@ export class SessionEventService {
 				const payloadFingerprint = hashReplayFingerprint(
 					serializeToolCallReplayPayload(update.tool_call)
 				);
-				return `${createTransportIdentityFingerprint(sessionId, update.tool_call.id)}|toolCall|${payloadFingerprint}`;
+				return `${sessionId}|toolCall|${update.tool_call.id}|${payloadFingerprint}`;
 			}
 			case "toolCallUpdate": {
 				const payloadFingerprint = hashReplayFingerprint(
 					serializeToolCallUpdateReplayPayload(update.update)
 				);
-				return `${createTransportIdentityFingerprint(sessionId, update.update.toolCallId)}|toolCallUpdate|${payloadFingerprint}`;
+				return `${sessionId}|toolCallUpdate|${update.update.toolCallId}|${payloadFingerprint}`;
 			}
 			case "availableCommandsUpdate":
 				return `${sessionId}|availableCommands|${update.update.availableCommands.length}`;

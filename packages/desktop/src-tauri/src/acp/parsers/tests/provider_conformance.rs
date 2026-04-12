@@ -30,7 +30,7 @@ fn assert_expected_arguments(expected: &ExpectedArguments, arguments: &ToolArgum
         ExpectedArguments::EditPath(expected_path) => match arguments {
             ToolArguments::Edit { edits } => {
                 let edit = edits.first().expect("edit entry");
-                assert_eq!(edit.file_path().map(String::as_str), Some(*expected_path));
+                assert_eq!(edit.file_path.as_deref(), Some(*expected_path));
             }
             other => panic!("Expected edit arguments, got {other:?}"),
         },

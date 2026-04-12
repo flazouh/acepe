@@ -115,7 +115,7 @@ mod opencode_parse_tool_call {
         match result.arguments {
             crate::acp::session_update::ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("CLAUDE.md"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("CLAUDE.md"));
             }
             other => panic!("Expected Edit arguments, got {other:?}"),
         }
@@ -142,7 +142,7 @@ mod opencode_parse_tool_call {
         match result.arguments {
             crate::acp::session_update::ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("link.txt"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("link.txt"));
             }
             other => panic!("Expected Edit arguments, got {other:?}"),
         }

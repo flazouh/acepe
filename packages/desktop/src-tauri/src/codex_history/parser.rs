@@ -4,6 +4,7 @@
 //! This parser loads a single session transcript and converts it to the unified
 //! `ConvertedSession` format used by the frontend.
 
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
@@ -12,31 +13,15 @@ use chrono::Utc;
 use ignore::WalkBuilder;
 use serde_json::Value;
 
-use crate::acp::parsers::{AgentParser, CodexParser};
+use crate::acp::parsers::{get_parser, AgentParser, AgentType, CodexParser};
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
-    ContentChunk, RawToolCallInput, RawToolCallUpdateInput, SessionUpdate, ToolCallStatus,
+    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
+    ToolCallData,
 };
-use crate::acp::types::ContentBlock;
-use crate::session_jsonl::types::ConvertedSession;
-
-enum LastTranscriptEntry {
-    User(String),
-    Assistant(String),
-    Other,
-}
-
-fn is_adjacent_duplicate(
-    last_entry: &Option<LastTranscriptEntry>,
-    role: &str,
-    text: &str,
-) -> bool {
-    match (last_entry, role) {
-        (Some(LastTranscriptEntry::User(previous)), "user") => previous == text,
-        (Some(LastTranscriptEntry::Assistant(previous)), "assistant") => previous == text,
-        _ => false,
-    }
-}
+use crate::session_jsonl::types::{
+    ConvertedSession, SessionStats, StoredAssistantChunk, StoredAssistantMessage,
+    StoredContentBlock, StoredEntry, StoredUserMessage,
+};
 
 /// Load a Codex session from local rollout files.
 pub async fn load_session(
@@ -50,11 +35,11 @@ pub async fn load_session(
 
     let file_content = tokio::fs::read_to_string(&path).await?;
 
+    let mut entries: Vec<StoredEntry> = Vec::new();
+    let mut tool_entry_indices: HashMap<String, usize> = HashMap::new();
     let mut created_at: Option<String> = None;
     let mut first_user_message: Option<String> = None;
-    let mut updates: Vec<(u64, SessionUpdate)> = Vec::new();
-    let parser = CodexParser;
-    let mut last_transcript_entry: Option<LastTranscriptEntry> = None;
+    let mut serial = 0usize;
 
     for line in file_content.lines() {
         if line.trim().is_empty() {
@@ -69,10 +54,6 @@ pub async fn load_session(
             .get("timestamp")
             .and_then(Value::as_str)
             .map(str::to_string);
-        let timestamp_ms = timestamp
-            .as_deref()
-            .and_then(parse_timestamp_ms)
-            .unwrap_or_else(|| Utc::now().timestamp_millis() as u64);
         let record_type = record
             .get("type")
             .and_then(Value::as_str)
@@ -102,22 +83,14 @@ pub async fn load_session(
                             .unwrap_or_default()
                             .trim()
                             .to_string();
-                        if message.is_empty()
-                            || is_adjacent_duplicate(&last_transcript_entry, "user", &message)
-                        {
-                            continue;
-                        }
-                        if first_user_message.is_none() {
-                            first_user_message = Some(message.clone());
-                        }
-                        last_transcript_entry = Some(LastTranscriptEntry::User(message.clone()));
-                        updates.push((
-                            timestamp_ms,
-                            SessionUpdate::UserMessageChunk {
-                                chunk: text_chunk(message),
-                                session_id: Some(session_id.to_string()),
-                            },
-                        ));
+                        append_user_message(
+                            &mut entries,
+                            &mut serial,
+                            session_id,
+                            message,
+                            timestamp.clone(),
+                            &mut first_user_message,
+                        );
                     }
                     "agent_reasoning" => {
                         let thought = payload
@@ -129,16 +102,24 @@ pub async fn load_session(
                         if thought.is_empty() {
                             continue;
                         }
-                        last_transcript_entry = Some(LastTranscriptEntry::Other);
-                        updates.push((
-                            timestamp_ms,
-                            SessionUpdate::AgentThoughtChunk {
-                                chunk: text_chunk(thought),
-                                part_id: None,
-                                message_id: None,
-                                session_id: Some(session_id.to_string()),
+
+                        serial += 1;
+                        entries.push(StoredEntry::Assistant {
+                            id: format!("codex-thought-{}-{}", session_id, serial),
+                            message: StoredAssistantMessage {
+                                chunks: vec![StoredAssistantChunk {
+                                    chunk_type: "thought".to_string(),
+                                    block: StoredContentBlock {
+                                        block_type: "text".to_string(),
+                                        text: Some(thought),
+                                    },
+                                }],
+                                model: None,
+                                display_model: None,
+                                received_at: timestamp.clone(),
                             },
-                        ));
+                            timestamp: timestamp.clone(),
+                        });
                     }
                     "agent_message" => {
                         let message = payload
@@ -147,22 +128,13 @@ pub async fn load_session(
                             .unwrap_or_default()
                             .trim()
                             .to_string();
-                        if message.is_empty()
-                            || is_adjacent_duplicate(&last_transcript_entry, "assistant", &message)
-                        {
-                            continue;
-                        }
-                        last_transcript_entry =
-                            Some(LastTranscriptEntry::Assistant(message.clone()));
-                        updates.push((
-                            timestamp_ms,
-                            SessionUpdate::AgentMessageChunk {
-                                chunk: text_chunk(message),
-                                part_id: None,
-                                message_id: None,
-                                session_id: Some(session_id.to_string()),
-                            },
-                        ));
+                        append_assistant_message(
+                            &mut entries,
+                            &mut serial,
+                            session_id,
+                            message,
+                            timestamp.clone(),
+                        );
                     }
                     _ => {}
                 }
@@ -184,28 +156,13 @@ pub async fn load_session(
                             // bootstrap payloads (AGENTS/environment context) that are
                             // not conversational turns. User turns come from event_msg.user_message.
                             "user" => {}
-                            "assistant" => {
-                                if text.is_empty()
-                                    || is_adjacent_duplicate(
-                                        &last_transcript_entry,
-                                        "assistant",
-                                        &text,
-                                    )
-                                {
-                                    continue;
-                                }
-                                last_transcript_entry =
-                                    Some(LastTranscriptEntry::Assistant(text.clone()));
-                                updates.push((
-                                    timestamp_ms,
-                                    SessionUpdate::AgentMessageChunk {
-                                        chunk: text_chunk(text),
-                                        part_id: None,
-                                        message_id: None,
-                                        session_id: Some(session_id.to_string()),
-                                    },
-                                ));
-                            }
+                            "assistant" => append_assistant_message(
+                                &mut entries,
+                                &mut serial,
+                                session_id,
+                                text,
+                                timestamp.clone(),
+                            ),
                             _ => {}
                         }
                     }
@@ -232,25 +189,45 @@ pub async fn load_session(
                             .unwrap_or_else(|| serde_json::json!({}));
 
                         let kind = CodexParser.detect_tool_kind(&name);
-                        let raw = RawToolCallInput {
-                            id: call_id,
-                            provider_tool_name: Some(name.clone()),
-                            provider_declared_kind: Some(kind),
-                            arguments: raw_arguments,
-                            status: ToolCallStatus::Pending,
-                            title: Some(name),
-                            suppress_title_read_path_hint: false,
-                            parent_tool_use_id: None,
-                            task_children: None,
-                        };
-                        last_transcript_entry = Some(LastTranscriptEntry::Other);
-                        updates.push((
-                            timestamp_ms,
-                            SessionUpdate::ToolCall {
-                                tool_call: build_tool_call_from_raw(&parser, raw),
-                                session_id: Some(session_id.to_string()),
+                        let normalized_questions =
+                            parse_normalized_questions(&name, &raw_arguments, AgentType::Codex);
+                        let normalized_todos =
+                            parse_normalized_todos(&name, &raw_arguments, AgentType::Codex);
+
+                        serial += 1;
+                        let entry = StoredEntry::ToolCall {
+                            id: call_id.clone(),
+                            message: ToolCallData {
+                                id: call_id.clone(),
+                                name: name.clone(),
+                                title: Some(name.clone()),
+                                status: tool_call_status_from_str("pending"),
+                                result: None,
+                                kind: Some(kind),
+                                arguments: get_parser(AgentType::Codex)
+                                    .parse_typed_tool_arguments(
+                                        Some(&name),
+                                        &raw_arguments,
+                                        Some(kind.as_str()),
+                                    )
+                                    .unwrap_or(ToolArguments::Other { raw: raw_arguments }),
+                                raw_input: None,
+                                skill_meta: None,
+                                locations: None,
+                                normalized_questions,
+                                normalized_todos,
+                                parent_tool_use_id: None,
+                                task_children: None,
+                                awaiting_plan_approval: false,
+                                plan_approval_request_id: None,
+                                question_answer: None,
                             },
-                        ));
+                            timestamp: timestamp.clone(),
+                        };
+
+                        let index = entries.len();
+                        entries.push(entry);
+                        tool_entry_indices.insert(call_id, index);
                     }
                     "function_call_output" => {
                         let call_id = payload
@@ -268,30 +245,15 @@ pub async fn load_session(
                             .unwrap_or_default()
                             .to_string();
                         let status = infer_tool_status_from_output(&output);
-                        let raw_update = RawToolCallUpdateInput {
-                            id: call_id,
-                            provider_tool_name: None,
-                            provider_declared_kind: None,
-                            status: Some(tool_call_status_from_str(&status)),
-                            result: Some(serde_json::Value::String(output)),
-                            content: None,
-                            title: None,
-                            locations: None,
-                            streaming_input_delta: None,
-                            raw_input: None,
-                        };
-                        last_transcript_entry = Some(LastTranscriptEntry::Other);
-                        updates.push((
-                            timestamp_ms,
-                            SessionUpdate::ToolCallUpdate {
-                                update: build_tool_call_update_from_raw(
-                                    &parser,
-                                    raw_update,
-                                    Some(session_id),
-                                ),
-                                session_id: Some(session_id.to_string()),
-                            },
-                        ));
+
+                        if let Some(index) = tool_entry_indices.get(&call_id).copied() {
+                            if let Some(StoredEntry::ToolCall { message, .. }) =
+                                entries.get_mut(index)
+                            {
+                                message.result = Some(serde_json::Value::String(output));
+                                message.status = tool_call_status_from_str(&status);
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -300,17 +262,106 @@ pub async fn load_session(
         }
     }
 
+    let created_at = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
     let title = first_user_message
         .as_deref()
         .and_then(|t| crate::history::title_utils::derive_session_title(t, 100))
         .unwrap_or_else(|| "New Thread".to_string());
-    let mut converted =
-        crate::copilot_history::convert_replay_updates_to_session(session_id, &title, &updates);
-    if let Some(created_at) = created_at {
-        converted.created_at = created_at;
+    let stats = build_stats(&entries);
+
+    Ok(Some(ConvertedSession {
+        entries,
+        stats,
+        title,
+        created_at,
+        current_mode_id: None,
+    }))
+}
+
+fn append_user_message(
+    entries: &mut Vec<StoredEntry>,
+    serial: &mut usize,
+    session_id: &str,
+    message: String,
+    timestamp: Option<String>,
+    first_user_message: &mut Option<String>,
+) {
+    if message.is_empty() || is_adjacent_duplicate(entries, "user", &message) {
+        return;
     }
 
-    Ok(Some(converted))
+    if first_user_message.is_none() {
+        *first_user_message = Some(message.clone());
+    }
+
+    *serial += 1;
+    entries.push(StoredEntry::User {
+        id: format!("codex-user-{}-{}", session_id, serial),
+        message: StoredUserMessage {
+            id: None,
+            content: StoredContentBlock {
+                block_type: "text".to_string(),
+                text: Some(message.clone()),
+            },
+            chunks: vec![StoredContentBlock {
+                block_type: "text".to_string(),
+                text: Some(message),
+            }],
+            sent_at: timestamp.clone(),
+        },
+        timestamp,
+    });
+}
+
+fn append_assistant_message(
+    entries: &mut Vec<StoredEntry>,
+    serial: &mut usize,
+    session_id: &str,
+    message: String,
+    timestamp: Option<String>,
+) {
+    if message.is_empty() || is_adjacent_duplicate(entries, "assistant", &message) {
+        return;
+    }
+
+    *serial += 1;
+    entries.push(StoredEntry::Assistant {
+        id: format!("codex-assistant-{}-{}", session_id, serial),
+        message: StoredAssistantMessage {
+            chunks: vec![StoredAssistantChunk {
+                chunk_type: "message".to_string(),
+                block: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some(message),
+                },
+            }],
+            model: None,
+            display_model: None,
+            received_at: timestamp.clone(),
+        },
+        timestamp,
+    });
+}
+
+fn is_adjacent_duplicate(entries: &[StoredEntry], role: &str, text: &str) -> bool {
+    let Some(last) = entries.last() else {
+        return false;
+    };
+
+    match (role, last) {
+        ("user", StoredEntry::User { message, .. }) => {
+            message.content.text.as_deref().unwrap_or_default() == text
+        }
+        ("assistant", StoredEntry::Assistant { message, .. }) => {
+            message
+                .chunks
+                .first()
+                .and_then(|chunk| chunk.block.text.as_deref())
+                .unwrap_or_default()
+                == text
+        }
+        _ => false,
+    }
 }
 
 fn extract_response_message_text(payload: &Value) -> String {
@@ -439,24 +490,48 @@ fn infer_tool_status_from_output(output: &str) -> String {
     "completed".to_string()
 }
 
-fn text_chunk(text: String) -> ContentChunk {
-    ContentChunk {
-        content: ContentBlock::Text { text },
-        aggregation_hint: None,
-    }
-}
+fn build_stats(entries: &[StoredEntry]) -> SessionStats {
+    let mut stats = SessionStats {
+        total_messages: 0,
+        user_messages: 0,
+        assistant_messages: 0,
+        tool_uses: 0,
+        tool_results: 0,
+        thinking_blocks: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+    };
 
-fn parse_timestamp_ms(timestamp: &str) -> Option<u64> {
-    chrono::DateTime::parse_from_rfc3339(timestamp)
-        .ok()
-        .map(|value| value.timestamp_millis())
-        .and_then(|value| u64::try_from(value).ok())
+    for entry in entries {
+        match entry {
+            StoredEntry::User { .. } => {
+                stats.total_messages += 1;
+                stats.user_messages += 1;
+            }
+            StoredEntry::Assistant { message, .. } => {
+                stats.total_messages += 1;
+                stats.assistant_messages += 1;
+                stats.thinking_blocks += message
+                    .chunks
+                    .iter()
+                    .filter(|chunk| chunk.chunk_type == "thought")
+                    .count();
+            }
+            StoredEntry::ToolCall { message, .. } => {
+                stats.tool_uses += 1;
+                if message.result.is_some() {
+                    stats.tool_results += 1;
+                }
+            }
+        }
+    }
+
+    stats
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session_jsonl::types::StoredEntry;
 
     #[test]
     fn infer_tool_status_handles_completed_process() {
@@ -491,84 +566,41 @@ mod tests {
     }
 
     #[test]
-    fn text_chunk_creates_plain_text_chunk() {
-        let chunk = text_chunk("hello".to_string());
+    fn adjacent_duplicate_detection_matches_user_and_assistant() {
+        let mut entries = vec![StoredEntry::User {
+            id: "u1".to_string(),
+            message: StoredUserMessage {
+                id: None,
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("hello".to_string()),
+                },
+                chunks: vec![],
+                sent_at: None,
+            },
+            timestamp: None,
+        }];
 
-        match chunk.content {
-            ContentBlock::Text { text } => assert_eq!(text, "hello"),
-            other => panic!("expected text chunk, got {other:?}"),
-        }
-        assert_eq!(chunk.aggregation_hint, None);
-    }
+        assert!(is_adjacent_duplicate(&entries, "user", "hello"));
+        assert!(!is_adjacent_duplicate(&entries, "assistant", "hello"));
 
-    #[tokio::test]
-    async fn load_session_routes_codex_tool_calls_through_replay_accumulator() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let source_path = temp_dir.path().join("rollout-session-123.jsonl");
-        let session_id = "session-123";
-        let project_path = "/tmp/project";
-        let file_content = [
-            serde_json::json!({
-                "timestamp": "2026-04-12T10:00:00Z",
-                "type": "session_meta",
-                "payload": { "id": session_id, "cwd": project_path }
-            })
-            .to_string(),
-            serde_json::json!({
-                "timestamp": "2026-04-12T10:00:01Z",
-                "type": "event_msg",
-                "payload": { "type": "user_message", "message": "run ls" }
-            })
-            .to_string(),
-            serde_json::json!({
-                "timestamp": "2026-04-12T10:00:02Z",
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call",
-                    "call_id": "call-1",
-                    "name": "bash",
-                    "arguments": "{\"command\":\"ls\"}"
-                }
-            })
-            .to_string(),
-            serde_json::json!({
-                "timestamp": "2026-04-12T10:00:03Z",
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call_output",
-                    "call_id": "call-1",
-                    "output": "Process exited with code 0"
-                }
-            })
-            .to_string(),
-        ]
-        .join("\n");
+        entries.push(StoredEntry::Assistant {
+            id: "a1".to_string(),
+            message: StoredAssistantMessage {
+                chunks: vec![StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: StoredContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some("reply".to_string()),
+                    },
+                }],
+                model: None,
+                display_model: None,
+                received_at: None,
+            },
+            timestamp: None,
+        });
 
-        std::fs::write(&source_path, file_content).unwrap();
-
-        let converted = load_session(session_id, project_path, source_path.to_str())
-            .await
-            .unwrap()
-            .unwrap();
-
-        let tool_call = converted
-            .entries
-            .iter()
-            .find_map(|entry| match entry {
-                StoredEntry::ToolCall { message, .. } => Some(message),
-                _ => None,
-            })
-            .expect("expected tool call entry");
-
-        assert_eq!(converted.title, "run ls");
-        assert_eq!(tool_call.id, "call-1");
-        assert_eq!(tool_call.name, "bash");
-        assert_eq!(tool_call.status, ToolCallStatus::Completed);
-        assert_eq!(
-            tool_call.result,
-            Some(serde_json::Value::String(
-                "Process exited with code 0".to_string()
-            ))
-        );
+        assert!(is_adjacent_duplicate(&entries, "assistant", "reply"));
     }
 }

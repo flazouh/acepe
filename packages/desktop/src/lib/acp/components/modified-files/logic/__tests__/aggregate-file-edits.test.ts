@@ -6,9 +6,9 @@ import { aggregateFileEdits } from "../aggregate-file-edits.js";
 
 function createEditEntry(
 	id: string,
-	file_path: string,
-	old_text: string | null,
-	new_text: string | null
+	filePath: string,
+	oldString: string | null,
+	newString: string | null
 ): SessionEntry {
 	return {
 		id,
@@ -20,13 +20,13 @@ function createEditEntry(
 			status: "completed",
 			arguments: {
 				kind: "edit",
-				edits: [{ filePath: file_path, oldString: old_text, newString: new_text }],
+				edits: [{ filePath, oldString, newString }],
 			},
 		},
-	} as unknown as SessionEntry;
+	} as SessionEntry;
 }
 
-function createWriteEntry(id: string, file_path: string, content: string): SessionEntry {
+function createWriteEntry(id: string, filePath: string, content: string): SessionEntry {
 	return {
 		id,
 		type: "tool_call",
@@ -37,13 +37,13 @@ function createWriteEntry(id: string, file_path: string, content: string): Sessi
 			status: "completed",
 			arguments: {
 				kind: "edit",
-				edits: [{ filePath: file_path, content }],
+				edits: [{ filePath, content }],
 			},
 		},
-	} as unknown as SessionEntry;
+	} as SessionEntry;
 }
 
-function createReadEntry(id: string, file_path: string): SessionEntry {
+function createReadEntry(id: string, filePath: string): SessionEntry {
 	return {
 		id,
 		type: "tool_call",
@@ -54,10 +54,10 @@ function createReadEntry(id: string, file_path: string): SessionEntry {
 			status: "completed",
 			arguments: {
 				kind: "read",
-				file_path,
+				file_path: filePath,
 			},
 		},
-	} as unknown as SessionEntry;
+	} as SessionEntry;
 }
 
 function createUserEntry(id: string, content: string): SessionEntry {
@@ -102,7 +102,7 @@ describe("aggregateFileEdits", () => {
 					status: "completed",
 					arguments: {
 						kind: "edit",
-						edits: [{ old_text: "a", new_text: "b" }],
+						edits: [{ oldString: "a", newString: "b" }],
 					},
 				},
 			} as SessionEntry;
@@ -303,7 +303,7 @@ describe("aggregateFileEdits", () => {
 					status: "completed",
 					arguments: {
 						kind: "edit",
-						edits: [{ old_text: "a", new_text: "b" }],
+						edits: [{ oldString: "a", newString: "b" }],
 					},
 				},
 			} as SessionEntry;
@@ -350,7 +350,7 @@ describe("aggregateFileEdits", () => {
 							arguments: {
 								kind: "edit",
 								edits: [
-									{ file_path: "/src/agent-input-ui.svelte", old_text: "old", new_text: "new" },
+									{ filePath: "/src/agent-input-ui.svelte", oldString: "old", newString: "new" },
 								],
 							},
 							taskChildren: null,
@@ -374,9 +374,9 @@ describe("aggregateFileEdits", () => {
 										kind: "edit",
 										edits: [
 											{
-												file_path: "/src/review-panel.svelte",
-												old_text: "before",
-												new_text: "after",
+												filePath: "/src/review-panel.svelte",
+												oldString: "before",
+												newString: "after",
 											},
 										],
 									},

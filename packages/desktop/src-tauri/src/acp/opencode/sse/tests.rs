@@ -760,7 +760,7 @@ fn test_convert_apply_patch_tool_part_to_edit_tool_call() {
             match tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     assert_eq!(edits.len(), 1);
-                    assert_eq!(edits[0].file_path().map(String::as_str), Some("CLAUDE.md"));
+                    assert_eq!(edits[0].file_path.as_deref(), Some("CLAUDE.md"));
                 }
                 other => panic!("Expected Edit arguments, got {other:?}"),
             }
@@ -795,7 +795,7 @@ fn test_convert_apply_patch_tool_part_to_edit_tool_call_with_patch_text_camel_ca
         SessionUpdate::ToolCall { tool_call, .. } => match tool_call.arguments {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("link.txt"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("link.txt"));
             }
             other => panic!("Expected Edit arguments, got {other:?}"),
         },

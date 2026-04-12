@@ -6,6 +6,8 @@ interface ResolveKanbanNewSessionDefaultsInput {
 	readonly focusedProjectPath: string | null;
 	readonly availableAgents: readonly AgentInfo[];
 	readonly selectedAgentIds: readonly string[];
+	readonly requestedProjectPath?: string | null;
+	readonly requestedAgentId?: string | null;
 }
 
 interface KanbanNewSessionDefaults {
@@ -13,7 +15,20 @@ interface KanbanNewSessionDefaults {
 	readonly agentId: string | null;
 }
 
+export interface KanbanNewSessionRequest {
+	readonly projectPath?: string;
+	readonly agentId?: string;
+}
+
 function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput): string | null {
+	if (input.requestedProjectPath) {
+		for (const project of input.projects) {
+			if (project.path === input.requestedProjectPath) {
+				return project.path;
+			}
+		}
+	}
+
 	if (input.focusedProjectPath) {
 		for (const project of input.projects) {
 			if (project.path === input.focusedProjectPath) {
@@ -27,6 +42,14 @@ function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput):
 }
 
 function resolveDefaultAgentId(input: ResolveKanbanNewSessionDefaultsInput): string | null {
+	if (input.requestedAgentId) {
+		for (const agent of input.availableAgents) {
+			if (agent.id === input.requestedAgentId) {
+				return agent.id;
+			}
+		}
+	}
+
 	for (const selectedAgentId of input.selectedAgentIds) {
 		for (const agent of input.availableAgents) {
 			if (agent.id === selectedAgentId) {

@@ -168,12 +168,13 @@ mod tests {
                 streaming_arguments: None,
                 streaming_plan: None,
                 arguments: Some(ToolArguments::Edit {
-                    edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                        Some("/tmp/CLAUDE.md".to_string()),
-                        None,
-                        Some("Look at AGENTS.md".to_string()),
-                        Some("Look at AGENTS.md.".to_string()),
-                    )],
+                    edits: vec![crate::acp::session_update::EditEntry {
+                        file_path: Some("/tmp/CLAUDE.md".to_string()),
+                        move_from: None,
+                        old_string: Some("Look at AGENTS.md".to_string()),
+                        new_string: Some("Look at AGENTS.md.".to_string()),
+                        content: None,
+                    }],
                 }),
                 failure_reason: None,
             },
@@ -189,9 +190,13 @@ mod tests {
                     id: "tool-edit-1".to_string(),
                     name: "Edit".to_string(),
                     arguments: ToolArguments::Edit {
-                        edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                            None, None, None, None,
-                        )],
+                        edits: vec![crate::acp::session_update::EditEntry {
+                            file_path: None,
+                            move_from: None,
+                            old_string: None,
+                            new_string: None,
+                            content: None,
+                        }],
                     },
                     raw_input: None,
                     status: ToolCallStatus::Pending,
@@ -226,9 +231,9 @@ mod tests {
         match &message.arguments {
             ToolArguments::Edit { edits } => {
                 let e = edits.first().expect("edit entry");
-                assert_eq!(e.file_path().map(String::as_str), Some("/tmp/CLAUDE.md"));
-                assert_eq!(e.old_text().map(String::as_str), Some("Look at AGENTS.md"));
-                assert_eq!(e.new_text().map(String::as_str), Some("Look at AGENTS.md."));
+                assert_eq!(e.file_path.as_deref(), Some("/tmp/CLAUDE.md"));
+                assert_eq!(e.old_string.as_deref(), Some("Look at AGENTS.md"));
+                assert_eq!(e.new_string.as_deref(), Some("Look at AGENTS.md."));
             }
             other => panic!("expected edit arguments, got {:?}", other),
         }
@@ -256,12 +261,13 @@ mod tests {
                 streaming_arguments: None,
                 streaming_plan: None,
                 arguments: Some(ToolArguments::Edit {
-                    edits: vec![crate::acp::session_update::EditDelta::write_file(
-                        Some("/tmp/new.rs".to_string()),
-                        Some("/tmp/old.rs".to_string()),
-                        None,
-                        None,
-                    )],
+                    edits: vec![crate::acp::session_update::EditEntry {
+                        file_path: Some("/tmp/new.rs".to_string()),
+                        move_from: Some("/tmp/old.rs".to_string()),
+                        old_string: None,
+                        new_string: None,
+                        content: None,
+                    }],
                 }),
                 failure_reason: None,
             },
@@ -277,9 +283,13 @@ mod tests {
                     id: "tool-rename-1".to_string(),
                     name: "Edit".to_string(),
                     arguments: ToolArguments::Edit {
-                        edits: vec![crate::acp::session_update::EditDelta::replace_text(
-                            None, None, None, None,
-                        )],
+                        edits: vec![crate::acp::session_update::EditEntry {
+                            file_path: None,
+                            move_from: None,
+                            old_string: None,
+                            new_string: None,
+                            content: None,
+                        }],
                     },
                     raw_input: None,
                     status: ToolCallStatus::Pending,
@@ -318,8 +328,8 @@ mod tests {
         match &message.arguments {
             ToolArguments::Edit { edits } => {
                 let edit = edits.first().expect("edit entry");
-                assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/new.rs"));
-                assert_eq!(edit.move_from().map(String::as_str), Some("/tmp/old.rs"));
+                assert_eq!(edit.file_path.as_deref(), Some("/tmp/new.rs"));
+                assert_eq!(edit.move_from.as_deref(), Some("/tmp/old.rs"));
             }
             other => panic!("expected edit arguments, got {:?}", other),
         }

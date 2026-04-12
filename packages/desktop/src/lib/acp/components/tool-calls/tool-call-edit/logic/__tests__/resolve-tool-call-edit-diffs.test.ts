@@ -7,11 +7,11 @@ describe("resolveToolCallEditDiffs", () => {
 		const baseArguments = {
 			kind: "edit" as const,
 			edits: [
-				{ type: "replaceText" as const, file_path: "src/one.ts", old_text: "one-old", new_text: "one-new" },
-				{ type: "replaceText" as const, file_path: "src/two.ts", old_text: "two-old", new_text: "two-new" },
-				{ type: "replaceText" as const, file_path: "src/three.ts", old_text: "three-old", new_text: "three-new" },
-				{ type: "writeFile" as const, file_path: "src/four.ts", previous_content: "four-old", content: "four-new" },
-				{ type: "writeFile" as const, file_path: "src/five.ts", previous_content: null, content: "five-new" },
+				{ filePath: "src/one.ts", oldString: "one-old", newString: "one-new" },
+				{ filePath: "src/two.ts", oldString: "two-old", newString: "two-new" },
+				{ filePath: "src/three.ts", oldString: "three-old", newString: "three-new" },
+				{ filePath: "src/four.ts", oldString: "four-old", newString: "four-new" },
+				{ filePath: "src/five.ts", oldString: "five-old", newString: "five-new" },
 			],
 		};
 
@@ -38,16 +38,14 @@ describe("resolveToolCallEditDiffs", () => {
 		const baseArguments = {
 			kind: "edit" as const,
 			edits: [
-				{ type: "replaceText" as const, file_path: "src/one.ts", old_text: "one-old", new_text: "one-new" },
-				{ type: "replaceText" as const, file_path: "src/two.ts", old_text: "two-old", new_text: "two-new" },
+				{ filePath: "src/one.ts", oldString: "one-old", newString: "one-new" },
+				{ filePath: "src/two.ts", oldString: "two-old", newString: "two-new" },
 			],
 		};
 
 		const streamingArguments = {
 			kind: "edit" as const,
-			edits: [
-				{ type: "replaceText" as const, file_path: "src/one.ts", old_text: "one-old", new_text: "one-stream" },
-			],
+			edits: [{ filePath: "src/one.ts", oldString: "one-old", newString: "one-stream" }],
 		};
 
 		const result = resolveToolCallEditDiffs(baseArguments, streamingArguments);

@@ -174,7 +174,7 @@ describe("convertTaskChildren", () => {
 					status: "completed",
 					arguments: {
 						kind: "edit",
-						edits: [{ type: "replaceText", file_path: "/src/main.rs", old_text: "old", new_text: "new"  }],
+						edits: [{ filePath: "/src/main.rs", oldString: "old", newString: "new" }],
 					},
 				}),
 			];
@@ -233,7 +233,7 @@ describe("convertTaskChildren", () => {
 					title: "Edit file",
 					arguments: {
 						kind: "edit",
-						edits: [{ type: "replaceText", file_path: "/b.ts", old_text: "x", new_text: "y"  }],
+						edits: [{ filePath: "/b.ts", oldString: "x", newString: "y" }],
 					},
 				}),
 			];

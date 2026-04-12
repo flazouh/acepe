@@ -1,4 +1,4 @@
-import type { EditDelta, ToolArguments } from "../../../../../services/converted-session-types.js";
+import type { ToolArguments } from "../../../../../services/converted-session-types.js";
 
 export type ToolCallEditDiff = {
 	readonly filePath: string | null;
@@ -16,38 +16,6 @@ function getEditEntries(
 	return arguments_.edits;
 }
 
-function resolveEditFilePath(edit: EditDelta | undefined): string | null {
-	return edit?.file_path ?? null;
-}
-
-function resolveEditOldString(edit: EditDelta | undefined): string | null {
-	if (!edit) {
-		return null;
-	}
-
-	if (edit.type === "writeFile") {
-		return edit.previous_content ?? null;
-	}
-
-	return edit.old_text ?? null;
-}
-
-function resolveEditNewString(edit: EditDelta | undefined): string | null {
-	if (!edit) {
-		return null;
-	}
-
-	if (edit.type === "writeFile") {
-		return edit.content ?? null;
-	}
-
-	if (edit.type === "replaceText") {
-		return edit.new_text ?? null;
-	}
-
-	return null;
-}
-
 export function resolveToolCallEditDiffs(
 	baseArguments: ToolArguments | null | undefined,
 	streamingArguments: ToolArguments | null | undefined
@@ -57,9 +25,9 @@ export function resolveToolCallEditDiffs(
 
 	if (streamingEdits.length === 0) {
 		return baseEdits.map((edit) => ({
-			filePath: resolveEditFilePath(edit),
-			oldString: resolveEditOldString(edit),
-			newString: resolveEditNewString(edit),
+			filePath: edit.filePath ?? null,
+			oldString: edit.oldString ?? null,
+			newString: edit.newString ?? edit.content ?? null,
 		}));
 	}
 
@@ -70,9 +38,14 @@ export function resolveToolCallEditDiffs(
 		const streamingEdit = streamingEdits[index];
 
 		return {
-			filePath: resolveEditFilePath(streamingEdit) ?? resolveEditFilePath(baseEdit),
-			oldString: resolveEditOldString(streamingEdit) ?? resolveEditOldString(baseEdit),
-			newString: resolveEditNewString(streamingEdit) ?? resolveEditNewString(baseEdit),
+			filePath: streamingEdit?.filePath ?? baseEdit?.filePath ?? null,
+			oldString: streamingEdit?.oldString ?? baseEdit?.oldString ?? null,
+			newString:
+				streamingEdit?.newString ??
+				streamingEdit?.content ??
+				baseEdit?.newString ??
+				baseEdit?.content ??
+				null,
 		};
 	});
 }

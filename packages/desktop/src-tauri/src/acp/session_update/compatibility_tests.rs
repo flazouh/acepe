@@ -349,9 +349,9 @@ fn test_session_update_tool_call_edit() {
             match &tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     let e = edits.first().expect("edit entry");
-                    assert_eq!(e.file_path().map(String::as_str), Some("/path/to/file.ts"));
-                    assert!(e.old_text().is_some_and(|text| text.contains("multiply")));
-                    assert!(e.new_text().is_some_and(|text| text.contains("subtract")));
+                    assert_eq!(e.file_path.as_deref(), Some("/path/to/file.ts"));
+                    assert!(e.old_string.as_ref().unwrap().contains("multiply"));
+                    assert!(e.new_string.as_ref().unwrap().contains("subtract"));
                 }
                 _ => panic!("Expected Edit arguments"),
             }
@@ -405,49 +405,10 @@ fn test_tool_arguments_edit() {
     match args {
         ToolArguments::Edit { edits } => {
             let e = edits.first().expect("edit entry");
-            match e {
-                EditDelta::ReplaceText {
-                    file_path,
-                    move_from,
-                    old_text,
-                    new_text,
-                } => {
-                    assert_eq!(file_path.as_deref(), Some("/tmp/file.txt"));
-                    assert_eq!(move_from, &None);
-                    assert_eq!(old_text.as_deref(), Some("old content"));
-                    assert_eq!(new_text.as_deref(), Some("new content"));
-                }
-                other => panic!("Expected ReplaceText delta, got {:?}", other),
-            }
-        }
-        _ => panic!("Expected Edit variant"),
-    }
-}
-
-#[test]
-fn test_tool_arguments_edit_content_only_becomes_write_file_delta() {
-    let raw = json!({
-        "filePath": "/tmp/new-file.txt",
-        "content": "replacement content"
-    });
-    let args = ToolArguments::from_raw(ToolKind::Edit, raw);
-    match args {
-        ToolArguments::Edit { edits } => {
-            let e = edits.first().expect("edit entry");
-            match e {
-                EditDelta::WriteFile {
-                    file_path,
-                    move_from,
-                    previous_content,
-                    content,
-                } => {
-                    assert_eq!(file_path.as_deref(), Some("/tmp/new-file.txt"));
-                    assert_eq!(move_from, &None);
-                    assert_eq!(previous_content, &None);
-                    assert_eq!(content.as_deref(), Some("replacement content"));
-                }
-                other => panic!("Expected WriteFile delta, got {:?}", other),
-            }
+            assert_eq!(e.file_path, Some("/tmp/file.txt".to_string()));
+            assert_eq!(e.old_string, Some("old content".to_string()));
+            assert_eq!(e.new_string, Some("new content".to_string()));
+            assert_eq!(e.content, Some("replacement content".to_string()));
         }
         _ => panic!("Expected Edit variant"),
     }

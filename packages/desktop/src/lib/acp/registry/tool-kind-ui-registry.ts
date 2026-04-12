@@ -4,7 +4,6 @@ import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import { extractSkillCallInput } from "../utils/extract-skill-call-input.js";
 import {
-	calculateDiffStats,
 	getDisplayPath,
 	getToolStatus,
 	truncateText,
@@ -150,32 +149,13 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	edit: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			if (status.isPending) return m.tool_edit_running();
-
-			// Show diff stats if completed
-			if (status.isSuccess && toolCall.arguments.kind === "edit") {
-				const firstEdit = toolCall.arguments.edits[0];
-				const oldStr =
-					firstEdit?.type === "writeFile"
-						? (firstEdit.previous_content ?? "")
-						: (firstEdit?.old_text ?? "");
-				const newStr =
-					firstEdit?.type === "writeFile"
-						? (firstEdit.content ?? "")
-						: firstEdit?.type === "replaceText"
-							? (firstEdit.new_text ?? "")
-							: "";
-				const { added, removed } = calculateDiffStats(oldStr, newStr);
-				return m.tool_edit_completed_stats({ added, removed });
-			}
-
-			return m.tool_edit_completed();
+			return status.isPending ? m.tool_edit_running() : m.tool_edit_completed();
 		},
 		filePath: (toolCall) =>
-			toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.file_path ?? null) : null,
+			toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null,
 		tooltipContent: (toolCall) => {
 			const filePath =
-				toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.file_path ?? null) : null;
+				toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null;
 			return filePath ? getDisplayPath(filePath) : "";
 		},
 	},

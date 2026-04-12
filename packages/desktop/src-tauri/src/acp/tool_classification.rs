@@ -3,7 +3,7 @@ use crate::acp::parsers::kind::{
     is_web_search_title, looks_like_web_search_arguments,
 };
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
-use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind, ToolSemanticSource};
+use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ToolClassificationHints<'a> {
@@ -18,7 +18,6 @@ pub(crate) struct ToolClassificationHints<'a> {
 pub(crate) struct ToolIdentity {
     pub name: String,
     pub kind: ToolKind,
-    pub semantic_source: ToolSemanticSource,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +25,6 @@ pub(crate) struct ClassifiedToolData {
     pub name: String,
     pub kind: ToolKind,
     pub arguments: ToolArguments,
-    pub semantic_source: ToolSemanticSource,
 }
 
 pub(crate) fn is_unknown_tool_name(name: &str) -> bool {
@@ -197,30 +195,19 @@ fn resolve_identity_impl(
         None
     };
 
-    let (base_kind, mut semantic_source) = if let Some(kind) = detected_kind {
-        (kind, ToolSemanticSource::ToolName)
-    } else if let Some(kind) = hint_kind {
-        (kind, ToolSemanticSource::ProviderDeclaredKind)
-    } else if let Some(kind) = payload_kind {
-        (kind, ToolSemanticSource::PayloadHint)
-    } else if let Some(kind) = serialized_kind {
-        (kind, ToolSemanticSource::SerializedArguments)
-    } else if let Some(kind) = location_kind {
-        (kind, ToolSemanticSource::LocationHint)
-    } else if let Some(kind) = title_read_kind {
-        (kind, ToolSemanticSource::TitleHint)
-    } else {
-        (ToolKind::Other, ToolSemanticSource::Unknown)
-    };
-    let mut kind = apply_web_search_promotion(base_kind, id, hints.title, raw_arguments);
-    if kind != base_kind {
-        semantic_source = ToolSemanticSource::WebSearchPromotion;
-    }
+    let kind = detected_kind
+        .or(hint_kind)
+        .or(payload_kind)
+        .or(serialized_kind)
+        .or(location_kind)
+        .or(title_read_kind)
+        .unwrap_or(ToolKind::Other);
+    let kind = apply_web_search_promotion(kind, id, hints.title, raw_arguments);
 
     let name_is_browser = explicit_name.map(is_browser_tool_name).unwrap_or(false);
     let title_is_browser = hints.title.map(is_browser_tool_name).unwrap_or(false);
     let id_is_browser = is_browser_tool_name(id);
-    kind = if (name_is_browser || title_is_browser || id_is_browser)
+    let kind = if (name_is_browser || title_is_browser || id_is_browser)
         && matches!(
             kind,
             ToolKind::Other
@@ -229,7 +216,6 @@ fn resolve_identity_impl(
                 | ToolKind::Search
                 | ToolKind::Fetch
         ) {
-        semantic_source = ToolSemanticSource::BrowserOverride;
         ToolKind::Browser
     } else {
         kind
@@ -248,11 +234,7 @@ fn resolve_identity_impl(
             .unwrap_or_else(|| "unknown".to_string())
     };
 
-    ToolIdentity {
-        name,
-        kind,
-        semantic_source,
-    }
+    ToolIdentity { name, kind }
 }
 
 fn parse_arguments_once(
@@ -324,11 +306,6 @@ pub(crate) fn classify_raw_tool_call(
         hints.kind_hint,
     );
     let kind = promote_kind(identity.kind, arguments.tool_kind());
-    let semantic_source = if kind != identity.kind && arguments.tool_kind() != ToolKind::Other {
-        ToolSemanticSource::ParsedArguments
-    } else {
-        identity.semantic_source
-    };
     let name = if is_unknown_tool_name(&identity.name) && kind != ToolKind::Other {
         canonical_tool_call_name_for_kind(kind).to_string()
     } else {
@@ -339,7 +316,6 @@ pub(crate) fn classify_raw_tool_call(
         name,
         kind,
         arguments,
-        semantic_source,
     }
 }
 
@@ -359,11 +335,6 @@ pub(crate) fn classify_serialized_tool_call(
         hints.kind_hint,
     );
     let kind = promote_kind(identity.kind, arguments.tool_kind());
-    let semantic_source = if kind != identity.kind && arguments.tool_kind() != ToolKind::Other {
-        ToolSemanticSource::ParsedArguments
-    } else {
-        identity.semantic_source
-    };
     let name = if is_unknown_tool_name(&identity.name) && kind != ToolKind::Other {
         canonical_tool_call_name_for_kind(kind).to_string()
     } else {
@@ -374,7 +345,6 @@ pub(crate) fn classify_serialized_tool_call(
         name,
         kind,
         arguments,
-        semantic_source,
     }
 }
 

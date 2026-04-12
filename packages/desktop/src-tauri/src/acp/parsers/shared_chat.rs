@@ -14,22 +14,6 @@ pub(crate) fn infer_tool_kind_from_raw_arguments(
 ) -> Option<ToolKind> {
     let object = raw_arguments.as_object()?;
 
-    if object.contains_key("old_string")
-        || object.contains_key("oldString")
-        || object.contains_key("old_str")
-        || object.contains_key("oldText")
-        || object.contains_key("new_string")
-        || object.contains_key("newString")
-        || object.contains_key("new_str")
-        || object.contains_key("newText")
-        || (object.contains_key("content")
-            && (object.contains_key("file_path")
-                || object.contains_key("filePath")
-                || object.contains_key("path")))
-    {
-        return Some(ToolKind::Edit);
-    }
-
     if object.contains_key("file_path")
         || object.contains_key("filePath")
         || object.contains_key("path")
@@ -209,29 +193,29 @@ pub(crate) fn parse_tool_call_update(
         .and_then(|c| c.get("streamingInputDelta"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    let provider_tool_name = data
+    let tool_name = data
         .get("_meta")
         .and_then(|m| m.get("claudeCode"))
         .and_then(|c| c.get("toolName"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     let raw_input = data.get("rawInput").cloned().filter(|v| !v.is_null());
-    let provider_declared_kind = data
+    let kind = data
         .get("kind")
         .and_then(|v| v.as_str())
         .map(normalize_tool_kind);
 
     Ok(RawToolCallUpdateInput {
         id,
-        provider_tool_name,
-        provider_declared_kind,
         status,
         result,
         content,
         title,
         locations,
         streaming_input_delta,
+        tool_name,
         raw_input,
+        kind,
     })
 }
 

@@ -1,6 +1,5 @@
 //! Parser for Cursor agent.
 
-use crate::acp::parsers::acp_fields;
 use crate::acp::parsers::adapters::CursorAdapter;
 use crate::acp::parsers::argument_enrichment::inject_path_hint;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
@@ -11,6 +10,7 @@ use crate::acp::parsers::types::{
     parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
     ParsedUsageTelemetry, UpdateType,
 };
+use crate::acp::parsers::{acp_fields, kind as kind_utils};
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
@@ -108,26 +108,6 @@ impl AgentParser for CursorParser {
 }
 
 impl CursorParser {
-    fn infer_kind_from_title_and_arguments(
-        title: Option<&str>,
-        raw_arguments: &serde_json::Value,
-    ) -> Option<ToolKind> {
-        let pattern = raw_arguments
-            .get("pattern")
-            .and_then(|value| value.as_str())?;
-        let title = title.map(str::trim).unwrap_or_default();
-        if title.starts_with("Find ")
-            && (pattern.contains('*')
-                || pattern.contains('?')
-                || pattern.contains('{')
-                || pattern.contains('['))
-        {
-            Some(ToolKind::Glob)
-        } else {
-            None
-        }
-    }
-
     fn resolve_effective_tool_name(
         &self,
         explicit_name: Option<&str>,
@@ -252,10 +232,10 @@ impl CursorParser {
 
         Ok(RawToolCallInput {
             id,
-            provider_tool_name: Some(name),
-            provider_declared_kind: Some(kind),
+            name,
             arguments,
             status: ToolCallStatus::Pending,
+            kind: Some(kind),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -291,12 +271,16 @@ impl CursorParser {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string);
-        let provider_tool_name = raw_name.or_else(|| title.clone());
-        let provider_declared_kind =
-            Self::infer_kind_from_title_and_arguments(title.as_deref(), &raw_arguments)
-                .or_else(|| Some(CursorAdapter::normalize(&effective_name)))
-                .filter(|kind| *kind != ToolKind::Other)
-                .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize));
+
+        // Name-derived kind is specific; payload kind is a coarse fallback.
+        let name_kind = CursorAdapter::normalize(&effective_name);
+        let kind = if name_kind != ToolKind::Other {
+            name_kind
+        } else {
+            let kind_hint = acp_fields::extract_kind_hint(data);
+            kind_utils::infer_kind_from_payload(&id, title.as_deref(), kind_hint)
+                .unwrap_or(name_kind)
+        };
 
         let has_locations = data
             .get(acp_fields::LOCATIONS)
@@ -304,19 +288,17 @@ impl CursorParser {
             .is_some();
         let location_path = Self::extract_first_location_path(data);
         if let Some(location_path) = location_path.as_deref() {
-            inject_path_hint(
-                &mut raw_arguments,
-                provider_declared_kind.unwrap_or(ToolKind::Other),
-                &location_path,
-            );
+            inject_path_hint(&mut raw_arguments, kind, &location_path);
         }
+
+        let name = raw_name.unwrap_or_else(|| "unknown".to_string());
 
         Ok(RawToolCallInput {
             id,
-            provider_tool_name,
-            provider_declared_kind,
+            name,
             arguments: raw_arguments,
             status,
+            kind: Some(kind),
             title,
             suppress_title_read_path_hint: has_locations && location_path.is_none(),
             parent_tool_use_id: None,
@@ -346,15 +328,15 @@ impl CursorParser {
 
         Ok(RawToolCallUpdateInput {
             id,
-            provider_tool_name: tool_name,
-            provider_declared_kind: None,
             status: Some(ToolCallStatus::Completed),
             result,
             content: None,
             title: None,
             locations: None,
             streaming_input_delta,
+            tool_name,
             raw_input: None,
+            kind: None,
         })
     }
 
@@ -412,17 +394,16 @@ impl CursorParser {
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, raw_input.as_ref());
         let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
-        let provider_tool_name = tool_name_ref
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        let provider_declared_kind = if synthesized_edit {
-            Some(ToolKind::Edit)
+
+        // If we synthesized raw_input from the diff result, we know it's an edit
+        // even when the update payload has no name/title/kind.
+        let kind = if synthesized_edit {
+            ToolKind::Edit
         } else {
-            Some(CursorAdapter::normalize(&effective_name))
-                .filter(|kind| *kind != ToolKind::Other)
-                .or_else(|| acp_fields::extract_kind_hint(data).map(CursorAdapter::normalize))
+            CursorAdapter::normalize(&effective_name)
         };
+
+        let tool_name = kind_utils::display_name_for_tool(kind, &effective_name);
 
         let status = Some(
             acp_fields::extract_status(data)
@@ -438,11 +419,7 @@ impl CursorParser {
 
         if let Some(location_path) = Self::extract_first_location_path(data) {
             if let Some(raw_arguments) = raw_input.as_mut() {
-                inject_path_hint(
-                    raw_arguments,
-                    provider_declared_kind.unwrap_or(ToolKind::Other),
-                    &location_path,
-                );
+                inject_path_hint(raw_arguments, kind, &location_path);
             }
         }
 
@@ -450,15 +427,15 @@ impl CursorParser {
 
         Ok(RawToolCallUpdateInput {
             id,
-            provider_tool_name,
-            provider_declared_kind,
             status,
             result,
             content: None,
             title,
             locations,
             streaming_input_delta: None,
+            tool_name: Some(tool_name),
             raw_input,
+            kind: Some(kind),
         })
     }
 
@@ -556,7 +533,7 @@ mod tests {
 
         assert_eq!(update.id, "tool_test-edit-001");
         assert_eq!(update.status, Some(ToolCallStatus::Completed));
-        assert_eq!(update.provider_declared_kind, Some(ToolKind::Edit));
+        assert_eq!(update.kind, Some(ToolKind::Edit));
 
         // raw_input should be the synthesized diff object
         let raw_input = update.raw_input.unwrap();
@@ -591,21 +568,5 @@ mod tests {
         // Should use the existing rawInput, not the synthesized one
         let raw_input = update.raw_input.unwrap();
         assert_eq!(raw_input["file_path"], "/tmp/foo.rs");
-    }
-
-    #[test]
-    fn cursor_tool_call_uses_effective_title_name_for_kind_inference() {
-        let parser = CursorParser;
-        let raw = parser
-            .parse_acp_tool_call(&json!({
-                "toolCallId": "tool-read-1",
-                "title": "Read /tmp/example.rs",
-                "kind": "other",
-                "rawInput": {},
-                "status": "pending"
-            }))
-            .expect("tool call should parse");
-
-        assert_eq!(raw.provider_declared_kind, Some(ToolKind::Read));
     }
 }

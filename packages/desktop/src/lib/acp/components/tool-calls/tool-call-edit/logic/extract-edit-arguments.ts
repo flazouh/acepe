@@ -27,22 +27,15 @@ export function extractEditArguments(
 
 	const firstEdit = arguments_.edits[0];
 
-	const newString =
-		firstEdit?.type === "writeFile"
-			? firstEdit.content ?? null
-			: firstEdit?.type === "replaceText"
-				? firstEdit.new_text ?? null
-				: null;
-	const oldString =
-		firstEdit?.type === "writeFile"
-			? firstEdit.previous_content ?? null
-			: firstEdit?.type === "deleteFile" || firstEdit?.type === "replaceText"
-				? firstEdit.old_text ?? null
-				: null;
+	// Extract newString or content (content is fallback)
+	let newString: string | null = firstEdit?.newString ?? null;
+	if (!newString && firstEdit?.content) {
+		newString = firstEdit.content;
+	}
 
 	return ok({
-		filePath: firstEdit?.file_path ?? null,
-		oldString,
+		filePath: firstEdit?.filePath ?? null,
+		oldString: firstEdit?.oldString ?? null,
 		newString,
 	});
 }

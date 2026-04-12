@@ -92,16 +92,6 @@ describe("operation association", () => {
 		expect(findOperationForPermission(operationStore, permission)).toBeNull();
 	});
 
-	it("fails closed when execute-command fallback would match multiple operations", () => {
-		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "npm test"));
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-2", "npm test"));
-
-		const permission = createExecutePermission("session-1", "shell-permission", "npm test");
-		expect(findOperationForPermission(operationStore, permission)).toBeNull();
-	});
-
 	it("resolves question and plan approval interactions by explicit tool reference", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
@@ -126,19 +116,5 @@ describe("operation association", () => {
 
 		expect(findOperationForQuestion(operationStore, question)?.toolCallId).toBe("tool-1");
 		expect(findOperationForPlanApproval(operationStore, approval)?.toolCallId).toBe("tool-1");
-	});
-
-	it("uses question id as the canonical transport proof when tool metadata is absent", () => {
-		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-question", "plan"));
-
-		const question: QuestionRequest = {
-			id: "tool-question",
-			sessionId: "session-1",
-			questions: [],
-		};
-
-		expect(findOperationForQuestion(operationStore, question)?.toolCallId).toBe("tool-question");
 	});
 });

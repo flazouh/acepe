@@ -1,4 +1,4 @@
-import type { EditDelta } from "../../services/converted-session-types.js";
+import type { EditEntry } from "../../services/converted-session-types.js";
 import type { SessionEntry } from "../application/dto/session.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
@@ -29,40 +29,17 @@ function readStringProperty(
 	return null;
 }
 
-type NormalizedEditEntry = {
-	filePath: string | null;
-	oldString: string | null;
-	newString: string | null;
-	diffInput: Record<string, string | null>;
-};
-
-function normalizeEditEntry(value: unknown): NormalizedEditEntry | null {
+function normalizeEditEntry(value: unknown): EditEntry | null {
 	if (!isRecord(value)) {
 		return null;
 	}
 
-	const editType = readOptionalString(value.type);
-	const contentValue = readOptionalString(value.content);
-	const hasReplaceFields =
-		readStringProperty(value, "oldText", "old_text") !== null ||
-		readStringProperty(value, "oldString", "old_string") !== null ||
-		readStringProperty(value, "newText", "new_text") !== null ||
-		readStringProperty(value, "newString", "new_string") !== null;
-	const isWriteEdit = editType === "writeFile" || (editType === null && contentValue !== null && !hasReplaceFields);
 	const filePath = readStringProperty(value, "filePath", "file_path");
-	const oldString =
-		isWriteEdit
-			? readStringProperty(value, "previousContent", "previous_content")
-			: readStringProperty(value, "oldText", "old_text") ??
-				readStringProperty(value, "oldString", "old_string");
-	const newString =
-		isWriteEdit
-			? contentValue
-			: readStringProperty(value, "newText", "new_text") ??
-				readStringProperty(value, "newString", "new_string") ??
-				contentValue;
+	const oldString = readStringProperty(value, "oldString", "old_string");
+	const newString = readStringProperty(value, "newString", "new_string");
+	const content = readOptionalString(value.content);
 
-	if (filePath === null && oldString === null && newString === null) {
+	if (filePath === null && oldString === null && newString === null && content === null) {
 		return null;
 	}
 
@@ -70,29 +47,18 @@ function normalizeEditEntry(value: unknown): NormalizedEditEntry | null {
 		filePath,
 		oldString,
 		newString,
-		diffInput:
-			isWriteEdit
-				? {
-						type: "writeFile",
-						previous_content: oldString,
-						content: newString,
-					}
-				: {
-						type: editType,
-						old_text: oldString,
-						new_text: newString,
-					},
+		content,
 	};
 }
 
-function extractEditEntries(toolCall: ToolCall): NormalizedEditEntry[] {
+function extractEditEntries(toolCall: ToolCall): EditEntry[] {
 	const argumentsValue = toolCall.arguments as unknown;
 	if (!isRecord(argumentsValue)) {
 		return [];
 	}
 
 	if ("edits" in argumentsValue && Array.isArray(argumentsValue.edits)) {
-		const edits: NormalizedEditEntry[] = [];
+		const edits: EditEntry[] = [];
 		for (const entry of argumentsValue.edits) {
 			const normalizedEntry = normalizeEditEntry(entry);
 			if (normalizedEntry) {
@@ -102,7 +68,7 @@ function extractEditEntries(toolCall: ToolCall): NormalizedEditEntry[] {
 		return edits;
 	}
 
-	const legacyEntry = normalizeEditEntry(argumentsValue as EditDelta);
+	const legacyEntry = normalizeEditEntry(argumentsValue);
 	return legacyEntry ? [legacyEntry] : [];
 }
 
@@ -157,9 +123,9 @@ export function aggregateFileEdits(entries: ReadonlyArray<SessionEntry>): Modifi
 			if (!filePath) continue;
 
 			const oldStringValue = edit.oldString ?? null;
-			const newStringValue = edit.newString ?? null;
+			const newStringValue = edit.newString ?? edit.content ?? null;
 
-			const diffStats = calculateDiffStats(edit.diffInput);
+			const diffStats = calculateDiffStats(edit);
 			const linesAdded = diffStats?.added ?? 0;
 			const linesRemoved = diffStats?.removed ?? 0;
 

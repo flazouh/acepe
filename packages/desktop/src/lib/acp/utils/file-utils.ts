@@ -190,13 +190,9 @@ export function calculateDiffStats(arguments_: unknown): { added: number; remove
 	if (!arguments_ || typeof arguments_ !== "object" || Array.isArray(arguments_)) return null;
 	const args = arguments_ as Record<string, unknown>;
 
-	const type = args.type;
-	const newString =
-		type === "writeFile" ? args.content : (args.new_text ?? args.newString ?? args.new_string);
-	const oldString =
-		type === "writeFile"
-			? args.previous_content
-			: (args.old_text ?? args.oldString ?? args.old_string);
+	// Check for new_string/old_string (snake_case) and newString/oldString (camelCase from EditEntry)
+	const newString = args.new_string ?? args.newString;
+	const oldString = args.old_string ?? args.oldString;
 
 	if (typeof newString === "string" && typeof oldString === "string") {
 		return computeActualDiffStats(oldString, newString);

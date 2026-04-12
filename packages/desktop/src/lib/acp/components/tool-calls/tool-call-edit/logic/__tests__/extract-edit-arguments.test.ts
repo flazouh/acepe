@@ -2,28 +2,18 @@ import { describe, expect, it } from "bun:test";
 import { EDIT_TOOL_ERROR_CODES } from "../../errors/index.js";
 import { extractEditArguments } from "../extract-edit-arguments.js";
 
-function replaceTextEdit(
-	file_path?: string,
-	old_text?: string | null,
-	new_text?: string | null
-) {
-	return { type: "replaceText" as const, file_path, old_text, new_text };
-}
-
-function writeFileEdit(file_path?: string, content?: string | null, previous_content?: string | null) {
-	return { type: "writeFile" as const, file_path, previous_content, content };
-}
-
 describe("extractEditArguments", () => {
 	it("should extract file path, old_string, and new_string", () => {
 		const args = {
 			kind: "edit" as const,
 			edits: [
-				replaceTextEdit(
-					"src/lib/utils/format.ts",
-					"export function formatDate(date: Date): string {\n  return date.toISOString();\n}",
-					"export function formatDate(date: Date): string {\n  return date.toLocaleDateString();\n}"
-				),
+				{
+					filePath: "src/lib/utils/format.ts",
+					oldString:
+						"export function formatDate(date: Date): string {\n  return date.toISOString();\n}",
+					newString:
+						"export function formatDate(date: Date): string {\n  return date.toLocaleDateString();\n}",
+				},
 			],
 		};
 
@@ -45,10 +35,10 @@ describe("extractEditArguments", () => {
 		const args = {
 			kind: "edit" as const,
 			edits: [
-				writeFileEdit(
-					"src/components/Button.svelte",
-					"<script>\n  export let label: string;\n</script>\n\n<button>{label}</button>"
-				),
+				{
+					filePath: "src/components/Button.svelte",
+					content: "<script>\n  export let label: string;\n</script>\n\n<button>{label}</button>",
+				},
 			],
 		};
 
@@ -67,11 +57,11 @@ describe("extractEditArguments", () => {
 		const args = {
 			kind: "edit" as const,
 			edits: [
-				replaceTextEdit(
-					"src/lib/api/client.ts",
-					undefined,
-					"import { Result } from 'neverthrow';\n\nexport class ApiClient {\n  async fetch(url: string): Promise<Result<Response, Error>> {\n    // Implementation\n  }\n}"
-				),
+				{
+					filePath: "src/lib/api/client.ts",
+					newString:
+						"import { Result } from 'neverthrow';\n\nexport class ApiClient {\n  async fetch(url: string): Promise<Result<Response, Error>> {\n    // Implementation\n  }\n}",
+				},
 			],
 		};
 
@@ -115,31 +105,28 @@ describe("extractEditArguments", () => {
 		const args1 = {
 			kind: "edit" as const,
 			edits: [
-				replaceTextEdit(
-					"packages/desktop/src/lib/utils.ts",
-					undefined,
-					"export const VERSION = '1.0.0';"
-				),
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
 			],
 		};
 		const args2 = {
 			kind: "edit" as const,
 			edits: [
-				replaceTextEdit(
-					"packages/desktop/src/lib/utils.ts",
-					undefined,
-					"export const VERSION = '1.0.0';"
-				),
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
 			],
 		};
 		const args3 = {
 			kind: "edit" as const,
 			edits: [
-				replaceTextEdit(
-					"packages/desktop/src/lib/utils.ts",
-					undefined,
-					"export const VERSION = '1.0.0';"
-				),
+				{
+					filePath: "packages/desktop/src/lib/utils.ts",
+					newString: "export const VERSION = '1.0.0';",
+				},
 			],
 		};
 
@@ -161,7 +148,7 @@ describe("extractEditArguments", () => {
 	it("should handle null file path", () => {
 		const args = {
 			kind: "edit" as const,
-			edits: [replaceTextEdit(undefined, undefined, "content")],
+			edits: [{ newString: "content" }],
 		};
 
 		const result = extractEditArguments(args);

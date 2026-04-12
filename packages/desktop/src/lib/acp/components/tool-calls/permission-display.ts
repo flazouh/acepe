@@ -24,13 +24,6 @@ function normalizePath(value: string | null | undefined): string | null {
 	return trimmed.length > 0 ? trimmed : null;
 }
 
-function readLegacyFilePath(value: object | null | undefined): string | null {
-	if (!value) return null;
-	if (!("filePath" in value)) return null;
-	const candidate = value.filePath;
-	return typeof candidate === "string" ? normalizePath(candidate) : null;
-}
-
 function extractPathFromPermissionLabel(label: string): string | null {
 	const match = /^(read|edit|write|delete)\s+(.+)$/i.exec(label.trim());
 	if (!match) return null;
@@ -161,10 +154,7 @@ export function extractPermissionFilePath(permission: PermissionRequest): string
 				break;
 			case "edit":
 				{
-					const firstEdit = parsed.edits[0];
-					const parsedPath = normalizePath(
-						firstEdit?.file_path ?? readLegacyFilePath(firstEdit ?? null)
-					);
+					const parsedPath = normalizePath(parsed.edits[0]?.filePath ?? null);
 					if (parsedPath) return parsedPath;
 				}
 				break;

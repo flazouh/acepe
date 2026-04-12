@@ -79,7 +79,7 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 							{...props}
 							bind:this={triggerRef}
 							type="button"
-							class="inline-flex h-7 w-7 min-w-0 shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							class="flex items-center justify-center size-6 min-w-0 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 							aria-label="Project menu"
 						>
 							<DotsThreeVertical class="h-4 w-4" weight="bold" />

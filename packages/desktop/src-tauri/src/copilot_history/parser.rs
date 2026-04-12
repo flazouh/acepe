@@ -278,10 +278,10 @@ pub(crate) fn convert_events_to_updates(
                 for tool_request in data.tool_requests {
                     let raw = RawToolCallInput {
                         id: tool_request.tool_call_id,
-                        provider_tool_name: Some(tool_request.name),
-                        provider_declared_kind: None,
+                        name: tool_request.name,
                         arguments: tool_request.arguments,
                         status: ToolCallStatus::Pending,
+                        kind: None,
                         title: tool_request.title,
                         suppress_title_read_path_hint: false,
                         parent_tool_use_id: None,
@@ -313,10 +313,10 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::ToolExecutionStart(data) => {
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    provider_tool_name: Some(data.tool_name),
-                    provider_declared_kind: None,
+                    name: data.tool_name,
                     arguments: data.arguments,
                     status: ToolCallStatus::InProgress,
+                    kind: None,
                     title: None,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -333,8 +333,6 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::ToolExecutionComplete(data) => {
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
-                    provider_tool_name: data.tool_name,
-                    provider_declared_kind: None,
                     status: Some(if data.success {
                         ToolCallStatus::Completed
                     } else {
@@ -345,7 +343,9 @@ pub(crate) fn convert_events_to_updates(
                     title: None,
                     locations: None,
                     streaming_input_delta: None,
+                    tool_name: data.tool_name,
                     raw_input: data.raw_input,
+                    kind: None,
                 };
                 updates.push((
                     timestamp_ms,
@@ -363,14 +363,14 @@ pub(crate) fn convert_events_to_updates(
                     .or_else(|| Some("Task".to_string()));
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    provider_tool_name: Some("Task".to_string()),
-                    provider_declared_kind: Some(ToolKind::Task),
+                    name: "Task".to_string(),
                     arguments: json!({
                         "description": title.clone(),
                         "prompt": data.agent_description,
                         "subagent_type": data.agent_name
                     }),
                     status: ToolCallStatus::InProgress,
+                    kind: Some(ToolKind::Task),
                     title,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -387,8 +387,6 @@ pub(crate) fn convert_events_to_updates(
             CopilotEventData::SubagentCompleted(data) => {
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
-                    provider_tool_name: Some("Task".to_string()),
-                    provider_declared_kind: Some(ToolKind::Task),
                     status: Some(ToolCallStatus::Completed),
                     result: Some(json!({
                         "agentName": data.agent_name,
@@ -398,7 +396,9 @@ pub(crate) fn convert_events_to_updates(
                     title: None,
                     locations: None,
                     streaming_input_delta: None,
+                    tool_name: Some("Task".to_string()),
                     raw_input: None,
+                    kind: Some(ToolKind::Task),
                 };
                 updates.push((
                     timestamp_ms,
@@ -876,10 +876,7 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(
-                    message.kind,
-                    Some(crate::acp::session_update::ToolKind::Read)
-                );
+                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Read));
                 match &message.arguments {
                     crate::acp::session_update::ToolArguments::Read { file_path } => {
                         assert_eq!(file_path.as_deref(), Some("/repo/src/file.rs"));
@@ -905,10 +902,7 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(
-                    message.kind,
-                    Some(crate::acp::session_update::ToolKind::Todo)
-                );
+                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Todo));
                 let todos = message
                     .normalized_todos
                     .as_ref()

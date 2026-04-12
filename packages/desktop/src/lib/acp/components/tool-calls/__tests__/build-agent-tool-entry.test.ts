@@ -194,47 +194,4 @@ describe("tool definition display builders", () => {
 			status: "done",
 		});
 	});
-
-	it("keeps descriptive non-task operations on the generic presentation path", () => {
-		const entry = resolveFullToolEntry({
-			toolCall: createToolCall({
-				id: "tool-8",
-				name: "report_intent",
-				kind: "other",
-				status: "completed",
-				title: null,
-				arguments: {
-					kind: "other",
-					raw: {
-						description: "Search the web",
-						query: "jwt tokens",
-					},
-				},
-			}),
-			turnState: "completed",
-		});
-
-		expect(entry.kind).toBe("other");
-		expect(entry.title).toBe("Report Intent");
-	});
-
-	it("keeps explicit task operations on the task presentation path", () => {
-		const entry = resolveFullToolEntry({
-			toolCall: createToolCall({
-				id: "tool-9",
-				name: "Task",
-				kind: "task",
-				status: "in_progress",
-				arguments: {
-					kind: "think",
-					description: "Explain codebase overview",
-					prompt: "Explore the repository and summarize it.",
-				},
-			}),
-			turnState: "streaming",
-		});
-
-		expect(entry.kind).toBe("task");
-		expect(entry.title).toBe("Running task");
-	});
 });

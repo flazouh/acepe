@@ -712,11 +712,8 @@ mod parse_tool_call_from_acp {
             match tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     let edit = edits.first().expect("edit entry");
-                    assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/link.txt"));
-                    assert_eq!(
-                        edit.new_text().map(String::as_str),
-                        Some("https://example.com")
-                    );
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/link.txt"));
+                    assert_eq!(edit.new_string.as_deref(), Some("https://example.com"));
                 }
                 other => panic!("Expected Edit arguments, got {:?}", other),
             }
@@ -806,9 +803,9 @@ mod parse_tool_call_from_acp {
             match tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     let edit = edits.first().expect("edit entry");
-                    assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/new.txt"));
-                    assert_eq!(edit.old_text().map(String::as_str), Some("old"));
-                    assert_eq!(edit.new_text().map(String::as_str), Some("new"));
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/new.txt"));
+                    assert_eq!(edit.old_string.as_deref(), Some("old"));
+                    assert_eq!(edit.new_string.as_deref(), Some("new"));
                 }
                 other => panic!("Expected Edit arguments, got {:?}", other),
             }
@@ -983,9 +980,9 @@ mod parse_tool_call_from_acp {
         match tool_call.arguments {
             ToolArguments::Edit { edits } => {
                 let e = edits.first().expect("edit entry");
-                assert_eq!(e.file_path().map(String::as_str), Some("/path/to/file.ts"));
-                assert_eq!(e.old_text(), Some(&"old content".to_string()));
-                assert_eq!(e.new_text(), Some(&"new content".to_string()));
+                assert_eq!(e.file_path, Some("/path/to/file.ts".to_string()));
+                assert_eq!(e.old_string, Some("old content".to_string()));
+                assert_eq!(e.new_string, Some("new content".to_string()));
             }
             _ => panic!("Expected edit tool arguments"),
         }
@@ -1015,9 +1012,9 @@ mod parse_tool_call_from_acp {
         match tool_call.arguments {
             ToolArguments::Edit { edits } => {
                 let e = edits.first().expect("edit entry");
-                assert_eq!(e.file_path().map(String::as_str), Some("/path/to/file.ts"));
-                assert_eq!(e.old_text().map(String::as_str), Some("old content"));
-                assert_eq!(e.new_text().map(String::as_str), Some("new content"));
+                assert_eq!(e.file_path, Some("/path/to/file.ts".to_string()));
+                assert_eq!(e.old_string, Some("old content".to_string()));
+                assert_eq!(e.new_string, Some("new content".to_string()));
             }
             _ => panic!("Expected edit tool arguments"),
         }
@@ -1231,9 +1228,10 @@ mod parse_tool_call_from_acp {
                 ToolArguments::Edit { edits } => {
                     let e = edits.first().expect("edit entry");
                     assert_eq!(
-                            e.file_path().map(String::as_str),
+                            e.file_path,
                             Some(
                                 "/Users/example/Documents/acepe/packages/desktop/src/lib/acp/store/session-store.svelte.ts"
+                                    .to_string()
                             )
                         );
                 }
@@ -1270,10 +1268,7 @@ mod parse_tool_call_from_acp {
             match tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     let edit = edits.first().expect("edit entry");
-                    assert_eq!(
-                        edit.file_path().map(String::as_str),
-                        Some("/tmp/explicit.ts")
-                    );
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/explicit.ts"));
                 }
                 other => panic!("Expected edit tool arguments, got {:?}", other),
             }
@@ -1307,7 +1302,7 @@ mod parse_tool_call_from_acp {
             match tool_call.arguments {
                 ToolArguments::Edit { edits } => {
                     let edit = edits.first().expect("edit entry");
-                    assert_eq!(edit.file_path(), None);
+                    assert_eq!(edit.file_path, None);
                 }
                 other => panic!("Expected edit tool arguments, got {:?}", other),
             }
@@ -2348,9 +2343,9 @@ mod parse_tool_call_update_from_acp {
             match update.arguments {
                 Some(ToolArguments::Edit { edits }) => {
                     let edit = edits.first().expect("edit entry");
-                    assert_eq!(edit.file_path().map(String::as_str), Some("/tmp/example.ts"));
-                    assert_eq!(edit.old_text().map(String::as_str), Some("const value = 1;"));
-                    assert_eq!(edit.new_text().map(String::as_str), Some("const value = 2;"));
+                    assert_eq!(edit.file_path.as_deref(), Some("/tmp/example.ts"));
+                    assert_eq!(edit.old_string.as_deref(), Some("const value = 1;"));
+                    assert_eq!(edit.new_string.as_deref(), Some("const value = 2;"));
                 }
                 other => panic!("Expected edit tool arguments, got {:?}", other),
             }

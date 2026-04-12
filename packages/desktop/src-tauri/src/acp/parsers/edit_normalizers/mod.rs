@@ -12,7 +12,7 @@ pub(crate) mod patch_text;
 pub(crate) mod shared_chat;
 
 use crate::acp::parsers::arguments::extract_parser_string;
-use crate::acp::session_update::{EditDelta, ToolArguments};
+use crate::acp::session_update::{EditEntry, ToolArguments};
 
 pub(crate) fn parse_changes_map_edit(raw_arguments: &serde_json::Value) -> Option<ToolArguments> {
     let changes = raw_arguments
@@ -23,7 +23,7 @@ pub(crate) fn parse_changes_map_edit(raw_arguments: &serde_json::Value) -> Optio
         return None;
     }
 
-    let edits: Vec<EditDelta> = changes
+    let edits: Vec<EditEntry> = changes
         .iter()
         .map(|(path, change_payload)| {
             let old_string =
@@ -34,20 +34,12 @@ pub(crate) fn parse_changes_map_edit(raw_arguments: &serde_json::Value) -> Optio
                 change_payload,
                 &["content", "new_content", "new_string", "newText"],
             );
-            if content.is_some() && new_string.is_none() {
-                EditDelta::WriteFile {
-                    file_path: Some(path.clone()),
-                    move_from: None,
-                    previous_content: old_string,
-                    content,
-                }
-            } else {
-                EditDelta::ReplaceText {
-                    file_path: Some(path.clone()),
-                    move_from: None,
-                    old_text: old_string,
-                    new_text: new_string.or(content),
-                }
+            EditEntry {
+                file_path: Some(path.clone()),
+                move_from: None,
+                old_string,
+                new_string: new_string.or_else(|| content.clone()),
+                content,
             }
         })
         .collect();

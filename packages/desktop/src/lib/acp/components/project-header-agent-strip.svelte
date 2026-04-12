@@ -51,14 +51,14 @@ function handleAgentClick(event: MouseEvent, agent: AgentInfo) {
 </script>
 
 
-<div class="flex h-7 w-full items-center justify-between">
-	<div class="flex items-center">
+<div class="flex h-7 w-full items-center justify-between px-0.5">
+	<div class="flex items-center gap-0.5">
 		{#if onOpenTerminal}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<button
 						type="button"
-						class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={handleOpenTerminal}
 						aria-label={m.sidebar_open_terminal({ projectName })}
 					>
@@ -74,7 +74,7 @@ function handleAgentClick(event: MouseEvent, agent: AgentInfo) {
 				<Tooltip.Trigger>
 					<button
 						type="button"
-						class="inline-flex h-7 w-7 items-center justify-center cursor-pointer text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={handleOpenBrowser}
 						aria-label={m.sidebar_open_browser({ projectName })}
 					>
@@ -86,13 +86,13 @@ function handleAgentClick(event: MouseEvent, agent: AgentInfo) {
 		{/if}
 	</div>
 
-	<div class="flex items-center">
+	<div class="flex items-center gap-0.5">
 		{#each availableAgents as agent (agent.id)}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<button
 						type="button"
-						class="inline-flex items-center justify-center h-7 w-7 p-1.5 rounded-none border-l border-border/50 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						class="flex items-center justify-center size-6 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={(e) => handleAgentClick(e, agent)}
 						aria-label={m.thread_list_new_agent_session({ agentName: agent.name })}
 					>
@@ -113,7 +113,7 @@ function handleAgentClick(event: MouseEvent, agent: AgentInfo) {
 			<Tooltip.Trigger>
 				<button
 					type="button"
-					class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors border-l border-border/50"
+					class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					onclick={handleCancel}
 					aria-label={m.common_cancel()}
 				>

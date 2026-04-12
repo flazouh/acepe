@@ -1,4 +1,4 @@
-use crate::acp::session_update::{EditDelta, ToolArguments};
+use crate::acp::session_update::{EditEntry, ToolArguments};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum PatchSectionKind {
@@ -14,7 +14,7 @@ struct PatchSection {
     diff_lines: Vec<String>,
 }
 
-/// Parse shared `patch_text`/`patchText` edit payloads into one `EditDelta` per
+/// Parse shared `patch_text`/`patchText` edit payloads into one `EditEntry` per
 /// modified file.
 pub(crate) fn parse_patch_text(raw_arguments: &serde_json::Value) -> Option<ToolArguments> {
     let patch_text = raw_arguments
@@ -149,16 +149,17 @@ fn parse_delete_sections(sections: &[PatchSection]) -> Option<ToolArguments> {
     })
 }
 
-fn parse_move_edit_entry(section: &PatchSection) -> Option<EditDelta> {
+fn parse_move_edit_entry(section: &PatchSection) -> Option<EditEntry> {
     if !is_pure_move_section(section) {
         return None;
     }
 
     let destination_path = section.move_to.as_ref()?;
-    Some(EditDelta::WriteFile {
+    Some(EditEntry {
         file_path: Some(destination_path.clone()),
         move_from: Some(section.file_path.clone()),
-        previous_content: None,
+        old_string: None,
+        new_string: None,
         content: None,
     })
 }
@@ -179,7 +180,7 @@ fn section_has_diff_content(section: &PatchSection) -> bool {
     })
 }
 
-fn parse_patch_text_sections_to_edits(sections: Vec<PatchSection>) -> Vec<EditDelta> {
+fn parse_patch_text_sections_to_edits(sections: Vec<PatchSection>) -> Vec<EditEntry> {
     sections.into_iter().map(parse_patch_section).collect()
 }
 
@@ -204,7 +205,7 @@ fn section_header_prefix(section_kind: PatchSectionKind) -> &'static str {
     }
 }
 
-fn parse_patch_section(section: PatchSection) -> EditDelta {
+fn parse_patch_section(section: PatchSection) -> EditEntry {
     if let Some(move_entry) = parse_move_edit_entry(&section) {
         return move_entry;
     }
@@ -213,25 +214,16 @@ fn parse_patch_section(section: PatchSection) -> EditDelta {
     let diff_lines = section.diff_lines.join("\n");
 
     if section.kind == PatchSectionKind::Delete {
-        let old_text = diff_lines
-            .lines()
-            .filter_map(|line| line.strip_prefix('-').or_else(|| line.strip_prefix(' ')))
-            .collect::<Vec<&str>>()
-            .join("\n");
-        return EditDelta::DeleteFile {
-            file_path: Some(rendered_path.to_string()),
-            old_text: if old_text.is_empty() {
-                None
-            } else {
-                Some(old_text)
-            },
-        };
+        let mut deleted_entry = parse_file_diff_section(rendered_path, &diff_lines);
+        deleted_entry.new_string = None;
+        deleted_entry.content = None;
+        return deleted_entry;
     }
 
     parse_file_diff_section(rendered_path, &diff_lines)
 }
 
-fn parse_file_diff_section(file_path: &str, diff_lines: &str) -> EditDelta {
+fn parse_file_diff_section(file_path: &str, diff_lines: &str) -> EditEntry {
     let mut old_lines: Vec<&str> = Vec::new();
     let mut new_lines: Vec<&str> = Vec::new();
 
@@ -265,31 +257,12 @@ fn parse_file_diff_section(file_path: &str, diff_lines: &str) -> EditDelta {
         Some(new_lines.join("\n"))
     };
 
-    match (old_string, new_string) {
-        (Some(old_text), Some(new_text)) => EditDelta::ReplaceText {
-            file_path: Some(file_path.to_string()),
-            move_from: None,
-            old_text: Some(old_text),
-            new_text: Some(new_text),
-        },
-        (None, Some(content)) => EditDelta::WriteFile {
-            file_path: Some(file_path.to_string()),
-            move_from: None,
-            previous_content: None,
-            content: Some(content),
-        },
-        (Some(old_text), None) => EditDelta::ReplaceText {
-            file_path: Some(file_path.to_string()),
-            move_from: None,
-            old_text: Some(old_text),
-            new_text: Some(String::new()),
-        },
-        (None, None) => EditDelta::ReplaceText {
-            file_path: Some(file_path.to_string()),
-            move_from: None,
-            old_text: None,
-            new_text: None,
-        },
+    EditEntry {
+        file_path: Some(file_path.to_string()),
+        move_from: None,
+        old_string,
+        new_string: new_string.clone(),
+        content: new_string,
     }
 }
 
@@ -320,13 +293,13 @@ mod tests {
         match result {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("src/foo.ts"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/foo.ts"));
                 assert_eq!(
-                    edits[0].old_text().map(String::as_str),
+                    edits[0].old_string.as_deref(),
                     Some("const value = 1;\nconst value = 1;")
                 );
                 assert_eq!(
-                    edits[0].new_text().map(String::as_str),
+                    edits[0].new_string.as_deref(),
                     Some("const value = 1;\nconst value = 2;")
                 );
             }
@@ -353,26 +326,26 @@ mod tests {
         match result {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 2);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("src/a.ts"));
-                assert_eq!(edits[1].file_path().map(String::as_str), Some("src/b.ts"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/a.ts"));
+                assert_eq!(edits[1].file_path.as_deref(), Some("src/b.ts"));
                 assert!(edits[0]
-                    .old_text()
-                    .map(String::as_str)
+                    .old_string
+                    .as_deref()
                     .unwrap_or("")
                     .contains("A = 1"));
                 assert!(edits[0]
-                    .new_text()
-                    .map(String::as_str)
+                    .new_string
+                    .as_deref()
                     .unwrap_or("")
                     .contains("A = 2"));
                 assert!(edits[1]
-                    .old_text()
-                    .map(String::as_str)
+                    .old_string
+                    .as_deref()
                     .unwrap_or("")
                     .contains("B = \"hello\""));
                 assert!(edits[1]
-                    .new_text()
-                    .map(String::as_str)
+                    .new_string
+                    .as_deref()
                     .unwrap_or("")
                     .contains("B = \"world\""));
             }
@@ -405,7 +378,7 @@ mod tests {
         match result {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("src/foo.ts"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/foo.ts"));
             }
             other => panic!("Expected Edit, got {other:?}"),
         }
@@ -476,9 +449,9 @@ mod tests {
         match result {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("src/new.ts"));
-                assert_eq!(edits[0].old_text().map(String::as_str), Some("old"));
-                assert_eq!(edits[0].new_text().map(String::as_str), Some("new"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/new.ts"));
+                assert_eq!(edits[0].old_string.as_deref(), Some("old"));
+                assert_eq!(edits[0].new_string.as_deref(), Some("new"));
             }
             other => panic!("Expected Edit, got {other:?}"),
         }
@@ -519,11 +492,11 @@ mod tests {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
                 assert_eq!(
-                    edits[0].old_text().map(String::as_str),
+                    edits[0].old_string.as_deref(),
                     Some("export const value = 1;\nexport const value = 1;")
                 );
                 assert_eq!(
-                    edits[0].new_text().map(String::as_str),
+                    edits[0].new_string.as_deref(),
                     Some("export const value = 1;\nexport const value = 2;")
                 );
             }
@@ -548,16 +521,13 @@ mod tests {
         match result {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 2);
-                assert_eq!(edits[0].file_path().map(String::as_str), Some("src/new.ts"));
-                assert_eq!(edits[0].move_from().map(String::as_str), Some("src/old.ts"));
-                assert_eq!(edits[0].old_text(), None);
-                assert_eq!(edits[0].new_text(), None);
-                assert_eq!(
-                    edits[1].file_path().map(String::as_str),
-                    Some("src/other.ts")
-                );
-                assert_eq!(edits[1].old_text().map(String::as_str), Some("old"));
-                assert_eq!(edits[1].new_text().map(String::as_str), Some("new"));
+                assert_eq!(edits[0].file_path.as_deref(), Some("src/new.ts"));
+                assert_eq!(edits[0].move_from.as_deref(), Some("src/old.ts"));
+                assert_eq!(edits[0].old_string, None);
+                assert_eq!(edits[0].new_string, None);
+                assert_eq!(edits[1].file_path.as_deref(), Some("src/other.ts"));
+                assert_eq!(edits[1].old_string.as_deref(), Some("old"));
+                assert_eq!(edits[1].new_string.as_deref(), Some("new"));
             }
             other => panic!("Expected Edit, got {other:?}"),
         }
@@ -577,36 +547,9 @@ mod tests {
             ToolArguments::Edit { edits } => {
                 assert_eq!(edits.len(), 1);
                 assert_eq!(
-                    edits[0].new_text().map(String::as_str),
+                    edits[0].new_string.as_deref(),
                     Some("Literal text: *** End Patch should appear in file")
                 );
-            }
-            other => panic!("Expected Edit, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn parse_patch_text_keeps_deletion_only_update_hunks_as_replace_text() {
-        let patch = r#"*** Begin Patch
-*** Update File: src/remove-lines.ts
-@@
--line one
--line two
-*** End Patch"#;
-
-        let raw = serde_json::json!({ "patch_text": patch });
-        let result = parse_patch_text(&raw).expect("should parse deletion-only update");
-
-        match result {
-            ToolArguments::Edit { edits } => {
-                assert_eq!(edits.len(), 1);
-                match &edits[0] {
-                    EditDelta::ReplaceText { old_text, new_text, .. } => {
-                        assert_eq!(old_text.as_deref(), Some("line one\nline two"));
-                        assert_eq!(new_text.as_deref(), Some(""));
-                    }
-                    other => panic!("Expected ReplaceText, got {other:?}"),
-                }
             }
             other => panic!("Expected Edit, got {other:?}"),
         }

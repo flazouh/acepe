@@ -16,14 +16,13 @@ use crate::acp::projections::{
     SessionSnapshot, SessionTurnState,
 };
 use crate::acp::session_update::{
-    AvailableCommand, AvailableCommandsData, CanonicalOperationEvent, ChunkAggregationHint,
-    CommandInput, ConfigOptionData, ConfigOptionUpdateData, ConfigOptionValue, ContentChunk,
-    CurrentModeData, DegradedToolState, EditDelta, InteractionReplyHandler,
-    InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep,
-    PlanStepStatus, QuestionData, QuestionItem, QuestionOption, SessionUpdate, SkillMeta, TodoItem,
-    TodoStatus, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData,
-    ToolKind, ToolReference, ToolSemanticSource, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
+    ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
+    InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
+    PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
+    SessionUpdate, SkillMeta, TodoItem, TodoStatus, ToolArguments, ToolCallData, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
+    TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -247,21 +246,11 @@ pub fn export_all_types() {
     // Session update types (UsageTelemetry* before SessionUpdate which references them)
     export_type!(UsageTelemetryTokens);
     export_type!(UsageTelemetryData);
-    export_type!(AvailableModel);
-    export_type!(AvailableMode);
-    export_type!(DisplayableModel);
-    export_type!(DisplayModelGroup);
-    export_type!(ModelDisplayFamily);
-    export_type!(UsageMetricsPresentation);
-    export_type!(ModelPresentationMetadata);
-    export_type!(ModelsForDisplay);
-    export_type!(SessionModelState);
-    export_type!(SessionModes);
     export_type!(SessionUpdate);
     export_type!(ChunkAggregationHint);
     export_type!(ContentChunk);
     export_type!(ToolCallData);
-    export_type!(EditDelta);
+    export_type!(EditEntry);
     export_type!(ToolArguments);
     export_type!(ToolCallUpdateData);
     export_type!(PlanData);
@@ -285,11 +274,8 @@ pub fn export_all_types() {
     export_type!(PlanSource);
     export_type!(PlanConfidence);
     export_type!(ToolKind);
-    export_type!(ToolSemanticSource);
     export_type!(ToolCallStatus);
     export_type!(ToolCallLocation);
-    export_type!(DegradedToolState);
-    export_type!(CanonicalOperationEvent);
     export_type!(AvailableCommand);
     export_type!(CommandInput);
     export_type!(ToolReference);
@@ -368,7 +354,7 @@ pub fn export_all_types() {
     export_acp_type!(ToolKind);
     export_acp_type!(ToolCallStatus);
     export_acp_type!(ChunkAggregationHint);
-    export_acp_type!(EditDelta);
+    export_acp_type!(EditEntry);
     export_acp_type!(ToolArguments);
     export_acp_type!(ToolReference);
     export_acp_type!(QuestionOption);

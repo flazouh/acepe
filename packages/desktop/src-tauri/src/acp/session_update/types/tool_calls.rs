@@ -88,52 +88,6 @@ pub enum ToolCallStatus {
     Failed,
 }
 
-/// The strongest signal that determined the canonical semantic kind for a tool event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "snake_case")]
-pub enum ToolSemanticSource {
-    ToolName,
-    ProviderDeclaredKind,
-    PayloadHint,
-    SerializedArguments,
-    LocationHint,
-    TitleHint,
-    ParsedArguments,
-    WebSearchPromotion,
-    BrowserOverride,
-    Unknown,
-}
-
-/// Safe structured fallback when canonicalization cannot fully recover semantics.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DegradedToolState {
-    pub reason: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_input_fragment: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_result_fragment: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_content_fragment: Option<serde_json::Value>,
-}
-
-/// Canonical operation-event envelope derived from tool transport.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CanonicalOperationEvent {
-    pub transport_id: String,
-    pub provider: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_tool_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_declared_kind: Option<ToolKind>,
-    pub semantic_kind: ToolKind,
-    pub semantic_source: ToolSemanticSource,
-    pub payload: ToolArguments,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub degraded: Option<DegradedToolState>,
-}
-
 /// Skill metadata for skill tool calls.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -144,120 +98,28 @@ pub struct SkillMeta {
     pub file_path: Option<String>,
 }
 
-/// A single canonical file delta within an Edit tool call.
+/// A single file edit entry within an Edit tool call.
 ///
-/// A single `Edit` tool call may touch multiple files (e.g. OpenCode patch text
-/// or Codex changes maps). Each entry must declare its semantic edit variant
-/// explicitly instead of relying on a bag of optional transport-era fields.
+/// A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
+/// or Codex's multi-entry `changes` map). Each entry represents one file's change.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum EditDelta {
-    ReplaceText {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        file_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        move_from: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        old_text: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        new_text: Option<String>,
-    },
-    WriteFile {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        file_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        move_from: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        previous_content: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        content: Option<String>,
-    },
-    DeleteFile {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        file_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        old_text: Option<String>,
-    },
-}
-
-impl EditDelta {
-    pub fn replace_text(
-        file_path: Option<String>,
-        move_from: Option<String>,
-        old_text: Option<String>,
-        new_text: Option<String>,
-    ) -> Self {
-        EditDelta::ReplaceText {
-            file_path,
-            move_from,
-            old_text,
-            new_text,
-        }
-    }
-
-    pub fn write_file(
-        file_path: Option<String>,
-        move_from: Option<String>,
-        previous_content: Option<String>,
-        content: Option<String>,
-    ) -> Self {
-        EditDelta::WriteFile {
-            file_path,
-            move_from,
-            previous_content,
-            content,
-        }
-    }
-
-    pub fn delete_file(file_path: Option<String>, old_text: Option<String>) -> Self {
-        EditDelta::DeleteFile {
-            file_path,
-            old_text,
-        }
-    }
-
-    pub fn file_path(&self) -> Option<&String> {
-        match self {
-            EditDelta::ReplaceText { file_path, .. }
-            | EditDelta::WriteFile { file_path, .. }
-            | EditDelta::DeleteFile { file_path, .. } => file_path.as_ref(),
-        }
-    }
-
-    pub fn move_from(&self) -> Option<&String> {
-        match self {
-            EditDelta::ReplaceText { move_from, .. } | EditDelta::WriteFile { move_from, .. } => {
-                move_from.as_ref()
-            }
-            EditDelta::DeleteFile { .. } => None,
-        }
-    }
-
-    pub fn old_text(&self) -> Option<&String> {
-        match self {
-            EditDelta::ReplaceText { old_text, .. } | EditDelta::DeleteFile { old_text, .. } => {
-                old_text.as_ref()
-            }
-            EditDelta::WriteFile {
-                previous_content, ..
-            } => previous_content.as_ref(),
-        }
-    }
-
-    pub fn new_text(&self) -> Option<&String> {
-        match self {
-            EditDelta::ReplaceText { new_text, .. } => new_text.as_ref(),
-            EditDelta::WriteFile { content, .. } => content.as_ref(),
-            EditDelta::DeleteFile { .. } => None,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.file_path().is_none()
-            && self.move_from().is_none()
-            && self.old_text().is_none()
-            && self.new_text().is_none()
-    }
+#[serde(rename_all = "camelCase")]
+pub struct EditEntry {
+    /// Path of the file being edited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    /// Original path when the edit entry represents a rename/move inside a multi-file edit patch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_from: Option<String>,
+    /// Text being replaced (None = new file or full-file write).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_string: Option<String>,
+    /// Replacement text (standard edit).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_string: Option<String>,
+    /// Full file content (create/overwrite variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 /// Tool arguments discriminated by tool kind.
@@ -274,7 +136,7 @@ pub enum ToolArguments {
     /// `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
     /// multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
     Edit {
-        edits: Vec<EditDelta>,
+        edits: Vec<EditEntry>,
     },
     Execute {
         #[serde(skip_serializing_if = "Option::is_none")]

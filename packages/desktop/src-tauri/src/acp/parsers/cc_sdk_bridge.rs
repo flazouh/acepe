@@ -230,10 +230,10 @@ fn translate_assistant(
                 let parser = get_parser(agent);
                 let raw = RawToolCallInput {
                     id: tu.id,
-                    provider_tool_name: Some(tu.name),
-                    provider_declared_kind: None,
+                    name: tu.name,
                     arguments: tu.input,
                     status: ToolCallStatus::InProgress,
+                    kind: None,
                     title: None,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: parent_tool_use_id.clone(),
@@ -473,15 +473,15 @@ fn translate_stream_event(
                     let parser = get_parser(agent);
                     let raw = RawToolCallUpdateInput {
                         id: tool_call_id,
-                        provider_tool_name: Some(tool_name),
-                        provider_declared_kind: None,
                         status: None,
                         result: None,
                         content: None,
                         title: None,
                         locations: None,
                         streaming_input_delta: Some(partial_json.to_string()),
+                        tool_name: Some(tool_name),
                         raw_input: None,
+                        kind: None,
                     };
                     let update =
                         build_tool_call_update_from_raw(parser, raw, session_id.as_deref());
@@ -1188,15 +1188,15 @@ mod tests {
             let parser = crate::acp::parsers::get_parser(AgentType::ClaudeCode);
             let raw = RawToolCallUpdateInput {
                 id: "toolu_test_bash".to_string(),
-                provider_tool_name: Some("Bash".to_string()),
-                provider_declared_kind: None,
                 status: None,
                 result: None,
                 content: None,
                 title: None,
                 locations: None,
                 streaming_input_delta: Some("{\"command\":\"echo hi\"}".to_string()),
+                tool_name: Some("Bash".to_string()),
                 raw_input: None,
+                kind: None,
             };
 
             let update = build_tool_call_update_from_raw(parser, raw, Some("cc-sdk-stream-test"));
@@ -1268,10 +1268,7 @@ mod tests {
                 match &update.streaming_arguments {
                     Some(ToolArguments::Edit { edits }) => {
                         assert_eq!(edits.len(), 1);
-                        assert_eq!(
-                            edits[0].file_path().map(String::as_str),
-                            Some("/tmp/demo.txt")
-                        );
+                        assert_eq!(edits[0].file_path.as_deref(), Some("/tmp/demo.txt"));
                     }
                     other => panic!("expected streamed edit arguments, got {:?}", other),
                 }

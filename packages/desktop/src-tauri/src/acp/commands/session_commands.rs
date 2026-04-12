@@ -441,7 +441,8 @@ pub async fn acp_resume_session(
         match result {
             Ok(Ok(response)) => {
                 let policy_registry = app_clone.state::<Arc<SessionPolicyRegistry>>();
-                let autonomous_enabled = policy_registry.is_autonomous(&session_id);
+                let autonomous_enabled =
+                    policy_registry.is_autonomous(&session_id);
                 let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
                     session_id: session_id.clone(),
                     attempt_id,

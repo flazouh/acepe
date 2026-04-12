@@ -92,7 +92,10 @@ import {
 	resolveEmptyStateWorktreePending,
 	resolveEmptyStateWorktreePendingForProjectChange,
 } from "./logic/empty-state-send-state.js";
-import { resolveKanbanNewSessionDefaults } from "./kanban-new-session-dialog-state.js";
+import {
+	resolveKanbanNewSessionDefaults,
+	type KanbanNewSessionRequest,
+} from "./kanban-new-session-dialog-state.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -116,7 +119,10 @@ const isDev = import.meta.env.DEV;
 
 // Override CMD+T to open the kanban new-session dialog instead of spawning a panel
 onMount(() => {
-	appState.onNewThreadOverride = () => handleNewSessionOpenChange(true);
+	appState.onNewThreadOverride = (request) => {
+		pendingNewSessionRequest = request ? request : null;
+		handleNewSessionOpenChange(true);
+	};
 });
 onDestroy(() => {
 	appState.onNewThreadOverride = null;
@@ -132,6 +138,7 @@ interface OptimisticKanbanCard {
 
 let newSessionOpen = $state(false);
 let newSessionDialogRef = $state<HTMLElement | null>(null);
+let pendingNewSessionRequest = $state<KanbanNewSessionRequest | null>(null);
 let selectedProjectPath = $state<string | null>(null);
 let selectedAgentId = $state<string | null>(null);
 let activeWorktreePath = $state<string | null>(null);
@@ -813,12 +820,14 @@ async function handleMenuAction(sessionId: string, actionId: string): Promise<vo
 	}
 }
 
-function resetNewSessionState(): void {
+function resetNewSessionState(request?: KanbanNewSessionRequest): void {
 	const defaults = resolveKanbanNewSessionDefaults({
 		projects,
 		focusedProjectPath: panelStore.focusedViewProjectPath,
 		availableAgents,
 		selectedAgentIds: agentPreferencesStore.selectedAgentIds,
+		requestedProjectPath: request?.projectPath ?? null,
+		requestedAgentId: request?.agentId ?? null,
 	});
 
 	selectedProjectPath = defaults.projectPath;
@@ -835,12 +844,19 @@ function resetNewSessionState(): void {
 }
 
 function handleNewSessionOpenChange(nextOpen: boolean): void {
-	newSessionOpen = nextOpen;
-	if (!nextOpen) {
+	if (nextOpen === newSessionOpen && pendingNewSessionRequest === null) {
 		return;
 	}
 
-	resetNewSessionState();
+	newSessionOpen = nextOpen;
+	if (!nextOpen) {
+		pendingNewSessionRequest = null;
+		return;
+	}
+
+	const request = pendingNewSessionRequest;
+	pendingNewSessionRequest = null;
+	resetNewSessionState(request ? request : undefined);
 }
 
 function handleNewSessionAgentChange(agentId: string): void {

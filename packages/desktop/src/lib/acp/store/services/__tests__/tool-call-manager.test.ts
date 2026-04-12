@@ -295,11 +295,11 @@ describe("ToolCallManager", () => {
 						kind: "edit",
 						edits: [
 							{
-								type: "replaceText",
-								file_path: "/tmp/example.rs",
-								move_from: undefined,
-								old_text: "before",
-								new_text: "after",
+								filePath: "/tmp/example.rs",
+								moveFrom: undefined,
+								oldString: "before",
+								newString: "after",
+								content: null,
 							},
 						],
 					},
@@ -323,7 +323,7 @@ describe("ToolCallManager", () => {
 				kind: "edit",
 				arguments: {
 					kind: "edit",
-					edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 			});
 			const result = manager.createEntry("s1", sparseData);
@@ -336,11 +336,11 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: "/tmp/example.rs",
-							move_from: undefined,
-							old_text: "before",
-							new_text: "after",
+							filePath: "/tmp/example.rs",
+							moveFrom: undefined,
+							oldString: "before",
+							newString: "after",
+							content: null,
 						},
 					],
 				});
@@ -415,7 +415,7 @@ describe("ToolCallManager", () => {
 			const syntheticData = createToolCallData("tc-1", {
 				name: "Edit",
 				kind: "edit",
-				arguments: { kind: "edit", edits: [{ type: "replaceText", file_path: "/path/to/file.ts" , old_text: null, new_text: null }] },
+				arguments: { kind: "edit", edits: [{ filePath: "/path/to/file.ts" }] },
 			});
 			const result = manager.createEntry("s1", syntheticData);
 
@@ -791,7 +791,7 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					arguments: {
 						kind: "edit",
-						edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
+						edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 					},
 					awaitingPlanApproval: false,
 				},
@@ -810,7 +810,7 @@ describe("ToolCallManager", () => {
 				status: "completed",
 				streamingArguments: {
 					kind: "edit",
-					edits: [{ type: "replaceText", file_path: "/src/app.ts", old_text: "old", new_text: "new" }],
+					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
 				},
 			});
 
@@ -823,7 +823,7 @@ describe("ToolCallManager", () => {
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
 					kind: "edit",
-					edits: [{ type: "replaceText", file_path: "/src/app.ts", old_text: "old", new_text: "new" }],
+					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
 				});
 				expect(updatedEntry.message.status).toBe("completed");
 			}
@@ -842,11 +842,11 @@ describe("ToolCallManager", () => {
 						kind: "edit",
 						edits: [
 							{
-								type: "replaceText",
-								file_path: "/tmp/example.rs",
-								move_from: undefined,
-								old_text: "before",
-								new_text: "after",
+								filePath: "/tmp/example.rs",
+								moveFrom: undefined,
+								oldString: "before",
+								newString: "after",
+								content: null,
 							},
 						],
 					},
@@ -867,7 +867,7 @@ describe("ToolCallManager", () => {
 				status: "completed",
 				arguments: {
 					kind: "edit",
-					edits: [{ type: "replaceText", file_path: null, old_text: null, new_text: null }],
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				},
 			});
 			const result = manager.updateEntry("s1", update);
@@ -880,11 +880,11 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: "/tmp/example.rs",
-							move_from: undefined,
-							old_text: "before",
-							new_text: "after",
+							filePath: "/tmp/example.rs",
+							moveFrom: undefined,
+							oldString: "before",
+							newString: "after",
+							content: null,
 						},
 					],
 				});
@@ -905,11 +905,11 @@ describe("ToolCallManager", () => {
 						kind: "edit",
 						edits: [
 							{
-								type: "replaceText",
-								file_path: null,
-								move_from: null,
-								old_text: null,
-								new_text: null,
+								filePath: null,
+								moveFrom: null,
+								oldString: null,
+								newString: null,
+								content: null,
 							},
 						],
 					},
@@ -932,11 +932,11 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: "/tmp/new.rs",
-							move_from: "/tmp/old.rs",
-							old_text: null,
-							new_text: null,
+							filePath: "/tmp/new.rs",
+							moveFrom: "/tmp/old.rs",
+							oldString: null,
+							newString: null,
+							content: null,
 						},
 					],
 				},
@@ -965,11 +965,11 @@ describe("ToolCallManager", () => {
 						kind: "edit",
 						edits: [
 							{
-								type: "replaceText",
-								file_path: "/tmp/new.rs",
-								move_from: "/tmp/old.rs",
-								old_text: null,
-								new_text: null,
+								filePath: "/tmp/new.rs",
+								moveFrom: "/tmp/old.rs",
+								oldString: null,
+								newString: null,
+								content: null,
 							},
 						],
 					},
@@ -992,11 +992,11 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: null,
-							move_from: null,
-							old_text: null,
-							new_text: null,
+							filePath: null,
+							moveFrom: null,
+							oldString: null,
+							newString: null,
+							content: null,
 						},
 					],
 				},
@@ -1011,11 +1011,11 @@ describe("ToolCallManager", () => {
 					kind: "edit",
 					edits: [
 						{
-							type: "replaceText",
-							file_path: "/tmp/new.rs",
-							move_from: "/tmp/old.rs",
-							old_text: null,
-							new_text: null,
+							filePath: "/tmp/new.rs",
+							moveFrom: "/tmp/old.rs",
+							oldString: null,
+							newString: null,
+							content: null,
 						},
 					],
 				});

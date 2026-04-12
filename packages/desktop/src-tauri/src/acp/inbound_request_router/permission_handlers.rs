@@ -136,10 +136,10 @@ async fn handle_session_request_permission_with_state(
         Some(_) => {
             let raw = RawToolCallInput {
                 id: tool_call_id.clone(),
-                provider_tool_name: Some(identity.name.clone()),
-                provider_declared_kind: Some(identity.kind),
+                name: identity.name.clone(),
                 arguments: tool_call.raw_input.clone(),
                 status: ToolCallStatus::InProgress,
+                kind: Some(identity.kind),
                 title: tool_call.title.clone(),
                 suppress_title_read_path_hint: false,
                 parent_tool_use_id: None,
