@@ -30,9 +30,11 @@ let boardElement = $state<HTMLDivElement | null>(null);
 let overlays = $state<readonly KanbanBoardMotionOverlayState[]>([]);
 let reducedMotion = $state(false);
 
-const pendingOrigins = new Map<string, { placement: KanbanScenePlacement; rect: KanbanBoardRect }>();
+const lastKnownPositions = new Map<string, { placement: KanbanScenePlacement; rect: KanbanBoardRect }>();
+const activeHostNodes = new Map<string, HTMLDivElement>();
 const overlayTimeouts = new Map<string, number>();
 const overlayAnimationFrames = new Map<string, number>();
+const deferredMeasurementFrames = new Map<string, number>();
 const columnScrollElements = new Map<KanbanBoardColumnLayout["columnId"], HTMLDivElement>();
 
 function measureHostRect(node: HTMLDivElement): KanbanBoardRect | null {
@@ -65,10 +67,112 @@ function cancelOverlay(cardId: string): void {
 	overlays = overlays.filter((overlay) => overlay.cardId !== cardId);
 }
 
+function cancelDeferredMeasurement(cardId: string): void {
+	const frameId = deferredMeasurementFrames.get(cardId);
+	if (frameId !== undefined) {
+		window.cancelAnimationFrame(frameId);
+		deferredMeasurementFrames.delete(cardId);
+	}
+}
+
 function cancelAllOverlays(): void {
 	for (const cardId of overlayTimeouts.keys()) {
 		cancelOverlay(cardId);
 	}
+}
+
+function seedLastKnownPosition(
+	card: KanbanSceneCardData,
+	node: HTMLDivElement,
+	placement: KanbanScenePlacement
+): void {
+	const rect = measureHostRect(node);
+	if (!rect) {
+		return;
+	}
+
+	lastKnownPositions.set(card.id, {
+		placement,
+		rect,
+	});
+}
+
+function findCardPlacement(cardId: string): { card: KanbanSceneCardData; placement: KanbanScenePlacement } | null {
+	for (const column of layout) {
+		for (const cardPlacement of column.cards) {
+			if (cardPlacement.card.id === cardId) {
+				return {
+					card: cardPlacement.card,
+					placement: cardPlacement.placement,
+				};
+			}
+		}
+	}
+
+	return null;
+}
+
+function maybeAnimatePlacementChange(
+	card: KanbanSceneCardData,
+	previousPlacement: KanbanScenePlacement,
+	nextPlacement: KanbanScenePlacement,
+	currentRect: KanbanBoardRect
+): void {
+	if (!scrollElement) {
+		return;
+	}
+
+	const previousPosition = lastKnownPositions.get(card.id);
+	if (!previousPosition) {
+		return;
+	}
+
+	const originViewportRect = measureViewportRect(previousPlacement.columnId);
+	const destinationViewportRect = measureViewportRect(nextPlacement.columnId);
+
+	const plan = buildKanbanBoardMotionPlan({
+		card,
+		previousPlacement,
+		nextPlacement,
+		originRect: previousPosition.rect,
+		destinationRect: currentRect,
+		originViewportRect: originViewportRect
+			? originViewportRect
+			: {
+					left: scrollElement.scrollLeft,
+					top: scrollElement.scrollTop,
+					width: scrollElement.clientWidth,
+					height: scrollElement.clientHeight,
+				},
+		destinationViewportRect: destinationViewportRect
+			? destinationViewportRect
+			: {
+					left: scrollElement.scrollLeft,
+					top: scrollElement.scrollTop,
+					width: scrollElement.clientWidth,
+					height: scrollElement.clientHeight,
+				},
+		reducedMotion,
+	});
+
+	if (!plan) {
+		return;
+	}
+
+	cancelOverlay(card.id);
+	overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "start"));
+	const timeoutId = window.setTimeout(() => {
+		cancelOverlay(card.id);
+	}, plan.durationMs + 40);
+	overlayTimeouts.set(card.id, timeoutId);
+	const animationFrameId = window.requestAnimationFrame(() => {
+		overlayAnimationFrames.delete(card.id);
+		if (!overlayTimeouts.has(card.id)) {
+			return;
+		}
+		overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "end"));
+	});
+	overlayAnimationFrames.set(card.id, animationFrameId);
 }
 
 function intersectRects(left: KanbanBoardRect, right: KanbanBoardRect): KanbanBoardRect | null {
@@ -135,65 +239,48 @@ function registerHost(
 	placement: KanbanScenePlacement
 ): () => void {
 	if (!boardElement || !scrollElement) {
+		cancelDeferredMeasurement(card.id);
+		const frameId = window.requestAnimationFrame(() => {
+			deferredMeasurementFrames.delete(card.id);
+			if (!boardElement || !scrollElement) {
+				return;
+			}
+
+			activeHostNodes.set(card.id, node);
+			seedLastKnownPosition(card, node, placement);
+		});
+		deferredMeasurementFrames.set(card.id, frameId);
+
 		return () => undefined;
 	}
 
-	const pendingOrigin = pendingOrigins.get(card.id);
+	cancelDeferredMeasurement(card.id);
+	activeHostNodes.set(card.id, node);
 
-	if (pendingOrigin) {
-		const destinationRect = measureHostRect(node);
-		const originViewportRect = measureViewportRect(pendingOrigin.placement.columnId);
-		const destinationViewportRect = measureViewportRect(placement.columnId);
+	const previousPosition = lastKnownPositions.get(card.id);
+	const currentRect = measureHostRect(node);
 
-		const plan = buildKanbanBoardMotionPlan({
-			card,
-			previousPlacement: pendingOrigin.placement,
-			nextPlacement: placement,
-			originRect: pendingOrigin.rect,
-			destinationRect,
-			originViewportRect: originViewportRect
-				? originViewportRect
-				: {
-						left: scrollElement.scrollLeft,
-						top: scrollElement.scrollTop,
-						width: scrollElement.clientWidth,
-						height: scrollElement.clientHeight,
-					},
-			destinationViewportRect: destinationViewportRect
-				? destinationViewportRect
-				: {
-						left: scrollElement.scrollLeft,
-						top: scrollElement.scrollTop,
-						width: scrollElement.clientWidth,
-						height: scrollElement.clientHeight,
-					},
-			reducedMotion,
+	if (previousPosition && currentRect) {
+		maybeAnimatePlacementChange(card, previousPosition.placement, placement, currentRect);
+	}
+
+	if (currentRect) {
+		lastKnownPositions.set(card.id, {
+			placement,
+			rect: currentRect,
 		});
-
-		pendingOrigins.delete(card.id);
-
-		if (plan) {
-			cancelOverlay(card.id);
-			overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "start"));
-			const timeoutId = window.setTimeout(() => {
-				cancelOverlay(card.id);
-			}, plan.durationMs + 40);
-			overlayTimeouts.set(card.id, timeoutId);
-			const animationFrameId = window.requestAnimationFrame(() => {
-				overlayAnimationFrames.delete(card.id);
-				if (!overlayTimeouts.has(card.id)) {
-					return;
-				}
-				overlays = upsertKanbanBoardMotionOverlay(overlays, createOverlay(plan, "end"));
-			});
-			overlayAnimationFrames.set(card.id, animationFrameId);
-		}
 	}
 
 	return () => {
+		cancelDeferredMeasurement(card.id);
+
+		if (activeHostNodes.get(card.id) === node) {
+			activeHostNodes.delete(card.id);
+		}
+
 		const rect = measureHostRect(node);
-		if (rect) {
-			pendingOrigins.set(card.id, {
+		if (rect && !activeHostNodes.has(card.id)) {
+			lastKnownPositions.set(card.id, {
 				placement,
 				rect,
 			});
@@ -234,15 +321,69 @@ onMount(() => {
 	}
 
 	const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+	const hostMutationObserver = new MutationObserver((mutations) => {
+		for (const mutation of mutations) {
+			if (mutation.type !== "attributes" || mutation.attributeName !== "data-column-id") {
+				continue;
+			}
+			if (!(mutation.target instanceof HTMLDivElement)) {
+				continue;
+			}
+
+			const cardId = mutation.target.getAttribute("data-card-id");
+			if (!cardId || !mutation.oldValue) {
+				continue;
+			}
+
+			const lookup = findCardPlacement(cardId);
+			if (!lookup) {
+				continue;
+			}
+
+			const currentRect = measureHostRect(mutation.target);
+			if (!currentRect) {
+				continue;
+			}
+
+			const previousPosition = lastKnownPositions.get(cardId);
+			const previousPlacement = previousPosition
+				? previousPosition.placement
+				: {
+						cardId,
+						columnId: mutation.oldValue,
+						index: lookup.placement.index,
+						orderKey: lookup.placement.orderKey,
+						source: lookup.placement.source,
+					};
+
+			maybeAnimatePlacementChange(lookup.card, previousPlacement, lookup.placement, currentRect);
+			lastKnownPositions.set(cardId, {
+				placement: lookup.placement,
+				rect: currentRect,
+			});
+		}
+	});
 	const updateReducedMotion = (): void => {
 		reducedMotion = mediaQuery.matches;
 	};
 
 	updateReducedMotion();
 	mediaQuery.addEventListener("change", updateReducedMotion);
+	if (boardElement) {
+		hostMutationObserver.observe(boardElement, {
+			subtree: true,
+			attributes: true,
+			attributeFilter: ["data-column-id"],
+			attributeOldValue: true,
+		});
+	}
 
 	return () => {
 		cancelAllOverlays();
+		for (const cardId of deferredMeasurementFrames.keys()) {
+			cancelDeferredMeasurement(cardId);
+		}
+		hostMutationObserver.disconnect();
 		mediaQuery.removeEventListener("change", updateReducedMotion);
 	};
 });

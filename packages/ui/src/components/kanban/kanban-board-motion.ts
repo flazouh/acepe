@@ -86,7 +86,7 @@ export function buildKanbanBoardMotionPlan(input: {
 			originRect: visibleDestinationRect,
 			destinationRect: visibleDestinationRect,
 			mode: "settle",
-			durationMs: 120,
+			durationMs: 300,
 		};
 	}
 
@@ -104,7 +104,7 @@ export function buildKanbanBoardMotionPlan(input: {
 			originRect: visibleDestinationRect,
 			destinationRect: visibleDestinationRect,
 			mode: "settle",
-			durationMs: 140,
+			durationMs: 400,
 		};
 	}
 
@@ -116,7 +116,7 @@ export function buildKanbanBoardMotionPlan(input: {
 		originRect,
 		destinationRect,
 		mode: "travel",
-		durationMs: 220,
+		durationMs: 800,
 	};
 }
 

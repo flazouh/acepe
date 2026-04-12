@@ -123,7 +123,7 @@ describe("kanban-board-motion", () => {
 			originRect: { left: 10, top: 20, width: 180, height: 96 },
 			destinationRect: { left: 240, top: 24, width: 180, height: 96 },
 			mode: "travel",
-			durationMs: 220,
+			durationMs: 800,
 			phase: "start",
 		};
 
@@ -135,7 +135,7 @@ describe("kanban-board-motion", () => {
 			originRect: { left: 240, top: 24, width: 180, height: 96 },
 			destinationRect: { left: 480, top: 24, width: 180, height: 96 },
 			mode: "travel",
-			durationMs: 220,
+			durationMs: 800,
 			phase: "start",
 		};
 
