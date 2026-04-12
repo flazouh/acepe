@@ -1,5 +1,5 @@
 import { errAsync, okAsync } from "neverthrow";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionModelState } from "../../../services/acp-types.js";
 import type {
 	AvailableCommand,
@@ -7,15 +7,17 @@ import type {
 } from "../../../services/converted-session-types.js";
 import { AgentError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
+import type { ConnectionCompleteData } from "../session-event-service.svelte.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import type { SessionCold, SessionHotState } from "../types.js";
-import { SessionConnectionManager } from "./session-connection-manager.js";
 import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
 import type { IConnectionManager } from "./interfaces/connection-manager.js";
 import type { IEntryManager } from "./interfaces/entry-manager.js";
 import type { IHotStateManager } from "./interfaces/hot-state-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
+
+let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 
 const resumeSession = vi.fn();
 const newSession = vi.fn();
@@ -88,6 +90,13 @@ function createMockEventHandler(): SessionEventHandler {
 }
 
 let lastEventService: SessionEventService;
+let nextLifecycleResult: ConnectionCompleteData;
+
+beforeAll(async () => {
+	const modulePath = "./session-connection-manager.js?session-connection-manager-test" as string;
+	const module = (await import(modulePath)) as typeof import("./session-connection-manager.js");
+	SessionConnectionManager = module.SessionConnectionManager;
+});
 
 function createManager(deps: {
 	stateReader: ISessionStateReader;
@@ -98,6 +107,10 @@ function createManager(deps: {
 	connectionManager: IConnectionManager;
 }) {
 	lastEventService = new SessionEventService();
+	vi.spyOn(lastEventService, "waitForLifecycleEvent").mockImplementation(() => ({
+		promise: Promise.resolve(nextLifecycleResult),
+		cancel: vi.fn(),
+	}));
 	return new SessionConnectionManager(
 		deps.stateReader,
 		deps.stateWriter,
@@ -121,28 +134,17 @@ function mockResumeWithLifecycleEvent(responseData: {
 	configOptions?: ConfigOptionData[];
 	autonomousEnabled?: boolean;
 }) {
-	resumeSession.mockImplementation((sid: string, _cwd: string, attemptId: number) => {
-		const eventService = lastEventService;
-		queueMicrotask(() => {
-			eventService.handleSessionUpdate(
-				{
-					type: "connectionComplete",
-					session_id: sid,
-					attempt_id: attemptId,
-					models: responseData.models,
-					modes: responseData.modes,
-					available_commands: responseData.availableCommands ?? [],
-					config_options: responseData.configOptions ?? [],
-					autonomous_enabled: responseData.autonomousEnabled ?? false,
-				},
-				createMockEventHandler()
-			);
-		});
-		return okAsync(undefined);
-	});
+	nextLifecycleResult = {
+		models: responseData.models,
+		modes: responseData.modes,
+		availableCommands: responseData.availableCommands ?? [],
+		configOptions: responseData.configOptions ?? [],
+		autonomousEnabled: responseData.autonomousEnabled ?? false,
+	};
+	resumeSession.mockReturnValue(okAsync(undefined));
 }
 
-describe.sequential("SessionConnectionManager.connectSession", () => {
+describe("SessionConnectionManager.connectSession", () => {
 	const sessionId = "session-1";
 	const projectPath = "/tmp/project";
 	const agentId = "opencode";
@@ -1007,7 +1009,7 @@ describe.sequential("SessionConnectionManager.connectSession", () => {
 	});
 });
 
-describe.sequential("SessionConnectionManager.createSession", () => {
+describe("SessionConnectionManager.createSession", () => {
 	const sessionId = "session-new";
 	const projectPath = "/tmp/project";
 	const agentId = "codex";
@@ -1597,7 +1599,7 @@ describe.sequential("SessionConnectionManager.createSession", () => {
 	});
 });
 
-describe.sequential("SessionConnectionManager autonomous policy", () => {
+describe("SessionConnectionManager autonomous policy", () => {
 	const sessionId = "session-autonomous";
 	const connectedSession: SessionCold = {
 		id: sessionId,
@@ -2062,7 +2064,7 @@ describe.sequential("SessionConnectionManager autonomous policy", () => {
 	});
 });
 
-describe.sequential("SessionConnectionManager.cancelStreaming", () => {
+describe("SessionConnectionManager.cancelStreaming", () => {
 	const sessionId = "session-cancel";
 
 	const connectedSession: SessionCold = {
@@ -2201,7 +2203,7 @@ describe.sequential("SessionConnectionManager.cancelStreaming", () => {
 	});
 });
 
-describe.sequential("SessionConnectionManager.disconnectSession", () => {
+describe("SessionConnectionManager.disconnectSession", () => {
 	it("clears available commands when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
