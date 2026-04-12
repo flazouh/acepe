@@ -150,7 +150,7 @@
 </script>
 
 <div
-	class="overflow-y-auto {scrollable ? 'markdown-display-scrollable h-full w-full' : ''} {className}"
+	class="min-w-0 max-w-full overflow-x-hidden overflow-y-auto {scrollable ? 'markdown-display-scrollable h-full w-full' : ''} {className}"
 >
 	{#if error}
 		<div class="text-sm text-destructive p-4">
@@ -158,7 +158,7 @@
 			<p class="whitespace-pre-wrap mt-2">{content}</p>
 		</div>
 	{:else if html}
-		<div bind:this={containerRef} class="markdown-content p-6 text-sm text-foreground leading-relaxed">
+		<div bind:this={containerRef} class="markdown-content min-w-0 max-w-full p-6 text-sm leading-relaxed text-foreground">
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			{@html html}
 		</div>

@@ -131,7 +131,6 @@ pub async fn get_startup_sessions(
             .worktree_path
             .as_ref()
             .map(|path| !Path::new(path).exists());
-
         entries.push(HistoryEntry {
             id: session.id.clone(),
             display: session.display,
@@ -200,7 +199,6 @@ async fn scan_project_sessions_inner(
                 .worktree_path
                 .as_ref()
                 .map(|path| !Path::new(path).exists());
-
             entries.push(HistoryEntry {
                 id: s.id.clone(),
                 display,

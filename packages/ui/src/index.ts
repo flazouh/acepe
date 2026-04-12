@@ -71,6 +71,8 @@ export {
 	AgentPanelBrowserHeader,
 	AgentAssistantMessage,
 	AgentPanelBrowserPanel,
+	AgentPanelDeck,
+	AgentPanelComposerFrame,
 	AgentPanelComposer,
 	AgentPanelConversationEntry,
 	AgentPanelErrorCard,

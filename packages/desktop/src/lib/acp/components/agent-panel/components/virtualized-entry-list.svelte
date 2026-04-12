@@ -181,6 +181,28 @@ function getKey(entry: VirtualizedDisplayEntry): string {
 	return getVirtualizedDisplayEntryKey(entry);
 }
 
+const activeRootToolCallId = $derived.by(() => {
+	if (turnState !== "streaming" || entries.length === 0) {
+		return null;
+	}
+
+	const lastEntry = entries[entries.length - 1];
+	if (!lastEntry || lastEntry.type !== "tool_call") {
+		return null;
+	}
+
+	const toolCall = lastEntry.message;
+	if (toolCall.status === "completed" || toolCall.status === "failed") {
+		return null;
+	}
+
+	if (toolCall.result !== null && toolCall.result !== undefined) {
+		return null;
+	}
+
+	return toolCall.id;
+});
+
 // ===== DISPLAY ENTRIES =====
 const mergedEntries = $derived(buildVirtualizedDisplayEntries(entries));
 // Avoid spread-based allocation on every streaming update — reuse the merged
@@ -480,7 +502,8 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 				((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
 					(entry.type === "assistant_merged_thoughts" &&
 						entry.memberIds.includes(lastAssistantId ?? ""))) &&
-				index === displayEntries.length - 1
+				index === displayEntries.length - 1,
+			activeRootToolCallId
 		)}
 		<MessageWrapper
 			entryIndex={index}

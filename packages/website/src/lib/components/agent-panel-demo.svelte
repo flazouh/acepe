@@ -22,6 +22,7 @@
 		AgentPanelPermissionBarProgress,
 		AgentPanelPlanHeader,
 		AgentPanelScene,
+		AgentPanelSceneConversation,
 		AgentPanelTodoHeader,
 		AgentPanelWorktreeSetupCard,
 	} from "@acepe/ui";
@@ -811,60 +812,68 @@
 								/>
 							{/if}
 						{/snippet}
-						{#snippet preComposerOverride()}
-							<div class="shrink-0 flex flex-col gap-0.5 px-5">
-								{#if panel.id === "composer-primary"}
-									<AgentPanelPermissionBar
-										verb="Edit"
-										filePath="packages/ui/src/components/agent-panel/agent-panel-shell.svelte"
-									>
-										{#snippet leading()}
-											<AgentPanelPermissionBarIcon kind="edit" />
-										{/snippet}
-										{#snippet progress()}
-											<AgentPanelPermissionBarProgress completed={1} total={3} />
-										{/snippet}
-										{#snippet actionBar()}
-											<AgentPanelPermissionBarActions
-												onAllow={() => {}}
-												onDeny={() => {}}
-												onAlwaysAllow={() => {}}
-												showAlwaysAllow={true}
+						{#snippet conversationBody()}
+							<div class="relative flex-1 min-h-0 flex flex-col">
+								<AgentPanelSceneConversation conversation={buildScene(panel, theme).conversation} iconBasePath="/svgs/icons" />
+								{#if panel.id === "composer-primary" || panel.id === "composer-verify"}
+									<div class="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1 px-5 pb-1 [&>*]:pointer-events-auto">
+										{#if panel.id === "composer-primary"}
+											<AgentPanelPermissionBar
+												verb="Edit"
+												filePath="packages/ui/src/components/agent-panel/agent-panel-shell.svelte"
+											>
+												{#snippet leading()}
+													<AgentPanelPermissionBarIcon kind="edit" />
+												{/snippet}
+												{#snippet progress()}
+													<AgentPanelPermissionBarProgress completed={1} total={3} />
+												{/snippet}
+												{#snippet actionBar()}
+													<AgentPanelPermissionBarActions
+														onAllow={() => {}}
+														onDeny={() => {}}
+														onAlwaysAllow={() => {}}
+														showAlwaysAllow={true}
+													/>
+												{/snippet}
+											</AgentPanelPermissionBar>
+											<AgentPanelWorktreeSetupCard
+												visible={true}
+												title="Worktree"
+												summary="Setting up review worktree"
+												details="Cloning to ../acepe-panel-parity on branch fix/panel-parity"
+												tone="running"
 											/>
-										{/snippet}
-									</AgentPanelPermissionBar>
-									<AgentPanelWorktreeSetupCard
-										visible={true}
-										title="Worktree"
-										summary="Setting up review worktree"
-										details="Cloning to ../acepe-panel-parity on branch fix/panel-parity"
-										tone="running"
-									/>
-								{:else if panel.id === "composer-verify"}
-									<AgentPanelModifiedFilesHeader visible={true}>
-										{#snippet leadingContent()}
-											<span class="pl-2 text-[10px] font-medium text-muted-foreground">3 files changed</span>
-										{/snippet}
-										{#snippet trailingContent(isExpanded)}
-											<AgentPanelModifiedFilesTrailingControls model={demoModifiedFilesTrailing} {isExpanded} />
-										{/snippet}
-										{#snippet fileList()}
-											{#each demoModifiedFiles as file (file.id)}
-												<AgentPanelModifiedFileRow {file} />
-											{/each}
-										{/snippet}
-									</AgentPanelModifiedFilesHeader>
-									<AgentPanelTodoHeader
-										items={demoTodoItems}
-										currentTask={demoCurrentTask}
-										completedCount={2}
-										totalCount={4}
-										isLive={true}
-										allCompletedLabel="All tasks completed"
-										pausedLabel="Tasks paused"
-									/>
+										{:else if panel.id === "composer-verify"}
+											<AgentPanelModifiedFilesHeader visible={true}>
+												{#snippet leadingContent()}
+													<span class="pl-2 text-[10px] font-medium text-muted-foreground">3 files changed</span>
+												{/snippet}
+												{#snippet trailingContent(isExpanded)}
+													<AgentPanelModifiedFilesTrailingControls model={demoModifiedFilesTrailing} {isExpanded} />
+												{/snippet}
+												{#snippet fileList()}
+													{#each demoModifiedFiles as file (file.id)}
+														<AgentPanelModifiedFileRow {file} />
+													{/each}
+												{/snippet}
+											</AgentPanelModifiedFilesHeader>
+											<AgentPanelTodoHeader
+												items={demoTodoItems}
+												currentTask={demoCurrentTask}
+												completedCount={2}
+												totalCount={4}
+												isLive={true}
+												allCompletedLabel="All tasks completed"
+												pausedLabel="Tasks paused"
+											/>
+										{/if}
+									</div>
 								{/if}
 							</div>
+						{/snippet}
+						{#snippet preComposerOverride()}
+							<!-- cards moved to conversationBody for floating effect -->
 						{/snippet}
 						{#snippet composerOverride()}
 							{@render panelComposer(panel)}

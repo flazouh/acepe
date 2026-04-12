@@ -28,7 +28,7 @@
 
 <div class="w-full">
 	<div
-		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-muted/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
+		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-muted permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
 	>
 		<div class="flex w-full items-start justify-between gap-1.5">
 			<div class="flex min-w-0 w-full items-center gap-1.5 text-[0.6875rem]">
@@ -55,14 +55,14 @@
 		</div>
 
 		{#if editPreview}
-			<div class="overflow-hidden rounded-md border border-border/60 bg-background/60">
+			<div class="overflow-hidden rounded-md border border-border bg-background">
 				{@render editPreview()}
 			</div>
 		{/if}
 	</div>
 
 	{#if command}
-		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-muted/30 px-2 py-0.5">
+		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-muted px-2 py-0.5">
 			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70">
 				$ {command}
 			</code>

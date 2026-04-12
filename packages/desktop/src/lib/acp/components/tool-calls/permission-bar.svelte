@@ -5,6 +5,7 @@ import {
 	AgentPanelPermissionBarProgress,
 	AgentPanelPermissionBarActions,
 } from "@acepe/ui/agent-panel";
+import * as m from "$lib/paraglide/messages.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../application/dto/session-entry.js";

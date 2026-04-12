@@ -126,6 +126,17 @@ export class SessionConnectionManager {
 		return modeId === CanonicalModeId.BUILD;
 	}
 
+	private resolveResumeLaunchModeId(
+		agentId: string,
+		modeId: string | undefined
+	): string | undefined {
+		if (agentId !== "copilot") {
+			return undefined;
+		}
+
+		return modeId;
+	}
+
 	private resolveProviderMetadata(
 		agentId: string,
 		providerMetadata: ProviderMetadataProjection | null | undefined
@@ -588,7 +599,7 @@ export class SessionConnectionManager {
 
 		const hotState = this.stateReader.getHotState(sessionId);
 		if (hotState.isConnected) {
-			logger.debug("Session already connected, skipping", {
+			logger.info("Session already connected, skipping", {
 				sessionId,
 				status: hotState.status,
 				isConnected: hotState.isConnected,
@@ -598,7 +609,7 @@ export class SessionConnectionManager {
 		// Defensive guard: if we already have a bound ACP session ID for this thread,
 		// treat it as connected instead of issuing another resume call (which can replay history).
 		if (hotState.acpSessionId === sessionId && hotState.status !== "error") {
-			logger.warn(
+			logger.info(
 				"Session has bound ACP session ID while disconnected; skipping duplicate resume",
 				{
 					sessionId,
@@ -653,9 +664,20 @@ export class SessionConnectionManager {
 			.andThen(() => {
 				const reconnectHotState = this.stateReader.getHotState(sessionId);
 				const shouldRestoreAutonomous = reconnectHotState.autonomousEnabled;
+				const resumeLaunchModeId = this.resolveResumeLaunchModeId(
+					effectiveAgentId,
+					reconnectHotState.currentMode ? reconnectHotState.currentMode.id : undefined
+				);
 
 				return withTimeout(
-					api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId),
+					resumeLaunchModeId === undefined
+						? api.resumeSession(sessionId, resumeCwd, options?.agentOverrideId)
+						: api.resumeSession(
+								sessionId,
+								resumeCwd,
+								options?.agentOverrideId,
+								resumeLaunchModeId
+							),
 					CONNECTION_TIMEOUT_MS,
 					new ConnectionError(`Session connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`)
 				)

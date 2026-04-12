@@ -81,6 +81,24 @@ async fn resolve_resume_session_target(
     .map_err(SerializableAcpError::from)
 }
 
+fn resolve_resume_launch_mode_id(
+    registry: &Arc<AgentRegistry>,
+    agent_id: &CanonicalAgentId,
+    launch_mode_id: Option<&str>,
+) -> Result<Option<String>, SerializableAcpError> {
+    let Some(launch_mode_id) = launch_mode_id else {
+        return Ok(None);
+    };
+
+    let provider = registry
+        .get(agent_id)
+        .ok_or_else(|| SerializableAcpError::AgentNotFound {
+            agent_id: agent_id.as_str().to_string(),
+        })?;
+
+    Ok(Some(provider.map_outbound_mode_id(launch_mode_id)))
+}
+
 pub(crate) fn resolve_requested_agent_id(
     explicit_agent_id: Option<&str>,
     active_agent_id: Option<CanonicalAgentId>,
@@ -372,6 +390,7 @@ pub async fn acp_resume_session(
     session_id: String,
     cwd: String,
     agent_id: Option<String>,
+    launch_mode_id: Option<String>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_resume_session called");
     let db = app.state::<DbConn>();
@@ -387,14 +406,16 @@ pub async fn acp_resume_session(
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
 
     let agent_id_enum = resume_target.descriptor.agent_id.clone();
+    let resolved_launch_mode_id =
+        resolve_resume_launch_mode_id(&registry, &agent_id_enum, launch_mode_id.as_deref())?;
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
         &session_registry,
         session_id.clone(),
         cwd_str,
         agent_id_enum.clone(),
-        false,
-        None,
+        resolved_launch_mode_id.is_some(),
+        resolved_launch_mode_id,
         || {
             let app = app.clone();
             let registry = registry.clone();
@@ -578,13 +599,14 @@ fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
 mod tests {
     use super::{
         persist_session_metadata_for_cwd, resolve_fork_session_target, resolve_requested_agent_id,
-        resolve_resume_session_target,
+        resolve_resume_launch_mode_id, resolve_resume_session_target,
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::projections::{
         InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
         SessionSnapshot, SessionTurnState,
     };
+    use crate::acp::registry::AgentRegistry;
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
     };
@@ -599,6 +621,7 @@ mod tests {
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
+    use std::sync::Arc;
     use tempfile::tempdir;
 
     async fn setup_test_db() -> DbConn {
@@ -834,6 +857,30 @@ mod tests {
             }
             other => panic!("expected protocol error, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn resume_launch_mode_resolution_maps_copilot_modes_to_protocol_uris() {
+        let registry = Arc::new(AgentRegistry::new());
+
+        let build_mode =
+            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, Some("build"))
+                .expect("build launch mode");
+        let plan_mode =
+            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, Some("plan"))
+                .expect("plan launch mode");
+        let no_mode = resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, None)
+            .expect("missing launch mode");
+
+        assert_eq!(
+            build_mode,
+            Some("https://agentclientprotocol.com/protocol/session-modes#agent".to_string())
+        );
+        assert_eq!(
+            plan_mode,
+            Some("https://agentclientprotocol.com/protocol/session-modes#plan".to_string())
+        );
+        assert_eq!(no_mode, None);
     }
 
     #[test]

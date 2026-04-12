@@ -30,10 +30,7 @@ export function resolveToolOperation(
 }
 
 export function resolveToolRouteKey(toolCall: ToolCall, resolvedKind: ToolKind): ToolRouteKey {
-	if (
-		resolvedKind === "read" &&
-		(toolCall.title?.trim() === "Read Lints" || toolCall.name === "read_lints")
-	) {
+	if (toolCall.title?.trim() === "Read Lints" || toolCall.name === "read_lints") {
 		return "read_lints";
 	}
 

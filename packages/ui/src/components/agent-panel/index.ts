@@ -28,6 +28,8 @@ export { default as AgentPanelInstallCard } from "./agent-install-card.svelte";
 export { default as AgentPanelWorktreeSetupCard } from "./worktree-setup-card.svelte";
 export { default as AgentPanelFooterChrome } from "./agent-panel-footer-chrome.svelte";
 export { default as AgentPanelFooter } from "./agent-panel-footer.svelte";
+export { default as AgentPanelDeck } from "./agent-panel-deck.svelte";
+export { default as AgentPanelComposerFrame } from "./agent-panel-composer-frame.svelte";
 export { default as AgentPanelComposer } from "./agent-panel-composer.svelte";
 export { default as AgentPanelReviewContent } from "./agent-panel-review-content.svelte";
 export { default as AgentPanelTerminalDrawer } from "./agent-panel-terminal-drawer.svelte";

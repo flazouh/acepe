@@ -110,6 +110,106 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("only keeps the trailing incomplete tool call live during streaming", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-1",
+				type: "tool_call",
+				message: {
+					id: "tool-1",
+					name: "search",
+					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
+					rawInput: null,
+					status: "in_progress",
+					result: null,
+					kind: "search",
+					title: "Search",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+			{
+				id: "tool-2",
+				type: "tool_call",
+				message: {
+					id: "tool-2",
+					name: "bash",
+					arguments: { kind: "execute", command: "bun test" },
+					rawInput: null,
+					status: "in_progress",
+					result: null,
+					kind: "execute",
+					title: "Run",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			status: "done",
+		});
+		expect(conversation.entries[1]).toMatchObject({
+			id: "tool-2",
+			type: "tool_call",
+			status: "running",
+		});
+	});
+
+	it("normalizes stale incomplete tool calls to done outside live streaming", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-1",
+				type: "tool_call",
+				message: {
+					id: "tool-1",
+					name: "search",
+					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
+					rawInput: null,
+					status: "in_progress",
+					result: null,
+					kind: "search",
+					title: "Search",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, undefined);
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			status: "done",
+		});
+	});
+
 	it("excludes assistant thought chunks from flattened markdown", () => {
 		const entries: SessionEntry[] = [
 			{

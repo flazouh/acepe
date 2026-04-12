@@ -424,7 +424,7 @@ const features = [
 		</section>
 
 		<!-- Feature Showcase Section -->
-		<section class="mx-auto max-w-6xl px-4 pb-24 md:px-6 md:pb-32">
+		<section class="mx-auto max-w-[86rem] px-4 pb-24 md:px-6 md:pb-32">
 			<FeatureShowcase />
 		</section>
 

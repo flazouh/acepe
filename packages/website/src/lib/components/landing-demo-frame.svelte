@@ -13,7 +13,7 @@
 
 <div
 	inert={!interactive}
-	class="relative overflow-hidden rounded-xl border border-white/10 bg-background shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
+	class="relative overflow-hidden rounded-lg border border-white/10 bg-background shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
 >
 	<div class="flex aspect-[16/10] flex-col pt-0.5 pb-0.5">
 		<div class="shrink-0">
@@ -27,7 +27,7 @@
 				showSearch={false}
 			/>
 		</div>
-		<div class="flex min-h-0 flex-1 overflow-hidden">
+		<div class="flex min-h-0 flex-1 overflow-hidden px-px">
 			{@render children?.()}
 		</div>
 	</div>

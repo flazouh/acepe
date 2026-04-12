@@ -145,7 +145,10 @@ describe("SessionHandler", () => {
 			expect(result.isOk()).toBe(true);
 			expect(mockSessionStore.preloadSessions).toHaveBeenCalledWith(["session-1"]);
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenCalledWith("session-1");
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
+				includePendingTurnInputs: false,
+			});
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
 		});
 
 		it("should not preload if details are already cached", async () => {
@@ -165,7 +168,12 @@ describe("SessionHandler", () => {
 			const result = await handler.selectSession("session-1");
 
 			expect(result.isOk()).toBe(true);
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
+				includePendingTurnInputs: false,
+			});
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
 		});
 
 		it("should auto-connect codex session after opening", async () => {
@@ -175,7 +183,19 @@ describe("SessionHandler", () => {
 			const result = await handler.selectSession("session-codex");
 
 			expect(result.isOk()).toBe(true);
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-codex");
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(
+				1,
+				"session-codex",
+				{
+					includePendingTurnInputs: false,
+				}
+			);
+			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(
+				2,
+				"session-codex"
+			);
 		});
 
 		it("should return error if session not found and no sessionInfo", async () => {

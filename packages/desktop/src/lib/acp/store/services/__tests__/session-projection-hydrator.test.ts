@@ -94,6 +94,21 @@ describe("SessionProjectionHydrator", () => {
 		expect(interactions.planApprovalsPending.size).toBe(0);
 	});
 
+	it("can hydrate history without restoring pending turn inputs", async () => {
+		const interactions = new InteractionStore();
+		const hydrator = new SessionProjectionHydrator(interactions);
+
+		const result = await hydrator.hydrateSession("session-1", {
+			includePendingTurnInputs: false,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(interactions.permissionsPending.size).toBe(0);
+		expect(interactions.questionsPending.size).toBe(0);
+		expect(interactions.answeredQuestions.get("tool-question")).toBeDefined();
+		expect(interactions.planApprovalsPending.get("plan-approval-1")?.status).toBe("approved");
+	});
+
 	it("hydrates plan approvals from canonical reply handlers even without jsonRpcRequestId", async () => {
 		getSessionProjectionMock.mockImplementation(() =>
 			okAsync({

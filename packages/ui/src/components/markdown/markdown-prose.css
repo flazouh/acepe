@@ -22,6 +22,8 @@
 	border-radius: 0.25rem;
 	font-size: 0.875em;
 	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .markdown-content .code-block-wrapper {

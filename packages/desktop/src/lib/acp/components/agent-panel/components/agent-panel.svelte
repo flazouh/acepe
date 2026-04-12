@@ -41,7 +41,10 @@ import ModifiedFilesHeader, {
 } from "../../modified-files/modified-files-header.svelte";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
-import { AgentPanelPlanHeader as SharedPlanHeader } from "@acepe/ui/agent-panel";
+import {
+	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
+	AgentPanelPlanHeader as SharedPlanHeader,
+} from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agent-panel";
@@ -1872,62 +1875,60 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 
 	{#snippet composer()}
 		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-			<div
-				class="shrink-0 px-2 pb-2 {centeredFullscreenContent ? 'flex justify-center' : ''}"
-				data-input-area
+			<SharedAgentPanelComposerFrame
+				centered={centeredFullscreenContent}
+				widthClass="max-w-[60%]"
 			>
-				<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-					{#key inputRenderKey}
-						<AgentInput
-							sessionId={sessionId ?? undefined}
-							{sessionStatus}
-							sessionIsConnected={sessionHotState?.isConnected ?? false}
-							{sessionIsStreaming}
-							{sessionCanSubmit}
-							{sessionShowStop}
-							disableSend={disableSendForFailedFirstSend}
-							{panelId}
-							voiceSessionId={panelId}
-							projectPath={worktreeToggleProjectPath ?? undefined}
-							projectName={effectiveProjectName ?? undefined}
-							worktreePath={effectiveActiveWorktreePath ?? undefined}
-							{worktreePending}
-							onWorktreeCreating={() => {
-								worktreeSetupState = createWorktreeCreationState({
-									projectPath:
-										worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
-								});
-							}}
-							onWorktreeCreated={(path) => {
-								activeWorktreePath = path;
-								activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
-							}}
-							{selectedAgentId}
-							{availableAgents}
-							{onAgentChange}
-							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
-							onSessionCreated={handleSessionCreated}
-							onWillSend={prepareForNextUserReveal}
-							onToolbarWidthChange={(w) => {
-								toolbarMinWidth = w;
-							}}
-						>
-							{#snippet checkpointButton()}
-								{#if sessionProjectPath && checkpoints.length > 0}
-									<EmbeddedIconButton
-										active={showCheckpointTimeline}
-										title={m.checkpoint_toggle_tooltip()}
-										ariaLabel={m.checkpoint_toggle_tooltip()}
-										onclick={handleToggleCheckpointTimeline}
-									>
-										<Clock class="h-3.5 w-3.5" weight="fill" />
-									</EmbeddedIconButton>
-								{/if}
-							{/snippet}
-						</AgentInput>
-					{/key}
-				</div>
-			</div>
+				{#key inputRenderKey}
+					<AgentInput
+						sessionId={sessionId ?? undefined}
+						{sessionStatus}
+						sessionIsConnected={sessionHotState?.isConnected ?? false}
+						{sessionIsStreaming}
+						{sessionCanSubmit}
+						{sessionShowStop}
+						disableSend={disableSendForFailedFirstSend}
+						{panelId}
+						voiceSessionId={panelId}
+						projectPath={worktreeToggleProjectPath ?? undefined}
+						projectName={effectiveProjectName ?? undefined}
+						worktreePath={effectiveActiveWorktreePath ?? undefined}
+						{worktreePending}
+						onWorktreeCreating={() => {
+							worktreeSetupState = createWorktreeCreationState({
+								projectPath:
+									worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
+							});
+						}}
+						onWorktreeCreated={(path) => {
+							activeWorktreePath = path;
+							activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
+						}}
+						{selectedAgentId}
+						{availableAgents}
+						{onAgentChange}
+						pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
+						onSessionCreated={handleSessionCreated}
+						onWillSend={prepareForNextUserReveal}
+						onToolbarWidthChange={(w) => {
+							toolbarMinWidth = w;
+						}}
+					>
+						{#snippet checkpointButton()}
+							{#if sessionProjectPath && checkpoints.length > 0}
+								<EmbeddedIconButton
+									active={showCheckpointTimeline}
+									title={m.checkpoint_toggle_tooltip()}
+									ariaLabel={m.checkpoint_toggle_tooltip()}
+									onclick={handleToggleCheckpointTimeline}
+								>
+									<Clock class="h-3.5 w-3.5" weight="fill" />
+								</EmbeddedIconButton>
+							{/if}
+						{/snippet}
+					</AgentInput>
+				{/key}
+			</SharedAgentPanelComposerFrame>
 		{/if}
 	{/snippet}
 

@@ -127,12 +127,18 @@ export class SessionHandler {
 
 		// Already cached - connect immediately.
 		if (session) {
-			this.projectionHydrator
-				.hydrateSession(sessionId)
-				.andThen(() => this.sessionStore.connectSession(sessionId).map(() => undefined))
-				.mapErr(() => {
-					// Error state will be shown via status indicator.
-				});
+			void this.projectionHydrator
+				.hydrateSession(sessionId, {
+					includePendingTurnInputs: false,
+				})
+				.andThen(() => this.sessionStore.connectSession(sessionId))
+				.andThen(() => this.projectionHydrator.hydrateSession(sessionId))
+				.match(
+					() => undefined,
+					() => {
+						// Error state will be shown via status indicator.
+					}
+				);
 		}
 
 		return okAsync(undefined);

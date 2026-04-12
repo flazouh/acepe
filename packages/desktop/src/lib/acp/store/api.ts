@@ -35,9 +35,10 @@ export function initialize(): ResultAsync<void, AppError> {
 export function resumeSession(
 	sessionId: string,
 	cwd: string,
-	agentId?: string
+	agentId?: string,
+	launchModeId?: string
 ): ResultAsync<ResumeSessionResult, AppError> {
-	return tauriClient.acp.resumeSession(sessionId, cwd, agentId);
+	return tauriClient.acp.resumeSession(sessionId, cwd, agentId, launchModeId);
 }
 
 /**

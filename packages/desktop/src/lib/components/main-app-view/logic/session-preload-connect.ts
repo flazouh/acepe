@@ -61,27 +61,37 @@ export function preloadAndConnectSession(options: SessionPreloadConnectOptions):
 				);
 				projectionHydrator.clearSession(sessionId);
 				sessionStore.setSessionLoaded(sessionId);
-				sessionStore.connectSession(sessionId).mapErr((error: AppError) => {
-					logger.warn("Failed to connect session after missing preload", {
-						source,
-						sessionId,
-						error,
+				sessionStore
+					.connectSession(sessionId)
+					.andThen(() => projectionHydrator.hydrateSession(sessionId))
+					.mapErr((error: AppError) => {
+						logger.warn("Failed to connect session after missing preload", {
+							source,
+							sessionId,
+							error,
+						});
 					});
-				});
 				return okAsync(undefined);
 			}
 
-			return projectionHydrator.hydrateSession(sessionId).andThen(() => {
-				sessionStore.setSessionLoaded(sessionId);
-				sessionStore.connectSession(sessionId).mapErr((error: AppError) => {
-					logger.warn("Failed to connect session after preload", {
-						source,
-						sessionId,
-						error,
-					});
+			return projectionHydrator
+				.hydrateSession(sessionId, {
+					includePendingTurnInputs: false,
+				})
+				.andThen(() => {
+					sessionStore.setSessionLoaded(sessionId);
+					sessionStore
+						.connectSession(sessionId)
+						.andThen(() => projectionHydrator.hydrateSession(sessionId))
+						.mapErr((error: AppError) => {
+							logger.warn("Failed to connect session after preload", {
+								source,
+								sessionId,
+								error,
+							});
+						});
+					return okAsync(undefined);
 				});
-				return okAsync(undefined);
-			});
 		})
 		.match(
 			() => undefined,

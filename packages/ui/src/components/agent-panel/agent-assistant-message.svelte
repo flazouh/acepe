@@ -13,7 +13,7 @@
 </script>
 
 <!-- Mirrors desktop AssistantMessage: full width, no card wrapping -->
-<div class="w-full mb-2 group/assistant-message">
+<div class="group/assistant-message mb-2 w-full min-w-0 max-w-full overflow-x-hidden">
 	{#if isStreaming && !markdown}
 		<div class="py-2 text-sm text-muted-foreground">
 			<TextShimmer>Planning next moves…</TextShimmer>

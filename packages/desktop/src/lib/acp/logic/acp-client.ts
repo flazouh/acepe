@@ -167,7 +167,8 @@ export class AcpClient {
 	resumeSession(
 		sessionId: SessionId,
 		cwd: string,
-		agentId?: string
+		agentId?: string,
+		launchModeId?: string
 	): ResultAsync<ResumeSessionResponse, AcpError> {
 		this.logger.debug(
 			"resumeSession() called with sessionId:",
@@ -175,10 +176,12 @@ export class AcpClient {
 			"cwd:",
 			cwd,
 			"agentId:",
-			agentId
+			agentId,
+			"launchModeId:",
+			launchModeId
 		);
 		return tauriClient.acp
-			.resumeSession(sessionId, cwd, agentId)
+			.resumeSession(sessionId, cwd, agentId, launchModeId)
 			.mapErr((error) => this.deserializeTauriError(error, "Failed to resume session"))
 			.map((response) => {
 				// Per ACP protocol: ResumeSessionResponse does NOT include sessionId
@@ -226,9 +229,10 @@ export class AcpClient {
 	resumeSessionSafe(
 		sessionId: SessionId,
 		cwd: string,
-		agentId?: string
+		agentId?: string,
+		launchModeId?: string
 	): ResultAsync<SessionResponse, AcpError> {
-		return this.resumeSession(sessionId, cwd, agentId)
+		return this.resumeSession(sessionId, cwd, agentId, launchModeId)
 			.map((response) => ({
 				type: "resume" as const,
 				models: response.models,

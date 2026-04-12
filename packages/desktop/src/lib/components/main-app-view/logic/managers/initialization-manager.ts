@@ -34,8 +34,9 @@
  * startup never attempts to resume created session ids that have no persisted
  * history on disk.
  *
- * earlyPreloadPanelSessions clears panel session references on load failure,
- * preventing ghost panels. validateRestoredSessions handles remaining edge cases.
+ * earlyPreloadPanelSessions clears panel session references on load failure and
+ * reconnects restored sessions after preloading them. validateRestoredSessions
+ * handles remaining edge cases.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -582,10 +583,8 @@ export class InitializationManager {
 	}
 
 	/**
-	 * Pre-loads restored panel session content in parallel with the sidebar scan.
-	 * Startup restore intentionally does not reconnect ACP for historical sessions:
-	 * the transcript is restored, but runtime interaction state (permissions/questions)
-	 * is cleared because those requests die when the app process exits.
+	 * Pre-loads restored panel session content in parallel with the sidebar scan,
+	 * then reconnects the restored session so startup behavior matches manual open.
 	 *
 	 * Prefer canonical session metadata loaded from the backend; persisted panel fields
 	 * are only fallback hints for sessions that have not been hydrated yet.
@@ -594,7 +593,7 @@ export class InitializationManager {
 		for (const panel of this.panelStore.panels) {
 			if (!panel.sessionId) continue;
 			if (this.sessionStore.isPreloaded(panel.sessionId)) {
-				this.projectionHydrator.clearSession(panel.sessionId);
+				this.reconnectRestoredPanelSession(panel.id, panel.sessionId);
 				continue;
 			}
 
@@ -609,7 +608,7 @@ export class InitializationManager {
 
 			const panelId = panel.id;
 			const sessionId = panel.sessionId;
-			this.sessionStore
+			void this.sessionStore
 				.loadSessionById(
 					sessionId,
 					projectPath,
@@ -618,19 +617,48 @@ export class InitializationManager {
 					worktreePath ?? undefined,
 					sessionTitle ?? undefined
 				)
-				.andThen(() => {
-					this.projectionHydrator.clearSession(sessionId);
-					return okAsync(undefined);
-				})
-				.mapErr((error) => {
+				.match(
+					() => {
+						this.reconnectRestoredPanelSession(panelId, sessionId);
+					},
+					(error) => {
 					logger.warn("Early panel preload failed, clearing session reference", {
 						panelId,
 						sessionId,
 						error,
 					});
 					this.panelStore.updatePanelSession(panelId, null);
-				});
+					}
+				);
 		}
+	}
+
+	private reconnectRestoredPanelSession(panelId: string, sessionId: string): void {
+		void this.projectionHydrator
+			.hydrateSession(sessionId, {
+				includePendingTurnInputs: false,
+			})
+			.orElse((error) => {
+				logger.warn("Failed to hydrate restored session before reconnect", {
+					panelId,
+					sessionId,
+					error,
+				});
+				this.projectionHydrator.clearSession(sessionId);
+				return okAsync(undefined);
+			})
+			.andThen(() => this.sessionStore.connectSession(sessionId))
+			.andThen(() => this.projectionHydrator.hydrateSession(sessionId))
+			.match(
+				() => undefined,
+				(error) => {
+					logger.warn("Failed to reconnect restored panel session", {
+						panelId,
+						sessionId,
+						error,
+					});
+				}
+			);
 	}
 
 	/**

@@ -366,6 +366,48 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 	});
 
+	it("passes the hydrated launch mode when reconnecting a Copilot session", async () => {
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			...baseSession,
+			agentId: "copilot",
+		} satisfies SessionCold);
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			isStreaming: false,
+			status: "idle",
+			autonomousEnabled: false,
+			autonomousTransition: "idle",
+			currentMode: { id: "plan", name: "Plan", description: null },
+		});
+		resumeSession.mockReturnValue(
+			okAsync({
+				modes: {
+					currentModeId: "plan",
+					availableModes: [{ id: "plan", name: "Plan", description: null }],
+				},
+				models: {
+					currentModelId: "model-a",
+					availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(resumeSession).toHaveBeenCalledWith(sessionId, projectPath, undefined, "plan");
+	});
+
 	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: false,

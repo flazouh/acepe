@@ -42,7 +42,7 @@
 	<!-- Feature content -->
 	<div class="relative overflow-hidden rounded-md bg-card/10">
 		<BrandShaderBackground class="rounded-xl" fallback="gradient" />
-		<div class="relative p-4 md:p-6">
+		<div class="relative p-2 md:p-3">
 			{#if activeFeature === "agent"}
 				<AgentPanelDemo />
 			{:else if activeFeature === "kanban"}

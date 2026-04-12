@@ -101,7 +101,10 @@ describe("preloadAndConnectSession", () => {
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(projectionHydrator.hydrateSession).toHaveBeenCalledWith("session-1");
+		expect(projectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
+			includePendingTurnInputs: false,
+		});
+		expect(projectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
 		expect(sessionStore.connectSession).toHaveBeenCalledTimes(1);
 	});
 
@@ -123,7 +126,8 @@ describe("preloadAndConnectSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(projectionHydrator.clearSession).toHaveBeenCalledWith("session-1");
-		expect(projectionHydrator.hydrateSession).not.toHaveBeenCalled();
+		expect(projectionHydrator.hydrateSession).toHaveBeenCalledTimes(1);
+		expect(projectionHydrator.hydrateSession).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connectSession).toHaveBeenCalledTimes(1);
 	});

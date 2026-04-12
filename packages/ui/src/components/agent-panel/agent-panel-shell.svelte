@@ -48,9 +48,9 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="flex h-full shrink-0 grow-0 min-h-0 bg-card rounded-lg overflow-hidden relative border border-border {isFullscreen
-		? ''
-		: 'border-r-0'} {isDraggingEdge ? 'select-none' : ''}"
+	class="flex h-full shrink-0 grow-0 min-h-0 bg-card rounded-lg overflow-hidden relative border border-border {isDraggingEdge
+		? 'select-none'
+		: ''}"
 	style={widthStyle}
 	{ondragstart}
 	{onclick}

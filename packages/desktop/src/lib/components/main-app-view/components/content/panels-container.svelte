@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ProjectCard } from "@acepe/ui";
+import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
 import { onMount } from "svelte";
 import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
@@ -228,13 +228,8 @@ const terminalTabsPanelStore = $derived.by(() => ({
 }));
 </script>
 
-<div class="flex flex-col flex-1 min-h-0 gap-0.5">
+<AgentPanelDeck fullscreen={viewModeState.isFullscreenMode}>
 	<!-- Tabs are now rendered in parent (main-app-view.svelte) via TabBar -->
-	<div
-		class="flex flex-row items-stretch gap-0.5 flex-1 min-h-0 {viewModeState.isFullscreenMode
-			? 'overflow-hidden'
-			: 'overflow-x-auto overflow-y-hidden'}"
-	>
 		<!-- Fullscreen top-level panel -->
 		{#if viewModeState.isFullscreenMode && fullscreenTopLevelPanel}
 			{#if fullscreenTopLevelPanel.kind === "agent"}
@@ -518,5 +513,4 @@ const terminalTabsPanelStore = $derived.by(() => ({
 			{/if}
 			{/each}
 		{/if}
-	</div>
-</div>
+</AgentPanelDeck>

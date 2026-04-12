@@ -43,6 +43,7 @@
 </script>
 
 <AgentPanelFooterChrome
+	{left}
 	{showTrailingBorder}
 	{onSettings}
 	{settingsTitle}
@@ -58,10 +59,4 @@
 	{terminalTitle}
 	{terminalAriaLabel}
 	{onToggleTerminal}
->
-	{#if left}
-		{#snippet left()}
-			{@render left()}
-		{/snippet}
-	{/if}
-</AgentPanelFooterChrome>
+/>

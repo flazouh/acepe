@@ -55,14 +55,14 @@
 {#if shouldRender}
 	<div class="w-full">
 		{#if !compact && isExpanded}
-			<div class="rounded-t-md bg-muted/30 overflow-hidden border border-b-0 border-border">
+			<div class="rounded-t-md bg-muted overflow-hidden border border-b-0 border-border">
 				<div class="flex flex-col max-h-[300px] overflow-y-auto">
 					{#each items as item, index (index)}
 						{@const isInProgress = item.status === "in_progress"}
 						{@const duration = formatDuration(item.duration)}
 						<div
 							class="flex items-center gap-2 px-3 py-1 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isInProgress
-								? 'bg-muted/30'
+								? 'bg-muted'
 								: ''}"
 						>
 							<span class="shrink-0">
