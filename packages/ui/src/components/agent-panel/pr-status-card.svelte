@@ -44,7 +44,7 @@
 					toggleExpand();
 				}
 			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/40 transition-colors {hasExpandedContent
+			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted hover:bg-muted/80 transition-colors {hasExpandedContent
 				? 'cursor-pointer'
 				: 'cursor-default'} {isExpanded ? 'rounded-b-none border-b-0' : ''}"
 		>
@@ -60,13 +60,13 @@
 		</div>
 
 		{#if isExpanded && hasExpandedContent && expandedContent}
-			<div class="rounded-b-md bg-muted/30 overflow-hidden border border-t-0 border-border">
+			<div class="rounded-b-md bg-muted overflow-hidden border border-t-0 border-border">
 				{@render expandedContent()}
 			</div>
 		{/if}
 
 		{#if fetchError}
-			<div class="px-3 py-1.5 text-xs text-destructive/70 bg-muted/30 rounded-b-lg border border-t-0 border-border">
+			<div class="px-3 py-1.5 text-xs text-destructive/70 bg-muted rounded-b-lg border border-t-0 border-border">
 				{fetchError}
 			</div>
 		{/if}

@@ -1754,7 +1754,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					</div>
 				</div>
 			{/if}
-			<div class="flex shrink-0 flex-col gap-0.5">
+			<div class="flex shrink-0 flex-col gap-0.5 pb-1">
 				<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 					<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
 						<div class="flex flex-col gap-0.5 px-5">
