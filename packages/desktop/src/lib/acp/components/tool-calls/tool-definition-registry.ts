@@ -123,10 +123,38 @@ function resolveToolEntryTitle(options: ToolDisplayOptions, kind: ToolKind): str
 	return rawTitle;
 }
 
-function buildDefaultFullEntry(options: ToolDisplayOptions): AgentToolEntry {
-	const kind = options.toolKind ?? options.toolCall.kind ?? "other";
+function buildQuestionPayload(toolCall: ToolCall): AgentToolEntry["question"] {
+	const firstQuestion = toolCall.normalizedQuestions?.[0];
+	if (!firstQuestion) {
+		return null;
+	}
 
 	return {
+		question: firstQuestion.question,
+		header: firstQuestion.header,
+		options: firstQuestion.options.map((option) => ({
+			label: option.label,
+			description: option.description ?? null,
+		})),
+		multiSelect: firstQuestion.multiSelect,
+	};
+}
+
+function buildTodosPayload(toolCall: ToolCall): AgentToolEntry["todos"] {
+	return toolCall.normalizedTodos?.map((todo) => ({
+		content: todo.content,
+		activeForm: todo.activeForm,
+		status: todo.status,
+		duration: todo.duration ?? null,
+	}));
+}
+
+function buildDefaultFullEntry(options: ToolDisplayOptions): AgentToolEntry {
+	const kind = options.toolKind ?? options.toolCall.kind ?? "other";
+	const question = buildQuestionPayload(options.toolCall);
+	const todos = buildTodosPayload(options.toolCall);
+
+	const entry: AgentToolEntry = {
 		id: options.toolCall.id,
 		type: "tool_call",
 		kind: toAgentToolKind(kind),
@@ -139,6 +167,16 @@ function buildDefaultFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 			options.parentCompleted === true
 		),
 	};
+
+	if (question !== null) {
+		entry.question = question;
+	}
+
+	if (todos !== undefined) {
+		entry.todos = todos;
+	}
+
+	return entry;
 }
 
 function createToolDefinition(

@@ -544,6 +544,28 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
+    fn copilot_sql_todo_select_decodes_to_todo_kind() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-sql-read",
+                "kind": "other",
+                "status": "pending",
+                "title": "Searched",
+                "rawInput": {
+                    "query": "SELECT id, title, status FROM todos ORDER BY created_at ASC;"
+                }
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Todo));
+            assert!(matches!(tool_call.arguments, ToolArguments::Think { .. }));
+        });
+    }
+
+    #[test]
     fn infers_task_from_copilot_subagent_payload_without_tool_name() {
         with_agent(AgentType::Copilot, || {
             let data = json!({
@@ -2296,6 +2318,31 @@ mod parse_tool_call_update_from_acp {
             let content = update.content.expect("content should be parsed");
             assert_eq!(content.len(), 1);
             assert!(matches!(content[0], ContentBlock::Text { .. }));
+        });
+    }
+
+    #[test]
+    fn copilot_sql_todo_update_decodes_to_todo_arguments_not_search() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-sql-write",
+                "kind": "other",
+                "title": "Searched",
+                "status": "completed",
+                "rawInput": {
+                    "query": "UPDATE todos SET status = 'done' WHERE id = 'todo-1';"
+                },
+                "rawOutput": {
+                    "content": "1 row(s) updated."
+                }
+            });
+
+            let result: Result<ToolCallUpdateData, serde_json::Error> =
+                parse_tool_call_update_from_acp(&data, None);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let update = result.unwrap();
+            assert!(matches!(update.arguments, Some(ToolArguments::Think { .. })));
         });
     }
 

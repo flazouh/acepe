@@ -1,5 +1,8 @@
-use super::types::{QuestionItem, QuestionOption, TodoItem, TodoStatus};
-use crate::acp::parsers::{get_parser, AgentType};
+use super::types::{OperationFamily, QuestionItem, TodoItem, ToolKind};
+use crate::acp::operation_projectors::{
+    project_normalized_questions, project_normalized_todos, project_operation_read_model,
+};
+use crate::acp::parsers::AgentType;
 
 /// Parse and normalize questions from a tool call if it's a question tool.
 ///
@@ -10,28 +13,7 @@ pub fn parse_normalized_questions(
     raw_input: &serde_json::Value,
     agent_type: AgentType,
 ) -> Option<Vec<QuestionItem>> {
-    let parser = get_parser(agent_type);
-    let parsed_questions = parser.parse_questions(name, raw_input);
-
-    // Convert ParsedQuestion to QuestionItem
-    parsed_questions.map(|questions| {
-        questions
-            .into_iter()
-            .map(|q| QuestionItem {
-                question: q.question,
-                header: q.header,
-                options: q
-                    .options
-                    .into_iter()
-                    .map(|opt| QuestionOption {
-                        label: opt.label,
-                        description: opt.description,
-                    })
-                    .collect(),
-                multi_select: q.multi_select,
-            })
-            .collect()
-    })
+    project_normalized_questions(name, raw_input, agent_type)
 }
 
 /// Parse and normalize todos from a tool call if it's a TodoWrite tool.
@@ -42,39 +24,29 @@ pub fn parse_normalized_todos(
     raw_input: &serde_json::Value,
     agent_type: AgentType,
 ) -> Option<Vec<TodoItem>> {
-    use crate::acp::parsers::ParsedTodoStatus;
-
-    let parser = get_parser(agent_type);
-    let parsed_todos = parser.parse_todos(name, raw_input);
-
-    // Convert ParsedTodo to TodoItem
-    parsed_todos.map(|todos| {
-        todos
-            .into_iter()
-            .map(|t| TodoItem {
-                content: t.content,
-                active_form: t.active_form,
-                status: match t.status {
-                    ParsedTodoStatus::Pending => TodoStatus::Pending,
-                    ParsedTodoStatus::InProgress => TodoStatus::InProgress,
-                    ParsedTodoStatus::Completed => TodoStatus::Completed,
-                    ParsedTodoStatus::Cancelled => TodoStatus::Cancelled,
-                },
-                started_at: None,
-                completed_at: None,
-                duration: None,
-            })
-            .collect()
-    })
+    project_normalized_todos(name, raw_input, agent_type)
 }
 
 pub(crate) fn derive_normalized_questions_and_todos(
+    family: OperationFamily,
     name: &str,
     raw_input: &serde_json::Value,
     agent_type: AgentType,
 ) -> (Option<Vec<QuestionItem>>, Option<Vec<TodoItem>>) {
-    (
-        parse_normalized_questions(name, raw_input, agent_type),
-        parse_normalized_todos(name, raw_input, agent_type),
+    let projection = project_operation_read_model(family, name, raw_input, agent_type);
+    (projection.normalized_questions, projection.normalized_todos)
+}
+
+pub(crate) fn derive_normalized_questions_and_todos_for_kind(
+    kind: ToolKind,
+    name: &str,
+    raw_input: &serde_json::Value,
+    agent_type: AgentType,
+) -> (Option<Vec<QuestionItem>>, Option<Vec<TodoItem>>) {
+    derive_normalized_questions_and_todos(
+        OperationFamily::from_tool_kind(kind),
+        name,
+        raw_input,
+        agent_type,
     )
 }

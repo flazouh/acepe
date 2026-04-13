@@ -106,8 +106,15 @@ describe("convertTaskChildren", () => {
 		});
 
 		it.each([
-			"todo",
-			"question",
+			["todo", "todo"],
+			["question", "question"],
+		] as const)("maps '%s' to '%s'", (input, expected) => {
+			const children = [createChild({ id: "t1", kind: input, status: "completed" })];
+			const result = convertTaskChildren(children);
+			expect(result[0].kind).toBe(expected);
+		});
+
+		it.each([
 			"move",
 			"enter_plan_mode",
 			"exit_plan_mode",

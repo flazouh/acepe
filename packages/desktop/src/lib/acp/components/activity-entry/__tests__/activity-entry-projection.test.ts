@@ -95,7 +95,7 @@ describe("projectActivityEntry", () => {
 		expect(projection.taskDescription).toBe("Keep todo active");
 		expect(projection.latestTaskSubagentTool).toEqual({
 			id: "child-todo",
-			kind: "other",
+			kind: "todo",
 			title: "Keep todo active",
 			filePath: undefined,
 			status: "running",

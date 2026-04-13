@@ -12,8 +12,14 @@ import type { FileGroup, FileTreeNode } from "./file-list-types.js";
  */
 export function createFileTree(files: IndexedFile[]): FileTreeNode[] {
 	const root: Map<string, FileTreeNode> = new Map();
+	const seenPaths = new Set<string>();
 
 	for (const file of files) {
+		if (seenPaths.has(file.path)) {
+			continue;
+		}
+		seenPaths.add(file.path);
+
 		const parts = file.path.split("/");
 		let currentLevel = root;
 		let currentPath = "";

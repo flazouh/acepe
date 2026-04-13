@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  getEditDiffKey,
   isEditInProgress,
   resolveEditHeaderState,
   shouldShowEditDiffPill,
@@ -32,5 +33,15 @@ describe("agent-tool-edit-state", () => {
     expect(shouldShowEditDiffPill("done", false, true)).toBe(true);
     expect(shouldShowEditDiffPill("done", false, false)).toBe(false);
     expect(shouldShowEditDiffPill("error", false, false)).toBe(false);
+  });
+
+  it("builds unique edit keys when multiple diffs target the same file path", () => {
+    expect(getEditDiffKey("src/session-list-ui.svelte", 0)).toBe(
+      "src/session-list-ui.svelte:0",
+    );
+    expect(getEditDiffKey("src/session-list-ui.svelte", 1)).toBe(
+      "src/session-list-ui.svelte:1",
+    );
+    expect(getEditDiffKey(undefined, 2)).toBe("edit:2");
   });
 });

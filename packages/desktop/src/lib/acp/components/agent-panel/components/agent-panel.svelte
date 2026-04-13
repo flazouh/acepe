@@ -1939,7 +1939,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			panelId
 		}
 			<SharedFooter
-				showTrailingBorder={!isFullscreen}
+				showTrailingBorder={false}
 				browserActive={showBrowserSidebar}
 				browserTitle="Toggle browser"
 				browserAriaLabel="Toggle browser"

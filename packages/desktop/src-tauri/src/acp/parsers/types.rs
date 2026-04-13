@@ -11,8 +11,8 @@ use std::fmt;
 use crate::acp::parsers::kind as kind_utils;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::session_update::{
-    PlanConfidence, PlanData, PlanSource, ToolArguments, ToolCallData, ToolCallUpdateData,
-    ToolKind, UsageTelemetryData, UsageTelemetryTokens,
+    OperationFamily, PlanConfidence, PlanData, PlanSource, ToolArguments, ToolCallData,
+    ToolCallUpdateData, ToolKind, UsageTelemetryData, UsageTelemetryTokens,
 };
 
 #[cfg(test)]
@@ -169,6 +169,63 @@ pub struct ParsedUsageTelemetry {
     pub source_model_id: Option<String>,
     pub timestamp_ms: Option<i64>,
     pub context_window_size: Option<u64>,
+}
+
+fn extract_sql_query(raw_arguments: &serde_json::Value) -> Option<&str> {
+    let object = raw_arguments.as_object()?;
+    object
+        .get("query")
+        .or_else(|| object.get("sql"))
+        .and_then(serde_json::Value::as_str)
+}
+
+fn has_concrete_tool_shape_markers(object: &serde_json::Map<String, serde_json::Value>) -> bool {
+    object.contains_key("file_path")
+        || object.contains_key("filePath")
+        || object.contains_key("path")
+        || object.contains_key("query")
+        || object.contains_key("pattern")
+        || object.contains_key("cmd")
+        || object.contains_key("command")
+        || object.contains_key("url")
+        || object.contains_key("from")
+        || object.contains_key("to")
+        || object.contains_key("source")
+        || object.contains_key("destination")
+}
+
+pub(crate) fn infer_operation_family_from_payload(
+    kind: ToolKind,
+    raw_arguments: &serde_json::Value,
+) -> OperationFamily {
+    if let Some(query) = extract_sql_query(raw_arguments) {
+        let normalized = query.trim().to_ascii_lowercase();
+        if normalized.starts_with("select ") && normalized.contains(" from todos") {
+            return OperationFamily::TodoRead;
+        }
+        if (normalized.starts_with("insert ") && normalized.contains("into todos"))
+            || normalized.starts_with("update todos")
+            || (normalized.starts_with("delete ") && normalized.contains(" from todos"))
+        {
+            return OperationFamily::TodoWrite;
+        }
+    }
+
+    if let Some(object) = raw_arguments.as_object() {
+        if has_concrete_tool_shape_markers(object) {
+            return OperationFamily::from_tool_kind(kind);
+        }
+
+        if object.contains_key("questions") {
+            return OperationFamily::QuestionPrompt;
+        }
+
+        if object.contains_key("todos") {
+            return OperationFamily::TodoWrite;
+        }
+    }
+
+    OperationFamily::from_tool_kind(kind)
 }
 
 impl ParsedUsageTelemetry {

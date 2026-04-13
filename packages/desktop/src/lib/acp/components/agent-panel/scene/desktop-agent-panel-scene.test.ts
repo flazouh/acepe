@@ -629,6 +629,63 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("preserves canonical todo kinds in the conversation scene model", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-todo",
+				type: "tool_call",
+				message: {
+					id: "tool-todo",
+					name: "sql",
+					arguments: {
+						kind: "other",
+						raw: {
+							query: "UPDATE todos SET title = 'Count tracked Svelte and TypeScript test files' WHERE id = 'count-svelte-and-test-ts-files';",
+						},
+					},
+					rawInput: null,
+					status: "completed",
+					result: { content: "1 row(s) updated." },
+					kind: "todo",
+					title: null,
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: [
+						{
+							content: "Count tracked Svelte and TypeScript test files",
+							activeForm: "Count tracked Svelte and TypeScript test files",
+							status: "pending",
+							duration: null,
+						},
+					],
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "todo",
+			title: "Updated todos",
+			status: "done",
+			todos: [
+				{
+					content: "Count tracked Svelte and TypeScript test files",
+					activeForm: "Count tracked Svelte and TypeScript test files",
+					status: "pending",
+					duration: null,
+				},
+			],
+		});
+	});
+
 	it("builds composer and sidebars into a desktop scene model", () => {
 		const plan: SessionPlanResponse = {
 			slug: "jwt-migration",

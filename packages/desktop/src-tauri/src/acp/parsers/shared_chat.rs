@@ -5,9 +5,12 @@
 //! provider modules only own provider-specific decisions.
 
 use crate::acp::parsers::types::{
-    parse_common_update_type_name, ParseError, ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
+    infer_operation_family_from_payload, parse_common_update_type_name, ParseError,
+    ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
-use crate::acp::session_update::{tool_call_status_from_str, RawToolCallUpdateInput, ToolKind};
+use crate::acp::session_update::{
+    tool_call_status_from_str, RawToolCallUpdateInput, ToolKind,
+};
 
 pub(crate) fn infer_tool_kind_from_raw_arguments(
     raw_arguments: &serde_json::Value,
@@ -204,10 +207,15 @@ pub(crate) fn parse_tool_call_update(
         .get("kind")
         .and_then(|v| v.as_str())
         .map(normalize_tool_kind);
+    let semantic_family = match (kind, raw_input.as_ref()) {
+        (Some(kind), Some(arguments)) => Some(infer_operation_family_from_payload(kind, arguments)),
+        _ => None,
+    };
 
     Ok(RawToolCallUpdateInput {
         id,
         status,
+        semantic_family,
         result,
         content,
         title,

@@ -30,3 +30,10 @@ export function shouldShowEditDiffPill(
 ): boolean {
   return applied || isEditInProgress(status) || awaitingApproval;
 }
+
+export function getEditDiffKey(
+  filePath: string | null | undefined,
+  index: number,
+): string {
+  return `${filePath ?? "edit"}:${index}`;
+}

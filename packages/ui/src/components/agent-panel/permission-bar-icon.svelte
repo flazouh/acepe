@@ -4,8 +4,10 @@
 		ArrowsLeftRight,
 		File,
 		GlobeHemisphereWest,
+		ListChecks,
 		MagnifyingGlass,
 		PencilSimple,
+		Question,
 		ShieldWarning,
 		Terminal,
 		Trash,
@@ -17,7 +19,7 @@
 		size?: number;
 	}
 
-	let { kind, color = "var(--primary)", size = 11 }: Props = $props();
+	let { kind, color = "var(--primary)", size = 12 }: Props = $props();
 </script>
 
 {#if kind === "edit"}
@@ -30,6 +32,10 @@
 	<MagnifyingGlass weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "fetch" || kind === "web_search"}
 	<GlobeHemisphereWest weight="fill" {size} class="shrink-0" style="color: {color}" />
+{:else if kind === "todo"}
+	<ListChecks weight="fill" {size} class="shrink-0" style="color: {color}" />
+{:else if kind === "question"}
+	<Question weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "delete"}
 	<Trash weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "move"}

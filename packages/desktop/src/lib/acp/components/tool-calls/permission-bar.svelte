@@ -6,6 +6,7 @@ import {
 	AgentPanelPermissionBarActions,
 } from "@acepe/ui/agent-panel";
 import { Button } from "@acepe/ui/button";
+import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { Robot } from "phosphor-svelte";
 import * as m from "$lib/paraglide/messages.js";
 import { toast } from "svelte-sonner";
@@ -98,6 +99,7 @@ const showEditPreview = $derived(
 const autonomousAlreadyEnabled = $derived(
 	sessionStore.getHotState(sessionId)?.autonomousEnabled ?? false
 );
+let autoButtonHighlighted = $state(false);
 
 async function handleAutonomous(): Promise<void> {
 	const result = await sessionStore.setAutonomousEnabled(sessionId, true);
@@ -126,11 +128,11 @@ async function handleAutonomous(): Promise<void> {
 		{filePath}
 		showFilePath={!showEditPreview}
 		{command}
-		hasProgress={sessionProgress !== null && sessionProgress !== undefined}
+		hasProgress={sessionProgress !== null && sessionProgress !== undefined && sessionProgress.total > 1}
 		hasEditPreview={showEditPreview && currentToolCall !== null}
 	>
 		{#snippet leading()}
-			<AgentPanelPermissionBarIcon {kind} color={Colors[COLOR_NAMES.PURPLE]} />
+			<AgentPanelPermissionBarIcon {kind} color="var(--token-plan-icon-dark)" />
 		{/snippet}
 
 		{#snippet progress()}
@@ -143,14 +145,40 @@ async function handleAutonomous(): Promise<void> {
 		{/snippet}
 
 		{#snippet actionBar()}
-			<div class="flex w-full items-center gap-1.5">
+			<div class="flex items-center justify-end gap-1">
 				{#if !autonomousAlreadyEnabled}
-					<Button variant="toolbar" size="toolbar" class="justify-center shrink-0 gap-1" onclick={handleAutonomous} title={m.permission_autonomous()}>
-						<Robot weight="fill" class="size-3 shrink-0" style="color: {Colors[COLOR_NAMES.PURPLE]}" />
-						<span class="text-[10px] text-muted-foreground">Auto</span>
-					</Button>
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							<Button
+								variant="toolbar"
+								size="toolbar"
+								class="justify-center shrink-0"
+								onclick={handleAutonomous}
+								onmouseenter={() => {
+									autoButtonHighlighted = true;
+								}}
+								onmouseleave={() => {
+									autoButtonHighlighted = false;
+								}}
+								onfocus={() => {
+									autoButtonHighlighted = true;
+								}}
+								onblur={() => {
+									autoButtonHighlighted = false;
+								}}
+								aria-label={m.permission_autonomous()}
+							>
+								<Robot
+									weight={autoButtonHighlighted ? "fill" : "regular"}
+									class="size-3 shrink-0"
+									style="color: {autoButtonHighlighted ? Colors[COLOR_NAMES.PURPLE] : 'currentColor'}"
+								/>
+								<span>Auto</span>
+							</Button>
+						</Tooltip.Trigger>
+						<Tooltip.Content>{m.permission_autonomous()}</Tooltip.Content>
+					</Tooltip.Root>
 				{/if}
-				<div class="flex-1"></div>
 				<AgentPanelPermissionBarActions
 					allowLabel={m.permission_allow()}
 					alwaysAllowLabel={m.permission_always_allow()}

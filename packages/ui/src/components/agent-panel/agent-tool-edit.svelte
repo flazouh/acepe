@@ -9,6 +9,7 @@ import ToolLabel from "./tool-label.svelte";
 import AgentToolCard from "./agent-tool-card.svelte";
 import AgentToolEditDiff from "./agent-tool-edit-diff.svelte";
 import {
+	getEditDiffKey,
 	isEditInProgress,
 	resolveEditHeaderState,
 	shouldShowEditDiffPill,
@@ -252,7 +253,7 @@ function expand() {
 
 	<!-- Pierre diffs content -->
 	{#if hasContent}
-		{#each resolvedDiffs as diff, index (diff.filePath ?? `edit-${index}`)}
+		{#each resolvedDiffs as diff, index (getEditDiffKey(diff.filePath, index))}
 			{#if hasMultipleDiffs}
 				<div class="flex items-center gap-1.5 border-t border-border px-2.5 py-1.5 text-xs">
 					{#if diff.filePath}

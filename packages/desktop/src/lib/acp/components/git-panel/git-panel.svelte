@@ -359,12 +359,24 @@ let watchHeadInitialized = false;
 function initWatchHead() {
 	if (watchHeadInitialized) return;
 	watchHeadInitialized = true;
-	void tauriClient.git.watchHead(projectPath);
-	void listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
-		if (event.payload.projectPath === projectPath) {
-			refresh();
-		}
-	});
+	void tauriClient.git.isRepo(projectPath).match(
+		(isRepo) => {
+			if (!isRepo) {
+				return;
+			}
+
+			void tauriClient.git.watchHead(projectPath).match(
+				() => {},
+				() => {}
+			);
+			void listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
+				if (event.payload.projectPath === projectPath) {
+					refresh();
+				}
+			});
+		},
+		() => {}
+	);
 }
 if (!initialTargetSnapshot?.prNumber) {
 	initWatchHead();

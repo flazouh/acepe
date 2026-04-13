@@ -10,8 +10,9 @@ use crate::acp::parsers::shared_chat::{
     parse_update_type_name, parse_usage_telemetry,
 };
 use crate::acp::parsers::types::{
-    extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write, AgentParser,
-    AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
+    extract_plan_from_raw_input_impl, infer_operation_family_from_payload,
+    parse_ask_user_question, parse_todo_write, AgentParser, AgentType, ParseError,
+    ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
@@ -123,6 +124,44 @@ impl AgentParser for CopilotParser {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::CopilotParser;
+    use crate::acp::session_update::OperationFamily;
+
+    #[test]
+    fn parses_todo_write_semantic_family_for_sql_mutation_payloads() {
+        let raw = CopilotParser
+            .parse_tool_call_impl(&serde_json::json!({
+                "toolCallId": "tool-sql-write",
+                "kind": "other",
+                "title": "Searched",
+                "rawInput": {
+                    "query": "UPDATE todos SET status = 'done' WHERE id = 'todo-1';"
+                }
+            }))
+            .expect("copilot tool call should parse");
+
+        assert_eq!(raw.semantic_family, Some(OperationFamily::TodoWrite));
+    }
+
+    #[test]
+    fn parses_todo_read_semantic_family_for_sql_select_payloads() {
+        let raw = CopilotParser
+            .parse_tool_call_impl(&serde_json::json!({
+                "toolCallId": "tool-sql-read",
+                "kind": "other",
+                "title": "Searched",
+                "rawInput": {
+                    "query": "SELECT id, title, status FROM todos ORDER BY created_at ASC;"
+                }
+            }))
+            .expect("copilot tool call should parse");
+
+        assert_eq!(raw.semantic_family, Some(OperationFamily::TodoRead));
+    }
+}
+
 impl CopilotParser {
     fn parse_tool_call_impl(
         &self,
@@ -166,6 +205,7 @@ impl CopilotParser {
             .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
             .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
             .unwrap_or(ToolKind::Other);
+        let semantic_family = infer_operation_family_from_payload(kind, &arguments);
 
         let name = explicit_name.unwrap_or_else(|| "unknown".to_string());
 
@@ -182,6 +222,7 @@ impl CopilotParser {
             arguments,
             status,
             kind: Some(kind),
+            semantic_family: Some(semantic_family),
             title,
             suppress_title_read_path_hint: false,
             parent_tool_use_id,

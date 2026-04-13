@@ -1,7 +1,8 @@
 use super::deserialize::parser_error_to_de_error;
 use super::normalize::derive_normalized_questions_and_todos;
 use super::types::{
-    ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind,
+    OperationFamily, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus,
+    ToolCallUpdateData, ToolKind,
 };
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
@@ -16,6 +17,7 @@ use serde_json::json;
 pub(crate) struct RawToolCallUpdateInput {
     pub id: String,
     pub status: Option<ToolCallStatus>,
+    pub semantic_family: Option<OperationFamily>,
     pub result: Option<serde_json::Value>,
     pub content: Option<serde_json::Value>,
     pub title: Option<String>,
@@ -35,6 +37,7 @@ pub(crate) struct RawToolCallInput {
     pub arguments: serde_json::Value,
     pub status: ToolCallStatus,
     pub kind: Option<ToolKind>,
+    pub semantic_family: Option<OperationFamily>,
     pub title: Option<String>,
     pub suppress_title_read_path_hint: bool,
     pub parent_tool_use_id: Option<String>,
@@ -215,8 +218,16 @@ pub(crate) fn build_tool_call_update_from_raw(
     let identity_hints = ToolClassificationHints {
         name: raw.tool_name.as_deref(),
         title: raw.title.as_deref(),
-        kind: raw.kind,
-        kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+        kind: raw
+            .semantic_family
+            .map(OperationFamily::display_tool_kind)
+            .or(raw.kind),
+        kind_hint: raw
+            .semantic_family
+            .map(OperationFamily::display_tool_kind)
+            .or(raw.kind)
+            .as_ref()
+            .map(ToolKind::as_str),
         locations: locations.as_deref(),
     };
     let classified_arguments = raw
@@ -242,7 +253,6 @@ pub(crate) fn build_tool_call_update_from_raw(
                 .kind,
             )
         });
-
     let result = normalize_web_search_result(result, resolved_kind.as_ref());
 
     ToolCallUpdateData {
@@ -355,8 +365,16 @@ pub(crate) fn build_tool_call_from_raw(
         ToolClassificationHints {
             name: Some(&raw.name),
             title: raw.title.as_deref(),
-            kind: raw.kind,
-            kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
+            kind: raw
+                .semantic_family
+                .map(OperationFamily::display_tool_kind)
+                .or(raw.kind),
+            kind_hint: raw
+                .semantic_family
+                .map(OperationFamily::display_tool_kind)
+                .or(raw.kind)
+                .as_ref()
+                .map(ToolKind::as_str),
             locations: None,
         },
     );
@@ -373,11 +391,16 @@ pub(crate) fn build_tool_call_from_raw(
     }
     let status = raw.status;
 
-    let (normalized_questions, normalized_todos) = derive_normalized_questions_and_todos(
-        &classified.name,
-        &raw.arguments,
-        parser.agent_type(),
-    );
+    let semantic_family = raw
+        .semantic_family
+        .unwrap_or_else(|| OperationFamily::from_tool_kind(classified.kind));
+    let (normalized_questions, normalized_todos) =
+        derive_normalized_questions_and_todos(
+            semantic_family,
+            &classified.name,
+            &raw.arguments,
+            parser.agent_type(),
+        );
 
     ToolCallData {
         id: raw.id.clone(),
@@ -518,6 +541,7 @@ mod tests {
             arguments: json!({}),
             status: ToolCallStatus::Pending,
             kind: Some(parser.detect_tool_kind(kind)),
+            semantic_family: None,
             title: title.map(|t| t.to_string()),
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -699,6 +723,7 @@ mod tests {
             }),
             status: ToolCallStatus::InProgress,
             kind: Some(ToolKind::Execute),
+            semantic_family: None,
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -728,6 +753,7 @@ mod tests {
             }),
             status: ToolCallStatus::Pending,
             kind: Some(ToolKind::Read),
+            semantic_family: None,
             title: Some("Read /repo/src/lib.rs".to_string()),
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -818,6 +844,7 @@ mod tests {
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
                     status: Some(ToolCallStatus::InProgress),
+                    semantic_family: None,
                     result: None,
                     content: None,
                     title: None,
@@ -857,6 +884,7 @@ mod tests {
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
                     status: Some(ToolCallStatus::InProgress),
+                    semantic_family: None,
                     result: None,
                     content: None,
                     title: None,
@@ -879,6 +907,7 @@ mod tests {
                 RawToolCallUpdateInput {
                     id: tool_call_id.to_string(),
                     status: Some(ToolCallStatus::InProgress),
+                    semantic_family: None,
                     result: None,
                     content: None,
                     title: None,

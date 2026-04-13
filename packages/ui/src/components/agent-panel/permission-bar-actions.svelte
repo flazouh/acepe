@@ -26,7 +26,7 @@
 	const buttonClass = "justify-center shrink-0";
 </script>
 
-<div class="flex w-full flex-wrap items-center justify-end gap-1">
+<div class="flex flex-wrap items-center justify-end gap-1">
 	<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
 		<XCircle weight="fill" class="size-3 shrink-0" style="color: var(--destructive)" />
 		<span>{denyLabel}</span>

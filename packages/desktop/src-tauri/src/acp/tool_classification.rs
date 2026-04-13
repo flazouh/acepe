@@ -2,8 +2,9 @@ use crate::acp::parsers::kind::{
     canonical_name_for_kind, infer_kind_from_payload, is_browser_tool_name, is_web_search_id,
     is_web_search_title, looks_like_web_search_arguments,
 };
+use crate::acp::parsers::types::infer_operation_family_from_payload;
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
-use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind};
+use crate::acp::session_update::{OperationFamily, ToolArguments, ToolCallLocation, ToolKind};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ToolClassificationHints<'a> {
@@ -24,6 +25,7 @@ pub(crate) struct ToolIdentity {
 pub(crate) struct ClassifiedToolData {
     pub name: String,
     pub kind: ToolKind,
+    pub semantic_family: OperationFamily,
     pub arguments: ToolArguments,
 }
 
@@ -47,14 +49,6 @@ fn usable_tool_name(name: Option<&str>) -> Option<&str> {
 
 fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option<ToolKind> {
     let object = arguments.as_object()?;
-
-    if object.contains_key("questions") {
-        return Some(ToolKind::Question);
-    }
-
-    if object.contains_key("todos") {
-        return Some(ToolKind::Todo);
-    }
 
     if object.contains_key("task_id") || object.contains_key("taskId") {
         return Some(ToolKind::TaskOutput);
@@ -113,6 +107,14 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
         return Some(ToolKind::Read);
     }
 
+    if object.contains_key("questions") {
+        return Some(ToolKind::Question);
+    }
+
+    if object.contains_key("todos") {
+        return Some(ToolKind::Todo);
+    }
+
     if object.contains_key("description")
         || object.contains_key("prompt")
         || object.contains_key("agent_type")
@@ -147,6 +149,13 @@ fn apply_web_search_promotion(
     }
 }
 
+fn infer_semantic_family(
+    kind: ToolKind,
+    raw_arguments: &serde_json::Value,
+) -> OperationFamily {
+    infer_operation_family_from_payload(kind, raw_arguments)
+}
+
 fn resolve_identity_impl(
     parser: &dyn AgentParser,
     id: &str,
@@ -164,13 +173,9 @@ fn resolve_identity_impl(
     let payload_kind = infer_kind_from_payload(id, hints.title, hints.kind_hint)
         .filter(|kind| *kind != ToolKind::Other);
 
-    let serialized_kind = if serialized {
-        raw_arguments
-            .and_then(infer_kind_from_serialized_arguments)
-            .filter(|kind| *kind != ToolKind::Other)
-    } else {
-        None
-    };
+    let argument_shape_kind = raw_arguments
+        .and_then(infer_kind_from_serialized_arguments)
+        .filter(|kind| *kind != ToolKind::Other);
 
     let location_kind = if serialized && hints.locations.is_some_and(|entries| !entries.is_empty())
     {
@@ -198,7 +203,7 @@ fn resolve_identity_impl(
     let kind = detected_kind
         .or(hint_kind)
         .or(payload_kind)
-        .or(serialized_kind)
+        .or(argument_shape_kind)
         .or(location_kind)
         .or(title_read_kind)
         .unwrap_or(ToolKind::Other);
@@ -315,6 +320,7 @@ pub(crate) fn classify_raw_tool_call(
     ClassifiedToolData {
         name,
         kind,
+        semantic_family: infer_semantic_family(kind, raw_arguments),
         arguments,
     }
 }
@@ -344,6 +350,7 @@ pub(crate) fn classify_serialized_tool_call(
     ClassifiedToolData {
         name,
         kind,
+        semantic_family: infer_semantic_family(kind, raw_arguments),
         arguments,
     }
 }
@@ -371,6 +378,7 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Search);
         assert_eq!(classified.name, "Search");
+        assert_eq!(classified.semantic_family, OperationFamily::SearchText);
     }
 
     #[test]
@@ -392,6 +400,7 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Read);
         assert_eq!(classified.name, "Read");
+        assert_eq!(classified.semantic_family, OperationFamily::ReadFile);
     }
 
     #[test]
@@ -412,6 +421,7 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Browser);
         assert_eq!(classified.name, "mcp__tauri__read_logs");
+        assert_eq!(classified.semantic_family, OperationFamily::BrowserAction);
     }
 
     #[test]
@@ -436,6 +446,7 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Edit);
         assert_eq!(classified.name, "Edit");
+        assert_eq!(classified.semantic_family, OperationFamily::EditFile);
     }
 
     #[test]
@@ -457,5 +468,6 @@ mod tests {
         );
 
         assert_ne!(classified.kind, ToolKind::Task);
+        assert_eq!(classified.semantic_family, OperationFamily::TodoWrite);
     }
 }

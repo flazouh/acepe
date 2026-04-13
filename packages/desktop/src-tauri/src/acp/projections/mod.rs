@@ -3,6 +3,9 @@ use crate::acp::session_update::{
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
 use crate::acp::types::CanonicalAgentId;
+use crate::acp::operation_projectors::{
+    infer_operation_family_for_tool_call, project_question_interaction,
+};
 use crate::session_jsonl::types::{ConvertedSession, StoredEntry};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -37,6 +40,8 @@ pub struct OperationSnapshot {
     pub tool_call_id: String,
     pub name: String,
     pub kind: Option<crate::acp::session_update::ToolKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_family: Option<crate::acp::session_update::OperationFamily>,
     pub status: ToolCallStatus,
     pub title: Option<String>,
     pub arguments: crate::acp::session_update::ToolArguments,
@@ -512,6 +517,7 @@ impl ProjectionRegistry {
             tool_call_id: tool_call.id.clone(),
             name: tool_call.name.clone(),
             kind: tool_call.kind,
+            semantic_family: Some(infer_operation_family_for_tool_call(tool_call)),
             status: tool_call.status.clone(),
             title: tool_call.title.clone(),
             arguments: tool_call.arguments.clone(),
@@ -589,6 +595,7 @@ impl ProjectionRegistry {
                 tool_call_id: existing.tool_call_id,
                 name: existing.name,
                 kind: existing.kind,
+                semantic_family: existing.semantic_family,
                 status: next_status,
                 title: next_title.clone(),
                 arguments: next_arguments.clone(),
@@ -722,50 +729,30 @@ impl ProjectionRegistry {
         tool_call: &ToolCallData,
         event_seq: i64,
     ) {
-        let question_items =
-            if let Some(normalized_questions) = tool_call.normalized_questions.clone() {
-                normalized_questions
-            } else if let Some(question_answer) = tool_call.question_answer.clone() {
-                question_answer.questions
-            } else {
-                return;
-            };
-
-        let question = QuestionData {
-            id: tool_call.id.clone(),
-            session_id: session_id.to_string(),
-            json_rpc_request_id: None,
-            reply_handler: Some(InteractionReplyHandler::http(tool_call.id.clone())),
-            questions: question_items,
-            tool: Some(ToolReference {
-                message_id: String::new(),
-                call_id: tool_call.id.clone(),
-            }),
+        let Some(projected) = project_question_interaction(session_id, tool_call, event_seq) else {
+            return;
         };
-
-        let (state, responded_at_event_seq, response) =
-            if let Some(question_answer) = tool_call.question_answer.as_ref() {
-                let answers = serde_json::to_value(&question_answer.answers).unwrap_or(Value::Null);
-                (
-                    InteractionState::Answered,
-                    Some(event_seq),
-                    Some(InteractionResponse::Question { answers }),
-                )
-            } else {
-                (InteractionState::Pending, None, None)
-            };
+        let state = if projected.answers.is_some() {
+            InteractionState::Answered
+        } else {
+            InteractionState::Pending
+        };
+        let response = projected
+            .answers
+            .clone()
+            .map(|answers| InteractionResponse::Question { answers });
 
         let interaction = InteractionSnapshot {
-            id: question.id.clone(),
+            id: projected.question.id.clone(),
             session_id: session_id.to_string(),
             kind: InteractionKind::Question,
             state,
             json_rpc_request_id: None,
-            reply_handler: question.reply_handler.clone(),
-            tool_reference: question.tool.clone(),
-            responded_at_event_seq,
+            reply_handler: projected.question.reply_handler.clone(),
+            tool_reference: projected.question.tool.clone(),
+            responded_at_event_seq: projected.answered_at_event_seq,
             response,
-            payload: InteractionPayload::Question(question),
+            payload: InteractionPayload::Question(projected.question),
         };
         self.upsert_interaction(interaction);
     }
@@ -958,6 +945,32 @@ mod tests {
         }
     }
 
+    fn create_todo_read_tool_call(id: &str, status: ToolCallStatus) -> ToolCallData {
+        let raw = json!({
+            "query": "SELECT * FROM todos WHERE status = 'pending'"
+        });
+
+        ToolCallData {
+            id: id.to_string(),
+            name: "sql".to_string(),
+            arguments: ToolArguments::Other { raw: raw.clone() },
+            raw_input: Some(raw),
+            status,
+            result: None,
+            kind: Some(ToolKind::Todo),
+            title: Some("Query todos".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
+
     #[test]
     fn operation_projection_tracks_one_canonical_tool_lifecycle() {
         let registry = ProjectionRegistry::new();
@@ -1028,6 +1041,60 @@ mod tests {
         assert_eq!(completed.status, ToolCallStatus::Completed);
         assert_eq!(completed.result, Some(json!("done")));
         assert!(completed.progressive_arguments.is_none());
+    }
+
+    #[test]
+    fn operation_projection_preserves_semantic_family_across_updates_and_restore() {
+        let registry = ProjectionRegistry::new();
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: create_todo_read_tool_call("tool-todo-read", ToolCallStatus::Pending),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let created = registry
+            .operation_for_tool_call("session-1", "tool-todo-read")
+            .expect("expected created todo operation");
+        assert_eq!(
+            created.semantic_family,
+            Some(crate::acp::session_update::OperationFamily::TodoRead)
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: "tool-todo-read".to_string(),
+                    status: Some(ToolCallStatus::Completed),
+                    result: Some(json!([{ "id": "todo-1", "title": "Ship unit 4" }])),
+                    ..ToolCallUpdateData::default()
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let completed = registry
+            .operation_for_tool_call("session-1", "tool-todo-read")
+            .expect("expected completed todo operation");
+        assert_eq!(
+            completed.semantic_family,
+            Some(crate::acp::session_update::OperationFamily::TodoRead)
+        );
+
+        let restored = ProjectionRegistry::new();
+        restored.restore_session_projection(registry.session_projection("session-1"));
+
+        let rehydrated = restored
+            .operation_for_tool_call("session-1", "tool-todo-read")
+            .expect("expected restored todo operation");
+        assert_eq!(
+            rehydrated.semantic_family,
+            Some(crate::acp::session_update::OperationFamily::TodoRead)
+        );
+        assert_eq!(rehydrated.status, ToolCallStatus::Completed);
     }
 
     #[test]
@@ -1336,6 +1403,7 @@ mod tests {
                 tool_call_id: "tool-1".to_string(),
                 name: "bash".to_string(),
                 kind: Some(ToolKind::Execute),
+                semantic_family: Some(crate::acp::session_update::OperationFamily::ExecuteCommand),
                 status: ToolCallStatus::Completed,
                 title: Some("Run command".to_string()),
                 arguments: ToolArguments::Execute {
@@ -1386,6 +1454,53 @@ mod tests {
         assert!(registry
             .interaction_for_request_id("session-1", 7)
             .is_some());
+    }
+
+    #[test]
+    fn restore_session_projection_accepts_legacy_operations_without_semantic_family() {
+        let snapshot: SessionProjectionSnapshot = serde_json::from_value(json!({
+            "session": {
+                "session_id": "session-legacy",
+                "agent_id": "claude-code",
+                "last_event_seq": 1,
+                "turn_state": "Completed",
+                "message_count": 1,
+                "last_agent_message_id": "msg-1",
+                "active_tool_call_ids": [],
+                "completed_tool_call_ids": ["tool-legacy"]
+            },
+            "operations": [{
+                "id": "session-legacy:tool-legacy",
+                "session_id": "session-legacy",
+                "tool_call_id": "tool-legacy",
+                "name": "sql",
+                "kind": "todo",
+                "status": "completed",
+                "title": "Legacy todo query",
+                "arguments": {
+                    "kind": "other",
+                    "raw": { "query": "SELECT * FROM todos" }
+                },
+                "progressive_arguments": null,
+                "result": [],
+                "command": null,
+                "parent_tool_call_id": null,
+                "parent_operation_id": null,
+                "child_tool_call_ids": [],
+                "child_operation_ids": []
+            }],
+            "interactions": []
+        }))
+        .expect("expected legacy snapshot to deserialize");
+
+        let registry = ProjectionRegistry::new();
+        registry.restore_session_projection(snapshot);
+
+        let restored = registry
+            .operation_for_tool_call("session-legacy", "tool-legacy")
+            .expect("expected restored legacy operation");
+        assert_eq!(restored.semantic_family, None);
+        assert_eq!(restored.kind, Some(ToolKind::Todo));
     }
 
     #[test]

@@ -15,7 +15,6 @@ import {
 
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../../application/dto/session.js";
-import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
@@ -25,10 +24,10 @@ import type { JsonValue } from "../../../../services/converted-session-types.js"
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
-import { parseToolResultWithExitCode } from "../../tool-calls/tool-call-execute/logic/parse-tool-result.js";
 import { parseSearchResult } from "../../tool-calls/tool-call-search/logic/parse-grep-output.js";
 import { parseWebSearchResult } from "../../tool-calls/tool-call-web-search/logic/parse-web-search-result.js";
 import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
+import { resolveFullToolEntry } from "../../tool-calls/tool-definition-registry.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
 export interface DesktopAgentPanelHeaderInput {
@@ -199,147 +198,6 @@ function getActiveRootToolCallId(
 	return toolCall.id;
 }
 
-function normalizeToolKind(kind: ToolKind | null | undefined) {
-	if (!kind) {
-		return "other";
-	}
-
-	if (kind === "glob") {
-		return "search";
-	}
-
-	if (kind === "web_search") {
-		return "web_search";
-	}
-
-	if (
-		kind === "read" ||
-		kind === "edit" ||
-		kind === "delete" ||
-		kind === "execute" ||
-		kind === "search" ||
-		kind === "fetch" ||
-		kind === "think" ||
-		kind === "skill" ||
-		kind === "task" ||
-		kind === "task_output" ||
-		kind === "browser"
-	) {
-		return kind;
-	}
-
-	return "other";
-}
-
-function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): string {
-	if (kind === "execute") return "Run";
-	if (kind === "read") return "Read";
-	if (kind === "edit") return "Edit";
-	if (kind === "delete") return "Delete";
-	if (kind === "search" || kind === "glob") return "Search";
-	if (kind === "fetch") return "Fetch";
-	if (kind === "web_search") return "Web search";
-	if (kind === "think") return "Thinking";
-	if (kind === "task") return turnState === "streaming" ? "Task running" : "Task completed";
-	if (kind === "task_output") return "Task output";
-	if (kind === "todo") return turnState === "streaming" ? "Todo running" : "Todo completed";
-	if (kind === "question") return turnState === "streaming" ? "Question running" : "Question completed";
-	if (kind === "move") return "Move";
-	if (kind === "skill") return "Skill";
-	if (kind === "tool_search") return "Tool search";
-	if (kind === "browser") return "Browser";
-	if (kind === "enter_plan_mode") return "Enter plan mode";
-	if (kind === "exit_plan_mode") return "Exit plan mode";
-	if (kind === "create_plan") return "Create plan";
-	return "Tool";
-}
-
-function resolveToolTitle(toolCall: ToolCall, kind: ToolKind, turnState: TurnState | undefined): string {
-	const semanticTitle =
-		kind === "other"
-			? formatOtherToolName(toolCall.name)
-			: (getDefaultToolTitle(kind, turnState) || toolCall.name);
-	const rawTitle = toolCall.title?.trim();
-
-	if (!rawTitle) {
-		return semanticTitle;
-	}
-
-	if (
-		(kind === "delete" &&
-			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
-		kind === "skill"
-	) {
-		return semanticTitle;
-	}
-
-	return rawTitle;
-}
-
-function getToolSubtitle(toolCall: ToolCall): string | undefined {
-	if (toolCall.arguments.kind === "execute") {
-		return toolCall.arguments.command ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "search" || toolCall.arguments.kind === "webSearch") {
-		return toolCall.arguments.query ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "fetch") {
-		return toolCall.arguments.url ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "think") {
-		return toolCall.arguments.description ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "other") {
-		const raw = toolCall.arguments.raw;
-		if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-			const intent = raw.intent;
-			if (typeof intent === "string" && intent.trim().length > 0) {
-				return intent.trim();
-			}
-		}
-	}
-
-	const firstTodo = toolCall.normalizedTodos?.find((todo) => todo.status === "in_progress");
-	if (firstTodo) {
-		return firstTodo.activeForm || firstTodo.content;
-	}
-
-	const firstQuestion = toolCall.normalizedQuestions?.[0];
-	if (firstQuestion) {
-		return firstQuestion.question;
-	}
-
-	return undefined;
-}
-
-function getToolFilePath(toolCall: ToolCall): string | undefined {
-	if (toolCall.arguments.kind === "read") {
-		return toolCall.arguments.file_path ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "search") {
-		return toolCall.arguments.file_path ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "edit") {
-		return toolCall.arguments.edits[0]?.filePath ?? toolCall.arguments.edits[0]?.moveFrom ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "delete") {
-		return toolCall.arguments.file_path ?? toolCall.arguments.file_paths?.[0] ?? undefined;
-	}
-
-	if (toolCall.arguments.kind === "move") {
-		return toolCall.arguments.to ?? toolCall.arguments.from ?? undefined;
-	}
-
-	return undefined;
-}
-
 function serializeOtherToolDetails(toolCall: ToolCall): string | null {
 	if (toolCall.kind !== "other") {
 		return null;
@@ -369,45 +227,18 @@ function serializeOtherToolDetails(toolCall: ToolCall): string | null {
 	);
 }
 
-function mapQuestion(
-	toolCall: ToolCall
-):
-	| {
-			question: string;
-			header?: string | null;
-			options?: { label: string; description?: string | null }[] | null;
-			multiSelect?: boolean;
-	  }
-	| null {
-	const firstQuestion = toolCall.normalizedQuestions?.[0];
-	if (!firstQuestion) {
-		return null;
+function resolveSceneSubtitleFallback(toolCall: ToolCall): string | undefined {
+	if (toolCall.arguments.kind === "other") {
+		const raw = toolCall.arguments.raw;
+		if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+			const intent = raw.intent;
+			if (typeof intent === "string" && intent.trim().length > 0) {
+				return intent.trim();
+			}
+		}
 	}
 
-	const options = firstQuestion.options.map((option) => {
-		return {
-			label: option.label,
-			description: option.description ?? null,
-		};
-	});
-
-	return {
-		question: firstQuestion.question,
-		header: firstQuestion.header,
-		options,
-		multiSelect: firstQuestion.multiSelect,
-	};
-}
-
-function mapTodos(toolCall: ToolCall) {
-	return toolCall.normalizedTodos?.map((todo) => {
-		return {
-			content: todo.content,
-			activeForm: todo.activeForm,
-			status: todo.status,
-			duration: todo.duration ?? null,
-		};
-	});
+	return undefined;
 }
 
 function mapTaskChildren(
@@ -589,26 +420,33 @@ function mapToolCallEntry(
 	activeToolCallId: string | null
 ): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
-	const parsedResult = kind === "execute" ? parseToolResultWithExitCode(toolCall.result) : null;
-	const subtitle = getToolSubtitle(toolCall);
+	const fullEntry = resolveFullToolEntry({
+		toolCall,
+		turnState,
+		parentCompleted,
+	});
 	const searchPayload = mapSearchPayload(toolCall);
 	const webSearchPayload = mapWebSearchPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
 	const status = mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
+	const subtitle =
+		fullEntry.subtitle && fullEntry.subtitle.length > 0
+			? fullEntry.subtitle
+			: resolveSceneSubtitleFallback(toolCall);
 
 	return {
-		id: toolCall.id,
-		type: "tool_call",
-		kind: normalizeToolKind(kind),
-		title: resolveToolTitle(toolCall, kind, turnState),
+		id: fullEntry.id,
+		type: fullEntry.type,
+		kind: fullEntry.kind ?? "other",
+		title: fullEntry.title,
 		subtitle,
 		detailsText: serializeOtherToolDetails(toolCall),
-		filePath: getToolFilePath(toolCall),
+		filePath: fullEntry.filePath,
 		status,
-		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
-		stdout: parsedResult?.stdout ? stripAnsiCodes(parsedResult.stdout) : null,
-		stderr: parsedResult?.stderr ? stripAnsiCodes(parsedResult.stderr) : null,
-		exitCode: parsedResult?.exitCode,
+		command: fullEntry.command ?? null,
+		stdout: fullEntry.stdout ? stripAnsiCodes(fullEntry.stdout) : null,
+		stderr: fullEntry.stderr ? stripAnsiCodes(fullEntry.stderr) : null,
+		exitCode: fullEntry.exitCode,
 		query:
 			toolCall.arguments.kind === "search" || toolCall.arguments.kind === "webSearch"
 				? toolCall.arguments.query ?? null
@@ -627,9 +465,9 @@ function mapToolCallEntry(
 		taskDescription: mapTaskDescription(toolCall),
 		taskPrompt: toolCall.arguments.kind === "think" ? (toolCall.arguments.prompt ?? null) : null,
 		taskResultText: mapTaskResultText(toolCall),
-		taskChildren: mapTaskChildren(toolCall.taskChildren, turnState, status === "done"),
-		todos: mapTodos(toolCall),
-		question: mapQuestion(toolCall),
+		taskChildren: mapTaskChildren(toolCall.taskChildren, turnState, fullEntry.status === "done"),
+		todos: fullEntry.todos,
+		question: fullEntry.question ?? null,
 		lintDiagnostics: mapLintDiagnostics(toolCall),
 	};
 }

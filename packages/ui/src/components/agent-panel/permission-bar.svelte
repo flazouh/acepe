@@ -36,10 +36,15 @@
 
 <div class="w-full">
 	<div
-		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-input/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
+		class="w-full flex flex-col gap-1.5 rounded-md border border-border bg-input/30 p-1 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
 	>
-		<div class="flex w-full items-start justify-between gap-1.5">
-			<div class="flex min-w-0 w-full items-center gap-1.5 text-[0.6875rem]">
+		<div class="flex w-full items-center justify-between gap-1.5">
+			<div class="flex min-w-0 flex-1 items-center gap-1.5 text-[0.6875rem]">
+				<div class="permission-tally-bar flex min-h-4 shrink-0 items-center">
+					{#if progress && hasProgress}
+						{@render progress()}
+					{/if}
+				</div>
 				<span class="inline-flex shrink-0 items-center justify-center" aria-label={verb} title={verb}>
 					{@render leading()}
 				</span>
@@ -50,21 +55,12 @@
 					</div>
 				{/if}
 			</div>
-
-			<div class="flex shrink-0 items-center gap-1.5 self-center">
-				{#if progress && hasProgress}
-					<div class="permission-tally-bar flex shrink-0 items-center">
-						{@render progress()}
-					</div>
-				{/if}
+			<div class="flex shrink-0 items-center gap-1.5">
+				{@render actionBar()}
 				{#if trailing && hasTrailing}
 					{@render trailing()}
 				{/if}
 			</div>
-		</div>
-
-		<div class="flex w-full items-center">
-			{@render actionBar()}
 		</div>
 
 		{#if editPreview && hasEditPreview}

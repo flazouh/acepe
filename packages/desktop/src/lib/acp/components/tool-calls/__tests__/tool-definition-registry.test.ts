@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
+import type { OperationFamily } from "$lib/services/converted-session-types.js";
 
 import {
 	getToolDefinition,
@@ -38,6 +39,12 @@ function createToolCall(overrides?: Partial<ToolCall>): ToolCall {
 }
 
 describe("tool definition registry", () => {
+	it("preserves exported operation family contracts alongside tool-call display kinds", () => {
+		const family: OperationFamily = "todo_write";
+
+		expect(family).toBe("todo_write");
+	});
+
 	it("resolves the detail renderer and compact display from the same definition", () => {
 		const toolCall = createToolCall();
 		const definition = getToolDefinition(toolCall);

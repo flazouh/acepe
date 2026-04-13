@@ -26,6 +26,8 @@ export type AgentToolKind =
 	| "search"
 	| "fetch"
 	| "web_search"
+	| "todo"
+	| "question"
 	| "think"
 	| "skill"
 	| "task"

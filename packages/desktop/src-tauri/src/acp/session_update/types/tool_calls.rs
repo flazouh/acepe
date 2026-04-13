@@ -4,7 +4,7 @@ use specta::Type;
 use super::{QuestionItem, TodoItem};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
-use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
+use crate::acp::session_update::normalize::derive_normalized_questions_and_todos_for_kind;
 use crate::acp::tool_classification::{
     classify_serialized_tool_call, is_unknown_tool_name, ToolClassificationHints,
 };
@@ -61,6 +61,93 @@ impl ToolKind {
             ToolKind::ToolSearch => "tool_search",
             ToolKind::Browser => "browser",
             ToolKind::Other => "other",
+        }
+    }
+}
+
+/// Canonical semantic family for ACP operations.
+///
+/// Unlike `ToolKind`, this is intended to represent operation meaning rather than
+/// the display grouping a renderer may choose to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationFamily {
+    ReadFile,
+    EditFile,
+    ExecuteCommand,
+    SearchText,
+    GlobSearch,
+    FetchUrl,
+    WebSearch,
+    Reasoning,
+    TodoRead,
+    TodoWrite,
+    QuestionPrompt,
+    TaskLaunch,
+    TaskOutput,
+    SkillInvoke,
+    MovePath,
+    DeletePath,
+    EnterPlanMode,
+    ExitPlanMode,
+    CreatePlan,
+    ToolSearch,
+    BrowserAction,
+    Unknown,
+}
+
+impl OperationFamily {
+    #[must_use]
+    pub fn from_tool_kind(kind: ToolKind) -> Self {
+        match kind {
+            ToolKind::Read => Self::ReadFile,
+            ToolKind::Edit => Self::EditFile,
+            ToolKind::Execute => Self::ExecuteCommand,
+            ToolKind::Search => Self::SearchText,
+            ToolKind::Glob => Self::GlobSearch,
+            ToolKind::Fetch => Self::FetchUrl,
+            ToolKind::WebSearch => Self::WebSearch,
+            ToolKind::Think => Self::Reasoning,
+            ToolKind::Todo => Self::TodoWrite,
+            ToolKind::Question => Self::QuestionPrompt,
+            ToolKind::Task => Self::TaskLaunch,
+            ToolKind::TaskOutput => Self::TaskOutput,
+            ToolKind::Skill => Self::SkillInvoke,
+            ToolKind::Move => Self::MovePath,
+            ToolKind::Delete => Self::DeletePath,
+            ToolKind::EnterPlanMode => Self::EnterPlanMode,
+            ToolKind::ExitPlanMode => Self::ExitPlanMode,
+            ToolKind::CreatePlan => Self::CreatePlan,
+            ToolKind::ToolSearch => Self::ToolSearch,
+            ToolKind::Browser => Self::BrowserAction,
+            ToolKind::Other => Self::Unknown,
+        }
+    }
+
+    #[must_use]
+    pub fn display_tool_kind(self) -> ToolKind {
+        match self {
+            Self::ReadFile => ToolKind::Read,
+            Self::EditFile => ToolKind::Edit,
+            Self::ExecuteCommand => ToolKind::Execute,
+            Self::SearchText => ToolKind::Search,
+            Self::GlobSearch => ToolKind::Glob,
+            Self::FetchUrl => ToolKind::Fetch,
+            Self::WebSearch => ToolKind::WebSearch,
+            Self::Reasoning => ToolKind::Think,
+            Self::TodoRead | Self::TodoWrite => ToolKind::Todo,
+            Self::QuestionPrompt => ToolKind::Question,
+            Self::TaskLaunch => ToolKind::Task,
+            Self::TaskOutput => ToolKind::TaskOutput,
+            Self::SkillInvoke => ToolKind::Skill,
+            Self::MovePath => ToolKind::Move,
+            Self::DeletePath => ToolKind::Delete,
+            Self::EnterPlanMode => ToolKind::EnterPlanMode,
+            Self::ExitPlanMode => ToolKind::ExitPlanMode,
+            Self::CreatePlan => ToolKind::CreatePlan,
+            Self::ToolSearch => ToolKind::ToolSearch,
+            Self::BrowserAction => ToolKind::Browser,
+            Self::Unknown => ToolKind::Other,
         }
     }
 }
@@ -362,7 +449,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
         let arguments = classified.arguments;
 
         let (derived_questions, derived_todos) =
-            derive_normalized_questions_and_todos(&name, &normalized_arguments, agent);
+            derive_normalized_questions_and_todos_for_kind(kind, &name, &normalized_arguments, agent);
         let normalized_questions = raw.normalized_questions.or(derived_questions);
         let normalized_todos = raw.normalized_todos.or(derived_todos);
 

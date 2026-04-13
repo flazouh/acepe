@@ -3,8 +3,34 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-// Types referenced by ConnectionComplete lifecycle event
-import type { SessionModelState, SessionModes } from "./acp-types.js";
+export type AvailableModel = { modelId: string; name: string; description?: string | null }
+
+export type AvailableMode = { id: string; name: string; description?: string | null }
+
+/**
+ * Pre-computed model info for display. Frontend uses this directly.
+ */
+export type DisplayableModel = { modelId: string; displayName: string; description?: string | null }
+
+/**
+ * Generic group of models. Label can be provider, base model name, or empty.
+ */
+export type DisplayModelGroup = { label: string; models: DisplayableModel[] }
+
+export type ModelDisplayFamily = "claudeLike" | "codexReasoningEffort" | "providerGrouped"
+
+export type UsageMetricsPresentation = "contextWindowOnly" | "spendAndContext"
+
+export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }
+
+/**
+ * Display-ready model structure. Single representation—flat = one group.
+ */
+export type ModelsForDisplay = { groups: DisplayModelGroup[]; presentation?: ModelPresentationMetadata }
+
+export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay }
+
+export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
@@ -53,7 +79,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands: AvailableCommand[]; config_options: ConfigOptionData[]; autonomous_enabled: boolean } | 
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } | 
 /**
  * Emitted by the async resume task when session connection fails.
  */
@@ -335,6 +361,14 @@ export type PlanSource = "deterministic" | "heuristic"
  * Confidence level for a plan signal.
  */
 export type PlanConfidence = "high" | "medium"
+
+/**
+ * Canonical semantic family for ACP operations.
+ * 
+ * Unlike `ToolKind`, this is intended to represent operation meaning rather than
+ * the display grouping a renderer may choose to use.
+ */
+export type OperationFamily = "read_file" | "edit_file" | "execute_command" | "search_text" | "glob_search" | "fetch_url" | "web_search" | "reasoning" | "todo_read" | "todo_write" | "question_prompt" | "task_launch" | "task_output" | "skill_invoke" | "move_path" | "delete_path" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser_action" | "unknown"
 
 /**
  * Tool kind for routing to appropriate UI components.
@@ -678,7 +712,7 @@ export type UserSettingKey =
  */
 "dismissed_tooltips" | 
 /**
- * Whether the attention queue panel is shown in the sidebar (boolean, default false)
+ * Whether the attention queue panel is shown in the sidebar (boolean)
  */
 "attention_queue_enabled"
 

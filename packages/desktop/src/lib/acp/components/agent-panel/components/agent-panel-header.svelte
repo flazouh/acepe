@@ -58,9 +58,7 @@ let {
 }: AgentPanelHeaderProps = $props();
 
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
-const panelHeaderClass = $derived(
-	isFullscreen ? "bg-card/50" : "bg-card/50 border-r border-border/50"
-);
+const panelHeaderClass = $derived("bg-card/50");
 </script>
 
 {#if worktreeCloseConfirming}
@@ -126,7 +124,7 @@ const panelHeaderClass = $derived(
 {:else}
 	<AgentPanelHeaderLayout
 		class="bg-card/50"
-		showTrailingBorder={!isFullscreen}
+		showTrailingBorder={false}
 		sessionTitle={sessionTitle ? sessionTitle : undefined}
 		displayTitle={displayTitle ? displayTitle : undefined}
 		{agentIconSrc}

@@ -168,7 +168,15 @@ export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
 
 export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[] }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
+/**
+ * Canonical semantic family for ACP operations.
+ * 
+ * Unlike `ToolKind`, this is intended to represent operation meaning rather than
+ * the display grouping a renderer may choose to use.
+ */
+export type OperationFamily = "read_file" | "edit_file" | "execute_command" | "search_text" | "glob_search" | "fetch_url" | "web_search" | "reasoning" | "todo_read" | "todo_write" | "question_prompt" | "task_launch" | "task_output" | "skill_invoke" | "move_path" | "delete_path" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser_action" | "unknown"
+
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; semantic_family?: OperationFamily | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 

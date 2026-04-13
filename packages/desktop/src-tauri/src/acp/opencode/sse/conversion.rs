@@ -3,12 +3,15 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
+use crate::acp::operation_projectors::{
+    project_opencode_task_children_from_metadata, project_read_model_for_kind,
+};
 use crate::acp::parsers::{AgentParser, AgentType, OpenCodeParser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, ContentChunk, PermissionData, QuestionData,
-    QuestionItem, QuestionOption, SessionUpdate, TodoItem, ToolArguments, ToolCallData,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
+    TodoItem, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
+    TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData,
+    UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 
@@ -249,17 +252,9 @@ fn extract_normalized_data(
     tool_name: &str,
     tool_input: &Value,
 ) -> (Option<Vec<TodoItem>>, Option<Vec<QuestionItem>>) {
-    match tool_kind {
-        ToolKind::Todo => {
-            let todos = parse_normalized_todos(tool_name, tool_input, AgentType::OpenCode);
-            (todos, None)
-        }
-        ToolKind::Question => {
-            let questions = parse_normalized_questions(tool_name, tool_input, AgentType::OpenCode);
-            (None, questions)
-        }
-        _ => (None, None),
-    }
+    let projection =
+        project_read_model_for_kind(tool_kind, tool_name, tool_input, AgentType::OpenCode);
+    (projection.normalized_todos, projection.normalized_questions)
 }
 
 fn parse_opencode_tool_arguments(tool_name: &str, tool_input: &Value) -> ToolArguments {
@@ -456,72 +451,6 @@ fn parse_opencode_tokens_to_telemetry(value: &Value) -> UsageTelemetryTokens {
         cache_write,
         reasoning: u64_key("reasoning").or_else(|| u64_key("reasoning_tokens")),
     }
-}
-
-fn map_tool_status(status: &str) -> ToolCallStatus {
-    match status {
-        "completed" => ToolCallStatus::Completed,
-        "error" => ToolCallStatus::Failed,
-        "running" => ToolCallStatus::InProgress,
-        _ => ToolCallStatus::Pending,
-    }
-}
-
-fn parse_task_children_from_metadata(
-    parent_id: &str,
-    metadata: &Option<Value>,
-) -> Option<Vec<ToolCallData>> {
-    let summary = metadata.as_ref()?.get("summary")?.as_array()?;
-    if summary.is_empty() {
-        return None;
-    }
-
-    let mut children = Vec::with_capacity(summary.len());
-    for (index, item) in summary.iter().enumerate() {
-        let tool_name = item.get("tool").and_then(|v| v.as_str()).unwrap_or("Tool");
-        let state = item.get("state");
-        let title = state
-            .and_then(|s| s.get("title"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let status = state
-            .and_then(|s| s.get("status"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("pending");
-
-        // Extract input from state.input for proper argument parsing
-        let tool_input = state
-            .and_then(|s| s.get("input"))
-            .cloned()
-            .unwrap_or_else(|| Value::Object(Default::default()));
-
-        let arguments = parse_opencode_tool_arguments(tool_name, &tool_input);
-        let tool_kind = resolve_opencode_tool_kind(tool_name, &arguments);
-        let (normalized_todos, normalized_questions) =
-            extract_normalized_data(tool_kind, tool_name, &tool_input);
-
-        children.push(ToolCallData {
-            id: format!("{parent_id}:summary-{index}"),
-            name: tool_name.to_string(),
-            arguments,
-            raw_input: Some(tool_input.clone()),
-            status: map_tool_status(status),
-            result: None,
-            kind: Some(tool_kind),
-            title,
-            locations: None,
-            skill_meta: None,
-            normalized_questions,
-            normalized_todos,
-            parent_tool_use_id: Some(parent_id.to_string()),
-            task_children: None,
-            question_answer: None,
-            awaiting_plan_approval: false,
-            plan_approval_request_id: None,
-        });
-    }
-
-    Some(children)
 }
 
 /// Convert OpenCode message.part.updated event to SessionUpdate
@@ -748,7 +677,10 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                 _ => {
                     let is_task_tool = tool_name.to_lowercase().contains("task");
                     let task_children = if is_task_tool {
-                        parse_task_children_from_metadata(&tool_call_id, &state_metadata)
+                        project_opencode_task_children_from_metadata(
+                            &tool_call_id,
+                            state_metadata.as_ref(),
+                        )
                     } else {
                         None
                     };
