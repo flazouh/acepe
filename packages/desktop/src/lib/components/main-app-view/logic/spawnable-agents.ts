@@ -1,11 +1,10 @@
-import type { Agent, AgentAvailabilityKind } from "$lib/acp/store/types.js";
+import type { Agent } from "$lib/acp/store/types.js";
 
-function isInstallableButNotInstalled(
-	availabilityKind: AgentAvailabilityKind | undefined
-): boolean {
-	return availabilityKind ? availabilityKind.installed === false : false;
-}
-
+/**
+ * Returns only the agents the user has explicitly selected/enabled.
+ * Unselected agents (including installable-but-not-installed ones) are excluded
+ * so the chat bubble and session creation flows only show active agents.
+ */
 export function getSpawnableSessionAgents(
 	agents: readonly Agent[],
 	selectedAgentIds: readonly string[]
@@ -18,11 +17,6 @@ export function getSpawnableSessionAgents(
 	const visibleAgents: Agent[] = [];
 	for (const agent of agents) {
 		if (selectedAgentIdSet.has(agent.id)) {
-			visibleAgents.push(agent);
-			continue;
-		}
-
-		if (isInstallableButNotInstalled(agent.availability_kind)) {
 			visibleAgents.push(agent);
 		}
 	}
