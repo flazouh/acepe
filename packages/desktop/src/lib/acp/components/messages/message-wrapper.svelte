@@ -68,7 +68,7 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 		}
 
 		observer = new ResizeObserver(() => {
-			nextParams.controller?.requestReveal(nextParams.entryKey);
+			nextParams.controller?.requestLatestReveal();
 		});
 		observer.observe(node);
 	}

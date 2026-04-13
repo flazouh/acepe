@@ -29,8 +29,11 @@ import {
 import { mountFileBadges } from "./logic/mount-file-badges.js";
 import { mountGitHubBadges } from "./logic/mount-github-badges.js";
 import { parseContentBlocks } from "./logic/parse-content-blocks.js";
-import { parseStreamingTail } from "./logic/parse-streaming-tail.js";
-import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
+import { createStreamingReveal } from "./logic/create-streaming-reveal.svelte.js";
+import {
+	parseStreamingTailIncremental,
+	type StreamingTailParseResult,
+} from "./logic/parse-streaming-tail.js";
 
 const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 const STREAMING_SYNC_RESULT = {
@@ -39,26 +42,8 @@ const STREAMING_SYNC_RESULT = {
 	needsAsync: false,
 } satisfies SyncRenderResult;
 
-const EMPTY_STREAMING_TAIL = { sections: [] };
-
-type StreamingLiveTextRender = {
-	fullText: string;
-	preservedPrefix: string;
-	freshSuffix: string;
-};
-
-function buildStreamingLiveTextRender(
-	previousText: string | undefined,
-	nextText: string
-): StreamingLiveTextRender {
-	const preservedPrefix = previousText && nextText.startsWith(previousText) ? previousText : "";
-
-	return {
-		fullText: nextText,
-		preservedPrefix,
-		freshSuffix: nextText.slice(preservedPrefix.length),
-	};
-}
+const EMPTY_STREAMING_TAIL = { sections: [] } satisfies StreamingTailParseResult;
+const seededRevealKeys = new Set<string>();
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -77,6 +62,7 @@ interface Props {
 	text: string;
 	/** Whether content is currently streaming */
 	isStreaming?: boolean;
+	revealKey?: string;
 	/**
 	 * Project path for opening files in panels.
 	 * If not provided, will use projectPath from session context.
@@ -84,7 +70,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let { text, isStreaming = false, projectPath: propProjectPath }: Props = $props();
+let { text, isStreaming = false, revealKey, projectPath: propProjectPath }: Props = $props();
 
 // Use context projectPath if no prop provided, otherwise use prop (backward compatibility)
 const projectPath = $derived(propProjectPath ?? contextProjectPath);
@@ -98,6 +84,12 @@ let markdownContainerRef: HTMLDivElement | null = $state(null);
 
 let gitStatusByPath = $state<ReadonlyMap<string, FileGitStatus> | null>(null);
 let lastGitStatusRequestKey = "";
+const reveal = createStreamingReveal();
+let hasStreamingSession = $state(false);
+let hasObservedRevealSource = $state(false);
+let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
+let lastStreamingTailText = "";
+let lastStreamingTailResult: StreamingTailParseResult = EMPTY_STREAMING_TAIL;
 
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
@@ -120,8 +112,59 @@ function htmlNeedsGitStatus(html: string | null): boolean {
 	return html.includes("file-path-badge-placeholder");
 }
 
+function htmlNeedsBadgeMount(html: string | null): boolean {
+	if (html === null) {
+		return false;
+	}
+
+	return (
+		html.includes("file-path-badge-placeholder") || html.includes("github-badge-placeholder")
+	);
+}
+
 $effect(() => {
-	if (!projectPath || repoContext || isStreaming || !textNeedsRepoContext(text)) {
+	if (isStreaming) {
+		const seedFromSource =
+			!hasObservedRevealSource &&
+			text.length > 0 &&
+			revealKey !== undefined &&
+			seededRevealKeys.has(revealKey);
+		hasStreamingSession = true;
+		reveal.setState(text, true, { seedFromSource });
+		hasObservedRevealSource = true;
+		if (revealKey !== undefined) {
+			seededRevealKeys.add(revealKey);
+		}
+		return;
+	}
+
+	if (!hasStreamingSession) {
+		reveal.reset();
+		hasObservedRevealSource = text.length > 0;
+		if (revealKey !== undefined) {
+			seededRevealKeys.delete(revealKey);
+		}
+		return;
+	}
+
+	reveal.setState(text, false);
+	hasObservedRevealSource = true;
+	if (!reveal.isRevealActive) {
+		hasStreamingSession = false;
+	}
+});
+
+const isRenderingReveal = $derived(isStreaming || reveal.isRevealActive);
+const showStreamingCursor = $derived(reveal.cursorVisible);
+
+$effect(() => {
+	return () => {
+		reveal.destroy();
+	};
+});
+
+$effect(() => {
+	if (!projectPath || repoContext || isRenderingReveal || !textNeedsRepoContext(text)) {
 		return;
 	}
 	// Fetch repo context once on mount
@@ -140,7 +183,7 @@ $effect(() => {
 
 // Try sync rendering first (eliminates flicker for most messages)
 const syncResult = $derived.by(() => {
-	if (isStreaming) {
+	if (isRenderingReveal) {
 		return STREAMING_SYNC_RESULT;
 	}
 
@@ -162,7 +205,7 @@ function getAsyncRequestKey(textValue: string, currentRepoContext: RepoContext |
 
 // Trigger async rendering when sync can't handle it - uses $effect
 $effect(() => {
-	if (isStreaming) {
+	if (isRenderingReveal) {
 		asyncHtml = null;
 		asyncError = null;
 		asyncPending = false;
@@ -239,20 +282,15 @@ $effect(() => {
 
 // Determine what to render
 const visibleHtml = $derived.by(() => {
-	if (isStreaming) return null;
+	if (isRenderingReveal) return null;
 	return syncResult.html ?? asyncHtml ?? null;
-});
-const streamingTail = $derived.by(() => {
-	if (!isStreaming) {
-		return EMPTY_STREAMING_TAIL;
-	}
-
-	return parseStreamingTail(text);
 });
 const error = $derived(asyncError);
 const isLoading = $derived(syncResult.needsAsync && asyncPending);
 let streamingSettledHtmlByKey = $state<ReadonlyMap<string, string>>(new Map());
-let streamingLiveTextRenderByKey = $state<ReadonlyMap<string, StreamingLiveTextRender>>(new Map());
+const hasLiveStreamingSection = $derived(
+	streamingTail.sections.some((section) => section.kind !== "settled")
+);
 
 // Parse content blocks from HTML (extracts mermaid, github badges, etc.)
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
@@ -269,7 +307,7 @@ $effect(() => {
 	const currentModifiedFiles = mergedModifiedFilesState;
 	const currentRepoContext = repoContext;
 
-	if (!container || isStreaming || !visibleHtml) return;
+	if (!container || !visibleHtml) return;
 
 	const cleanupFile = mountFileBadges(container, (filePath) =>
 		resolveDiffStatsForFilePath(filePath, {
@@ -290,7 +328,26 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!isStreaming) {
+	if (!isRenderingReveal) {
+		streamingTail = EMPTY_STREAMING_TAIL;
+		lastStreamingTailText = "";
+		lastStreamingTailResult = EMPTY_STREAMING_TAIL;
+		return;
+	}
+
+	const nextStreamingText = reveal.displayedText;
+	const nextStreamingTail = parseStreamingTailIncremental(
+		lastStreamingTailText,
+		lastStreamingTailResult,
+		nextStreamingText
+	);
+	streamingTail = nextStreamingTail;
+	lastStreamingTailText = nextStreamingText;
+	lastStreamingTailResult = nextStreamingTail;
+});
+
+$effect(() => {
+	if (!isRenderingReveal) {
 		streamingSettledHtmlByKey = new Map();
 		return;
 	}
@@ -309,37 +366,12 @@ $effect(() => {
 		}
 
 		const result = renderMarkdownSync(section.markdown);
-		if (result.html !== null) {
+		if (result.html !== null && !htmlNeedsBadgeMount(result.html)) {
 			nextSettledHtmlByKey.set(section.key, result.html);
 		}
 	}
 
 	streamingSettledHtmlByKey = nextSettledHtmlByKey;
-});
-
-$effect(() => {
-	if (!isStreaming) {
-		streamingLiveTextRenderByKey = new Map();
-		return;
-	}
-
-	const previousLiveTextRenderByKey = untrack(() => streamingLiveTextRenderByKey);
-	const nextLiveTextRenderByKey = new Map<string, StreamingLiveTextRender>();
-	for (const section of streamingTail.sections) {
-		if (section.kind !== "live-text") {
-			continue;
-		}
-
-		nextLiveTextRenderByKey.set(
-			section.key,
-			buildStreamingLiveTextRender(
-				previousLiveTextRenderByKey.get(section.key)?.fullText,
-				section.text
-			)
-		);
-	}
-
-	streamingLiveTextRenderByKey = nextLiveTextRenderByKey;
 });
 
 /**
@@ -466,7 +498,7 @@ function handleKeydown(event: KeyboardEvent) {
 			{@html visibleHtml}
 		</div>
 	{/if}
-{:else if isStreaming}
+{:else if isRenderingReveal}
 	<!-- Streaming markdown: keep settled blocks stable and only update the live tail in place -->
 	<div
 		class="markdown-content text-sm text-foreground leading-relaxed"
@@ -475,20 +507,9 @@ function handleKeydown(event: KeyboardEvent) {
 		onclick={handleClick}
 		onkeydown={handleKeydown}
 	>
-		{#each streamingTail.sections as section (section.key)}
-			<div
-				class="streaming-section"
-				data-streaming-section-key={section.key}
-				use:streamingTailRefresh={{
-					active: section.kind !== "settled",
-					value:
-						section.kind === "settled"
-							? ""
-							: section.kind === "live-code"
-								? section.code
-								: section.text,
-				}}
-			>
+		{#each streamingTail.sections as section, index (section.key)}
+			{@const isLastSection = index === streamingTail.sections.length - 1}
+			<div class="streaming-section" data-streaming-section-key={section.key}>
 				{#if section.kind === "settled"}
 					{@const settledHtml = streamingSettledHtmlByKey.get(section.key)}
 					{#if settledHtml}
@@ -497,15 +518,17 @@ function handleKeydown(event: KeyboardEvent) {
 						<div class="streaming-live-text whitespace-pre-wrap">{section.markdown}</div>
 					{/if}
 				{:else if section.kind === "live-code"}
-					<pre class="streaming-live-code"><code>{section.code}</code></pre>
+					<pre class="streaming-live-code"><code>{section.code}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</code></pre>
 				{:else}
-					{@const liveTextRender =
-						streamingLiveTextRenderByKey.get(section.key) ??
-						buildStreamingLiveTextRender(undefined, section.text)}
-					<div class="streaming-live-text whitespace-pre-wrap">{liveTextRender.preservedPrefix}{#if liveTextRender.freshSuffix.length > 0}<span class="streaming-live-suffix">{liveTextRender.freshSuffix}</span>{/if}</div>
+					<div class="streaming-live-text whitespace-pre-wrap">{section.text}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</div>
 				{/if}
 			</div>
 		{/each}
+		{#if showStreamingCursor && !hasLiveStreamingSection}
+			<div class="streaming-live-text whitespace-pre-wrap">
+				<span class="streaming-live-cursor" aria-hidden="true"></span>
+			</div>
+		{/if}
 	</div>
 {:else if isLoading}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
@@ -525,23 +548,31 @@ function handleKeydown(event: KeyboardEvent) {
 		opacity: 0.7;
 	}
 
-	.streaming-live-suffix {
-		display: inline;
-		animation: streaming-live-suffix 180ms ease-out;
+	.streaming-live-cursor {
+		display: inline-block;
+		width: 0.55ch;
+		height: 1em;
+		margin-left: 0.1ch;
+		vertical-align: -0.1em;
+		background: currentColor;
+		opacity: 0.45;
+		animation: streaming-live-cursor 1s steps(1, end) infinite;
 	}
 
-	@keyframes streaming-live-suffix {
-		from {
-			opacity: 0;
+	@keyframes streaming-live-cursor {
+		0%,
+		49% {
+			opacity: 0.45;
 		}
 
-		to {
-			opacity: 1;
+		50%,
+		100% {
+			opacity: 0;
 		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.streaming-live-suffix {
+		.streaming-live-cursor {
 			animation: none;
 		}
 	}

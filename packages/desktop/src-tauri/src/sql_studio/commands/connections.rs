@@ -3,7 +3,9 @@ use tauri::State;
 
 use crate::db::repository::SqlStudioRepository;
 
-use super::super::types::{ConnectionKind, DbEngine, SqlConnectionConfig, SqlConnectionSummary};
+use super::super::types::{
+    ConnectionKind, DbEngine, SqlConnectionConfig, SqlConnectionSummary, TestConnectionResponse,
+};
 use super::helpers::*;
 
 #[tauri::command]
@@ -138,6 +140,20 @@ pub async fn sql_studio_delete_connection(db: State<'_, DbConn>, id: String) -> 
     SqlStudioRepository::delete_connection(&db, &id)
         .await
         .map_err(|e| format!("Failed to delete SQL connection: {}", e))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn sql_studio_test_connection(
+    db: State<'_, DbConn>,
+    id: String,
+) -> Result<TestConnectionResponse, String> {
+    let connection = SqlStudioRepository::get_connection(&db, &id)
+        .await
+        .map_err(|e| format!("Failed to load SQL connection: {}", e))?
+        .ok_or_else(|| format!("Connection not found: {}", id))?;
+
+    test_connection_row(&connection).await
 }
 
 #[tauri::command]

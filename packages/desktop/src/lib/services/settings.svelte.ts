@@ -5,8 +5,8 @@
  * Uses neverthrow ResultAsync for error handling.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
+import { settings as tauriSettings } from "$lib/utils/tauri-client/settings.js";
 
 /**
  * Custom keybindings stored as a map of command -> key.
@@ -19,10 +19,9 @@ export type CustomKeybindings = Record<string, string>;
  * Returns a map of command -> key.
  */
 export function getCustomKeybindings(): ResultAsync<CustomKeybindings, Error> {
-	return ResultAsync.fromPromise(
-		invoke<CustomKeybindings>("get_custom_keybindings"),
-		(e) => new Error(`Failed to get custom keybindings: ${String(e)}`)
-	);
+	return tauriSettings.getCustomKeybindings().mapErr((error) => {
+		return new Error(`Failed to get custom keybindings: ${String(error)}`);
+	});
 }
 
 /**
@@ -30,8 +29,7 @@ export function getCustomKeybindings(): ResultAsync<CustomKeybindings, Error> {
  * Takes a map of command -> key.
  */
 export function saveCustomKeybindings(keybindings: CustomKeybindings): ResultAsync<void, Error> {
-	return ResultAsync.fromPromise(
-		invoke<void>("save_custom_keybindings", { keybindings }),
-		(e) => new Error(`Failed to save custom keybindings: ${String(e)}`)
-	);
+	return tauriSettings.saveCustomKeybindings(keybindings).mapErr((error) => {
+		return new Error(`Failed to save custom keybindings: ${String(error)}`);
+	});
 }

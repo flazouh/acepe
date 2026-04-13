@@ -13,11 +13,13 @@ interface Props {
 	message: AssistantMessage;
 	/** Whether this message is currently streaming */
 	isStreaming?: boolean;
+	/** Stable entry key used to seed streaming reveal state across remounts */
+	revealMessageKey?: string;
 	/** Project path for opening files in panels */
 	projectPath?: string;
 }
 
-let { message, isStreaming = false, projectPath: propProjectPath }: Props = $props();
+let { message, isStreaming = false, revealMessageKey, projectPath: propProjectPath }: Props = $props();
 
 // Get projectPath from session context, with prop fallback
 const sessionContext = useSessionContext();
@@ -209,6 +211,11 @@ $effect(() => {
 									<ContentBlockRouter
 										block={{ type: "text", text: group.text }}
 										isStreaming={isStreaming && isLastThoughtGroup}
+										revealKey={
+											isLastThoughtGroup && revealMessageKey
+												? `${revealMessageKey}:thought:${index}`
+												: undefined
+										}
 										{projectPath}
 									/>
 								{:else}
@@ -227,6 +234,11 @@ $effect(() => {
 						<ContentBlockRouter
 							block={{ type: "text", text: group.text }}
 							isStreaming={isStreaming && isLastGroup}
+							revealKey={
+								isLastGroup && revealMessageKey
+									? `${revealMessageKey}:message:${index}`
+									: undefined
+							}
 							{projectPath}
 						/>
 					{:else}

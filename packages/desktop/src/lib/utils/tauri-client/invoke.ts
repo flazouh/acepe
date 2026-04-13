@@ -13,6 +13,12 @@ const debugInvoke =
 	typeof import.meta.env !== "undefined" && import.meta.env?.VITE_DEBUG_INVOKE === "true";
 
 type InvokeErrorValue = Error | string | number | boolean | object | null | undefined;
+export type InvokeArgs = Parameters<typeof invoke>[1];
+
+export interface GeneratedCommand<TName extends string> {
+	readonly name: TName;
+	invoke<TResult>(args?: InvokeArgs): ResultAsync<TResult, AppError>;
+}
 
 function normalizeInvokeError(error: InvokeErrorValue): Error {
 	if (error instanceof Error) {
@@ -88,6 +94,15 @@ export function invokeAsync<T>(
 	args?: Parameters<typeof invoke>[1]
 ): ResultAsync<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args);
+}
+
+export function createGeneratedCommand<TName extends string>(name: TName): GeneratedCommand<TName> {
+	return {
+		name,
+		invoke<TResult>(args?: InvokeArgs): ResultAsync<TResult, AppError> {
+			return invokeAsync<TResult>(name, args);
+		},
+	};
 }
 
 export const invokeAsyncWithRuntimeForTesting = invokeAsyncWithRuntime;

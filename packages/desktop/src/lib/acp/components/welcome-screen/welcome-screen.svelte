@@ -1,7 +1,6 @@
 <script lang="ts">
 import { BrandLockup, BrandShaderBackground, Button, PillButton } from "@acepe/ui";
-import { invoke } from "@tauri-apps/api/core";
-import { ResultAsync } from "neverthrow";
+	import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
@@ -95,10 +94,9 @@ async function handleOnboardingImport(path: string, name: string) {
 		return;
 	}
 
-	const result = await ResultAsync.fromPromise(
-		invoke("import_project", { path, name }),
-		(error) => new Error(`Failed to import project: ${error}`)
-	)
+	const result = await tauriClient.projects
+		.importProject(path, name)
+		.mapErr((error) => new Error(`Failed to import project: ${error}`))
 		.map(() => {
 			onboardingAddedPaths = new Set([...onboardingAddedPaths, path]);
 			toast.success(m.open_project_added_toast({ name }));

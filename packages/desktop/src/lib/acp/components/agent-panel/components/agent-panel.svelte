@@ -1378,15 +1378,9 @@ async function handleOpenInFinder() {
 		return;
 	}
 
-	const { invoke } = await import("@tauri-apps/api/core");
-
-	await ResultAsync.fromPromise(
-		invoke("open_in_finder", {
-			sessionId: target.sessionId,
-			projectPath: target.projectPath,
-		}),
-		(error) => new Error(`Failed to open: ${String(error)}`)
-	).mapErr(() => toast.error(m.thread_open_in_finder_error()));
+	await tauriClient.shell
+		.openInFinder(target.sessionId, target.projectPath)
+		.mapErr(() => toast.error(m.thread_open_in_finder_error()));
 }
 
 async function handleExportRawStreaming() {

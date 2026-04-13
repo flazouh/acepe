@@ -508,7 +508,7 @@ export type ConvertedSession = { entries: StoredEntry[]; stats: SessionStats; ti
 
 /**
  * Response for session plan request.
- * Returned by get_session_plan, get_plan_by_slug, list_plans commands.
+ * Returned by the unified plan loading path.
  */
 export type SessionPlanResponse = { 
 /**

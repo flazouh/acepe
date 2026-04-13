@@ -1,8 +1,7 @@
 <script lang="ts">
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import type { ProjectIndex } from "$lib/services/converted-session-types.js";
+import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import type { Project } from "../../logic/project-manager.svelte.js";
 import { createFileGroups, createFileTree } from "./file-list-logic.js";
@@ -46,10 +45,7 @@ function loadProjectFiles(projectPath: string): void {
 	loadingProjects.add(projectPath);
 	errorByProject.delete(projectPath);
 
-	ResultAsync.fromPromise(
-		invoke<ProjectIndex>("get_project_files", { projectPath }),
-		(error) => new Error(String(error))
-	).match(
+	fileIndex.getProjectFiles(projectPath).mapErr((error) => new Error(String(error))).match(
 		(result) => {
 			// Build file tree
 			const tree = createFileTree(result.files);

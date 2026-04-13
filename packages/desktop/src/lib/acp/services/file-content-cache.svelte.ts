@@ -11,8 +11,8 @@
  * - Separate caches for file content and diff content
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { okAsync, ResultAsync } from "neverthrow";
+import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import { FileContentCacheError } from "../errors/file-content-cache-error.js";
 import { createLogger } from "../utils/logger.js";
@@ -123,14 +123,9 @@ class FileContentCache {
 			return okAsync(cached);
 		}
 
-		return ResultAsync.fromPromise(
-			invoke<string>("read_file_content", {
-				filePath,
-				projectPath,
-			}),
-			(error) =>
-				new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR")
-		).map((content) => {
+		return fileIndex.readFileContent(filePath, projectPath).mapErr((error) => {
+			return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
+		}).map((content) => {
 			this.contentCache.set(cacheKey, content);
 			return content;
 		});
@@ -162,14 +157,9 @@ class FileContentCache {
 			projectPath,
 		});
 
-		return ResultAsync.fromPromise(
-			invoke<FileDiffResult>("get_file_diff", {
-				filePath,
-				projectPath,
-			}),
-			(error) =>
-				new FileContentCacheError(`Failed to get diff for ${filePath}: ${error}`, "DIFF_ERROR")
-		).map((diff) => {
+		return fileIndex.getFileDiff(filePath, projectPath).mapErr((error) => {
+			return new FileContentCacheError(`Failed to get diff for ${filePath}: ${error}`, "DIFF_ERROR");
+		}).map((diff) => {
 			logger.info("Diff loaded from backend", {
 				filePath,
 				projectPath,
@@ -191,15 +181,12 @@ class FileContentCache {
 		projectPath: string,
 		content: string
 	): ResultAsync<void, FileContentCacheError> {
-		return ResultAsync.fromPromise(
-			invoke<void>("revert_file_content", {
-				filePath,
-				projectPath,
-				content,
-			}),
-			(error) =>
-				new FileContentCacheError(`Failed to revert file ${filePath}: ${error}`, "WRITE_ERROR")
-		).map(() => {
+		return fileIndex.revertFileContent(filePath, projectPath, content).mapErr((error) => {
+			return new FileContentCacheError(
+				`Failed to revert file ${filePath}: ${error}`,
+				"WRITE_ERROR"
+			);
+		}).map(() => {
 			// Invalidate caches for this file after reverting
 			this.invalidateFile(filePath, projectPath);
 		});

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { invoke } from "@tauri-apps/api/core";
 import { Warning } from "phosphor-svelte";
 import { ThemeToggle } from "$lib/components/theme/index.js";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
@@ -7,6 +6,7 @@ import { Switch } from "$lib/components/ui/switch/index.js";
 import * as m from "$lib/messages.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 import SettingsControlCard from "../settings-control-card.svelte";
 import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
@@ -17,8 +17,12 @@ const attentionQueue = getAttentionQueueStore();
 let showResetConfirm = $state(false);
 
 async function handleResetDatabase() {
-	await invoke("reset_database");
-	showResetConfirm = false;
+	await settings.resetDatabase().match(
+		() => {
+			showResetConfirm = false;
+		},
+		() => undefined
+	);
 }
 </script>
 

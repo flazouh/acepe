@@ -1,5 +1,7 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
 	AgentSkills,
 	LibrarySkill,
@@ -12,20 +14,20 @@ import type {
 	SyncResult,
 	SyncTarget,
 } from "../../skills/types/index.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+
+const skillCommands = TAURI_COMMAND_CLIENT.skills;
 
 export const skills = {
 	listTree: (): ResultAsync<SkillTreeNode[], AppError> => {
-		return invokeAsync(CMD.skills.list_tree);
+		return skillCommands.list_tree.invoke<SkillTreeNode[]>();
 	},
 
 	listAgentSkills: (): ResultAsync<AgentSkills[], AppError> => {
-		return invokeAsync(CMD.skills.list_agent_skills);
+		return skillCommands.list_agent_skills.invoke<AgentSkills[]>();
 	},
 
 	get: (skillId: string): ResultAsync<Skill, AppError> => {
-		return invokeAsync(CMD.skills.get, { skillId });
+		return skillCommands.get.invoke<Skill>({ skillId });
 	},
 
 	create: (
@@ -34,7 +36,7 @@ export const skills = {
 		name: string,
 		description: string
 	): ResultAsync<Skill, AppError> => {
-		return invokeAsync(CMD.skills.create, {
+		return skillCommands.create.invoke<Skill>({
 			agentId,
 			folderName,
 			name,
@@ -43,11 +45,11 @@ export const skills = {
 	},
 
 	update: (skillId: string, content: string): ResultAsync<Skill, AppError> => {
-		return invokeAsync(CMD.skills.update, { skillId, content });
+		return skillCommands.update.invoke<Skill>({ skillId, content });
 	},
 
 	delete: (skillId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.skills.delete, { skillId });
+		return skillCommands.delete.invoke<void>({ skillId });
 	},
 
 	copyTo: (
@@ -55,49 +57,49 @@ export const skills = {
 		targetAgentId: string,
 		newFolderName?: string
 	): ResultAsync<Skill, AppError> => {
-		return invokeAsync(CMD.skills.copy_to, { skillId, targetAgentId, newFolderName });
+		return skillCommands.copy_to.invoke<Skill>({ skillId, targetAgentId, newFolderName });
 	},
 
 	startWatching: (): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.skills.start_watching);
+		return skillCommands.start_watching.invoke<void>();
 	},
 
 	stopWatching: (): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.skills.stop_watching);
+		return skillCommands.stop_watching.invoke<void>();
 	},
 
 	listPlugins: (): ResultAsync<PluginInfo[], AppError> => {
-		return invokeAsync(CMD.skills.list_plugins);
+		return skillCommands.list_plugins.invoke<PluginInfo[]>();
 	},
 
 	listPluginSkills: (pluginId: string): ResultAsync<PluginSkill[], AppError> => {
-		return invokeAsync(CMD.skills.list_plugin_skills, { pluginId });
+		return skillCommands.list_plugin_skills.invoke<PluginSkill[]>({ pluginId });
 	},
 
 	getPluginSkill: (skillId: string): ResultAsync<PluginSkill, AppError> => {
-		return invokeAsync(CMD.skills.get_plugin_skill, { skillId });
+		return skillCommands.get_plugin_skill.invoke<PluginSkill>({ skillId });
 	},
 
 	copyPluginSkillToAgent: (
 		skillId: string,
 		targetAgentId: string
 	): ResultAsync<Skill, AppError> => {
-		return invokeAsync(CMD.skills.copy_plugin_skill_to_agent, {
+		return skillCommands.copy_plugin_skill_to_agent.invoke<Skill>({
 			skillId,
 			targetAgentId,
 		});
 	},
 
 	libraryListSkills: (): ResultAsync<LibrarySkill[], AppError> => {
-		return invokeAsync(CMD.skills.library_list_skills);
+		return skillCommands.library_list_skills.invoke<LibrarySkill[]>();
 	},
 
 	libraryListSkillsWithSync: (): ResultAsync<LibrarySkillWithSync[], AppError> => {
-		return invokeAsync(CMD.skills.library_list_skills_with_sync);
+		return skillCommands.library_list_skills_with_sync.invoke<LibrarySkillWithSync[]>();
 	},
 
 	libraryGetSkill: (skillId: string): ResultAsync<LibrarySkillWithSync, AppError> => {
-		return invokeAsync(CMD.skills.library_get_skill, { skillId });
+		return skillCommands.library_get_skill.invoke<LibrarySkillWithSync>({ skillId });
 	},
 
 	libraryCreateSkill: (
@@ -106,7 +108,7 @@ export const skills = {
 		content: string,
 		category: string | null
 	): ResultAsync<LibrarySkill, AppError> => {
-		return invokeAsync(CMD.skills.library_create_skill, {
+		return skillCommands.library_create_skill.invoke<LibrarySkill>({
 			name,
 			description,
 			content,
@@ -121,7 +123,7 @@ export const skills = {
 		content?: string,
 		category?: string | null
 	): ResultAsync<LibrarySkill, AppError> => {
-		return invokeAsync(CMD.skills.library_update_skill, {
+		return skillCommands.library_update_skill.invoke<LibrarySkill>({
 			skillId,
 			name,
 			description,
@@ -131,11 +133,11 @@ export const skills = {
 	},
 
 	libraryDeleteSkill: (skillId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.skills.library_delete_skill, { skillId });
+		return skillCommands.library_delete_skill.invoke<void>({ skillId });
 	},
 
 	libraryGetSyncTargets: (skillId: string): ResultAsync<SyncTarget[], AppError> => {
-		return invokeAsync(CMD.skills.library_get_sync_targets, { skillId });
+		return skillCommands.library_get_sync_targets.invoke<SyncTarget[]>({ skillId });
 	},
 
 	librarySetSyncTarget: (
@@ -143,7 +145,7 @@ export const skills = {
 		agentId: string,
 		enabled: boolean
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.skills.library_set_sync_target, {
+		return skillCommands.library_set_sync_target.invoke<void>({
 			skillId,
 			agentId,
 			enabled,
@@ -151,26 +153,26 @@ export const skills = {
 	},
 
 	librarySyncSkill: (skillId: string): ResultAsync<SkillSyncResult[], AppError> => {
-		return invokeAsync(CMD.skills.library_sync_skill, { skillId });
+		return skillCommands.library_sync_skill.invoke<SkillSyncResult[]>({ skillId });
 	},
 
 	librarySyncAll: (): ResultAsync<SyncResult, AppError> => {
-		return invokeAsync(CMD.skills.library_sync_all);
+		return skillCommands.library_sync_all.invoke<SyncResult>();
 	},
 
 	libraryIsEmpty: (): ResultAsync<boolean, AppError> => {
-		return invokeAsync(CMD.skills.library_is_empty);
+		return skillCommands.library_is_empty.invoke<boolean>();
 	},
 
 	libraryImportExisting: (): ResultAsync<LibrarySkill[], AppError> => {
-		return invokeAsync(CMD.skills.library_import_existing);
+		return skillCommands.library_import_existing.invoke<LibrarySkill[]>();
 	},
 
 	libraryGetSkillFolderPath: (
 		agentId: string,
 		skillName: string
 	): ResultAsync<string | null, AppError> => {
-		return invokeAsync(CMD.skills.library_get_skill_folder_path, {
+		return skillCommands.library_get_skill_folder_path.invoke<string | null>({
 			agentId,
 			skillName,
 		});
@@ -180,7 +182,7 @@ export const skills = {
 		skillName: string,
 		agentIds: string[]
 	): ResultAsync<SkillSyncResult[], AppError> => {
-		return invokeAsync(CMD.skills.library_delete_skill_from_agents, {
+		return skillCommands.library_delete_skill_from_agents.invoke<SkillSyncResult[]>({
 			skillName,
 			agentIds,
 		});

@@ -1,9 +1,11 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { Checkpoint, FileSnapshot, RevertResult } from "../../acp/types/index.js";
 import type { FileDiffContent } from "../../services/checkpoint-types.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+
+const checkpointCommands = TAURI_COMMAND_CLIENT.checkpoint;
 
 export const checkpoint = {
 	create: (
@@ -18,7 +20,7 @@ export const checkpoint = {
 			agentId?: string;
 		}
 	): ResultAsync<Checkpoint, AppError> => {
-		return invokeAsync(CMD.checkpoint.create, {
+		return checkpointCommands.create.invoke<Checkpoint>({
 			sessionId,
 			projectPath,
 			worktreePath: options?.worktreePath ?? null,
@@ -31,7 +33,7 @@ export const checkpoint = {
 	},
 
 	list: (sessionId: string): ResultAsync<Checkpoint[], AppError> => {
-		return invokeAsync(CMD.checkpoint.list, { sessionId });
+		return checkpointCommands.list.invoke<Checkpoint[]>({ sessionId });
 	},
 
 	getFileContent: (
@@ -39,7 +41,7 @@ export const checkpoint = {
 		checkpointId: string,
 		filePath: string
 	): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.checkpoint.get_file_content, {
+		return checkpointCommands.get_file_content.invoke<string>({
 			sessionId,
 			checkpointId,
 			filePath,
@@ -51,7 +53,7 @@ export const checkpoint = {
 		checkpointId: string,
 		filePath: string
 	): ResultAsync<FileDiffContent, AppError> => {
-		return invokeAsync<FileDiffContent>(CMD.checkpoint.get_file_diff_content, {
+		return checkpointCommands.get_file_diff_content.invoke<FileDiffContent>({
 			sessionId,
 			checkpointId,
 			filePath,
@@ -67,7 +69,7 @@ export const checkpoint = {
 		projectPath: string,
 		worktreePath?: string
 	): ResultAsync<RevertResult, AppError> => {
-		return invokeAsync(CMD.checkpoint.revert, {
+		return checkpointCommands.revert.invoke<RevertResult>({
 			sessionId,
 			checkpointId,
 			projectPath,
@@ -82,7 +84,7 @@ export const checkpoint = {
 		projectPath: string,
 		worktreePath?: string
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.checkpoint.revert_file, {
+		return checkpointCommands.revert_file.invoke<void>({
 			sessionId,
 			checkpointId,
 			filePath,
@@ -95,6 +97,9 @@ export const checkpoint = {
 		sessionId: string,
 		checkpointId: string
 	): ResultAsync<FileSnapshot[], AppError> => {
-		return invokeAsync(CMD.checkpoint.get_file_snapshots, { sessionId, checkpointId });
+		return checkpointCommands.get_file_snapshots.invoke<FileSnapshot[]>({
+			sessionId,
+			checkpointId,
+		});
 	},
 };

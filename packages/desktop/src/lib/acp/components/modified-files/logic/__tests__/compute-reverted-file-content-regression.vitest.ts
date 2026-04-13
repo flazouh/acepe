@@ -6,7 +6,7 @@ vi.mock("@pierre/diffs", async () => {
 	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
 		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
 		const corruptedResult = Object.assign({}, result);
-		Reflect.deleteProperty(corruptedResult, "additionLines");
+		Reflect.deleteProperty(corruptedResult, "newLines");
 		return corruptedResult;
 	};
 
@@ -23,7 +23,7 @@ function createFile(name: string, contents: string): FileContents {
 }
 
 describe("computeRevertedFileContent regression", () => {
-	it("returns full reverted content when resolved metadata omits additionLines", async () => {
+	it("returns full reverted content when resolved metadata omits newLines", async () => {
 		const { computeRevertedFileContent } = await import("../compute-reverted-file-content.js");
 		const oldContent = "line1\nold\nline3";
 		const newContent = "line1\nnew\nline3";
@@ -37,5 +37,55 @@ describe("computeRevertedFileContent regression", () => {
 		}).not.toThrow();
 
 		expect(result).toBe(oldContent);
+	});
+
+	it("supports legacy numeric hunk payloads", async () => {
+		const { computeRevertedFileContent } = await import("../compute-reverted-file-content.js");
+
+		const legacyMetadata = {
+			name: "test.ts",
+			prevName: undefined,
+			type: "change",
+			hunks: [
+				{
+					collapsedBefore: 0,
+					splitLineStart: 1,
+					splitLineCount: 1,
+					unifiedLineStart: 1,
+					unifiedLineCount: 1,
+					additionCount: 1,
+					additionStart: 2,
+					additionLines: 1,
+					deletionCount: 1,
+					deletionStart: 2,
+					deletionLines: 1,
+					hunkContent: [
+						{
+							type: "change",
+							deletions: 1,
+							additions: 1,
+							deletionLineIndex: 1,
+							additionLineIndex: 1,
+							noEOFCRDeletions: false,
+							noEOFCRAdditions: false,
+						},
+					],
+					hunkContext: undefined,
+					hunkSpecs: undefined,
+				},
+			],
+			splitLineCount: 0,
+			unifiedLineCount: 0,
+			deletionLines: ["line1\n", "old\n", "line3"],
+			additionLines: ["line1\n", "new\n", "line3"],
+		};
+
+		const result = computeRevertedFileContent(
+			"line1\nnew\nline3",
+			legacyMetadata as unknown as Parameters<typeof computeRevertedFileContent>[1],
+			0
+		);
+
+		expect(result).toBe("line1\nold\nline3");
 	});
 });

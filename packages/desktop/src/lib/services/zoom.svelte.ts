@@ -4,10 +4,10 @@
  * Uses Tauri's webview API to control zoom and persists the level to the database.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ResultAsync } from "neverthrow";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 
 /** Zoom configuration constants */
 const ZOOM_CONFIG = {
@@ -100,10 +100,9 @@ export class ZoomService {
 	 * Loads the zoom level from the database.
 	 */
 	private loadZoomLevel(): ResultAsync<number, Error> {
-		return ResultAsync.fromPromise(
-			invoke<string | null>("get_user_setting", { key: ZOOM_LEVEL_KEY }),
-			(error) => new Error(`Failed to load zoom level: ${String(error)}`)
-		).map((value) => {
+		return settings.getRaw(ZOOM_LEVEL_KEY).mapErr((error) => {
+			return new Error(`Failed to load zoom level: ${String(error)}`);
+		}).map((value) => {
 			if (value === null) {
 				return ZOOM_CONFIG.DEFAULT;
 			}
@@ -119,13 +118,9 @@ export class ZoomService {
 	 * Saves the zoom level to the database.
 	 */
 	private saveZoomLevel(level: number): ResultAsync<void, Error> {
-		return ResultAsync.fromPromise(
-			invoke<void>("save_user_setting", {
-				key: ZOOM_LEVEL_KEY,
-				value: level.toString(),
-			}),
-			(error) => new Error(`Failed to save zoom level: ${String(error)}`)
-		);
+		return settings.setRaw(ZOOM_LEVEL_KEY, level.toString()).mapErr((error) => {
+			return new Error(`Failed to save zoom level: ${String(error)}`);
+		});
 	}
 }
 

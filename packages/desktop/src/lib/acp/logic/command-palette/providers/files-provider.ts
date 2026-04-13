@@ -3,9 +3,9 @@
  * Provides access to file search across all projects.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { okAsync, ResultAsync as RA, type ResultAsync } from "neverthrow";
 import { File } from "phosphor-svelte";
+import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import type { IndexedFile, ProjectIndex } from "../../../../services/converted-session-types.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
@@ -96,10 +96,9 @@ export class FilesProvider implements PaletteProvider {
 
 		this.loadingProjects.add(projectPath);
 
-		return RA.fromPromise(
-			invoke<ProjectIndex>("get_project_files", { projectPath }),
-			(error) => new Error(`Failed to load files for ${projectPath}: ${error}`)
-		)
+		return fileIndex
+			.getProjectFiles(projectPath)
+			.mapErr((error) => new Error(`Failed to load files for ${projectPath}: ${error}`))
 			.map((index) => {
 				this.fileCache.set(projectPath, {
 					projectPath,

@@ -1,4 +1,5 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
 	FileExplorerPreviewResponse,
@@ -6,45 +7,53 @@ import type {
 	FileGitStatus,
 	ProjectIndex,
 } from "../../services/converted-session-types.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+
+const fileIndexCommands = TAURI_COMMAND_CLIENT.file_index;
 
 export const fileIndex = {
 	getProjectGitStatus: (projectPath: string): ResultAsync<FileGitStatus[], AppError> => {
-		return invokeAsync(CMD.fileIndex.get_project_git_status, { projectPath });
+		return fileIndexCommands.get_project_git_status.invoke<FileGitStatus[]>({ projectPath });
 	},
 
 	getProjectGitStatusSummary: (projectPath: string): ResultAsync<FileGitStatus[], AppError> => {
-		return invokeAsync(CMD.fileIndex.get_project_git_status_summary, { projectPath });
+		return fileIndexCommands.get_project_git_status_summary.invoke<FileGitStatus[]>({ projectPath });
 	},
 
 	getProjectGitOverviewSummary: (
 		projectPath: string
 	): ResultAsync<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> => {
-		return invokeAsync(CMD.fileIndex.get_project_git_overview_summary, { projectPath });
+		return fileIndexCommands.get_project_git_overview_summary.invoke<{
+			branch: string | null;
+			gitStatus: FileGitStatus[];
+		}>({ projectPath });
 	},
 
 	getProjectFiles: (projectPath: string): ResultAsync<ProjectIndex, AppError> => {
-		return invokeAsync(CMD.fileIndex.get_project_files, { projectPath });
+		return fileIndexCommands.get_project_files.invoke<ProjectIndex>({ projectPath });
 	},
 
 	invalidateProjectFiles: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.invalidate_project_files, { projectPath });
+		return fileIndexCommands.invalidate_project_files.invoke<void>({ projectPath });
 	},
 
 	readFileContent: (filePath: string, projectPath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.fileIndex.read_file_content, { filePath, projectPath });
+		return fileIndexCommands.read_file_content.invoke<string>({ filePath, projectPath });
 	},
 
 	resolveFilePath: (filePath: string, projectPath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.fileIndex.resolve_file_path, { filePath, projectPath });
+		return fileIndexCommands.resolve_file_path.invoke<string>({ filePath, projectPath });
 	},
 
 	getFileDiff: (
 		filePath: string,
 		projectPath: string
 	): ResultAsync<{ oldContent: string | null; newContent: string; fileName: string }, AppError> => {
-		return invokeAsync(CMD.fileIndex.get_file_diff, { filePath, projectPath });
+		return fileIndexCommands.get_file_diff.invoke<{
+			oldContent: string | null;
+			newContent: string;
+			fileName: string;
+		}>({ filePath, projectPath });
 	},
 
 	revertFileContent: (
@@ -52,7 +61,7 @@ export const fileIndex = {
 		projectPath: string,
 		content: string
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.revert_file_content, {
+		return fileIndexCommands.revert_file_content.invoke<void>({
 			filePath,
 			projectPath,
 			content,
@@ -60,11 +69,11 @@ export const fileIndex = {
 	},
 
 	readImageAsBase64: (filePath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.fileIndex.read_image_as_base64, { filePath });
+		return fileIndexCommands.read_image_as_base64.invoke<string>({ filePath });
 	},
 
 	deletePath: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.delete_path, { projectPath, relativePath });
+		return fileIndexCommands.delete_path.invoke<void>({ projectPath, relativePath });
 	},
 
 	renamePath: (
@@ -72,7 +81,7 @@ export const fileIndex = {
 		fromRelative: string,
 		toRelative: string
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.rename_path, {
+		return fileIndexCommands.rename_path.invoke<void>({
 			projectPath,
 			fromRelative,
 			toRelative,
@@ -80,15 +89,15 @@ export const fileIndex = {
 	},
 
 	copyFile: (projectPath: string, relativePath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.fileIndex.copy_file, { projectPath, relativePath });
+		return fileIndexCommands.copy_file.invoke<string>({ projectPath, relativePath });
 	},
 
 	createFile: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.create_file, { projectPath, relativePath });
+		return fileIndexCommands.create_file.invoke<void>({ projectPath, relativePath });
 	},
 
 	createDirectory: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.fileIndex.create_directory, {
+		return fileIndexCommands.create_directory.invoke<void>({
 			projectPath,
 			relativePath,
 		});
@@ -100,7 +109,7 @@ export const fileIndex = {
 		limit: number,
 		offset: number
 	): ResultAsync<FileExplorerSearchResponse, AppError> => {
-		return invokeAsync(CMD.fileIndex.search_project_files_for_explorer, {
+		return fileIndexCommands.search_project_files_for_explorer.invoke<FileExplorerSearchResponse>({
 			projectPath,
 			query,
 			limit,
@@ -112,7 +121,7 @@ export const fileIndex = {
 		projectPath: string,
 		filePath: string
 	): ResultAsync<FileExplorerPreviewResponse, AppError> => {
-		return invokeAsync(CMD.fileIndex.get_file_explorer_preview, {
+		return fileIndexCommands.get_file_explorer_preview.invoke<FileExplorerPreviewResponse>({
 			projectPath,
 			filePath,
 		});

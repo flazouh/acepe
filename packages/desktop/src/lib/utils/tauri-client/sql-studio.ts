@@ -1,5 +1,7 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
 	ConnectionFormInput,
 	QueryExecutionRequest,
@@ -13,53 +15,53 @@ import type {
 	TableUpdateResult,
 	TestConnectionResult,
 } from "../../sql-studio/types/index.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+
+const sqlStudioCommands = TAURI_COMMAND_CLIENT.sql_studio;
 
 export const sqlStudio = {
 	listConnections: (): ResultAsync<readonly SavedConnectionSummary[], AppError> => {
-		return invokeAsync(CMD.sqlStudio.list_connections);
+		return sqlStudioCommands.list_connections.invoke<readonly SavedConnectionSummary[]>();
 	},
 
 	getConnection: (id: string): ResultAsync<SavedConnectionDetail, AppError> => {
-		return invokeAsync(CMD.sqlStudio.get_connection, { id });
+		return sqlStudioCommands.get_connection.invoke<SavedConnectionDetail>({ id });
 	},
 
 	saveConnection: (input: ConnectionFormInput): ResultAsync<SavedConnectionSummary, AppError> => {
-		return invokeAsync(CMD.sqlStudio.save_connection, { input });
+		return sqlStudioCommands.save_connection.invoke<SavedConnectionSummary>({ input });
 	},
 
 	deleteConnection: (id: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.sqlStudio.delete_connection, { id });
+		return sqlStudioCommands.delete_connection.invoke<void>({ id });
 	},
 
 	pickSqliteFile: (): ResultAsync<string | null, AppError> => {
-		return invokeAsync(CMD.sqlStudio.pick_sqlite_file);
+		return sqlStudioCommands.pick_sqlite_file.invoke<string | null>();
 	},
 
 	testConnection: (id: string): ResultAsync<TestConnectionResult, AppError> => {
-		return invokeAsync(CMD.sqlStudio.test_connection, { id });
+		return sqlStudioCommands.test_connection.invoke<TestConnectionResult>({ id });
 	},
 
 	testConnectionInput: (
 		config: ConnectionFormInput
 	): ResultAsync<TestConnectionResult, AppError> => {
-		return invokeAsync(CMD.sqlStudio.test_connection_input, { config });
+		return sqlStudioCommands.test_connection_input.invoke<TestConnectionResult>({ config });
 	},
 
 	listSchema: (connectionId: string): ResultAsync<readonly SchemaNode[], AppError> => {
-		return invokeAsync(CMD.sqlStudio.list_schema, { id: connectionId });
+		return sqlStudioCommands.list_schema.invoke<readonly SchemaNode[]>({ id: connectionId });
 	},
 
 	executeQuery: (request: QueryExecutionRequest): ResultAsync<QueryExecutionResult, AppError> => {
-		return invokeAsync(CMD.sqlStudio.execute_query, { request });
+		return sqlStudioCommands.execute_query.invoke<QueryExecutionResult>({ request });
 	},
 
 	exploreTable: (request: TableExploreRequest): ResultAsync<TableExploreResult, AppError> => {
-		return invokeAsync(CMD.sqlStudio.explore_table, { request });
+		return sqlStudioCommands.explore_table.invoke<TableExploreResult>({ request });
 	},
 
 	updateTableCell: (request: TableUpdateRequest): ResultAsync<TableUpdateResult, AppError> => {
-		return invokeAsync(CMD.sqlStudio.update_table_cell, { request });
+		return sqlStudioCommands.update_table_cell.invoke<TableUpdateResult>({ request });
 	},
 };

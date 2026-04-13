@@ -39,7 +39,6 @@
  * handles remaining edge cases.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import {
 	errAsync,
 	ResultAsync as NeverthrowResultAsync,
@@ -58,6 +57,7 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
@@ -175,9 +175,12 @@ export class InitializationManager {
 			return this.splashResolutionPromise;
 		}
 
-		this.splashResolutionPromise = invoke<string | null>("get_user_setting", {
-			key: HAS_SEEN_SPLASH_KEY,
-		})
+		this.splashResolutionPromise = settings
+			.getRaw(HAS_SEEN_SPLASH_KEY)
+			.match(
+				(value) => value,
+				(error) => Promise.reject(error)
+			)
 			.then((value) => {
 				// Show splash if value is not "true"
 				this.state.showSplash = value !== "true";
@@ -223,9 +226,10 @@ export class InitializationManager {
 
 		const { getVersion } = await import("@tauri-apps/api/app");
 		const currentVersion = await getVersion();
-		const lastSeenVersion = await invoke<string | null>("get_user_setting", {
-			key: LAST_SEEN_VERSION_KEY,
-		});
+		const lastSeenVersion = await settings.getRaw(LAST_SEEN_VERSION_KEY).match(
+			(value) => value,
+			() => null
+		);
 
 		// Show changelog entries between last seen and current version
 		if (lastSeenVersion && lastSeenVersion !== currentVersion) {
@@ -241,10 +245,10 @@ export class InitializationManager {
 		}
 
 		// Always update last seen version (even on first launch)
-		await invoke("save_user_setting", {
-			key: LAST_SEEN_VERSION_KEY,
-			value: currentVersion,
-		});
+		await settings.setRaw(LAST_SEEN_VERSION_KEY, currentVersion).match(
+			() => undefined,
+			() => undefined
+		);
 	}
 
 	/**

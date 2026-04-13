@@ -1,16 +1,20 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
-import { ACP_PREFIX, CMD } from "./commands.js";
+import { ACP_PREFIX } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 import type { CustomAgentConfig } from "./types.js";
 
+const acpCommands = TAURI_COMMAND_CLIENT.acp;
+
 export const acp = {
 	initialize: (): ResultAsync<unknown, AppError> => {
-		return invokeAsync(CMD.acp.initialize);
+		return acpCommands.initialize.invoke<unknown>();
 	},
 
 	newSession: (
@@ -18,7 +22,7 @@ export const acp = {
 		agentId?: string,
 		launchToken?: string
 	): ResultAsync<ResumeSessionResult, AppError> => {
-		return invokeAsync(CMD.acp.new_session, { cwd, agentId, launchToken });
+		return acpCommands.new_session.invoke<ResumeSessionResult>({ cwd, agentId, launchToken });
 	},
 
 	listPreconnectionCommands: (
@@ -28,7 +32,9 @@ export const acp = {
 		Array<{ name: string; description: string; input?: { hint: string } | null }>,
 		AppError
 	> => {
-		return invokeAsync(CMD.acp.list_preconnection_commands, { cwd, agentId });
+		return acpCommands.list_preconnection_commands.invoke<
+			Array<{ name: string; description: string; input?: { hint: string } | null }>
+		>({ cwd, agentId });
 	},
 
 	resumeSession: (
@@ -38,7 +44,7 @@ export const acp = {
 		agentId?: string,
 		launchModeId?: string
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.resume_session, {
+		return acpCommands.resume_session.invoke<void>({
 			sessionId,
 			cwd,
 			attemptId,
@@ -52,19 +58,19 @@ export const acp = {
 		cwd: string,
 		agentId?: string
 	): ResultAsync<ResumeSessionResult, AppError> => {
-		return invokeAsync(CMD.acp.fork_session, { sessionId, cwd, agentId });
+		return acpCommands.fork_session.invoke<ResumeSessionResult>({ sessionId, cwd, agentId });
 	},
 
 	setModel: (sessionId: string, modelId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.set_model, { sessionId, modelId });
+		return acpCommands.set_model.invoke<void>({ sessionId, modelId });
 	},
 
 	setMode: (sessionId: string, modeId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.set_mode, { sessionId, modeId });
+		return acpCommands.set_mode.invoke<void>({ sessionId, modeId });
 	},
 
 	setSessionAutonomous: (sessionId: string, enabled: boolean): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.set_session_autonomous, { sessionId, enabled });
+		return acpCommands.set_session_autonomous.invoke<void>({ sessionId, enabled });
 	},
 
 	setConfigOption: (
@@ -72,18 +78,18 @@ export const acp = {
 		configId: string,
 		value: string
 	): ResultAsync<unknown, AppError> => {
-		return invokeAsync(CMD.acp.set_config_option, { sessionId, configId, value });
+		return acpCommands.set_config_option.invoke<unknown>({ sessionId, configId, value });
 	},
 
 	sendPrompt: (
 		sessionId: string,
 		request: ReadonlyArray<Record<string, unknown> & { type: string }>
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.send_prompt, { sessionId, request });
+		return acpCommands.send_prompt.invoke<void>({ sessionId, request });
 	},
 
 	cancel: (sessionId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.cancel, { sessionId });
+		return acpCommands.cancel.invoke<void>({ sessionId });
 	},
 
 	replyPermission: (
@@ -91,7 +97,7 @@ export const acp = {
 		permissionId: string,
 		reply: "once" | "always" | "reject"
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.reply_permission, { sessionId, permissionId, reply });
+		return acpCommands.reply_permission.invoke<void>({ sessionId, permissionId, reply });
 	},
 
 	replyQuestion: (
@@ -99,11 +105,11 @@ export const acp = {
 		questionId: string,
 		answers: unknown
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.reply_question, { sessionId, questionId, answers });
+		return acpCommands.reply_question.invoke<void>({ sessionId, questionId, answers });
 	},
 
 	replyInteraction: (request: InteractionReplyRequest): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.reply_interaction, {
+		return acpCommands.reply_interaction.invoke<void>({
 			request: {
 				sessionId: request.sessionId,
 				interactionId: request.interactionId,
@@ -118,35 +124,35 @@ export const acp = {
 		requestId: number,
 		result: unknown
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.respond_inbound_request, { sessionId, requestId, result });
+		return acpCommands.respond_inbound_request.invoke<void>({ sessionId, requestId, result });
 	},
 
 	listAgents: (): ResultAsync<AgentInfo[], AppError> => {
-		return invokeAsync(CMD.acp.list_agents);
+		return acpCommands.list_agents.invoke<AgentInfo[]>();
 	},
 
 	installAgent: (agentId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.install_agent, { agentId });
+		return acpCommands.install_agent.invoke<void>({ agentId });
 	},
 
 	uninstallAgent: (agentId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.uninstall_agent, { agentId });
+		return acpCommands.uninstall_agent.invoke<void>({ agentId });
 	},
 
 	closeSession: (sessionId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.close_session, { sessionId });
+		return acpCommands.close_session.invoke<void>({ sessionId });
 	},
 
 	registerCustomAgent: (config: CustomAgentConfig): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.acp.register_custom_agent, { config });
+		return acpCommands.register_custom_agent.invoke<void>({ config });
 	},
 
 	getEventBridgeInfo: (): ResultAsync<{ eventsUrl: string }, AppError> => {
-		return invokeAsync(CMD.acp.get_event_bridge_info);
+		return acpCommands.get_event_bridge_info.invoke<{ eventsUrl: string }>();
 	},
 
 	getSessionProjection: (sessionId: string): ResultAsync<SessionProjectionSnapshot, AppError> => {
-		return invokeAsync(CMD.acp.get_session_projection, { sessionId });
+		return acpCommands.get_session_projection.invoke<SessionProjectionSnapshot>({ sessionId });
 	},
 
 	rpcCall(method: string, params: Record<string, unknown>): ResultAsync<unknown, AppError> {

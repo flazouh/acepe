@@ -8,11 +8,12 @@ interface Props {
 	block: unknown;
 	/** Whether this content is currently streaming */
 	isStreaming?: boolean;
+	revealKey?: string;
 	/** Project path for opening files in panels */
 	projectPath?: string;
 }
 
-let { block, isStreaming = false, projectPath: propProjectPath }: Props = $props();
+let { block, isStreaming = false, revealKey, projectPath: propProjectPath }: Props = $props();
 
 const sessionContext = useSessionContext();
 const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
@@ -27,7 +28,7 @@ const validationResult = $derived(validateContentBlock(block));
 		{@const blockProps = (
 			renderer as { getProps: (b: ContentBlock) => Record<string, unknown> }
 		).getProps(validatedBlock)}
-		<Component {...blockProps} {isStreaming} {projectPath} />
+		<Component {...blockProps} {isStreaming} {revealKey} {projectPath} />
 	{:else}
 		<div class="text-xs text-muted-foreground/70 italic">
 			Unknown block type: {validatedBlock.type}

@@ -131,67 +131,24 @@ export class SessionHistoryService {
 	}
 
 	/**
-	 * Get the plan associated with a session.
-	 *
-	 * Sessions can have an associated plan when created in plan mode.
-	 * The plan file is stored in ~/.claude/plans/{slug}.md where slug
-	 * is a poetic name stored in the session's JSONL messages.
-	 *
-	 * @param sessionId - The session ID to get the plan for
-	 * @param projectPath - The project path for the session
-	 * @returns The plan if found, null if session has no plan
+	 * Get the plan associated with a session through the unified history pipeline.
 	 */
-	getSessionPlan(
+	getUnifiedPlan(
 		sessionId: string,
-		projectPath: string
+		projectPath: string,
+		agentId: string
 	): ResultAsync<SessionPlanResponse | null, Error> {
-		this.logger.debug("Getting session plan:", sessionId);
-
+		this.logger.debug("Getting unified session plan:", sessionId, agentId);
 		return tauriClient.history
-			.getSessionPlan(sessionId, projectPath)
-			.mapErr((e) => new Error(`Failed to get session plan: ${e}`))
+			.getUnifiedPlan(sessionId, projectPath, agentId)
+			.mapErr((e) => new Error(`Failed to get unified plan: ${e}`))
 			.map((plan) => {
 				if (plan) {
-					this.logger.debug("Found plan for session:", sessionId, plan.slug);
+					this.logger.debug("Found unified plan for session:", sessionId, plan.slug);
 				} else {
-					this.logger.debug("No plan found for session:", sessionId);
+					this.logger.debug("No unified plan found for session:", sessionId);
 				}
 				return plan;
-			});
-	}
-
-	/**
-	 * Get a plan by its slug directly.
-	 *
-	 * This is useful for loading a specific plan without needing the session context.
-	 *
-	 * @param slug - The plan slug (filename without .md extension)
-	 * @returns The plan if found, null if not exists
-	 */
-	getPlanBySlug(slug: string): ResultAsync<SessionPlanResponse | null, Error> {
-		this.logger.debug("Getting plan by slug:", slug);
-
-		return tauriClient.history
-			.getPlanBySlug(slug)
-			.mapErr((e) => new Error(`Failed to get plan by slug: ${e}`));
-	}
-
-	/**
-	 * List all available plans.
-	 *
-	 * Scans ~/.claude/plans/ for all .md files and returns their metadata.
-	 *
-	 * @returns Array of all plans
-	 */
-	listPlans(): ResultAsync<SessionPlanResponse[], Error> {
-		this.logger.debug("Listing all plans");
-
-		return tauriClient.history
-			.listPlans()
-			.mapErr((e) => new Error(`Failed to list plans: ${e}`))
-			.map((plans) => {
-				this.logger.debug("Found", plans.length, "plans");
-				return plans;
 			});
 	}
 }
