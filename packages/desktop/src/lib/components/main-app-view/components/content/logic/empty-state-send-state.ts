@@ -2,12 +2,20 @@ export const EMPTY_STATE_PANEL_ID = "empty-state-panel";
 
 export function resolveEmptyStateAgentId(options: {
 	selectedAgentId: string | null;
+	defaultAgentId?: string | null;
 	availableAgentIds: readonly string[];
 }): string | null {
+	// 1. Explicit user selection in current session wins
 	if (options.selectedAgentId && options.availableAgentIds.includes(options.selectedAgentId)) {
 		return options.selectedAgentId;
 	}
 
+	// 2. User's persisted default agent preference
+	if (options.defaultAgentId && options.availableAgentIds.includes(options.defaultAgentId)) {
+		return options.defaultAgentId;
+	}
+
+	// 3. First available agent
 	const firstAvailableAgentId = options.availableAgentIds[0];
 	return firstAvailableAgentId ? firstAvailableAgentId : null;
 }

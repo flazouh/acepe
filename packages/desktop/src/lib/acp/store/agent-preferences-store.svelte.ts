@@ -13,6 +13,7 @@ const HAS_COMPLETED_ONBOARDING_KEY: UserSettingKey = "has_completed_onboarding";
 const SELECTED_AGENT_IDS_KEY: UserSettingKey = "selected_agent_ids";
 const CUSTOM_AGENT_CONFIGS_KEY: UserSettingKey = "custom_agent_configs";
 const AGENT_ENV_OVERRIDES_KEY = "agent_env_overrides";
+const DEFAULT_AGENT_ID_KEY: UserSettingKey = "default_agent_id";
 
 export type AgentEnvOverrides = Record<string, Record<string, string>>;
 
@@ -205,6 +206,7 @@ function chainPersistOperations(operations: ReadonlyArray<ResultAsync<void, AppE
 
 export class AgentPreferencesStore {
 	selectedAgentIds = $state<string[]>([]);
+	defaultAgentId = $state<string | null>(null);
 	onboardingCompleted = $state<boolean>(false);
 	customAgentConfigs = $state<CustomAgentConfig[]>([]);
 	agentEnvOverrides = $state<AgentEnvOverrides>({});
@@ -218,6 +220,7 @@ export class AgentPreferencesStore {
 			tauriClient.settings.get<string[]>(SELECTED_AGENT_IDS_KEY),
 			tauriClient.settings.get<CustomAgentConfig[]>(CUSTOM_AGENT_CONFIGS_KEY),
 			tauriClient.settings.get<AgentEnvOverrides>(AGENT_ENV_OVERRIDES_KEY),
+			tauriClient.settings.get<string>(DEFAULT_AGENT_ID_KEY),
 		])
 			.andThen(
 				([
@@ -225,6 +228,7 @@ export class AgentPreferencesStore {
 					persistedSelectedAgentIds,
 					persistedCustom,
 					persistedAgentEnvOverrides,
+					persistedDefaultAgentId,
 				]) => {
 					const initState = deriveAgentPreferencesInitializationState({
 						persistedOnboardingCompleted,
@@ -237,6 +241,10 @@ export class AgentPreferencesStore {
 					this.selectedAgentIds = initState.selectedAgentIds;
 					this.customAgentConfigs = persistedCustom ?? [];
 					this.agentEnvOverrides = persistedAgentEnvOverrides ?? {};
+					this.defaultAgentId =
+						persistedDefaultAgentId && initState.selectedAgentIds.includes(persistedDefaultAgentId)
+							? persistedDefaultAgentId
+							: null;
 
 					const persistOperations: ResultAsync<void, AppError>[] = [];
 					if (initState.shouldPersistOnboardingCompleted) {
@@ -269,9 +277,31 @@ export class AgentPreferencesStore {
 
 		const normalized = validation.value;
 		this.selectedAgentIds = normalized;
+
+		// Clear default agent if it was removed from the selected list
+		if (this.defaultAgentId && !normalized.includes(this.defaultAgentId)) {
+			this.defaultAgentId = null;
+			return tauriClient.settings
+				.set(SELECTED_AGENT_IDS_KEY, normalized)
+				.andThen(() => tauriClient.settings.set(DEFAULT_AGENT_ID_KEY, null))
+				.mapErr((error) => new Error(`Failed to persist selected agents: ${error.message}`));
+		}
+
 		return tauriClient.settings
 			.set(SELECTED_AGENT_IDS_KEY, normalized)
 			.mapErr((error) => new Error(`Failed to persist selected agents: ${error.message}`));
+	}
+
+	setDefaultAgentId(agentId: string | null): ResultAsync<void, Error> {
+		// Validate that the agent is in the selected list (or null to clear)
+		if (agentId !== null && !this.selectedAgentIds.includes(agentId)) {
+			return okAsync(undefined);
+		}
+
+		this.defaultAgentId = agentId;
+		return tauriClient.settings
+			.set(DEFAULT_AGENT_ID_KEY, agentId)
+			.mapErr((error) => new Error(`Failed to persist default agent: ${error.message}`));
 	}
 
 	completeOnboarding(agentIds: readonly string[]): ResultAsync<void, Error> {
@@ -332,4 +362,9 @@ export function getAgentPreferencesStore(): AgentPreferencesStore {
 	return getContext<AgentPreferencesStore>(AGENT_PREFERENCES_STORE_KEY);
 }
 
-export { CUSTOM_AGENT_CONFIGS_KEY, HAS_COMPLETED_ONBOARDING_KEY, SELECTED_AGENT_IDS_KEY };
+export {
+	CUSTOM_AGENT_CONFIGS_KEY,
+	DEFAULT_AGENT_ID_KEY,
+	HAS_COMPLETED_ONBOARDING_KEY,
+	SELECTED_AGENT_IDS_KEY,
+};

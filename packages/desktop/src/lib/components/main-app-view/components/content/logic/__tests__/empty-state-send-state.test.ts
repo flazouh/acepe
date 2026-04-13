@@ -151,6 +151,46 @@ describe("empty-state send state", () => {
 		).toBe("cursor");
 	});
 
+	it("prefers default agent when no explicit selection exists", () => {
+		expect(
+			resolveEmptyStateAgentId({
+				selectedAgentId: null,
+				defaultAgentId: "opencode",
+				availableAgentIds: ["cursor", "opencode", "claude-code"],
+			})
+		).toBe("opencode");
+	});
+
+	it("explicit selection wins over default agent", () => {
+		expect(
+			resolveEmptyStateAgentId({
+				selectedAgentId: "cursor",
+				defaultAgentId: "opencode",
+				availableAgentIds: ["cursor", "opencode"],
+			})
+		).toBe("cursor");
+	});
+
+	it("falls back to first available when default agent is not in available list", () => {
+		expect(
+			resolveEmptyStateAgentId({
+				selectedAgentId: null,
+				defaultAgentId: "opencode",
+				availableAgentIds: ["cursor", "claude-code"],
+			})
+		).toBe("cursor");
+	});
+
+	it("falls back to first available when default agent is null", () => {
+		expect(
+			resolveEmptyStateAgentId({
+				selectedAgentId: null,
+				defaultAgentId: null,
+				availableAgentIds: ["cursor", "claude-code"],
+			})
+		).toBe("cursor");
+	});
+
 	it("blocks first send when no agent is selected", () => {
 		expect(
 			canSendWithoutSession({

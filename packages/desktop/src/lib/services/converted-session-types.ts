@@ -3,9 +3,6 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-// Types referenced by ConnectionComplete lifecycle event
-import type { SessionModelState, SessionModes } from "./acp-types.js";
-
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
  */
@@ -53,7 +50,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands: AvailableCommand[]; config_options: ConfigOptionData[]; autonomous_enabled: boolean } | 
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } | 
 /**
  * Emitted by the async resume task when session connection fails.
  */
@@ -678,9 +675,13 @@ export type UserSettingKey =
  */
 "dismissed_tooltips" | 
 /**
- * Whether the attention queue panel is shown in the sidebar (boolean, default false)
+ * Whether the attention queue panel is shown in the sidebar (boolean)
  */
-"attention_queue_enabled"
+"attention_queue_enabled" | 
+/**
+ * User's preferred default agent ID for new sessions
+ */
+"default_agent_id"
 
 /**
  * Information about a single indexed file.

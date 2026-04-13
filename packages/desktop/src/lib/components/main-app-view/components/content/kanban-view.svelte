@@ -175,6 +175,7 @@ const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 const effectiveAgentId = $derived(
 	resolveEmptyStateAgentId({
 		selectedAgentId,
+		defaultAgentId: agentPreferencesStore.defaultAgentId,
 		availableAgentIds,
 	})
 );
@@ -818,6 +819,7 @@ function resetNewSessionState(request?: KanbanNewSessionRequest): void {
 		focusedProjectPath: panelStore.focusedViewProjectPath,
 		availableAgents,
 		selectedAgentIds: agentPreferencesStore.selectedAgentIds,
+		defaultAgentId: agentPreferencesStore.defaultAgentId,
 		requestedProjectPath: request?.projectPath ?? null,
 		requestedAgentId: request?.agentId ?? null,
 	});
