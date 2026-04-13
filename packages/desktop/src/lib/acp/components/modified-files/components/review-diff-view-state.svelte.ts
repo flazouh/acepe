@@ -40,8 +40,64 @@ type AnnotationMetadata = {
 	hunkIndex: number;
 };
 
+type LegacyContextContent = {
+	type: "context";
+	lines: number;
+	noEOFCR: boolean;
+};
+
+type LegacyChangeContent = {
+	type: "change";
+	deletions: number;
+	additions: number;
+	deletionLineIndex: number;
+	additionLineIndex: number;
+	noEOFCRDeletions: boolean;
+	noEOFCRAdditions: boolean;
+};
+
+type CompatibleHunkContent =
+	| FileDiffMetadata["hunks"][number]["hunkContent"][number]
+	| LegacyContextContent
+	| LegacyChangeContent;
+type CompatibleFileDiffMetadata = FileDiffMetadata & {
+	deletionLines?: string[];
+	additionLines?: string[];
+};
+
 function getLinesForRange(lines: string[], startIndex: number, count: number): string[] {
 	return lines.slice(startIndex, startIndex + count);
+}
+
+function getContentLineCount(lines: string[] | number): number {
+	return Array.isArray(lines) ? lines.length : lines;
+}
+
+function isLegacyChangeContent(content: CompatibleHunkContent): content is LegacyChangeContent {
+	return content.type === "change" && !Array.isArray(content.deletions);
+}
+
+function getLegacyDeletionLines(fileDiffMetadata: CompatibleFileDiffMetadata): string[] {
+	return fileDiffMetadata.oldLines ?? fileDiffMetadata.deletionLines ?? [];
+}
+
+function getChangeDeletionLines(
+	fileDiffMetadata: CompatibleFileDiffMetadata,
+	content: CompatibleHunkContent
+): string[] {
+	if (content.type !== "change") {
+		return [];
+	}
+
+	if (!isLegacyChangeContent(content)) {
+		return content.deletions;
+	}
+
+	return getLinesForRange(
+		getLegacyDeletionLines(fileDiffMetadata),
+		content.deletionLineIndex,
+		content.deletions
+	);
 }
 
 /**
@@ -272,10 +328,11 @@ export class ReviewDiffViewState {
 	private buildLineAnnotationsFromHunks(
 		fileDiff: FileDiffMetadata
 	): DiffLineAnnotation<AnnotationMetadata>[] {
+		const compatibleMetadata = fileDiff as CompatibleFileDiffMetadata;
 		const annotations: DiffLineAnnotation<AnnotationMetadata>[] = [];
 
-		for (let hunkIndex = 0; hunkIndex < fileDiff.hunks.length; hunkIndex++) {
-			const hunk = fileDiff.hunks[hunkIndex];
+		for (let hunkIndex = 0; hunkIndex < compatibleMetadata.hunks.length; hunkIndex++) {
+			const hunk = compatibleMetadata.hunks[hunkIndex];
 
 			// Skip resolved hunks (context-only after diffAcceptRejectHunk)
 			const hasChanges = hunk.hunkContent.some((c) => c.type === "change");
@@ -285,14 +342,16 @@ export class ReviewDiffViewState {
 			let deletionLineOffset = 0;
 			let annotationPlaced = false;
 
-			for (const content of hunk.hunkContent) {
+			for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
 				if (content.type === "context") {
-					additionLineOffset += content.lines.length;
-					deletionLineOffset += content.lines.length;
+					const lineCount = getContentLineCount(content.lines);
+					additionLineOffset += lineCount;
+					deletionLineOffset += lineCount;
 				} else if (content.type === "change") {
-					if (content.additions.length > 0) {
+					const additionsCount = getContentLineCount(content.additions);
+					if (additionsCount > 0) {
 						const lastAdditionLineNumber =
-							hunk.additionStart + additionLineOffset + content.additions.length - 1;
+							hunk.additionStart + additionLineOffset + additionsCount - 1;
 						annotations.push({
 							side: "additions",
 							lineNumber: lastAdditionLineNumber,
@@ -301,7 +360,7 @@ export class ReviewDiffViewState {
 						annotationPlaced = true;
 						break;
 					}
-					deletionLineOffset += content.deletions.length;
+					deletionLineOffset += getContentLineCount(content.deletions);
 				}
 			}
 
@@ -371,9 +430,10 @@ export class ReviewDiffViewState {
 		if (!hunk) return "";
 
 		const deletions: string[] = [];
-		for (const content of hunk.hunkContent) {
+		const compatibleMetadata = this.currentDiffData.fileDiffMetadata as CompatibleFileDiffMetadata;
+		for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
 			if (content.type === "change") {
-				deletions.push(...content.deletions);
+				deletions.push(...getChangeDeletionLines(compatibleMetadata, content));
 			}
 		}
 

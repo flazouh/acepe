@@ -1,5 +1,27 @@
 import { type FileDiffMetadata, SPLIT_WITH_NEWLINES } from "@pierre/diffs";
 
+type LegacyContextContent = {
+	type: "context";
+	lines: number;
+	noEOFCR: boolean;
+};
+
+type LegacyChangeContent = {
+	type: "change";
+	deletions: number;
+	additions: number;
+	deletionLineIndex: number;
+	additionLineIndex: number;
+	noEOFCRDeletions: boolean;
+	noEOFCRAdditions: boolean;
+};
+
+type CompatibleHunkContent = FileDiffMetadata["hunks"][number]["hunkContent"][number] | LegacyContextContent | LegacyChangeContent;
+type CompatibleFileDiffMetadata = FileDiffMetadata & {
+	deletionLines?: string[];
+	additionLines?: string[];
+};
+
 function appendLines(target: string[], source: string[]): void {
 	for (const line of source) {
 		target.push(line);
@@ -8,6 +30,36 @@ function appendLines(target: string[], source: string[]): void {
 
 function splitFileContent(contents: string): string[] {
 	return contents === "" ? [] : contents.split(SPLIT_WITH_NEWLINES);
+}
+
+function getContentLineCount(lines: string[] | number): number {
+	return Array.isArray(lines) ? lines.length : lines;
+}
+
+function isLegacyChangeContent(content: CompatibleHunkContent): content is LegacyChangeContent {
+	return content.type === "change" && !Array.isArray(content.deletions);
+}
+
+function getLegacyOldLines(fileDiffMetadata: CompatibleFileDiffMetadata): string[] {
+	return fileDiffMetadata.oldLines ?? fileDiffMetadata.deletionLines ?? [];
+}
+
+function getChangeDeletionLines(
+	fileDiffMetadata: CompatibleFileDiffMetadata,
+	content: CompatibleHunkContent
+): string[] {
+	if (content.type !== "change") {
+		return [];
+	}
+
+	if (!isLegacyChangeContent(content)) {
+		return content.deletions;
+	}
+
+	return getLegacyOldLines(fileDiffMetadata).slice(
+		content.deletionLineIndex,
+		content.deletionLineIndex + content.deletions
+	);
 }
 
 /**
@@ -29,7 +81,8 @@ export function computeRevertedFileContent(
 	fileDiffMetadata: FileDiffMetadata,
 	hunkIndex: number
 ): string {
-	const hunk = fileDiffMetadata.hunks[hunkIndex];
+	const compatibleMetadata = fileDiffMetadata as CompatibleFileDiffMetadata;
+	const hunk = compatibleMetadata.hunks[hunkIndex];
 	if (!hunk) {
 		return newFileContent;
 	}
@@ -43,21 +96,22 @@ export function computeRevertedFileContent(
 	const revertedLines = currentAdditionLines.slice(0, hunkAdditionStartIndex);
 	let nextCurrentLineIndex = hunkAdditionStartIndex;
 
-	for (const content of hunk.hunkContent) {
+	for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
 		if (content.type === "context") {
+			const contextLineCount = getContentLineCount(content.lines);
 			appendLines(
 				revertedLines,
 				currentAdditionLines.slice(
 					nextCurrentLineIndex,
-					nextCurrentLineIndex + content.lines.length
+					nextCurrentLineIndex + contextLineCount
 				)
 			);
-			nextCurrentLineIndex += content.lines.length;
+			nextCurrentLineIndex += contextLineCount;
 			continue;
 		}
 
-		appendLines(revertedLines, content.deletions);
-		nextCurrentLineIndex += content.additions.length;
+		appendLines(revertedLines, getChangeDeletionLines(compatibleMetadata, content));
+		nextCurrentLineIndex += getContentLineCount(content.additions);
 	}
 
 	appendLines(revertedLines, currentAdditionLines.slice(nextCurrentLineIndex));
