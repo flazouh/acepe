@@ -117,9 +117,6 @@ export function shouldObserveRevealResize(
 	entry: VirtualizedDisplayEntry,
 	isStreaming: boolean
 ): boolean {
-	if (!isStreaming) {
-		return false;
-	}
-
+	void isStreaming;
 	return getVirtualizedDisplayEntryKey(entry) === getLatestStreamingResizeTargetKey(displayEntries);
 }

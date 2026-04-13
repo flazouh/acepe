@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStreamingTail } from "../parse-streaming-tail.js";
+import { parseStreamingTail, parseStreamingTailIncremental } from "../parse-streaming-tail.js";
 
 describe("parseStreamingTail", () => {
 	it("returns no sections for empty input", () => {
@@ -13,7 +13,7 @@ describe("parseStreamingTail", () => {
 		expect(parseStreamingTail("# Title\n\nHello")).toEqual({
 			sections: [
 				{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
-				{ key: "LIVE:1", kind: "live-text", text: "Hello" },
+				{ key: "LIVE:1", kind: "live-text", text: "Hello", source: "Hello" },
 			],
 		});
 	});
@@ -32,6 +32,7 @@ describe("parseStreamingTail", () => {
 					kind: "live-code",
 					code: "const a = 1;\nconst b = 2;",
 					language: "ts",
+					source: "```ts\nconst a = 1;\nconst b = 2;",
 				},
 			],
 		});
@@ -45,6 +46,7 @@ describe("parseStreamingTail", () => {
 					kind: "live-code",
 					code: "const a = 1;",
 					language: null,
+					source: "```\nconst a = 1;",
 				},
 			],
 		});
@@ -60,5 +62,35 @@ describe("parseStreamingTail", () => {
 				},
 			],
 		});
+	});
+
+	it("reuses stable settled prefix sections for append-only reveal growth", () => {
+		const previous = parseStreamingTail("# Title\n\nHello");
+		const next = parseStreamingTailIncremental("# Title\n\nHello", previous, "# Title\n\nHello world");
+
+		expect(next.sections).toEqual([
+			{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
+			{ key: "LIVE:1", kind: "live-text", text: "Hello world", source: "Hello world" },
+		]);
+		expect(next.sections[0]).toBe(previous.sections[0]);
+	});
+
+	it("reparses only the previous live tail when reveal growth creates a new block", () => {
+		const previous = parseStreamingTail("# Title\n\nHello");
+		const next = parseStreamingTailIncremental("# Title\n\nHello", previous, "# Title\n\nHello\n\nNext");
+
+		expect(next.sections).toEqual([
+			{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
+			{ key: "SETTLED:1", kind: "settled", markdown: "Hello" },
+			{ key: "LIVE:2", kind: "live-text", text: "Next", source: "Next" },
+		]);
+		expect(next.sections[0]).toBe(previous.sections[0]);
+	});
+
+	it("preserves partial fence headers when reparsing an incrementally grown live code block", () => {
+		const previous = parseStreamingTail("```");
+		const next = parseStreamingTailIncremental("```", previous, "```ts\nconst a = 1;");
+
+		expect(next).toEqual(parseStreamingTail("```ts\nconst a = 1;"));
 	});
 });

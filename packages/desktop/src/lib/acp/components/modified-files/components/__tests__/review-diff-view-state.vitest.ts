@@ -144,8 +144,8 @@ describe("ReviewDiffViewState", () => {
 		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
 		expect(currentData.newFile.contents).not.toBe(originalNewContents);
 
-		// The updated contents should match additionLines joined
-		expect(currentData.newFile.contents).toBe(currentData.fileDiffMetadata.additionLines.join(""));
+		expect(currentData.fileDiffMetadata.newLines).toBeDefined();
+		expect(currentData.newFile.contents).toBe(currentData.fileDiffMetadata.newLines?.join(""));
 	}, 20_000);
 
 	it("sequential rejects produce correct content (all changes reverted)", async () => {

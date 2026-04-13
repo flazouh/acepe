@@ -526,6 +526,7 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 					isStreaming={isStreaming &&
 						entry.id === (lastAssistantId ?? "") &&
 						index === displayEntries.length - 1}
+					revealMessageKey={getKey(entry)}
 					{projectPath}
 				/>
 			{:else if entry.type === "assistant_merged_thoughts"}
@@ -534,6 +535,7 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 					isStreaming={isStreaming &&
 						entry.memberIds.includes(lastAssistantId ?? "") &&
 						index === displayEntries.length - 1}
+					revealMessageKey={getKey(entry)}
 					{projectPath}
 				/>
 			{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}

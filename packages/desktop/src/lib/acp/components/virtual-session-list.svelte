@@ -114,7 +114,11 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 						{#if entry.type === "user"}
 							<UserMessage message={entry.message as UserMessageType} />
 						{:else if entry.type === "assistant"}
-							<AssistantMessage message={entry.message as AssistantMessageType} {projectPath} />
+							<AssistantMessage
+								message={entry.message as AssistantMessageType}
+								revealMessageKey={entry.id}
+								{projectPath}
+							/>
 						{:else if entry.type === "ask"}
 							<AskMessage message={entry.message as AskMessageType} />
 						{:else if entry.type === "tool_call"}

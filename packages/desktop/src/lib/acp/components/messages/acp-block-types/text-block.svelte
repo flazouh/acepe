@@ -4,10 +4,11 @@ import MarkdownText from "../markdown-text.svelte";
 interface Props {
 	text: string;
 	isStreaming?: boolean;
+	revealKey?: string;
 	projectPath?: string;
 }
 
-let { text, isStreaming = false, projectPath }: Props = $props();
+let { text, isStreaming = false, revealKey, projectPath }: Props = $props();
 </script>
 
-<MarkdownText {text} {isStreaming} {projectPath} />
+<MarkdownText {text} {isStreaming} {revealKey} {projectPath} />
