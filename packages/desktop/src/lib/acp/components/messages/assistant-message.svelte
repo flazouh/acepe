@@ -209,6 +209,7 @@ $effect(() => {
 									<ContentBlockRouter
 										block={{ type: "text", text: group.text }}
 										isStreaming={isStreaming && isLastThoughtGroup}
+										revealKey={isLastThoughtGroup ? `${message.id}:thought:${index}` : undefined}
 										{projectPath}
 									/>
 								{:else}
@@ -227,6 +228,7 @@ $effect(() => {
 						<ContentBlockRouter
 							block={{ type: "text", text: group.text }}
 							isStreaming={isStreaming && isLastGroup}
+							revealKey={isLastGroup ? `${message.id}:message:${index}` : undefined}
 							{projectPath}
 						/>
 					{:else}

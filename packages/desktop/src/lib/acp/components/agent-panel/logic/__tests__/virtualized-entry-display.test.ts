@@ -90,6 +90,7 @@ describe("virtualized-entry-display", () => {
 		display.push(THINKING_DISPLAY_ENTRY);
 
 		expect(shouldObserveRevealResize(display, display[0]!, true)).toBe(true);
+		expect(shouldObserveRevealResize(display, display[0]!, false)).toBe(true);
 		expect(shouldObserveRevealResize(display, THINKING_DISPLAY_ENTRY, true)).toBe(false);
 	});
 });
