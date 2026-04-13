@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 
 export interface ArchivedSessionRef {
 	sessionId: string;
@@ -21,10 +21,9 @@ export class ThreadListSettingsService {
 	 * Save thread list settings to persistent storage.
 	 */
 	saveSettings(settings: ThreadListSettings): ResultAsync<void, Error> {
-		return ResultAsync.fromPromise(
-			invoke<void>("save_thread_list_settings", { settings }),
-			(error) => new Error(`Failed to save thread list settings: ${error}`)
-		);
+		return settingsService.saveThreadListSettings(settings).mapErr((error) => {
+			return new Error(`Failed to save thread list settings: ${error}`);
+		});
 	}
 
 	/**
@@ -32,10 +31,9 @@ export class ThreadListSettingsService {
 	 * Returns default settings if none have been saved.
 	 */
 	getSettings(): ResultAsync<ThreadListSettings, Error> {
-		return ResultAsync.fromPromise(
-			invoke<ThreadListSettings>("get_thread_list_settings"),
-			(error) => new Error(`Failed to get thread list settings: ${error}`)
-		).map((settings) => ({
+		return settingsService.getThreadListSettings().mapErr((error) => {
+			return new Error(`Failed to get thread list settings: ${error}`);
+		}).map((settings) => ({
 			hiddenProjects: settings.hiddenProjects,
 			archivedSessions: settings.archivedSessions ?? [],
 		}));
@@ -99,6 +97,7 @@ export class ThreadListSettingsService {
 
 // Singleton instance
 let instance: ThreadListSettingsService | null = null;
+const settingsService = settings;
 
 export function getThreadListSettingsService(): ThreadListSettingsService {
 	if (!instance) {

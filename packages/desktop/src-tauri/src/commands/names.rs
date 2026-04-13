@@ -2,271 +2,181 @@
 /// These are exported to TypeScript via specta to ensure type safety.
 use serde::Serialize;
 
-#[macro_export]
-macro_rules! project_storage_command_idents {
-    ($callback:ident) => {
-        $callback!(
-            get_projects,
-            get_recent_projects,
-            get_project_count,
-            get_missing_project_paths,
-            import_project,
-            add_project,
-            update_project_color,
-            update_project_icon,
-            update_project_order,
-            remove_project,
-            browse_project
-        )
+macro_rules! define_command_group {
+    ($struct_name:ident, $const_name:ident, $($field:ident : $command:ident),* $(,)?) => {
+        #[derive(Debug, Clone, Serialize, specta::Type)]
+        #[serde(rename_all = "snake_case")]
+        #[allow(dead_code)]
+        pub struct $struct_name {
+            $(
+                pub $field: &'static str,
+            )*
+        }
+
+        #[allow(dead_code)]
+        pub const $const_name: $struct_name = $struct_name {
+            $(
+                $field: stringify!($command),
+            )*
+        };
     };
 }
 
-/// ACP (Agent Client Protocol) command names
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct AcpCommands {
-    pub initialize: &'static str,
-    pub new_session: &'static str,
-    pub resume_session: &'static str,
-    pub fork_session: &'static str,
-    pub set_model: &'static str,
-    pub set_mode: &'static str,
-    pub set_session_autonomous: &'static str,
-    pub send_prompt: &'static str,
-    pub cancel: &'static str,
-    pub list_agents: &'static str,
-    pub install_agent: &'static str,
-    pub uninstall_agent: &'static str,
-    pub get_capabilities: &'static str,
-}
+crate::acp_command_entries!(define_command_group, AcpCommands, ACP_COMMANDS);
+crate::fs_command_entries!(define_command_group, FsCommands, FS_COMMANDS);
+crate::history_command_entries!(define_command_group, HistoryCommands, HISTORY_COMMANDS);
+crate::cursor_history_command_entries!(
+    define_command_group,
+    CursorHistoryCommands,
+    CURSOR_HISTORY_COMMANDS
+);
+crate::opencode_history_command_entries!(
+    define_command_group,
+    OpenCodeHistoryCommands,
+    OPENCODE_HISTORY_COMMANDS
+);
+crate::storage_command_entries!(define_command_group, StorageCommands, STORAGE_COMMANDS);
+crate::file_index_command_entries!(define_command_group, FileIndexCommands, FILE_INDEX_COMMANDS);
+crate::terminal_command_entries!(define_command_group, TerminalCommands, TERMINAL_COMMANDS);
+crate::git_command_entries!(define_command_group, GitCommands, GIT_COMMANDS);
+crate::checkpoint_command_entries!(define_command_group, CheckpointCommands, CHECKPOINT_COMMANDS);
+crate::skills_command_entries!(define_command_group, SkillsCommands, SKILLS_COMMANDS);
+crate::sql_studio_command_entries!(define_command_group, SqlStudioCommands, SQL_STUDIO_COMMANDS);
+crate::github_command_entries!(define_command_group, GitHubCommands, GITHUB_COMMANDS);
+crate::browser_webview_command_entries!(
+    define_command_group,
+    BrowserWebviewCommands,
+    BROWSER_WEBVIEW_COMMANDS
+);
+crate::voice_command_entries!(define_command_group, VoiceCommands, VOICE_COMMANDS);
+crate::locale_command_entries!(define_command_group, LocaleCommands, LOCALE_COMMANDS);
+crate::window_command_entries!(define_command_group, WindowCommands, WINDOW_COMMANDS);
 
-#[allow(dead_code)]
-pub const ACP_COMMANDS: AcpCommands = AcpCommands {
-    initialize: "acp_initialize",
-    new_session: "acp_new_session",
-    resume_session: "acp_resume_session",
-    fork_session: "acp_fork_session",
-    set_model: "acp_set_model",
-    set_mode: "acp_set_mode",
-    set_session_autonomous: "acp_set_session_autonomous",
-    send_prompt: "acp_send_prompt",
-    cancel: "acp_cancel",
-    list_agents: "acp_list_agents",
-    install_agent: "acp_install_agent",
-    uninstall_agent: "acp_uninstall_agent",
-    get_capabilities: "acp_get_capabilities",
-};
-
-/// Session history command names (jsonl-backed session list and messages).
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct SessionHistoryCommands {
-    pub get_session_history: &'static str,
-    pub get_session_messages: &'static str,
-    pub get_full_session: &'static str,
-    pub get_converted_session: &'static str,
-    pub get_cache_stats: &'static str,
-    pub invalidate_history_cache: &'static str,
-    pub reset_cache_stats: &'static str,
-}
-
-#[allow(dead_code)]
-pub const SESSION_HISTORY_COMMANDS: SessionHistoryCommands = SessionHistoryCommands {
-    get_session_history: "get_session_history",
-    get_session_messages: "get_session_messages",
-    get_full_session: "get_full_session",
-    get_converted_session: "get_converted_session",
-    get_cache_stats: "get_cache_stats",
-    invalidate_history_cache: "invalidate_history_cache",
-    reset_cache_stats: "reset_cache_stats",
-};
-
-/// Storage command names
-macro_rules! storage_command_project_fields {
-    ($($command:ident),* $(,)?) => {
-        $(
-            pub $command: &'static str,
-        )*
-    };
-}
-
-macro_rules! storage_command_project_values {
-    ($($command:ident),* $(,)?) => {
-        $(
-            $command: stringify!($command),
-        )*
-    };
-}
-
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct StorageCommands {
-    pub save_conversation_metadata: &'static str,
-    pub get_conversation_metadata: &'static str,
-    pub get_all_conversation_metadata: &'static str,
-    pub delete_conversation_metadata: &'static str,
-    pub update_conversation_metadata: &'static str,
-    pub delete_conversation: &'static str,
-    pub open_in_finder: &'static str,
-    pub open_streaming_log: &'static str,
-    project_storage_command_idents!(storage_command_project_fields)
-    pub get_all_conversations: &'static str,
-    pub upsert_conversation: &'static str,
-    pub get_user_setting: &'static str,
-    pub save_user_setting: &'static str,
-    pub get_panel_layout: &'static str,
-    pub save_panel_layout: &'static str,
-    pub clear_panel_layout: &'static str,
-    pub get_thread_list_settings: &'static str,
-    pub save_thread_list_settings: &'static str,
-    pub get_api_key: &'static str,
-    pub save_api_key: &'static str,
-    pub delete_api_key: &'static str,
-    pub get_user_keybindings: &'static str,
-    pub save_user_keybinding: &'static str,
-    pub delete_user_keybinding: &'static str,
-    pub reset_keybindings_to_defaults: &'static str,
-}
-
-#[allow(dead_code)]
-pub const STORAGE_COMMANDS: StorageCommands = StorageCommands {
-    save_conversation_metadata: "save_conversation_metadata",
-    get_conversation_metadata: "get_conversation_metadata",
-    get_all_conversation_metadata: "get_all_conversation_metadata",
-    delete_conversation_metadata: "delete_conversation_metadata",
-    update_conversation_metadata: "update_conversation_metadata",
-    delete_conversation: "delete_conversation",
-    open_in_finder: "open_in_finder",
-    open_streaming_log: "open_streaming_log",
-    project_storage_command_idents!(storage_command_project_values)
-    get_all_conversations: "get_all_conversations",
-    upsert_conversation: "upsert_conversation",
-    get_user_setting: "get_user_setting",
-    save_user_setting: "save_user_setting",
-    get_panel_layout: "get_panel_layout",
-    save_panel_layout: "save_panel_layout",
-    clear_panel_layout: "clear_panel_layout",
-    get_thread_list_settings: "get_thread_list_settings",
-    save_thread_list_settings: "save_thread_list_settings",
-    get_api_key: "get_api_key",
-    save_api_key: "save_api_key",
-    delete_api_key: "delete_api_key",
-    get_user_keybindings: "get_user_keybindings",
-    save_user_keybinding: "save_user_keybinding",
-    delete_user_keybinding: "delete_user_keybinding",
-    reset_keybindings_to_defaults: "reset_keybindings_to_defaults",
-};
-
-/// Cursor history command names
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct CursorHistoryCommands {
-    pub get_cursor_history: &'static str,
-    pub get_cursor_session: &'static str,
-}
-
-#[allow(dead_code)]
-pub const CURSOR_HISTORY_COMMANDS: CursorHistoryCommands = CursorHistoryCommands {
-    get_cursor_history: "get_cursor_history",
-    get_cursor_session: "get_cursor_session",
-};
-
-/// GitHub integration command names
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct GitHubCommands {
-    pub get_github_repo_context: &'static str,
-    pub list_pull_requests: &'static str,
-    pub fetch_commit_diff: &'static str,
-    pub fetch_pr_diff: &'static str,
-    pub git_working_file_diff: &'static str,
-}
-
-#[allow(dead_code)]
-pub const GITHUB_COMMANDS: GitHubCommands = GitHubCommands {
-    get_github_repo_context: "get_github_repo_context",
-    list_pull_requests: "list_pull_requests",
-    fetch_commit_diff: "fetch_commit_diff",
-    fetch_pr_diff: "fetch_pr_diff",
-    git_working_file_diff: "git_working_file_diff",
-};
-
-/// Voice command names
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub struct VoiceCommands {
-    pub list_models: &'static str,
-    pub list_languages: &'static str,
-    pub get_model_status: &'static str,
-    pub download_model: &'static str,
-    pub delete_model: &'static str,
-    pub start_recording: &'static str,
-    pub stop_recording: &'static str,
-    pub cancel_recording: &'static str,
-    pub load_model: &'static str,
-}
-
-#[allow(dead_code)]
-pub const VOICE_COMMANDS: VoiceCommands = VoiceCommands {
-    list_models: "voice_list_models",
-    list_languages: "voice_list_languages",
-    get_model_status: "voice_get_model_status",
-    download_model: "voice_download_model",
-    delete_model: "voice_delete_model",
-    start_recording: "voice_start_recording",
-    stop_recording: "voice_stop_recording",
-    cancel_recording: "voice_cancel_recording",
-    load_model: "voice_load_model",
-};
-
-/// All command name constants grouped by category
+/// All command name constants grouped by category.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub struct Commands {
     pub acp: AcpCommands,
-    pub session_history: SessionHistoryCommands,
-    pub storage: StorageCommands,
+    pub fs: FsCommands,
+    pub history: HistoryCommands,
     pub cursor_history: CursorHistoryCommands,
+    pub opencode_history: OpenCodeHistoryCommands,
+    pub storage: StorageCommands,
+    pub file_index: FileIndexCommands,
+    pub terminal: TerminalCommands,
+    pub git: GitCommands,
+    pub checkpoint: CheckpointCommands,
+    pub skills: SkillsCommands,
+    pub sql_studio: SqlStudioCommands,
     pub github: GitHubCommands,
+    pub browser_webview: BrowserWebviewCommands,
     pub voice: VoiceCommands,
+    pub locale: LocaleCommands,
+    pub window: WindowCommands,
 }
 
 #[allow(dead_code)]
 pub const COMMANDS: Commands = Commands {
     acp: ACP_COMMANDS,
-    session_history: SESSION_HISTORY_COMMANDS,
-    storage: STORAGE_COMMANDS,
+    fs: FS_COMMANDS,
+    history: HISTORY_COMMANDS,
     cursor_history: CURSOR_HISTORY_COMMANDS,
+    opencode_history: OPENCODE_HISTORY_COMMANDS,
+    storage: STORAGE_COMMANDS,
+    file_index: FILE_INDEX_COMMANDS,
+    terminal: TERMINAL_COMMANDS,
+    git: GIT_COMMANDS,
+    checkpoint: CHECKPOINT_COMMANDS,
+    skills: SKILLS_COMMANDS,
+    sql_studio: SQL_STUDIO_COMMANDS,
     github: GITHUB_COMMANDS,
+    browser_webview: BROWSER_WEBVIEW_COMMANDS,
     voice: VOICE_COMMANDS,
+    locale: LOCALE_COMMANDS,
+    window: WINDOW_COMMANDS,
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn render_client_value(output: &mut String, value: &serde_json::Value, path: &str, indent: usize) {
+        match value {
+            serde_json::Value::Object(entries) => {
+                output.push_str("{\n");
+                let mut first = true;
+                for (key, entry_value) in entries {
+                    if !first {
+                        output.push('\n');
+                    }
+                    first = false;
+                    output.push_str(&" ".repeat(indent + 2));
+                    output.push_str(key);
+                    output.push_str(": ");
+
+                    match entry_value {
+                        serde_json::Value::String(_) => {
+                            output.push_str(&format!("createGeneratedCommand({path}.{key})"));
+                        }
+                        serde_json::Value::Object(_) => {
+                            render_client_value(
+                                output,
+                                entry_value,
+                                &format!("{path}.{key}"),
+                                indent + 2,
+                            );
+                        }
+                        _ => panic!("Unsupported command registry shape for client generation"),
+                    }
+
+                    output.push(',');
+                }
+                output.push('\n');
+                output.push_str(&" ".repeat(indent));
+                output.push('}');
+            }
+            _ => panic!("Unsupported command registry shape for client generation"),
+        }
+    }
+
     #[test]
     fn export_bindings() {
-        // Test that all command types can be exported via specta
-        specta_typescript::export::<Commands>(&Default::default())
-            .expect("Failed to export Commands");
+        specta_typescript::export::<Commands>(&Default::default()).expect("Failed to export Commands");
         specta_typescript::export::<AcpCommands>(&Default::default())
             .expect("Failed to export AcpCommands");
-        specta_typescript::export::<SessionHistoryCommands>(&Default::default())
-            .expect("Failed to export ClaudeHistoryCommands");
-        specta_typescript::export::<StorageCommands>(&Default::default())
-            .expect("Failed to export StorageCommands");
+        specta_typescript::export::<FsCommands>(&Default::default())
+            .expect("Failed to export FsCommands");
+        specta_typescript::export::<HistoryCommands>(&Default::default())
+            .expect("Failed to export HistoryCommands");
         specta_typescript::export::<CursorHistoryCommands>(&Default::default())
             .expect("Failed to export CursorHistoryCommands");
+        specta_typescript::export::<OpenCodeHistoryCommands>(&Default::default())
+            .expect("Failed to export OpenCodeHistoryCommands");
+        specta_typescript::export::<StorageCommands>(&Default::default())
+            .expect("Failed to export StorageCommands");
+        specta_typescript::export::<FileIndexCommands>(&Default::default())
+            .expect("Failed to export FileIndexCommands");
+        specta_typescript::export::<TerminalCommands>(&Default::default())
+            .expect("Failed to export TerminalCommands");
+        specta_typescript::export::<GitCommands>(&Default::default())
+            .expect("Failed to export GitCommands");
+        specta_typescript::export::<CheckpointCommands>(&Default::default())
+            .expect("Failed to export CheckpointCommands");
+        specta_typescript::export::<SkillsCommands>(&Default::default())
+            .expect("Failed to export SkillsCommands");
+        specta_typescript::export::<SqlStudioCommands>(&Default::default())
+            .expect("Failed to export SqlStudioCommands");
         specta_typescript::export::<GitHubCommands>(&Default::default())
             .expect("Failed to export GitHubCommands");
+        specta_typescript::export::<BrowserWebviewCommands>(&Default::default())
+            .expect("Failed to export BrowserWebviewCommands");
+        specta_typescript::export::<VoiceCommands>(&Default::default())
+            .expect("Failed to export VoiceCommands");
+        specta_typescript::export::<LocaleCommands>(&Default::default())
+            .expect("Failed to export LocaleCommands");
+        specta_typescript::export::<WindowCommands>(&Default::default())
+            .expect("Failed to export WindowCommands");
     }
 
     #[test]
@@ -275,39 +185,55 @@ mod tests {
         use std::path::Path;
 
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let bindings_path = Path::new(manifest_dir).join("../src/lib/services/command-names.ts");
+        let command_names_path = Path::new(manifest_dir).join("../src/lib/services/command-names.ts");
+        let command_client_path =
+            Path::new(manifest_dir).join("../src/lib/services/tauri-command-client.ts");
 
         let mut output = String::from(
-            "// This file was generated by specta. Do not edit this file manually.\n\n",
+            "// This file was generated from Rust command metadata. Do not edit this file manually.\n\n",
         );
 
-        // Export type definitions
-        macro_rules! export_type {
-            ($ty:ty) => {
-                output.push_str(
-                    &specta_typescript::export::<$ty>(&Default::default())
-                        .expect(concat!("Failed to export ", stringify!($ty))),
-                );
-                output.push_str("\n\n");
-            };
-        }
+        let json = serde_json::to_string_pretty(&COMMANDS).expect("Failed to serialize command names");
+        output.push_str(&format!("export const COMMANDS = {} as const;\n\n", json));
+        output.push_str("export type Commands = typeof COMMANDS;\n");
+        output.push_str("export type AcpCommands = Commands[\"acp\"];\n");
+        output.push_str("export type FsCommands = Commands[\"fs\"];\n");
+        output.push_str("export type HistoryCommands = Commands[\"history\"];\n");
+        output.push_str("export type CursorHistoryCommands = Commands[\"cursor_history\"];\n");
+        output.push_str("export type OpenCodeHistoryCommands = Commands[\"opencode_history\"];\n");
+        output.push_str("export type StorageCommands = Commands[\"storage\"];\n");
+        output.push_str("export type FileIndexCommands = Commands[\"file_index\"];\n");
+        output.push_str("export type TerminalCommands = Commands[\"terminal\"];\n");
+        output.push_str("export type GitCommands = Commands[\"git\"];\n");
+        output.push_str("export type CheckpointCommands = Commands[\"checkpoint\"];\n");
+        output.push_str("export type SkillsCommands = Commands[\"skills\"];\n");
+        output.push_str("export type SqlStudioCommands = Commands[\"sql_studio\"];\n");
+        output.push_str("export type GitHubCommands = Commands[\"github\"];\n");
+        output.push_str("export type BrowserWebviewCommands = Commands[\"browser_webview\"];\n");
+        output.push_str("export type VoiceCommands = Commands[\"voice\"];\n");
+        output.push_str("export type LocaleCommands = Commands[\"locale\"];\n");
+        output.push_str("export type WindowCommands = Commands[\"window\"];\n");
 
-        export_type!(AcpCommands);
-        export_type!(SessionHistoryCommands);
-        export_type!(StorageCommands);
-        export_type!(CursorHistoryCommands);
-        export_type!(GitHubCommands);
-        export_type!(VoiceCommands);
-        export_type!(Commands);
+        fs::write(&command_names_path, output).expect("Failed to write command-names.ts");
 
-        // Also export the actual command values as a constant
-        let json = serde_json::to_string_pretty(&COMMANDS).unwrap();
-        output.push_str(&format!(
-            "export const COMMANDS: Commands = {} as const;\n",
-            json
-        ));
+        let mut client_output = String::from(
+            "// This file was generated from Rust command metadata. Do not edit this file manually.\n\n",
+        );
+        client_output.push_str(
+            "import { createGeneratedCommand } from \"../utils/tauri-client/invoke.js\";\n",
+        );
+        client_output.push_str("import { COMMANDS } from \"./command-names.js\";\n\n");
+        client_output.push_str("export const TAURI_COMMAND_CLIENT = ");
+        let value = serde_json::to_value(&COMMANDS).expect("Failed to convert command names to JSON");
+        render_client_value(&mut client_output, &value, "COMMANDS", 0);
+        client_output.push_str(" as const;\n");
 
-        fs::write(&bindings_path, output).expect("Failed to write command-names.ts");
-        eprintln!("Exported command names to {}", bindings_path.display());
+        fs::write(&command_client_path, client_output)
+            .expect("Failed to write tauri-command-client.ts");
+        eprintln!(
+            "Exported command names to {} and client to {}",
+            command_names_path.display(),
+            command_client_path.display()
+        );
     }
 }

@@ -1,31 +1,34 @@
 import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+
+const storageCommands = TAURI_COMMAND_CLIENT.storage;
+const terminalCommands = TAURI_COMMAND_CLIENT.terminal;
+const localeCommands = TAURI_COMMAND_CLIENT.locale;
 
 export const shell = {
 	openInFinder: (sessionId: string, projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.shell.open_in_finder, { sessionId, projectPath });
+		return storageCommands.open_in_finder.invoke<void>({ sessionId, projectPath });
 	},
 
 	openStreamingLog: (sessionId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.shell.open_streaming_log, { sessionId });
+		return storageCommands.open_streaming_log.invoke<void>({ sessionId });
 	},
 
 	getStreamingLogPath: (sessionId: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.shell.get_streaming_log_path, { sessionId });
+		return storageCommands.get_streaming_log_path.invoke<string>({ sessionId });
 	},
 
 	getSessionFilePath: (sessionId: string, projectPath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.shell.get_session_file_path, { sessionId, projectPath });
+		return storageCommands.get_session_file_path.invoke<string>({ sessionId, projectPath });
 	},
 
 	getDefaultShell: (): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.shell.get_default_shell);
+		return terminalCommands.get_default_shell.invoke<string>();
 	},
 
 	getSystemLocale: (): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.shell.get_system_locale);
+		return localeCommands.get_system_locale.invoke<string>();
 	},
 };

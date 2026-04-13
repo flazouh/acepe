@@ -7,7 +7,6 @@
 -->
 <script lang="ts">
 import { AgentPanelTerminalDrawer as SharedAgentPanelTerminalDrawer } from "@acepe/ui/agent-panel";
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 import { Plus } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
@@ -15,6 +14,7 @@ import { onMount } from "svelte";
 import type { EmbeddedTerminalTab } from "$lib/acp/store/embedded-terminal-store.svelte.js";
 import { EmbeddedTerminalStore } from "$lib/acp/store/embedded-terminal-store.svelte.js";
 import * as m from "$lib/paraglide/messages.js";
+import { shell } from "$lib/utils/tauri-client/shell.js";
 
 import { TerminalRenderer } from "../../terminal-panel/index.js";
 
@@ -50,9 +50,7 @@ let detectedShell: string | null = $state(null);
 let shellError: string | null = $state(null);
 
 onMount(() => {
-	ResultAsync.fromPromise(invoke<string>("get_default_shell"), (e) =>
-		e instanceof Error ? e.message : String(e)
-	).match(
+	shell.getDefaultShell().mapErr((e) => (e instanceof Error ? e.message : String(e))).match(
 		(s) => {
 			detectedShell = s;
 		},

@@ -3,9 +3,9 @@
  * Uses Tauri's user settings for persistence.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 
 import type { PaletteMode } from "../../types/palette-mode.js";
 
@@ -104,10 +104,9 @@ export class RecentItemsStore {
 	 * Load recent items from storage.
 	 */
 	load(): ResultAsync<void, Error> {
-		return ResultAsync.fromPromise(
-			invoke<string | null>("get_user_setting", { key: STORAGE_KEY }),
-			(error) => new Error(`Failed to load recent items: ${error}`)
-		).map((stored) => {
+		return settings.getRaw(STORAGE_KEY).mapErr((error) => {
+			return new Error(`Failed to load recent items: ${error}`);
+		}).map((stored) => {
 			if (stored !== null) {
 				const parsed = JSON.parse(stored) as Partial<StoredRecentItems>;
 				this._items = {
@@ -124,12 +123,12 @@ export class RecentItemsStore {
 	 * Persist current items to storage.
 	 */
 	private persist(): void {
-		invoke("save_user_setting", {
-			key: STORAGE_KEY,
-			value: JSON.stringify(this._items),
-		}).catch((error) => {
-			logger.error("Failed to persist recent items:", error);
-		});
+		settings
+			.setRaw(STORAGE_KEY, JSON.stringify(this._items))
+			.match(
+				() => undefined,
+				(error) => logger.error("Failed to persist recent items:", error)
+			);
 	}
 }
 

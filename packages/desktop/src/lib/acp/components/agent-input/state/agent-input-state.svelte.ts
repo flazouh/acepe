@@ -1,10 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { okAsync, ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { ProjectIndex } from "../../../../services/converted-session-types.js";
+import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
@@ -314,9 +314,10 @@ export class AgentInputState {
 					const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
 					if (imageExtensions.includes(extension)) {
 						// Read image as base64 for preview
-						const content = await invoke<string>("read_image_as_base64", {
-							filePath,
-						}).catch(() => undefined);
+						const content = await fileIndex.readImageAsBase64(filePath).match(
+							(value) => value,
+							() => undefined
+						);
 
 						this.addAttachment({
 							type: "image",
@@ -491,8 +492,7 @@ export class AgentInputState {
 		this.loadedProjectPath = projectPath;
 
 		const invalidateCachedFiles = refresh
-			? ResultAsync.fromPromise(
-					invoke("invalidate_project_files", { projectPath }),
+			? fileIndex.invalidateProjectFiles(projectPath).mapErr(
 					(err) =>
 						new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
 				).orElse((error) => {
@@ -506,11 +506,15 @@ export class AgentInputState {
 
 		return invalidateCachedFiles
 			.andThen(() =>
-				ResultAsync.fromPromise(
-					invoke<ProjectIndex>("get_project_files", { projectPath }),
-					(err) =>
-						new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
-				)
+				fileIndex
+					.getProjectFiles(projectPath)
+					.mapErr(
+						(err) =>
+							new FileLoadError(
+								projectPath,
+								err instanceof Error ? err : new Error(String(err))
+							)
+					)
 			)
 			.map((index) => {
 				// Files arrive pre-sorted from Rust (modified files first, then alphabetically)

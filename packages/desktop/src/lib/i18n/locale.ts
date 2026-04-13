@@ -1,15 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
+import { shell } from "$lib/utils/tauri-client/shell.js";
 
 /**
  * Get the system locale from the Tauri backend
  * @returns ResultAsync containing the locale string (e.g., "en-US", "es-ES")
  */
 export function getSystemLocale(): ResultAsync<string, Error> {
-	return ResultAsync.fromPromise(
-		invoke<string>("get_system_locale"),
-		(error) => new Error(`Failed to get system locale: ${String(error)}`)
-	);
+	return shell.getSystemLocale().mapErr((error) => {
+		return new Error(`Failed to get system locale: ${String(error)}`);
+	});
 }
 
 /**

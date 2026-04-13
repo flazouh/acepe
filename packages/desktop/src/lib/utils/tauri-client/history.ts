@@ -1,19 +1,20 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type {
 	ConvertedSession,
 	SessionPlanResponse,
 } from "../../services/converted-session-types.js";
-import { CMD } from "./commands.js";
-
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
 	HistorySessionMessage,
 	ProjectInfo,
 	ProjectSessionCounts,
 	SessionLoadTiming,
 } from "./types.js";
+
+const historyCommands = TAURI_COMMAND_CLIENT.history;
 
 export const history = {
 	auditSessionLoadTiming: (
@@ -22,7 +23,7 @@ export const history = {
 		agentId: string,
 		sourcePath?: string
 	): ResultAsync<SessionLoadTiming, AppError> => {
-		return invokeAsync(CMD.history.audit_session_load_timing, {
+		return historyCommands.audit_session_load_timing.invoke<SessionLoadTiming>({
 			sessionId,
 			projectPath,
 			agentId,
@@ -36,7 +37,7 @@ export const history = {
 		agentId: string,
 		sourcePath?: string
 	): ResultAsync<ConvertedSession | null, AppError> => {
-		return invokeAsync(CMD.history.get_unified_session, {
+		return historyCommands.get_unified_session.invoke<ConvertedSession | null>({
 			sessionId,
 			projectPath,
 			agentId,
@@ -45,7 +46,7 @@ export const history = {
 	},
 
 	getStartupSessions: (sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> => {
-		return invokeAsync(CMD.history.get_startup_sessions, { sessionIds });
+		return historyCommands.get_startup_sessions.invoke<StartupSessionsResponse>({ sessionIds });
 	},
 
 	getUnifiedPlan: (
@@ -53,71 +54,71 @@ export const history = {
 		projectPath: string,
 		agentId: string
 	): ResultAsync<SessionPlanResponse | null, AppError> => {
-		return invokeAsync(CMD.history.get_unified_plan, { sessionId, projectPath, agentId });
+		return historyCommands.get_unified_plan.invoke<SessionPlanResponse | null>({
+			sessionId,
+			projectPath,
+			agentId,
+		});
 	},
 
 	scanProjectSessions: (projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> => {
-		return invokeAsync(CMD.history.scan_project_sessions, { projectPaths });
+		return historyCommands.scan_project_sessions.invoke<HistoryEntry[]>({ projectPaths });
 	},
 
 	discoverAllProjectsWithSessions: (): ResultAsync<HistoryEntry[], AppError> => {
-		return invokeAsync(CMD.history.discover_all_projects_with_sessions);
+		return historyCommands.discover_all_projects_with_sessions.invoke<HistoryEntry[]>();
 	},
 
 	listAllProjectPaths: (): ResultAsync<ProjectInfo[], AppError> => {
-		return invokeAsync(CMD.history.list_all_project_paths);
+		return historyCommands.list_all_project_paths.invoke<ProjectInfo[]>();
 	},
 
 	countSessionsForProject: (projectPath: string): ResultAsync<ProjectSessionCounts, AppError> => {
-		return invokeAsync(CMD.history.count_sessions_for_project, { projectPath });
+		return historyCommands.count_sessions_for_project.invoke<ProjectSessionCounts>({ projectPath });
 	},
 
 	getSessionHistory: (): ResultAsync<HistoryEntry[], AppError> => {
-		return invokeAsync(CMD.history.get_session_history);
+		return historyCommands.get_session_history.invoke<HistoryEntry[]>();
 	},
 
 	getSessionMessages: (
 		sessionId: string,
 		projectPath: string
 	): ResultAsync<HistorySessionMessage[], AppError> => {
-		return invokeAsync(CMD.history.get_session_messages, { sessionId, projectPath });
+		return historyCommands.get_session_messages.invoke<HistorySessionMessage[]>({
+			sessionId,
+			projectPath,
+		});
 	},
 
 	getFullSession: (
 		sessionId: string,
 		projectPath: string
 	): ResultAsync<import("../../services/converted-session-types.js").FullSession, AppError> => {
-		return invokeAsync(CMD.history.get_full_session, { sessionId, projectPath });
+		return historyCommands.get_full_session.invoke<
+			import("../../services/converted-session-types.js").FullSession
+		>({
+			sessionId,
+			projectPath,
+		});
 	},
 
 	getConvertedSession: (
 		sessionId: string,
 		projectPath: string
 	): ResultAsync<ConvertedSession, AppError> => {
-		return invokeAsync(CMD.history.get_converted_session, { sessionId, projectPath });
-	},
-
-	getSessionPlan: (
-		sessionId: string,
-		projectPath: string
-	): ResultAsync<SessionPlanResponse | null, AppError> => {
-		return invokeAsync(CMD.history.get_session_plan, { sessionId, projectPath });
-	},
-
-	getPlanBySlug: (slug: string): ResultAsync<SessionPlanResponse | null, AppError> => {
-		return invokeAsync(CMD.history.get_plan_by_slug, { slug });
-	},
-
-	listPlans: (): ResultAsync<SessionPlanResponse[], AppError> => {
-		return invokeAsync(CMD.history.list_plans);
+		return historyCommands.get_converted_session.invoke<ConvertedSession>({
+			sessionId,
+			projectPath,
+		});
 	},
 
 	setSessionPrNumber: (sessionId: string, prNumber: number | null): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.history.set_session_pr_number, { sessionId, prNumber });
+		return historyCommands.set_session_pr_number.invoke<void>({ sessionId, prNumber });
 	},
 
 	setSessionTitle: (sessionId: string, title: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.history.set_session_title, { sessionId, title });
+		return historyCommands.set_session_title.invoke<void>({ sessionId, title });
 	},
 
 	setSessionWorktreePath: (
@@ -126,7 +127,7 @@ export const history = {
 		projectPath?: string,
 		agentId?: string
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.history.set_session_worktree_path, {
+		return historyCommands.set_session_worktree_path.invoke<void>({
 			sessionId,
 			worktreePath,
 			projectPath,

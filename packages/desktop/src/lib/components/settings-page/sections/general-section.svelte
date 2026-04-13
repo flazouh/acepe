@@ -1,7 +1,6 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { invoke } from "@tauri-apps/api/core";
-import { Check } from "phosphor-svelte";
+	import { Check } from "phosphor-svelte";
 import { Warning } from "phosphor-svelte";
 import { ThemeToggle } from "$lib/components/theme/index.js";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
@@ -9,10 +8,11 @@ import { Button } from "$lib/components/ui/button/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getLocale, setLocale } from "$lib/i18n/store.svelte.js";
 import { getLanguageMetadata } from "$lib/i18n/utils.js";
-import * as m from "$lib/paraglide/messages.js";
-import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
-import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
-import SettingsControlCard from "../settings-control-card.svelte";
+	import * as m from "$lib/paraglide/messages.js";
+	import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
+	import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
+	import { settings } from "$lib/utils/tauri-client/settings.js";
+	import SettingsControlCard from "../settings-control-card.svelte";
 import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
@@ -30,10 +30,13 @@ function handleLanguageSelect(languageCode: string) {
 
 let showResetConfirm = $state(false);
 
-async function handleResetDatabase() {
-	await invoke("reset_database");
-	showResetConfirm = false;
-}
+	async function handleResetDatabase() {
+		await settings.resetDatabase().match(
+			() => undefined,
+			() => undefined
+		);
+		showResetConfirm = false;
+	}
 </script>
 
 <div class="w-full">

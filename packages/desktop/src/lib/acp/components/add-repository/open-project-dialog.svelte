@@ -7,9 +7,8 @@ import {
 	HeaderActionCell,
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
-import { invoke } from "@tauri-apps/api/core";
-import { Dialog } from "bits-ui";
-import { ResultAsync } from "neverthrow";
+	import { Dialog } from "bits-ui";
+	import { ResultAsync } from "neverthrow";
 import { DownloadSimple } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
@@ -181,10 +180,9 @@ async function handleImport(path: string, name: string) {
 	}
 
 	// Import the project to database directly
-	const result = await ResultAsync.fromPromise(
-		invoke("import_project", { path, name }),
-		(error) => new Error(`Failed to import project: ${error}`)
-	)
+	const result = await tauriClient.projects
+		.importProject(path, name)
+		.mapErr((error) => new Error(`Failed to import project: ${error}`))
 		.map(() => {
 			// Mark as added
 			addedPaths = new Set([...addedPaths, path]);

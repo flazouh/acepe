@@ -1,5 +1,6 @@
 pub mod locale;
 pub mod names;
+pub mod registry;
 pub mod window;
 
 // TODO: Re-enable when tauri_specta::ts import is fixed

@@ -13,6 +13,7 @@ import { PlanLoadError } from "../errors";
  * @param service - Claude history service instance
  * @param sessionId - Session ID to load plan for
  * @param projectPath - Project path for the session
+ * @param agentId - Agent ID for the session
  * @returns Result containing the plan or an error
  *
  * @example
@@ -27,13 +28,15 @@ import { PlanLoadError } from "../errors";
 export function loadSessionPlan(
 	service: SessionHistoryService,
 	sessionId: string,
-	projectPath: string
+	projectPath: string,
+	agentId: string
 ): ResultAsync<SessionPlanResponse | null, PlanLoadError> {
-	return service.getSessionPlan(sessionId, projectPath).mapErr(
+	return service.getUnifiedPlan(sessionId, projectPath, agentId).mapErr(
 		(err) =>
 			new PlanLoadError("Failed to load session plan", {
 				sessionId,
 				projectPath,
+				agentId,
 				originalError: err.message,
 			})
 	);

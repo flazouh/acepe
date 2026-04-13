@@ -1,4 +1,5 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
 	CreateTerminalParams,
@@ -6,30 +7,31 @@ import type {
 	TerminalOutputResult,
 	WaitForExitResult,
 } from "../../acp/types/index.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+
+const terminalCommands = TAURI_COMMAND_CLIENT.terminal;
 
 export const terminal = {
 	create: (request: CreateTerminalParams): ResultAsync<CreateTerminalResult, AppError> => {
-		return invokeAsync(CMD.terminal.create, { request });
+		return terminalCommands.create.invoke<CreateTerminalResult>({ request });
 	},
 
 	output: (sessionId: string, terminalId: string): ResultAsync<TerminalOutputResult, AppError> => {
-		return invokeAsync(CMD.terminal.output, { sessionId, terminalId });
+		return terminalCommands.output.invoke<TerminalOutputResult>({ sessionId, terminalId });
 	},
 
 	waitForExit: (
 		sessionId: string,
 		terminalId: string
 	): ResultAsync<WaitForExitResult, AppError> => {
-		return invokeAsync(CMD.terminal.wait_for_exit, { sessionId, terminalId });
+		return terminalCommands.wait_for_exit.invoke<WaitForExitResult>({ sessionId, terminalId });
 	},
 
 	kill: (sessionId: string, terminalId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.terminal.kill, { sessionId, terminalId });
+		return terminalCommands.kill.invoke<void>({ sessionId, terminalId });
 	},
 
 	release: (sessionId: string, terminalId: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.terminal.release, { sessionId, terminalId });
+		return terminalCommands.release.invoke<void>({ sessionId, terminalId });
 	},
 };

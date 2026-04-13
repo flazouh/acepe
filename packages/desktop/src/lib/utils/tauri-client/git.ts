@@ -1,10 +1,12 @@
 import type { ResultAsync } from "neverthrow";
+
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { CloneResult } from "../../acp/types/index.js";
 import type { SetupResult, WorktreeConfig } from "../../acp/types/worktree-config.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../acp/types/worktree-info.js";
-import { CMD } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+
+const gitCommands = TAURI_COMMAND_CLIENT.git;
 
 export const git = {
 	clone: (
@@ -12,27 +14,27 @@ export const git = {
 		destination: string,
 		branch?: string
 	): ResultAsync<CloneResult, AppError> => {
-		return invokeAsync(CMD.git.clone, { url, destination, branch });
+		return gitCommands.clone.invoke<CloneResult>({ url, destination, branch });
 	},
 
 	browseDestination: (): ResultAsync<string | null, AppError> => {
-		return invokeAsync(CMD.git.browse_destination);
+		return gitCommands.browse_destination.invoke<string | null>();
 	},
 
 	init: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.init, { projectPath });
+		return gitCommands.init.invoke<void>({ projectPath });
 	},
 
 	isRepo: (projectPath: string): ResultAsync<boolean, AppError> => {
-		return invokeAsync(CMD.git.is_repo, { projectPath });
+		return gitCommands.is_repo.invoke<boolean>({ projectPath });
 	},
 
 	currentBranch: (projectPath: string): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.git.current_branch, { projectPath });
+		return gitCommands.current_branch.invoke<string>({ projectPath });
 	},
 
 	listBranches: (projectPath: string): ResultAsync<string[], AppError> => {
-		return invokeAsync(CMD.git.list_branches, { projectPath });
+		return gitCommands.list_branches.invoke<string[]>({ projectPath });
 	},
 
 	checkoutBranch: (
@@ -40,121 +42,124 @@ export const git = {
 		branch: string,
 		create = false
 	): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.git.checkout_branch, { projectPath, branch, create });
+		return gitCommands.checkout_branch.invoke<string>({ projectPath, branch, create });
 	},
 
 	hasUncommittedChanges: (projectPath: string): ResultAsync<boolean, AppError> => {
-		return invokeAsync(CMD.git.has_uncommitted_changes, { projectPath });
+		return gitCommands.has_uncommitted_changes.invoke<boolean>({ projectPath });
 	},
 
 	worktreeCreate: (projectPath: string): ResultAsync<WorktreeInfo, AppError> => {
-		return invokeAsync(CMD.git.worktree_create, { projectPath });
+		return gitCommands.worktree_create.invoke<WorktreeInfo>({ projectPath });
 	},
 
 	prepareWorktreeSessionLaunch: (
 		projectPath: string,
 		agentId: string
 	): ResultAsync<PreparedWorktreeLaunch, AppError> => {
-		return invokeAsync(CMD.git.prepare_worktree_session_launch, { projectPath, agentId });
+		return gitCommands.prepare_worktree_session_launch.invoke<PreparedWorktreeLaunch>({
+			projectPath,
+			agentId,
+		});
 	},
 
 	discardPreparedWorktreeSessionLaunch: (
 		launchToken: string,
 		removeWorktree = false
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.discard_prepared_worktree_session_launch, {
+		return gitCommands.discard_prepared_worktree_session_launch.invoke<void>({
 			launchToken,
 			removeWorktree,
 		});
 	},
 
 	worktreeRemove: (worktreePath: string, force?: boolean): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.worktree_remove, {
+		return gitCommands.worktree_remove.invoke<void>({
 			worktreePath,
 			force: force ?? false,
 		});
 	},
 
 	worktreeReset: (worktreePath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.worktree_reset, { worktreePath });
+		return gitCommands.worktree_reset.invoke<void>({ worktreePath });
 	},
 
 	worktreeList: (projectPath: string): ResultAsync<WorktreeInfo[], AppError> => {
-		return invokeAsync(CMD.git.worktree_list, { projectPath });
+		return gitCommands.worktree_list.invoke<WorktreeInfo[]>({ projectPath });
 	},
 
 	worktreeRename: (worktreePath: string, newName: string): ResultAsync<WorktreeInfo, AppError> => {
-		return invokeAsync(CMD.git.worktree_rename, { worktreePath, newName });
+		return gitCommands.worktree_rename.invoke<WorktreeInfo>({ worktreePath, newName });
 	},
 
 	worktreeDiskSize: (path: string): ResultAsync<number, AppError> => {
-		return invokeAsync(CMD.git.worktree_disk_size, { path });
+		return gitCommands.worktree_disk_size.invoke<number>({ path });
 	},
 
 	// ─── Git Panel Operations ───────────────────────────────────────────
 
 	panelStatus: (projectPath: string): ResultAsync<GitPanelFileStatus[], AppError> => {
-		return invokeAsync(CMD.git.panel_status, { projectPath });
+		return gitCommands.panel_status.invoke<GitPanelFileStatus[]>({ projectPath });
 	},
 
 	diffStats: (projectPath: string): ResultAsync<GitDiffStats, AppError> => {
-		return invokeAsync(CMD.git.diff_stats, { projectPath });
+		return gitCommands.diff_stats.invoke<GitDiffStats>({ projectPath });
 	},
 
 	stageFiles: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.stage_files, { projectPath, files });
+		return gitCommands.stage_files.invoke<void>({ projectPath, files });
 	},
 
 	unstageFiles: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.unstage_files, { projectPath, files });
+		return gitCommands.unstage_files.invoke<void>({ projectPath, files });
 	},
 
 	stageAll: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.stage_all, { projectPath });
+		return gitCommands.stage_all.invoke<void>({ projectPath });
 	},
 
 	discardChanges: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.discard_changes, { projectPath, files });
+		return gitCommands.discard_changes.invoke<void>({ projectPath, files });
 	},
 
 	commit: (projectPath: string, message: string): ResultAsync<GitCommitResult, AppError> => {
-		return invokeAsync(CMD.git.commit, { projectPath, message });
+		return gitCommands.commit.invoke<GitCommitResult>({ projectPath, message });
 	},
 
 	push: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.push, { projectPath });
+		return gitCommands.push.invoke<void>({ projectPath });
 	},
 
 	pull: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.pull, { projectPath });
+		return gitCommands.pull.invoke<void>({ projectPath });
 	},
 
 	fetch: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.fetch, { projectPath });
+		return gitCommands.fetch.invoke<void>({ projectPath });
 	},
 
 	remoteStatus: (projectPath: string): ResultAsync<GitRemoteStatus, AppError> => {
-		return invokeAsync(CMD.git.remote_status, { projectPath });
+		return gitCommands.remote_status.invoke<GitRemoteStatus>({ projectPath });
 	},
 
 	stashList: (projectPath: string): ResultAsync<GitStashEntry[], AppError> => {
-		return invokeAsync(CMD.git.stash_list, { projectPath });
+		return gitCommands.stash_list.invoke<GitStashEntry[]>({ projectPath });
 	},
 
 	stashPop: (projectPath: string, index: number): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.stash_pop, { projectPath, index });
+		return gitCommands.stash_pop.invoke<void>({ projectPath, index });
 	},
 
 	stashDrop: (projectPath: string, index: number): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.stash_drop, { projectPath, index });
+		return gitCommands.stash_drop.invoke<void>({ projectPath, index });
 	},
 
 	stashSave: (projectPath: string, message?: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.stash_save, { projectPath, message });
+		return gitCommands.stash_save.invoke<void>({ projectPath, message });
 	},
 
 	log: (projectPath: string, limit = 50): ResultAsync<GitLogEntry[], AppError> => {
-		return invokeAsync(CMD.git.log, { projectPath, limit });
+		return gitCommands.log.invoke<GitLogEntry[]>({ projectPath, limit });
 	},
 
 	createBranch: (
@@ -162,11 +167,11 @@ export const git = {
 		name: string,
 		startPoint?: string
 	): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.git.create_branch, { projectPath, name, startPoint });
+		return gitCommands.create_branch.invoke<string>({ projectPath, name, startPoint });
 	},
 
 	deleteBranch: (projectPath: string, name: string, force = false): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.delete_branch, { projectPath, name, force });
+		return gitCommands.delete_branch.invoke<void>({ projectPath, name, force });
 	},
 
 	/**
@@ -185,7 +190,7 @@ export const git = {
 		prTitle?: string,
 		prBody?: string
 	): ResultAsync<GitStackedActionResult, AppError> => {
-		return invokeAsync(CMD.git.run_stacked_action, {
+		return gitCommands.run_stacked_action.invoke<GitStackedActionResult>({
 			projectPath,
 			action,
 			commitMessage,
@@ -202,11 +207,14 @@ export const git = {
 		projectPath: string,
 		customInstructions?: string
 	): ResultAsync<ShipContext | null, AppError> => {
-		return invokeAsync(CMD.git.collect_ship_context, { projectPath, customInstructions });
+		return gitCommands.collect_ship_context.invoke<ShipContext | null>({
+			projectPath,
+			customInstructions,
+		});
 	},
 
 	prDetails: (projectPath: string, prNumber: number): ResultAsync<PrDetails, AppError> => {
-		return invokeAsync(CMD.git.pr_details, { projectPath, prNumber });
+		return gitCommands.pr_details.invoke<PrDetails>({ projectPath, prNumber });
 	},
 
 	mergePr: (
@@ -214,35 +222,35 @@ export const git = {
 		prNumber: number,
 		strategy: MergeStrategy
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.merge_pr, { projectPath, prNumber, strategy });
+		return gitCommands.merge_pr.invoke<void>({ projectPath, prNumber, strategy });
 	},
 
 	getOpenPrForBranch: (projectPath: string): ResultAsync<OpenPrInfo | null, AppError> => {
-		return invokeAsync(CMD.git.get_open_pr_for_branch, { projectPath });
+		return gitCommands.get_open_pr_for_branch.invoke<OpenPrInfo | null>({ projectPath });
 	},
 
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
 
 	watchHead: (projectPath: string): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.watch_head, { projectPath });
+		return gitCommands.watch_head.invoke<void>({ projectPath });
 	},
 
 	loadWorktreeConfig: (projectPath: string): ResultAsync<WorktreeConfig | null, AppError> => {
-		return invokeAsync(CMD.git.load_worktree_config, { projectPath });
+		return gitCommands.load_worktree_config.invoke<WorktreeConfig | null>({ projectPath });
 	},
 
 	runWorktreeSetup: (
 		worktreePath: string,
 		projectPath: string
 	): ResultAsync<SetupResult, AppError> => {
-		return invokeAsync(CMD.git.run_worktree_setup, { worktreePath, projectPath });
+		return gitCommands.run_worktree_setup.invoke<SetupResult>({ worktreePath, projectPath });
 	},
 
 	saveWorktreeConfig: (
 		projectPath: string,
 		setupCommands: string[]
 	): ResultAsync<void, AppError> => {
-		return invokeAsync(CMD.git.save_worktree_config, { projectPath, setupCommands });
+		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupCommands });
 	},
 };
 

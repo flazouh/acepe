@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
-import { CMD } from "$lib/utils/tauri-client/commands.js";
+import { TAURI_COMMAND_CLIENT } from "$lib/services/tauri-command-client.js";
 
 /**
  * Activate the main window, bringing it to the foreground on macOS.
@@ -12,7 +12,7 @@ import { CMD } from "$lib/utils/tauri-client/commands.js";
  */
 export function activateMainWindow(): ResultAsync<void, Error> {
 	return ResultAsync.fromPromise(
-		invoke<void>(CMD.window.activate, { label: "main" }),
+		invoke<void>(TAURI_COMMAND_CLIENT.window.activate.name, { label: "main" }),
 		() => new Error("Failed to activate main window")
 	);
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { TerminalPanelLayout } from "@acepe/ui/terminal-panel";
-import { invoke } from "@tauri-apps/api/core";
 import type { TerminalTab } from "$lib/acp/store/types.js";
+import { shell as shellClient } from "$lib/utils/tauri-client/shell.js";
 
 import TerminalPanelHeader from "./terminal-panel-header.svelte";
 import TerminalRenderer from "./terminal-renderer.svelte";
@@ -71,13 +71,14 @@ let ptyError = $state<string | null>(null);
 // Get default shell on mount
 $effect(() => {
 	if (!detectedShell && !shell) {
-		invoke<string>("get_default_shell")
-			.then((s) => {
+		shellClient.getDefaultShell().match(
+			(s) => {
 				detectedShell = s;
-			})
-			.catch((e) => {
+			},
+			(e) => {
 				shellError = String(e);
-			});
+			}
+		);
 	}
 });
 

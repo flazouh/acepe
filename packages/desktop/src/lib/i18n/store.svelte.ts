@@ -1,8 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 import type { ResultAsync } from "neverthrow";
 
-import { ResultAsync as NeverthrowResultAsync } from "neverthrow";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 // Paraglide runtime provides setLocale for locale switching
 import { setLocale as setParaglideLocale } from "../paraglide/runtime.js";
 import type { SupportedLanguage } from "./locale.js";
@@ -54,13 +53,7 @@ export function setLocale(language: SupportedLanguage): void {
 	setParaglideLocale(language);
 
 	// Persist to database (fire-and-forget)
-	NeverthrowResultAsync.fromPromise(
-		invoke("save_user_setting", {
-			key: USER_LOCALE_KEY,
-			value: language,
-		}),
-		(e) => e as Error
-	).mapErr(() => {
+	settings.setRaw(USER_LOCALE_KEY, language).mapErr(() => {
 		// Ignore save errors
 	});
 }
@@ -83,12 +76,8 @@ export function getCurrentLanguage(): SupportedLanguage {
  * Load locale from database on initialization
  */
 export async function loadPersistedLocale(): Promise<void> {
-	await NeverthrowResultAsync.fromPromise(
-		invoke<string | null>("get_user_setting", {
-			key: USER_LOCALE_KEY,
-		}),
-		(error) => error as Error
-	)
+	await settings
+		.getRaw(USER_LOCALE_KEY)
 		.map((persisted) => {
 			if (persisted !== null && isSupportedLanguage(persisted)) {
 				// Set locale without re-saving (it's already in DB)
