@@ -1,5 +1,6 @@
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 
 interface ResolveKanbanNewSessionDefaultsInput {
 	readonly projects: readonly Project[];
@@ -18,6 +19,7 @@ interface KanbanNewSessionDefaults {
 export interface KanbanNewSessionRequest {
 	readonly projectPath?: string;
 	readonly agentId?: string;
+	readonly modeId?: CanonicalModeId;
 }
 
 function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput): string | null {

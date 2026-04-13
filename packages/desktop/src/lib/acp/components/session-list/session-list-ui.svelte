@@ -45,7 +45,12 @@ import ProjectHeader from "../project-header.svelte";
 import ProjectHeaderAgentStrip from "../project-header-agent-strip.svelte";
 import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import { ProjectLetterBadge } from "@acepe/ui";
-import { filterLiveSessions } from "./session-list-logic.js";
+import {
+	filterLiveSessions,
+	getNextSessionListVisibleCount,
+	getSessionListVisibleCount,
+	isSessionListNearBottom,
+} from "./session-list-logic.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
 
@@ -155,7 +160,8 @@ const expandedFolders = new SvelteSet<string>();
 
 // Per-project view mode (hydrated from persisted state in one-time effect)
 const projectViewModes = new SvelteMap<string, ProjectViewMode>();
-const showHistoricalProjects = new SvelteSet<string>();
+const visibleSessionCounts = new SvelteMap<string, number>();
+const sessionListContainers = new Map<string, HTMLDivElement>();
 
 // Which project (if any) is showing the agent strip (opened via plus icon)
 let projectPathShowingAgentStrip = $state<string | null>(null);
@@ -202,6 +208,27 @@ $effect(() => {
 	}
 });
 
+$effect(() => {
+	const activeProjectPaths = new Set<string>();
+	for (const group of sessionGroups) {
+		activeProjectPaths.add(group.projectPath);
+		const normalizedVisibleCount = getSessionListVisibleCount(
+			group.sessions.length,
+			visibleSessionCounts.get(group.projectPath)
+		);
+		if (visibleSessionCounts.get(group.projectPath) !== normalizedVisibleCount) {
+			visibleSessionCounts.set(group.projectPath, normalizedVisibleCount);
+		}
+	}
+
+	for (const projectPath of visibleSessionCounts.keys()) {
+		if (!activeProjectPaths.has(projectPath)) {
+			visibleSessionCounts.delete(projectPath);
+			sessionListContainers.delete(projectPath);
+		}
+	}
+});
+
 // Rename dialog
 
 // New file / New folder dialogs
@@ -245,16 +272,81 @@ function setProjectViewMode(projectPath: string, mode: ProjectViewMode) {
 	}
 }
 
-function isShowingHistorical(projectPath: string): boolean {
-	return showHistoricalProjects.has(projectPath);
+function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
+	const liveSessions = filterLiveSessions(group.sessions);
+	const visibleCount = getSessionListVisibleCount(
+		liveSessions.length,
+		visibleSessionCounts.get(group.projectPath)
+	);
+	return liveSessions.slice(0, visibleCount);
 }
 
-function toggleHistoricalSessions(projectPath: string): void {
-	if (showHistoricalProjects.has(projectPath)) {
-		showHistoricalProjects.delete(projectPath);
+function ensureSessionListOverflow(projectPath: string, totalSessions: number): void {
+	const container = sessionListContainers.get(projectPath);
+	if (!container) {
 		return;
 	}
-	showHistoricalProjects.add(projectPath);
+
+	if (!isSessionListNearBottom(container.scrollTop, container.clientHeight, container.scrollHeight)) {
+		return;
+	}
+
+	const currentVisibleCount = getSessionListVisibleCount(
+		totalSessions,
+		visibleSessionCounts.get(projectPath)
+	);
+	const nextVisibleCount = getNextSessionListVisibleCount(
+		totalSessions,
+		visibleSessionCounts.get(projectPath)
+	);
+	if (currentVisibleCount === nextVisibleCount) {
+		return;
+	}
+
+	visibleSessionCounts.set(projectPath, nextVisibleCount);
+	requestAnimationFrame(() => {
+		ensureSessionListOverflow(projectPath, totalSessions);
+	});
+}
+
+function registerSessionListContainer(
+	projectPath: string,
+	totalSessions: number,
+	node: HTMLDivElement | null
+): void {
+	if (node === null) {
+		sessionListContainers.delete(projectPath);
+		return;
+	}
+
+	sessionListContainers.set(projectPath, node);
+	requestAnimationFrame(() => {
+		ensureSessionListOverflow(projectPath, totalSessions);
+	});
+}
+
+function sessionListContainer(
+	node: HTMLDivElement,
+	params: { projectPath: string; totalSessions: number }
+): { update: (nextParams: { projectPath: string; totalSessions: number }) => void; destroy: () => void } {
+	registerSessionListContainer(params.projectPath, params.totalSessions, node);
+
+	return {
+		update(nextParams) {
+			if (nextParams.projectPath !== params.projectPath) {
+				registerSessionListContainer(params.projectPath, params.totalSessions, null);
+			}
+			params = nextParams;
+			registerSessionListContainer(params.projectPath, params.totalSessions, node);
+		},
+		destroy() {
+			registerSessionListContainer(params.projectPath, params.totalSessions, null);
+		},
+	};
+}
+
+function handleSessionListScroll(projectPath: string, totalSessions: number): void {
+	ensureSessionListOverflow(projectPath, totalSessions);
 }
 
 /**
@@ -450,28 +542,50 @@ let initializingGitProject = $state<string | null>(null);
 
 function loadGitOverview(projectPath: string) {
 	if (gitLoadedProjects.has(projectPath)) return;
-	gitLoadedProjects.add(projectPath);
 
-	void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
-		(overview) => {
-			nonGitProjects.delete(projectPath);
-			gitDataByProject.set(projectPath, {
-				branch: overview.branch,
-				gitStatus: overview.gitStatus,
-				remoteStatus: null,
-			});
-			// Also load remote status
-			void tauriClient.git.remoteStatus(projectPath).match(
-				(status) => {
-					const current = gitDataByProject.get(projectPath);
-					if (current) {
-						gitDataByProject.set(projectPath, { ...current, remoteStatus: status });
-					}
+	void tauriClient.git.isRepo(projectPath).match(
+		(isRepo) => {
+			if (!isRepo) {
+				gitLoadedProjects.delete(projectPath);
+				gitDataByProject.delete(projectPath);
+				nonGitProjects.add(projectPath);
+				return;
+			}
+
+			gitLoadedProjects.add(projectPath);
+			void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
+				(overview) => {
+					nonGitProjects.delete(projectPath);
+					gitDataByProject.set(projectPath, {
+						branch: overview.branch,
+						gitStatus: overview.gitStatus,
+						remoteStatus: null,
+					});
+					// Also load remote status
+					void tauriClient.git.remoteStatus(projectPath).match(
+						(status) => {
+							const current = gitDataByProject.get(projectPath);
+							if (current) {
+								gitDataByProject.set(projectPath, {
+									branch: current.branch,
+									gitStatus: current.gitStatus,
+									remoteStatus: status,
+								});
+							}
+						},
+						() => {}
+					);
 				},
-				() => {}
+				() => {
+					gitLoadedProjects.delete(projectPath);
+					gitDataByProject.delete(projectPath);
+					nonGitProjects.add(projectPath);
+				}
 			);
 		},
 		() => {
+			gitLoadedProjects.delete(projectPath);
+			gitDataByProject.delete(projectPath);
 			nonGitProjects.add(projectPath);
 		}
 	);
@@ -580,9 +694,12 @@ $effect(() => {
 $effect(() => {
 	for (const group of sessionGroups) {
 		const pp = group.projectPath;
-		if (watchedProjectPaths.has(pp)) continue;
+		if (watchedProjectPaths.has(pp) || !gitDataByProject.has(pp)) continue;
 		watchedProjectPaths.add(pp);
-		void tauriClient.git.watchHead(pp);
+		void tauriClient.git.watchHead(pp).match(
+			() => {},
+			() => {}
+		);
 	}
 });
 
@@ -844,7 +961,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							{/if}
 						</div>
 						<!-- Session list skeleton (sessions are what we're loading) -->
-						<div class="flex-1 min-h-0 overflow-auto px-0.5 pb-0.5">
+						<div class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5">
 							<SessionListSkeleton sessionCount={3} />
 						</div>
 					</div>
@@ -869,10 +986,6 @@ function openCreateBranchDialog(projectPath: string): void {
 				{@const filesLoading = loadingFilesProjects.has(group.projectPath)}
 				{@const filesError = filesErrorByProject.get(group.projectPath)}
 				{@const flattenedFiles = getFlattenedFiles(group.projectPath)}
-				{@const liveSessions = filterLiveSessions(group.sessions)}
-				{@const showingHistorical = isShowingHistorical(group.projectPath)}
-				{@const visibleSessions = showingHistorical ? group.sessions : liveSessions}
-				{@const historicalCount = group.sessions.length - liveSessions.length}
 				<div
 					class="flex flex-col overflow-hidden rounded-md bg-card/75"
 					style={isExpanded
@@ -996,39 +1109,15 @@ function openCreateBranchDialog(projectPath: string): void {
 					{#if isExpanded}
 						{#if viewMode === "sessions"}
 							<!-- Sessions view - use simple overflow for scrolling -->
-							<div class="min-h-0 overflow-auto px-0.5 pb-0.5">
+							{@const liveSessions = filterLiveSessions(group.sessions)}
+							{@const visibleSessions = getVisibleSessionsForProject(group)}
+							<div
+								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
+								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: liveSessions.length }}
+								onscroll={() => handleSessionListScroll(group.projectPath, liveSessions.length)}
+							>
 								{#if scanningProjectPaths.has(group.projectPath) && group.sessions.length === 0}
 									<SessionListSkeleton sessionCount={3} />
-								{:else if historicalCount > 0}
-									{#if visibleSessions.length > 0}
-										<VirtualizedSessionList
-											sessions={visibleSessions}
-											{selectedSessionId}
-											onSelectSession={handleSessionSelect}
-											{onOpenPr}
-											onArchive={onArchiveSession}
-											{onRenameSession}
-											{onExportMarkdown}
-											{onExportJson}
-										/>
-									{/if}
-									<div class="flex justify-center my-1">
-									<Button
-										variant="ghost"
-										size="sm"
-										class="gap-0.5 text-[10px] text-muted-foreground hover:text-foreground h-6 px-2"
-										onclick={() => toggleHistoricalSessions(group.projectPath)}
-									>
-										{showingHistorical
-											? "Hide historical sessions"
-											: `Show historical sessions (${historicalCount})`}
-										{#if showingHistorical}
-											<ChevronUp class="size-3" />
-										{:else}
-											<ChevronDown class="size-3" />
-										{/if}
-									</Button>
-									</div>
 								{:else}
 									<VirtualizedSessionList
 										sessions={visibleSessions}

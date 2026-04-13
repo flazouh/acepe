@@ -3,7 +3,6 @@ import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
-import { MAX_SESSIONS_PER_PROJECT } from "../../constants/session-limits.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import type { Project } from "../../logic/project-manager.svelte.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
@@ -133,10 +132,8 @@ const displayItems = $derived(
 );
 
 const filteredItems = $derived(logic.filterItems(displayItems, state.searchQuery));
-
-const limitedItems = $derived(logic.limitItemsPerProject(filteredItems, MAX_SESSIONS_PER_PROJECT));
 const sessionGroupsFromData = $derived(
-	logic.createSessionGroups(limitedItems, projectCreatedAtMap, recentProjects)
+	logic.createSessionGroups(filteredItems, projectCreatedAtMap, recentProjects)
 );
 const loadingSessionGroups = $derived(logic.createLoadingSessionGroups(recentProjects));
 // Only show skeletons on initial load (no sessions yet).

@@ -27,6 +27,8 @@ export interface ThreadBoardSource {
 	readonly connectionError: string | null;
 	readonly state: SessionState;
 	readonly sequenceId: number | null;
+	readonly worktreePath?: string | null;
+	readonly worktreeDeleted?: boolean;
 }
 
 export interface ThreadBoardItem {
@@ -50,6 +52,8 @@ export interface ThreadBoardItem {
 	readonly connectionError: string | null;
 	readonly state: SessionState;
 	readonly sequenceId: number | null;
+	readonly worktreePath?: string | null;
+	readonly worktreeDeleted?: boolean;
 	readonly status: ThreadBoardStatus;
 }
 

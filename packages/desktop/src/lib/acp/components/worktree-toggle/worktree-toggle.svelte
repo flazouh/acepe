@@ -82,10 +82,13 @@ $effect(() => {
 // Watch for external branch changes via .git/HEAD file watcher
 $effect(() => {
 	const targetPath = branchTargetPath;
-	if (!targetPath) return;
+	if (!targetPath || toggleState.isGitRepo !== true) return;
 
 	// Start backend file watcher (idempotent)
-	void tauriClient.git.watchHead(targetPath);
+	void tauriClient.git.watchHead(targetPath).match(
+		() => {},
+		() => {}
+	);
 
 	let disposed = false;
 	const unlistenPromise = listen<{ projectPath: string; branch: string | null }>(

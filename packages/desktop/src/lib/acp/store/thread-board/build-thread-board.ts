@@ -84,6 +84,8 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		connectionError: source.connectionError,
 		state: source.state,
 		sequenceId: source.sequenceId ?? null,
+		worktreePath: source.worktreePath ?? null,
+		worktreeDeleted: source.worktreeDeleted ?? false,
 		status,
 	};
 }

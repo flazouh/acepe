@@ -21,9 +21,10 @@ interface Props {
 	cardRenderer: Snippet<[KanbanSceneCardData]>;
 	emptyHint?: string;
 	ghostRenderer?: Snippet<[KanbanSceneCardData]>;
+	columnHeaderActions?: Snippet<[KanbanBoardColumnLayout["columnId"]]>;
 }
 
-let { layout, cardRenderer, emptyHint, ghostRenderer }: Props = $props();
+let { layout, cardRenderer, emptyHint, ghostRenderer, columnHeaderActions }: Props = $props();
 
 let scrollElement = $state<HTMLDivElement | null>(null);
 let boardElement = $state<HTMLDivElement | null>(null);
@@ -417,18 +418,19 @@ onMount(() => {
 
 <div
 	bind:this={scrollElement}
-	class="h-full w-full min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+	class="h-full w-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-hidden"
 	data-testid="kanban-board"
 	onscroll={cancelAllOverlays}
 >
 	<div
 		bind:this={boardElement}
-		class="relative flex h-full min-h-0 min-w-max gap-0.5 p-0.5"
+		class="relative flex h-full min-h-0 w-full min-w-0 gap-0.5 p-0.5"
 	>
 		{#each layout as column (column.columnId)}
 			<KanbanColumn
 				{column}
 				{emptyHint}
+				headerActions={columnHeaderActions}
 				onScroll={cancelAllOverlays}
 				registerScrollContainer={registerScrollContainer}
 			>

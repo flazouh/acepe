@@ -42,6 +42,13 @@ let expandedParents = new SvelteSet<string>();
 // Build flattened rows with hierarchy info
 const rows = $derived(buildSessionRows(sessions, expandedParents));
 
+function getRowKey(row: SessionRow, index: number): string {
+	const sourcePath = row.item.sourcePath ?? "";
+	const parentId = row.item.parentId ?? "";
+	const sequenceId = row.item.sequenceId ?? "";
+	return `${row.item.projectPath}:${row.item.id}:${sourcePath}:${parentId}:${row.item.createdAt.getTime()}:${row.item.updatedAt.getTime()}:${sequenceId}:${index}`;
+}
+
 function handleSessionSelect(session: SessionListItem) {
 	onSelectSession(session);
 }
@@ -142,7 +149,7 @@ setSessionListHighlightContext(highlightContext);
 		class="pointer-events-none absolute bg-accent/50 opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"
 		aria-hidden="true"
 	></div>
-	{#each rows as row (row.item.id)}
+	{#each rows as row, index (getRowKey(row, index))}
 		<svelte:boundary onerror={(e) => console.error('[boundary:session-item]', row.item.id, e)}>
 			<SessionItem
 				thread={{

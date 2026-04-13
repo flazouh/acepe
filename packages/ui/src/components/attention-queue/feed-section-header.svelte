@@ -1,12 +1,13 @@
 <script lang="ts">
-import { CheckCircle } from "phosphor-svelte";
-import { Eye } from "phosphor-svelte";
-import { FileCode } from "phosphor-svelte";
-import { Keyboard } from "phosphor-svelte";
-import { Warning } from "phosphor-svelte";
-import type { SectionedFeedSectionId } from "./types.js";
+	import { CheckCircle } from "phosphor-svelte";
+	import { Eye } from "phosphor-svelte";
+	import { FileCode } from "phosphor-svelte";
+	import { Keyboard } from "phosphor-svelte";
+	import { Warning } from "phosphor-svelte";
+	import type { Snippet } from "svelte";
+	import type { SectionedFeedSectionId } from "./types.js";
 
-import { BuildIcon, PlanIcon } from "../icons/index.js";
+	import { BuildIcon, PlanIcon } from "../icons/index.js";
 
 interface Props {
 	sectionId: SectionedFeedSectionId;
@@ -14,9 +15,10 @@ interface Props {
 	count: number;
 	color?: string;
 	needsReviewIcon?: "eye" | "file-code";
+	actions?: Snippet<[SectionedFeedSectionId]>;
 }
 
-let { sectionId, label, count, color, needsReviewIcon = "eye" }: Props = $props();
+let { sectionId, label, count, color, needsReviewIcon = "eye", actions }: Props = $props();
 </script>
 
 <div class="flex h-7 items-center justify-between px-2">
@@ -40,5 +42,12 @@ let { sectionId, label, count, color, needsReviewIcon = "eye" }: Props = $props(
 		{/if}
 		{label}
 	</span>
-	<span class="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{count}</span>
+	<div class="flex items-center gap-1">
+		{#if actions}
+			<div class="flex items-center">
+				{@render actions(sectionId)}
+			</div>
+		{/if}
+		<span class="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{count}</span>
+	</div>
 </div>

@@ -318,6 +318,55 @@ export function limitItemsPerProject(
 	return result.toSorted((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 }
 
+export const SESSION_LIST_PAGE_SIZE = 10;
+
+export function getSessionListVisibleCount(
+	totalSessions: number,
+	currentVisible: number | null | undefined,
+	pageSize = SESSION_LIST_PAGE_SIZE
+): number {
+	if (totalSessions <= 0) {
+		return 0;
+	}
+
+	const minimumVisible = Math.min(totalSessions, pageSize);
+	if (currentVisible === null || currentVisible === undefined) {
+		return minimumVisible;
+	}
+
+	if (currentVisible < minimumVisible) {
+		return minimumVisible;
+	}
+
+	if (currentVisible > totalSessions) {
+		return totalSessions;
+	}
+
+	return currentVisible;
+}
+
+export function getNextSessionListVisibleCount(
+	totalSessions: number,
+	currentVisible: number | null | undefined,
+	pageSize = SESSION_LIST_PAGE_SIZE
+): number {
+	const normalizedVisible = getSessionListVisibleCount(totalSessions, currentVisible, pageSize);
+	if (normalizedVisible >= totalSessions) {
+		return totalSessions;
+	}
+
+	return Math.min(totalSessions, normalizedVisible + pageSize);
+}
+
+export function isSessionListNearBottom(
+	scrollTop: number,
+	clientHeight: number,
+	scrollHeight: number,
+	threshold = 24
+): boolean {
+	return scrollHeight - (scrollTop + clientHeight) <= threshold;
+}
+
 /**
  * Row representation for hierarchical session display.
  */

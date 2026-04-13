@@ -56,6 +56,7 @@ import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-sto
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
 import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
+import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import {
 	buildQueueItem,
 	calculateSessionUrgency,
@@ -75,7 +76,7 @@ import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js"
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
 import { ResultAsync } from "neverthrow";
-import { Robot } from "phosphor-svelte";
+import { Plus } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 
@@ -124,8 +125,7 @@ const isDev = import.meta.env.DEV;
 // Override CMD+T to open the kanban new-session dialog instead of spawning a panel
 onMount(() => {
 	appState.onNewThreadOverride = (request) => {
-		pendingNewSessionRequest = request ? request : null;
-		handleNewSessionOpenChange(true);
+		openNewSessionDialog(request ? request : undefined);
 	};
 });
 onDestroy(() => {
@@ -143,6 +143,8 @@ interface OptimisticKanbanCard {
 let newSessionOpen = $state(false);
 let newSessionDialogRef = $state<HTMLElement | null>(null);
 let pendingNewSessionRequest = $state<KanbanNewSessionRequest | null>(null);
+let newSessionComposerKey = $state(0);
+let newSessionInitialModeId = $state<string | null>(CanonicalModeId.BUILD);
 let selectedProjectPath = $state<string | null>(null);
 let selectedAgentId = $state<string | null>(null);
 let activeWorktreePath = $state<string | null>(null);
@@ -353,6 +355,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 					? metadata.sequenceId
 					: null
 				: null,
+			worktreePath: identity?.worktreePath ? identity.worktreePath : null,
+			worktreeDeleted: metadata?.worktreeDeleted ?? false,
 		});
 	}
 
@@ -461,6 +465,8 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		latestTool,
 		hasUnseenCompletion,
 		sequenceId: item.sequenceId,
+		isWorktreeSession: Boolean(item.worktreePath),
+		worktreeDeleted: item.worktreeDeleted ?? false,
 	};
 }
 
@@ -556,10 +562,12 @@ function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
 		latestTool: card.latestTool,
 		hasUnseenCompletion: card.hasUnseenCompletion,
 		sequenceId: card.sequenceId,
+		isWorktreeSession: card.isWorktreeSession ?? false,
+		worktreeDeleted: card.worktreeDeleted ?? false,
 		footer,
 		menuActions,
 		showCloseAction: item !== undefined,
-		hideBody: false,
+		hideBody: footer?.kind === "permission",
 		flushFooter: false,
 	};
 }
@@ -614,6 +622,8 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				latestTool: null,
 				hasUnseenCompletion: false,
 				sequenceId: null,
+				isWorktreeSession: Boolean(panel.worktreePath),
+				worktreeDeleted: false,
 			},
 		});
 	}
@@ -866,6 +876,8 @@ function resetNewSessionState(request?: KanbanNewSessionRequest): void {
 
 	selectedProjectPath = defaults.projectPath;
 	selectedAgentId = defaults.agentId;
+	newSessionInitialModeId = request?.modeId ?? CanonicalModeId.BUILD;
+	newSessionComposerKey += 1;
 	activeWorktreePath = null;
 	worktreePending = defaults.projectPath
 		? resolveEmptyStateWorktreePending({
@@ -891,6 +903,15 @@ function handleNewSessionOpenChange(nextOpen: boolean): void {
 	const request = pendingNewSessionRequest;
 	pendingNewSessionRequest = null;
 	resetNewSessionState(request ? request : undefined);
+}
+
+function openNewSessionDialog(request?: KanbanNewSessionRequest): void {
+	pendingNewSessionRequest = request ? request : null;
+	handleNewSessionOpenChange(true);
+}
+
+function handleKanbanColumnCreate(modeId: CanonicalModeId): void {
+	openNewSessionDialog({ modeId });
 }
 
 function handleNewSessionAgentChange(agentId: string): void {
@@ -1281,42 +1302,45 @@ function handleRejectPlanApproval(sessionId: string): void {
 		>
 			<div class="flex w-full flex-col px-2 py-2">
 				{#if canShowNewSessionInput}
-					<AgentInput
-						panelId={KANBAN_NEW_SESSION_PANEL_ID}
-						projectPath={selectedProject ? selectedProject.path : undefined}
-						projectName={selectedProject ? selectedProject.name : undefined}
-						selectedAgentId={effectiveAgentId}
-						voiceSessionId={KANBAN_NEW_SESSION_PANEL_ID}
-						disableSend={!canSendFromNewSession}
-						{availableAgents}
-						onAgentChange={handleNewSessionAgentChange}
-						onSessionCreated={handleNewSessionCreated}
-						onWillSend={handleNewSessionWillSend}
-						onSendError={handleNewSessionSendError}
-						worktreePath={activeWorktreePath ? activeWorktreePath : undefined}
-						worktreePending={effectiveWorktreePending}
-						onWorktreeCreated={(path) => {
-							activeWorktreePath = path;
-							worktreePending = false;
-						}}
-					>
-						{#snippet agentProjectPicker()}
-							<AgentSelector
-								{availableAgents}
-								currentAgentId={effectiveAgentId}
-								onAgentChange={handleNewSessionAgentChange}
-							/>
-							{#if showProjectPicker}
-								<div class="h-full w-px bg-border/50"></div>
-								<ProjectSelector
-									selectedProject={selectedProject}
-									recentProjects={projects}
-									onProjectChange={handleNewSessionProjectChange}
-									onBrowse={handleBrowseProject}
+					{#key newSessionComposerKey}
+						<AgentInput
+							panelId={KANBAN_NEW_SESSION_PANEL_ID}
+							projectPath={selectedProject ? selectedProject.path : undefined}
+							projectName={selectedProject ? selectedProject.name : undefined}
+							selectedAgentId={effectiveAgentId}
+							initialModeId={newSessionInitialModeId}
+							voiceSessionId={KANBAN_NEW_SESSION_PANEL_ID}
+							disableSend={!canSendFromNewSession}
+							{availableAgents}
+							onAgentChange={handleNewSessionAgentChange}
+							onSessionCreated={handleNewSessionCreated}
+							onWillSend={handleNewSessionWillSend}
+							onSendError={handleNewSessionSendError}
+							worktreePath={activeWorktreePath ? activeWorktreePath : undefined}
+							worktreePending={effectiveWorktreePending}
+							onWorktreeCreated={(path) => {
+								activeWorktreePath = path;
+								worktreePending = false;
+							}}
+						>
+							{#snippet agentProjectPicker()}
+								<AgentSelector
+									{availableAgents}
+									currentAgentId={effectiveAgentId}
+									onAgentChange={handleNewSessionAgentChange}
 								/>
-							{/if}
-						{/snippet}
-					</AgentInput>
+								{#if showProjectPicker}
+									<div class="h-full w-px bg-border/50"></div>
+									<ProjectSelector
+										selectedProject={selectedProject}
+										recentProjects={projects}
+										onProjectChange={handleNewSessionProjectChange}
+										onBrowse={handleBrowseProject}
+									/>
+								{/if}
+							{/snippet}
+						</AgentInput>
+					{/key}
 					{#if selectedProject}
 						<div class="mt-2 flex h-7 items-center rounded-b-lg">
 							<WorktreeToggleControl
@@ -1373,6 +1397,26 @@ function handleRejectPlanApproval(sessionId: string): void {
 			onPlanApprove={handleApprovePlanApproval}
 			onPlanReject={handleRejectPlanApproval}
 		>
+			{#snippet columnHeaderActions(columnId)}
+				{#if columnId === "planning" || columnId === "working"}
+					<button
+						type="button"
+						class="flex size-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+						aria-label={columnId === "planning"
+							? "New planning agent"
+							: "New working agent"}
+						data-testid="kanban-column-add-session-{columnId}"
+						onclick={() =>
+							handleKanbanColumnCreate(
+								columnId === "planning"
+									? CanonicalModeId.PLAN
+									: CanonicalModeId.BUILD
+							)}
+					>
+						<Plus class="size-3" weight="bold" />
+					</button>
+				{/if}
+			{/snippet}
 			{#snippet todoSectionRenderer(card: KanbanSceneCardData)}
 				{@const item = itemLookup.get(card.id)}
 				{@const hotState = item ? sessionStore.getHotState(item.sessionId) : null}

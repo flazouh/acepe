@@ -42,6 +42,8 @@ export interface KanbanCardData {
 	readonly latestTool: KanbanToolData | null;
 	readonly hasUnseenCompletion: boolean;
 	readonly sequenceId: number | null;
+	readonly isWorktreeSession?: boolean;
+	readonly worktreeDeleted?: boolean;
 }
 
 export interface KanbanColumnGroup {
@@ -59,17 +61,6 @@ export interface KanbanQuestionData {
 	readonly questionText: string;
 	readonly options: readonly KanbanQuestionOption[];
 	readonly canSubmit: boolean;
-}
-
-export interface KanbanPermissionData {
-	readonly label: string;
-	readonly command?: string;
-	readonly filePath?: string;
-	readonly toolKind?: AgentToolKind | null;
-	readonly progress?: { current: number; total: number; label: string } | null;
-	readonly allowAlwaysLabel?: string;
-	readonly approveLabel?: string;
-	readonly rejectLabel?: string;
 }
 
 export interface KanbanPermissionData {

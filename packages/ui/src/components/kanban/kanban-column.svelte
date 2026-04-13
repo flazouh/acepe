@@ -9,6 +9,7 @@ interface Props {
 	column: KanbanBoardColumnLayout;
 	emptyHint?: string;
 	content?: Snippet;
+	headerActions?: Snippet<[KanbanBoardColumnLayout["columnId"]]>;
 	onScroll?: () => void;
 	registerScrollContainer?: (
 		columnId: KanbanBoardColumnLayout["columnId"],
@@ -16,7 +17,8 @@ interface Props {
 	) => (() => void) | void;
 }
 
-let { column, emptyHint, content, onScroll, registerScrollContainer }: Props = $props();
+let { column, emptyHint, content, headerActions, onScroll, registerScrollContainer }: Props =
+	$props();
 let scrollContainer = $state<HTMLDivElement | null>(null);
 
 onMount(() => {
@@ -34,7 +36,7 @@ onMount(() => {
 </script>
 
 <div
-	class="flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden rounded-md bg-card/75"
+	class="flex min-h-0 min-w-0 basis-0 flex-1 flex-col overflow-hidden rounded-md bg-card/75"
 	data-testid="kanban-column-{column.columnId}"
 >
 	<FeedSectionHeader
@@ -43,6 +45,7 @@ onMount(() => {
 		count={column.cards.length}
 		color={sectionAccentColor(column.columnId)}
 		needsReviewIcon="file-code"
+		actions={headerActions}
 	/>
 	<div
 		bind:this={scrollContainer}

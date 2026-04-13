@@ -11,6 +11,9 @@ import {
 	extractLastToolInfo,
 	extractTodoProgress,
 	filterLiveSessions,
+	getNextSessionListVisibleCount,
+	getSessionListVisibleCount,
+	isSessionListNearBottom,
 } from "../session-list-logic.js";
 import type { SessionListItem } from "../session-list-types.js";
 
@@ -751,5 +754,23 @@ describe("extractActivityInfo", () => {
 			currentTool: null,
 			lastTool: { name: "Read", target: "file.ts", kind: "read" },
 		});
+	});
+});
+
+describe("session list pagination helpers", () => {
+	it("shows the first 10 sessions by default", () => {
+		expect(getSessionListVisibleCount(25, undefined)).toBe(10);
+		expect(getSessionListVisibleCount(6, undefined)).toBe(6);
+	});
+
+	it("reveals 10 more sessions at a time", () => {
+		expect(getNextSessionListVisibleCount(25, undefined)).toBe(20);
+		expect(getNextSessionListVisibleCount(25, 10)).toBe(20);
+		expect(getNextSessionListVisibleCount(25, 20)).toBe(25);
+	});
+
+	it("detects when a session list is at the bottom", () => {
+		expect(isSessionListNearBottom(180, 120, 320)).toBe(true);
+		expect(isSessionListNearBottom(150, 120, 320)).toBe(false);
 	});
 });

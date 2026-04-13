@@ -50,7 +50,7 @@ function toggleExpanded() {
 	{#if collapsed}
 		<button
 			type="button"
-			class="flex h-8 w-full items-center justify-center rounded border border-border bg-card/50 text-muted-foreground transition-colors duration-200 hover:bg-accent/50 hover:text-foreground"
+			class="flex h-8 w-full items-center justify-center rounded bg-card/50 text-muted-foreground transition-colors duration-200 hover:bg-accent/50 hover:text-foreground"
 			onclick={() => onActivateCollapsed?.()}
 			aria-label="Open attention queue"
 			title="Attention Queue"
@@ -63,14 +63,14 @@ function toggleExpanded() {
 			</div>
 		</button>
 	{:else}
-		<div class="mb-0.5 flex shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card/50 transition-[transform,opacity] duration-200 ease-out">
+		<div class="mb-0.5 flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/50 transition-[transform,opacity] duration-200 ease-out">
 			<button
 				type="button"
 				class="flex w-full cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
 				onclick={toggleExpanded}
 			>
 				<BellSimple size={12} weight="fill" class="text-primary shrink-0" />
-				<span class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+				<span class="text-[11px] font-medium text-muted-foreground">
 					Attention Queue
 				</span>
 				<span class="text-[10px] text-muted-foreground/60 tabular-nums">
@@ -89,9 +89,7 @@ function toggleExpanded() {
 				<div class="flex flex-col gap-0.5 p-1 pt-0">
 					{#each groups as group, i (group.id)}
 						{#if group.items.length > 0 || emptyHint}
-							<div class="section-card flex overflow-hidden rounded border border-border/50 bg-card/20">
-
-								<!-- Section content -->
+							<div class="flex overflow-hidden">
 								<div class="flex min-w-0 flex-1 flex-col">
 									<FeedSectionHeader
 										sectionId={group.id}
@@ -121,9 +119,3 @@ function toggleExpanded() {
 		</div>
 	{/if}
 {/if}
-
-<style>
-	.section-card {
-		backdrop-filter: blur(12px);
-	}
-</style>

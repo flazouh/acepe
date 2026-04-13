@@ -3,7 +3,11 @@
 
 	import { AttentionQueueQuestionCard } from "../attention-queue/index.js";
 
-	import { buildKanbanBoardLayout, buildKanbanSceneModelFromGroups } from "./kanban-board-layout.js";
+	import {
+		buildKanbanBoardLayout,
+		type KanbanBoardColumnLayout,
+		buildKanbanSceneModelFromGroups,
+	} from "./kanban-board-layout.js";
 	import KanbanBoard from "./kanban-board.svelte";
 	import KanbanCard from "./kanban-card.svelte";
 	import KanbanSceneMenu from "./kanban-scene-menu.svelte";
@@ -22,6 +26,7 @@ interface Props {
 	model?: KanbanSceneModel;
 	groups?: readonly KanbanSceneColumnGroup[];
 	emptyHint?: string;
+	columnHeaderActions?: Snippet<[KanbanBoardColumnLayout["columnId"]]>;
 	todoSectionRenderer?: Snippet<[KanbanSceneCardData]>;
 	permissionFooterRenderer?: Snippet<[KanbanSceneCardData, KanbanScenePermissionFooterData]>;
 	onCardClick?: (cardId: string) => void;
@@ -45,6 +50,7 @@ let {
 	model,
 	groups,
 	emptyHint,
+	columnHeaderActions,
 	todoSectionRenderer,
 	permissionFooterRenderer,
 	onCardClick,
@@ -101,7 +107,7 @@ function resolvePlanApprovalFooter(
 }
 </script>
 
-<KanbanBoard layout={boardLayout} {emptyHint}>
+<KanbanBoard layout={boardLayout} {emptyHint} {columnHeaderActions}>
 	{#snippet cardRenderer(sceneCard: KanbanSceneCardData)}
 		{@const questionFooterData = resolveQuestionFooter(sceneCard)}
 		{@const permissionFooterData = resolvePermissionFooter(sceneCard)}

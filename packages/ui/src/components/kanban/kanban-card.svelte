@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, X } from "phosphor-svelte";
+	import { Robot, Tree, X } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
@@ -80,7 +80,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-	class="shrink-0 flex flex-col overflow-hidden rounded-sm border border-border/60 bg-accent/30 transition-all duration-150 {isInteractive
+	class="w-full min-w-0 max-w-full shrink-0 flex flex-col overflow-hidden rounded-sm border border-border/60 bg-accent/30 transition-all duration-150 {isInteractive
 		? 'cursor-pointer hover:border-border hover:bg-accent/45 hover:shadow-[0_8px_24px_-16px_rgba(0,0,0,0.9)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0'
 		: isGhost
 			? 'shadow-[0_12px_32px_-20px_rgba(0,0,0,0.9)]'
@@ -94,15 +94,31 @@ function handleKeydown(event: KeyboardEvent): void {
 	<!-- Header: project badge, agent icon, status dot, diff, actions -->
 	<div data-testid="kanban-card-header">
 		<EmbeddedPanelHeader class="bg-card/50">
-			<HeaderCell withDivider={false}>
+			<HeaderCell withDivider={false} class="px-1">
 				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} sequenceId={card.sequenceId} class="shrink-0" />
 			</HeaderCell>
-			<HeaderCell>
-				<div class="flex items-center gap-1">
-					<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+			<HeaderCell class="px-1">
+				<div class="flex items-center gap-1.5">
+					<div class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+						<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+					</div>
+					{#if card.isWorktreeSession}
+						<div
+							class="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+							aria-label={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
+							title={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
+						>
+							<Tree
+								size={12}
+								weight="fill"
+								class={card.worktreeDeleted ? "text-destructive" : "text-success"}
+								color="currentColor"
+							/>
+						</div>
+					{/if}
 					{#if card.isAutoMode}
 						<div
-							class="flex h-3.5 w-3.5 items-center justify-center"
+							class="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
 							aria-label="Auto mode"
 							title="Auto mode"
 						>
@@ -113,7 +129,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			</HeaderCell>
 			<HeaderTitleCell compactPadding></HeaderTitleCell>
 			{#if hasDiff}
-				<HeaderActionCell withDivider={headerDiffDivider} class="px-1">
+				<HeaderActionCell withDivider={headerDiffDivider} class="px-1.5">
 					<div class="flex h-7 items-center justify-center">
 						<DiffPill insertions={card.diffInsertions} deletions={card.diffDeletions} variant="plain" class="text-[10px]" />
 					</div>
