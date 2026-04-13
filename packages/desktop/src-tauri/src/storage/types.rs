@@ -80,6 +80,8 @@ pub enum UserSettingKey {
     DismissedTooltips,
     /// Whether the attention queue panel is shown in the sidebar (boolean)
     AttentionQueueEnabled,
+    /// User's preferred default agent ID for new sessions
+    DefaultAgentId,
 }
 
 impl UserSettingKey {
@@ -126,6 +128,7 @@ impl UserSettingKey {
             UserSettingKey::GitMergeStrategyPreference => "git_merge_strategy_preference",
             UserSettingKey::DismissedTooltips => "dismissed_tooltips",
             UserSettingKey::AttentionQueueEnabled => "attention_queue_enabled",
+            UserSettingKey::DefaultAgentId => "default_agent_id",
         }
     }
 }
@@ -171,6 +174,7 @@ mod tests {
             "git_text_generation_agent",
             "dismissed_tooltips",
             "attention_queue_enabled",
+            "default_agent_id",
         ];
 
         for key in keys {
