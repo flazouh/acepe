@@ -113,6 +113,20 @@ const mobileNavLinkClass =
 			>
 				<DiscordLogo class="h-4 w-4" weight="fill" />
 			</a>
+			<a
+				href="https://x.com/acepedotdev"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+				aria-label="X"
+				title="X"
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
+					<path
+						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
+					/>
+				</svg>
+			</a>
 			<button
 				type="button"
 				class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
@@ -199,6 +213,20 @@ const mobileNavLinkClass =
 								title="Discord"
 							>
 								<DiscordLogo class="h-4 w-4" weight="fill" />
+							</a>
+							<a
+								href="https://x.com/acepedotdev"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
+								aria-label="X"
+								title="X"
+							>
+								<svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
+									<path
+										d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
+									/>
+								</svg>
 							</a>
 								<button
 									type="button"

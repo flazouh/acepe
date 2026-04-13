@@ -7,17 +7,16 @@ import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Bug } from "phosphor-svelte";
 import { Columns } from "phosphor-svelte";
-import { DiscordLogo } from "phosphor-svelte";
+import { Desktop } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
-import { GithubLogo } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
-import { Palette } from "phosphor-svelte";
-import { Robot } from "phosphor-svelte";
+import { Moon } from "phosphor-svelte";
 import { Rows } from "phosphor-svelte";
 import { SlidersHorizontal } from "phosphor-svelte";
 import { Square } from "phosphor-svelte";
 import { SquaresFour } from "phosphor-svelte";
+import { Sun } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
 import type { Snippet } from "svelte";
 import { getPanelStore } from "$lib/acp/store/index.js";
@@ -25,7 +24,7 @@ import type { ViewMode } from "$lib/acp/store/types.js";
 import { slide } from "svelte/transition";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
-import { ThemeToggle } from "$lib/components/theme/index.js";
+import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/paraglide/messages.js";
@@ -55,6 +54,7 @@ let {
 }: Props = $props();
 
 const panelStore = getPanelStore();
+const themeState = useTheme();
 const UPDATE_BUTTON_SEGMENT_COUNT = 16;
 type DropdownMenuTriggerChildProps =
 	NonNullable<DropdownMenuPrimitive.TriggerProps["child"]> extends Snippet<[infer T]> ? T : never;
@@ -72,11 +72,18 @@ const updateActionText = $derived(
 );
 
 type LayoutFamily = "standard" | "kanban";
+type ThemeOption = { value: Theme; label: string };
 
 const layoutFamilies: { value: LayoutFamily; label: string }[] = [
 	{ value: "standard", label: "Standard" },
 	{ value: "kanban", label: "Kanban" },
 ];
+const themeOptions: ThemeOption[] = [
+	{ value: "light", label: "Light" },
+	{ value: "dark", label: "Dark" },
+	{ value: "system", label: "System" },
+];
+const themePillActiveClass = "bg-background text-foreground shadow-sm";
 
 const standardViewModes: { value: Exclude<ViewMode, "kanban">; label: string; color: string }[] = [
 	{ value: "single", label: "Single", color: Colors[COLOR_NAMES.PURPLE] },
@@ -115,14 +122,13 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 <AppTopBar
 	windowDraggable
 	showTrafficLights={false}
-	searchLabel={m.top_bar_command_palette()}
 	{showSidebarToggle}
 	showAddProject={!!addProjectButton}
 	{addProjectButton}
 	onToggleSidebar={() => viewState.setSidebarOpen(!viewState.sidebarOpen)}
-	onSearch={() => (viewState.commandPaletteOpen = true)}
 	onSettings={() => viewState.toggleSettings()}
 	showAvatar={false}
+	showSearch={false}
 	showRightSectionLeadingBorder={panelStore.viewMode !== "kanban"}
 >
 	{#snippet extraLeftActions()}
@@ -253,30 +259,38 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 								</div>
 							</div>
 						{/if}
+
+						<div class="space-y-1.5">
+							<div class={layoutSectionHeaderClass}>
+								<div class={layoutSectionLabelClass}>Theme</div>
+							</div>
+							<div class={layoutPillGroupClass} role="radiogroup" aria-label="Theme">
+								{#each themeOptions as option (option.value)}
+									{@const isActive = option.value === themeState.theme}
+									<button
+										type="button"
+										role="radio"
+										aria-checked={isActive}
+										class="{layoutPillBaseClass} {isActive ? themePillActiveClass : ''}"
+										onclick={() => themeState.setTheme(option.value)}
+									>
+										{#if option.value === "light"}
+											<Sun class="size-3" weight="fill" />
+										{:else if option.value === "dark"}
+											<Moon class="size-3" weight="fill" />
+										{:else}
+											<Desktop class="size-3" weight="fill" />
+										{/if}
+										<span>{option.label}</span>
+									</button>
+								{/each}
+							</div>
+						</div>
 					</div>
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 		{/snippet}
-		{#if panelStore.viewMode === "kanban"}
-			<div class="flex items-center">
-				<div class="flex items-center pl-2 pr-2">
-					<Button
-						variant="headerAction"
-						size="headerAction"
-						class="gap-2 border-transparent hover:border-transparent"
-						onclick={() => viewState.handleNewThread()}
-					>
-						<Robot weight="fill" class="h-3.5 w-3.5" style="color: {Colors.purple}" />
-						<span>New Agent</span>
-					</Button>
-				</div>
-				<div class="flex items-center">
-					{@render layoutControl()}
-				</div>
-			</div>
-		{:else}
-			{@render layoutControl()}
-		{/if}
+		{@render layoutControl()}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
@@ -290,33 +304,6 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-					title="Join Discord"
-					aria-label="Discord"
-					onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
-				>
-					<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
-				</button>
-			</Tooltip.Trigger>
-			<Tooltip.Content>Join Discord</Tooltip.Content>
-		</Tooltip.Root>
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-					title="GitHub"
-					aria-label="GitHub"
-					onclick={() => openUrl("https://github.com/flazouh/acepe")}
-				>
-					<GithubLogo class="size-4" weight="fill" />
-				</button>
-			</Tooltip.Trigger>
-			<Tooltip.Content>GitHub</Tooltip.Content>
-		</Tooltip.Root>
-		<ThemeToggle />
 		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem)}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger>

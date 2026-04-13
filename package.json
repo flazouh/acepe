@@ -6,6 +6,10 @@
 		"type": "git",
 		"url": "https://github.com/flazouh/acepe.git"
 	},
+	"funding": {
+		"type": "github",
+		"url": "https://github.com/sponsors/flazouh"
+	},
 	"workspaces": ["packages/*"],
 	"scripts": {
 		"prepare": "husky",

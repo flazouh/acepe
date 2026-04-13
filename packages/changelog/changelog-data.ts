@@ -85,6 +85,26 @@ export const CHANGELOG: ChangelogEntry[] = [
 				description:
 					"Worktree toggles now keep the primary control visibly disabled when a global auto-worktree default locks it on.",
 			},
+			{
+				type: "improvement",
+				description:
+					"Project sidebar metadata now persists custom ordering and icon art, and project names keep their original path casing across cards, selectors, and badges.",
+			},
+			{
+				type: "feature",
+				description:
+					"Kanban and session lists now expose worktree state more clearly, add faster new-agent entry points, and keep long project groups scrollable without hiding older sessions behind a separate history toggle.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Question and todo operations now preserve their canonical semantics through ACP projection, shared tool rendering, and provider parsing so agent timelines and permission UI stay aligned.",
+			},
+			{
+				type: "improvement",
+				description:
+					"Desktop chrome now consolidates release and community links into the sidebar and website header while removing unused kanban footers and stale desktop helper surfaces.",
+			},
 		],
 	},
 	{
