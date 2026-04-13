@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
 describe("getProjectHeaderAgents", () => {
-	it("includes selected agents and installable agents that are not installed", () => {
+	it("returns only selected agents", () => {
 		const result = getProjectHeaderAgents(
 			[
 				{
@@ -16,7 +16,7 @@ describe("getProjectHeaderAgents", () => {
 					id: "cursor",
 					name: "Cursor",
 					icon: "cursor",
-					availability_kind: { kind: "installable", installed: false },
+					availability_kind: { kind: "installable", installed: true },
 				},
 				{
 					id: "codex",
@@ -25,13 +25,35 @@ describe("getProjectHeaderAgents", () => {
 					availability_kind: { kind: "installable", installed: true },
 				},
 			],
-			["claude-code"]
+			["claude-code", "cursor"]
 		);
 
 		expect(result.map((agent) => agent.id)).toEqual(["claude-code", "cursor"]);
 	});
 
-	it("does not add already installed agents that are not selected", () => {
+	it("excludes installable-but-not-installed agents that are not selected", () => {
+		const result = getProjectHeaderAgents(
+			[
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude-code",
+					availability_kind: { kind: "installable", installed: false },
+				},
+				{
+					id: "opencode",
+					name: "OpenCode",
+					icon: "opencode",
+					availability_kind: { kind: "installable", installed: true },
+				},
+			],
+			["opencode"]
+		);
+
+		expect(result.map((agent) => agent.id)).toEqual(["opencode"]);
+	});
+
+	it("returns empty list when no agents are selected", () => {
 		const result = getProjectHeaderAgents(
 			[
 				{
@@ -50,29 +72,7 @@ describe("getProjectHeaderAgents", () => {
 			[]
 		);
 
-		expect(result.map((agent) => agent.id)).toEqual(["cursor"]);
-	});
-
-	it("does not auto-include already installed PATH-backed agents that are not selected", () => {
-		const result = getProjectHeaderAgents(
-			[
-				{
-					id: "forge",
-					name: "Forge",
-					icon: "forge",
-					availability_kind: { kind: "installable", installed: true },
-				},
-				{
-					id: "cursor",
-					name: "Cursor",
-					icon: "cursor",
-					availability_kind: { kind: "installable", installed: false },
-				},
-			],
-			[]
-		);
-
-		expect(result.map((agent) => agent.id)).toEqual(["cursor"]);
+		expect(result.map((agent) => agent.id)).toEqual([]);
 	});
 });
 

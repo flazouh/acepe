@@ -3,7 +3,57 @@ import { describe, expect, it } from "bun:test";
 import { ensureSpawnableAgentSelected, getSpawnableSessionAgents } from "./spawnable-agents.js";
 
 describe("getSpawnableSessionAgents", () => {
-	it("includes selected agents and installable agents that are not installed", () => {
+	it("returns only selected agents", () => {
+		const result = getSpawnableSessionAgents(
+			[
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude-code",
+					availability_kind: { kind: "installable", installed: true },
+				},
+				{
+					id: "cursor",
+					name: "Cursor",
+					icon: "cursor",
+					availability_kind: { kind: "installable", installed: true },
+				},
+				{
+					id: "codex",
+					name: "Codex",
+					icon: "codex",
+					availability_kind: { kind: "installable", installed: true },
+				},
+			],
+			["claude-code", "cursor"]
+		);
+
+		expect(result.map((agent) => agent.id)).toEqual(["claude-code", "cursor"]);
+	});
+
+	it("excludes installable-but-not-installed agents that are not selected", () => {
+		const result = getSpawnableSessionAgents(
+			[
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude-code",
+					availability_kind: { kind: "installable", installed: false },
+				},
+				{
+					id: "opencode",
+					name: "OpenCode",
+					icon: "opencode",
+					availability_kind: { kind: "installable", installed: true },
+				},
+			],
+			["opencode"]
+		);
+
+		expect(result.map((agent) => agent.id)).toEqual(["opencode"]);
+	});
+
+	it("returns empty list when no agents are selected", () => {
 		const result = getSpawnableSessionAgents(
 			[
 				{
@@ -18,61 +68,33 @@ describe("getSpawnableSessionAgents", () => {
 					icon: "cursor",
 					availability_kind: { kind: "installable", installed: false },
 				},
-				{
-					id: "codex",
-					name: "Codex",
-					icon: "codex",
-					availability_kind: { kind: "installable", installed: true },
-				},
 			],
-			["claude-code"]
+			[]
 		);
 
-		expect(result.map((agent) => agent.id)).toEqual(["claude-code", "cursor"]);
+		expect(result.map((agent) => agent.id)).toEqual([]);
 	});
 
-	it("does not add already installed agents that are not selected", () => {
+	it("preserves selection order from agents array", () => {
 		const result = getSpawnableSessionAgents(
 			[
 				{
-					id: "custom-agent",
-					name: "Custom Agent",
-					icon: "custom-agent",
+					id: "opencode",
+					name: "OpenCode",
+					icon: "opencode",
 					availability_kind: { kind: "installable", installed: true },
 				},
 				{
 					id: "cursor",
 					name: "Cursor",
 					icon: "cursor",
-					availability_kind: { kind: "installable", installed: false },
-				},
-			],
-			[]
-		);
-
-		expect(result.map((agent) => agent.id)).toEqual(["cursor"]);
-	});
-
-	it("does not auto-include already installed PATH-backed agents that are not selected", () => {
-		const result = getSpawnableSessionAgents(
-			[
-				{
-					id: "forge",
-					name: "Forge",
-					icon: "forge",
 					availability_kind: { kind: "installable", installed: true },
 				},
-				{
-					id: "cursor",
-					name: "Cursor",
-					icon: "cursor",
-					availability_kind: { kind: "installable", installed: false },
-				},
 			],
-			[]
+			["cursor", "opencode"]
 		);
 
-		expect(result.map((agent) => agent.id)).toEqual(["cursor"]);
+		expect(result.map((agent) => agent.id)).toEqual(["opencode", "cursor"]);
 	});
 });
 
