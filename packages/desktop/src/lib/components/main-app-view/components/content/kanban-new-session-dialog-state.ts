@@ -6,6 +6,7 @@ interface ResolveKanbanNewSessionDefaultsInput {
 	readonly focusedProjectPath: string | null;
 	readonly availableAgents: readonly AgentInfo[];
 	readonly selectedAgentIds: readonly string[];
+	readonly defaultAgentId?: string | null;
 	readonly requestedProjectPath?: string | null;
 	readonly requestedAgentId?: string | null;
 }
@@ -42,6 +43,7 @@ function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput):
 }
 
 function resolveDefaultAgentId(input: ResolveKanbanNewSessionDefaultsInput): string | null {
+	// 1. Explicit request wins
 	if (input.requestedAgentId) {
 		for (const agent of input.availableAgents) {
 			if (agent.id === input.requestedAgentId) {
@@ -50,6 +52,16 @@ function resolveDefaultAgentId(input: ResolveKanbanNewSessionDefaultsInput): str
 		}
 	}
 
+	// 2. User's persisted default agent preference
+	if (input.defaultAgentId) {
+		for (const agent of input.availableAgents) {
+			if (agent.id === input.defaultAgentId) {
+				return agent.id;
+			}
+		}
+	}
+
+	// 3. First selected agent
 	for (const selectedAgentId of input.selectedAgentIds) {
 		for (const agent of input.availableAgents) {
 			if (agent.id === selectedAgentId) {
@@ -58,6 +70,7 @@ function resolveDefaultAgentId(input: ResolveKanbanNewSessionDefaultsInput): str
 		}
 	}
 
+	// 4. First available agent
 	const firstAgent = input.availableAgents[0];
 	return firstAgent ? firstAgent.id : null;
 }

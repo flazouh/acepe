@@ -57,10 +57,11 @@ const availableAgents = $derived(
 const projects = $derived(projectManager.projects);
 const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 
-// Resolve effective agent: explicit selection if still available, otherwise first available
+// Resolve effective agent: explicit selection → user default → first available
 const effectiveAgentId = $derived(
 	resolveEmptyStateAgentId({
 		selectedAgentId,
+		defaultAgentId: agentPreferencesStore.defaultAgentId,
 		availableAgentIds,
 	})
 );
