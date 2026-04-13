@@ -1115,6 +1115,63 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_batch_upsert_refreshes_placeholder_title_when_file_metadata_is_unchanged() {
+        let db = setup_test_db().await;
+        let session_id = "12345678-copilot-session";
+        let transcript_path = "/tmp/copilot/12345678-copilot-session/events.jsonl";
+
+        SessionMetadataRepository::ensure_exists(&db, session_id, "/project", "copilot", None)
+            .await
+            .unwrap();
+
+        let placeholder = SessionMetadataRepository::get_by_id(&db, session_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .display;
+        assert_eq!(placeholder, "Session 12345678");
+
+        SessionMetadataRepository::upsert(
+            &db,
+            session_id.to_string(),
+            placeholder.clone(),
+            1704067200000,
+            "/project".to_string(),
+            "copilot".to_string(),
+            transcript_path.to_string(),
+            1704067200,
+            2048,
+        )
+        .await
+        .unwrap();
+
+        let updated = SessionMetadataRepository::batch_upsert(
+            &db,
+            vec![(
+                session_id.to_string(),
+                "Real Copilot title".to_string(),
+                1704067300000,
+                "/project".to_string(),
+                "copilot".to_string(),
+                transcript_path.to_string(),
+                1704067200,
+                2048,
+            )],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated, 1, "placeholder title should refresh even when transcript metadata is unchanged");
+
+        let session = SessionMetadataRepository::get_by_id(&db, session_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.display, "Real Copilot title");
+        assert_eq!(session.file_path, transcript_path);
+    }
+
+    #[tokio::test]
     async fn test_set_provider_session_id_allows_batch_upsert_to_update_alias_row() {
         let db = setup_test_db().await;
 

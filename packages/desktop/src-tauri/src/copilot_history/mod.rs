@@ -207,6 +207,9 @@ pub fn convert_replay_updates_to_session(
     let mut accumulator = ReplayAccumulator::new();
 
     for (emitted_at_ms, update) in updates {
+        if matches!(update, SessionUpdate::AgentThoughtChunk { .. }) {
+            continue;
+        }
         accumulator.push(*emitted_at_ms, update);
     }
 
@@ -851,6 +854,58 @@ mod tests {
                 assert_eq!(children[0].id, "child-read-1");
             }
             other => panic!("expected tool call entry, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn replay_conversion_filters_copilot_thought_chunks_from_restored_history() {
+        let session_id = "copilot-session-thought";
+        let converted = convert_replay_updates_to_session(
+            session_id,
+            "Copilot Session",
+            &[
+                (
+                    1_710_000_020_000,
+                    crate::acp::session_update::SessionUpdate::AgentThoughtChunk {
+                        chunk: ContentChunk {
+                            content: ContentBlock::Text {
+                                text: "Investigating codebase options".to_string(),
+                            },
+                            aggregation_hint: None,
+                        },
+                        part_id: None,
+                        message_id: Some("assistant-1".to_string()),
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+                (
+                    1_710_000_020_500,
+                    crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                        chunk: ContentChunk {
+                            content: ContentBlock::Text {
+                                text: "I found the replay path.".to_string(),
+                            },
+                            aggregation_hint: None,
+                        },
+                        part_id: None,
+                        message_id: Some("assistant-1".to_string()),
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+            ],
+        );
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("I found the replay path.")
+                );
+            }
+            other => panic!("expected assistant entry, got {:?}", other),
         }
     }
 
