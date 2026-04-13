@@ -1,7 +1,7 @@
+use crate::acp::operation_projectors::project_read_model_for_kind;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, SkillMeta,
-    ToolCallData,
+    tool_call_status_from_str, SkillMeta, ToolCallData,
 };
 use crate::acp::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
 use crate::session_jsonl::display_names::format_model_display_name;
@@ -421,9 +421,8 @@ fn convert_assistant_message(
                         locations: None,
                     },
                 );
-                let normalized_questions =
-                    parse_normalized_questions(&classified.name, input, agent_type);
-                let normalized_todos = parse_normalized_todos(&classified.name, input, agent_type);
+                let projection =
+                    project_read_model_for_kind(classified.kind, &classified.name, input, agent_type);
                 tool_entries.push(StoredEntry::ToolCall {
                     id: id.clone(),
                     message: ToolCallData {
@@ -437,8 +436,8 @@ fn convert_assistant_message(
                         raw_input: Some(input.clone()),
                         skill_meta,
                         locations: None,
-                        normalized_questions,
-                        normalized_todos,
+                        normalized_questions: projection.normalized_questions,
+                        normalized_todos: projection.normalized_todos,
                         parent_tool_use_id: None,
                         task_children: None,
                         question_answer,

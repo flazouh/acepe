@@ -23,6 +23,7 @@ pub mod github_issues;
 pub mod inbound_request_router;
 pub mod model_display;
 pub mod non_streaming_batcher;
+pub mod operation_projectors;
 pub mod opencode;
 pub mod parsers;
 pub mod partial_json;

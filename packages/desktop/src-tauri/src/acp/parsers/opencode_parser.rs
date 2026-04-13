@@ -5,9 +5,9 @@ use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::opencode::parse_edit_arguments;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::types::{
-    parse_common_update_type_name, parse_standard_usage_telemetry, AgentParser, AgentType,
-    ParseError, ParsedQuestion, ParsedQuestionOption, ParsedTodo, ParsedTodoStatus,
-    ParsedUsageTelemetry, UpdateType,
+    infer_operation_family_from_payload, parse_common_update_type_name,
+    parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion,
+    ParsedQuestionOption, ParsedTodo, ParsedTodoStatus, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, RawToolCallInput,
@@ -143,6 +143,7 @@ impl OpenCodeParser {
             .unwrap_or(serde_json::json!({}));
 
         let kind = OpenCodeAdapter::normalize(&name);
+        let semantic_family = infer_operation_family_from_payload(kind, &arguments);
 
         Ok(RawToolCallInput {
             id,
@@ -150,6 +151,7 @@ impl OpenCodeParser {
             arguments,
             status: ToolCallStatus::Pending,
             kind: Some(kind),
+            semantic_family: Some(semantic_family),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -172,6 +174,7 @@ impl OpenCodeParser {
         Ok(RawToolCallUpdateInput {
             id,
             status: Some(ToolCallStatus::Completed),
+            semantic_family: None,
             result,
             content: None,
             title: None,

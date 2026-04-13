@@ -282,6 +282,7 @@ pub(crate) fn convert_events_to_updates(
                         arguments: tool_request.arguments,
                         status: ToolCallStatus::Pending,
                         kind: None,
+                        semantic_family: None,
                         title: tool_request.title,
                         suppress_title_read_path_hint: false,
                         parent_tool_use_id: None,
@@ -317,6 +318,7 @@ pub(crate) fn convert_events_to_updates(
                     arguments: data.arguments,
                     status: ToolCallStatus::InProgress,
                     kind: None,
+                    semantic_family: None,
                     title: None,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -338,6 +340,7 @@ pub(crate) fn convert_events_to_updates(
                     } else {
                         ToolCallStatus::Failed
                     }),
+                    semantic_family: None,
                     result: data.result,
                     content: None,
                     title: None,
@@ -371,6 +374,7 @@ pub(crate) fn convert_events_to_updates(
                     }),
                     status: ToolCallStatus::InProgress,
                     kind: Some(ToolKind::Task),
+                    semantic_family: None,
                     title,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: None,
@@ -388,6 +392,7 @@ pub(crate) fn convert_events_to_updates(
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
                     status: Some(ToolCallStatus::Completed),
+                    semantic_family: None,
                     result: Some(json!({
                         "agentName": data.agent_name,
                         "agentDisplayName": data.agent_display_name

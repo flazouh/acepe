@@ -1,7 +1,9 @@
-use crate::acp::parsers::{AgentParser, AgentType, ClaudeCodeParser, OpenCodeParser};
+use crate::acp::operation_projectors::{
+    project_opencode_task_children_from_metadata, project_read_model_for_kind,
+};
+use crate::acp::parsers::{AgentParser, AgentType, OpenCodeParser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
-    ToolCallData,
+    tool_call_status_from_str, ToolCallData,
 };
 use crate::acp::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
@@ -13,65 +15,6 @@ use crate::session_jsonl::types::{
 use std::collections::HashMap;
 
 use super::calculate_todo_timing;
-
-fn map_summary_status(status: &str) -> String {
-    match status {
-        "completed" => "completed".to_string(),
-        "error" | "failed" => "failed".to_string(),
-        "running" => "in_progress".to_string(),
-        _ => "pending".to_string(),
-    }
-}
-
-fn parse_task_children_from_metadata(
-    parent_id: &str,
-    metadata: Option<&serde_json::Value>,
-) -> Option<Vec<ToolCallData>> {
-    let summary = metadata?.get("summary")?.as_array()?;
-    if summary.is_empty() {
-        return None;
-    }
-
-    let mut children = Vec::with_capacity(summary.len());
-    for (index, item) in summary.iter().enumerate() {
-        let tool_name = item.get("tool").and_then(|v| v.as_str()).unwrap_or("Tool");
-        let state = item.get("state");
-        let title = state
-            .and_then(|s| s.get("title"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let status = state
-            .and_then(|s| s.get("status"))
-            .and_then(|v| v.as_str())
-            .map(map_summary_status)
-            .unwrap_or_else(|| "pending".to_string());
-        let kind = ClaudeCodeParser.detect_tool_kind(tool_name);
-
-        children.push(ToolCallData {
-            id: format!("{parent_id}:summary-{index}"),
-            name: tool_name.to_string(),
-            title,
-            status: tool_call_status_from_str(&status),
-            result: None,
-            kind: Some(kind),
-            arguments: ToolArguments::Other {
-                raw: serde_json::json!({}),
-            },
-            raw_input: None,
-            skill_meta: None,
-            locations: None,
-            normalized_questions: None,
-            normalized_todos: None,
-            parent_tool_use_id: Some(parent_id.to_string()),
-            task_children: None,
-            question_answer: None,
-            awaiting_plan_approval: false,
-            plan_approval_request_id: None,
-        });
-    }
-
-    Some(children)
-}
 
 /// Convert OpenCode messages to ConvertedSession format.
 ///
@@ -285,12 +228,14 @@ fn convert_opencode_assistant_message(
                         locations: None,
                     },
                 );
-                let normalized_questions =
-                    parse_normalized_questions(&classified.name, input, AgentType::OpenCode);
-                let normalized_todos =
-                    parse_normalized_todos(&classified.name, input, AgentType::OpenCode);
+                let projection = project_read_model_for_kind(
+                    classified.kind,
+                    &classified.name,
+                    input,
+                    AgentType::OpenCode,
+                );
                 let task_children = if name.to_lowercase().contains("task") {
-                    parse_task_children_from_metadata(
+                    project_opencode_task_children_from_metadata(
                         id,
                         state.as_ref().and_then(|s| s.metadata.as_ref()),
                     )
@@ -310,8 +255,8 @@ fn convert_opencode_assistant_message(
                         raw_input: None,
                         skill_meta: None, // OpenCode doesn't support skill meta yet
                         locations: None,
-                        normalized_questions,
-                        normalized_todos,
+                        normalized_questions: projection.normalized_questions,
+                        normalized_todos: projection.normalized_todos,
                         parent_tool_use_id: None,
                         task_children,
                         question_answer: None, // OpenCode question answers not yet supported
