@@ -1,8 +1,8 @@
 import {
-	pitchSectionIds,
 	type PitchProofItem,
 	type PitchSection,
 	type PitchThesisBeat,
+	pitchSectionIds,
 } from "./types.js";
 
 const requiredPitchThesisBeats: readonly PitchThesisBeat[] = [

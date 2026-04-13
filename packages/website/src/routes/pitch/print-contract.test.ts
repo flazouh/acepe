@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
-
-import { describe, expect, it } from "vitest";
 import { render } from "svelte/server";
+import { describe, expect, it } from "vitest";
 
 const { default: Page } = await import("./+page.svelte");
 

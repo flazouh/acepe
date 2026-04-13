@@ -1,15 +1,14 @@
 import { readFile } from "node:fs/promises";
-
-import { describe, expect, it } from "vitest";
 import { render } from "svelte/server";
+import { describe, expect, it } from "vitest";
 
 import {
 	approvedPitchTitleHeadlines,
 	formatPitchProofValue,
+	type PitchProofItem,
 	pitchBeatSectionIds,
 	pitchSections,
 	validatePitchSections,
-	type PitchProofItem,
 } from "$lib/pitch/content.js";
 
 const { default: Page } = await import("./+page.svelte");
