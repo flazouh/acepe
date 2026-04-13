@@ -309,8 +309,6 @@ export {
 	KanbanCard,
 	KanbanColumn,
 	KanbanCompactComposer,
-	KanbanPermissionFooter,
-	KanbanQuestionFooter,
 	KanbanSceneBoard,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";

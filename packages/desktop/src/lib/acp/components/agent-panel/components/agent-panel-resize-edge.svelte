@@ -12,7 +12,7 @@ let { isDragging, onPointerDown, onPointerMove, onPointerUp }: AgentPanelResizeE
 	onpointerup={onPointerUp}
 >
 	<div
-		class="h-full shrink-0 bg-border transition-[width] duration-150 ease-out hover:bg-primary/50 {isDragging
+		class="h-full shrink-0 bg-transparent transition-[width] duration-150 ease-out hover:bg-primary/50 {isDragging
 			? 'w-[3px] bg-primary/50'
 			: 'w-px hover:w-[3px]'}"
 		aria-hidden="true"

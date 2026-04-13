@@ -400,8 +400,25 @@ const activityProjection = $derived.by(() => {
 		todoProgress,
 	});
 });
+const suppressPlanApprovalToolPreview = $derived(pendingPlanApproval !== null);
 const projectedIsStreaming = $derived(
-	activityProjection?.isStreaming ?? previewActivityKind === "streaming"
+	suppressPlanApprovalToolPreview
+		? false
+		: (activityProjection?.isStreaming ?? previewActivityKind === "streaming")
+);
+const activityEntryLatestToolDisplay = $derived(
+	suppressPlanApprovalToolPreview ? null : (activityProjection?.latestToolEntry ?? null)
+);
+const activityEntryFileToolDisplayText = $derived(
+	suppressPlanApprovalToolPreview ? null : (activityProjection?.fileToolDisplayText ?? null)
+);
+const activityEntryToolContent = $derived(
+	suppressPlanApprovalToolPreview
+		? null
+		: (activityProjection?.isFileTool ? null : (activityProjection?.toolContent ?? null))
+);
+const activityEntryShowToolShimmer = $derived(
+	suppressPlanApprovalToolPreview ? false : (activityProjection?.showToolShimmer ?? false)
 );
 const richTitleResult = $derived(formatRichSessionTitle(session.title, session.projectName));
 const displayTitle = $derived(richTitleResult.plainText);
@@ -745,10 +762,10 @@ function handleNextQuestion() {
 					taskSubagentTools={activityProjection?.taskSubagentTools ?? []}
 					latestTaskSubagentTool={activityProjection?.latestTaskSubagentTool ?? null}
 					showTaskSubagentList={activityProjection?.showTaskSubagentList ?? false}
-					latestToolDisplay={activityProjection?.latestToolEntry ?? null}
-					fileToolDisplayText={activityProjection?.fileToolDisplayText ?? null}
-					toolContent={activityProjection?.isFileTool ? null : (activityProjection?.toolContent ?? null)}
-					showToolShimmer={activityProjection?.showToolShimmer ?? false}
+					latestToolDisplay={activityEntryLatestToolDisplay}
+					fileToolDisplayText={activityEntryFileToolDisplayText}
+					toolContent={activityEntryToolContent}
+					showToolShimmer={activityEntryShowToolShimmer}
 					{statusText}
 					{showStatusShimmer}
 					todoProgress={activityProjection?.todoProgress ?? null}
