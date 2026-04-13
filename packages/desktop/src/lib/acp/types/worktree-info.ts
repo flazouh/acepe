@@ -11,3 +11,9 @@ export interface WorktreeInfo {
 	/** Whether the worktree was created by acepe or externally */
 	readonly origin: "acepe" | "external";
 }
+
+export interface PreparedWorktreeLaunch {
+	readonly launchToken: string;
+	readonly sequenceId: number;
+	readonly worktree: WorktreeInfo;
+}

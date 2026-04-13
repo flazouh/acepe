@@ -560,7 +560,10 @@ export class MainAppViewState {
 		}
 
 		// No focused project context - show project selection
-		this.panelStore.spawnPanel({ requireProjectSelection: true });
+		this.panelStore.spawnPanel({
+			requireProjectSelection: true,
+			pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
+		});
 	}
 
 	/**
@@ -589,12 +592,14 @@ export class MainAppViewState {
 			const panel = this.panelStore.spawnPanel({
 				requireProjectSelection: false,
 				projectPath: project.path,
+				pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
 			});
 			this.panelStore.setPanelAgent(panel.id, agentId);
 		} else {
 			this.panelStore.spawnPanel({
 				requireProjectSelection: false,
 				projectPath: project.path,
+				pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
 			});
 		}
 	}

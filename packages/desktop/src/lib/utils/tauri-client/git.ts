@@ -2,7 +2,7 @@ import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { CloneResult } from "../../acp/types/index.js";
 import type { SetupResult, WorktreeConfig } from "../../acp/types/worktree-config.js";
-import type { WorktreeInfo } from "../../acp/types/worktree-info.js";
+import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../acp/types/worktree-info.js";
 import { CMD } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 
@@ -49,6 +49,23 @@ export const git = {
 
 	worktreeCreate: (projectPath: string): ResultAsync<WorktreeInfo, AppError> => {
 		return invokeAsync(CMD.git.worktree_create, { projectPath });
+	},
+
+	prepareWorktreeSessionLaunch: (
+		projectPath: string,
+		agentId: string
+	): ResultAsync<PreparedWorktreeLaunch, AppError> => {
+		return invokeAsync(CMD.git.prepare_worktree_session_launch, { projectPath, agentId });
+	},
+
+	discardPreparedWorktreeSessionLaunch: (
+		launchToken: string,
+		removeWorktree = false
+	): ResultAsync<void, AppError> => {
+		return invokeAsync(CMD.git.discard_prepared_worktree_session_launch, {
+			launchToken,
+			removeWorktree,
+		});
 	},
 
 	worktreeRemove: (worktreePath: string, force?: boolean): ResultAsync<void, AppError> => {

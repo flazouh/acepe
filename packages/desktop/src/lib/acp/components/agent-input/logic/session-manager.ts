@@ -48,6 +48,8 @@ export interface CreateSessionOptions {
 	 * Used for correct path conversion when creating checkpoints.
 	 */
 	readonly worktreePath?: string;
+
+	readonly launchToken?: string;
 }
 
 /**
@@ -82,6 +84,7 @@ export function createSession(
 			projectPath: options.projectPath,
 			title: options.title ?? undefined,
 			worktreePath: options.worktreePath,
+			launchToken: options.launchToken,
 		})
 		.map((session) => session.id)
 		.mapErr(

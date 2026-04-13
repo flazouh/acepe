@@ -35,6 +35,7 @@ import type { ReviewPanel } from "./review-panel-type.js";
 import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import { DEFAULT_TERMINAL_PANEL_WIDTH, MIN_TERMINAL_PANEL_WIDTH } from "./terminal-panel-type.js";
+import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
@@ -418,6 +419,8 @@ export class PanelStore {
 			autoCreated,
 			width,
 			pendingProjectSelection: false,
+			pendingWorktreeEnabled: null,
+			preparedWorktreeLaunch: null,
 			selectedAgentId,
 			projectPath: session ? session.projectPath : null,
 			agentId: session ? session.agentId : null,
@@ -442,6 +445,8 @@ export class PanelStore {
 				autoCreated,
 				width: panel.width,
 				pendingProjectSelection: panel.pendingProjectSelection,
+				pendingWorktreeEnabled: panel.pendingWorktreeEnabled ?? null,
+				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
 				selectedAgentId: panel.selectedAgentId,
 				projectPath: panel.projectPath,
 				agentId: panel.agentId,
@@ -570,6 +575,7 @@ export class PanelStore {
 			projectPath?: string;
 			id?: string;
 			selectedAgentId?: string | null;
+			pendingWorktreeEnabled?: boolean | null;
 		} = {}
 	): Panel {
 		const panel: Panel = {
@@ -579,6 +585,13 @@ export class PanelStore {
 			sessionId: null,
 			width: DEFAULT_PANEL_WIDTH,
 			pendingProjectSelection: options.requireProjectSelection ?? false,
+			pendingWorktreeEnabled:
+				options.pendingWorktreeEnabled === true
+					? true
+					: options.pendingWorktreeEnabled === false
+						? false
+						: null,
+			preparedWorktreeLaunch: null,
 			selectedAgentId: options.selectedAgentId ?? null,
 			projectPath: options.projectPath ?? null,
 			agentId: null,
@@ -782,6 +795,8 @@ export class PanelStore {
 						...p,
 						sessionId,
 						pendingProjectSelection: false,
+						pendingWorktreeEnabled: sessionId === null ? p.pendingWorktreeEnabled ?? null : null,
+						preparedWorktreeLaunch: sessionId === null ? p.preparedWorktreeLaunch ?? null : null,
 						projectPath: session?.projectPath ?? p.projectPath,
 						agentId: session?.agentId ?? p.agentId,
 						sourcePath: session?.sourcePath ?? p.sourcePath,
@@ -828,6 +843,34 @@ export class PanelStore {
 		);
 		this.onPersist();
 		logger.debug("Panel project path set", { panelId, projectPath });
+	}
+
+	setPendingWorktreeEnabled(panelId: string, pendingWorktreeEnabled: boolean): void {
+		this.panels = this.panels.map((panel) =>
+			panel.id === panelId ? { ...panel, pendingWorktreeEnabled } : panel
+		);
+		this.onPersist();
+		logger.debug("Panel pending worktree state set", { panelId, pendingWorktreeEnabled });
+	}
+
+	setPreparedWorktreeLaunch(panelId: string, preparedWorktreeLaunch: PreparedWorktreeLaunch): void {
+		this.panels = this.panels.map((panel) =>
+			panel.id === panelId ? { ...panel, preparedWorktreeLaunch } : panel
+		);
+		this.onPersist();
+		logger.debug("Panel prepared worktree launch set", {
+			panelId,
+			launchToken: preparedWorktreeLaunch.launchToken,
+			sequenceId: preparedWorktreeLaunch.sequenceId,
+		});
+	}
+
+	clearPreparedWorktreeLaunch(panelId: string): void {
+		this.panels = this.panels.map((panel) =>
+			panel.id === panelId ? { ...panel, preparedWorktreeLaunch: null } : panel
+		);
+		this.onPersist();
+		logger.debug("Panel prepared worktree launch cleared", { panelId });
 	}
 
 	/**

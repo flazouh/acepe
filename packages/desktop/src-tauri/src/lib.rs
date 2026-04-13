@@ -81,8 +81,9 @@ use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_details};
 use git::watcher::{git_watch_head, GitHeadWatcher};
 use git::worktree::{
     git_checkout_branch, git_current_branch, git_has_uncommitted_changes, git_init, git_is_repo,
-    git_list_branches, git_worktree_create, git_worktree_disk_size, git_worktree_list,
-    git_worktree_remove, git_worktree_rename, git_worktree_reset,
+    git_discard_prepared_worktree_session_launch, git_list_branches,
+    git_prepare_worktree_session_launch, git_worktree_create, git_worktree_disk_size,
+    git_worktree_list, git_worktree_remove, git_worktree_rename, git_worktree_reset,
 };
 use git::worktree_config::{load_worktree_config, run_worktree_setup, save_worktree_config};
 use history::indexer::IndexerActor;
@@ -1135,6 +1136,8 @@ pub fn run() {
             git_checkout_branch,
             git_has_uncommitted_changes,
             git_worktree_create,
+            git_prepare_worktree_session_launch,
+            git_discard_prepared_worktree_session_launch,
             git_worktree_remove,
             git_worktree_reset,
             git_worktree_list,

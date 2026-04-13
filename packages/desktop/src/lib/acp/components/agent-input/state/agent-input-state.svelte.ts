@@ -560,6 +560,7 @@ export class AgentInputState {
 		projectName?: string | null;
 		onSessionCreated?: (sessionId: string, panelId?: string | null) => void;
 		worktreePath?: string | null;
+		launchToken?: string | null;
 		imageAttachments?: readonly Attachment[];
 	}): ResultAsync<void, SessionCreationError | MessageSendError> {
 		const {
@@ -574,6 +575,7 @@ export class AgentInputState {
 			projectName,
 			onSessionCreated,
 			worktreePath,
+			launchToken,
 			imageAttachments = [],
 		} = options;
 		this.logger.info("[first-send-trace] sendPreparedMessage entered", {
@@ -584,6 +586,7 @@ export class AgentInputState {
 			initialModelId: initialModelId ?? null,
 			projectPath: projectPath ?? null,
 			worktreePath: worktreePath ?? null,
+			launchToken: launchToken ?? null,
 			selectedAgentId: selectedAgentId ?? null,
 			contentLength: content.length,
 		});
@@ -661,6 +664,7 @@ export class AgentInputState {
 			projectName: effectiveProjectName,
 			title: initialSessionTitle,
 			worktreePath: worktreePath ?? undefined,
+			launchToken: launchToken ?? undefined,
 		})
 			.andThen((newSessionId) => {
 				const createdSession = this.store.getSessionCold(newSessionId);

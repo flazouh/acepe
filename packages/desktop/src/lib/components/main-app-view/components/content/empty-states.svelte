@@ -180,6 +180,7 @@ function handleWillSend() {
 		panelId: EMPTY_STATE_PANEL_ID,
 		projectPath,
 		selectedAgentId: effectiveAgentId,
+		pendingWorktreeEnabled: effectiveWorktreePending,
 	});
 	logger.info("[worktree-debug] empty-state panel context ensured", {
 		panelId: EMPTY_STATE_PANEL_ID,

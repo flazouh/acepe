@@ -12,6 +12,7 @@ describe("empty-state panel context", () => {
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
+			setPendingWorktreeEnabled: mock(() => {}),
 			updatePanelSession: mock(() => {}),
 		};
 
@@ -20,6 +21,7 @@ describe("empty-state panel context", () => {
 			panelId: "empty-state-panel",
 			projectPath: "/repo",
 			selectedAgentId: "claude-code",
+			pendingWorktreeEnabled: true,
 		});
 
 		expect(panelStore.spawnPanel).toHaveBeenCalledWith({
@@ -27,9 +29,11 @@ describe("empty-state panel context", () => {
 			projectPath: "/repo",
 			id: "empty-state-panel",
 			selectedAgentId: "claude-code",
+			pendingWorktreeEnabled: true,
 		});
 		expect(panelStore.setPanelProjectPath).not.toHaveBeenCalled();
 		expect(panelStore.setPanelAgent).not.toHaveBeenCalled();
+		expect(panelStore.setPendingWorktreeEnabled).not.toHaveBeenCalled();
 	});
 
 	it("reuses existing panel context instead of spawning another panel", () => {
@@ -38,6 +42,7 @@ describe("empty-state panel context", () => {
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
+			setPendingWorktreeEnabled: mock(() => {}),
 			updatePanelSession: mock(() => {}),
 		};
 
@@ -46,11 +51,16 @@ describe("empty-state panel context", () => {
 			panelId: "empty-state-panel",
 			projectPath: "/repo",
 			selectedAgentId: "claude-code",
+			pendingWorktreeEnabled: false,
 		});
 
 		expect(panelStore.spawnPanel).not.toHaveBeenCalled();
 		expect(panelStore.setPanelProjectPath).toHaveBeenCalledWith("empty-state-panel", "/repo");
 		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("empty-state-panel", "claude-code");
+		expect(panelStore.setPendingWorktreeEnabled).toHaveBeenCalledWith(
+			"empty-state-panel",
+			false
+		);
 	});
 
 	it("attaches created session to the pre-spawned panel", () => {
@@ -59,6 +69,7 @@ describe("empty-state panel context", () => {
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
+			setPendingWorktreeEnabled: mock(() => {}),
 			updatePanelSession: mock(() => {}),
 		};
 

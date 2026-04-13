@@ -268,6 +268,7 @@ export class SessionConnectionManager {
 			initialModeId?: string;
 			initialModelId?: string;
 			worktreePath?: string;
+			launchToken?: string;
 		},
 		eventHandler: SessionEventHandler
 	): ResultAsync<SessionCold, AppError> {
@@ -279,7 +280,7 @@ export class SessionConnectionManager {
 			agentId: options.agentId,
 		});
 		return api
-			.newSession(sessionCwd, options.agentId)
+			.newSession(sessionCwd, options.agentId, options.launchToken)
 			.andThen((result) =>
 				preferencesStore
 					.ensureLoaded()

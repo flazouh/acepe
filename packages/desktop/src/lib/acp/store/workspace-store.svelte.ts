@@ -235,6 +235,11 @@ export function serializeWorkspacePanels(
 				sessionId: panel.sessionId,
 				autoCreated: panel.autoCreated === true ? true : undefined,
 				pendingProjectSelection: panel.pendingProjectSelection,
+				pendingWorktreeEnabled:
+					panel.pendingWorktreeEnabled === null || panel.pendingWorktreeEnabled === undefined
+						? undefined
+						: panel.pendingWorktreeEnabled,
+				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
 				selectedAgentId: panel.selectedAgentId,
 				agentId: panel.agentId,
 				sourcePath: panel.sourcePath ? panel.sourcePath : undefined,
@@ -322,6 +327,9 @@ export function hydratePersistedWorkspacePanels(
 				sessionId: panel.sessionId,
 				autoCreated: panel.autoCreated === true ? true : undefined,
 				pendingProjectSelection: panel.pendingProjectSelection,
+				pendingWorktreeEnabled:
+					panel.pendingWorktreeEnabled === true ? true : panel.pendingWorktreeEnabled === false ? false : null,
+				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
 				selectedAgentId: panel.selectedAgentId,
 				agentId: panel.agentId,
 				sourcePath: panel.sourcePath ? panel.sourcePath : null,
@@ -686,6 +694,13 @@ export class WorkspaceStore {
 				autoCreated: p.autoCreated === true ? true : undefined,
 				width: p.width,
 				pendingProjectSelection: p.pendingProjectSelection || false,
+				pendingWorktreeEnabled:
+					p.pendingWorktreeEnabled === true
+						? true
+						: p.pendingWorktreeEnabled === false
+							? false
+							: null,
+				preparedWorktreeLaunch: p.preparedWorktreeLaunch ?? null,
 				// For panels without a session, don't restore agent - let user select via buttons
 				selectedAgentId: p.sessionId ? (p.selectedAgentId ?? null) : null,
 				projectPath: p.projectPath ?? null,

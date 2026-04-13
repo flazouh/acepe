@@ -98,6 +98,8 @@ export const CMD = {
 		checkout_branch: "git_checkout_branch",
 		has_uncommitted_changes: "git_has_uncommitted_changes",
 		worktree_create: "git_worktree_create",
+		prepare_worktree_session_launch: "git_prepare_worktree_session_launch",
+		discard_prepared_worktree_session_launch: "git_discard_prepared_worktree_session_launch",
 		worktree_remove: "git_worktree_remove",
 		worktree_reset: "git_worktree_reset",
 		worktree_list: "git_worktree_list",

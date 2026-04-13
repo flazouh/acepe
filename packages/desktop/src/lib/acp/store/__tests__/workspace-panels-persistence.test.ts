@@ -15,13 +15,16 @@ describe("workspace panel persistence", () => {
 				width: 450,
 				ownerPanelId: null,
 				sessionId: "session-1",
+				autoCreated: undefined,
 				pendingProjectSelection: false,
+				pendingWorktreeEnabled: undefined,
 				selectedAgentId: "claude-code",
 				agentId: "claude-code",
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
 				sequenceId: 5,
+				preparedWorktreeLaunch: null,
 			},
 			{
 				id: "file-1",
@@ -74,13 +77,16 @@ describe("workspace panel persistence", () => {
 				width: 450,
 				ownerPanelId: null,
 				sessionId: "session-1",
+				autoCreated: undefined,
 				pendingProjectSelection: false,
+				pendingWorktreeEnabled: undefined,
 				selectedAgentId: "claude-code",
 				agentId: "claude-code",
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
 				worktreePath: "/tmp/project/.git/worktrees/feature-a",
 				sessionTitle: "Thread",
 				sequenceId: 5,
+				preparedWorktreeLaunch: null,
 			},
 			{
 				id: "file-1",
@@ -174,6 +180,8 @@ describe("workspace panel persistence", () => {
 				sessionId: "session-1",
 				autoCreated: undefined,
 				pendingProjectSelection: false,
+				pendingWorktreeEnabled: null,
+				preparedWorktreeLaunch: null,
 				selectedAgentId: "claude-code",
 				agentId: "claude-code",
 				sourcePath: "/tmp/project/.cursor/sessions/session-1.json",
@@ -220,6 +228,70 @@ describe("workspace panel persistence", () => {
 					totalEditCount: 0,
 				},
 				selectedFileIndex: 0,
+			},
+		]);
+	});
+
+	it("round-trips pending worktree choice for fresh agent panels", () => {
+		const persisted = serializeWorkspacePanels([
+			{
+				id: "agent-fresh",
+				kind: "agent",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				sessionId: null,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				agentId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: null,
+				pendingWorktreeEnabled: true,
+			},
+		]);
+
+		expect(persisted).toEqual([
+			{
+				id: "agent-fresh",
+				kind: "agent",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				sessionId: null,
+				autoCreated: undefined,
+				pendingProjectSelection: false,
+				pendingWorktreeEnabled: true,
+				preparedWorktreeLaunch: null,
+				selectedAgentId: "claude-code",
+				agentId: null,
+				sourcePath: undefined,
+				worktreePath: undefined,
+				sessionTitle: undefined,
+				sequenceId: undefined,
+			},
+		]);
+
+		const panels = hydratePersistedWorkspacePanels(persisted);
+
+		expect(panels).toEqual([
+			{
+				id: "agent-fresh",
+				kind: "agent",
+				projectPath: "/tmp/project",
+				width: 500,
+				ownerPanelId: null,
+				sessionId: null,
+				autoCreated: undefined,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				agentId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: null,
+				sequenceId: null,
+				pendingWorktreeEnabled: true,
+				preparedWorktreeLaunch: null,
 			},
 		]);
 	});

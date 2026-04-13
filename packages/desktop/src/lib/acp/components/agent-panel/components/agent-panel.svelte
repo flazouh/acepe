@@ -43,6 +43,7 @@ import * as agentModelPrefs from "../../../store/agent-model-preferences-store.s
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
+	AgentPanelWorktreeStatusDisplay as SharedWorktreeStatusDisplay,
 	AgentPanelPlanHeader as SharedPlanHeader,
 } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
@@ -55,7 +56,6 @@ import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js
 import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
-import { loadWorktreeEnabled } from "../../worktree-toggle/worktree-storage.js";
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
@@ -84,9 +84,9 @@ import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
-import { WorktreeToggleControl } from "../../worktree-toggle/index.js";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
+import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
@@ -171,6 +171,13 @@ const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(ses
 // reviewMode, etc.), not just pendingUserEntry. This causes extra recomputations during typing,
 // but the fast path returns the same array reference so Svelte skips DOM updates. Acceptable trade-off.
 const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null);
+const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
+const panelPendingWorktreeEnabled = $derived(
+	panelSnapshot?.kind === "agent" ? panelSnapshot.pendingWorktreeEnabled ?? null : null
+);
+const panelPreparedWorktreeLaunch = $derived(
+	panelSnapshot?.kind === "agent" ? panelSnapshot.preparedWorktreeLaunch ?? null : null
+);
 const sessionEntries = $derived.by(() => {
 	const pending = panelHotState?.pendingUserEntry ?? null;
 	const real = sessionId ? sessionStore.getEntries(sessionId) : [];
@@ -237,7 +244,6 @@ let isLoadingCheckpoints = $state(false);
 // Worktree state - tracks the active worktree directory for checkpoint path conversion
 let activeWorktreePath = $state<string | null>(null);
 let activeWorktreeOwnerProjectPath = $state<string | null>(null);
-let worktreePending = $state(false);
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
 
@@ -334,6 +340,18 @@ const effectiveProjectName = $derived(
 		? project?.name
 		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
 );
+const preSessionProjectName = $derived.by(() => {
+	if (effectiveProjectName) {
+		return effectiveProjectName;
+	}
+
+	if (!worktreeToggleProjectPath) {
+		return "Project";
+	}
+
+	const segments = worktreeToggleProjectPath.split("/").filter((segment) => segment.length > 0);
+	return segments[segments.length - 1] ?? "Project";
+});
 
 // ✅ Derived values from granular session data
 const agentName = $derived(sessionAgentId ?? selectedAgentId);
@@ -393,16 +411,17 @@ const viewStateInput = $derived({
 });
 const viewState = $derived(derivePanelViewState(viewStateInput));
 const panelViewKind = $derived(viewState.kind);
-
-$effect(() => {
-	worktreePending = resolveAgentPanelWorktreePending({
-		panelId,
+const worktreePending = $derived(
+	resolveAgentPanelWorktreePending({
 		activeWorktreePath: effectiveActiveWorktreePath,
 		hasMessages,
-		globalWorktreeDefault,
-		loadEnabled: loadWorktreeEnabled,
-	});
-});
+		pendingWorktreeEnabled: panelPendingWorktreeEnabled,
+		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
+	})
+);
+const showPreSessionWorktreeCard = $derived(
+	sessionId === null && !pendingProjectSelection && worktreeToggleProjectPath !== null
+);
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
@@ -580,6 +599,25 @@ const _activeWorktreeName = $derived.by(() => {
 	const segments = worktreePath.split("/").filter((segment) => segment.length > 0);
 	return segments.length > 0 ? (segments[segments.length - 1] ?? null) : null;
 });
+const footerWorktreeStatus = $derived.by(() => {
+	if (!sessionId || !worktreeToggleProjectPath) {
+		return null;
+	}
+
+	if (effectiveActiveWorktreePath && _activeWorktreeName) {
+		return {
+			mode: "worktree" as const,
+			primaryLabel: _activeWorktreeName,
+			secondaryLabel: effectiveProjectName ?? worktreeToggleProjectPath,
+		};
+	}
+
+	return {
+		mode: "project-root" as const,
+		primaryLabel: "Project root",
+		secondaryLabel: effectiveProjectName ?? worktreeToggleProjectPath,
+	};
+});
 
 const hasPlan = $derived(planState.plan !== null);
 const ATTACHED_COLUMN_WIDTH = 450;
@@ -601,6 +639,8 @@ let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").Shi
 );
 let prCardRenderKey = $state(0);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+let preSessionWorktreeFailure = $state<string | null>(null);
+let agentInputRef = $state<{ retrySend: () => void } | null>(null);
 const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const worktreeSetupMatchContext = $derived.by(() => {
 	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
@@ -1014,12 +1054,14 @@ function installAgentThenCreateSession(project: Project, agentId: string) {
 }
 
 function handleSessionCreated(sessionIdParam: string) {
+	preSessionWorktreeFailure = null;
 	onSessionCreated?.(sessionIdParam);
 }
 
-function handleWorktreeCreated(info: WorktreeInfo) {
-	worktreePending = false;
-	activeWorktreePath = info.directory;
+function handleWorktreeCreated(info: WorktreeInfo | string) {
+	const nextDirectory = typeof info === "string" ? info : info.directory;
+	preSessionWorktreeFailure = null;
+	activeWorktreePath = nextDirectory;
 	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
 
 	const projectPath = sessionProjectPath ?? worktreeToggleProjectPath ?? "";
@@ -1028,22 +1070,61 @@ function handleWorktreeCreated(info: WorktreeInfo) {
 		sessionProjectPath,
 		worktreeToggleProjectPath,
 		projectPath: projectPath || null,
-		infoDirectory: info.directory,
+		infoDirectory: nextDirectory,
 	});
 	if (!projectPath) {
 		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
 		return;
 	}
 	logger.info("[worktree-flow] handleWorktreeCreated: set activeWorktreePath", {
-		activeWorktreePath: info.directory,
+		activeWorktreePath: nextDirectory,
 		projectPath,
 	});
 
 	if (sessionId) {
 		sessionStore.updateSession(sessionId, {
 			worktreeDeleted: false,
-			worktreePath: info.directory,
+			worktreePath: nextDirectory,
 		});
+	}
+}
+
+function handlePreparedWorktreeLaunch(launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch): void {
+	preSessionWorktreeFailure = null;
+	if (panelId) {
+		panelStore.setPreparedWorktreeLaunch(panelId, launch);
+	}
+	activeWorktreePath = launch.worktree.directory;
+	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
+}
+
+function handlePreSessionWorktreeFailure(message: string): void {
+	preSessionWorktreeFailure = message;
+}
+
+function handleRetryWorktree(): void {
+	preSessionWorktreeFailure = null;
+	agentInputRef?.retrySend();
+}
+
+function handleStartInProjectRoot(): void {
+	preSessionWorktreeFailure = null;
+	activeWorktreePath = null;
+	activeWorktreeOwnerProjectPath = null;
+	if (panelId && panelPreparedWorktreeLaunch) {
+		void tauriClient.git
+			.discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true)
+			.match(
+				() => {
+					panelStore.clearPreparedWorktreeLaunch(panelId);
+				},
+				(error) => {
+					toast.error(`Failed to discard prepared worktree: ${error.message}`);
+				}
+			);
+	}
+	if (panelId) {
+		panelStore.setPendingWorktreeEnabled(panelId, false);
 	}
 }
 
@@ -1768,6 +1849,40 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									onCreateIssue={handleCreateIssueFromError}
 								/>
 							{/if}
+							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+								<PreSessionWorktreeCard
+									projectPath={worktreeToggleProjectPath}
+									projectName={preSessionProjectName}
+									pendingWorktreeEnabled={worktreePending}
+									globalWorktreeDefault={globalWorktreeDefault}
+									failureMessage={preSessionWorktreeFailure}
+									onPendingWorktreeChange={(enabled) => {
+										preSessionWorktreeFailure = null;
+										if (panelId) {
+											if (!enabled && panelPreparedWorktreeLaunch) {
+												void tauriClient.git
+													.discardPreparedWorktreeSessionLaunch(
+														panelPreparedWorktreeLaunch.launchToken,
+														true
+													)
+													.match(
+														() => {
+															panelStore.clearPreparedWorktreeLaunch(panelId);
+														},
+														(error) => {
+															toast.error(
+																`Failed to discard prepared worktree: ${error.message}`
+															);
+														}
+													);
+											}
+											panelStore.setPendingWorktreeEnabled(panelId, enabled);
+										}
+									}}
+									onRetryWorktree={worktreePending ? handleRetryWorktree : undefined}
+									onStartInProjectRoot={worktreePending ? handleStartInProjectRoot : undefined}
+								/>
+							{/if}
 							{#if worktreeSetupState?.isVisible}
 								<WorktreeSetupCard state={worktreeSetupState} />
 							{/if}
@@ -1881,6 +1996,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			>
 				{#key inputRenderKey}
 					<AgentInput
+						bind:this={agentInputRef}
 						sessionId={sessionId ?? undefined}
 						{sessionStatus}
 						sessionIsConnected={sessionHotState?.isConnected ?? false}
@@ -1894,16 +2010,22 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 						projectName={effectiveProjectName ?? undefined}
 						worktreePath={effectiveActiveWorktreePath ?? undefined}
 						{worktreePending}
+						preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
 						onWorktreeCreating={() => {
+							preSessionWorktreeFailure = null;
 							worktreeSetupState = createWorktreeCreationState({
 								projectPath:
 									worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
 							});
 						}}
-						onWorktreeCreated={(path) => {
-							activeWorktreePath = path;
-							activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
+						onWorktreeCreated={(path) => handleWorktreeCreated(path)}
+						onPreparedWorktreeLaunch={handlePreparedWorktreeLaunch}
+						onPreparedWorktreeLaunchCleared={() => {
+							if (panelId) {
+								panelStore.clearPreparedWorktreeLaunch(panelId);
+							}
 						}}
+						onWorktreeCreateFailed={handlePreSessionWorktreeFailure}
 						{selectedAgentId}
 						{availableAgents}
 						{onAgentChange}
@@ -1961,21 +2083,13 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 				}}
 			>
 				{#snippet left()}
-					<WorktreeToggleControl
-						{panelId}
-						projectPath={worktreeToggleProjectPath}
-						projectName={null}
-						activeWorktreePath={effectiveActiveWorktreePath}
-						{hasEdits}
-						{hasMessages}
-						globalWorktreeDefault={globalWorktreeDefault}
-						{worktreeDeleted}
-						onWorktreeCreated={handleWorktreeCreated}
-						onWorktreeRenamed={handleWorktreeRenamed}
-						onPendingChange={(pending) => {
-							worktreePending = pending;
-						}}
-					/>
+					{#if footerWorktreeStatus}
+						<SharedWorktreeStatusDisplay
+							mode={footerWorktreeStatus.mode}
+							primaryLabel={footerWorktreeStatus.primaryLabel}
+							secondaryLabel={footerWorktreeStatus.secondaryLabel}
+						/>
+					{/if}
 				{/snippet}
 			</SharedFooter>
 		{/if}

@@ -18,8 +18,8 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbConn, DbBackend, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -768,6 +768,7 @@ pub enum SessionLifecycleState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AcepeSessionRelationship {
     Discovered,
+    Reserved,
     Opened,
     Created,
 }
@@ -776,6 +777,7 @@ impl AcepeSessionRelationship {
     fn as_str(self) -> &'static str {
         match self {
             Self::Discovered => "discovered",
+            Self::Reserved => "reserved",
             Self::Opened => "opened",
             Self::Created => "created",
         }
@@ -783,6 +785,7 @@ impl AcepeSessionRelationship {
 
     fn from_str(value: &str) -> Self {
         match value {
+            "reserved" => Self::Reserved,
             "opened" => Self::Opened,
             "created" => Self::Created,
             _ => Self::Discovered,
@@ -791,6 +794,10 @@ impl AcepeSessionRelationship {
 
     fn is_managed(self) -> bool {
         !matches!(self, Self::Discovered)
+    }
+
+    fn is_visible(self) -> bool {
+        !matches!(self, Self::Reserved)
     }
 }
 
@@ -811,6 +818,14 @@ pub struct SessionMetadataRow {
     pub pr_number: Option<i32>,
     pub is_acepe_managed: bool,
     pub sequence_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReservedWorktreeLaunchRow {
+    pub launch_token: String,
+    pub project_path: String,
+    pub worktree_path: Option<String>,
+    pub sequence_id: i32,
 }
 
 impl SessionMetadataRow {
@@ -987,6 +1002,10 @@ impl SessionMetadataRepository {
 
     fn created_session_file_path(session_id: &str) -> String {
         format!("__session_registry__/{session_id}")
+    }
+
+    fn reserved_worktree_launch_file_path(launch_token: &str) -> String {
+        format!("__worktree__/prepared/{launch_token}")
     }
 
     fn is_acepe_managed_file_path(file_path: &str) -> bool {
@@ -1253,6 +1272,175 @@ impl SessionMetadataRepository {
         anyhow::bail!("Failed to allocate a unique sequence_id after retries");
     }
 
+    pub async fn reserve_worktree_launch(
+        db: &DbConn,
+        project_path: &str,
+        agent_id: &str,
+    ) -> Result<ReservedWorktreeLaunchRow> {
+        for _attempt in 0..5 {
+            let txn = db.begin().await?;
+            let now = Utc::now();
+            let launch_token = Uuid::new_v4().to_string();
+            let next_sequence_id = Self::next_sequence_id_for_project(&txn, project_path).await?;
+
+            let metadata = session_metadata::ActiveModel {
+                id: Set(launch_token.clone()),
+                display: Set(format!("Prepared worktree launch s{next_sequence_id}")),
+                timestamp: Set(now.timestamp_millis()),
+                project_path: Set(project_path.to_string()),
+                agent_id: Set(agent_id.to_string()),
+                file_path: Set(Self::reserved_worktree_launch_file_path(&launch_token)),
+                file_mtime: Set(0),
+                file_size: Set(0),
+                provider_session_id: Set(None),
+                worktree_path: Set(None),
+                pr_number: sea_orm::ActiveValue::NotSet,
+                is_acepe_managed: Set(1),
+                sequence_id: Set(Some(next_sequence_id)),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+
+            match SessionMetadata::insert(metadata).exec(&txn).await {
+                Ok(_) => {
+                    let state = acepe_session_state::ActiveModel {
+                        session_id: Set(launch_token.clone()),
+                        relationship: Set(AcepeSessionRelationship::Reserved.as_str().to_string()),
+                        project_path: Set(project_path.to_string()),
+                        title_override: Set(None),
+                        worktree_path: Set(None),
+                        pr_number: Set(None),
+                        sequence_id: Set(Some(next_sequence_id)),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    state.insert(&txn).await?;
+                    txn.commit().await?;
+                    return Ok(ReservedWorktreeLaunchRow {
+                        launch_token,
+                        project_path: project_path.to_string(),
+                        worktree_path: None,
+                        sequence_id: next_sequence_id,
+                    });
+                }
+                Err(error) => {
+                    if Self::is_sequence_constraint_violation(&error) {
+                        continue;
+                    }
+                    return Err(error.into());
+                }
+            }
+        }
+
+        anyhow::bail!("Failed to reserve a unique sequence_id after retries");
+    }
+
+    pub async fn attach_reserved_worktree_launch(
+        db: &DbConn,
+        launch_token: &str,
+        worktree_path: &str,
+    ) -> Result<ReservedWorktreeLaunchRow> {
+        let txn = db.begin().await?;
+        let metadata = SessionMetadata::find_by_id(launch_token)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch not found"))?;
+        let project_path = metadata.project_path.clone();
+        let sequence_id = metadata.sequence_id.unwrap_or_default();
+        let state = AcepeSessionState::find_by_id(launch_token)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch state not found"))?;
+
+        if AcepeSessionRelationship::from_str(&state.relationship) != AcepeSessionRelationship::Reserved {
+            anyhow::bail!("Prepared worktree launch has already been consumed");
+        }
+
+        let mut metadata_active: session_metadata::ActiveModel = metadata.into();
+        metadata_active.worktree_path = Set(Some(worktree_path.to_string()));
+        metadata_active.updated_at = Set(Utc::now());
+        metadata_active.update(&txn).await?;
+
+        let mut state_active: acepe_session_state::ActiveModel = state.into();
+        state_active.worktree_path = Set(Some(worktree_path.to_string()));
+        state_active.updated_at = Set(Utc::now());
+        state_active.update(&txn).await?;
+
+        txn.commit().await?;
+
+        Ok(ReservedWorktreeLaunchRow {
+            launch_token: launch_token.to_string(),
+            project_path,
+            worktree_path: Some(worktree_path.to_string()),
+            sequence_id,
+        })
+    }
+
+    pub async fn discard_reserved_worktree_launch(db: &DbConn, launch_token: &str) -> Result<()> {
+        let txn = db.begin().await?;
+        if let Some(state) = AcepeSessionState::find_by_id(launch_token).one(&txn).await? {
+            if AcepeSessionRelationship::from_str(&state.relationship) == AcepeSessionRelationship::Reserved {
+                AcepeSessionState::delete_by_id(launch_token).exec(&txn).await?;
+                SessionMetadata::delete_by_id(launch_token).exec(&txn).await?;
+            }
+        }
+        txn.commit().await?;
+        Ok(())
+    }
+
+    pub async fn consume_reserved_worktree_launch(
+        db: &DbConn,
+        launch_token: &str,
+        session_id: &str,
+        agent_id: &str,
+    ) -> Result<Option<i32>> {
+        let txn = db.begin().await?;
+        let _metadata = SessionMetadata::find_by_id(launch_token)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch not found"))?;
+        let state = AcepeSessionState::find_by_id(launch_token)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch state not found"))?;
+
+        if AcepeSessionRelationship::from_str(&state.relationship) != AcepeSessionRelationship::Reserved {
+            anyhow::bail!("Prepared worktree launch has already been consumed");
+        }
+
+        let backend = DbBackend::Sqlite;
+        let now = Utc::now();
+        let preview_len = 8usize.min(session_id.len());
+        let display = format!("Session {}", &session_id[..preview_len]);
+
+        txn.execute(Statement::from_sql_and_values(
+            backend,
+            "UPDATE session_metadata SET id = ?, display = ?, agent_id = ?, file_path = ?, updated_at = ? WHERE id = ?",
+            [
+                session_id.into(),
+                display.into(),
+                agent_id.into(),
+                Self::created_session_file_path(session_id).into(),
+                now.into(),
+                launch_token.into(),
+            ],
+        ))
+        .await?;
+        txn.execute(Statement::from_sql_and_values(
+            backend,
+            "UPDATE acepe_session_state SET session_id = ?, relationship = ?, updated_at = ? WHERE session_id = ?",
+            [
+                session_id.into(),
+                AcepeSessionRelationship::Created.as_str().into(),
+                now.into(),
+                launch_token.into(),
+            ],
+        ))
+        .await?;
+        txn.commit().await?;
+        Ok(state.sequence_id)
+    }
+
     async fn mark_session_as_acepe_tracked(
         db: &DbConn,
         existing_model: session_metadata::Model,
@@ -1375,6 +1563,14 @@ impl SessionMetadataRepository {
 
         Ok(models
             .into_iter()
+            .filter(|model| {
+                state_map
+                    .get(&model.id)
+                    .map(|state| {
+                        AcepeSessionRelationship::from_str(&state.relationship).is_visible()
+                    })
+                    .unwrap_or(true)
+            })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect())
     }
@@ -1413,6 +1609,14 @@ impl SessionMetadataRepository {
 
         Ok(models
             .into_iter()
+            .filter(|model| {
+                state_map
+                    .get(&model.id)
+                    .map(|state| {
+                        AcepeSessionRelationship::from_str(&state.relationship).is_visible()
+                    })
+                    .unwrap_or(true)
+            })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect())
     }
@@ -1434,6 +1638,14 @@ impl SessionMetadataRepository {
 
         Ok(models
             .into_iter()
+            .filter(|model| {
+                state_map
+                    .get(&model.id)
+                    .map(|state| {
+                        AcepeSessionRelationship::from_str(&state.relationship).is_visible()
+                    })
+                    .unwrap_or(true)
+            })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect())
     }

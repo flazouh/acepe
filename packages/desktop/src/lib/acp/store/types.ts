@@ -37,6 +37,7 @@ import type { ConfigOptionData } from "../../services/converted-session-types.js
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import type { AvailableCommand } from "../types/available-command";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { SessionState } from "./session-state.js";
@@ -219,6 +220,8 @@ export interface Panel {
 	readonly autoCreated?: boolean;
 	readonly width: number;
 	readonly pendingProjectSelection: boolean;
+	readonly pendingWorktreeEnabled?: boolean | null;
+	readonly preparedWorktreeLaunch?: PreparedWorktreeLaunch | null;
 	readonly selectedAgentId: string | null;
 	/** Session loading context (enables direct loading without history lookup) */
 	readonly projectPath: string | null;
@@ -245,6 +248,8 @@ export interface AgentWorkspacePanel extends WorkspacePanelBase {
 	readonly sessionId: string | null;
 	readonly autoCreated?: boolean;
 	readonly pendingProjectSelection: boolean;
+	readonly pendingWorktreeEnabled?: boolean | null;
+	readonly preparedWorktreeLaunch?: PreparedWorktreeLaunch | null;
 	readonly selectedAgentId: string | null;
 	readonly agentId: string | null;
 	readonly sourcePath?: string | null;
@@ -334,6 +339,8 @@ export interface PersistedAgentWorkspacePanelState extends PersistedWorkspacePan
 	readonly sessionId: string | null;
 	readonly autoCreated?: boolean;
 	readonly pendingProjectSelection: boolean;
+	readonly pendingWorktreeEnabled?: boolean;
+	readonly preparedWorktreeLaunch?: PreparedWorktreeLaunch | null;
 	readonly selectedAgentId: string | null;
 	readonly agentId: string | null;
 	readonly sourcePath?: string;
@@ -562,6 +569,8 @@ export interface PersistedPanelState {
 	readonly autoCreated?: boolean;
 	readonly width: number;
 	readonly pendingProjectSelection: boolean;
+	readonly pendingWorktreeEnabled?: boolean;
+	readonly preparedWorktreeLaunch?: PreparedWorktreeLaunch | null;
 	readonly selectedAgentId: string | null;
 	readonly projectPath: string | null;
 	readonly agentId: string | null;

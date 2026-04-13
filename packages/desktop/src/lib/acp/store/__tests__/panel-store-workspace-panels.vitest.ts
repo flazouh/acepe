@@ -48,6 +48,24 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("stores the seeded pending worktree choice for fresh panels", () => {
+		const store = createStore();
+
+		const panel = store.spawnPanel({
+			projectPath: "/tmp/project",
+			pendingWorktreeEnabled: true,
+		});
+
+		expect(panel).toMatchObject({
+			id: panel.id,
+			pendingWorktreeEnabled: true,
+		});
+		expect(store.workspacePanels[0]).toMatchObject({
+			id: panel.id,
+			pendingWorktreeEnabled: true,
+		});
+	});
+
 	it("stores file, terminal, and browser panels in the canonical workspace panel list", () => {
 		const store = createStore();
 
@@ -119,7 +137,11 @@ describe("PanelStore workspacePanels", () => {
 		} as unknown as AgentStore;
 		const store = new PanelStore(sessionStore, agentStore, vi.fn());
 
-		const panel = store.spawnPanel({ selectedAgentId: "cursor", projectPath: "/tmp/project" });
+		const panel = store.spawnPanel({
+			selectedAgentId: "cursor",
+			projectPath: "/tmp/project",
+			pendingWorktreeEnabled: true,
+		});
 
 		store.updatePanelSession(panel.id, "session-1");
 
@@ -129,6 +151,7 @@ describe("PanelStore workspacePanels", () => {
 			projectPath: "/tmp/project",
 			agentId: "cursor",
 			sessionTitle: "Hello",
+			pendingWorktreeEnabled: null,
 		});
 	});
 });

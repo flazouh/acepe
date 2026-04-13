@@ -938,6 +938,7 @@ function handleNewSessionWillSend(): string | null {
 	const optimisticPanel = panelStore.spawnPanel({
 		projectPath,
 		selectedAgentId: effectiveAgentId,
+		pendingWorktreeEnabled: globalWorktreeDefault,
 	});
 	newSessionOpen = false;
 	return optimisticPanel.id;

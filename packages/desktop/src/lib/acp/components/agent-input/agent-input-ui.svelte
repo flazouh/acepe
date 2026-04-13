@@ -1174,57 +1174,97 @@ async function handleSend() {
 
 	// When worktree toggle is pending, create worktree first (need the path), then run setup in background
 	let worktreePathForSend: string | undefined = props.worktreePath ?? undefined;
+	let preparedWorktreeLaunch = props.preparedWorktreeLaunch ?? null;
 	if (!worktreePathForSend && props.worktreePending && props.projectPath) {
-		if (effectivePanelId) {
-			panelStore.setPendingWorktreeSetup(effectivePanelId, {
-				projectPath: props.projectPath,
-				worktreePath: null,
-				phase: "creating-worktree",
-			});
-		}
-		props.onWorktreeCreating?.();
-		logger.info("[worktree-flow] handleSend: creating worktree before send", {
-			projectPath: props.projectPath,
-			panelId: props.panelId ?? null,
-			t_ms: Math.round(performance.now() - t0),
-		});
-		const createResult = await tauriClient.git.worktreeCreate(props.projectPath);
-		if (createResult.isOk()) {
-			const info = createResult.value;
-			worktreePathForSend = info.directory;
+		if (preparedWorktreeLaunch) {
+			worktreePathForSend = preparedWorktreeLaunch.worktree.directory;
+		} else {
 			if (effectivePanelId) {
 				panelStore.setPendingWorktreeSetup(effectivePanelId, {
 					projectPath: props.projectPath,
-					worktreePath: info.directory,
-					phase: "running",
+					worktreePath: null,
+					phase: "creating-worktree",
 				});
 			}
-			logger.info("[first-send-trace] worktree created", {
-				panelId: props.panelId ?? null,
+			props.onWorktreeCreating?.();
+			logger.info("[worktree-flow] handleSend: preparing worktree launch before send", {
 				projectPath: props.projectPath,
-				worktreePathForSend,
+				panelId: props.panelId ?? null,
 				t_ms: Math.round(performance.now() - t0),
 			});
-			props.onWorktreeCreated?.(info.directory);
-			// Run setup in background — don't block the message send
-			void runWorktreeSetup({
-				projectPath: props.projectPath!,
-				worktreeCwd: info.directory,
-			}).match(
-				(result) => {
-					if (!result.setupSuccess) toast.warning(m.settings_worktree_setup_failed());
-				},
-				(error) => {
-					logger.warn("Worktree setup failed", { error });
-					toast.warning(m.settings_worktree_setup_failed());
-				}
+			const createResult = await tauriClient.git.prepareWorktreeSessionLaunch(
+				props.projectPath,
+				props.selectedAgentId ?? "claude-code"
 			);
-		} else {
-			if (effectivePanelId) {
-				panelStore.clearPendingWorktreeSetup(effectivePanelId);
+			if (createResult.isOk()) {
+				preparedWorktreeLaunch = createResult.value;
+				worktreePathForSend = preparedWorktreeLaunch.worktree.directory;
+				props.onPreparedWorktreeLaunch?.(preparedWorktreeLaunch);
+				if (effectivePanelId) {
+					panelStore.setPendingWorktreeSetup(effectivePanelId, {
+						projectPath: props.projectPath,
+						worktreePath: preparedWorktreeLaunch.worktree.directory,
+						phase: "running",
+					});
+				}
+				logger.info("[first-send-trace] worktree launch prepared", {
+					panelId: props.panelId ?? null,
+					projectPath: props.projectPath,
+					worktreePathForSend,
+					launchToken: preparedWorktreeLaunch.launchToken,
+					sequenceId: preparedWorktreeLaunch.sequenceId,
+					t_ms: Math.round(performance.now() - t0),
+				});
+				props.onWorktreeCreated?.(preparedWorktreeLaunch.worktree.directory);
+				void runWorktreeSetup({
+					projectPath: props.projectPath!,
+					worktreeCwd: preparedWorktreeLaunch.worktree.directory,
+				}).match(
+					(result) => {
+						if (!result.setupSuccess) toast.warning(m.settings_worktree_setup_failed());
+					},
+					(error) => {
+						logger.warn("Worktree setup failed", { error });
+						toast.warning(m.settings_worktree_setup_failed());
+					}
+				);
+			} else {
+				if (effectivePanelId) {
+					panelStore.clearPendingWorktreeSetup(effectivePanelId);
+					panelStore.clearPendingUserEntry(effectivePanelId);
+				}
+				const failure =
+					createResult.error instanceof Error
+						? createResult.error
+						: new Error(m.worktree_create_failed());
+				const failureMessage = formatPreSessionSendFailure(failure);
+				logger.warn("Worktree launch preparation failed", {
+					error: createResult.error,
+					failureMessage,
+				});
+				if (effectivePanelId && props.onSendError) {
+					panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
+					panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
+				}
+				lastDraftValue = restoreSnapshot.draft;
+				if (props.onSendError) {
+					props.onSendError(effectivePanelId ?? null);
+				} else {
+					applyComposerRestoreSnapshot(restoreSnapshot);
+				}
+				props.onWorktreeCreateFailed?.(failureMessage);
+				toast.error(m.worktree_create_failed());
+				isSending = false;
+				return;
 			}
-			logger.warn("Worktree creation failed", { error: createResult.error });
-			toast.error(m.worktree_create_failed());
+		}
+		if (!preparedWorktreeLaunch && !worktreePathForSend) {
+			if (effectivePanelId) {
+				panelStore.clearPendingUserEntry(effectivePanelId);
+			}
+			props.onWorktreeCreateFailed?.(m.worktree_create_failed());
+			isSending = false;
+			return;
 		}
 	}
 
@@ -1271,6 +1311,7 @@ async function handleSend() {
 			projectName: props.projectName,
 			onSessionCreated: handleSessionCreated,
 			worktreePath: worktreePathForSend,
+			launchToken: preparedWorktreeLaunch?.launchToken ?? null,
 			imageAttachments: prepared.imageAttachments,
 		})
 		.map(() => {
@@ -1296,6 +1337,9 @@ async function handleSend() {
 					type: PanelConnectionEvent.CONNECTION_ERROR,
 					error: formatPreSessionSendFailure(error),
 				});
+				if (props.worktreePending && preparedWorktreeLaunch) {
+					props.onWorktreeCreateFailed?.(formatPreSessionSendFailure(error));
+				}
 				props.onSendError?.(effectivePanelId);
 			} else if (shouldClearDraftEarly && props.panelId) {
 				panelStore.setMessageDraft(props.panelId, prepared.content);
@@ -1310,6 +1354,10 @@ async function handleSend() {
 		.finally(() => {
 			isSending = false;
 		});
+}
+
+export function retrySend(): void {
+	void handleSend();
 }
 
 // Handle steer: cancel current streaming + send immediately

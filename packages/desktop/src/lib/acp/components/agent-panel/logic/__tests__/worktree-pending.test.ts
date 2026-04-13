@@ -3,62 +3,73 @@ import { describe, expect, it } from "bun:test";
 import { resolveAgentPanelWorktreePending } from "../worktree-pending.js";
 
 describe("resolveAgentPanelWorktreePending", () => {
-	it("uses persisted toggle state before the first send", () => {
+	it("uses the panel-owned pending state before the first send", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
-				panelId: "panel-1",
 				activeWorktreePath: null,
 				hasMessages: false,
-				globalWorktreeDefault: false,
-				loadEnabled: (panelId) => panelId === "panel-1",
+				pendingWorktreeEnabled: true,
 			})
 		).toBe(true);
 	});
 
-	it("respects an opted-out persisted state even when the global default is enabled", () => {
+	it("respects an explicit opted-out panel state", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
-				panelId: "panel-1",
 				activeWorktreePath: null,
 				hasMessages: false,
-				globalWorktreeDefault: true,
-				loadEnabled: () => false,
+				pendingWorktreeEnabled: false,
 			})
 		).toBe(false);
+	});
+
+	it("does not fall back to a new global value after the panel was seeded", () => {
+		expect(
+			resolveAgentPanelWorktreePending({
+				activeWorktreePath: null,
+				hasMessages: false,
+				pendingWorktreeEnabled: true,
+			})
+		).toBe(true);
 	});
 
 	it("returns false once a worktree already exists", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
-				panelId: "panel-1",
 				activeWorktreePath: "/tmp/worktree",
 				hasMessages: false,
-				globalWorktreeDefault: true,
-				loadEnabled: () => true,
+				pendingWorktreeEnabled: true,
 			})
 		).toBe(false);
+	});
+
+	it("stays pending when a prepared launch already created the worktree", () => {
+		expect(
+			resolveAgentPanelWorktreePending({
+				activeWorktreePath: "/tmp/worktree",
+				hasMessages: false,
+				pendingWorktreeEnabled: true,
+				hasPreparedWorktreeLaunch: true,
+			})
+		).toBe(true);
 	});
 
 	it("returns false after the conversation has started", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
-				panelId: "panel-1",
 				activeWorktreePath: null,
 				hasMessages: true,
-				globalWorktreeDefault: true,
-				loadEnabled: () => true,
+				pendingWorktreeEnabled: true,
 			})
 		).toBe(false);
 	});
 
-	it("returns false without a panel id", () => {
+	it("returns false when the panel has no pending worktree choice", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
-				panelId: null,
 				activeWorktreePath: null,
 				hasMessages: false,
-				globalWorktreeDefault: true,
-				loadEnabled: () => true,
+				pendingWorktreeEnabled: null,
 			})
 		).toBe(false);
 	});

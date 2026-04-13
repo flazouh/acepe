@@ -9,9 +9,11 @@ interface EmptyStatePanelStore {
 		projectPath?: string;
 		id?: string;
 		selectedAgentId?: string | null;
+		pendingWorktreeEnabled?: boolean;
 	}): EmptyStatePanel;
 	setPanelAgent(panelId: string, agentId: string | null): void;
 	setPanelProjectPath(panelId: string, projectPath: string): void;
+	setPendingWorktreeEnabled(panelId: string, pendingWorktreeEnabled: boolean): void;
 	updatePanelSession(panelId: string, sessionId: string | null): void;
 }
 
@@ -20,6 +22,7 @@ export function ensureEmptyStatePanelContext(options: {
 	panelId: string;
 	projectPath: string;
 	selectedAgentId: string;
+	pendingWorktreeEnabled: boolean;
 }): void {
 	const existingPanel = options.panelStore.panels.find((panel) => panel.id === options.panelId);
 
@@ -29,12 +32,14 @@ export function ensureEmptyStatePanelContext(options: {
 			projectPath: options.projectPath,
 			id: options.panelId,
 			selectedAgentId: options.selectedAgentId,
+			pendingWorktreeEnabled: options.pendingWorktreeEnabled,
 		});
 		return;
 	}
 
 	options.panelStore.setPanelProjectPath(options.panelId, options.projectPath);
 	options.panelStore.setPanelAgent(options.panelId, options.selectedAgentId);
+	options.panelStore.setPendingWorktreeEnabled(options.panelId, options.pendingWorktreeEnabled);
 }
 
 export function attachSessionToEmptyStatePanel(options: {

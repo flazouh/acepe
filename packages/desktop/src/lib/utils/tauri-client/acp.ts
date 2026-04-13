@@ -13,8 +13,12 @@ export const acp = {
 		return invokeAsync(CMD.acp.initialize);
 	},
 
-	newSession: (cwd: string, agentId?: string): ResultAsync<ResumeSessionResult, AppError> => {
-		return invokeAsync(CMD.acp.new_session, { cwd, agentId });
+	newSession: (
+		cwd: string,
+		agentId?: string,
+		launchToken?: string
+	): ResultAsync<ResumeSessionResult, AppError> => {
+		return invokeAsync(CMD.acp.new_session, { cwd, agentId, launchToken });
 	},
 
 	listPreconnectionCommands: (

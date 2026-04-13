@@ -2,6 +2,7 @@ import type { Snippet } from "svelte";
 
 import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
+import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 
 /**
  * Props for the AgentInput component.
@@ -68,6 +69,8 @@ export interface AgentInputProps {
 	 */
 	readonly worktreePending?: boolean;
 
+	readonly preparedWorktreeLaunch?: PreparedWorktreeLaunch | null;
+
 	/**
 	 * Callback when a worktree is auto-created on first send (worktree default on).
 	 * Allows the parent to update its own worktree path state.
@@ -75,10 +78,19 @@ export interface AgentInputProps {
 	readonly onWorktreeCreated?: (worktreePath: string) => void;
 
 	/**
+	 * Callback fired when pre-session worktree creation fails before session creation begins.
+	 */
+	readonly onWorktreeCreateFailed?: (message: string) => void;
+
+	/**
 	 * Callback fired when first-send worktree creation starts.
 	 * Allows the panel to show a transient creating-worktree widget before setup begins.
 	 */
 	readonly onWorktreeCreating?: () => void;
+
+	readonly onPreparedWorktreeLaunch?: (launch: PreparedWorktreeLaunch) => void;
+
+	readonly onPreparedWorktreeLaunchCleared?: () => void;
 
 	/**
 	 * Selected agent ID for this panel (used when creating new sessions).

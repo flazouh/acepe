@@ -312,6 +312,7 @@ pub async fn acp_new_session(
     app: AppHandle,
     cwd: String,
     agent_id: Option<String>,
+    launch_token: Option<String>,
 ) -> Result<NewSessionResponse, SerializableAcpError> {
     tracing::info!(cwd = %cwd, agent_id = ?agent_id, "acp_new_session called (creating dedicated client)");
     let cwd = validate_session_cwd(&cwd, ProjectAccessReason::Other)?;
@@ -346,7 +347,34 @@ pub async fn acp_new_session(
             SerializableAcpError::from(e)
         })?;
 
-    // Store the client keyed by session_id
+    let sequence_id = if let Some(launch_token) = launch_token.as_deref() {
+        SessionMetadataRepository::consume_reserved_worktree_launch(
+            db.inner(),
+            launch_token,
+            &result.session_id,
+            agent_id_enum.as_str(),
+        )
+        .await
+        .map_err(|error| {
+            tracing::error!(
+                error = %error,
+                launch_token,
+                session_id = %result.session_id,
+                "Prepared worktree launch consumption failed; stopping session client"
+            );
+            client.stop();
+            SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to consume prepared worktree launch {launch_token} for session {}: {error}",
+                    result.session_id
+                ),
+            }
+        })?
+    } else {
+        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?
+    };
+
+    // Store the client keyed by session_id only after session metadata is durably attached.
     if let Some(old_client) =
         session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
     {
@@ -367,10 +395,6 @@ pub async fn acp_new_session(
         "New session created with dedicated client"
     );
     projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
-
-    let sequence_id =
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-            .await?;
 
     Ok(NewSessionResponse {
         sequence_id,

@@ -556,7 +556,10 @@ function handleAddProjectOpen(path: string, name: string) {
 	projectManager.addProject(project).match(
 		() => {
 			sessionStore.scanSessions([path]).mapErr(() => {});
-			panelStore.spawnPanel({ projectPath: path });
+			panelStore.spawnPanel({
+				projectPath: path,
+				pendingWorktreeEnabled: worktreeDefaultStore.globalDefault,
+			});
 		},
 		(error) => {
 			toast.error(`Failed to open project: ${error.message}`);

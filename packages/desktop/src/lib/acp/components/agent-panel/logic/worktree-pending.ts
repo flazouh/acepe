@@ -1,15 +1,10 @@
 export function resolveAgentPanelWorktreePending(options: {
-	panelId: string | null | undefined;
 	activeWorktreePath: string | null;
 	hasMessages: boolean;
-	globalWorktreeDefault: boolean;
-	loadEnabled: (panelId: string, globalDefault: boolean) => boolean;
+	pendingWorktreeEnabled: boolean | null;
+	hasPreparedWorktreeLaunch?: boolean;
 }): boolean {
-	if (!options.panelId) {
-		return false;
-	}
-
-	if (options.activeWorktreePath !== null) {
+	if (options.activeWorktreePath !== null && options.hasPreparedWorktreeLaunch !== true) {
 		return false;
 	}
 
@@ -17,5 +12,5 @@ export function resolveAgentPanelWorktreePending(options: {
 		return false;
 	}
 
-	return options.loadEnabled(options.panelId, options.globalWorktreeDefault);
+	return options.pendingWorktreeEnabled === true;
 }

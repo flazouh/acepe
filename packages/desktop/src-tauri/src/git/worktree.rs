@@ -6,12 +6,15 @@
 
 use crate::git::worktree_config;
 use crate::path_safety;
+use crate::db::repository::SessionMetadataRepository;
+use chrono::Utc;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sea_orm::DbConn;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command as AsyncCommand;
 
 // Word lists for generating fun branch names (from opencode pattern)
@@ -49,6 +52,13 @@ pub struct WorktreeInfo {
     pub directory: String,
     /// Whether this worktree was created by Acepe or externally
     pub origin: WorktreeOrigin,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct PreparedWorktreeLaunch {
+    pub launch_token: String,
+    pub sequence_id: i32,
+    pub worktree: WorktreeInfo,
 }
 
 /// Extended worktree information for management UI
@@ -109,6 +119,38 @@ fn generate_name() -> String {
     let adjective = ADJECTIVES.choose(&mut rng).unwrap_or(&"cosmic");
     let noun = NOUNS.choose(&mut rng).unwrap_or(&"falcon");
     format!("{}-{}", adjective, noun)
+}
+
+fn slugify_project_name(project_path: &Path) -> String {
+    let raw = project_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("project")
+        .to_ascii_lowercase();
+    let mut slug = String::new();
+    let mut last_was_dash = false;
+    for ch in raw.chars() {
+        let normalized = if ch.is_ascii_alphanumeric() { Some(ch) } else { None };
+        if let Some(value) = normalized {
+            slug.push(value);
+            last_was_dash = false;
+        } else if !last_was_dash {
+            slug.push('-');
+            last_was_dash = true;
+        }
+    }
+    let trimmed = slug.trim_matches('-');
+    if trimmed.is_empty() {
+        "project".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn format_reserved_worktree_basename(project_path: &Path, sequence_id: i32) -> String {
+    let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let project_slug = slugify_project_name(project_path);
+    format!("{timestamp}-{project_slug}-s{sequence_id}")
 }
 
 /// Get the worktrees root directory (~/.acepe/worktrees/)
@@ -300,6 +342,32 @@ fn generate_unique_candidate(
     Err("Failed to generate unique worktree name after 26 attempts".to_string())
 }
 
+fn generate_unique_candidate_from_basename(
+    project_path: &Path,
+    worktrees_dir: &Path,
+    basename: &str,
+) -> Result<WorktreeInfo, String> {
+    for suffix in 1..=99 {
+        let name = if suffix == 1 {
+            basename.to_string()
+        } else {
+            format!("{basename}-{suffix}")
+        };
+        let branch = format!("acepe/{name}");
+        let directory = worktrees_dir.join(&name);
+        if !directory.exists() && !branch_exists(project_path, &branch)? {
+            return Ok(WorktreeInfo {
+                name,
+                branch,
+                directory: directory.to_string_lossy().to_string(),
+                origin: WorktreeOrigin::Acepe,
+            });
+        }
+    }
+
+    Err("Failed to generate unique deterministic worktree name after 99 attempts".to_string())
+}
+
 fn rename_acepe_branch_name(current_branch: &str, new_name: &str) -> String {
     if current_branch.starts_with("acepe/") {
         return format!("acepe/{}", new_name);
@@ -336,6 +404,40 @@ fn get_main_repo_from_worktree_path(worktree_path: &Path) -> Result<PathBuf, Str
         .and_then(|p| p.parent())
         .map(Path::to_path_buf)
         .ok_or("Could not determine main repository".to_string())
+}
+
+fn create_worktree_from_info(project_path: &str, info: &WorktreeInfo) -> Result<(), String> {
+    let project_path_buf = PathBuf::from(project_path);
+    let bootstrapped_initial_commit = ensure_initial_commit_for_unborn_repo(&project_path_buf)?;
+    tracing::info!(
+        project_path = %project_path,
+        bootstrapped_initial_commit,
+        "Checked unborn HEAD status before worktree creation"
+    );
+
+    let base_ref = resolve_worktree_base_ref(&project_path_buf)?;
+    tracing::info!(base_ref = %base_ref, "Resolved worktree base ref");
+
+    let output = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "-b",
+            &info.branch,
+            &info.directory,
+            &base_ref,
+        ])
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git worktree add: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(stderr = %stderr, "Git worktree add failed");
+        return Err(format!("Failed to create worktree: {}", stderr.trim()));
+    }
+
+    Ok(())
 }
 
 /// Create a new git worktree for isolated agent work
@@ -389,35 +491,7 @@ pub async fn git_worktree_create(
         "Creating worktree"
     );
 
-    let bootstrapped_initial_commit = ensure_initial_commit_for_unborn_repo(&project_path_buf)?;
-    tracing::info!(
-        project_path = %project_path,
-        bootstrapped_initial_commit,
-        "Checked unborn HEAD status before worktree creation"
-    );
-
-    let base_ref = resolve_worktree_base_ref(&project_path_buf)?;
-    tracing::info!(base_ref = %base_ref, "Resolved worktree base ref");
-
-    // Create the worktree with a new branch based on mainline instead of the current checkout.
-    let output = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            "-b",
-            &info.branch,
-            &info.directory,
-            &base_ref,
-        ])
-        .current_dir(&project_path)
-        .output()
-        .map_err(|e| format!("Failed to execute git worktree add: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!(stderr = %stderr, "Git worktree add failed");
-        return Err(format!("Failed to create worktree: {}", stderr.trim()));
-    }
+    create_worktree_from_info(&project_path, &info)?;
 
     tracing::info!(
         worktree_name = %info.name,
@@ -426,6 +500,100 @@ pub async fn git_worktree_create(
     );
 
     Ok(info)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_prepare_worktree_session_launch(
+    app: AppHandle,
+    project_path: String,
+    agent_id: String,
+) -> Result<PreparedWorktreeLaunch, String> {
+    let project_path_buf = PathBuf::from(&project_path);
+    if !is_git_repo(&project_path_buf) {
+        return Err("This project is not a git repository".to_string());
+    }
+
+    let db = app.state::<DbConn>();
+    let reserved = SessionMetadataRepository::reserve_worktree_launch(db.inner(), &project_path, &agent_id)
+        .await
+        .map_err(|error| format!("Failed to reserve worktree launch: {error}"))?;
+
+    let worktrees_dir = get_project_worktrees_dir(&project_path)?;
+    if let Err(error) = std::fs::create_dir_all(&worktrees_dir) {
+        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(db.inner(), &reserved.launch_token).await;
+        return Err(format!("Failed to create worktrees directory: {error}"));
+    }
+
+    let basename = format_reserved_worktree_basename(&project_path_buf, reserved.sequence_id);
+    let info = match generate_unique_candidate_from_basename(&project_path_buf, &worktrees_dir, &basename)
+    {
+        Ok(info) => info,
+        Err(error) => {
+            let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
+                db.inner(),
+                &reserved.launch_token,
+            )
+            .await;
+            return Err(error);
+        }
+    };
+
+    if let Err(error) = create_worktree_from_info(&project_path, &info) {
+        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(db.inner(), &reserved.launch_token).await;
+        return Err(error);
+    }
+
+    let attached = match SessionMetadataRepository::attach_reserved_worktree_launch(
+        db.inner(),
+        &reserved.launch_token,
+        &info.directory,
+    )
+    .await
+    {
+        Ok(attached) => attached,
+        Err(error) => {
+            let _ = git_worktree_remove(info.directory.clone(), true).await;
+            let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
+                db.inner(),
+                &reserved.launch_token,
+            )
+            .await;
+            return Err(format!("Failed to persist prepared worktree launch: {error}"));
+        }
+    };
+
+    Ok(PreparedWorktreeLaunch {
+        launch_token: attached.launch_token,
+        sequence_id: attached.sequence_id,
+        worktree: info,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_discard_prepared_worktree_session_launch(
+    app: AppHandle,
+    launch_token: String,
+    remove_worktree: bool,
+) -> Result<(), String> {
+    let db = app.state::<DbConn>();
+    let reserved = SessionMetadataRepository::get_by_id(db.inner(), &launch_token)
+        .await
+        .map_err(|error| format!("Failed to load prepared worktree launch: {error}"))?;
+    let worktree_path = reserved.as_ref().and_then(|row| row.worktree_path.clone());
+
+    SessionMetadataRepository::discard_reserved_worktree_launch(db.inner(), &launch_token)
+        .await
+        .map_err(|error| format!("Failed to discard prepared worktree launch: {error}"))?;
+
+    if remove_worktree {
+        if let Some(path) = worktree_path {
+            let _ = git_worktree_remove(path, true).await;
+        }
+    }
+
+    Ok(())
 }
 
 /// Remove a git worktree and its associated branch
