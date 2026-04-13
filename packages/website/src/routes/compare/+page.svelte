@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { ArrowRight } from "@lucide/svelte";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";

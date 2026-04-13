@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { CodeBlock } from "$lib/components/ui/code-block";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { safeJsonStringify } from "../../../../logic/json-utils.js";
 import { getSessionStore } from "../../../../store/index.js";
 import type { TurnState } from "../../../../store/types.js";

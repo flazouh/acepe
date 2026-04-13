@@ -9,7 +9,7 @@ import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.sve
 import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { toast } from "svelte-sonner";
 
 import {

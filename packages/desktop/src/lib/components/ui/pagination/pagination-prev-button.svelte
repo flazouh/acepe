@@ -2,7 +2,7 @@
 import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
 import { Pagination as PaginationPrimitive } from "bits-ui";
 import { buttonVariants } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 
 let {

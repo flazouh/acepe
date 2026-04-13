@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
 </script>

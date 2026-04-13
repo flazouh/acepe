@@ -8,7 +8,7 @@ import {
 } from "$lib/components/main-app-view/logic/updater-state.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 

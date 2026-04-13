@@ -2,7 +2,7 @@
 import type { SessionStatus } from "$lib/acp/application/dto/session.js";
 
 import { Badge } from "$lib/components/ui/badge/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	status: SessionStatus;

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { getAgentIcon } from "../constants/thread-list-constants.js";

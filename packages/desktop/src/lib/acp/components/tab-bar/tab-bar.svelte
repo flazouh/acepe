@@ -7,7 +7,7 @@ import {
 	type AppTabStatus,
 } from "@acepe/ui/app-layout";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getAgentIcon } from "../../constants/thread-list-constants.js";
 import type { TabBarTab, TabBarTabGroup } from "../../store/tab-bar-utils.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";

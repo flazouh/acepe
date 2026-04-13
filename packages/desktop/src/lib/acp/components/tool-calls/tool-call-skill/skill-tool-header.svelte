@@ -2,7 +2,7 @@
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { IconCheck } from "@tabler/icons-svelte";
 import { ArrowsInLineVertical, ArrowsOutLineVertical, Package } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { ToolCallStatus } from "$lib/services/converted-session-types.js";
 
 import type { ToolStatusResult } from "../../../utils/tool-state-utils.js";

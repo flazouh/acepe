@@ -7,7 +7,7 @@ import {
 } from "../worktree-toggle-logic.js";
 
 // Mock i18n messages
-mock.module("$lib/paraglide/messages.js", () => ({
+mock.module("$lib/messages.js", () => ({
 	worktree_toggle_checking: () => "Checking...",
 	worktree_toggle_creating: () => "Creating...",
 	worktree_toggle_not_git_repo: () => "Not a git repo",

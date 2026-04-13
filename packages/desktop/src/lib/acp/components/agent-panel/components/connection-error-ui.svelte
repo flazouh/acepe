@@ -10,7 +10,7 @@ import { EmbeddedIconButton, EmbeddedPanelHeader, HeaderTitleCell } from "@acepe
 import { Colors } from "@acepe/ui/colors";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { WarningCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	error: string;

@@ -3,7 +3,7 @@ import { IconCheck } from "@tabler/icons-svelte";
 import { ResultAsync } from "neverthrow";
 import { Copy } from "phosphor-svelte";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	/**

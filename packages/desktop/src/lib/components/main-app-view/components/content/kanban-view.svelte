@@ -85,7 +85,7 @@ import {
 	ensureSpawnableAgentSelected,
 	getSpawnableSessionAgents,
 } from "../../logic/spawnable-agents.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import KanbanThreadDialog from "./kanban-thread-dialog.svelte";
 import {
 	canSendWithoutSession,

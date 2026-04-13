@@ -1,7 +1,7 @@
 <script lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getContext, untrack } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import {
 	GITHUB_COMMIT_SHA_PATTERN,

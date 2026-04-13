@@ -5,7 +5,7 @@ import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import { COLOR_NAMES, Colors } from "../utils/colors.js";
 import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";

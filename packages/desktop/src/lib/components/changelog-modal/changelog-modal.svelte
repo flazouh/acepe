@@ -29,7 +29,7 @@ import type { ChangelogEntry, ChangeType } from "$lib/changelog/index.js";
 import { groupChangesByType } from "$lib/changelog/index.js";
 import type { Theme } from "$lib/components/theme/context.svelte.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 const numberIcons: Component[] = [
 	NumberCircleOne,

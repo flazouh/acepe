@@ -6,7 +6,7 @@ import { CaretRight } from "phosphor-svelte";
 import { CaretUp } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	hunkCurrent: number;

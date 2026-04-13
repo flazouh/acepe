@@ -1,12 +1,6 @@
 <script lang="ts">
-import { getLocale } from "$lib/paraglide/runtime";
-
-const locale = getLocale();
-
-const description =
-	locale === "en"
-		? "A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface."
-		: "Un cliente de escritorio nativo para Claude Code, Codex, Cursor Agent y cualquier agente de IA compatible con ACP. Los mismos agentes potentes, mejor interfaz.";
+	const description =
+		"A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface.";
 
 const organizationSchema = {
 	"@context": "https://schema.org",

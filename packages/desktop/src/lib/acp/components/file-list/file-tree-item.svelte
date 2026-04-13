@@ -15,7 +15,7 @@ import { XCircle } from "phosphor-svelte";
 import { tick } from "svelte";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import FileIcon from "./file-icon.svelte";
 import type { FileTreeNode } from "./file-list-types.js";
 

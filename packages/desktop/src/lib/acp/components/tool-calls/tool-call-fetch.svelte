@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentToolFetch } from "@acepe/ui/agent-panel";
 import { Result } from "neverthrow";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";

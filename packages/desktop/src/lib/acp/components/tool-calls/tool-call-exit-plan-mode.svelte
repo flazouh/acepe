@@ -13,7 +13,7 @@ import type { PlanCardStatus } from "@acepe/ui/plan-card";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { XCircle } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { usePlanInline } from "../../hooks/use-plan-inline.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore } from "../../store/panel-store.svelte.js";

@@ -18,7 +18,7 @@ import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js
 import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import AgentEnvOverridesDialog from "./agent-env-overrides-dialog.svelte";
 import {

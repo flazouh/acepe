@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 pub enum UserSettingKey {
     /// User's preferred theme (light, dark, system)
     UserTheme,
-    /// User's preferred locale/language
-    UserLocale,
     /// Workspace panel layout state (JSON)
     WorkspaceState,
     /// Custom keybindings (JSON map of command -> key)
@@ -89,7 +87,6 @@ impl UserSettingKey {
     pub fn as_str(&self) -> &'static str {
         match self {
             UserSettingKey::UserTheme => "user_theme",
-            UserSettingKey::UserLocale => "user_locale",
             UserSettingKey::WorkspaceState => "workspace_state",
             UserSettingKey::CustomKeybindings => "custom_keybindings",
             UserSettingKey::StreamingAnimation => "streaming_animation",

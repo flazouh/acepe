@@ -1,4 +1,3 @@
-import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
@@ -11,7 +10,6 @@ const ignoredDevWatchPaths = [
 	"**/*.spec.{js,ts}",
 	"**/*.vitest.{js,ts}",
 	"**/.svelte-kit/**",
-	"**/src/lib/paraglide/**",
 	"**/build/**",
 	"**/dist/**",
 	"**/coverage/**",
@@ -28,12 +26,6 @@ export default defineConfig({
 	plugins: [
 		sveltekit(),
 		tailwindcss(),
-		/** @type {any} */ (
-			paraglideVitePlugin({
-				project: "./project.inlang",
-				outdir: "./src/lib/paraglide",
-			})
-		),
 	],
 
 	// Pre-bundle icon libraries to avoid HMR issues with dynamic imports

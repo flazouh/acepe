@@ -1,7 +1,7 @@
 <!-- VoiceRecordingOverlay - Error-only content shown in the text area.
      Minimal Apple-like error display with subtle fade-in. -->
 <script lang="ts">
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";
 
 interface Props {

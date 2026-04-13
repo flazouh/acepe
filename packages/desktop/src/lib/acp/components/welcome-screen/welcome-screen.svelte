@@ -8,7 +8,7 @@ import { toast } from "svelte-sonner";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
 

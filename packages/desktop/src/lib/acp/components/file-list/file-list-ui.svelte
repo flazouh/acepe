@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import ProjectHeader from "../project-header.svelte";
 
 import { flattenFileTree } from "./file-list-logic.js";

@@ -81,7 +81,6 @@ Instead of treating agents like chat tabs or editor plugins, Acepe gives you a w
 - **Worktree support** — Isolated git worktrees for parallel agent work
 - **Keyboard shortcuts** — Customizable keybindings and command palette
 - **Dark / light mode** — System-aware theming
-- **i18n** — Multi-language support via Paraglide
 - **Auto-updates** — Built-in updater for new releases
 - **Notifications** — Native OS notifications for agent activity
 

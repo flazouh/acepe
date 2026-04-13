@@ -4,7 +4,7 @@ import { Colors } from "@acepe/ui";
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Trash } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";

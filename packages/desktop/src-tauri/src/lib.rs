@@ -65,7 +65,6 @@ use checkpoint::commands::{
     checkpoint_create, checkpoint_get_file_content, checkpoint_get_file_diff_content,
     checkpoint_get_file_snapshots, checkpoint_list, checkpoint_revert, checkpoint_revert_file,
 };
-use commands::locale::get_system_locale;
 use commands::window::activate_window;
 use cursor_history::commands::{has_cursor_history, is_cursor_installed};
 use db::repository::{AppSettingsRepository, ProjectRepository};
@@ -158,14 +157,6 @@ use voice::{
     voice_list_languages, voice_list_models, voice_load_model, voice_start_recording,
     voice_stop_recording, VoiceState,
 };
-
-macro_rules! registered_project_storage_handlers {
-    ($($command:ident),* $(,)?) => {
-        $(
-            $command,
-        )*
-    };
-}
 
 struct NoSpanEventFormatter;
 
@@ -1084,13 +1075,22 @@ pub fn run() {
             get_opencode_session,
             get_opencode_converted_session,
             get_opencode_sessions_for_project,
-            crate::project_storage_command_idents!(registered_project_storage_handlers)
+            get_projects,
+            get_recent_projects,
+            get_project_count,
+            get_missing_project_paths,
+            import_project,
+            add_project,
+            update_project_color,
+            update_project_icon,
+            update_project_order,
+            remove_project,
+            browse_project,
             get_api_key,
             save_api_key,
             delete_api_key,
             get_custom_keybindings,
             save_custom_keybindings,
-            get_system_locale,
             open_in_finder,
             open_streaming_log,
             get_streaming_log_path,

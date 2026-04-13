@@ -12,7 +12,7 @@ import { Microphone } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 
 	import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 
 import SettingsSectionHeader from "../settings-section-header.svelte";

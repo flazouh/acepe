@@ -7,7 +7,7 @@ import {
 } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type {
 	DisplayableModel,

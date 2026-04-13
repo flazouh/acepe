@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount, tick } from "svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { TaskProgress } from "../application/dto/task-progress.js";

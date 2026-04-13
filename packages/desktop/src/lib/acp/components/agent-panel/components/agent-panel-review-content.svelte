@@ -5,7 +5,7 @@ import { IconX } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../../review/review-file-revision.js";
 import {

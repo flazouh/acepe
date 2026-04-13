@@ -7,7 +7,7 @@ import { WarningCircle } from "phosphor-svelte";
 import { untrack } from "svelte";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	url: string;

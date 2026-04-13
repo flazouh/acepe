@@ -542,10 +542,6 @@ export type UserSettingKey =
  */
 "user_theme" | 
 /**
- * User's preferred locale/language
- */
-"user_locale" | 
-/**
  * Workspace panel layout state (JSON)
  */
 "workspace_state" | 

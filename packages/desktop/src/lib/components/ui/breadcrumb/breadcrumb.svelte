@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { HTMLAttributes } from "svelte/elements";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { WithElementRef } from "$lib/utils.js";
 
 let {

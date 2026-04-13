@@ -6,7 +6,7 @@ import {
 	formatKeyStringToArray,
 	keyboardEventToKeyString,
 } from "$lib/keybindings/utils/formatter.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 let {
 	actionId,

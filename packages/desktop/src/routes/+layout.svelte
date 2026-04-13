@@ -7,19 +7,8 @@ import { registerCursorThemeForPierreDiffs } from "$lib/acp/utils/pierre-diffs-t
 import ErrorBoundary from "$lib/components/error-boundary.svelte";
 import { Toaster } from "$lib/components/ui/sonner/index.js";
 import { TooltipProvider } from "$lib/components/ui/tooltip/index.js";
-import {
-	getCurrentLanguage,
-	initializeLocale,
-	loadPersistedLocale,
-} from "$lib/i18n/store.svelte.js";
 
-// Initialize locale and other services on mount
 onMount(async () => {
-	// Load persisted locale first (from database)
-	await loadPersistedLocale();
-	// Then initialize from system if no persisted locale
-	initializeLocale();
-
 	// Register Cursor theme with pierre/diffs BEFORE initializing highlighter
 	// This must complete before the highlighter tries to use the theme
 	const themeResult = await ResultAsync.fromPromise(
@@ -48,10 +37,8 @@ onMount(async () => {
 </script>
 
 <TooltipProvider delayDuration={0} skipDelayDuration={0} disableHoverableContent>
-	{#key getCurrentLanguage()}
-		<ErrorBoundary>
-			<slot />
-		</ErrorBoundary>
-		<Toaster />
-	{/key}
+	<ErrorBoundary>
+		<slot />
+	</ErrorBoundary>
+	<Toaster />
 </TooltipProvider>

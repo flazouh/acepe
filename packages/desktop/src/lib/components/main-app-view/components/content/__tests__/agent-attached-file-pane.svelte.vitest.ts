@@ -23,7 +23,7 @@ vi.mock("$lib/acp/components/file-panel/index.js", async () => ({
 	FilePanel: (await import("./fixtures/file-panel-stub.svelte")).default,
 }));
 
-vi.mock("$lib/paraglide/messages.js", () => ({
+vi.mock("$lib/messages.js", () => ({
 	project_unknown: () => "Unknown project",
 }));
 

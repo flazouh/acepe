@@ -8,7 +8,7 @@ import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.j
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";

@@ -10,7 +10,7 @@ import {
 import { DownloadSimple } from "phosphor-svelte";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { SessionPlanResponse } from "../../services/claude-history.js";
 

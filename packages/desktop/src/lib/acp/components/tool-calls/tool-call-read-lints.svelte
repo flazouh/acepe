@@ -2,7 +2,7 @@
 import type { LintDiagnostic } from "@acepe/ui/agent-panel";
 
 import { AgentToolReadLints } from "@acepe/ui/agent-panel";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 

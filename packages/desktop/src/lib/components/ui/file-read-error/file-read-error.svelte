@@ -1,7 +1,7 @@
 <script lang="ts">
 import { XCircle } from "phosphor-svelte";
 import { Card } from "$lib/components/ui/card/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	/** Error message from the file read operation (e.g. "No such file or directory") */

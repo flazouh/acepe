@@ -6,7 +6,7 @@ import {
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";

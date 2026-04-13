@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
-	import * as m from "$lib/paraglide/messages.js";
+	import * as m from "$lib/messages.js";
 	import { tauriClient } from "$lib/utils/tauri-client.js";
 	import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 	import SetupScriptsDialog from "./setup-scripts-dialog.svelte";

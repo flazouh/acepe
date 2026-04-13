@@ -24,8 +24,4 @@ export const shell = {
 	getDefaultShell: (): ResultAsync<string, AppError> => {
 		return invokeAsync(CMD.shell.get_default_shell);
 	},
-
-	getSystemLocale: (): ResultAsync<string, AppError> => {
-		return invokeAsync(CMD.shell.get_system_locale);
-	},
 };

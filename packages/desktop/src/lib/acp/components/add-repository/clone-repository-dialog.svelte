@@ -8,7 +8,7 @@ import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type { CloneRepositoryDialogProps } from "./clone-repository-dialog-props.js";

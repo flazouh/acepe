@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Download } from "@lucide/svelte";
 import { AppleLogo, GithubLogo } from "phosphor-svelte";

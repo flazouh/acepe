@@ -5,7 +5,7 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import SessionTable from "./project-tab/session-table.svelte";
 

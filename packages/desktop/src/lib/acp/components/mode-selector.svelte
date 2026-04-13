@@ -2,7 +2,7 @@
 import { BuildIcon, PlanIcon } from "@acepe/ui";
 import { onDestroy, onMount } from "svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import type { AvailableMode } from "../types/available-mode.js";
 import { CanonicalModeId } from "../types/canonical-mode-id.js";

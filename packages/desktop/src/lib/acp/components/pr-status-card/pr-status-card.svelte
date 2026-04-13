@@ -19,7 +19,7 @@ import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Result } from "neverthrow";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 import { renderMarkdownSync } from "../../utils/markdown-renderer.js";

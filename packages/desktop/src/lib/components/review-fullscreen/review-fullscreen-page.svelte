@@ -4,7 +4,7 @@ import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/
 import { aggregateFileEdits } from "$lib/acp/components/modified-files/logic/aggregate-file-edits.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	sessionId: string;

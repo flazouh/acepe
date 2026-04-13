@@ -3,7 +3,7 @@
  * This module contains all business logic that can be unit tested.
  */
 
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 /**
  * Whether the worktree is in "pending auto-create" mode.

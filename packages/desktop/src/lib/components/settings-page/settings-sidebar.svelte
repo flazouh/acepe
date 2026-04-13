@@ -8,7 +8,7 @@ import { Microphone } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
 import { Stack } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 
 import type { SettingsSectionId } from "./settings-types.js";

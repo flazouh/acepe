@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { okAsync } from "neverthrow";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 const setWorktreeDefault = vi.fn(() => okAsync(undefined));
 

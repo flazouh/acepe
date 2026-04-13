@@ -33,7 +33,7 @@ import {
 	Skeleton,
 } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import type { GitRemoteStatus } from "$lib/utils/tauri-client/git.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";

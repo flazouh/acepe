@@ -99,7 +99,7 @@ describe("VoiceInputState", () => {
 				success: vi.fn(),
 			},
 		}));
-		mock.module("$lib/paraglide/messages.js", () => ({
+		mock.module("$lib/messages.js", () => ({
 			voice_no_speech_detected: () => "No speech detected",
 			voice_error_stop_failed: () => "Stop failed",
 			voice_error_download_failed: () => "Download failed",

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";

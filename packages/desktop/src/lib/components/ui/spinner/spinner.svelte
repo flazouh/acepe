@@ -1,6 +1,6 @@
 <script lang="ts">
 import { LoadingIcon } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	class?: string;

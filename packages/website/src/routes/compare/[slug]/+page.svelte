@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
 import { Check, X, ArrowRight, Minus } from "@lucide/svelte";

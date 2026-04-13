@@ -2,7 +2,7 @@
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
 import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "../../utils/colors.js";

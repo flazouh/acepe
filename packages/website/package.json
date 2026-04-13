@@ -5,7 +5,6 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --open",
-		"i18n:generate": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -44,7 +43,6 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.7",
-		"@inlang/paraglide-js": "^2.6.0",
 		"@lucide/svelte": "^0.562.0",
 		"@sveltejs/adapter-node": "^5.4.0",
 		"@sveltejs/kit": "^2.49.1",

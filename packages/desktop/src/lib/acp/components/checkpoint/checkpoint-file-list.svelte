@@ -2,7 +2,7 @@
 import { FilePathBadge, PillButton, RevertIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { FileSnapshot } from "../../types/checkpoint.js";
 

@@ -4,7 +4,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../store/types.js";

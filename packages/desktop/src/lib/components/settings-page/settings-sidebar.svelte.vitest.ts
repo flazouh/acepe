@@ -5,9 +5,17 @@ import SettingsSidebar from "./settings-sidebar.svelte";
 
 vi.mock(
 	"svelte",
-	async () =>
-		// @ts-expect-error Test-only client runtime override for Vitest component mounting
-		import("../../../../node_modules/svelte/src/index-client.js")
+	async () => {
+		const { createRequire } = await import("node:module");
+		const { dirname, join } = await import("node:path");
+		const require = createRequire(import.meta.url);
+		const svelteClientPath = join(
+			dirname(require.resolve("svelte/package.json")),
+			"src/index-client.js"
+		);
+
+		return import(/* @vite-ignore */ svelteClientPath);
+	}
 );
 
 describe("SettingsSidebar", () => {
@@ -17,26 +25,25 @@ describe("SettingsSidebar", () => {
 			onSectionChange: vi.fn(),
 		});
 
-		const rail = view.container.querySelector("aside");
+		const rail = view.container.querySelector("nav");
 		expect(rail).not.toBeNull();
-		expect(rail?.className).toContain("w-64");
+		expect(rail?.className).toContain("w-[176px]");
 		expect(view.queryByText("Account")).toBeNull();
 		expect(view.queryByText("Workspace")).toBeNull();
 		expect(view.queryByText("AI")).toBeNull();
 		expect(view.queryByText("Data")).toBeNull();
+		expect(view.queryByRole("button", { name: "Language" })).toBeNull();
 
-		const navButtons = view.container.querySelectorAll("nav button");
-		expect(navButtons).toHaveLength(6);
+		const navButtons = rail?.querySelectorAll("button") ?? [];
+		expect(navButtons).toHaveLength(9);
 
 		for (const button of navButtons) {
-			expect(button.className).toContain("justify-start");
-			expect(button.className).toContain("h-8");
-			expect(button.getAttribute("title")).not.toBeNull();
-			expect(button.getAttribute("aria-label")).not.toBeNull();
+			expect(button.className).toContain("gap-2.5");
+			expect(button.className).toContain("text-[13px]");
 		}
 
 		const activeButton = view.getByRole("button", { name: "General" });
-		expect(activeButton.className).toContain("bg-accent");
+		expect(activeButton.className).toContain("bg-muted");
 	});
 
 	it("calls onSectionChange when clicking a section row", async () => {
@@ -46,9 +53,9 @@ describe("SettingsSidebar", () => {
 			onSectionChange,
 		});
 
-		const languageButton = view.getByRole("button", { name: "Language" });
-		await fireEvent.click(languageButton);
+		const worktreesButton = view.getByRole("button", { name: "Worktrees" });
+		await fireEvent.click(worktreesButton);
 
-		expect(onSectionChange).toHaveBeenCalledWith("language");
+		expect(onSectionChange).toHaveBeenCalledWith("worktrees");
 	});
 });

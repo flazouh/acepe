@@ -28,7 +28,7 @@ import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/upd
 import { ThemeToggle } from "$lib/components/theme/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 
 interface Props {

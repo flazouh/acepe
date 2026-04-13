@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { DiffPill } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";

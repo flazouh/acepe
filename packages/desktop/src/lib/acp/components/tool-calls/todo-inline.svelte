@@ -2,7 +2,7 @@
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { ListChecks } from "phosphor-svelte";
 import * as Table from "$lib/components/ui/table/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { ToolCall } from "../../types/tool-call.js";
 import CopyButton from "../messages/copy-button.svelte";

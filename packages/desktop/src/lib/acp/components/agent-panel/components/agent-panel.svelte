@@ -9,7 +9,7 @@ import { Clock } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";

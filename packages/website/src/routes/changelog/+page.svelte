@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { ChangeType } from "@acepe/changelog";
 import { CHANGELOG, groupChangesByType } from "@acepe/changelog";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Bug, Lightning, RocketLaunch, Warning } from "phosphor-svelte";
 

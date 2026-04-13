@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AgentToolTask } from "@acepe/ui/agent-panel";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";

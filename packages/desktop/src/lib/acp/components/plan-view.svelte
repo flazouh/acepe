@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Badge } from "$lib/components/ui/badge/index.js";
 import { Card } from "$lib/components/ui/card/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { StoredPlan, StoredPlanStep } from "../infrastructure/storage/ThreadStorage.js";
 

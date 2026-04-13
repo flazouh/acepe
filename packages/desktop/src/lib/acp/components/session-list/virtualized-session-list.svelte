@@ -1,6 +1,6 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { SessionItem } from "$lib/components/ui/session-item/index.js";
 import {

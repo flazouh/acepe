@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AgentPanelTodoHeader as SharedAgentPanelTodoHeader } from "@acepe/ui/agent-panel";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { ThreadWithEntries } from "../logic/todo-state.svelte.js";

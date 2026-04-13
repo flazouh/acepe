@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import AgentPanelHeader from "../agent-panel-header.svelte";
 

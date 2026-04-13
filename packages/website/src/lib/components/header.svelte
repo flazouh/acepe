@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { browser } from "$app/environment";
 import { page } from "$app/stores";
 import { Download, Menu, Moon, Sun } from "@lucide/svelte";

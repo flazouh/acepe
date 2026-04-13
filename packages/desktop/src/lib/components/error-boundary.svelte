@@ -15,7 +15,7 @@ import { toast } from "svelte-sonner";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import { TIMING } from "$lib/acp/constants/timing.js";
 import { loadCursorTheme } from "$lib/acp/utils/shiki-theme.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	error?: Error | null;

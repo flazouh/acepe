@@ -2,7 +2,7 @@
 import { Colors } from "@acepe/ui/colors";
 import { CheckCircle } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	onUndo: () => void;

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { TextShimmer } from "@acepe/ui";
 
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { TodoStatus } from "$lib/services/converted-session-types.js";
 
 import {

@@ -83,23 +83,6 @@ pub const SESSION_HISTORY_COMMANDS: SessionHistoryCommands = SessionHistoryComma
     reset_cache_stats: "reset_cache_stats",
 };
 
-/// Storage command names
-macro_rules! storage_command_project_fields {
-    ($($command:ident),* $(,)?) => {
-        $(
-            pub $command: &'static str,
-        )*
-    };
-}
-
-macro_rules! storage_command_project_values {
-    ($($command:ident),* $(,)?) => {
-        $(
-            $command: stringify!($command),
-        )*
-    };
-}
-
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
@@ -112,7 +95,17 @@ pub struct StorageCommands {
     pub delete_conversation: &'static str,
     pub open_in_finder: &'static str,
     pub open_streaming_log: &'static str,
-    project_storage_command_idents!(storage_command_project_fields)
+    pub get_projects: &'static str,
+    pub get_recent_projects: &'static str,
+    pub get_project_count: &'static str,
+    pub get_missing_project_paths: &'static str,
+    pub import_project: &'static str,
+    pub add_project: &'static str,
+    pub update_project_color: &'static str,
+    pub update_project_icon: &'static str,
+    pub update_project_order: &'static str,
+    pub remove_project: &'static str,
+    pub browse_project: &'static str,
     pub get_all_conversations: &'static str,
     pub upsert_conversation: &'static str,
     pub get_user_setting: &'static str,
@@ -141,7 +134,17 @@ pub const STORAGE_COMMANDS: StorageCommands = StorageCommands {
     delete_conversation: "delete_conversation",
     open_in_finder: "open_in_finder",
     open_streaming_log: "open_streaming_log",
-    project_storage_command_idents!(storage_command_project_values)
+    get_projects: "get_projects",
+    get_recent_projects: "get_recent_projects",
+    get_project_count: "get_project_count",
+    get_missing_project_paths: "get_missing_project_paths",
+    import_project: "import_project",
+    add_project: "add_project",
+    update_project_color: "update_project_color",
+    update_project_icon: "update_project_icon",
+    update_project_order: "update_project_order",
+    remove_project: "remove_project",
+    browse_project: "browse_project",
     get_all_conversations: "get_all_conversations",
     upsert_conversation: "upsert_conversation",
     get_user_setting: "get_user_setting",

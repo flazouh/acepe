@@ -87,7 +87,6 @@ export const CMD = {
 		get_streaming_log_path: "get_streaming_log_path",
 		get_session_file_path: "get_session_file_path",
 		get_default_shell: "get_default_shell",
-		get_system_locale: "get_system_locale",
 	} as const,
 
 	git: {

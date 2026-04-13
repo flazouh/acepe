@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { ArrowRightIcon, BrandLockup, BrandShaderBackground, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";

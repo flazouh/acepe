@@ -20,7 +20,7 @@ import { NotePencil } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
 import { SidebarSimple } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";

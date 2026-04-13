@@ -3,7 +3,7 @@ import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { Star } from "phosphor-svelte";
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";

@@ -18,7 +18,7 @@ import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.sve
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";

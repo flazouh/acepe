@@ -3,7 +3,7 @@ import { getChatPreferencesStore } from "$lib/acp/store/chat-preferences-store.s
 import { getPlanPreferenceStore } from "$lib/acp/store/plan-preference-store.svelte.js";
 import { getReviewPreferenceStore } from "$lib/acp/store/review-preference-store.svelte.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import SettingsControlCard from "../settings-control-card.svelte";
 import SettingsSection from "../settings-section.svelte";
 

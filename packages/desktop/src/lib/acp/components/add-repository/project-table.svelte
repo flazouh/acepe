@@ -2,7 +2,7 @@
 import { CheckCircle } from "phosphor-svelte";
 import { CircleNotch } from "phosphor-svelte";
 import { FolderSimple } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import ActionsCell from "./cells/actions-cell.svelte";
 
 import AgentCountsCell from "./cells/agent-counts-cell.svelte";

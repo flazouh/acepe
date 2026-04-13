@@ -23,7 +23,7 @@ vi.mock("@acepe/ui/agent-panel", async () => {
 	};
 });
 
-vi.mock("$lib/paraglide/messages.js", () => ({
+vi.mock("$lib/messages.js", () => ({
 	tool_read_running: () => "Reading",
 	tool_read_completed: () => "Read",
 }));

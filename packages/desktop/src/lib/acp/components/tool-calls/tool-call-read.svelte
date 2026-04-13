@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AgentToolRead } from "@acepe/ui/agent-panel";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";

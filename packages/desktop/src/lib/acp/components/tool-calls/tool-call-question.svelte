@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentToolQuestion } from "@acepe/ui/agent-panel";
 import { onMount } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";

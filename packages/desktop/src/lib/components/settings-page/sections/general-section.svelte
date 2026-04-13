@@ -1,15 +1,10 @@
 <script lang="ts">
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { invoke } from "@tauri-apps/api/core";
-import { Check } from "phosphor-svelte";
 import { Warning } from "phosphor-svelte";
 import { ThemeToggle } from "$lib/components/theme/index.js";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
-import { Button } from "$lib/components/ui/button/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import { getLocale, setLocale } from "$lib/i18n/store.svelte.js";
-import { getLanguageMetadata } from "$lib/i18n/utils.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import SettingsControlCard from "../settings-control-card.svelte";
@@ -18,15 +13,6 @@ import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const notifPrefs = getNotificationPreferencesStore();
 const attentionQueue = getAttentionQueueStore();
-
-const languages = getLanguageMetadata();
-let currentLocale = $state(getLocale());
-const currentLanguage = $derived(languages.find((language) => language.code === currentLocale));
-
-function handleLanguageSelect(languageCode: string) {
-	currentLocale = languageCode as typeof currentLocale;
-	setLocale(languageCode as typeof currentLocale);
-}
 
 let showResetConfirm = $state(false);
 
@@ -39,57 +25,13 @@ async function handleResetDatabase() {
 <div class="w-full">
 	<SettingsSection
 		title={m.settings_appearance()}
-		description="Choose how Acepe looks and which language it uses."
+		description="Choose how Acepe looks."
 	>
 		<SettingsControlCard
 			label={m.settings_theme()}
 			description="Use light, dark, or match your system."
 		>
 			<ThemeToggle />
-		</SettingsControlCard>
-		<SettingsControlCard
-			label={m.settings_language()}
-			description="Choose the display language."
-		>
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props })}
-						<Button
-							variant="outline"
-							class="h-8 min-w-[220px] justify-between text-left text-[13px]"
-							{...props}
-						>
-							<span class="truncate">
-								{#if currentLanguage}
-									{currentLanguage.name} ({currentLanguage.nativeName})
-								{:else}
-									Select language
-								{/if}
-							</span>
-						</Button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end" class="w-[280px]">
-					{#each languages as language (language.code)}
-						<DropdownMenu.Item onclick={() => handleLanguageSelect(language.code)}>
-							<div class="flex min-w-0 flex-1 items-center gap-2">
-								<Check
-									class={language.code === currentLocale
-										? "size-3.5 text-foreground"
-										: "size-3.5 text-transparent"}
-									weight="bold"
-								/>
-								<div class="min-w-0">
-									<div class="truncate text-[13px]">{language.name}</div>
-									<div class="truncate text-[12px] text-muted-foreground/60">
-										{language.nativeName}
-									</div>
-								</div>
-							</div>
-						</DropdownMenu.Item>
-					{/each}
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
 		</SettingsControlCard>
 	</SettingsSection>
 

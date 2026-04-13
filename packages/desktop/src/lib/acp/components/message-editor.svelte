@@ -3,7 +3,7 @@ import { IconSend } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { ContentBlock } from "../../services/converted-session-types.js";
 

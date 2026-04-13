@@ -19,7 +19,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: vi.fn(),
 }));
 
-vi.mock("$lib/paraglide/messages.js", () => ({
+vi.mock("$lib/messages.js", () => ({
 	markdown_render_error: ({ error }: { error: string }) => `Error rendering markdown: ${error}`,
 }));
 

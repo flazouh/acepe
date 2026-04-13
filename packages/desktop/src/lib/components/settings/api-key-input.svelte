@@ -5,7 +5,7 @@ import { IconEyeOff } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 let {
 	value = $bindable(""),

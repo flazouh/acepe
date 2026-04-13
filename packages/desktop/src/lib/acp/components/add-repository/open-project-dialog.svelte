@@ -20,7 +20,7 @@ import { MagnifyingGlass } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type {

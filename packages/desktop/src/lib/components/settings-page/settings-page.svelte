@@ -8,7 +8,7 @@ import {
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import KeybindingsTab from "$lib/components/settings/keybindings-tab.svelte";
 import ProjectTab from "$lib/components/settings/project-tab.svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import AgentsModelsSection from "./sections/agents-models-section.svelte";
 
 import ArchivedSessionsSection from "./sections/archived-sessions-section.svelte";

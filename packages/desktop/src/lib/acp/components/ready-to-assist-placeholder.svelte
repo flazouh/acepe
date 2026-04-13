@@ -1,6 +1,6 @@
 <script lang="ts">
 import * as Empty from "$lib/components/ui/empty/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	agentIconSrc: string;

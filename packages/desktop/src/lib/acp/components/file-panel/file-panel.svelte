@@ -7,7 +7,7 @@ import {
 } from "$lib/components/ui/codemirror-editor/index.js";
 import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";

@@ -2,7 +2,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { tauriClient } from "../../../../utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type {

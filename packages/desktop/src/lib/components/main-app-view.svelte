@@ -60,7 +60,7 @@ import {
 	QUESTION_ACTIONS,
 	showNotification,
 } from "$lib/notifications/notification-state.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { createAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";

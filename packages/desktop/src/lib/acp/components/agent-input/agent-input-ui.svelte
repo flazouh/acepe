@@ -10,7 +10,7 @@ import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";

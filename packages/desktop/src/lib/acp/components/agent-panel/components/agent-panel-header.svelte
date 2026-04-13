@@ -17,7 +17,7 @@ import { DownloadSimple } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
 

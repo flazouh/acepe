@@ -12,7 +12,7 @@ import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { Colors } from "$lib/acp/utils/colors.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 const AGENTS = ["opencode", "cursor", "claude-code", "codex"];
 

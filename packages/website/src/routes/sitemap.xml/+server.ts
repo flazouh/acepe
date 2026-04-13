@@ -1,6 +1,5 @@
 import { getAllBlogPosts } from "$lib/blog/posts.js";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
-import { baseLocale, locales } from "$lib/paraglide/runtime";
 import type { RequestHandler } from "./$types";
 
 const baseUrl = "https://acepe.dev";
@@ -52,18 +51,12 @@ interface SitemapEntry {
 }
 
 export const GET: RequestHandler = async () => {
-	const entries: SitemapEntry[] = publicRoutes.flatMap((route) => {
-		return locales.map((locale) => {
-			const localizedPath = locale === baseLocale ? route.path : `/${locale}${route.path}`;
-
-			return {
-				loc: `${baseUrl}${localizedPath}`,
-				lastmod: route.lastmod ?? today,
-				priority: route.priority,
-				changefreq: route.changefreq,
-			};
-		});
-	});
+	const entries: SitemapEntry[] = publicRoutes.map((route) => ({
+		loc: `${baseUrl}${route.path}`,
+		lastmod: route.lastmod ?? today,
+		priority: route.priority,
+		changefreq: route.changefreq,
+	}));
 
 	const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

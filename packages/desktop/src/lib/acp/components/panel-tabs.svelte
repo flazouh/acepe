@@ -4,7 +4,7 @@ import { IconX } from "@tabler/icons-svelte";
 import { normalizeTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import type { Project } from "../logic/project-manager.svelte.js";
 

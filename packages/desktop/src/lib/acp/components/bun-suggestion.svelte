@@ -1,6 +1,6 @@
 <script lang="ts">
 import { IconChevronRight } from "@tabler/icons-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	onclick: () => void;

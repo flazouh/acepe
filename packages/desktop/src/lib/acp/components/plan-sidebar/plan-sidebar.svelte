@@ -5,7 +5,7 @@ import { ArrowsOut } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
 
 import { useSessionContext } from "../../hooks/use-session-context.js";

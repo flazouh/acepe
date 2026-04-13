@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";

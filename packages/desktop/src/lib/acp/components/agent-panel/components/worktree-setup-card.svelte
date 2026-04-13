@@ -2,7 +2,7 @@
 import { AgentPanelWorktreeSetupCard as SharedAgentPanelWorktreeSetupCard } from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { WarningCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 
 interface Props {

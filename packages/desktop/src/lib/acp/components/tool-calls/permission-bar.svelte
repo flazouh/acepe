@@ -7,7 +7,7 @@ import {
 } from "@acepe/ui/agent-panel";
 import { Button } from "@acepe/ui/button";
 import { Robot } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { toast } from "svelte-sonner";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";

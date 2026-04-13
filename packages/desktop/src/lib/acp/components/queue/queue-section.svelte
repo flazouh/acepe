@@ -3,7 +3,7 @@ import type { SectionedFeedGroup, SectionedFeedItemData } from "@acepe/ui";
 import { SectionedFeed } from "@acepe/ui";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import type { QueueSectionGroup, QueueSectionId } from "$lib/acp/store/queue/utils.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import QueueItemComponent from "./queue-item.svelte";
 

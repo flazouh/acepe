@@ -10,7 +10,7 @@ import { IconChevronLeft } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import type { ReviewDiffViewState } from "../modified-files/components/review-diff-view-state.svelte.js";

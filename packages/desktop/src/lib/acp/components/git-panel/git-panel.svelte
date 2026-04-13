@@ -37,7 +37,7 @@ import { Tree } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import MicButton from "../agent-input/components/mic-button.svelte";

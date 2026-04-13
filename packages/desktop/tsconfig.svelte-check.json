@@ -18,7 +18,6 @@
 		"src/service-worker.ts",
 		"src/service-worker/**/*.ts",
 		"src/service-worker.d.ts",
-		"src/service-worker/**/*.d.ts",
-		"src/paraglide/**"
+		"src/service-worker/**/*.d.ts"
 	]
 }

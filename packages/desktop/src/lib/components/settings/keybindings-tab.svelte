@@ -7,7 +7,7 @@ import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import type { Action, Keybinding } from "$lib/keybindings/types.js";
 import { formatKeyStringToArray } from "$lib/keybindings/utils/formatter.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { saveCustomKeybindings } from "$lib/services/settings.svelte.js";
 import { cn } from "$lib/utils.js";
 

@@ -6,7 +6,7 @@ import { PlanCard } from "@acepe/ui/plan-card";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Result } from "neverthrow";
 import { CheckCircle, XCircle } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import type { AcpError } from "../../errors/index.js";
 import { usePlanInline } from "../../hooks/use-plan-inline.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";

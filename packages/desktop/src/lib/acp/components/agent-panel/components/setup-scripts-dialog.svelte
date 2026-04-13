@@ -6,7 +6,7 @@ import {
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
 import { Dialog } from "bits-ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
 
 interface Props {

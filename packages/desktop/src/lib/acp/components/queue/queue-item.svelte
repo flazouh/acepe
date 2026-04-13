@@ -16,7 +16,7 @@ import {
 } from "@acepe/ui";
 import { XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";

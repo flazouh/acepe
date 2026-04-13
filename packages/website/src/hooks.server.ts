@@ -1,7 +1,7 @@
 import type { Handle } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import { sequence } from "@sveltejs/kit/hooks";
-import { paraglideMiddleware } from "$lib/paraglide/server";
+import { getLegacyLocaleRedirectPath } from "$lib/locale-routing";
 import { maybeGetDatabaseUrl } from "$lib/server/db/database-url";
 import { runMigrations } from "$lib/server/db/migrate";
 import { logger } from "$lib/server/logger";
@@ -80,13 +80,19 @@ const handleBotFilter: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-const handleParaglide: Handle = ({ event, resolve }) =>
-	paraglideMiddleware(event.request, ({ request, locale }) => {
-		event.request = request;
+const handleLegacyLocaleRedirect: Handle = async ({ event, resolve }) => {
+	const redirectPath = getLegacyLocaleRedirectPath(event.url);
 
-		return resolve(event, {
-			transformPageChunk: ({ html }) => html.replace("%paraglide.lang%", locale),
+	if (redirectPath !== null) {
+		return new Response(null, {
+			status: 308,
+			headers: {
+				Location: redirectPath,
+			},
 		});
-	});
+	}
 
-export const handle: Handle = sequence(handleCors, handleBotFilter, handleParaglide);
+	return resolve(event);
+};
+
+export const handle: Handle = sequence(handleCors, handleLegacyLocaleRedirect, handleBotFilter);

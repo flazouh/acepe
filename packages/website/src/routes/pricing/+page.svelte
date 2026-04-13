@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup, TextShimmer } from "@acepe/ui";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Check, ArrowRight, Terminal } from "@lucide/svelte";
 import { GithubLogo } from "phosphor-svelte";

@@ -4,7 +4,7 @@ import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconEye } from "@tabler/icons-svelte";
 import { IconFolder } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	sessionId: string;

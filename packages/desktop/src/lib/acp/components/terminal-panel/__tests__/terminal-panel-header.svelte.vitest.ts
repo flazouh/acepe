@@ -13,7 +13,7 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("$lib/paraglide/messages.js", () => ({
+vi.mock("$lib/messages.js", () => ({
 	terminal_panel_title: () => "Terminal",
 	common_close: () => "Close",
 	terminal_new_tab: () => "New tab",

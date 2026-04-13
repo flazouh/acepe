@@ -2,7 +2,7 @@
 import { Button } from "@acepe/ui/button";
 import { CheckCircle } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 interface Props {
 	isAdded: boolean;

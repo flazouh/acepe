@@ -2,7 +2,7 @@ import { createColumnHelper } from "@tanstack/table-core";
 
 import { renderComponent } from "$lib/components/ui/data-table/index.js";
 import type { Action, Keybinding } from "$lib/keybindings/types.js";
-import * as m from "$lib/paraglide/messages.js";
+import * as m from "$lib/messages.js";
 
 import KeybindingCell from "./keybinding-cell.svelte";
 
