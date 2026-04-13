@@ -1,5 +1,4 @@
 <script lang="ts">
-import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 import { QueueSection } from "$lib/acp/components/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { QueueUpdateInput } from "$lib/acp/store/index.js";
@@ -13,11 +12,12 @@ import {
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
-import type { QueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
+import { buildQueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { SvelteMap } from "svelte/reactivity";
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
+import { applyCompletionAttentionAction } from "../logic/completion-acknowledgement.js";
 import {
 	syncLiveSessionPanels,
 	type LiveSessionPanelSyncInput,
@@ -57,51 +57,35 @@ const queueInputs = $derived.by(() => {
 
 		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
 		const hotState = sessionStore.getHotState(sessionId);
-		const derivedStatus: SessionStatus = !runtimeState
-			? "idle"
-			: runtimeState.connectionPhase === "failed"
-				? "error"
-				: runtimeState.connectionPhase === "connecting"
-					? "connecting"
-					: runtimeState.connectionPhase === "disconnected"
-						? "idle"
-						: hotState.status === "paused"
-							? "paused"
-							: runtimeState.activityPhase === "running"
-								? "streaming"
-								: "ready";
-		const session: QueueSessionSnapshot = {
+		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+			identity.id,
+			operationStore,
+			interactionStore
+		);
+		const session = buildQueueSessionSnapshot({
 			id: identity.id,
 			agentId: identity.agentId,
 			projectPath: identity.projectPath,
 			title: metadata.title,
 			entries: sessionStore.getEntries(sessionId),
-			isStreaming: runtimeState?.activityPhase === "running",
-			isThinking: runtimeState?.showThinking ?? false,
-			status: derivedStatus,
 			updatedAt: metadata.updatedAt,
-			currentModeId: hotState?.currentMode?.id ?? null,
-			connectionError: hotState?.connectionError ?? null,
-		};
-
-		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
-			session.id,
-			operationStore,
-			interactionStore
-		);
+			runtimeState,
+			hotState,
+			interactionSnapshot,
+			hasUnseenCompletion: unseenStore.isUnseen(panelId),
+		});
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
 		const hasPendingQuestion = pendingQuestion !== null;
 		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
 		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
 		const pendingPermission = interactionSnapshot.pendingPermission;
 		const hasPendingPermission = pendingPermission !== null;
-		const hasUnseenCompletion = unseenStore.isUnseen(panelId);
 
 		inputs.push({
 			session,
 			hasPendingQuestion,
 			hasPendingPermission,
-			hasUnseenCompletion,
+			hasUnseenCompletion: session.state.attention.hasUnseenCompletion,
 			pendingQuestionText,
 			pendingQuestion,
 			pendingPlanApproval,
@@ -175,6 +159,7 @@ function handleQueueItemSelect(item: QueueItem) {
 	}
 	panelStore.movePanelToFront(item.panelId);
 	panelStore.focusAndSwitchToPanel(item.panelId);
+	applyCompletionAttentionAction(unseenStore, item.panelId, { kind: "explicit-reveal" });
 }
 </script>
 

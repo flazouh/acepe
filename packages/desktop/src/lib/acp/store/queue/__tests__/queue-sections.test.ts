@@ -135,6 +135,7 @@ function makeItem(
 		deletions: 0,
 		pendingQuestion: null,
 		status: "ready",
+		connectionError: null,
 		...rest,
 		pendingPlanApproval,
 		state, // Always use computed or provided state
@@ -147,6 +148,7 @@ describe("classifyItem", () => {
 		expect(
 			isNeedsReview({
 				status: "ready",
+				connectionError: null,
 				state: makeState({ hasUnseenCompletion: true }),
 			})
 		).toBe(true);
@@ -156,6 +158,7 @@ describe("classifyItem", () => {
 		expect(
 			isNeedsReview({
 				status: "ready",
+				connectionError: null,
 				state: makeState({ hasUnseenCompletion: false }),
 			})
 		).toBe(false);
@@ -220,12 +223,12 @@ describe("classifyItem", () => {
 		expect(classifyItem(item)).toBe("needs_review");
 	});
 
-	it("should classify plan mode + paused as working", () => {
+	it("should classify plan mode + paused as planning", () => {
 		const item = makeItem({
 			state: makeState({ activityKind: "paused", modeId: "plan" }),
 			currentModeId: "plan",
 		});
-		expect(classifyItem(item)).toBe("working");
+		expect(classifyItem(item)).toBe("planning");
 	});
 
 	it("should classify ready status as needs_review", () => {
@@ -240,9 +243,9 @@ describe("classifyItem", () => {
 		).toBe("answer_needed");
 	});
 
-	it("should prioritize streaming over error (active work takes precedence)", () => {
+	it("should prioritize error over impossible active error combinations", () => {
 		expect(classifyItem(makeItem({ hasError: true, status: "error", isStreaming: true }))).toBe(
-			"working"
+			"error"
 		);
 	});
 
@@ -429,5 +432,19 @@ describe("groupIntoSections", () => {
 		expect(sections[0].items).toHaveLength(1);
 		expect(sections[1].id).toBe("error");
 		expect(sections[1].items).toHaveLength(1);
+	});
+
+	it("should omit idle seen sessions from queue sections", () => {
+		const items = [
+			makeItem({
+				sessionId: "s-1",
+				state: makeState({ activityKind: "idle", hasUnseenCompletion: false }),
+				status: "ready",
+				lastActivityAt: 100,
+			}),
+		];
+
+		expect(classifyItem(items[0])).toBeNull();
+		expect(groupIntoSections(items)).toEqual([]);
 	});
 });

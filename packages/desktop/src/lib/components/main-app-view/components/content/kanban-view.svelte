@@ -15,7 +15,6 @@ import {
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { SvelteMap } from "svelte/reactivity";
 import { onDestroy, onMount } from "svelte";
-import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
@@ -58,9 +57,11 @@ import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operati
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import {
 	buildQueueItem,
+	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
-	type QueueSessionSnapshot,
 } from "$lib/acp/store/queue/utils.js";
+import { selectLegacySessionStatus } from "$lib/acp/store/session-work-projection.js";
+import { deriveSessionWorkProjection } from "$lib/acp/store/session-work-projection.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
 	ThreadBoardItem,
@@ -96,6 +97,11 @@ import {
 	buildDesktopKanbanScene,
 	type DesktopKanbanSceneEntry,
 } from "./desktop-kanban-scene.js";
+import {
+	acknowledgeExplicitPanelReveal,
+	applyCompletionAttentionAction,
+	performExplicitPanelReveal,
+} from "../../logic/completion-acknowledgement.js";
 import {
 	resolveKanbanNewSessionDefaults,
 	type KanbanNewSessionRequest,
@@ -231,41 +237,6 @@ function getSessionDisplayName(item: ThreadBoardItem): string {
 	return formatSessionTitleForDisplay(item.title, item.projectName);
 }
 
-function toSessionStatus(
-	runtimeState: ReturnType<typeof sessionStore.getSessionRuntimeState>,
-	hotStatus: SessionStatus
-): SessionStatus {
-	if (runtimeState === null) {
-		return hotStatus;
-	}
-
-	if (runtimeState.showThinking) {
-		return "streaming";
-	}
-
-	if (runtimeState.connectionPhase === "failed") {
-		return "error";
-	}
-
-	if (runtimeState.connectionPhase === "connecting") {
-		return "connecting";
-	}
-
-	if (runtimeState.activityPhase === "running") {
-		return "streaming";
-	}
-
-	if (hotStatus === "paused") {
-		return "paused";
-	}
-
-	if (runtimeState.connectionPhase === "disconnected") {
-		return "idle";
-	}
-
-	return "ready";
-}
-
 const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 	const sources: ThreadBoardSource[] = [];
 
@@ -294,30 +265,28 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const snapshot: QueueSessionSnapshot = {
+		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
+		const hasPendingQuestion = pendingQuestion !== null;
+		const hasPendingPermission = pendingPermission !== null;
+		const snapshot = buildQueueSessionSnapshot({
 			id: sessionId,
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
 			title: metadata ? metadata.title : panel.sessionTitle,
 			entries: sessionStore.getEntries(sessionId),
-			isStreaming: runtimeState ? runtimeState.activityPhase === "running" : false,
-			isThinking: runtimeState ? runtimeState.showThinking : false,
-			status: toSessionStatus(runtimeState, hotState.status),
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
-			currentModeId: hotState.currentMode ? hotState.currentMode.id : null,
-			connectionError: hotState.connectionError,
-		};
-
-		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
-		const hasPendingQuestion = pendingQuestion !== null;
-		const hasPendingPermission = pendingPermission !== null;
+			runtimeState,
+			hotState,
+			interactionSnapshot,
+			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
+		});
 		const queueItem = buildQueueItem(
 			snapshot,
 			panel.id,
 			calculateSessionUrgency(snapshot, hasPendingQuestion, pendingQuestionText),
 			hasPendingQuestion,
 			hasPendingPermission,
-			unseenStore.isUnseen(panel.id),
+			snapshot.state.attention.hasUnseenCompletion,
 			pendingQuestionText,
 			pendingQuestion,
 			pendingPlanApproval,
@@ -360,18 +329,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 });
 
 const threadBoard = $derived.by(() => buildThreadBoard(threadBoardSources));
-
-$effect(() => {
-	for (const group of threadBoard) {
-		if (group.status !== "needs_review") {
-			continue;
-		}
-
-		for (const item of group.items) {
-			unseenStore.markSeen(item.panelId);
-		}
-	}
-});
 
 function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 	const isWorking = isActiveCompactActivityKind(item.state.activity.kind);
@@ -726,6 +683,7 @@ function handleCardClick(cardId: string) {
 	}
 	panelStore.movePanelToFront(item.panelId);
 	panelStore.focusPanel(item.panelId);
+	applyCompletionAttentionAction(unseenStore, item.panelId, { kind: "explicit-reveal" });
 	activeDialogMode = "inspect";
 	activeDialogPanelId = item.panelId;
 }
@@ -1375,15 +1333,18 @@ function handleRejectPlanApproval(sessionId: string): void {
 		>
 			{#snippet todoSectionRenderer(card: KanbanSceneCardData)}
 				{@const item = itemLookup.get(card.id)}
-				{@const hotState = item ? sessionStore.getHotState(item.sessionId) : null}
 				{#if item}
-					{@const runtimeState = sessionStore.getSessionRuntimeState(item.sessionId)}
-					{@const todoSessionStatus = toSessionStatus(runtimeState, hotState ? hotState.status : "idle")}
 					<TodoHeader
 						sessionId={item.sessionId}
 						entries={sessionStore.getEntries(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
-						status={todoSessionStatus}
+						status={selectLegacySessionStatus(
+							deriveSessionWorkProjection({
+								state: item.state,
+								currentModeId: item.currentModeId,
+								connectionError: item.connectionError,
+							})
+						)}
 						isStreaming={card.isStreaming}
 						compact={true}
 					/>
@@ -1408,6 +1369,15 @@ function handleRejectPlanApproval(sessionId: string): void {
 		mode={activeDialogMode}
 		{projectManager}
 		mainAppState={appState}
+		onFocusPanel={(panelId) => {
+			appState.handleFocusPanel(panelId);
+			acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
+		}}
+		onToggleFullscreenPanel={(panelId) => {
+			performExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId), () => {
+				appState.handleToggleFullscreen(panelId);
+			});
+		}}
 		onDismiss={handleDialogDismiss}
 		onClosePanel={handleDialogClosePanel}
 	/>

@@ -4,6 +4,7 @@
 
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
+import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import { extractTodoProgress } from "../../components/session-list/session-list-logic.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
@@ -13,7 +14,11 @@ import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.j
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
+import { deriveLiveSessionState } from "../live-session-work.js";
+import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
+import { deriveSessionWorkProjection, selectLegacySessionStatus } from "../session-work-projection.js";
+import type { SessionHotState } from "../types.js";
 import { getCurrentToolKind } from "../tab-bar-utils.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
@@ -34,6 +39,7 @@ export interface QueueSessionSnapshot {
 	readonly projectPath: string;
 	readonly title: string | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly state: ReturnType<typeof deriveSessionState>;
 	readonly isStreaming: boolean;
 	readonly isThinking: boolean;
 	readonly status: SessionStatus;
@@ -43,18 +49,38 @@ export interface QueueSessionSnapshot {
 	readonly connectionError?: string | null;
 }
 
+export interface BuildQueueSessionSnapshotInput {
+	readonly id: string;
+	readonly agentId: string;
+	readonly projectPath: string;
+	readonly title: string | null;
+	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly updatedAt: Date;
+	readonly runtimeState: SessionRuntimeState | null;
+	readonly hotState: Pick<SessionHotState, "status" | "currentMode" | "connectionError">;
+	readonly interactionSnapshot: Pick<
+		SessionOperationInteractionSnapshot,
+		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
+	>;
+	readonly hasUnseenCompletion: boolean;
+}
+
 /**
  * Get the most recent streaming tool call message from session entries.
  * Returns null when no tool call is actively streaming.
  */
-function getCurrentStreamingToolCall(session: QueueSessionSnapshot): ToolCall | null {
-	for (let i = session.entries.length - 1; i >= 0; i--) {
-		const entry = session.entries[i];
+function getCurrentStreamingToolCallFromEntries(entries: ReadonlyArray<SessionEntry>): ToolCall | null {
+	for (let i = entries.length - 1; i >= 0; i--) {
+		const entry = entries[i];
 		if (entry.type === "tool_call" && entry.isStreaming) {
 			return entry.message;
 		}
 	}
 	return null;
+}
+
+function getCurrentStreamingToolCall(session: QueueSessionSnapshot): ToolCall | null {
+	return getCurrentStreamingToolCallFromEntries(session.entries);
 }
 
 /**
@@ -120,6 +146,39 @@ export function deriveQueueSessionState(input: QueueSessionStateInput) {
 	});
 }
 
+export function buildQueueSessionSnapshot(
+	input: BuildQueueSessionSnapshotInput
+): QueueSessionSnapshot {
+	const state = deriveLiveSessionState({
+		runtimeState: input.runtimeState,
+		hotState: input.hotState,
+		currentStreamingToolCall: getCurrentStreamingToolCallFromEntries(input.entries),
+		interactionSnapshot: input.interactionSnapshot,
+		hasUnseenCompletion: input.hasUnseenCompletion,
+	});
+
+	return {
+		id: input.id,
+		agentId: input.agentId,
+		projectPath: input.projectPath,
+		title: input.title,
+		entries: input.entries,
+		state,
+		isStreaming: state.activity.kind === "streaming",
+		isThinking: state.activity.kind === "thinking",
+		status: selectLegacySessionStatus(
+			deriveSessionWorkProjection({
+				state,
+				currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
+				connectionError: input.hotState.connectionError,
+			})
+		),
+		updatedAt: input.updatedAt,
+		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
+		connectionError: input.hotState.connectionError,
+	};
+}
+
 /**
  * Build a QueueItem from session data.
  */
@@ -146,19 +205,6 @@ export function buildQueueItem(
 	const currentStreamingToolCall = getCurrentStreamingToolCall(session);
 	const todoProgress = extractTodoProgress(session.entries);
 
-	// Compute the unified session state
-	const state = deriveQueueSessionState({
-		isStreaming: session.isStreaming,
-		isThinking: session.isThinking,
-		status: session.status,
-		currentModeId: session.currentModeId,
-		currentStreamingToolCall,
-		pendingQuestion,
-		pendingPlanApproval,
-		pendingPermission,
-		hasUnseenCompletion,
-	});
-
 	return {
 		sessionId: session.id,
 		panelId,
@@ -181,7 +227,8 @@ export function buildQueueItem(
 		pendingQuestion,
 		pendingPlanApproval,
 		status: session.status,
-		state,
+		connectionError: session.connectionError ?? null,
+		state: session.state,
 	};
 }
 

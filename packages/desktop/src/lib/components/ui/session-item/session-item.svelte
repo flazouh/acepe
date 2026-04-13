@@ -26,23 +26,27 @@ import {
 } from "$lib/acp/constants/thread-list-constants.js";
 import { formatTimeAgo } from "$lib/acp/logic/thread-list-date-utils.js";
 import {
+	getPanelStore,
 	getInteractionStore,
 	getQuestionSelectionStore,
 	getQuestionStore,
+	getUnseenStore,
 } from "$lib/acp/store/index.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
+import {
+	deriveLiveSessionState,
+	deriveLiveSessionWorkProjection,
+} from "$lib/acp/store/live-session-work.js";
 import { formatRichSessionTitle, formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { extractTodoProgress } from "$lib/acp/components/session-list/session-list-logic.js";
 import {
-	deriveCompactActivityKind,
 	findCurrentStreamingToolCall,
 	findLastToolCall,
 	isActiveCompactActivityKind,
 	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
-import { deriveQueueSessionState } from "$lib/acp/store/queue/utils.js";
-import { classifyThreadBoardState } from "$lib/acp/store/thread-board/build-thread-board.js";
+import { selectSessionWorkBucket } from "$lib/acp/store/session-work-projection.js";
 import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-queue";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
@@ -94,9 +98,11 @@ let {
 
 const themeState = useTheme();
 const sessionStore = getSessionStore();
+const panelStore = getPanelStore();
 const interactionStore = getInteractionStore();
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
+const unseenStore = getUnseenStore();
 const operationStore = sessionStore.getOperationStore();
 const worktreeDeleted = $derived(session.worktreeDeleted ?? false);
 const QUESTION_COLORS = [
@@ -223,14 +229,34 @@ const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 const entries = $derived(sessionStore.getEntries(session.id));
 const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
 const hotState = $derived(sessionStore.getHotState(session.id));
-const previewActivityKind = $derived(deriveCompactActivityKind(runtimeState, hotState.status));
 const currentStreamingToolCall = $derived(findCurrentStreamingToolCall(entries));
 const lastToolCall = $derived(findLastToolCall(entries));
 const currentToolKind = $derived(currentStreamingToolCall?.kind ?? null);
 const lastToolKind = $derived(lastToolCall?.kind ?? null);
+const activePanel = $derived(panelStore.getPanelBySessionId(session.id));
 const interactionSnapshot = $derived.by(() =>
 	buildSessionOperationInteractionSnapshot(session.id, operationStore, interactionStore)
 );
+const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
+const liveSessionState = $derived.by(() =>
+	deriveLiveSessionState({
+		runtimeState,
+		hotState,
+		currentStreamingToolCall,
+		interactionSnapshot,
+		hasUnseenCompletion,
+	})
+);
+const sessionWorkProjection = $derived.by(() =>
+	deriveLiveSessionWorkProjection({
+		runtimeState,
+		hotState,
+		currentStreamingToolCall,
+		interactionSnapshot,
+		hasUnseenCompletion,
+	})
+);
+const previewActivityKind = $derived(sessionWorkProjection.compactActivityKind);
 const pendingQuestion = $derived(interactionSnapshot.pendingQuestion);
 const pendingPermission = $derived(interactionSnapshot.pendingPermission);
 const pendingPlanApproval = $derived(interactionSnapshot.pendingPlanApproval);
@@ -318,11 +344,6 @@ const permissionDisplay = $derived.by(() => {
 	return pendingPermission.permission;
 });
 const statusText = $derived.by(() => {
-	const sessionState = hotState.sessionState;
-	if (!sessionState) {
-		return null;
-	}
-
 	if (pendingQuestion) {
 		return null;
 	}
@@ -337,7 +358,7 @@ const statusText = $derived.by(() => {
 			: "Plan approval needed";
 	}
 
-	if (sessionState.connection === "error") {
+	if (sessionWorkProjection.hasError) {
 		return hotState.connectionError ?? "Connection error";
 	}
 
@@ -345,7 +366,7 @@ const statusText = $derived.by(() => {
 		return m.waiting_planning_next_moves();
 	}
 
-	if (sessionState.attention.hasUnseenCompletion) {
+	if (liveSessionState.attention.hasUnseenCompletion) {
 		return "Ready for review";
 	}
 
@@ -373,19 +394,6 @@ const todoProgress = $derived.by(() => {
 			}
 		: null;
 });
-const queueSessionState = $derived.by(() =>
-	deriveQueueSessionState({
-		isStreaming: previewActivityKind === "streaming",
-		isThinking: previewActivityKind === "thinking",
-		status: hotState.status,
-		currentModeId: hotState.currentMode?.id ?? null,
-		currentStreamingToolCall,
-		pendingQuestion,
-		pendingPlanApproval,
-		pendingPermission,
-		hasUnseenCompletion: hotState.sessionState?.attention.hasUnseenCompletion ?? false,
-	})
-);
 const activityProjection = $derived.by(() => {
 	if (!isActiveCompactActivityKind(previewActivityKind)) {
 		return null;
@@ -408,13 +416,7 @@ const displayTitle = $derived(richTitleResult.plainText);
 const richTitle = $derived(richTitleResult.richText);
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
-const sessionBoardStatus = $derived(
-	classifyThreadBoardState({
-		currentModeId: hotState.currentMode?.id ?? null,
-		connectionError: hotState.connectionError,
-		state: queueSessionState,
-	})
-);
+const sessionBoardStatus = $derived(selectSessionWorkBucket(sessionWorkProjection));
 const sessionStatusSectionId = $derived<SectionedFeedSectionId | null>(
 	sessionBoardStatus === "idle" ? null : sessionBoardStatus
 );

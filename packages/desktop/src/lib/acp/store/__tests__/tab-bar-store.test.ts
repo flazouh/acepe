@@ -45,6 +45,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		agentId: "agent-1",
 		title: "Test Session",
 		hotState: makeHotState(),
+		runtimeState: null,
 		entries: [],
 		pendingQuestion: null,
 		pendingPermission: null,

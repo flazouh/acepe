@@ -30,9 +30,11 @@ const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContai
 interface Props {
 	projectManager: ProjectManager;
 	state: MainAppViewState;
+	onFocusPanel?: (panelId: string) => void;
+	onToggleFullscreenPanel?: (panelId: string) => void;
 }
 
-let { projectManager, state }: Props = $props();
+let { projectManager, state, onFocusPanel, onToggleFullscreenPanel }: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -281,8 +283,13 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								panelStore.updatePanelSession(fullscreenPanelSnapshot.panelId, sessionId)}
 							onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
 							onToggleFullscreen={() =>
-								state.handleToggleFullscreen(fullscreenPanelSnapshot.panelId)}
-							onFocus={() => state.handleFocusPanel(fullscreenPanelSnapshot.panelId)}
+								onToggleFullscreenPanel
+									? onToggleFullscreenPanel(fullscreenPanelSnapshot.panelId)
+									: state.handleToggleFullscreen(fullscreenPanelSnapshot.panelId)}
+							onFocus={() =>
+								onFocusPanel
+									? onFocusPanel(fullscreenPanelSnapshot.panelId)
+									: state.handleFocusPanel(fullscreenPanelSnapshot.panelId)}
 							hideProjectBadge={hideEmbeddedProjectBadge}
 							reviewMode={fullscreenPanelSnapshot.reviewMode}
 							reviewFilesState={fullscreenPanelSnapshot.reviewFilesState}
@@ -478,8 +485,11 @@ const terminalTabsPanelStore = $derived.by(() => ({
 										})}
 									onSessionCreated={(sessionId) => panelStore.updatePanelSession(panel.id, sessionId)}
 									onResizePanel={(panelId, delta) => state.handleResizePanel(panelId, delta)}
-									onToggleFullscreen={() => state.handleToggleFullscreen(panel.id)}
-									onFocus={() => state.handleFocusPanel(panel.id)}
+									onToggleFullscreen={() =>
+										onToggleFullscreenPanel
+											? onToggleFullscreenPanel(panel.id)
+											: state.handleToggleFullscreen(panel.id)}
+									onFocus={() => (onFocusPanel ? onFocusPanel(panel.id) : state.handleFocusPanel(panel.id))}
 									hideProjectBadge={hideEmbeddedProjectBadge}
 									reviewMode={panel.reviewMode}
 									reviewFilesState={panel.reviewFilesState}

@@ -97,6 +97,7 @@ export class TabBarStore {
 		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
 		const hotState = sessionId ? this.sessionStore.getHotState(sessionId) : null;
+		const runtimeState = sessionId ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 		const entries = sessionId ? this.sessionStore.getEntries(sessionId) : [];
 
 		const interactionSnapshot =
@@ -125,6 +126,7 @@ export class TabBarStore {
 			agentId,
 			title,
 			hotState,
+			runtimeState,
 			entries,
 			pendingQuestion,
 			pendingPlanApproval,

@@ -79,6 +79,11 @@ import AppOverlays from "./main-app-view/components/overlays/app-overlays.svelte
 import SourceControlDialog from "./main-app-view/components/overlays/source-control-dialog.svelte";
 import AppSidebar from "./main-app-view/components/sidebar/app-sidebar.svelte";
 import {
+	acknowledgeExplicitPanelReveal,
+	applyCompletionAttentionAction,
+	performExplicitPanelReveal,
+} from "./main-app-view/logic/completion-acknowledgement.js";
+import {
 	buildFileExplorerProjectInfoByPath,
 	buildFileExplorerProjectPaths,
 } from "./main-app-view/logic/file-explorer-context.js";
@@ -185,24 +190,28 @@ const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore
 const voiceSettingsStore = createVoiceSettingsStore();
 const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
 
-// Wire unseen-clear on panel focus
-panelStore.onPanelFocused = (panelId) => {
-	unseenStore.markSeen(panelId);
-};
+// Passive panel focus alone does not acknowledge completion.
+panelStore.onPanelFocused = null;
 
 // Get connection store (created earlier, now accessible)
 const connectionStore = getConnectionStore();
 
-function focusOrOpenSessionPanel(sessionId: string): void {
+function focusOrOpenSessionPanel(sessionId: string, acknowledgeCompletion = false): void {
 	const existingPanel = panelStore.getPanelBySessionId(sessionId);
 	if (existingPanel) {
 		panelStore.focusPanel(existingPanel.id);
+		if (acknowledgeCompletion) {
+			acknowledgeExplicitPanelReveal(unseenStore, existingPanel);
+		}
 		return;
 	}
 
 	const openedPanel = panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 	if (openedPanel) {
 		panelStore.focusPanel(openedPanel.id);
+		if (acknowledgeCompletion) {
+			acknowledgeExplicitPanelReveal(unseenStore, openedPanel);
+		}
 	}
 }
 
@@ -438,13 +447,10 @@ sessionStore.setCallbacks({
 	onTurnComplete: (sessionId: string) => {
 		const panel = panelStore.getPanelBySessionId(sessionId);
 		if (!panel) return;
-		if (panel.id !== panelStore.focusedPanelId) {
-			// Mark panel as unseen when agent completes while tab is unfocused
-			unseenStore.markUnseen(panel.id);
-		} else {
-			// Clear any stale unseen state when agent completes while tab IS focused
-			unseenStore.markSeen(panel.id);
-		}
+		applyCompletionAttentionAction(unseenStore, panel.id, {
+			kind: "turn-complete",
+			panelIsFocused: panel.id === panelStore.focusedPanelId,
+		});
 
 		// Show completion popup notification when app is unfocused
 		const sessionTitle = sessionStore.getSessionCold(sessionId)?.title ?? "Task";
@@ -460,7 +466,7 @@ sessionStore.setCallbacks({
 			},
 			(actionId) => {
 				if (actionId === "view") {
-					focusOrOpenSessionPanel(sessionId);
+					focusOrOpenSessionPanel(sessionId, true);
 				}
 			},
 			{
@@ -691,6 +697,7 @@ kb.upsertAction({
 		const firstTab = urgencyTabsStore.firstTab;
 		if (firstTab) {
 			panelStore.focusPanel(firstTab.panelId);
+			acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(firstTab.panelId));
 			// If in fullscreen mode, switch fullscreen to this panel
 			if (panelStore.fullscreenPanelId !== null) {
 				panelStore.switchFullscreen(firstTab.panelId);
@@ -1148,6 +1155,7 @@ onDestroy(() => {
 								groupedTabs={tabBarStore.groupedTabs}
 								onSelectTab={(panelId) => {
 									panelStore.focusAndSwitchToPanel(panelId);
+									acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
 								}}
 								onCloseTab={(panelId) => viewState.handleClosePanel(panelId)}
 							/>
@@ -1156,7 +1164,19 @@ onDestroy(() => {
 					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
 						{#if showPanelsContainer}
 							<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-								<PanelsContainer {projectManager} state={viewState} />
+								<PanelsContainer
+									{projectManager}
+									state={viewState}
+									onFocusPanel={(panelId) => {
+										viewState.handleFocusPanel(panelId);
+										acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
+									}}
+									onToggleFullscreenPanel={(panelId) => {
+										performExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId), () => {
+											viewState.handleToggleFullscreen(panelId);
+										});
+									}}
+								/>
 							</div>
 						{:else if viewState.initializationComplete}
 							<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />

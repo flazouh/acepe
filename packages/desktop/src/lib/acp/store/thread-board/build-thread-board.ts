@@ -1,23 +1,7 @@
-import type { ActivityState } from "../session-state.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../session-work-projection.js";
 
 import type { ThreadBoardGroup, ThreadBoardItem, ThreadBoardSource } from "./thread-board-item.js";
 import { THREAD_BOARD_STATUS_ORDER, type ThreadBoardStatus } from "./thread-board-status.js";
-
-function isActiveActivity(activity: ActivityState): boolean {
-	return activity.kind === "streaming" || activity.kind === "thinking";
-}
-
-function resolveEffectiveModeId(input: Pick<ThreadBoardSource, "currentModeId" | "state">): string | null {
-	if (input.currentModeId !== null) {
-		return input.currentModeId;
-	}
-
-	if (input.state.activity.kind === "streaming") {
-		return input.state.activity.modeId;
-	}
-
-	return null;
-}
 
 export interface ThreadBoardStatusInput {
 	readonly currentModeId: string | null;
@@ -26,32 +10,13 @@ export interface ThreadBoardStatusInput {
 }
 
 export function classifyThreadBoardState(input: ThreadBoardStatusInput): ThreadBoardStatus {
-	const pendingInput = input.state.pendingInput;
-	if (pendingInput.kind !== "none") {
-		return "answer_needed";
-	}
-
-	if (input.state.connection === "error" || input.connectionError !== null) {
-		return "error";
-	}
-
-	if (isActiveActivity(input.state.activity)) {
-		const modeId = resolveEffectiveModeId(input);
-		if (modeId === "plan") {
-			return "planning";
-		}
-		return "working";
-	}
-
-	if (input.state.activity.kind === "paused") {
-		return "working";
-	}
-
-	if (input.state.attention.hasUnseenCompletion) {
-		return "needs_review";
-	}
-
-	return "idle";
+	return selectSessionWorkBucket(
+		deriveSessionWorkProjection({
+			state: input.state,
+			currentModeId: input.currentModeId,
+			connectionError: input.connectionError,
+		})
+	);
 }
 
 export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoardStatus {

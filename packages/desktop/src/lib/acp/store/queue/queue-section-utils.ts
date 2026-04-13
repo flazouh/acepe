@@ -6,6 +6,11 @@
  */
 
 import type { QueueItem } from "./types.js";
+import {
+	deriveSessionWorkProjection,
+	selectQueueWorkBucket,
+	selectSessionWorkBucket,
+} from "../session-work-projection.js";
 
 /**
  * Section IDs for the queue display.
@@ -35,47 +40,29 @@ const SECTION_ORDER: readonly QueueSectionId[] = [
  * - The LLM turn has reached ready state
  * - The completion is still unseen by the user
  */
-export function isNeedsReview(item: Pick<QueueItem, "status" | "state">): boolean {
-	return item.status === "ready" && item.state.attention.hasUnseenCompletion;
+export function isNeedsReview(item: Pick<QueueItem, "status" | "state" | "connectionError">): boolean {
+	return (
+		selectSessionWorkBucket(
+			deriveSessionWorkProjection({
+				state: item.state,
+				currentModeId: null,
+				connectionError: item.connectionError,
+			})
+		) === "needs_review"
+	);
 }
 
 /**
  * Classify a queue item into a section using the unified session state model.
  */
-export function classifyItem(item: QueueItem): QueueSectionId {
-	const { state } = item;
-
-	// Priority 1: Pending input — user must respond before agent can continue.
-	// The SSE connection stays open (activity = streaming) while waiting for
-	// permission/question responses, so pending input must be checked first.
-	if (state.pendingInput.kind !== "none") return "answer_needed";
-
-	// Priority 2: Plan-mode active work — streaming or thinking while in plan mode.
-	if (
-		(state.activity.kind === "streaming" || state.activity.kind === "thinking") &&
-		item.currentModeId === "plan"
-	) {
-		return "planning";
-	}
-
-	// Priority 3: Active work (streaming or thinking with no pending input)
-	if (state.activity.kind === "streaming" || state.activity.kind === "thinking") {
-		return "working";
-	}
-
-	// Priority 4: Errors
-	if (state.connection === "error") return "error";
-
-	// Priority 5: Unseen completions (only when idle)
-	if (state.activity.kind === "idle" && state.attention.hasUnseenCompletion) {
-		return "needs_review";
-	}
-
-	// Priority 6: Paused treated as working
-	if (state.activity.kind === "paused") return "working";
-
-	// Default: idle sessions not in queue (but if we get here, treat as finished)
-	return "needs_review";
+export function classifyItem(item: QueueItem): QueueSectionId | null {
+	return selectQueueWorkBucket(
+		deriveSessionWorkProjection({
+			state: item.state,
+			currentModeId: item.currentModeId,
+			connectionError: item.connectionError,
+		})
+	);
 }
 
 /**
@@ -85,6 +72,9 @@ export function groupIntoSections(activeItems: readonly QueueItem[]): QueueSecti
 	const buckets = new Map<QueueSectionId, QueueItem[]>();
 	for (const item of activeItems) {
 		const sectionId = classifyItem(item);
+		if (sectionId === null) {
+			continue;
+		}
 		const bucket = buckets.get(sectionId);
 		if (bucket) {
 			bucket.push(item);

@@ -113,6 +113,15 @@ describe("classifyThreadBoardStatus", () => {
 		expect(classifyThreadBoardStatus(source)).toBe("working");
 	});
 
+	it("maps paused plan work to planning", () => {
+		const source = makeSource({
+			currentModeId: "plan",
+			state: makeState({ activityKind: "paused" }),
+		});
+
+		expect(classifyThreadBoardStatus(source)).toBe("planning");
+	});
+
 	it("maps pending input to answer_needed even when the thread is active", () => {
 		const source = makeSource({
 			currentModeId: "plan",

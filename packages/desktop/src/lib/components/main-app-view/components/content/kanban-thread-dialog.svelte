@@ -18,6 +18,8 @@ interface Props {
 	mode: KanbanThreadDialogMode;
 	projectManager: ProjectManager;
 	mainAppState: MainAppViewState;
+	onFocusPanel?: (panelId: string) => void;
+	onToggleFullscreenPanel?: (panelId: string) => void;
 	onDismiss: () => void;
 	onClosePanel: (panelId: string) => void;
 }
@@ -27,7 +29,7 @@ export type KanbanThreadDialogHandle = {
 	requestClosePanelConfirmation(): void;
 };
 
-let { panelId, mode, projectManager, mainAppState, onDismiss, onClosePanel }: Props = $props();
+let { panelId, mode, projectManager, mainAppState, onFocusPanel, onToggleFullscreenPanel, onDismiss, onClosePanel }: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -155,9 +157,16 @@ function handleDialogOpenAutoFocus(): void {
 				onResizePanel={(currentPanelId, delta) => mainAppState.handleResizePanel(currentPanelId, delta)}
 				onToggleFullscreen={() => {
 					onDismiss();
+					if (onToggleFullscreenPanel) {
+						onToggleFullscreenPanel(panelSnapshot.panelId);
+						return;
+					}
 					mainAppState.handleToggleFullscreen(panelSnapshot.panelId);
 				}}
-				onFocus={() => mainAppState.handleFocusPanel(panelSnapshot.panelId)}
+				onFocus={() =>
+					onFocusPanel
+						? onFocusPanel(panelSnapshot.panelId)
+						: mainAppState.handleFocusPanel(panelSnapshot.panelId)}
 				hideProjectBadge={false}
 				reviewMode={panelSnapshot.reviewMode}
 				reviewFilesState={panelSnapshot.reviewFilesState}

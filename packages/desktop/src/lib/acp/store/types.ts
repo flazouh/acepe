@@ -39,7 +39,6 @@ import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/fi
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
 import type { AvailableCommand } from "../types/available-command";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
-import type { SessionState } from "./session-state.js";
 
 /**
  * Turn state for streaming sessions.
@@ -112,12 +111,6 @@ export interface SessionHotState {
 	readonly configOptions?: ReadonlyArray<ConfigOptionData>;
 	/** Timestamp when status last changed (for urgency sorting) */
 	readonly statusChangedAt: number;
-	/**
-	 * Unified session state model.
-	 * Layered discriminated unions for connection, activity, pending input, and attention.
-	 * This is the canonical state for queue classification and UI rendering.
-	 */
-	readonly sessionState?: SessionState;
 	/** Usage/cost and token telemetry (adapter-agnostic). */
 	readonly usageTelemetry?: SessionUsageTelemetry;
 }
@@ -138,12 +131,6 @@ export const DEFAULT_HOT_STATE: SessionHotState = {
 	availableCommands: [],
 	modelPerMode: {},
 	statusChangedAt: Date.now(),
-	sessionState: {
-		connection: "disconnected",
-		activity: { kind: "idle" },
-		pendingInput: { kind: "none" },
-		attention: { hasUnseenCompletion: false },
-	},
 };
 
 // ============================================

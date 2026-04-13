@@ -18,7 +18,7 @@ import type { QuestionRequest } from "../../types/question.js";
 import type { QueueItem } from "./types.js";
 import type { ProjectColorLookup, QueueSectionGroup, QueueSessionSnapshot } from "./utils.js";
 
-import { buildQueueItem, calculateSessionUrgency, groupIntoSections } from "./utils.js";
+import { buildQueueItem, calculateSessionUrgency, classifyItem, groupIntoSections } from "./utils.js";
 
 export type { QueueSectionGroup, QueueSectionId } from "./utils.js";
 
@@ -43,25 +43,7 @@ export interface QueueUpdateInput {
  * Uses the unified session state model for consistent classification.
  */
 function isActiveSession(item: QueueItem): boolean {
-	const { state } = item;
-
-	// Has pending input - user must respond
-	if (state.pendingInput.kind !== "none") return true;
-
-	// Has error - user must acknowledge/fix
-	if (state.connection === "error") return true;
-
-	// Agent finished and unseen - user should review
-	if (state.activity.kind === "idle" && state.attention.hasUnseenCompletion) return true;
-
-	// Agent working (streaming, thinking) - user may want to monitor
-	if (state.activity.kind === "streaming" || state.activity.kind === "thinking") return true;
-
-	// Paused - still active
-	if (state.activity.kind === "paused") return true;
-
-	// Everything else: not active (idle + seen, connecting)
-	return false;
+	return classifyItem(item) !== null;
 }
 
 /**
@@ -70,26 +52,11 @@ function isActiveSession(item: QueueItem): boolean {
  * Uses the unified session state model for consistent classification.
  */
 function getItemPriority(item: QueueItem): number {
-	const { state } = item;
-
-	// Pending input (questions and permissions) are highest priority
-	if (state.pendingInput.kind !== "none") return 0;
-
-	// Errors next
-	if (state.connection === "error") return 1;
-
-	// Ready and unseen - user should review
-	if (state.activity.kind === "idle" && state.attention.hasUnseenCompletion) return 2;
-
-	// Active work (streaming, thinking, paused) - lowest priority in queue
-	if (
-		state.activity.kind === "streaming" ||
-		state.activity.kind === "thinking" ||
-		state.activity.kind === "paused"
-	)
-		return 3;
-
-	// Anything else (shouldn't happen due to filter)
+	const bucket = classifyItem(item);
+	if (bucket === "answer_needed") return 0;
+	if (bucket === "error") return 1;
+	if (bucket === "needs_review") return 2;
+	if (bucket === "planning" || bucket === "working") return 3;
 	return 4;
 }
 
@@ -122,9 +89,10 @@ export function createQueueStore(): QueueStore {
 
 	// Derived: count of items needing immediate action (pending input or errors)
 	const actionRequiredCount = $derived(
-		activeItems.filter(
-			(item) => item.state.pendingInput.kind !== "none" || item.state.connection === "error"
-		).length
+		activeItems.filter((item) => {
+			const bucket = classifyItem(item);
+			return bucket === "answer_needed" || bucket === "error";
+		}).length
 	);
 
 	// Derived: top item (most urgent)

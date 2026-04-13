@@ -199,7 +199,7 @@ const currentAnswerDisplay = $derived.by(() => {
 });
 
 const isThinking = $derived(item.state.activity.kind === "thinking");
-const hasError = $derived(item.state.connection === "error");
+const hasError = $derived(item.state.connection === "error" || item.connectionError !== null);
 
 const statusText = $derived.by(() => {
 	if (hasPendingQuestion || hasPendingPlanApproval) return null;

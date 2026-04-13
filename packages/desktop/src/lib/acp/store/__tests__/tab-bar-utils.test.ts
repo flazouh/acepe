@@ -61,6 +61,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		agentId: "agent-1",
 		title: "Test Session",
 		hotState: makeHotState(),
+		runtimeState: null,
 		entries: [],
 		pendingQuestion: null,
 		pendingPlanApproval: null,
@@ -161,6 +162,16 @@ describe("panelToTab", () => {
 			expect(tab.state.connection).toBe("error");
 		});
 
+		it("classifies connectionError-only sessions as error work buckets", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({ status: "ready", connectionError: "Resume failed" }),
+				})
+			);
+			expect(tab.state.connection).toBe("connected");
+			expect(tab.workBucket).toBe("error");
+		});
+
 		it("derives disconnected state from status=idle (no session)", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "idle" }) }));
 			expect(tab.state.connection).toBe("disconnected");
@@ -233,6 +244,28 @@ describe("panelToTab", () => {
 		it("derives paused state from status=paused", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "paused" }) }));
 			expect(tab.state.activity.kind).toBe("paused");
+		});
+
+		it("classifies runtime thinking as active work", () => {
+			const tab = panelToTab(
+				makeInput({
+					runtimeState: {
+						connectionPhase: "connected",
+						contentPhase: "loaded",
+						activityPhase: "running",
+						canSubmit: false,
+						canCancel: true,
+						showStop: true,
+						showThinking: true,
+						showConnectingOverlay: false,
+						showConversation: true,
+						showReadyPlaceholder: false,
+					},
+					hotState: makeHotState({ status: "ready" }),
+				})
+			);
+			expect(tab.state.activity.kind).toBe("thinking");
+			expect(tab.workBucket).toBe("working");
 		});
 	});
 

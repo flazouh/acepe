@@ -57,6 +57,8 @@ export interface QueueItem {
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	/** Session status for filtering */
 	readonly status: SessionStatus;
+	/** Connection/agent error message when present */
+	readonly connectionError: string | null;
 	/**
 	 * Unified session state model.
 	 * Use this for queue classification instead of individual boolean flags.
