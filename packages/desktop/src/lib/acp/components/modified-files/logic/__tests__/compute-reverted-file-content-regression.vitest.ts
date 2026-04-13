@@ -6,7 +6,7 @@ vi.mock("@pierre/diffs", async () => {
 	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
 		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
 		const corruptedResult = Object.assign({}, result);
-		Reflect.deleteProperty(corruptedResult, "additionLines");
+		Reflect.deleteProperty(corruptedResult, "newLines");
 		return corruptedResult;
 	};
 
@@ -23,7 +23,7 @@ function createFile(name: string, contents: string): FileContents {
 }
 
 describe("computeRevertedFileContent regression", () => {
-	it("returns full reverted content when resolved metadata omits additionLines", async () => {
+	it("returns full reverted content when resolved metadata omits newLines", async () => {
 		const { computeRevertedFileContent } = await import("../compute-reverted-file-content.js");
 		const oldContent = "line1\nold\nline3";
 		const newContent = "line1\nnew\nline3";

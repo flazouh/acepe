@@ -6,7 +6,7 @@ vi.mock("@pierre/diffs", async () => {
 	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
 		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
 		const corruptedResult = Object.assign({}, result);
-		Reflect.deleteProperty(corruptedResult, "additionLines");
+		Reflect.deleteProperty(corruptedResult, "newLines");
 		return corruptedResult;
 	};
 
@@ -69,7 +69,7 @@ async function setupState() {
 }
 
 describe("ReviewDiffViewState regression", () => {
-	it("keeps accepted contents when resolved metadata omits additionLines", async () => {
+	it("keeps accepted contents when resolved metadata omits newLines", async () => {
 		const { state, diffData } = await setupState();
 		const originalNewContents = diffData.newFile.contents;
 

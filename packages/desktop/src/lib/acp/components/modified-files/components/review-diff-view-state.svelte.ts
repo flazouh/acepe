@@ -287,12 +287,12 @@ export class ReviewDiffViewState {
 
 			for (const content of hunk.hunkContent) {
 				if (content.type === "context") {
-					additionLineOffset += content.lines;
-					deletionLineOffset += content.lines;
+					additionLineOffset += content.lines.length;
+					deletionLineOffset += content.lines.length;
 				} else if (content.type === "change") {
-					if (content.additions > 0) {
+					if (content.additions.length > 0) {
 						const lastAdditionLineNumber =
-							hunk.additionStart + additionLineOffset + content.additions - 1;
+							hunk.additionStart + additionLineOffset + content.additions.length - 1;
 						annotations.push({
 							side: "additions",
 							lineNumber: lastAdditionLineNumber,
@@ -301,7 +301,7 @@ export class ReviewDiffViewState {
 						annotationPlaced = true;
 						break;
 					}
-					deletionLineOffset += content.deletions;
+					deletionLineOffset += content.deletions.length;
 				}
 			}
 
@@ -373,12 +373,7 @@ export class ReviewDiffViewState {
 		const deletions: string[] = [];
 		for (const content of hunk.hunkContent) {
 			if (content.type === "change") {
-				const hunkDeletions = getLinesForRange(
-					this.currentDiffData.fileDiffMetadata.deletionLines,
-					content.deletionLineIndex,
-					content.deletions
-				);
-				deletions.push(...hunkDeletions);
+				deletions.push(...content.deletions);
 			}
 		}
 

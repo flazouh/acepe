@@ -35,31 +35,29 @@ export function computeRevertedFileContent(
 	}
 
 	const currentAdditionLines = splitFileContent(newFileContent);
-	if (hunk.additionLineIndex > currentAdditionLines.length) {
+	const hunkAdditionStartIndex = Math.max(0, hunk.additionStart - 1);
+	if (hunkAdditionStartIndex > currentAdditionLines.length) {
 		return newFileContent;
 	}
 
-	const revertedLines = currentAdditionLines.slice(0, hunk.additionLineIndex);
-	let nextCurrentLineIndex = hunk.additionLineIndex;
+	const revertedLines = currentAdditionLines.slice(0, hunkAdditionStartIndex);
+	let nextCurrentLineIndex = hunkAdditionStartIndex;
 
 	for (const content of hunk.hunkContent) {
 		if (content.type === "context") {
 			appendLines(
 				revertedLines,
-				currentAdditionLines.slice(nextCurrentLineIndex, nextCurrentLineIndex + content.lines)
+				currentAdditionLines.slice(
+					nextCurrentLineIndex,
+					nextCurrentLineIndex + content.lines.length
+				)
 			);
-			nextCurrentLineIndex += content.lines;
+			nextCurrentLineIndex += content.lines.length;
 			continue;
 		}
 
-		appendLines(
-			revertedLines,
-			fileDiffMetadata.deletionLines.slice(
-				content.deletionLineIndex,
-				content.deletionLineIndex + content.deletions
-			)
-		);
-		nextCurrentLineIndex += content.additions;
+		appendLines(revertedLines, content.deletions);
+		nextCurrentLineIndex += content.additions.length;
 	}
 
 	appendLines(revertedLines, currentAdditionLines.slice(nextCurrentLineIndex));
