@@ -16,7 +16,7 @@ mod session_metadata_tests {
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository,
+        ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
         SessionProjectionSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
@@ -83,6 +83,67 @@ mod session_metadata_tests {
         // Verify insertion
         let is_empty = SessionMetadataRepository::is_empty(&db).await.unwrap();
         assert!(!is_empty, "Database should not be empty after insert");
+    }
+
+    #[tokio::test]
+    async fn project_repository_preserves_path_casing_in_display_name() {
+        let db = setup_test_db().await;
+
+        ProjectRepository::create_or_update(
+            &db,
+            "/Users/test/MyAPIService".to_string(),
+            "myapiservice".to_string(),
+            Some("cyan".to_string()),
+        )
+        .await
+        .expect("create project");
+
+        let projects = ProjectRepository::get_all(&db).await.expect("load projects");
+
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "MyAPIService");
+        assert_eq!(projects[0].sort_order, 0);
+    }
+
+    #[tokio::test]
+    async fn project_repository_reorders_projects_and_persists_icon_path() {
+        let db = setup_test_db().await;
+
+        let first = ProjectRepository::create_or_update(
+            &db,
+            "/Users/test/Alpha".to_string(),
+            "Alpha".to_string(),
+            Some("cyan".to_string()),
+        )
+        .await
+        .expect("create first project");
+        let second = ProjectRepository::create_or_update(
+            &db,
+            "/Users/test/Beta".to_string(),
+            "Beta".to_string(),
+            Some("purple".to_string()),
+        )
+        .await
+        .expect("create second project");
+
+        let updated_second = ProjectRepository::update_icon_path(
+            &db,
+            &second.path,
+            Some("/tmp/beta-icon.png".to_string()),
+        )
+        .await
+        .expect("update icon");
+        assert_eq!(updated_second.icon_path.as_deref(), Some("/tmp/beta-icon.png"));
+
+        let reordered = ProjectRepository::reorder(&db, &[second.path.clone(), first.path.clone()])
+            .await
+            .expect("reorder projects");
+
+        assert_eq!(reordered.len(), 2);
+        assert_eq!(reordered[0].path, second.path);
+        assert_eq!(reordered[0].sort_order, 0);
+        assert_eq!(reordered[1].path, first.path);
+        assert_eq!(reordered[1].sort_order, 1);
     }
 
     #[tokio::test]

@@ -25,6 +25,7 @@ export interface AppSessionItem {
 export interface AppProjectGroup {
   name: string;
   color?: string;
+  iconSrc?: string | null;
   sessions: AppSessionItem[];
 }
 

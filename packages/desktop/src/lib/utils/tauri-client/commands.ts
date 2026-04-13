@@ -65,6 +65,8 @@ export const CMD = {
 		remove_project: storage.remove_project,
 		browse_project: storage.browse_project,
 		update_project_color: "update_project_color",
+		update_project_icon: "update_project_icon",
+		update_project_order: "update_project_order",
 	} as const,
 
 	storage: {

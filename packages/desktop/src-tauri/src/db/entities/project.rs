@@ -13,6 +13,8 @@ pub struct Model {
     pub last_opened: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub color: String,
+    pub sort_order: i32,
+    pub icon_path: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

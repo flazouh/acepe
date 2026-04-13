@@ -10,6 +10,26 @@ import { ProjectError } from "./project-manager.svelte.js";
  * All methods use neverthrow ResultAsync for type-safe error handling.
  */
 export class ProjectClient {
+	private mapProject(project: {
+		path: string;
+		name: string;
+		last_opened?: string;
+		created_at: string;
+		color: string;
+		sort_order: number;
+		icon_path?: string | null;
+	}): Project {
+		return {
+			path: project.path,
+			name: project.name,
+			lastOpened: project.last_opened ? new Date(project.last_opened) : undefined,
+			createdAt: new Date(project.created_at),
+			color: resolveProjectColor(project.color),
+			sortOrder: project.sort_order,
+			iconPath: project.icon_path ?? null,
+		};
+	}
+
 	/**
 	 * Get all projects.
 	 *
@@ -19,15 +39,7 @@ export class ProjectClient {
 		return tauriClient.projects
 			.getProjects()
 			.mapErr((e) => new ProjectError(`Failed to get projects: ${e}`, "STORAGE_ERROR"))
-			.map((projects) =>
-				projects.map((p) => ({
-					path: p.path,
-					name: p.name,
-					lastOpened: p.last_opened ? new Date(p.last_opened) : undefined,
-					createdAt: new Date(p.created_at),
-					color: resolveProjectColor(p.color),
-				}))
-			);
+			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
 
 	/**
@@ -40,15 +52,7 @@ export class ProjectClient {
 		return tauriClient.projects
 			.getRecentProjects(limit)
 			.mapErr((e) => new ProjectError(`Failed to get recent projects: ${e}`, "STORAGE_ERROR"))
-			.map((projects) =>
-				projects.map((p) => ({
-					path: p.path,
-					name: p.name,
-					lastOpened: p.last_opened ? new Date(p.last_opened) : undefined,
-					createdAt: new Date(p.created_at),
-					color: resolveProjectColor(p.color),
-				}))
-			);
+			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
 
 	/**
@@ -72,13 +76,7 @@ export class ProjectClient {
 		return tauriClient.projects
 			.importProject(project.path, project.name)
 			.mapErr((e) => new ProjectError(`Failed to import project: ${e}`, "STORAGE_ERROR"))
-			.map((p) => ({
-				path: p.path,
-				name: p.name,
-				lastOpened: p.last_opened ? new Date(p.last_opened) : undefined,
-				createdAt: new Date(p.created_at),
-				color: resolveProjectColor(p.color),
-			}));
+			.map((importedProject) => this.mapProject(importedProject));
 	}
 
 	/**
@@ -92,13 +90,21 @@ export class ProjectClient {
 		return tauriClient.projects
 			.updateProjectColor(path, color)
 			.mapErr((e) => new ProjectError(`Failed to update project color: ${e}`, "STORAGE_ERROR"))
-			.map((project) => ({
-				path: project.path,
-				name: project.name,
-				lastOpened: project.last_opened ? new Date(project.last_opened) : undefined,
-				createdAt: new Date(project.created_at),
-				color: resolveProjectColor(project.color),
-			}));
+			.map((project) => this.mapProject(project));
+	}
+
+	updateProjectIcon(path: string, iconPath: string | null): ResultAsync<Project, ProjectError> {
+		return tauriClient.projects
+			.updateProjectIcon(path, iconPath)
+			.mapErr((e) => new ProjectError(`Failed to update project icon: ${e}`, "STORAGE_ERROR"))
+			.map((project) => this.mapProject(project));
+	}
+
+	updateProjectOrder(orderedPaths: string[]): ResultAsync<Project[], ProjectError> {
+		return tauriClient.projects
+			.updateProjectOrder(orderedPaths)
+			.mapErr((e) => new ProjectError(`Failed to update project order: ${e}`, "STORAGE_ERROR"))
+			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
 
 	/**
@@ -134,16 +140,6 @@ export class ProjectClient {
 		return tauriClient.projects
 			.browseProject()
 			.mapErr((e) => new ProjectError(`Failed to browse project: ${e}`, "STORAGE_ERROR"))
-			.map((project) =>
-				project
-					? {
-							path: project.path,
-							name: project.name,
-							lastOpened: project.last_opened ? new Date(project.last_opened) : undefined,
-							createdAt: new Date(project.created_at),
-							color: resolveProjectColor(project.color),
-						}
-					: null
-			);
+			.map((project) => (project ? this.mapProject(project) : null));
 	}
 }

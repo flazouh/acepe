@@ -8,6 +8,8 @@
 		projectName: string;
 		/** Resolved hex color for the project */
 		projectColor: string;
+		/** Optional project icon source */
+		projectIconSrc?: string | null;
 		/**
 		 * Badge placement variant:
 		 * - "inline": Badge inside the card on the left (tab bar groups)
@@ -21,7 +23,7 @@
 		/** Card content */
 		children: Snippet;
 		/** All projects for focused view — renders multiple badges in the left column */
-		allProjects?: Array<{ name: string; color: string; path: string }>;
+		allProjects?: Array<{ name: string; color: string; path: string; iconSrc?: string | null }>;
 		/** The active project path (determines which badge is full opacity) */
 		activeProjectPath?: string | null;
 		/** Callback when a project badge is clicked */
@@ -31,6 +33,7 @@
 	let {
 		projectName,
 		projectColor,
+		projectIconSrc = null,
 		variant = "inline",
 		badgeSize,
 		class: className = "",
@@ -59,14 +62,24 @@
 						onclick={() => onSelectProject?.(project.path)}
 						title={project.name}
 					>
-						<ProjectLetterBadge name={project.name} color={project.color} size={resolvedBadgeSize} />
+						<ProjectLetterBadge
+							name={project.name}
+							color={project.color}
+							iconSrc={project.iconSrc ?? null}
+							size={resolvedBadgeSize}
+						/>
 					</button>
 				{/each}
 			</div>
 		{:else}
 			<!-- Normal mode: single badge -->
 			<div class="shrink-0 self-start m-1">
-				<ProjectLetterBadge name={projectName} color={projectColor} size={resolvedBadgeSize} />
+				<ProjectLetterBadge
+					name={projectName}
+					color={projectColor}
+					iconSrc={projectIconSrc}
+					size={resolvedBadgeSize}
+				/>
 			</div>
 		{/if}
 		{@render children()}
@@ -79,7 +92,12 @@
 		aria-label="{projectName} tabs"
 	>
 		<div class="shrink-0 flex items-center justify-center px-1.5">
-			<ProjectLetterBadge name={projectName} color={projectColor} size={resolvedBadgeSize} />
+			<ProjectLetterBadge
+				name={projectName}
+				color={projectColor}
+				iconSrc={projectIconSrc}
+				size={resolvedBadgeSize}
+			/>
 		</div>
 		<div class="flex min-h-0 items-stretch">
 			{@render children()}

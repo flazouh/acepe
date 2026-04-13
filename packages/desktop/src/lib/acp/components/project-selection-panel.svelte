@@ -16,6 +16,7 @@ import {
 	markProjectSelectionMetadataFieldLoadFinished,
 	markProjectSelectionMetadataFieldLoadStarted,
 	setCachedProjectSelectionMetadata,
+	shouldLoadProjectSelectionMetadata,
 	shouldLoadProjectSelectionMetadataField,
 } from "./project-selection-metadata-cache.js";
 
@@ -130,25 +131,62 @@ function ensureProjectInfoLoaded(project: Project): void {
 			markProjectSelectionMetadataFieldLoadStarted(projectPath, "gitStatus");
 		}
 
-		void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
-			(overview) => {
-				updateProjectCardData(projectPath, {
-					branch: overview.branch,
-					gitStatus: overview.gitStatus,
-				});
-				if (shouldLoadBranch) {
-					markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", true);
+		void tauriClient.git.isRepo(projectPath).match(
+			(isRepo) => {
+				if (!isRepo) {
+					setProjectCardData(projectPath, {
+						branch: null,
+						gitStatus: null,
+					});
+					if (shouldLoadBranch) {
+						markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
+					}
+					if (shouldLoadGitStatus) {
+						markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
+					}
+					return;
 				}
-				if (shouldLoadGitStatus) {
-					markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", true);
-				}
-				// Fetch remote status (ahead/behind) in background
-				void tauriClient.git.remoteStatus(projectPath).match(
-					(remote) => {
-						remoteStatusMap.set(projectPath, { ahead: remote.ahead, behind: remote.behind });
+
+				void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
+					(overview) => {
+						updateProjectCardData(projectPath, {
+							branch: overview.branch,
+							gitStatus: overview.gitStatus,
+						});
+						if (shouldLoadBranch) {
+							markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", true);
+						}
+						if (shouldLoadGitStatus) {
+							markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", true);
+						}
+						// Fetch remote status (ahead/behind) in background
+						void tauriClient.git.remoteStatus(projectPath).match(
+							(remote) => {
+								remoteStatusMap.set(projectPath, {
+									ahead: remote.ahead,
+									behind: remote.behind,
+								});
+							},
+							() => {
+								/* no remote or not a git repo — ignore */
+							}
+						);
 					},
-					() => {
-						/* no remote or not a git repo — ignore */
+					(err) => {
+						const msg = err instanceof Error ? err.message : String(err);
+						if (
+							msg.includes("not found") ||
+							msg.includes("not a directory") ||
+							msg.includes("does not exist")
+						) {
+							missingProjectPaths.add(projectPath);
+						}
+						if (shouldLoadBranch) {
+							markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
+						}
+						if (shouldLoadGitStatus) {
+							markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
+						}
 					}
 				);
 			},
@@ -231,7 +269,14 @@ function syncDisplayedProjectMetadata(): void {
 	}
 
 	const displayProjectsKey = getProjectPathsKey(displayProjects);
-	if (!isSinglePreselectedProject && displayProjectsKey === lastDisplayProjectsKey) {
+	const hasRetryableMetadata = displayProjects.some((project) =>
+		shouldLoadProjectSelectionMetadata(project.path)
+	);
+	if (
+		!isSinglePreselectedProject &&
+		displayProjectsKey === lastDisplayProjectsKey &&
+		!hasRetryableMetadata
+	) {
 		return;
 	}
 	lastDisplayProjectsKey = displayProjectsKey;

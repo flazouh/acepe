@@ -67,6 +67,8 @@ export interface ProjectData {
 	last_opened?: string;
 	created_at: string;
 	color: string;
+	sort_order: number;
+	icon_path?: string | null;
 }
 
 /** Thread list display settings */

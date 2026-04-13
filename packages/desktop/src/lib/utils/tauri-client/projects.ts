@@ -31,6 +31,17 @@ export const projects = {
 		return invokeAsync(CMD.projects.update_project_color, { path, color });
 	},
 
+	updateProjectIcon: (
+		path: string,
+		iconPath: string | null
+	): ResultAsync<ProjectData, AppError> => {
+		return invokeAsync(CMD.projects.update_project_icon, { path, iconPath });
+	},
+
+	updateProjectOrder: (orderedPaths: string[]): ResultAsync<ProjectData[], AppError> => {
+		return invokeAsync(CMD.projects.update_project_order, { orderedPaths });
+	},
+
 	addProject: (path: string, name: string): ResultAsync<void, AppError> => {
 		return invokeAsync(CMD.projects.add_project, { path, name });
 	},
