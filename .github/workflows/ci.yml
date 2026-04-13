@@ -102,5 +102,5 @@ jobs:
         working-directory: packages/desktop/src-tauri
         run: |
           set -o pipefail
-          cargo clippy --all-targets -- -D warnings
-          cargo test -- --skip claude_history::export_types
+          cargo clippy --all-targets --no-default-features -- -D warnings
+          cargo test --no-default-features -- --skip claude_history::export_types

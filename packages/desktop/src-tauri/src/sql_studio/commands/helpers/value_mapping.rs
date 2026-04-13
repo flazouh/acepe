@@ -89,12 +89,3 @@ pub(crate) fn mysql_cell_to_string(row: &MySqlRow, idx: usize) -> String {
 
     "<UNSUPPORTED>".to_string()
 }
-
-pub(crate) fn previewable_content_type(content_type: &str) -> bool {
-    let normalized = content_type.trim().to_ascii_lowercase();
-    normalized.starts_with("text/")
-        || normalized == "application/json"
-        || normalized.ends_with("+json")
-        || normalized == "application/xml"
-        || normalized == "text/xml"
-}

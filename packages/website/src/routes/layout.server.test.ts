@@ -24,7 +24,9 @@ describe("root layout server load", () => {
 			})
 		);
 
-		const result = await load({} as never);
+		const result = await load({
+			url: new URL("https://acepe.dev/"),
+		} as never);
 
 		expect(result).toBeDefined();
 
