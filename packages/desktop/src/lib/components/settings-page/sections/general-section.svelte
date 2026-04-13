@@ -30,13 +30,14 @@ function handleLanguageSelect(languageCode: string) {
 
 let showResetConfirm = $state(false);
 
-	async function handleResetDatabase() {
-		await settings.resetDatabase().match(
-			() => undefined,
-			() => undefined
-		);
-		showResetConfirm = false;
-	}
+async function handleResetDatabase() {
+	await settings.resetDatabase().match(
+		() => {
+			showResetConfirm = false;
+		},
+		() => undefined
+	);
+}
 </script>
 
 <div class="w-full">

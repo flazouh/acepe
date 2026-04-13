@@ -7,6 +7,209 @@ macro_rules! __command_handler_idents {
     };
 }
 
+macro_rules! define_registered_tauri_handlers_macro {
+    ($macro_name:ident, $($field:ident : $command:ident),* $(,)?) => {
+        #[macro_export]
+        macro_rules! $macro_name {
+            () => {
+                tauri::generate_handler![
+                    $($command),*
+                ]
+            };
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! all_command_entries {
+    ($callback:ident $(, $args:tt)*) => {
+        crate::acp_command_entries!(__all_command_entries_after_acp, [$callback $(, $args)*], []);
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_acp {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::fs_command_entries!(
+            __all_command_entries_after_fs,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_fs {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::history_command_entries!(
+            __all_command_entries_after_history,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_history {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::cursor_history_command_entries!(
+            __all_command_entries_after_cursor_history,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_cursor_history {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::opencode_history_command_entries!(
+            __all_command_entries_after_opencode_history,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_opencode_history {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::storage_command_entries!(
+            __all_command_entries_after_storage,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_storage {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::file_index_command_entries!(
+            __all_command_entries_after_file_index,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_file_index {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::terminal_command_entries!(
+            __all_command_entries_after_terminal,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_terminal {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::git_command_entries!(
+            __all_command_entries_after_git,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_git {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::checkpoint_command_entries!(
+            __all_command_entries_after_checkpoint,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_checkpoint {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::skills_command_entries!(
+            __all_command_entries_after_skills,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_skills {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::sql_studio_command_entries!(
+            __all_command_entries_after_sql_studio,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_sql_studio {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::github_command_entries!(
+            __all_command_entries_after_github,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_github {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::browser_webview_command_entries!(
+            __all_command_entries_after_browser_webview,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_browser_webview {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::voice_command_entries!(
+            __all_command_entries_after_voice,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_voice {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::locale_command_entries!(
+            __all_command_entries_after_locale,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_locale {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        crate::window_command_entries!(
+            __all_command_entries_finish,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_finish {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        $callback!($($args,)* $($acc)* $($entries)*);
+    };
+}
+
 #[macro_export]
 macro_rules! acp_command_entries {
     ($callback:ident $(, $args:tt)*) => {
@@ -368,235 +571,4 @@ macro_rules! window_command_entries {
     };
 }
 
-#[macro_export]
-macro_rules! registered_tauri_handlers {
-    () => {
-        tauri::generate_handler![
-            acp_initialize,
-            acp_new_session,
-            acp_resume_session,
-            acp_fork_session,
-            acp_set_model,
-            acp_set_mode,
-            acp_set_session_autonomous,
-            acp_set_config_option,
-            acp_send_prompt,
-            acp_cancel,
-            acp_reply_interaction,
-            acp_reply_permission,
-            acp_reply_question,
-            acp_respond_inbound_request,
-            acp_get_event_bridge_info,
-            acp_get_session_projection,
-            acp_list_agents,
-            acp_list_preconnection_commands,
-            acp_install_agent,
-            acp_uninstall_agent,
-            acp_close_session,
-            acp_register_custom_agent,
-            acp_read_text_file,
-            acp_write_text_file,
-            get_session_history,
-            get_session_messages,
-            get_full_session,
-            get_converted_session,
-            get_cache_stats,
-            invalidate_history_cache,
-            reset_cache_stats,
-            get_index_status,
-            reindex_sessions,
-            get_unified_session,
-            audit_session_load_timing,
-            set_session_worktree_path,
-            set_session_pr_number,
-            set_session_title,
-            get_unified_plan,
-            scan_project_sessions,
-            get_startup_sessions,
-            discover_all_projects_with_sessions,
-            list_all_project_paths,
-            count_sessions_for_project,
-            has_cursor_history,
-            is_cursor_installed,
-            get_opencode_history,
-            get_opencode_session,
-            get_opencode_converted_session,
-            get_opencode_sessions_for_project,
-            get_projects,
-            get_recent_projects,
-            get_project_count,
-            get_missing_project_paths,
-            import_project,
-            add_project,
-            update_project_color,
-            update_project_icon,
-            update_project_order,
-            remove_project,
-            browse_project,
-            get_api_key,
-            save_api_key,
-            delete_api_key,
-            get_custom_keybindings,
-            save_custom_keybindings,
-            get_streaming_log_path,
-            get_session_file_path,
-            save_user_setting,
-            get_user_setting,
-            save_session_review_state,
-            get_session_review_state,
-            delete_session_review_state,
-            save_thread_list_settings,
-            get_thread_list_settings,
-            reset_database,
-            open_in_finder,
-            open_streaming_log,
-            get_project_files,
-            get_project_git_status,
-            get_project_git_status_summary,
-            get_project_git_overview_summary,
-            invalidate_project_files,
-            read_file_content,
-            resolve_file_path,
-            get_file_diff,
-            revert_file_content,
-            read_image_as_base64,
-            copy_file,
-            create_directory,
-            create_file,
-            delete_path,
-            rename_path,
-            search_project_files_for_explorer,
-            get_file_explorer_preview,
-            terminal_create,
-            terminal_output,
-            terminal_wait_for_exit,
-            terminal_kill,
-            terminal_release,
-            get_default_shell,
-            git_clone,
-            browse_clone_destination,
-            git_init,
-            git_is_repo,
-            git_current_branch,
-            git_list_branches,
-            git_checkout_branch,
-            git_has_uncommitted_changes,
-            git_worktree_create,
-            git_prepare_worktree_session_launch,
-            git_discard_prepared_worktree_session_launch,
-            git_worktree_remove,
-            git_worktree_reset,
-            git_worktree_list,
-            git_worktree_rename,
-            git_worktree_disk_size,
-            git_collect_ship_context,
-            git_pr_details,
-            git_merge_pr,
-            get_open_pr_for_branch,
-            git_watch_head,
-            load_worktree_config,
-            run_worktree_setup,
-            save_worktree_config,
-            git_panel_status,
-            git_diff_stats,
-            git_stage_files,
-            git_unstage_files,
-            git_stage_all,
-            git_discard_changes,
-            git_commit,
-            git_push,
-            git_pull,
-            git_fetch,
-            git_remote_status,
-            git_stash_list,
-            git_stash_pop,
-            git_stash_drop,
-            git_stash_save,
-            git_log,
-            git_create_branch,
-            git_delete_branch,
-            git_run_stacked_action,
-            checkpoint_create,
-            checkpoint_list,
-            checkpoint_get_file_content,
-            checkpoint_get_file_diff_content,
-            checkpoint_revert,
-            checkpoint_revert_file,
-            checkpoint_get_file_snapshots,
-            skills_list_tree,
-            skills_list_agent_skills,
-            skills_get,
-            skills_create,
-            skills_update,
-            skills_delete,
-            skills_copy_to,
-            skills_start_watching,
-            skills_stop_watching,
-            skills_list_plugins,
-            skills_list_plugin_skills,
-            skills_get_plugin_skill,
-            skills_copy_plugin_skill_to_agent,
-            library_skills_list,
-            library_skills_list_with_sync,
-            library_skill_get,
-            library_skill_create,
-            library_skill_update,
-            library_skill_delete,
-            library_skill_get_sync_targets,
-            library_skill_set_sync_target,
-            library_skill_sync,
-            library_sync_all,
-            library_is_empty,
-            library_import_existing,
-            library_skill_get_folder_path,
-            library_skill_delete_from_agents,
-            sql_studio_list_connections,
-            sql_studio_get_connection,
-            sql_studio_save_connection,
-            sql_studio_delete_connection,
-            sql_studio_pick_sqlite_file,
-            sql_studio_test_connection,
-            sql_studio_test_connection_input,
-            sql_studio_list_schema,
-            sql_studio_execute_query,
-            sql_studio_explore_table,
-            sql_studio_update_table_cell,
-            fetch_commit_diff,
-            fetch_pr_diff,
-            get_github_repo_context,
-            git_working_file_diff,
-            list_pull_requests,
-            check_github_auth,
-            create_github_issue,
-            create_issue_comment,
-            get_github_issue,
-            list_github_issues,
-            list_issue_comments,
-            search_github_issues,
-            toggle_comment_reaction,
-            toggle_issue_reaction,
-            open_browser_webview,
-            close_browser_webview,
-            navigate_browser_webview,
-            reload_browser_webview,
-            browser_webview_back,
-            browser_webview_forward,
-            get_browser_webview_url,
-            show_browser_webview,
-            hide_browser_webview,
-            resize_browser_webview,
-            set_browser_webview_zoom,
-            voice_list_models,
-            voice_list_languages,
-            voice_get_model_status,
-            voice_download_model,
-            voice_delete_model,
-            voice_load_model,
-            voice_start_recording,
-            voice_stop_recording,
-            voice_cancel_recording,
-            get_system_locale,
-            activate_window,
-        ]
-    };
-}
+crate::all_command_entries!(define_registered_tauri_handlers_macro, registered_tauri_handlers);
