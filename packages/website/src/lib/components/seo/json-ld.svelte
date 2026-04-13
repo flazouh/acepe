@@ -1,6 +1,6 @@
 <script lang="ts">
-	const description =
-		"A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface.";
+const description =
+	"A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface.";
 
 const organizationSchema = {
 	"@context": "https://schema.org",

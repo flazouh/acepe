@@ -23,10 +23,7 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	plugins: [
-		sveltekit(),
-		tailwindcss(),
-	],
+	plugins: [sveltekit(), tailwindcss()],
 
 	// Pre-bundle icon libraries to avoid HMR issues with dynamic imports
 	optimizeDeps: {

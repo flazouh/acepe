@@ -4,7 +4,7 @@ type MessageArgs = Record<string, MessageValue>;
 function interpolate(template: string, args: MessageArgs = {}): string {
 	return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
 		const value = args[key];
-		return value === undefined || value === null ? '' : String(value);
+		return value === undefined || value === null ? "" : String(value);
 	});
 }
 
@@ -320,7 +320,9 @@ export function settings_appearance_streaming_animation_none(args: MessageArgs =
 	return interpolate(`None`, args);
 }
 
-export function settings_appearance_streaming_animation_none_description(args: MessageArgs = {}): string {
+export function settings_appearance_streaming_animation_none_description(
+	args: MessageArgs = {}
+): string {
 	return interpolate(`Instant display, no animation`, args);
 }
 
@@ -328,7 +330,9 @@ export function settings_appearance_streaming_animation_fade(args: MessageArgs =
 	return interpolate(`Fade In`, args);
 }
 
-export function settings_appearance_streaming_animation_fade_description(args: MessageArgs = {}): string {
+export function settings_appearance_streaming_animation_fade_description(
+	args: MessageArgs = {}
+): string {
 	return interpolate(`Gentle fade with upward motion`, args);
 }
 
@@ -336,7 +340,9 @@ export function settings_appearance_streaming_animation_glow(args: MessageArgs =
 	return interpolate(`Glow`, args);
 }
 
-export function settings_appearance_streaming_animation_glow_description(args: MessageArgs = {}): string {
+export function settings_appearance_streaming_animation_glow_description(
+	args: MessageArgs = {}
+): string {
 	return interpolate(`Subtle highlight pulse effect`, args);
 }
 
@@ -344,7 +350,9 @@ export function settings_appearance_streaming_animation_typewriter(args: Message
 	return interpolate(`Typewriter`, args);
 }
 
-export function settings_appearance_streaming_animation_typewriter_description(args: MessageArgs = {}): string {
+export function settings_appearance_streaming_animation_typewriter_description(
+	args: MessageArgs = {}
+): string {
 	return interpolate(`Characters appear one by one`, args);
 }
 
@@ -353,7 +361,10 @@ export function settings_review_prefer_fullscreen(args: MessageArgs = {}): strin
 }
 
 export function settings_review_prefer_fullscreen_description(args: MessageArgs = {}): string {
-	return interpolate(`When enabled, the Review button opens the full-screen overlay instead of the inline panel view`, args);
+	return interpolate(
+		`When enabled, the Review button opens the full-screen overlay instead of the inline panel view`,
+		args
+	);
 }
 
 export function settings_chat(args: MessageArgs = {}): string {
@@ -485,7 +496,10 @@ export function settings_worktree_default_label(args: MessageArgs = {}): string 
 }
 
 export function settings_worktree_default_description(args: MessageArgs = {}): string {
-	return interpolate(`New sessions will automatically use git worktrees for branch isolation`, args);
+	return interpolate(
+		`New sessions will automatically use git worktrees for branch isolation`,
+		args
+	);
 }
 
 export function settings_worktree_setup_running(args: MessageArgs = {}): string {
@@ -529,7 +543,10 @@ export function settings_reset_database(args: MessageArgs = {}): string {
 }
 
 export function settings_reset_database_confirm_description(args: MessageArgs = {}): string {
-	return interpolate(`This will permanently delete the local SQLite database containing all your projects, API keys, preferences, and session history. Your session files on disk will not be affected. This action cannot be undone.`, args);
+	return interpolate(
+		`This will permanently delete the local SQLite database containing all your projects, API keys, preferences, and session history. Your session files on disk will not be affected. This action cannot be undone.`,
+		args
+	);
 }
 
 export function settings_reset_database_confirm_title(args: MessageArgs = {}): string {
@@ -537,7 +554,10 @@ export function settings_reset_database_confirm_title(args: MessageArgs = {}): s
 }
 
 export function settings_reset_database_description(args: MessageArgs = {}): string {
-	return interpolate(`Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected.`, args);
+	return interpolate(
+		`Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected.`,
+		args
+	);
 }
 
 export function settings_reset_database_reset_button(args: MessageArgs = {}): string {
@@ -869,7 +889,10 @@ export function empty_panel_title(args: MessageArgs = {}): string {
 }
 
 export function empty_panel_description(args: MessageArgs = {}): string {
-	return interpolate(`Create a new session to begin working with an AI agent on your project.`, args);
+	return interpolate(
+		`Create a new session to begin working with an AI agent on your project.`,
+		args
+	);
 }
 
 export function empty_panel_start_session(args: MessageArgs = {}): string {
@@ -1005,7 +1028,10 @@ export function connection_error_title(args: MessageArgs = {}): string {
 }
 
 export function connection_error_description(args: MessageArgs = {}): string {
-	return interpolate(`We couldn't connect to the agent. Check your credentials and try again.`, args);
+	return interpolate(
+		`We couldn't connect to the agent. Check your credentials and try again.`,
+		args
+	);
 }
 
 export function connection_error_details(args: MessageArgs = {}): string {
@@ -1273,7 +1299,10 @@ export function link_preview_error_title(args: MessageArgs = {}): string {
 }
 
 export function link_preview_error_description(args: MessageArgs = {}): string {
-	return interpolate(`This page cannot be displayed in the preview. Some websites block being embedded in other applications.`, args);
+	return interpolate(
+		`This page cannot be displayed in the preview. Some websites block being embedded in other applications.`,
+		args
+	);
 }
 
 export function link_preview_try_again(args: MessageArgs = {}): string {
@@ -1381,7 +1410,10 @@ export function project_remove_confirm_title(args: MessageArgs = {}): string {
 }
 
 export function project_remove_confirm_description(args: MessageArgs = {}): string {
-	return interpolate(`Remove "{projectName}" from your workspace? This will not delete any files.`, args);
+	return interpolate(
+		`Remove "{projectName}" from your workspace? This will not delete any files.`,
+		args
+	);
 }
 
 export function panel_fullscreen(args: MessageArgs = {}): string {
@@ -1409,7 +1441,10 @@ export function bun_install_dialog_title(args: MessageArgs = {}): string {
 }
 
 export function bun_install_dialog_description(args: MessageArgs = {}): string {
-	return interpolate(`Bun is a fast JavaScript runtime that significantly improves session startup time.`, args);
+	return interpolate(
+		`Bun is a fast JavaScript runtime that significantly improves session startup time.`,
+		args
+	);
 }
 
 export function bun_install_method_brew(args: MessageArgs = {}): string {
@@ -1921,7 +1956,10 @@ export function open_project_description(args: MessageArgs = {}): string {
 }
 
 export function open_project_description_detail(args: MessageArgs = {}): string {
-	return interpolate(`Projects discovered from your agent session history. Click to import a project into Acepe and access its sessions.`, args);
+	return interpolate(
+		`Projects discovered from your agent session history. Click to import a project into Acepe and access its sessions.`,
+		args
+	);
 }
 
 export function open_project_empty(args: MessageArgs = {}): string {
@@ -1929,7 +1967,10 @@ export function open_project_empty(args: MessageArgs = {}): string {
 }
 
 export function open_project_empty_hint(args: MessageArgs = {}): string {
-	return interpolate(`Start a session with an agent in a project directory, then come back here to import it.`, args);
+	return interpolate(
+		`Start a session with an agent in a project directory, then come back here to import it.`,
+		args
+	);
 }
 
 export function open_project_loading(args: MessageArgs = {}): string {
@@ -2193,7 +2234,10 @@ export function welcome_choose_agents(args: MessageArgs = {}): string {
 }
 
 export function welcome_agents_description(args: MessageArgs = {}): string {
-	return interpolate(`Select one or more AI agents to use. You can always change this later in settings.`, args);
+	return interpolate(
+		`Select one or more AI agents to use. You can always change this later in settings.`,
+		args
+	);
 }
 
 export function welcome_continue(args: MessageArgs = {}): string {
@@ -2213,7 +2257,10 @@ export function welcome_onboarding_choose_agents(args: MessageArgs = {}): string
 }
 
 export function welcome_onboarding_choose_agents_description(args: MessageArgs = {}): string {
-	return interpolate(`Select the agents you want to use in Acepe. You can change this anytime in Settings.`, args);
+	return interpolate(
+		`Select the agents you want to use in Acepe. You can change this anytime in Settings.`,
+		args
+	);
 }
 
 export function welcome_onboarding_select_projects(args: MessageArgs = {}): string {
@@ -2221,7 +2268,10 @@ export function welcome_onboarding_select_projects(args: MessageArgs = {}): stri
 }
 
 export function welcome_onboarding_select_projects_description(args: MessageArgs = {}): string {
-	return interpolate(`Choose which discovered projects you want to import now. You can skip and import later.`, args);
+	return interpolate(
+		`Choose which discovered projects you want to import now. You can skip and import later.`,
+		args
+	);
 }
 
 export function onboarding_projects_no_match(args: MessageArgs = {}): string {
@@ -2693,7 +2743,10 @@ export function checkpoint_revert_confirm_title(args: MessageArgs = {}): string 
 }
 
 export function checkpoint_revert_confirm_description(args: MessageArgs = {}): string {
-	return interpolate(`This will revert {fileCount} file(s) to their state at checkpoint #{checkpointNumber}. This action cannot be undone.`, args);
+	return interpolate(
+		`This will revert {fileCount} file(s) to their state at checkpoint #{checkpointNumber}. This action cannot be undone.`,
+		args
+	);
 }
 
 export function checkpoint_revert_success(args: MessageArgs = {}): string {
@@ -2713,7 +2766,10 @@ export function checkpoint_rewind_title(args: MessageArgs = {}): string {
 }
 
 export function checkpoint_rewind_description(args: MessageArgs = {}): string {
-	return interpolate(`Revert all files to their state at the beginning of this session. This will undo all changes made during this session.`, args);
+	return interpolate(
+		`Revert all files to their state at the beginning of this session. This will undo all changes made during this session.`,
+		args
+	);
 }
 
 export function checkpoint_rewind_button(args: MessageArgs = {}): string {
@@ -2757,7 +2813,10 @@ export function checkpoint_no_checkpoints_title(args: MessageArgs = {}): string 
 }
 
 export function checkpoint_no_checkpoints_description(args: MessageArgs = {}): string {
-	return interpolate(`Checkpoints are automatically created as you work. They'll appear here once the agent makes changes to your project.`, args);
+	return interpolate(
+		`Checkpoints are automatically created as you work. They'll appear here once the agent makes changes to your project.`,
+		args
+	);
 }
 
 export function checkpoint_loading(args: MessageArgs = {}): string {
@@ -3021,7 +3080,10 @@ export function splash_welcome(args: MessageArgs = {}): string {
 }
 
 export function splash_description(args: MessageArgs = {}): string {
-	return interpolate(`Your unified interface for AI coding agents. Work with Claude, Copilot, Codex, and other agents in parallel, all in one place.`, args);
+	return interpolate(
+		`Your unified interface for AI coding agents. Work with Claude, Copilot, Codex, and other agents in parallel, all in one place.`,
+		args
+	);
 }
 
 export function splash_description_secondary(args: MessageArgs = {}): string {
@@ -3069,7 +3131,10 @@ export function update_error(args: MessageArgs = {}): string {
 }
 
 export function update_error_description(args: MessageArgs = {}): string {
-	return interpolate(`Something went wrong while updating. Please check your connection and try again.`, args);
+	return interpolate(
+		`Something went wrong while updating. Please check your connection and try again.`,
+		args
+	);
 }
 
 export function update_retry(args: MessageArgs = {}): string {
@@ -3081,7 +3146,10 @@ export function queue_section_title(args: MessageArgs = {}): string {
 }
 
 export function queue_section_description(args: MessageArgs = {}): string {
-	return interpolate(`Sessions that need your attention. Questions, permissions, and completed work appear here.`, args);
+	return interpolate(
+		`Sessions that need your attention. Questions, permissions, and completed work appear here.`,
+		args
+	);
 }
 
 export function queue_group_answer_needed(args: MessageArgs = {}): string {

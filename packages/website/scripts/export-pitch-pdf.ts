@@ -1,18 +1,18 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdir, readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { type ChildProcess, spawn } from "node:child_process";
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import type { Browser } from 'playwright';
-import { chromium } from 'playwright';
+import type { Browser } from "playwright";
+import { chromium } from "playwright";
 
-const WEBSITE_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DEFAULT_OUTPUT_PATH = resolve(WEBSITE_ROOT, 'artifacts/acepe-investor-pitch.pdf');
+const WEBSITE_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const DEFAULT_OUTPUT_PATH = resolve(WEBSITE_ROOT, "artifacts/acepe-investor-pitch.pdf");
 const DEFAULT_PORT = 4173;
 const PITCH_SECTION_COUNT = 10;
-const PITCH_PDF_WIDTH = '13.333in';
-const PITCH_PDF_HEIGHT = '7.5in';
-const READINESS_SELECTOR = 'data-pitch-root';
+const PITCH_PDF_WIDTH = "13.333in";
+const PITCH_PDF_HEIGHT = "7.5in";
+const READINESS_SELECTOR = "data-pitch-root";
 const READINESS_ATTEMPTS = 60;
 const READINESS_DELAY_MS = 250;
 
@@ -34,24 +34,27 @@ export function parseExportPitchPdfArgs(
 		const argument = argv[index];
 		const nextValue = argv[index + 1];
 
-		if ((argument === '--base-url' || argument === '--output' || argument === '--port') && !nextValue) {
+		if (
+			(argument === "--base-url" || argument === "--output" || argument === "--port") &&
+			!nextValue
+		) {
 			throw new Error(`Missing value for ${argument}`);
 		}
 
-		if (argument === '--base-url') {
+		if (argument === "--base-url") {
 			baseUrl = nextValue;
 			index += 1;
-		} else if (argument === '--output') {
+		} else if (argument === "--output") {
 			outputPath = resolve(WEBSITE_ROOT, nextValue);
 			index += 1;
-		} else if (argument === '--port') {
+		} else if (argument === "--port") {
 			port = Number.parseInt(nextValue, 10);
 			index += 1;
 		}
 	}
 
 	if (!Number.isFinite(port) || port <= 0) {
-		throw new Error('Port must be a positive integer');
+		throw new Error("Port must be a positive integer");
 	}
 
 	return {
@@ -66,11 +69,11 @@ export function createPreviewBaseUrl(port: number): string {
 }
 
 export function createPitchUrl(baseUrl: string): string {
-	return new URL('/pitch', `${baseUrl.replace(/\/$/, '')}/`).toString();
+	return new URL("/pitch", `${baseUrl.replace(/\/$/, "")}/`).toString();
 }
 
 export function createPreviewArgs(port: number): readonly string[] {
-	return ['run', 'preview', '--', '--host', '127.0.0.1', '--port', String(port)];
+	return ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port)];
 }
 
 export function countPdfPages(pdfContents: string): number {
@@ -116,26 +119,28 @@ async function runCommand(command: string, args: readonly string[]): Promise<voi
 	await new Promise<void>((resolvePromise, rejectPromise) => {
 		const child = spawn(command, Array.from(args), {
 			cwd: WEBSITE_ROOT,
-			stdio: 'inherit',
+			stdio: "inherit",
 		});
 
-		child.on('error', rejectPromise);
-		child.on('exit', (exitCode) => {
+		child.on("error", rejectPromise);
+		child.on("exit", (exitCode) => {
 			if (exitCode === 0) {
 				resolvePromise();
 				return;
 			}
 
-			rejectPromise(new Error(`${command} ${args.join(' ')} failed with exit code ${exitCode ?? 'unknown'}`));
+			rejectPromise(
+				new Error(`${command} ${args.join(" ")} failed with exit code ${exitCode ?? "unknown"}`)
+			);
 		});
 	});
 }
 
 function startPreview(port: number): ChildProcess {
-	return spawn('bun', Array.from(createPreviewArgs(port)), {
+	return spawn("bun", Array.from(createPreviewArgs(port)), {
 		cwd: WEBSITE_ROOT,
-		env: Object.assign({}, process.env, { ACEPE_PITCH_EXPORT: '1' }),
-		stdio: 'inherit',
+		env: Object.assign({}, process.env, { ACEPE_PITCH_EXPORT: "1" }),
+		stdio: "inherit",
 	});
 }
 
@@ -145,12 +150,15 @@ async function stopPreview(previewProcess: ChildProcess): Promise<void> {
 	}
 
 	await new Promise<void>((resolvePromise) => {
-		previewProcess.once('exit', () => resolvePromise());
-		previewProcess.kill('SIGTERM');
+		previewProcess.once("exit", () => resolvePromise());
+		previewProcess.kill("SIGTERM");
 	});
 }
 
-async function getOverflowSectionIds(browser: Browser, pitchUrl: string): Promise<readonly string[]> {
+async function getOverflowSectionIds(
+	browser: Browser,
+	pitchUrl: string
+): Promise<readonly string[]> {
 	const page = await browser.newPage({
 		viewport: {
 			width: 1600,
@@ -158,17 +166,17 @@ async function getOverflowSectionIds(browser: Browser, pitchUrl: string): Promis
 		},
 	});
 
-	await page.goto(pitchUrl, { waitUntil: 'networkidle' });
-	await page.waitForSelector('[data-pitch-root]');
+	await page.goto(pitchUrl, { waitUntil: "networkidle" });
+	await page.waitForSelector("[data-pitch-root]");
 
-	const overflowSectionIds = await page.locator('[data-pitch-slide]').evaluateAll((elements) => {
+	const overflowSectionIds = await page.locator("[data-pitch-slide]").evaluateAll((elements) => {
 		return elements.flatMap((element) => {
 			if (element.scrollHeight <= element.clientHeight + 1) {
 				return [];
 			}
 
-			const id = element.getAttribute('id');
-			return [id ?? 'unknown'];
+			const id = element.getAttribute("id");
+			return [id ?? "unknown"];
 		});
 	});
 
@@ -186,7 +194,7 @@ async function launchExportBrowser(): Promise<Browser> {
 				throw error;
 			}
 
-			return chromium.launch({ channel: 'chrome' });
+			return chromium.launch({ channel: "chrome" });
 		}
 	);
 }
@@ -203,7 +211,7 @@ export async function exportPitchPdf(options: ExportPitchPdfOptions): Promise<{
 
 	try {
 		if (options.baseUrl === null) {
-			await runCommand('bun', ['run', 'build']);
+			await runCommand("bun", ["run", "build"]);
 			previewProcess = startPreview(options.port);
 		}
 
@@ -213,7 +221,9 @@ export async function exportPitchPdf(options: ExportPitchPdfOptions): Promise<{
 		const overflowSectionIds = await getOverflowSectionIds(browser, pitchUrl);
 
 		if (overflowSectionIds.length > 0) {
-			throw new Error(`Pitch export failed: slide overflow detected in ${overflowSectionIds.join(', ')}`);
+			throw new Error(
+				`Pitch export failed: slide overflow detected in ${overflowSectionIds.join(", ")}`
+			);
 		}
 
 		const page = await browser.newPage({
@@ -223,10 +233,10 @@ export async function exportPitchPdf(options: ExportPitchPdfOptions): Promise<{
 			},
 		});
 
-		await page.goto(pitchUrl, { waitUntil: 'networkidle' });
-		await page.waitForSelector('[data-pitch-root]');
+		await page.goto(pitchUrl, { waitUntil: "networkidle" });
+		await page.waitForSelector("[data-pitch-root]");
 
-		const sectionCount = await page.locator('[data-pitch-section]').count();
+		const sectionCount = await page.locator("[data-pitch-section]").count();
 
 		if (sectionCount !== PITCH_SECTION_COUNT) {
 			throw new Error(`Expected ${PITCH_SECTION_COUNT} pitch sections, found ${sectionCount}`);
@@ -241,7 +251,7 @@ export async function exportPitchPdf(options: ExportPitchPdfOptions): Promise<{
 		});
 		await page.close();
 
-		const pdfContents = await readFile(options.outputPath, 'latin1');
+		const pdfContents = await readFile(options.outputPath, "latin1");
 		const pageCount = countPdfPages(pdfContents);
 
 		if (pageCount !== sectionCount) {

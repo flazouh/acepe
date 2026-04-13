@@ -1,6 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
 import { sequence } from "@sveltejs/kit/hooks";
+import { env } from "$env/dynamic/private";
 import { getLegacyLocaleRedirectPath } from "$lib/locale-routing";
 import { maybeGetDatabaseUrl } from "$lib/server/db/database-url";
 import { runMigrations } from "$lib/server/db/migrate";

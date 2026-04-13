@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { Tooltip } from "bits-ui";
-	import "./layout.css";
-	import logo from "$lib/assets/favicon.svg";
-	import { browser } from "$app/environment";
-	import JsonLd from "$lib/components/seo/json-ld.svelte";
-	import Canonical from "$lib/components/seo/canonical.svelte";
-	import { preInitializeMarkdown } from "$lib/markdown-renderer";
-	import { websiteThemeStore } from "$lib/theme/theme.js";
+import { Tooltip } from "bits-ui";
+import "./layout.css";
+import logo from "$lib/assets/favicon.svg";
+import { browser } from "$app/environment";
+import JsonLd from "$lib/components/seo/json-ld.svelte";
+import Canonical from "$lib/components/seo/canonical.svelte";
+import { preInitializeMarkdown } from "$lib/markdown-renderer";
+import { websiteThemeStore } from "$lib/theme/theme.js";
 let { children } = $props();
 
 // Initialize markdown renderer (only in browser — server has no origin for relative fetch)

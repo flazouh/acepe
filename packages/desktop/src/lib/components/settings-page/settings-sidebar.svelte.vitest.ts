@@ -3,20 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import SettingsSidebar from "./settings-sidebar.svelte";
 
-vi.mock(
-	"svelte",
-	async () => {
-		const { createRequire } = await import("node:module");
-		const { dirname, join } = await import("node:path");
-		const require = createRequire(import.meta.url);
-		const svelteClientPath = join(
-			dirname(require.resolve("svelte/package.json")),
-			"src/index-client.js"
-		);
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
 
-		return import(/* @vite-ignore */ svelteClientPath);
-	}
-);
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 describe("SettingsSidebar", () => {
 	it("renders a compact flat sidebar without header/group labels", () => {

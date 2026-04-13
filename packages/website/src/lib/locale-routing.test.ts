@@ -19,9 +19,7 @@ describe("locale routing", () => {
 		expect(getLegacyLocaleRedirectPath(new URL("https://acepe.dev/es//evil.com"))).toBe(
 			"/evil.com"
 		);
-		expect(getLegacyLocaleRedirectPath(new URL("https://acepe.dev/en/pricing"))).toBe(
-			"/pricing"
-		);
+		expect(getLegacyLocaleRedirectPath(new URL("https://acepe.dev/en/pricing"))).toBe("/pricing");
 	});
 
 	it("leaves non-locale routes alone", () => {
