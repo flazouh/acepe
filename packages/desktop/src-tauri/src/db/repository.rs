@@ -259,7 +259,8 @@ impl ProjectRepository {
     }
 
     pub async fn reorder(db: &DbConn, ordered_paths: &[String]) -> Result<Vec<ProjectRow>> {
-        let existing = Project::find().all(db).await?;
+        let txn = db.begin().await?;
+        let existing = Project::find().all(&txn).await?;
         if existing.len() != ordered_paths.len() {
             anyhow::bail!("Project order update requires all projects");
         }
@@ -277,7 +278,6 @@ impl ProjectRepository {
             anyhow::bail!("Project order update paths do not match stored projects");
         }
 
-        let txn = db.begin().await?;
         for (index, path) in ordered_paths.iter().enumerate() {
             let project = Project::find()
                 .filter(crate::db::entities::project::Column::Path.eq(path))
@@ -304,9 +304,10 @@ impl ProjectRepository {
             "Deleting project"
         );
 
+        let txn = db.begin().await?;
         let existing = Project::find()
             .filter(crate::db::entities::project::Column::Path.eq(path))
-            .one(db)
+            .one(&txn)
             .await?;
 
         let Some(existing_model) = existing else {
@@ -314,7 +315,6 @@ impl ProjectRepository {
         };
 
         let deleted_sort_order = existing_model.sort_order;
-        let txn = db.begin().await?;
 
         Project::delete_many()
             .filter(crate::db::entities::project::Column::Path.eq(path))

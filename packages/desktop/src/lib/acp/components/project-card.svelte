@@ -157,7 +157,7 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 					<button
 						class="inline-flex items-center justify-center h-7 w-7 border-r border-border/30 last:border-r-0
 							text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer"
-						title="{capitalizeName(agent.name)}{agentKey <= 9 ? ` (${modifierSymbol}${agentKey})` : ''}"
+						title="{agent.name}{agentKey <= 9 ? ` (${modifierSymbol}${agentKey})` : ''}"
 						onclick={(e) => handleAgentClick(e, agent.id)}
 					>
 						<img src={iconSrc} alt={agent.name} class="h-4 w-4 shrink-0" />

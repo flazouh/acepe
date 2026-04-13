@@ -134,6 +134,7 @@ function ensureProjectInfoLoaded(project: Project): void {
 		void tauriClient.git.isRepo(projectPath).match(
 			(isRepo) => {
 				if (!isRepo) {
+					remoteStatusMap.delete(projectPath);
 					setProjectCardData(projectPath, {
 						branch: null,
 						gitStatus: null,
