@@ -1,36 +1,66 @@
 <script lang="ts">
-	import { BrandLockup, BrandShaderBackground } from '@acepe/ui';
-	import { formatPitchProofValue, pitchSections } from '$lib/pitch/content.js';
+import { BrandLockup, BrandShaderBackground } from "@acepe/ui";
+import { formatPitchProofValue, pitchSections } from "$lib/pitch/content.js";
 
-	const thesisBeatLabels = {
-		'platform-neutral': 'Platform-neutral control plane',
-		'why-acepe-wins': 'Acepe wins at the operating layer',
-		'team-workflow-wedge': 'Team workflow wedge first',
-		'raise-unlock': 'Raise unlocks faster execution',
-		'first-party-agent-upside': 'First-party agent is upside',
-		'why-now-urgency': 'Why now urgency',
-	} as const;
+const thesisBeatLabels = {
+	"platform-neutral": "Platform-neutral control plane",
+	"why-acepe-wins": "Acepe wins at the operating layer",
+	"team-workflow-wedge": "Team workflow wedge first",
+	"raise-unlock": "Raise unlocks faster execution",
+	"first-party-agent-upside": "First-party agent is upside",
+	"why-now-urgency": "Why now urgency",
+} as const;
 
-	const positioningRows = [
-		{ approach: 'Terminal CLI', agents: 'One at a time', visibility: 'Scrollback', governance: 'None' },
-		{ approach: 'IDE extensions', agents: 'Built-in only', visibility: 'Editor tab', governance: 'Per-file' },
-		{ approach: 'Acepe', agents: 'Any ACP agent', visibility: 'Attention queue', governance: 'Checkpoints + review' },
-	] as const;
+const positioningRows = [
+	{
+		approach: "Terminal CLI",
+		agents: "One at a time",
+		visibility: "Scrollback",
+		governance: "None",
+	},
+	{
+		approach: "IDE extensions",
+		agents: "Built-in only",
+		visibility: "Editor tab",
+		governance: "Per-file",
+	},
+	{
+		approach: "Acepe",
+		agents: "Any ACP agent",
+		visibility: "Attention queue",
+		governance: "Checkpoints + review",
+	},
+] as const;
 
-	const tiers = [
-		{ name: 'Solo', price: 'Free', features: 'Desktop app, all agents, checkpoints, SQL Studio, Git integration' },
-		{ name: 'Team', price: 'Per seat / mo', features: 'Shared visibility, approval workflows, session handoff, coordination' },
-		{ name: 'Enterprise', price: 'Custom', features: 'SSO, audit trails, governance policies, remote agent execution' },
-	] as const;
+const tiers = [
+	{
+		name: "Solo",
+		price: "Free",
+		features: "Desktop app, all agents, checkpoints, SQL Studio, Git integration",
+	},
+	{
+		name: "Team",
+		price: "Per seat / mo",
+		features: "Shared visibility, approval workflows, session handoff, coordination",
+	},
+	{
+		name: "Enterprise",
+		price: "Custom",
+		features: "SSO, audit trails, governance policies, remote agent execution",
+	},
+] as const;
 
-	const milestones = [
-		{ area: 'Team features', detail: 'Shared workspaces, approval workflows, session handoff' },
-		{ area: 'Remote agents', detail: 'Cloud-hosted sessions with full Acepe observability' },
-		{ area: 'Go-to-market', detail: 'Developer community, content, early enterprise pilots' },
-		{ area: 'First-party agent', detail: 'Acepe-native agent optimized for the platform context model' },
-	] as const;
+const milestones = [
+	{ area: "Team features", detail: "Shared workspaces, approval workflows, session handoff" },
+	{ area: "Remote agents", detail: "Cloud-hosted sessions with full Acepe observability" },
+	{ area: "Go-to-market", detail: "Developer community, content, early enterprise pilots" },
+	{
+		area: "First-party agent",
+		detail: "Acepe-native agent optimized for the platform context model",
+	},
+] as const;
 
-	const workflowSteps = ['Launch', 'Monitor', 'Unblock', 'Review', 'Ship'] as const;
+const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as const;
 </script>
 
 <svelte:head>

@@ -1,29 +1,29 @@
 export const pitchSectionIds = [
-	'title',
-	'problem',
-	'workflow-failures',
-	'solution',
-	'product',
-	'market-why-now',
-	'traction',
-	'business-model',
-	'team',
-	'ask',
+	"title",
+	"problem",
+	"workflow-failures",
+	"solution",
+	"product",
+	"market-why-now",
+	"traction",
+	"business-model",
+	"team",
+	"ask",
 ] as const;
 
 export type PitchSectionId = (typeof pitchSectionIds)[number];
 
-export const pitchNarrativeRoles = ['hero', 'narrative', 'proof', 'closing'] as const;
+export const pitchNarrativeRoles = ["hero", "narrative", "proof", "closing"] as const;
 
 export type PitchNarrativeRole = (typeof pitchNarrativeRoles)[number];
 
 export const pitchThesisBeats = [
-	'platform-neutral',
-	'why-acepe-wins',
-	'team-workflow-wedge',
-	'raise-unlock',
-	'first-party-agent-upside',
-	'why-now-urgency',
+	"platform-neutral",
+	"why-acepe-wins",
+	"team-workflow-wedge",
+	"raise-unlock",
+	"first-party-agent-upside",
+	"why-now-urgency",
 ] as const;
 
 export type PitchThesisBeat = (typeof pitchThesisBeats)[number];
@@ -34,7 +34,7 @@ interface PitchProofItemBase {
 }
 
 export interface VerifiedNumericPitchProofItem extends PitchProofItemBase {
-	readonly kind: 'verified_numeric';
+	readonly kind: "verified_numeric";
 	readonly value: string;
 	readonly unit?: string;
 	readonly verifiedAt: string;
@@ -43,14 +43,14 @@ export interface VerifiedNumericPitchProofItem extends PitchProofItemBase {
 }
 
 export interface EstimatedNumericPitchProofItem extends PitchProofItemBase {
-	readonly kind: 'estimated_numeric';
+	readonly kind: "estimated_numeric";
 	readonly value: string;
 	readonly unit?: string;
 	readonly estimateLabel: string;
 }
 
 export interface QualitativePitchProofItem extends PitchProofItemBase {
-	readonly kind: 'qualitative';
+	readonly kind: "qualitative";
 	readonly text: string;
 }
 

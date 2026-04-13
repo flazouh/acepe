@@ -9,7 +9,7 @@ const defaultFeatureFlags = {
 };
 
 function shouldUsePitchStaticLayoutLoad(pathname: string): boolean {
-	return pathname === '/pitch' || pathname.startsWith('/pitch/');
+	return pathname === "/pitch" || pathname.startsWith("/pitch/");
 }
 
 async function getGitHubStars(): Promise<number | null> {
@@ -29,14 +29,11 @@ export const load: LayoutServerLoad = async ({ url }) => {
 				downloadEnabled: defaultFeatureFlags.downloadEnabled,
 				roadmapEnabled: defaultFeatureFlags.roadmapEnabled,
 			},
-			githubStars: null
+			githubStars: null,
 		};
 	}
 
-	const [featureFlagsResult, stars] = await Promise.all([
-		getFeatureFlags(),
-		getGitHubStars()
-	]);
+	const [featureFlagsResult, stars] = await Promise.all([getFeatureFlags(), getGitHubStars()]);
 
 	// Use fallback values if feature flags fail to load
 	const featureFlags = featureFlagsResult.isOk()
@@ -44,7 +41,7 @@ export const load: LayoutServerLoad = async ({ url }) => {
 		: {
 				loginEnabled: defaultFeatureFlags.loginEnabled,
 				downloadEnabled: defaultFeatureFlags.downloadEnabled,
-				roadmapEnabled: defaultFeatureFlags.roadmapEnabled
+				roadmapEnabled: defaultFeatureFlags.roadmapEnabled,
 			};
 
 	// In dev mode, always enable download
