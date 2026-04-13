@@ -1288,7 +1288,7 @@ fn apply_process_user_inner(cmd: &mut Command, user: &str) -> Result<()> {
         }
 
         let pwd = unsafe { pwd.assume_init() };
-        Ok((pwd.pw_uid as u32, pwd.pw_gid as u32))
+        Ok((pwd.pw_uid, pwd.pw_gid))
     }
 
     fn lookup_by_uid(uid: u32) -> Result<(u32, u32)> {
@@ -1319,7 +1319,7 @@ fn apply_process_user_inner(cmd: &mut Command, user: &str) -> Result<()> {
         }
 
         let pwd = unsafe { pwd.assume_init() };
-        Ok((pwd.pw_uid as u32, pwd.pw_gid as u32))
+        Ok((pwd.pw_uid, pwd.pw_gid))
     }
 
     let (uid, gid) = match user.parse::<u32>() {
@@ -1388,8 +1388,10 @@ mod tests {
 
     #[test]
     fn test_transport_auto_configures_permission_prompt_tool_for_can_use_tool() {
-        let mut options = ClaudeCodeOptions::default();
-        options.can_use_tool = Some(Arc::new(AllowAllTools));
+        let options = ClaudeCodeOptions {
+            can_use_tool: Some(Arc::new(AllowAllTools)),
+            ..ClaudeCodeOptions::default()
+        };
 
         let transport = SubprocessTransport::with_cli_path(options, "/usr/bin/true");
         let command_debug = format!("{:?}", transport.build_command());

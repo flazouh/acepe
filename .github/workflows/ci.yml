@@ -61,7 +61,7 @@ jobs:
           CHECK_WEBSITE=$!
 
           # Tests
-          (cd packages/desktop && AGENT=1 bun test $(find src -type f \( -name '*.test.ts' -o -name '*.vitest.ts' \))) &
+          (cd packages/desktop && AGENT=1 bun test --only-failures $(find src -type f \( -name '*.test.ts' -o -name '*.vitest.ts' \))) &
           TEST_DESKTOP=$!
           (cd packages/website && bun run test) &
           TEST_WEBSITE=$!

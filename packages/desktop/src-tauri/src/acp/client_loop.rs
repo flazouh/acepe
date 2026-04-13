@@ -61,43 +61,46 @@ pub(crate) fn read_stderr_buffer(buffer: &StderrBuffer) -> Option<String> {
     Some(guard.iter().cloned().collect::<Vec<_>>().join("\n"))
 }
 
-async fn send_auto_response_and_emit_updates(
-    stdin_writer: &StdArc<Mutex<Option<ChildStdin>>>,
-    dispatcher: &AcpUiEventDispatcher,
+struct AutoResponseAndEmitUpdatesArgs<'a> {
+    stdin_writer: &'a StdArc<Mutex<Option<ChildStdin>>>,
+    dispatcher: &'a AcpUiEventDispatcher,
     id: u64,
-    method: &str,
+    method: &'a str,
     result: Value,
     session_id: Option<String>,
     synthetic_tool_call: Option<Box<crate::acp::inbound_request_router::SyntheticToolCallContext>>,
     canonical_interaction: Option<SessionUpdate>,
-) {
-    if let Err(error) = send_inbound_response(stdin_writer, id, result).await {
+}
+
+async fn send_auto_response_and_emit_updates(args: AutoResponseAndEmitUpdatesArgs<'_>) {
+    if let Err(error) = send_inbound_response(args.stdin_writer, args.id, args.result).await {
         tracing::error!(
-            id = id,
-            method = %method,
+            id = args.id,
+            method = %args.method,
             error = %error,
             "Failed to send backend auto-response"
         );
         return;
     }
 
-    if let Some(synthetic_ctx) = synthetic_tool_call {
-        if let Some(session_id) = session_id.clone() {
+    if let Some(synthetic_ctx) = args.synthetic_tool_call {
+        if let Some(session_id) = args.session_id.clone() {
             let synthetic = SessionUpdate::ToolCall {
                 tool_call: synthetic_ctx.tool_call_data,
                 session_id: Some(session_id),
             };
-            dispatcher.enqueue(AcpUiEvent::session_update(synthetic));
+            args.dispatcher.enqueue(AcpUiEvent::session_update(synthetic));
         }
     }
 
-    if let Some(interaction_update) = canonical_interaction {
-        dispatcher.enqueue(AcpUiEvent::session_update(interaction_update));
+    if let Some(interaction_update) = args.canonical_interaction {
+        args.dispatcher
+            .enqueue(AcpUiEvent::session_update(interaction_update));
     }
 
     tracing::debug!(
-        id = id,
-        method = %method,
+        id = args.id,
+        method = %args.method,
         "Auto-responded to backend inbound request"
     );
 }
@@ -442,14 +445,16 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                         canonical_interaction,
                                     } => {
                                         send_auto_response_and_emit_updates(
-                                            &ctx.stdin_writer,
-                                            &ctx.dispatcher,
-                                            id,
-                                            method,
-                                            result,
-                                            session_id,
-                                            synthetic_tool_call,
-                                            canonical_interaction,
+                                            AutoResponseAndEmitUpdatesArgs {
+                                                stdin_writer: &ctx.stdin_writer,
+                                                dispatcher: &ctx.dispatcher,
+                                                id,
+                                                method,
+                                                result,
+                                                session_id,
+                                                synthetic_tool_call,
+                                                canonical_interaction,
+                                            },
                                         )
                                         .await;
                                     }
@@ -1034,18 +1039,18 @@ mod tests {
     async fn auto_response_does_not_emit_updates_when_transport_send_fails() {
         let (dispatcher, captured) = AcpUiEventDispatcher::test_sink();
 
-        send_auto_response_and_emit_updates(
-            &StdArc::new(Mutex::new(None)),
-            &dispatcher,
-            7,
-            "session/request_permission",
-            json!({ "outcome": "allow" }),
-            Some("session-1".to_string()),
-            None,
-            Some(SessionUpdate::TurnComplete {
+        send_auto_response_and_emit_updates(AutoResponseAndEmitUpdatesArgs {
+            stdin_writer: &StdArc::new(Mutex::new(None)),
+            dispatcher: &dispatcher,
+            id: 7,
+            method: "session/request_permission",
+            result: json!({ "outcome": "allow" }),
+            session_id: Some("session-1".to_string()),
+            synthetic_tool_call: None,
+            canonical_interaction: Some(SessionUpdate::TurnComplete {
                 session_id: Some("session-1".to_string()),
             }),
-        )
+        })
         .await;
 
         let events = captured.lock().expect("captured events lock");

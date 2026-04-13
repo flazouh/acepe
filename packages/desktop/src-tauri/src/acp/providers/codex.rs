@@ -203,24 +203,24 @@ mod tests {
     fn test_codex_binary_name() -> &'static str {
         #[cfg(windows)]
         {
-            return "codex.exe";
+            "codex.exe"
         }
 
         #[cfg(not(windows))]
         {
-            return "codex";
+            "codex"
         }
     }
 
     fn test_codex_meta_command() -> &'static str {
         #[cfg(windows)]
         {
-            return "./codex.exe";
+            "./codex.exe"
         }
 
         #[cfg(not(windows))]
         {
-            return "./codex";
+            "./codex"
         }
     }
 

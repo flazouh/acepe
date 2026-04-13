@@ -1,6 +1,7 @@
 use super::*;
 use crate::acp::client_transport::{
     interaction_transition_from_result, persist_interaction_transition,
+    InteractionTransitionPersistence,
 };
 use crate::acp::error::AcpError;
 use crate::acp::projections::InteractionKind;
@@ -232,17 +233,17 @@ async fn persist_canonical_interaction_reply(
     let db = app.state::<DbConn>();
     let dispatcher = app.state::<AcpUiEventDispatcher>();
 
-    persist_interaction_transition(
-        projection_registry.inner().as_ref(),
-        Some(db.inner()),
-        Some(dispatcher.inner()),
-        &request.session_id,
+    persist_interaction_transition(InteractionTransitionPersistence {
+        projection_registry: projection_registry.inner().as_ref(),
+        db: Some(db.inner()),
+        dispatcher: Some(dispatcher.inner()),
+        session_id: &request.session_id,
         interaction_id,
         state,
         domain_event_kind,
         response,
-        "acp_reply_interaction",
-    )
+        source: "acp_reply_interaction",
+    })
     .await;
 
     Ok(())

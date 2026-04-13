@@ -305,6 +305,20 @@ pub async fn bind_provider_session_id_persisted(
     Ok(())
 }
 
+/// Redact session ID for safe logging (show only first 8 chars and last 4 chars).
+pub(crate) fn redact_session_id(session_id: &str) -> String {
+    if session_id.len() <= 12 {
+        // For short IDs, just show first 4 chars
+        format!("{}***", &session_id[..session_id.len().min(4)])
+    } else {
+        format!(
+            "{}...{}",
+            &session_id[..8],
+            &session_id[session_id.len() - 4..]
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,19 +442,5 @@ mod tests {
             .expect_err("conflict should fail");
 
         assert!(matches!(error, AcpError::InvalidState(_)));
-    }
-}
-
-/// Redact session ID for safe logging (show only first 8 chars and last 4 chars).
-pub(crate) fn redact_session_id(session_id: &str) -> String {
-    if session_id.len() <= 12 {
-        // For short IDs, just show first 4 chars
-        format!("{}***", &session_id[..session_id.len().min(4)])
-    } else {
-        format!(
-            "{}...{}",
-            &session_id[..8],
-            &session_id[session_id.len() - 4..]
-        )
     }
 }

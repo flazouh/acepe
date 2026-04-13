@@ -26,6 +26,7 @@ use crate::acp::client_session::{
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
+    InteractionTransitionPersistence,
 };
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::{AcpError, AcpResult};
@@ -573,14 +574,16 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
             );
             self.dispatcher
                 .enqueue(AcpUiEvent::session_update(build_permission_request_update(
-                    &self.session_id,
-                    &tool_call_id,
-                    request_id,
-                    tool_name,
-                    input,
-                    has_always_option,
-                    self.agent_type,
-                    true,
+                    PermissionRequestUpdateArgs {
+                        session_id: &self.session_id,
+                        tool_call_id: &tool_call_id,
+                        request_id,
+                        tool_name,
+                        raw_input: input,
+                        has_always_option,
+                        agent_type: self.agent_type,
+                        auto_accepted: true,
+                    },
                 )));
             return allow_permission_result();
         }
@@ -623,16 +626,16 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
                     }),
                 );
                 self.dispatcher.enqueue(AcpUiEvent::session_update(
-                    build_permission_request_update(
-                        &self.session_id,
-                        &tool_call_id,
+                    build_permission_request_update(PermissionRequestUpdateArgs {
+                        session_id: &self.session_id,
+                        tool_call_id: &tool_call_id,
                         request_id,
                         tool_name,
-                        input,
+                        raw_input: input,
                         has_always_option,
-                        self.agent_type,
-                        false,
-                    ),
+                        agent_type: self.agent_type,
+                        auto_accepted: false,
+                    }),
                 ));
             }
             PermissionUiDispatch::JoinExisting => {
@@ -858,16 +861,16 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
                 );
 
                 self.dispatcher.enqueue(AcpUiEvent::session_update(
-                    build_permission_request_update(
-                        &self.session_id,
-                        &tool_call_id,
+                    build_permission_request_update(PermissionRequestUpdateArgs {
+                        session_id: &self.session_id,
+                        tool_call_id: &tool_call_id,
                         request_id,
-                        &request.tool_name,
-                        &request.tool_input,
+                        tool_name: &request.tool_name,
+                        raw_input: &request.tool_input,
                         has_always_option,
-                        self.agent_type,
-                        false,
-                    ),
+                        agent_type: self.agent_type,
+                        auto_accepted: false,
+                    }),
                 ));
             }
             PermissionUiDispatch::JoinExisting => {
@@ -1147,17 +1150,17 @@ impl ClaudeCcSdkClient {
             answers: Value::Object(build_question_answer_map(questions, answers)),
         };
 
-        persist_interaction_transition(
-            &self.projection_registry,
-            self.db.as_ref(),
-            Some(&self.dispatcher),
+        persist_interaction_transition(InteractionTransitionPersistence {
+            projection_registry: &self.projection_registry,
+            db: self.db.as_ref(),
+            dispatcher: Some(&self.dispatcher),
             session_id,
             interaction_id,
             state,
             domain_event_kind,
             response,
-            "cc-sdk stream-only question",
-        )
+            source: "cc-sdk stream-only question",
+        })
         .await;
     }
 
@@ -1904,39 +1907,41 @@ fn parse_permission_suggestions(suggestions: &Option<Vec<Value>>) -> Vec<cc_sdk:
         .collect()
 }
 
-fn build_permission_request_update(
-    session_id: &str,
-    tool_call_id: &str,
+struct PermissionRequestUpdateArgs<'a> {
+    session_id: &'a str,
+    tool_call_id: &'a str,
     request_id: u64,
-    tool_name: &str,
-    raw_input: &Value,
+    tool_name: &'a str,
+    raw_input: &'a Value,
     has_always_option: bool,
     agent_type: AgentType,
     auto_accepted: bool,
-) -> SessionUpdate {
+}
+
+fn build_permission_request_update(args: PermissionRequestUpdateArgs<'_>) -> SessionUpdate {
     SessionUpdate::PermissionRequest {
         permission: crate::acp::session_update::PermissionData {
-            id: request_id.to_string(),
-            session_id: session_id.to_string(),
-            json_rpc_request_id: Some(request_id),
+            id: args.request_id.to_string(),
+            session_id: args.session_id.to_string(),
+            json_rpc_request_id: Some(args.request_id),
             reply_handler: Some(
-                crate::acp::session_update::InteractionReplyHandler::json_rpc(request_id),
+                crate::acp::session_update::InteractionReplyHandler::json_rpc(args.request_id),
             ),
-            permission: tool_name.to_string(),
-            patterns: build_permission_patterns(raw_input),
-            metadata: build_permission_metadata(tool_name, raw_input, agent_type),
-            always: if has_always_option {
+            permission: args.tool_name.to_string(),
+            patterns: build_permission_patterns(args.raw_input),
+            metadata: build_permission_metadata(args.tool_name, args.raw_input, args.agent_type),
+            always: if args.has_always_option {
                 vec!["allow_always".to_string()]
             } else {
                 Vec::new()
             },
-            auto_accepted,
+            auto_accepted: args.auto_accepted,
             tool: Some(ToolReference {
                 message_id: String::new(),
-                call_id: tool_call_id.to_string(),
+                call_id: args.tool_call_id.to_string(),
             }),
         },
-        session_id: Some(session_id.to_string()),
+        session_id: Some(args.session_id.to_string()),
     }
 }
 
@@ -4785,16 +4790,16 @@ mod tests {
 
     #[test]
     fn permission_request_update_includes_json_rpc_request_id() {
-        let update = build_permission_request_update(
-            "test-session",
-            "tool-42",
-            42,
-            "Bash",
-            &serde_json::json!({ "command": "ls" }),
-            false,
-            AgentType::ClaudeCode,
-            false,
-        );
+        let update = build_permission_request_update(PermissionRequestUpdateArgs {
+            session_id: "test-session",
+            tool_call_id: "tool-42",
+            request_id: 42,
+            tool_name: "Bash",
+            raw_input: &serde_json::json!({ "command": "ls" }),
+            has_always_option: false,
+            agent_type: AgentType::ClaudeCode,
+            auto_accepted: false,
+        });
 
         match update {
             SessionUpdate::PermissionRequest {

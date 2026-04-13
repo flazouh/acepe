@@ -25,6 +25,8 @@ use std::path::PathBuf;
 #[allow(unused_imports)]
 use tracing::{debug, info, warn};
 
+type DownloadProgressCallback = dyn Fn(u64, Option<u64>) + Send + Sync;
+
 /// Minimum CLI version required by this SDK
 pub const MIN_CLI_VERSION: &str = "2.0.0";
 
@@ -124,7 +126,7 @@ pub async fn download_cli(
 #[cfg(not(feature = "auto-download"))]
 pub async fn download_cli(
     _version: Option<&str>,
-    _on_progress: Option<Box<dyn Fn(u64, Option<u64>) + Send + Sync>>,
+    _on_progress: Option<Box<DownloadProgressCallback>>,
 ) -> Result<PathBuf> {
     Err(SdkError::ConfigError(
         "Auto-download feature is not enabled. \
@@ -139,7 +141,7 @@ pub async fn download_cli(
 async fn install_cli_for_platform(
     version: &str,
     target_path: &PathBuf,
-    on_progress: Option<Box<dyn Fn(u64, Option<u64>) + Send + Sync>>,
+    on_progress: Option<Box<DownloadProgressCallback>>,
 ) -> Result<PathBuf> {
     #[cfg(unix)]
     {

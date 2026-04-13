@@ -302,52 +302,60 @@ pub(crate) fn interaction_transition_from_result(
     }
 }
 
-pub(crate) async fn persist_interaction_transition(
-    projection_registry: &ProjectionRegistry,
-    db: Option<&DbConn>,
-    dispatcher: Option<&AcpUiEventDispatcher>,
-    session_id: &str,
-    interaction_id: &str,
-    state: InteractionState,
-    domain_event_kind: SessionDomainEventKind,
-    response: InteractionResponse,
-    source: &str,
-) {
-    if projection_registry
-        .resolve_interaction(session_id, interaction_id, state.clone(), response.clone())
+pub(crate) struct InteractionTransitionPersistence<'a> {
+    pub projection_registry: &'a ProjectionRegistry,
+    pub db: Option<&'a DbConn>,
+    pub dispatcher: Option<&'a AcpUiEventDispatcher>,
+    pub session_id: &'a str,
+    pub interaction_id: &'a str,
+    pub state: InteractionState,
+    pub domain_event_kind: SessionDomainEventKind,
+    pub response: InteractionResponse,
+    pub source: &'a str,
+}
+
+pub(crate) async fn persist_interaction_transition(args: InteractionTransitionPersistence<'_>) {
+    if args
+        .projection_registry
+        .resolve_interaction(
+            args.session_id,
+            args.interaction_id,
+            args.state.clone(),
+            args.response.clone(),
+        )
         .is_none()
     {
         tracing::debug!(
-            session_id = %session_id,
-            interaction_id = %interaction_id,
-            source = %source,
+            session_id = %args.session_id,
+            interaction_id = %args.interaction_id,
+            source = %args.source,
             "Interaction projection missing during transition persistence"
         );
         return;
     }
 
-    if let Some(db) = db {
+    if let Some(db) = args.db {
         if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
             db,
-            session_id,
-            interaction_id,
-            state,
-            response,
+            args.session_id,
+            args.interaction_id,
+            args.state,
+            args.response,
         )
         .await
         {
             tracing::error!(
                 error = %error,
-                session_id = %session_id,
-                interaction_id = %interaction_id,
-                source = %source,
+                session_id = %args.session_id,
+                interaction_id = %args.interaction_id,
+                source = %args.source,
                 "Failed to persist interaction transition into session journal"
             );
         }
     }
 
-    if let Some(dispatcher) = dispatcher {
-        dispatcher.enqueue_session_domain_event(session_id, domain_event_kind);
+    if let Some(dispatcher) = args.dispatcher {
+        dispatcher.enqueue_session_domain_event(args.session_id, args.domain_event_kind);
     }
 }
 
@@ -379,16 +387,16 @@ pub(crate) async fn apply_interaction_response_for_request(
         return;
     };
 
-    persist_interaction_transition(
+    persist_interaction_transition(InteractionTransitionPersistence {
         projection_registry,
         db,
         dispatcher,
         session_id,
-        &interaction.id,
+        interaction_id: &interaction.id,
         state,
         domain_event_kind,
         response,
         source,
-    )
+    })
     .await;
 }

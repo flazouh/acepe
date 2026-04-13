@@ -68,24 +68,24 @@ pub(super) fn build_permission_request_log_payload(
 
 pub(super) fn terminal_app_handle(
     app_handle: Option<&AppHandle>,
-) -> Result<AppHandle, InboundRoutingDecision> {
+) -> Result<AppHandle, String> {
     app_handle
         .cloned()
-        .ok_or_else(|| request_error("Terminal manager unavailable".to_string()))
+        .ok_or_else(|| "Terminal manager unavailable".to_string())
 }
 
 pub(super) fn parse_terminal_request_params(
     params: &Value,
-) -> Result<(String, String), InboundRoutingDecision> {
+) -> Result<(String, String), String> {
     let parsed: TerminalRequestParamsRaw = parse_params(params)
-        .map_err(|_| invalid_params("Invalid params: sessionId and terminalId required"))?;
+        .map_err(|_| "Invalid params: sessionId and terminalId required".to_string())?;
 
     let session_id = parsed
         .session_id
-        .ok_or_else(|| invalid_params("Invalid params: sessionId and terminalId required"))?;
+        .ok_or_else(|| "Invalid params: sessionId and terminalId required".to_string())?;
     let terminal_id = parsed
         .terminal_id
-        .ok_or_else(|| invalid_params("Invalid params: sessionId and terminalId required"))?;
+        .ok_or_else(|| "Invalid params: sessionId and terminalId required".to_string())?;
 
     Ok((session_id, terminal_id))
 }

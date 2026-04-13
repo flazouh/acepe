@@ -12,49 +12,11 @@ import {
 
 const mockReplyInteraction = vi.fn((_request: unknown) => okAsync(undefined));
 
-const mockRespondToPermission = vi.fn(
-	(_sessionId: string, _requestId: number, _allowed: boolean, _optionId: string) =>
-		okAsync(undefined)
-);
-
-const mockRespondToQuestion = vi.fn(
-	(_sessionId: string, _requestId: number, _answers: Record<string, string | string[]>) =>
-		okAsync(undefined)
-);
-
-const mockCancelQuestion = vi.fn((_sessionId: string, _requestId: number) => okAsync(undefined));
-const mockRespondToPlanApproval = vi.fn(
-	(_sessionId: string, _requestId: number, _approved: boolean) => okAsync(undefined)
-);
-
 vi.mock("../../store/api.js", () => ({
 	api: {
 		replyInteraction: (request: unknown) => mockReplyInteraction(request),
 	},
 }));
-
-vi.mock("../inbound-request-handler.js", () => {
-	class MockInboundRequestHandler {}
-
-	return {
-		InboundRequestHandler: MockInboundRequestHandler,
-		respondToPermission: (
-			sessionId: string,
-			requestId: number,
-			allowed: boolean,
-			optionId: string
-		) => mockRespondToPermission(sessionId, requestId, allowed, optionId),
-		respondToQuestion: (
-			sessionId: string,
-			requestId: number,
-			answers: Record<string, string | string[]>
-		) => mockRespondToQuestion(sessionId, requestId, answers),
-		cancelQuestion: (sessionId: string, requestId: number) =>
-			mockCancelQuestion(sessionId, requestId),
-		respondToPlanApproval: (sessionId: string, requestId: number, approved: boolean) =>
-			mockRespondToPlanApproval(sessionId, requestId, approved),
-	};
-});
 
 describe("interaction reply", () => {
 	beforeEach(() => {
@@ -93,7 +55,6 @@ describe("interaction reply", () => {
 					optionId: "allow",
 				},
 			});
-			expect(mockRespondToPermission).not.toHaveBeenCalled();
 		});
 
 		it("routes ACP permissions through JSON-RPC responders", async () => {
@@ -122,7 +83,6 @@ describe("interaction reply", () => {
 					optionId: "allow",
 				},
 			});
-			expect(mockRespondToPermission).not.toHaveBeenCalled();
 		});
 
 		it("routes stream permissions through the HTTP reply endpoint", async () => {
@@ -150,7 +110,6 @@ describe("interaction reply", () => {
 					optionId: "reject",
 				},
 			});
-			expect(mockRespondToPermission).not.toHaveBeenCalled();
 		});
 	});
 
@@ -186,7 +145,6 @@ describe("interaction reply", () => {
 					answerMap,
 				},
 			});
-			expect(mockRespondToQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes ACP questions through JSON-RPC responders", async () => {
@@ -214,7 +172,6 @@ describe("interaction reply", () => {
 					answerMap,
 				},
 			});
-			expect(mockRespondToQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes stream questions through the HTTP reply endpoint", async () => {
@@ -241,7 +198,6 @@ describe("interaction reply", () => {
 					answerMap,
 				},
 			});
-			expect(mockRespondToQuestion).not.toHaveBeenCalled();
 		});
 	});
 
@@ -273,7 +229,6 @@ describe("interaction reply", () => {
 					kind: "question_cancel",
 				},
 			});
-			expect(mockCancelQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes ACP cancellations through JSON-RPC responders", async () => {
@@ -297,7 +252,6 @@ describe("interaction reply", () => {
 					kind: "question_cancel",
 				},
 			});
-			expect(mockCancelQuestion).not.toHaveBeenCalled();
 		});
 
 		it("routes stream cancellations through the HTTP reply endpoint", async () => {
@@ -320,7 +274,6 @@ describe("interaction reply", () => {
 					kind: "question_cancel",
 				},
 			});
-			expect(mockCancelQuestion).not.toHaveBeenCalled();
 		});
 	});
 
@@ -340,7 +293,6 @@ describe("interaction reply", () => {
 					approved: true,
 				},
 			});
-			expect(mockRespondToPlanApproval).not.toHaveBeenCalled();
 		});
 
 		it("routes plan approval replies through explicit reply handlers when provided", async () => {
@@ -376,7 +328,6 @@ describe("interaction reply", () => {
 					approved: true,
 				},
 			});
-			expect(mockRespondToPlanApproval).not.toHaveBeenCalled();
 		});
 	});
 });

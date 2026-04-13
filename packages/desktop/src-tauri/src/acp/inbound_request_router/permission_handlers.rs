@@ -152,16 +152,16 @@ async fn handle_session_request_permission_with_state(
     };
 
     let canonical_interaction = session_id.as_deref().and_then(|session_id| {
-        build_canonical_interaction(
+        build_canonical_interaction(CanonicalInteractionArgs {
             session_id,
             request_id,
-            &tool_call,
-            &tool_call_id,
-            parsed_arguments.as_ref(),
-            &options,
-            meta.as_ref(),
-            auto_accept_reason.is_some(),
-        )
+            tool_call: &tool_call,
+            tool_call_id: &tool_call_id,
+            parsed_arguments: parsed_arguments.as_ref(),
+            options: &options,
+            meta: meta.as_ref(),
+            auto_accepted: auto_accept_reason.is_some(),
+        })
     });
 
     if auto_accept_reason.is_some() {
@@ -200,47 +200,54 @@ fn build_permission_id(session_id: &str, tool_call_id: &str, request_id: u64) ->
     format!("{session_id}\u{0}{tool_call_id}\u{0}{request_id}")
 }
 
-fn build_canonical_interaction(
-    session_id: &str,
+struct CanonicalInteractionArgs<'a> {
+    session_id: &'a str,
     request_id: u64,
-    tool_call: &PermissionToolCallRaw,
-    tool_call_id: &str,
-    parsed_arguments: Option<&Value>,
-    options: &[PermissionOptionRaw],
-    meta: Option<&PermissionRequestMetaRaw>,
+    tool_call: &'a PermissionToolCallRaw,
+    tool_call_id: &'a str,
+    parsed_arguments: Option<&'a Value>,
+    options: &'a [PermissionOptionRaw],
+    meta: Option<&'a PermissionRequestMetaRaw>,
     auto_accepted: bool,
-) -> Option<SessionUpdate> {
-    if let Some(question) =
-        build_question_update(session_id, request_id, tool_call, tool_call_id, meta)
-    {
+}
+
+fn build_canonical_interaction(args: CanonicalInteractionArgs<'_>) -> Option<SessionUpdate> {
+    if let Some(question) = build_question_update(
+        args.session_id,
+        args.request_id,
+        args.tool_call,
+        args.tool_call_id,
+        args.meta,
+    ) {
         return Some(question);
     }
 
     Some(SessionUpdate::PermissionRequest {
         permission: PermissionData {
-            id: build_permission_id(session_id, tool_call_id, request_id),
-            session_id: session_id.to_string(),
-            json_rpc_request_id: Some(request_id),
-            reply_handler: Some(InteractionReplyHandler::json_rpc(request_id)),
-            permission: normalized_tool_label(tool_call),
+            id: build_permission_id(args.session_id, args.tool_call_id, args.request_id),
+            session_id: args.session_id.to_string(),
+            json_rpc_request_id: Some(args.request_id),
+            reply_handler: Some(InteractionReplyHandler::json_rpc(args.request_id)),
+            permission: normalized_tool_label(args.tool_call),
             patterns: Vec::new(),
             metadata: json!({
-                "rawInput": tool_call.raw_input.clone(),
-                "parsedArguments": parsed_arguments.cloned(),
-                "options": options,
+                "rawInput": args.tool_call.raw_input.clone(),
+                "parsedArguments": args.parsed_arguments.cloned(),
+                "options": args.options,
             }),
-            always: options
+            always: args
+                .options
                 .iter()
                 .filter(|option| option.kind == "allow_always")
                 .map(|option| option.option_id.clone())
                 .collect(),
-            auto_accepted,
+            auto_accepted: args.auto_accepted,
             tool: Some(ToolReference {
                 message_id: String::new(),
-                call_id: tool_call_id.to_string(),
+                call_id: args.tool_call_id.to_string(),
             }),
         },
-        session_id: Some(session_id.to_string()),
+        session_id: Some(args.session_id.to_string()),
     })
 }
 

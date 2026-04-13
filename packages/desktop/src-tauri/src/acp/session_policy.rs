@@ -17,15 +17,14 @@ impl SessionPolicy {
     }
 }
 
+#[derive(Default)]
 pub struct SessionPolicyRegistry {
     policies: DashMap<String, Arc<SessionPolicy>>,
 }
 
 impl SessionPolicyRegistry {
     pub fn new() -> Self {
-        Self {
-            policies: DashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn set_autonomous(&self, session_id: &str, enabled: bool) {

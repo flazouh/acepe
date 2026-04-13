@@ -1,18 +1,21 @@
-// @ts-expect-error - Bun types may not be available in all environments
-
-// @ts-expect-error - Bun types may not be available in all environments
-import { afterEach, beforeEach } from "bun:test";
 import { readFileSync } from "node:fs";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { plugin } from "bun";
 import { compile, compileModule } from "svelte/compiler";
+import { __configureLoggerRuntimeForTests } from "./src/lib/acp/utils/logger.js";
 
-beforeEach(async () => {
+if (globalThis.window === undefined) {
 	await GlobalRegistrator.register();
-});
+}
 
-afterEach(async () => {
-	await GlobalRegistrator.unregister();
+__configureLoggerRuntimeForTests({
+	consoleApi: {
+		debug: () => {},
+		info: () => {},
+		warn: () => {},
+		error: () => {},
+	},
+	shouldUseStyledConsole: () => false,
 });
 
 plugin({

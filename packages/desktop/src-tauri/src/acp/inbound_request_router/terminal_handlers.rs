@@ -37,7 +37,7 @@ pub(super) async fn handle_terminal_create(
 
     let app = match terminal_app_handle(app_handle) {
         Ok(app) => app,
-        Err(error_decision) => return error_decision,
+        Err(error) => return request_error(error),
     };
 
     let request = CreateTerminalRequest {
@@ -66,12 +66,12 @@ pub(super) async fn handle_terminal_output(
 ) -> InboundRoutingDecision {
     let app = match terminal_app_handle(app_handle) {
         Ok(app) => app,
-        Err(error_decision) => return error_decision,
+        Err(error) => return request_error(error),
     };
 
     let (session_id, terminal_id) = match parse_terminal_request_params(params) {
         Ok(tuple) => tuple,
-        Err(error_decision) => return error_decision,
+        Err(error) => return invalid_params(&error),
     };
 
     match terminal_output(app, session_id, terminal_id).await {
@@ -91,12 +91,12 @@ pub(super) async fn handle_terminal_wait_for_exit(
 ) -> InboundRoutingDecision {
     let app = match terminal_app_handle(app_handle) {
         Ok(app) => app,
-        Err(error_decision) => return error_decision,
+        Err(error) => return request_error(error),
     };
 
     let (session_id, terminal_id) = match parse_terminal_request_params(params) {
         Ok(tuple) => tuple,
-        Err(error_decision) => return error_decision,
+        Err(error) => return invalid_params(&error),
     };
 
     match terminal_wait_for_exit(app, session_id, terminal_id).await {
@@ -116,12 +116,12 @@ pub(super) async fn handle_terminal_kill(
 ) -> InboundRoutingDecision {
     let app = match terminal_app_handle(app_handle) {
         Ok(app) => app,
-        Err(error_decision) => return error_decision,
+        Err(error) => return request_error(error),
     };
 
     let (session_id, terminal_id) = match parse_terminal_request_params(params) {
         Ok(tuple) => tuple,
-        Err(error_decision) => return error_decision,
+        Err(error) => return invalid_params(&error),
     };
 
     match terminal_kill(app, session_id, terminal_id).await {
@@ -136,12 +136,12 @@ pub(super) async fn handle_terminal_release(
 ) -> InboundRoutingDecision {
     let app = match terminal_app_handle(app_handle) {
         Ok(app) => app,
-        Err(error_decision) => return error_decision,
+        Err(error) => return request_error(error),
     };
 
     let (session_id, terminal_id) = match parse_terminal_request_params(params) {
         Ok(tuple) => tuple,
-        Err(error_decision) => return error_decision,
+        Err(error) => return invalid_params(&error),
     };
 
     match terminal_release(app, session_id, terminal_id).await {
