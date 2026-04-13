@@ -276,11 +276,23 @@ impl SessionMetadataSource for CopilotSource {
         let sessions = copilot_history::list_workspace_sessions(project_paths)
             .await
             .map_err(|error| anyhow!(error))?;
+        let session_ids = sessions
+            .iter()
+            .map(|session| session.session_id.clone())
+            .collect::<Vec<_>>();
         let indexed_entries = SessionMetadataRepository::get_all_file_index_entries(db).await?;
         let indexed_map: HashMap<String, (String, i64, i64)> = indexed_entries
             .into_iter()
             .map(|(session_id, path, mtime, size)| (session_id, (path, mtime, size)))
             .collect();
+        let existing_rows = SessionMetadataRepository::get_for_session_ids(db, &session_ids).await?;
+        let mut existing_row_map = HashMap::new();
+        for row in existing_rows {
+            if let Some(provider_session_id) = row.provider_session_id.clone() {
+                existing_row_map.insert(provider_session_id, row.clone());
+            }
+            existing_row_map.insert(row.id.clone(), row);
+        }
 
         let mut records: Vec<SessionMetadataRecord> = Vec::with_capacity(sessions.len());
         let mut live_session_ids: HashSet<String> = HashSet::with_capacity(sessions.len());
@@ -326,9 +338,19 @@ impl SessionMetadataSource for CopilotSource {
 
             if let Some((indexed_path, indexed_mtime, indexed_size)) = indexed_map.get(&session_id)
             {
+                let title_refresh_needed = existing_row_map.get(&session_id).is_some_and(|row| {
+                    !row.title_overridden
+                        && SessionMetadataRepository::is_acepe_placeholder_display(
+                            &row.id,
+                            &row.display,
+                        )
+                        && !session.title.trim().is_empty()
+                        && session.title != row.display
+                });
                 if indexed_path == &file_path
                     && indexed_mtime == &file_mtime
                     && indexed_size == &file_size
+                    && !title_refresh_needed
                 {
                     unchanged_count += 1;
                     continue;
@@ -1261,5 +1283,147 @@ impl IndexerActor {
         };
 
         Ok(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CopilotSource, SessionMetadataSource};
+    use crate::db::repository::SessionMetadataRepository;
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+    use std::fs;
+    use std::path::Path;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::TempDir;
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory SQLite");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("Failed to run migrations");
+        db
+    }
+
+    fn home_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct HomeGuard {
+        previous_value: Option<String>,
+    }
+
+    impl HomeGuard {
+        fn set(path: &Path) -> Self {
+            let previous_value = std::env::var("HOME").ok();
+            std::env::set_var("HOME", path);
+            Self { previous_value }
+        }
+    }
+
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            if let Some(previous_value) = &self.previous_value {
+                std::env::set_var("HOME", previous_value);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    fn write_copilot_session(home_path: &Path, project_path: &Path, session_id: &str) -> (String, i64, i64) {
+        let session_dir = home_path
+            .join(".copilot")
+            .join("session-state")
+            .join(session_id);
+        fs::create_dir_all(&session_dir).expect("create copilot session dir");
+        let events_path = session_dir.join("events.jsonl");
+        fs::write(
+            &events_path,
+            "{\"type\":\"user.message\",\"data\":{\"content\":\"hello\"},\"timestamp\":\"2026-04-10T00:00:01Z\"}\n",
+        )
+        .expect("write events jsonl");
+        fs::write(
+            session_dir.join("workspace.yaml"),
+            format!(
+                "id: {session_id}\ncwd: {}\nsummary: Real Copilot title\nupdated_at: 2026-04-10T00:00:02Z\n",
+                project_path.display()
+            ),
+        )
+        .expect("write workspace metadata");
+
+        let metadata = fs::metadata(&events_path).expect("events metadata");
+        let modified = metadata
+            .modified()
+            .expect("modified time")
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .expect("unix timestamp")
+            .as_secs() as i64;
+
+        (
+            events_path.to_string_lossy().into_owned(),
+            modified,
+            metadata.len() as i64,
+        )
+    }
+
+    #[tokio::test]
+    async fn copilot_source_fetch_emits_title_refresh_when_only_summary_changed() {
+        let _lock = home_test_lock().lock().expect("home lock");
+        let temp_dir = TempDir::new().expect("temp dir");
+        let home_dir = temp_dir.path().join("home");
+        fs::create_dir_all(&home_dir).expect("home dir");
+        let _guard = HomeGuard::set(&home_dir);
+
+        let project_dir = temp_dir.path().join("project");
+        fs::create_dir_all(&project_dir).expect("project dir");
+        git2::Repository::init(&project_dir).expect("init project repo");
+        let canonical_project = project_dir
+            .canonicalize()
+            .expect("canonical project path")
+            .to_string_lossy()
+            .into_owned();
+
+        let session_id = "12345678-copilot-session";
+        let (events_path, file_mtime, file_size) =
+            write_copilot_session(&home_dir, &project_dir, session_id);
+
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(&db, session_id, &canonical_project, "copilot", None)
+            .await
+            .expect("seed placeholder row");
+
+        let placeholder = SessionMetadataRepository::get_by_id(&db, session_id)
+            .await
+            .expect("load placeholder row")
+            .expect("placeholder row")
+            .display;
+
+        SessionMetadataRepository::upsert(
+            &db,
+            session_id.to_string(),
+            placeholder,
+            1704067200000,
+            canonical_project.clone(),
+            "copilot".to_string(),
+            events_path,
+            file_mtime,
+            file_size,
+        )
+        .await
+        .expect("seed transcript metadata");
+
+        let source = CopilotSource;
+        let delta = source
+            .fetch(&db, &[canonical_project], None)
+            .await
+            .expect("fetch copilot delta");
+
+        assert_eq!(delta.records.len(), 1);
+        assert_eq!(delta.records[0].0, session_id);
+        assert_eq!(delta.records[0].1, "Real Copilot title");
     }
 }

@@ -812,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn assistant_message_preserves_inline_reasoning_text() {
+    fn assistant_message_filters_inline_reasoning_text_from_restored_history() {
         let jsonl = r#"
 {"type":"assistant.message","data":{"messageId":"m1","reasoningText":"thinking","content":"world"},"timestamp":"2026-04-10T00:00:02Z"}
 "#;
@@ -825,11 +825,35 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::Assistant { message, .. } => {
-                assert_eq!(message.chunks.len(), 2);
-                assert_eq!(message.chunks[0].chunk_type, "thought");
-                assert_eq!(message.chunks[0].block.text.as_deref(), Some("thinking"));
-                assert_eq!(message.chunks[1].chunk_type, "message");
-                assert_eq!(message.chunks[1].block.text.as_deref(), Some("world"));
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(message.chunks[0].block.text.as_deref(), Some("world"));
+            }
+            other => panic!("expected assistant entry, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn direct_transcript_parse_filters_reasoning_chunks_from_restored_history() {
+        let jsonl = r#"
+{"type":"assistant.reasoning","data":{"messageId":"m1","content":"Investigating codebase options"},"timestamp":"2026-04-10T00:00:01Z"}
+{"type":"assistant.message","data":{"messageId":"m1","content":"I found the replay path."},"timestamp":"2026-04-10T00:00:02Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("I found the replay path.")
+                );
             }
             other => panic!("expected assistant entry, got {other:?}"),
         }

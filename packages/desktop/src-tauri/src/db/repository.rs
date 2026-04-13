@@ -989,6 +989,29 @@ impl SessionMetadataRepository {
         format!("__session_registry__/{session_id}")
     }
 
+    fn acepe_placeholder_display(session_id: &str) -> String {
+        let preview_len = 8usize.min(session_id.len());
+        format!("Session {}", &session_id[..preview_len])
+    }
+
+    pub(crate) fn is_acepe_placeholder_display(session_id: &str, display: &str) -> bool {
+        display == Self::acepe_placeholder_display(session_id)
+    }
+
+    fn should_refresh_placeholder_title_for_unchanged_metadata(
+        session_id: &str,
+        existing_display: &str,
+        title_overridden: bool,
+        incoming_display: &str,
+        incoming_agent_id: &str,
+    ) -> bool {
+        incoming_agent_id == "copilot"
+            && !title_overridden
+            && Self::is_acepe_placeholder_display(session_id, existing_display)
+            && !incoming_display.trim().is_empty()
+            && incoming_display != existing_display
+    }
+
     fn is_acepe_managed_file_path(file_path: &str) -> bool {
         let is_registry = file_path.starts_with("__session_registry__/")
             && !file_path["__session_registry__/".len()..].contains('/');
@@ -1161,7 +1184,7 @@ impl SessionMetadataRepository {
     }
 
     async fn load_state_map(
-        db: &DbConn,
+        db: &impl sea_orm::ConnectionTrait,
         session_ids: &[String],
     ) -> Result<std::collections::HashMap<String, acepe_session_state::Model>> {
         if session_ids.is_empty() {
@@ -1192,8 +1215,7 @@ impl SessionMetadataRepository {
         for _attempt in 0..5 {
             let txn = db.begin().await?;
             let now = Utc::now();
-            let preview_len = 8usize.min(session_id.len());
-            let display = format!("Session {}", &session_id[..preview_len]);
+            let display = Self::acepe_placeholder_display(session_id);
 
             let next_sequence_id = Self::next_sequence_id_for_project(&txn, project_path).await?;
 
@@ -1475,6 +1497,11 @@ impl SessionMetadataRepository {
             .await?;
 
         if let Some(existing_model) = existing {
+            let existing_state = AcepeSessionState::find_by_id(&existing_model.id).one(db).await?;
+            let title_overridden = existing_state
+                .as_ref()
+                .and_then(|state| state.title_override.as_ref())
+                .is_some();
             let project_path = Self::project_path_for_update(&existing_model, project_path);
             let (file_path, file_mtime, file_size) = Self::resolved_file_metadata_for_update(
                 &existing_model,
@@ -1485,12 +1512,21 @@ impl SessionMetadataRepository {
             let existing_is_acepe_managed = existing_model.is_acepe_managed;
             let next_is_acepe_managed =
                 Self::merged_acepe_managed_flag(existing_is_acepe_managed, &file_path);
+            let should_refresh_display =
+                Self::should_refresh_placeholder_title_for_unchanged_metadata(
+                    &existing_model.id,
+                    &existing_model.display,
+                    title_overridden,
+                    &display,
+                    &agent_id,
+                );
 
             // Check if file has changed (mtime + size comparison)
             if existing_model.file_mtime == file_mtime
                 && existing_model.file_size == file_size
                 && existing_model.project_path == project_path
                 && existing_model.file_path == file_path
+                && !should_refresh_display
             {
                 return Ok(false); // No change
             }
@@ -1514,8 +1550,7 @@ impl SessionMetadataRepository {
             active.updated_at = Set(now);
             let state_project_path = active.project_path.as_ref().clone();
             active.update(db).await?;
-            if let Some(existing_state) = AcepeSessionState::find_by_id(&session_id).one(db).await?
-            {
+            if let Some(existing_state) = existing_state {
                 let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                 state_active.project_path = Set(state_project_path);
                 state_active.updated_at = Set(now);
@@ -1585,6 +1620,11 @@ impl SessionMetadataRepository {
             )
             .all(&txn)
             .await?;
+        let existing_ids = existing_records
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let state_map = Self::load_state_map(&txn, &existing_ids).await?;
 
         // Build a HashMap for O(1) lookup during iteration
         let mut existing_map: std::collections::HashMap<String, session_metadata::Model> =
@@ -1618,6 +1658,18 @@ impl SessionMetadataRepository {
                 );
                 let next_is_acepe_managed =
                     Self::merged_acepe_managed_flag(existing_model.is_acepe_managed, &file_path);
+                let title_overridden = state_map
+                    .get(&existing_model.id)
+                    .and_then(|state| state.title_override.as_ref())
+                    .is_some();
+                let should_refresh_display =
+                    Self::should_refresh_placeholder_title_for_unchanged_metadata(
+                        &existing_model.id,
+                        &existing_model.display,
+                        title_overridden,
+                        &display,
+                        &agent_id,
+                    );
 
                 // Check if file has changed (skip if mtime+size match).
                 // Non-Claude agents use mtime=0/size=0 sentinel — always refresh those.
@@ -1625,6 +1677,7 @@ impl SessionMetadataRepository {
                     && existing_model.file_mtime == file_mtime
                     && existing_model.file_size == file_size
                     && existing_model.project_path == project_path
+                    && !should_refresh_display
                 {
                     continue; // No change
                 }
@@ -1785,8 +1838,7 @@ impl SessionMetadataRepository {
                 anyhow::anyhow!("Session not found in metadata index and agent_id was not provided")
             })?;
             let now = Utc::now();
-            let preview_len = 8usize.min(session_id.len());
-            let display = format!("Session {}", &session_id[..preview_len]);
+            let display = Self::acepe_placeholder_display(session_id);
             let model = session_metadata::ActiveModel {
                 id: Set(session_id.to_string()),
                 display: Set(display),
