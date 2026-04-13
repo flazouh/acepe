@@ -62,11 +62,11 @@ export const CMD = {
 		get_missing_project_paths: storage.get_missing_project_paths,
 		import_project: storage.import_project,
 		add_project: storage.add_project,
+		update_project_color: storage.update_project_color,
+		update_project_icon: storage.update_project_icon,
+		update_project_order: storage.update_project_order,
 		remove_project: storage.remove_project,
 		browse_project: storage.browse_project,
-		update_project_color: "update_project_color",
-		update_project_icon: "update_project_icon",
-		update_project_order: "update_project_order",
 	} as const,
 
 	storage: {

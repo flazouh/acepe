@@ -159,6 +159,14 @@ use voice::{
     voice_stop_recording, VoiceState,
 };
 
+macro_rules! registered_project_storage_handlers {
+    ($($command:ident),* $(,)?) => {
+        $(
+            $command,
+        )*
+    };
+}
+
 struct NoSpanEventFormatter;
 
 struct PrettyDevEventFormatter {
@@ -1076,17 +1084,7 @@ pub fn run() {
             get_opencode_session,
             get_opencode_converted_session,
             get_opencode_sessions_for_project,
-            get_projects,
-            get_recent_projects,
-            get_project_count,
-            get_missing_project_paths,
-            import_project,
-            add_project,
-            update_project_color,
-            update_project_icon,
-            update_project_order,
-            remove_project,
-            browse_project,
+            crate::project_storage_command_idents!(registered_project_storage_handlers)
             get_api_key,
             save_api_key,
             delete_api_key,
