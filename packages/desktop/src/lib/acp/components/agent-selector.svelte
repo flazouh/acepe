@@ -4,8 +4,10 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import * as m from "$lib/paraglide/messages.js";
+import { Star } from "phosphor-svelte";
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
+import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
@@ -35,6 +37,8 @@ const logger = createLogger({
 });
 
 const themeState = useTheme();
+const agentPreferencesStore = getAgentPreferencesStore();
+const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
 function handleAgentSelect(agentId: string) {
 	logger.debug("handleAgentSelect() called", {
@@ -103,6 +107,17 @@ const currentAgent = $derived(
 						<img src={icon} alt={agent.name} class="h-4 w-4 shrink-0" />
 					{/if}
 					<span class="flex-1 text-sm truncate">{capitalizeName(agent.name)}</span>
+					<button
+						type="button"
+						class="shrink-0 {agent.id === defaultAgentId ? 'text-primary' : 'opacity-0 group-hover/item:opacity-100 text-muted-foreground hover:text-primary'} transition-opacity"
+						onclick={(event: MouseEvent) => {
+							event.stopPropagation();
+							event.preventDefault();
+							void agentPreferencesStore.setDefaultAgentId(agent.id === defaultAgentId ? null : agent.id);
+						}}
+					>
+						<Star size={14} weight={agent.id === defaultAgentId ? "fill" : "regular"} />
+					</button>
 					<SelectorCheck visible={isSelected} />
 				</div>
 			</DropdownMenu.Item>

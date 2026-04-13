@@ -39,6 +39,14 @@ const sortedAgents = $derived.by(() =>
 	getAgentsByProviderOrder(agentStore.agents, preferencesStore.getCachedModelsDisplay)
 );
 
+const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
+const defaultAgent = $derived(
+	defaultAgentId ? agentStore.agents.find((a) => a.id === defaultAgentId) ?? null : null
+);
+const selectableAgents = $derived(
+	agentStore.agents.filter((a) => agentPreferencesStore.selectedAgentIds.includes(a.id))
+);
+
 function setAgentChecked(agentId: string, checked: boolean): void {
 	const result = applyAgentSelectionChange(
 		agentPreferencesStore.selectedAgentIds,
@@ -109,6 +117,62 @@ function getModelDescription(
 title="Agents & Models"
 description="Choose which agents are enabled and set their default models."
 />
+
+<AgentToolCard variant="muted">
+<div class="flex items-center justify-between h-8 px-2.5">
+	<div class="flex flex-col gap-0">
+		<span class="text-[13px] font-medium text-foreground/80">Default agent</span>
+	</div>
+	<DropdownMenu.Root>
+		<DropdownMenu.Trigger>
+			{#snippet child({ props })}
+			<button
+				{...props}
+				type="button"
+				class="flex items-center gap-1.5 h-7 px-2 rounded-md text-muted-foreground transition-colors hover:bg-accent/50"
+			>
+				{#if defaultAgent}
+				<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
+				<span class="text-[13px] font-medium text-foreground/70">{defaultAgent.name}</span>
+				{:else}
+				<span class="text-[13px] font-medium text-foreground/70">First available</span>
+				{/if}
+				<CaretDown class="size-2.5 shrink-0 opacity-40 ml-1" weight="bold" />
+			</button>
+			{/snippet}
+		</DropdownMenu.Trigger>
+		<DropdownMenu.Content align="end" class="w-[220px]">
+			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>
+				<div class="flex items-center gap-2">
+					<Check
+						class={defaultAgentId === null
+							? "size-3 text-foreground"
+							: "size-3 text-transparent"}
+						weight="bold"
+					/>
+					<span class="text-[13px]">First available</span>
+				</div>
+			</DropdownMenu.Item>
+			<DropdownMenu.Separator />
+			{#each selectableAgents as agent (agent.id)}
+			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(agent.id)}>
+				<div class="flex items-center gap-2">
+					<Check
+						class={agent.id === defaultAgentId
+							? "size-3 text-foreground"
+							: "size-3 text-transparent"}
+						weight="bold"
+					/>
+					<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
+					<span class="text-[13px]">{agent.name}</span>
+				</div>
+			</DropdownMenu.Item>
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
+</div>
+</AgentToolCard>
+
 	{#each sortedAgents as agent (agent.id)}
 {@const entry = modelDefaultEntries.find((candidate) => candidate.agent.id === agent.id) ?? null}
 {@const providerMetadata = entry?.providerMetadata ?? agent.providerMetadata ?? null}
