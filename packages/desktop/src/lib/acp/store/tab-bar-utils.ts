@@ -4,7 +4,11 @@
 
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
-import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "./live-session-work.js";
+import {
+	deriveLiveSessionState,
+	deriveLiveSessionWorkProjection,
+	type LiveSessionWorkInput,
+} from "./live-session-work.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
@@ -245,8 +249,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 	} = input;
 	const currentToolKind = getCurrentToolKind(entries);
 	const currentStreamingToolCall = getCurrentStreamingToolCall(entries);
-
-	const state = deriveLiveSessionState({
+	const liveSessionInput: LiveSessionWorkInput = {
 		runtimeState,
 		hotState:
 			hotState ?? {
@@ -261,23 +264,9 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 			pendingPermission,
 		},
 		hasUnseenCompletion: isUnseen,
-	});
-	const workProjection = deriveLiveSessionWorkProjection({
-		runtimeState,
-		hotState:
-			hotState ?? {
-				status: "idle",
-				currentMode: null,
-				connectionError: null,
-			},
-		currentStreamingToolCall,
-		interactionSnapshot: {
-			pendingQuestion,
-			pendingPlanApproval,
-			pendingPermission,
-		},
-		hasUnseenCompletion: isUnseen,
-	});
+	};
+	const state = deriveLiveSessionState(liveSessionInput);
+	const workProjection = deriveLiveSessionWorkProjection(liveSessionInput);
 
 	return {
 		panelId: panel.id,
