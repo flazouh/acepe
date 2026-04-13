@@ -5,7 +5,6 @@ import type { Snippet } from "svelte";
 
 import type { Project } from "../logic/project-manager.svelte.js";
 import { TAG_COLORS } from "../utils/colors.js";
-import { capitalizeName } from "../utils/index.js";
 
 interface Props {
 	/** Project object containing name and color */
@@ -14,6 +13,8 @@ interface Props {
 	projectName?: string;
 	/** Alternative: direct project color hex value */
 	projectColor?: string;
+	/** Alternative: direct project icon source */
+	projectIconSrc?: string | null;
 	/** Whether the project card is expanded */
 	expanded?: boolean;
 	/** Additional CSS classes */
@@ -28,6 +29,7 @@ let {
 	project,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	expanded = false,
 	class: className = "",
 	trailing,
@@ -39,8 +41,7 @@ let {
  * Priority: project.name -> projectName prop -> "Unknown Project"
  */
 const displayName = $derived.by(() => {
-	const name = project?.name ? project.name : projectName ? projectName : "Unknown Project";
-	return capitalizeName(name);
+	return project?.name ? project.name : projectName ? projectName : "Unknown Project";
 });
 
 /**
@@ -51,13 +52,19 @@ const fallbackColor = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
 const resolvedColor = $derived(
 	project?.color ? project.color : projectColor ? projectColor : fallbackColor
 );
+const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 </script>
 
 <div
 	class="shrink-0 flex items-center rounded-md {expanded ? 'bg-background/30' : ''} {className}"
 >
 	<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
-		<ProjectLetterBadge name={displayName} color={resolvedColor} size={16} />
+		<ProjectLetterBadge
+			name={displayName}
+			color={resolvedColor}
+			iconSrc={resolvedIconSrc}
+			size={16}
+		/>
 	</div>
 	<div
 		class="flex items-center flex-1 min-w-0 h-7 pl-2 pr-2 cursor-pointer rounded-md hover:bg-background/70 transition-colors"

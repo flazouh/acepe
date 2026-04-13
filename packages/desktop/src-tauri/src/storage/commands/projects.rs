@@ -4,7 +4,7 @@ use rand::Rng;
 use sea_orm::DatabaseConnection;
 use tauri::{AppHandle, State};
 
-use super::shared::{capitalize_name, get_db, validate_project_path_for_storage, Project};
+use super::shared::{get_db, project_name_from_path, validate_project_path_for_storage, Project};
 
 fn classify_missing_project_paths(paths: &[String]) -> Vec<String> {
     paths
@@ -43,6 +43,8 @@ pub async fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
             last_opened: Some(row.last_opened),
             created_at: row.created_at,
             color: row.color,
+            sort_order: row.sort_order,
+            icon_path: row.icon_path,
         })
         .collect();
 
@@ -76,6 +78,8 @@ pub async fn get_recent_projects(
             last_opened: Some(row.last_opened),
             created_at: row.created_at,
             color: row.color,
+            sort_order: row.sort_order,
+            icon_path: row.icon_path,
         })
         .collect();
 
@@ -128,14 +132,9 @@ pub async fn import_project(
     let canonical_path = validate_project_path_for_storage(&path)?;
     let canonical_path_str = canonical_path.to_string_lossy().to_string();
 
-    // Extract name from path if not provided, and capitalize it
+    // Extract name from path if not provided, preserving the path's original casing.
     let project_name = name.unwrap_or_else(|| {
-        let raw_name = canonical_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(&canonical_path_str)
-            .to_string();
-        capitalize_name(&raw_name)
+        project_name_from_path(&canonical_path, &canonical_path_str)
     });
 
     // Create or update project (color will be randomly assigned if new)
@@ -179,6 +178,8 @@ pub async fn import_project(
         last_opened: Some(project_row.last_opened),
         created_at: project_row.created_at,
         color: project_row.color,
+        sort_order: project_row.sort_order,
+        icon_path: project_row.icon_path,
     })
 }
 
@@ -191,14 +192,9 @@ pub async fn add_project(app: AppHandle, path: String, name: Option<String>) -> 
     let canonical_path = validate_project_path_for_storage(&path)?;
     let canonical_path_str = canonical_path.to_string_lossy().to_string();
 
-    // Extract name from path if not provided, and capitalize it
+    // Extract name from path if not provided, preserving the path's original casing.
     let project_name = name.unwrap_or_else(|| {
-        let raw_name = canonical_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(&canonical_path_str)
-            .to_string();
-        capitalize_name(&raw_name)
+        project_name_from_path(&canonical_path, &canonical_path_str)
     });
 
     // Create or update project (color will be randomly assigned if new)
@@ -249,7 +245,67 @@ pub async fn update_project_color(
         last_opened: Some(row.last_opened),
         created_at: row.created_at,
         color: row.color,
+        sort_order: row.sort_order,
+        icon_path: row.icon_path,
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_project_icon(
+    app: AppHandle,
+    path: String,
+    icon_path: Option<String>,
+) -> Result<Project, String> {
+    tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
+
+    let db = get_db(&app);
+    let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update project icon");
+            e.to_string()
+        })?;
+
+    Ok(Project {
+        path: row.path,
+        name: row.name,
+        last_opened: Some(row.last_opened),
+        created_at: row.created_at,
+        color: row.color,
+        sort_order: row.sort_order,
+        icon_path: row.icon_path,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_project_order(
+    app: AppHandle,
+    ordered_paths: Vec<String>,
+) -> Result<Vec<Project>, String> {
+    tracing::info!(count = ordered_paths.len(), "Updating project order");
+
+    let db = get_db(&app);
+    let rows = ProjectRepository::reorder(&db, &ordered_paths)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update project order");
+            e.to_string()
+        })?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| Project {
+            path: row.path,
+            name: row.name,
+            last_opened: Some(row.last_opened),
+            created_at: row.created_at,
+            color: row.color,
+            sort_order: row.sort_order,
+            icon_path: row.icon_path,
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -286,10 +342,8 @@ pub async fn browse_project(_app: AppHandle) -> Result<Option<Project>, String> 
             let path_str = folder_path.path().to_string_lossy().to_string();
             let project_name = folder_path
                 .path()
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(capitalize_name)
-                .unwrap_or_else(|| capitalize_name(&path_str));
+                .to_path_buf();
+            let project_name = project_name_from_path(&project_name, &path_str);
 
             tracing::info!(path = %path_str, name = %project_name, "Project selected");
 
@@ -304,6 +358,8 @@ pub async fn browse_project(_app: AppHandle) -> Result<Option<Project>, String> 
                 last_opened: Some(chrono::Utc::now().to_rfc3339()),
                 created_at: chrono::Utc::now().to_rfc3339(),
                 color: assigned_color,
+                sort_order: 0,
+                icon_path: None,
             }))
         }
         None => {
@@ -315,7 +371,7 @@ pub async fn browse_project(_app: AppHandle) -> Result<Option<Project>, String> 
 
 #[cfg(test)]
 mod tests {
-    use super::classify_missing_project_paths;
+    use super::{classify_missing_project_paths, project_name_from_path};
     use tempfile::tempdir;
 
     #[test]
@@ -341,5 +397,14 @@ mod tests {
                 missing_path.to_string_lossy().to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn preserves_original_project_name_casing() {
+        let project_path = std::path::PathBuf::from("/Users/test/MyAPIService");
+
+        let name = project_name_from_path(&project_path, "/Users/test/MyAPIService");
+
+        assert_eq!(name, "MyAPIService");
     }
 }

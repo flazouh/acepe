@@ -20,6 +20,7 @@ mod m20260405_000002_add_acepe_managed_to_session_metadata;
 mod m20260406_000001_create_acepe_session_state;
 mod m20260408_000001_create_session_projection_snapshots;
 mod m20260408_000002_create_session_journal_events;
+mod m20260413_000001_add_project_sidebar_metadata;
 
 pub struct Migrator;
 
@@ -47,6 +48,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260406_000001_create_acepe_session_state::Migration),
             Box::new(m20260408_000001_create_session_projection_snapshots::Migration),
             Box::new(m20260408_000002_create_session_journal_events::Migration),
+            Box::new(m20260413_000001_add_project_sidebar_metadata::Migration),
         ]
     }
 }

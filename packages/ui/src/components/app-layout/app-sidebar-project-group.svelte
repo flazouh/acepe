@@ -30,7 +30,12 @@
 		<!-- Default header — matches ProjectHeader visual -->
 		<div class="shrink-0 flex items-center border-b border-border/50">
 			<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
-				<ProjectLetterBadge name={group.name} color={group.color ?? '#6B7280'} size={16} />
+				<ProjectLetterBadge
+					name={group.name}
+					color={group.color ?? '#6B7280'}
+					iconSrc={group.iconSrc ?? null}
+					size={16}
+				/>
 			</div>
 			<div class="flex items-center flex-1 min-w-0 h-7 pl-1.5 pr-2">
 				<span class="text-[11px] font-medium font-mono text-foreground truncate">{group.name}</span>

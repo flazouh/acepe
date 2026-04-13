@@ -8,11 +8,10 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 
-import { getAgentIcon } from "../constants/thread-list-constants.js";
-import type { Project } from "../logic/project-manager.svelte.js";
-import { getProjectColor, TAG_COLORS } from "../utils/colors.js";
-import { capitalizeName } from "../utils/index.js";
-import { createLogger } from "../utils/logger.js";
+	import { getAgentIcon } from "../constants/thread-list-constants.js";
+	import type { Project } from "../logic/project-manager.svelte.js";
+	import { getProjectColor, TAG_COLORS } from "../utils/colors.js";
+	import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
 
 interface ProjectSelectorProps {
@@ -93,12 +92,17 @@ function handleOpenChange(open: boolean) {
 		{:else}
 			{@const color = selectedProject ? getProjectColor(selectedProject) : TAG_COLORS[0]}
 			{#if selectedProject}
-				<ProjectLetterBadge name={selectedProject.name} {color} size={14} />
+				<ProjectLetterBadge
+					name={selectedProject.name}
+					{color}
+					iconSrc={selectedProject.iconPath ?? null}
+					size={14}
+				/>
 			{:else}
 				<div class="h-2 w-2 shrink-0 rounded-full" style="background-color: {color};"></div>
 			{/if}
 			<span class="text-xs truncate min-w-0">
-				{selectedProject ? capitalizeName(selectedProject.name) : "Select project..."}
+				{selectedProject ? selectedProject.name : "Select project..."}
 			</span>
 		{/if}
 	{/snippet}
@@ -113,8 +117,13 @@ function handleOpenChange(open: boolean) {
 			{#if isMissing}
 				<DropdownMenu.Item disabled class="group/item py-1 opacity-50">
 					<div class="flex items-center gap-2 w-full min-w-0">
-						<ProjectLetterBadge name={project.name} {color} size={16} />
-						<span class="flex-1 text-sm truncate line-through">{capitalizeName(project.name)}</span>
+						<ProjectLetterBadge
+							name={project.name}
+							{color}
+							iconSrc={project.iconPath ?? null}
+							size={16}
+						/>
+						<span class="flex-1 text-sm truncate line-through">{project.name}</span>
 						<span class="text-[10px] text-destructive/70 shrink-0">Missing</span>
 					</div>
 				</DropdownMenu.Item>
@@ -124,8 +133,13 @@ function handleOpenChange(open: boolean) {
 					class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
 				>
 					<div class="flex items-center gap-2 w-full min-w-0">
-						<ProjectLetterBadge name={project.name} {color} size={16} />
-						<span class="flex-1 text-sm truncate">{capitalizeName(project.name)}</span>
+						<ProjectLetterBadge
+							name={project.name}
+							{color}
+							iconSrc={project.iconPath ?? null}
+							size={16}
+						/>
+						<span class="flex-1 text-sm truncate">{project.name}</span>
 						<SelectorCheck visible={isSelected} />
 					</div>
 				</DropdownMenu.Item>

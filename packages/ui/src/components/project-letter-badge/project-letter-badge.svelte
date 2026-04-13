@@ -6,6 +6,8 @@
 		name: string;
 		/** The color for the letter */
 		color: string;
+		/** Optional project icon source. When provided, renders the image instead of the letter badge. */
+		iconSrc?: string | null;
 		/** Badge size in px (default 20) */
 		size?: number;
 		/** Override font size in px (default: size * 0.55) */
@@ -21,6 +23,7 @@
 	let {
 		name,
 		color,
+		iconSrc = null,
 		size = 20,
 		fontSize: fontSizeProp,
 		sequenceId,
@@ -31,6 +34,7 @@
 	const letter = $derived(name.charAt(0).toUpperCase());
 	const hasSequenceId = $derived(sequenceId != null);
 	const displayColor = $derived(color === Colors.green ? "var(--success)" : color);
+	const iconAlt = $derived(name.length > 0 ? `${name} icon` : "Project icon");
 
 	const fontSize = $derived(fontSizeProp ?? size * 0.715);
 	const radius = $derived(size * 0.25);
@@ -39,7 +43,7 @@
 <span class="inline-flex items-center {className}" style="gap: 0px;">
 	{#if showLetter}
 		<div
-			class="flex items-center justify-center shrink-0"
+			class="flex items-center justify-center shrink-0 overflow-hidden"
 			style="
 				background-color: {displayColor};
 				width: {size}px;
@@ -47,12 +51,21 @@
 				border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
 			"
 		>
-			<span
-				class="font-black leading-none"
-				style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
-			>
-				{letter}
-			</span>
+			{#if iconSrc}
+				<img
+					src={iconSrc}
+					alt={iconAlt}
+					class="block h-full w-full object-cover"
+					draggable="false"
+				/>
+			{:else}
+				<span
+					class="font-black leading-none"
+					style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
+				>
+					{letter}
+				</span>
+			{/if}
 		</div>
 	{/if}
 	{#if hasSequenceId}

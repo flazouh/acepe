@@ -18,8 +18,8 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DbConn, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbConn, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -36,11 +36,37 @@ pub struct ProjectRow {
     pub last_opened: String,
     pub created_at: String,
     pub color: String,
+    pub sort_order: i32,
+    pub icon_path: Option<String>,
 }
 
 pub struct ProjectRepository;
 
 impl ProjectRepository {
+    fn display_name(path: &str, stored_name: &str) -> String {
+        std::path::Path::new(path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .map(std::borrow::ToOwned::to_owned)
+            .unwrap_or_else(|| stored_name.to_string())
+    }
+
+    fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
+        let name = Self::display_name(&model.path, &model.name);
+
+        ProjectRow {
+            id: model.id,
+            path: model.path,
+            name,
+            last_opened: model.last_opened.to_rfc3339(),
+            created_at: model.created_at.to_rfc3339(),
+            color: model.color,
+            sort_order: model.sort_order,
+            icon_path: model.icon_path,
+        }
+    }
+
     /// Create or update a project.
     /// If project exists, updates last_opened timestamp.
     /// If project doesn't exist, creates it.
@@ -71,6 +97,8 @@ impl ProjectRepository {
             let id = active.id.as_ref().clone();
             let created_at = *active.created_at.as_ref();
             let existing_color = active.color.as_ref().clone();
+            let sort_order = *active.sort_order.as_ref();
+            let icon_path = active.icon_path.as_ref().clone();
             active.name = Set(name.clone());
             active.last_opened = Set(now);
             // Update color if provided, otherwise keep existing
@@ -90,6 +118,8 @@ impl ProjectRepository {
                 last_opened: now.to_rfc3339(),
                 created_at: created_at.to_rfc3339(),
                 color: final_color,
+                sort_order,
+                icon_path,
             }
         } else {
             // Create new project - assign random color if not provided
@@ -99,6 +129,10 @@ impl ProjectRepository {
                 colors[rng.gen_range(0..colors.len())].to_string()
             });
 
+            let txn = db.begin().await?;
+            txn.execute_unprepared("UPDATE projects SET sort_order = sort_order + 1")
+                .await?;
+
             let id = Uuid::new_v4().to_string();
             let project = crate::db::entities::project::ActiveModel {
                 id: Set(id.clone()),
@@ -107,9 +141,12 @@ impl ProjectRepository {
                 last_opened: Set(now),
                 created_at: Set(now),
                 color: Set(assigned_color.clone()),
+                sort_order: Set(0),
+                icon_path: Set(None),
             };
 
-            Project::insert(project).exec(db).await?;
+            Project::insert(project).exec(&txn).await?;
+            txn.commit().await?;
 
             tracing::info!(
                 id = %id,
@@ -125,6 +162,8 @@ impl ProjectRepository {
                 last_opened: now.to_rfc3339(),
                 created_at: now.to_rfc3339(),
                 color: assigned_color,
+                sort_order: 0,
+                icon_path: None,
             }
         };
 
@@ -154,21 +193,15 @@ impl ProjectRepository {
             ),
         }
 
-        Ok(model.map(|m| ProjectRow {
-            id: m.id,
-            path: m.path,
-            name: m.name,
-            last_opened: m.last_opened.to_rfc3339(),
-            created_at: m.created_at.to_rfc3339(),
-            color: m.color,
-        }))
+        Ok(model.map(Self::row_from_model))
     }
 
-    /// Get all projects, ordered by last_opened descending.
+    /// Get all projects, ordered by persisted sidebar order.
     pub async fn get_all(db: &DbConn) -> Result<Vec<ProjectRow>> {
         tracing::debug!("Loading all projects");
 
         let models = Project::find()
+            .order_by_asc(crate::db::entities::project::Column::SortOrder)
             .order_by_desc(crate::db::entities::project::Column::CreatedAt)
             .all(db)
             .await?;
@@ -179,17 +212,7 @@ impl ProjectRepository {
             "Loaded projects"
         );
 
-        Ok(models
-            .into_iter()
-            .map(|m| ProjectRow {
-                id: m.id,
-                path: m.path,
-                name: m.name,
-                last_opened: m.last_opened.to_rfc3339(),
-                created_at: m.created_at.to_rfc3339(),
-                color: m.color,
-            })
-            .collect())
+        Ok(models.into_iter().map(Self::row_from_model).collect())
     }
 
     /// Get recent projects (limit to N, ordered by last_opened).
@@ -211,17 +234,67 @@ impl ProjectRepository {
             "Loaded recent projects"
         );
 
-        Ok(models
-            .into_iter()
-            .map(|m| ProjectRow {
-                id: m.id,
-                path: m.path,
-                name: m.name,
-                last_opened: m.last_opened.to_rfc3339(),
-                created_at: m.created_at.to_rfc3339(),
-                color: m.color,
-            })
-            .collect())
+        Ok(models.into_iter().map(Self::row_from_model).collect())
+    }
+
+    pub async fn update_icon_path(
+        db: &DbConn,
+        path: &str,
+        icon_path: Option<String>,
+    ) -> Result<ProjectRow> {
+        let existing = Project::find()
+            .filter(crate::db::entities::project::Column::Path.eq(path))
+            .one(db)
+            .await?;
+
+        let Some(existing_model) = existing else {
+            anyhow::bail!("Project not found: {}", path);
+        };
+
+        let mut active: crate::db::entities::project::ActiveModel = existing_model.into();
+        active.icon_path = Set(icon_path);
+
+        let updated = active.update(db).await?;
+        Ok(Self::row_from_model(updated))
+    }
+
+    pub async fn reorder(db: &DbConn, ordered_paths: &[String]) -> Result<Vec<ProjectRow>> {
+        let existing = Project::find().all(db).await?;
+        if existing.len() != ordered_paths.len() {
+            anyhow::bail!("Project order update requires all projects");
+        }
+
+        let existing_paths = existing
+            .iter()
+            .map(|project| project.path.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        let requested_paths = ordered_paths
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+
+        if existing_paths != requested_paths {
+            anyhow::bail!("Project order update paths do not match stored projects");
+        }
+
+        let txn = db.begin().await?;
+        for (index, path) in ordered_paths.iter().enumerate() {
+            let project = Project::find()
+                .filter(crate::db::entities::project::Column::Path.eq(path))
+                .one(&txn)
+                .await?;
+
+            let Some(project_model) = project else {
+                anyhow::bail!("Project not found during reorder: {}", path);
+            };
+
+            let mut active: crate::db::entities::project::ActiveModel = project_model.into();
+            active.sort_order = Set(index as i32);
+            active.update(&txn).await?;
+        }
+        txn.commit().await?;
+
+        Self::get_all(db).await
     }
 
     /// Delete a project by path.
@@ -231,10 +304,29 @@ impl ProjectRepository {
             "Deleting project"
         );
 
+        let existing = Project::find()
+            .filter(crate::db::entities::project::Column::Path.eq(path))
+            .one(db)
+            .await?;
+
+        let Some(existing_model) = existing else {
+            return Ok(());
+        };
+
+        let deleted_sort_order = existing_model.sort_order;
+        let txn = db.begin().await?;
+
         Project::delete_many()
             .filter(crate::db::entities::project::Column::Path.eq(path))
-            .exec(db)
+            .exec(&txn)
             .await?;
+
+        let shift_statement = format!(
+            "UPDATE projects SET sort_order = sort_order - 1 WHERE sort_order > {}",
+            deleted_sort_order
+        );
+        txn.execute_unprepared(&shift_statement).await?;
+        txn.commit().await?;
 
         tracing::info!(
             path = %path,

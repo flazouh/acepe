@@ -2,22 +2,12 @@ use crate::path_safety::validate_project_directory_from_str;
 use sea_orm::DbConn;
 use tauri::{AppHandle, Manager, State};
 
-/// Capitalize the first letter of each word in a string.
-/// Handles spaces, underscores, and hyphens as word separators.
-pub(super) fn capitalize_name(name: &str) -> String {
-    name.split(&[' ', '_', '-'][..])
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => {
-                    first.to_uppercase().collect::<String>()
-                        + chars.as_str().to_lowercase().as_str()
-                }
-            }
-        })
-        .collect::<Vec<String>>()
-        .join(" ")
+pub(super) fn project_name_from_path(path: &std::path::Path, fallback: &str) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map(std::borrow::ToOwned::to_owned)
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 /// Get database connection from app state
@@ -44,4 +34,7 @@ pub struct Project {
     pub last_opened: Option<String>,
     pub created_at: String,
     pub color: String,
+    pub sort_order: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_path: Option<String>,
 }

@@ -14,6 +14,8 @@ export interface Project {
 	lastOpened?: Date;
 	createdAt: Date;
 	color: string;
+	sortOrder?: number;
+	iconPath?: string | null;
 }
 
 /**
@@ -128,7 +130,16 @@ export class ProjectManager {
 
 				// Update projects list
 				if (isNew) {
-					this.projects = [project, ...this.projects];
+					const shiftedProjects = this.projects.map((existingProject) => ({
+						path: existingProject.path,
+						name: existingProject.name,
+						lastOpened: existingProject.lastOpened,
+						createdAt: existingProject.createdAt,
+						color: existingProject.color,
+						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
+						iconPath: existingProject.iconPath ?? null,
+					}));
+					this.projects = [project, ...shiftedProjects];
 					// Update count only for new projects
 					if (this.projectCount !== null) {
 						this.projectCount = this.projectCount + 1;
@@ -186,9 +197,20 @@ export class ProjectManager {
 			color: resolveProjectColor(color),
 			lastOpened: new SvelteDate(),
 			createdAt: new SvelteDate(),
+			sortOrder: 0,
+			iconPath: null,
 		};
 
-		this.projects = [optimisticProject, ...this.projects];
+		const shiftedProjects = this.projects.map((existingProject) => ({
+			path: existingProject.path,
+			name: existingProject.name,
+			lastOpened: existingProject.lastOpened,
+			createdAt: existingProject.createdAt,
+			color: existingProject.color,
+			sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
+			iconPath: existingProject.iconPath ?? null,
+		}));
+		this.projects = [optimisticProject, ...shiftedProjects];
 
 		// Update count
 		this.projectCount = (this.projectCount ?? 0) + 1;
@@ -208,6 +230,23 @@ export class ProjectManager {
 			if (existingIndex >= 0) {
 				this.projects = this.projects.map((p, i) => (i === existingIndex ? updatedProject : p));
 			}
+		});
+	}
+
+	updateProjectIcon(path: string, iconPath: string | null): ResultAsync<void, ProjectError> {
+		return this.client.updateProjectIcon(path, iconPath).map((updatedProject) => {
+			const existingIndex = this.projects.findIndex((project) => project.path === path);
+			if (existingIndex >= 0) {
+				this.projects = this.projects.map((project, index) =>
+					index === existingIndex ? updatedProject : project
+				);
+			}
+		});
+	}
+
+	updateProjectOrder(orderedPaths: string[]): ResultAsync<void, ProjectError> {
+		return this.client.updateProjectOrder(orderedPaths).map((updatedProjects) => {
+			this.projects = updatedProjects;
 		});
 	}
 
