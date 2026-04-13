@@ -140,6 +140,7 @@ async fn handle_session_request_permission_with_state(
                 arguments: tool_call.raw_input.clone(),
                 status: ToolCallStatus::InProgress,
                 kind: Some(identity.kind),
+                semantic_family: None,
                 title: tool_call.title.clone(),
                 suppress_title_read_path_hint: false,
                 parent_tool_use_id: None,

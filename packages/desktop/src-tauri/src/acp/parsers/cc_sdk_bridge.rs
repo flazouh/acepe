@@ -234,6 +234,7 @@ fn translate_assistant(
                     arguments: tu.input,
                     status: ToolCallStatus::InProgress,
                     kind: None,
+                    semantic_family: None,
                     title: None,
                     suppress_title_read_path_hint: false,
                     parent_tool_use_id: parent_tool_use_id.clone(),
@@ -474,6 +475,7 @@ fn translate_stream_event(
                     let raw = RawToolCallUpdateInput {
                         id: tool_call_id,
                         status: None,
+                        semantic_family: None,
                         result: None,
                         content: None,
                         title: None,
@@ -1189,6 +1191,7 @@ mod tests {
             let raw = RawToolCallUpdateInput {
                 id: "toolu_test_bash".to_string(),
                 status: None,
+                semantic_family: None,
                 result: None,
                 content: None,
                 title: None,
