@@ -107,7 +107,7 @@ onMount(() => {
 		}
 
 		error = err;
-		captureException(err, { source: "window.error" });
+		try { captureException(err, { source: "window.error" }); } catch { /* telemetry must not recurse */ }
 	};
 
 	const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -138,7 +138,7 @@ onMount(() => {
 		}
 
 		error = err;
-		captureException(err, { source: "window.unhandledrejection" });
+		try { captureException(err, { source: "window.unhandledrejection" }); } catch { /* telemetry must not recurse */ }
 	};
 
 	window.addEventListener("error", handleError);

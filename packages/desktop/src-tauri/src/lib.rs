@@ -712,8 +712,8 @@ pub fn run() {
     // Initialize logging
     init_logging();
 
-    // Initialize Sentry error reporting (no-op when SENTRY_DSN is not set)
-    analytics::init(option_env!("CARGO_PKG_VERSION"));
+    // NOTE: Rust Sentry init moved into .setup() — see below — so it can
+    // check the persisted analytics_opt_out preference after DB is ready.
 
     // Create a Tokio runtime and register it with Tauri's async runtime.
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -847,6 +847,20 @@ pub fn run() {
 
             // Manage database connection
             app.manage(db_conn.clone());
+
+            // Initialize Sentry error reporting after DB is available
+            // so we can respect the persisted analytics opt-out preference.
+            {
+                let analytics_opted_out = tauri::async_runtime::block_on(async {
+                    AppSettingsRepository::get(&db_conn, "analytics_opt_out")
+                        .await
+                        .ok()
+                        .flatten()
+                        .and_then(|v| serde_json::from_str::<bool>(&v).ok())
+                        .unwrap_or(false)
+                });
+                analytics::init(option_env!("CARGO_PKG_VERSION"), analytics_opted_out);
+            }
 
             crate::project_access::log_startup_summary("app-setup-after-db-and-prewarm");
 

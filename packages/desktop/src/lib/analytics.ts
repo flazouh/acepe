@@ -8,7 +8,25 @@ import { settings } from "$lib/utils/tauri-client/settings.js";
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";
 const DEVICE_ID_STORAGE_KEY = "analytics_device_id";
 const APP_OPENED_EVENT = "app_opened";
-const POSTHOG_API_HOST = "https://us.i.posthog.com";
+
+/** Telemetry context attached to captured exceptions. */
+export interface TelemetryContext {
+	source: string;
+	[key: string]: string | number | boolean;
+}
+
+/** Properties attached to captured events. */
+export interface TelemetryEventProperties {
+	[key: string]: string | number | boolean;
+}
+
+function posthogApiHost(): string {
+	const fromEnv: string | undefined = import.meta.env.VITE_POSTHOG_HOST;
+	if (fromEnv && fromEnv.length > 0) {
+		return fromEnv;
+	}
+	return "https://eu.i.posthog.com";
+}
 
 const logger = createLogger({
 	id: "analytics",
@@ -16,7 +34,7 @@ const logger = createLogger({
 });
 
 let analyticsEnabled = true;
-let analyticsInitialized = false;
+let initPromise: Promise<void> | null = null;
 let sentryInitialized = false;
 let posthogInitialized = false;
 let distinctId: string | null = null;
@@ -26,7 +44,7 @@ function isBrowser(): boolean {
 	return typeof window !== "undefined";
 }
 
-function normalizeError(error: unknown, fallback: string): Error {
+function normalizeError(error: Error | string | undefined, fallback: string): Error {
 	if (error instanceof Error) {
 		return error;
 	}
@@ -48,16 +66,32 @@ function readDistinctId(): string {
 		return distinctId;
 	}
 
-	const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
-	if (existing && existing.length > 0) {
-		distinctId = existing;
-		return existing;
-	}
+	try {
+		const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+		if (existing && existing.length > 0) {
+			distinctId = existing;
+			return existing;
+		}
 
-	const created = crypto.randomUUID();
-	window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
-	distinctId = created;
-	return created;
+		const created = crypto.randomUUID();
+		window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
+		distinctId = created;
+		return created;
+	} catch {
+		// localStorage unavailable or quota exceeded — use in-memory fallback
+		const fallback = crypto.randomUUID();
+		distinctId = fallback;
+		return fallback;
+	}
+}
+
+function clearDistinctId(): void {
+	distinctId = null;
+	try {
+		window.localStorage.removeItem(DEVICE_ID_STORAGE_KEY);
+	} catch {
+		// localStorage unavailable — nothing to clear
+	}
 }
 
 async function readAppVersion(): Promise<string | null> {
@@ -67,7 +101,7 @@ async function readAppVersion(): Promise<string | null> {
 
 	return ResultAsync.fromPromise(
 		import("@tauri-apps/api/app").then((mod) => mod.getVersion()),
-		(error) => normalizeError(error, "Failed to load app version")
+		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
 	).match(
 		(version) => {
 			appVersion = version;
@@ -121,10 +155,10 @@ async function initializeSentry(version: string | null): Promise<void> {
 				tracesSampleRate: 0.1,
 				environment: import.meta.env.DEV ? "development" : "production",
 				release: version ? `acepe@${version}` : undefined,
-				beforeSend: analyticsEnabled ? undefined : () => null,
+				beforeSend: (event) => (analyticsEnabled ? event : null),
 			});
 		}),
-		(error) => normalizeError(error, "Failed to initialize Sentry")
+		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to initialize Sentry")
 	).match(
 		() => {
 			sentryInitialized = true;
@@ -149,7 +183,7 @@ async function initializePostHog(version: string | null): Promise<void> {
 	await ResultAsync.fromPromise(
 		Promise.resolve().then(() => {
 			posthog.init(posthogKey, {
-				api_host: POSTHOG_API_HOST,
+				api_host: posthogApiHost(),
 				autocapture: false,
 				capture_pageview: false,
 				disable_session_recording: true,
@@ -157,7 +191,7 @@ async function initializePostHog(version: string | null): Promise<void> {
 				opt_out_capturing_by_default: !analyticsEnabled,
 			});
 		}),
-		(error) => normalizeError(error, "Failed to initialize PostHog")
+		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to initialize PostHog")
 	).match(
 		() => {
 			posthogInitialized = true;
@@ -172,13 +206,7 @@ async function initializePostHog(version: string | null): Promise<void> {
 	);
 }
 
-export async function initAnalytics(): Promise<void> {
-	if (!isBrowser() || analyticsInitialized) {
-		return;
-	}
-
-	analyticsInitialized = true;
-
+async function doInit(): Promise<void> {
 	if (!shouldEnableAnalyticsInThisBuild()) {
 		logger.info("Analytics disabled in development build");
 		return;
@@ -192,47 +220,70 @@ export async function initAnalytics(): Promise<void> {
 	await initializePostHog(version);
 }
 
-export function captureEvent(event: string, properties: Record<string, unknown> = {}): void {
+export async function initAnalytics(): Promise<void> {
+	if (!isBrowser()) {
+		return;
+	}
+
+	if (initPromise !== null) {
+		return initPromise;
+	}
+
+	initPromise = doInit().catch((error) => {
+		logger.warn("Analytics initialization failed", { error });
+		// Allow retry on next call
+		initPromise = null;
+	});
+
+	return initPromise;
+}
+
+export function captureEvent(event: string, properties: TelemetryEventProperties = {}): void {
 	if (!analyticsEnabled || !posthogInitialized) {
 		return;
 	}
 
-	ResultAsync.fromPromise(
-		Promise.resolve().then(() => {
-			posthog.capture(event, properties);
-		}),
-		(error) => normalizeError(error, `Failed to capture PostHog event ${event}`)
-	).mapErr((error) => {
+	try {
+		posthog.capture(event, properties);
+	} catch (error) {
 		logger.warn("Analytics event capture failed", { event, error });
-	});
+	}
 }
 
-export function captureException(error: unknown, context: Record<string, unknown> = {}): void {
+export function captureException(error: Error, context: TelemetryContext = { source: "unknown" }): void {
 	if (!analyticsEnabled || !sentryInitialized) {
 		return;
 	}
 
-	const err = normalizeError(error, "Unknown analytics exception");
-	Sentry.withScope((scope) => {
-		for (const [key, value] of Object.entries(context)) {
-			scope.setExtra(key, value);
-		}
-		Sentry.captureException(err);
-	});
+	try {
+		Sentry.withScope((scope) => {
+			for (const [key, value] of Object.entries(context)) {
+				scope.setExtra(key, value);
+			}
+			Sentry.captureException(error);
+		});
+	} catch (sentryError) {
+		logger.warn("Sentry captureException failed", { sentryError });
+	}
 }
 
 export async function setAnalyticsEnabled(enabled: boolean): Promise<void> {
-	analyticsEnabled = enabled;
-
 	if (!shouldEnableAnalyticsInThisBuild()) {
+		analyticsEnabled = enabled;
 		return;
 	}
 
-	if (!analyticsInitialized) {
+	// Ensure init is complete before toggling
+	if (initPromise !== null) {
+		await initPromise;
+	} else {
 		await initAnalytics();
-		// initAnalytics() reads the persisted preference and may have overwritten
-		// analyticsEnabled; re-apply the caller's intent here.
-		analyticsEnabled = enabled;
+	}
+
+	analyticsEnabled = enabled;
+
+	if (!enabled) {
+		clearDistinctId();
 	}
 
 	if (!posthogInitialized) {
@@ -250,7 +301,7 @@ export async function setAnalyticsEnabled(enabled: boolean): Promise<void> {
 
 			posthog.opt_out_capturing();
 		}),
-		(error) => normalizeError(error, "Failed to update PostHog preference")
+		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to update PostHog preference")
 	).match(
 		() => undefined,
 		(error) => {
@@ -265,7 +316,7 @@ export function isAnalyticsEnabled(): boolean {
 
 export function __resetAnalyticsForTests(): void {
 	analyticsEnabled = true;
-	analyticsInitialized = false;
+	initPromise = null;
 	sentryInitialized = false;
 	posthogInitialized = false;
 	distinctId = null;

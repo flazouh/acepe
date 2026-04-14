@@ -77,4 +77,23 @@ describe("analytics-preferences-store", () => {
 		expect(setMock).toHaveBeenCalledWith("analytics_opt_out", true);
 		expect(setAnalyticsEnabledMock).toHaveBeenCalledWith(false);
 	});
+
+	it("rolls back enabled on persist failure", async () => {
+		setMock.mockResolvedValue({ isOk: () => false, isErr: () => true, error: "db error" } as never);
+		const store = new AnalyticsPreferencesStore();
+
+		await store.setEnabled(false);
+
+		expect(store.enabled).toBe(true);
+		expect(setAnalyticsEnabledMock).not.toHaveBeenCalled();
+	});
+
+	it("only initializes once", async () => {
+		const store = new AnalyticsPreferencesStore();
+
+		await store.initialize();
+		await store.initialize();
+
+		expect(getMock).toHaveBeenCalledTimes(1);
+	});
 });

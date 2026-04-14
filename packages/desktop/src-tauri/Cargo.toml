@@ -61,6 +61,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 tauri-plugin-notification = "2.3.3"
 tempfile = "3"
 toml = "0.8"
+regex = "1.10"
 urlencoding = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
