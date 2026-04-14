@@ -8,7 +8,7 @@ import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dia
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
-import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import {
 	getAgentPreferencesStore,
 	getAgentStore,
@@ -249,6 +249,93 @@ const effectiveTheme = $derived(themeState.effectiveTheme);
 let iconPickerOpen = $state(false);
 let iconPickerImages = $state<string[]>([]);
 let iconPickerProjectPath = $state("");
+let reorderInFlight = $state(false);
+
+function cloneProject(project: Project): Project {
+	return {
+		path: project.path,
+		name: project.name,
+		lastOpened: project.lastOpened,
+		createdAt: project.createdAt,
+		color: project.color,
+		sortOrder: project.sortOrder,
+		iconPath: project.iconPath ?? null,
+	};
+}
+
+function cloneProjects(projects: readonly Project[]): Project[] {
+	return projects.map((project) => cloneProject(project));
+}
+
+function compareProjectOrder(a: Project, b: Project): number {
+	const aSortOrder = a.sortOrder ?? Number.POSITIVE_INFINITY;
+	const bSortOrder = b.sortOrder ?? Number.POSITIVE_INFINITY;
+	if (aSortOrder !== bSortOrder) {
+		return aSortOrder - bSortOrder;
+	}
+
+	return b.createdAt.getTime() - a.createdAt.getTime();
+}
+
+function getCurrentProjectOrder(projects: readonly Project[]): string[] {
+	return Array.from(projects)
+		.sort((a, b) => compareProjectOrder(a, b))
+		.map((project) => project.path);
+}
+
+function areProjectOrdersEqual(currentOrder: readonly string[], nextOrder: readonly string[]): boolean {
+	if (currentOrder.length !== nextOrder.length) {
+		return false;
+	}
+
+	return currentOrder.every((path, index) => path === nextOrder[index]);
+}
+
+function buildOptimisticProjectOrder(
+	projects: readonly Project[],
+	orderedPaths: readonly string[]
+): Project[] {
+	const projectByPath = new Map(projects.map((project) => [project.path, project]));
+	const remainingProjects = Array.from(projects).sort((a, b) => compareProjectOrder(a, b));
+	const reorderedProjects: Project[] = [];
+	const includedPaths = new Set<string>();
+
+	for (const path of orderedPaths) {
+		const project = projectByPath.get(path);
+		if (!project) {
+			continue;
+		}
+
+		reorderedProjects.push({
+			path: project.path,
+			name: project.name,
+			lastOpened: project.lastOpened,
+			createdAt: project.createdAt,
+			color: project.color,
+			sortOrder: reorderedProjects.length,
+			iconPath: project.iconPath ?? null,
+		});
+		includedPaths.add(project.path);
+	}
+
+	for (const project of remainingProjects) {
+		if (includedPaths.has(project.path)) {
+			continue;
+		}
+
+		reorderedProjects.push({
+			path: project.path,
+			name: project.name,
+			lastOpened: project.lastOpened,
+			createdAt: project.createdAt,
+			color: project.color,
+			sortOrder: reorderedProjects.length,
+			iconPath: project.iconPath ?? null,
+		});
+	}
+
+	return reorderedProjects;
+}
 
 function handleIconPickerOpenChange(open: boolean) {
 	iconPickerOpen = open;
@@ -256,6 +343,40 @@ function handleIconPickerOpenChange(open: boolean) {
 		iconPickerImages = [];
 		iconPickerProjectPath = "";
 	}
+}
+
+function handleReorderProjects(orderedPaths: string[]) {
+	if (reorderInFlight) {
+		return;
+	}
+
+	const previousProjects = cloneProjects(projectManager.projects);
+	const currentOrder = getCurrentProjectOrder(previousProjects);
+	if (areProjectOrdersEqual(currentOrder, orderedPaths)) {
+		return;
+	}
+
+	reorderInFlight = true;
+	projectManager.projects = buildOptimisticProjectOrder(previousProjects, orderedPaths);
+
+	void projectManager
+		.updateProjectOrder(orderedPaths)
+		.mapErr((error) => {
+			projectManager.projects = previousProjects;
+			logger.error("[ProjectReorder] Failed to persist project order", {
+				error,
+				orderedPaths,
+			});
+			return error;
+		})
+		.match(
+			() => {
+				reorderInFlight = false;
+			},
+			() => {
+				reorderInFlight = false;
+			}
+		);
 }
 
 function handleSelectProjectIcon(iconPath: string) {
@@ -340,12 +461,13 @@ const visibleSessions = $derived.by(() => {
 			onOpenTerminal={handleOpenTerminal}
 			onOpenBrowser={handleOpenBrowser}
 			onOpenGitPanel={handleOpenGitPanel}
-						onOpenPr={handleOpenPr}
-						onArchiveSession={handleArchiveSession}
-						onRenameSession={handleRenameSession}
-						onExportMarkdown={handleExportMarkdown}
-						onExportJson={handleExportJson}
-					/>
+			onOpenPr={handleOpenPr}
+			onArchiveSession={handleArchiveSession}
+			onRenameSession={handleRenameSession}
+			onExportMarkdown={handleExportMarkdown}
+			onExportJson={handleExportJson}
+			onReorderProjects={handleReorderProjects}
+		/>
 	{/snippet}
 
 	{#snippet footer()}
