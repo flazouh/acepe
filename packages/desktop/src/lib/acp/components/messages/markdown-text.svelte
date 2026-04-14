@@ -116,7 +116,10 @@ function resolveRevealMode(): StreamingAnimationMode {
 	return streamingAnimationMode;
 }
 
-const reveal: StreamingRevealController = createStreamingRevealController(resolveRevealMode());
+// Controller is created once at component init using the current mode.
+// The latch (set in the streaming $effect) always matches the prop value at latch time,
+// so there's no divergence between controller type and latched mode.
+const reveal: StreamingRevealController = createStreamingRevealController(untrack(() => streamingAnimationMode));
 let hasStreamingSession = $state(false);
 let hasObservedRevealSource = $state(false);
 let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
@@ -202,6 +205,10 @@ const showStreamingCursor = $derived(
 $effect(() => {
 	return () => {
 		reveal.destroy();
+		if (revealKey !== undefined) {
+			seededRevealKeys.delete(revealKey);
+			latchedRevealModes.delete(revealKey);
+		}
 	};
 });
 

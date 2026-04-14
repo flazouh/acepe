@@ -1,3 +1,4 @@
+import { splitGraphemes, splitGraphemesSuffix } from "./grapheme-utils.js";
 import type { RevealMode } from "./streaming-reveal-engine.js";
 
 const PAUSE_THRESHOLD_MS = 120;
@@ -6,12 +7,6 @@ const STREAMING_MIN_CHARS_PER_FLUSH = 80;
 const STREAMING_MAX_CHARS_PER_FLUSH = 200;
 const COMPLETION_MIN_CHARS_PER_FLUSH = 200;
 const COMPLETION_MAX_CHARS_PER_FLUSH = 400;
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
-function splitGraphemes(text: string): string[] {
-	return Array.from(graphemeSegmenter.segment(text), (segment) => segment.segment);
-}
-
 function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.max(minimum, Math.min(value, maximum));
 }
@@ -62,6 +57,7 @@ export function createSmoothStreamingReveal() {
 	let sourceText = "";
 	let sourceGraphemes: string[] = [];
 	let revealedLength = 0;
+	let lastSyncedRevealedLength = -1;
 	let isStreaming = false;
 	let sourceIdleMs = 0;
 	let bufferedMs = 0;
@@ -86,7 +82,10 @@ export function createSmoothStreamingReveal() {
 	}
 
 	function syncState(): void {
-		displayedText = sourceGraphemes.slice(0, revealedLength).join("");
+		if (revealedLength !== lastSyncedRevealedLength) {
+			displayedText = sourceGraphemes.slice(0, revealedLength).join("");
+			lastSyncedRevealedLength = revealedLength;
+		}
 		mode = computeMode(sourceGraphemes.length, revealedLength, isStreaming, sourceIdleMs);
 		isRevealActive = revealedLength < sourceGraphemes.length;
 		const keepTicking = isRevealActive || (shouldWatchForPause && isStreaming && mode === "streaming");
@@ -183,8 +182,8 @@ export function createSmoothStreamingReveal() {
 				revealedLength =
 					options?.seedFromSource || !nextIsStreaming ? sourceGraphemes.length : 0;
 			} else if (isAppendOnly) {
+				sourceGraphemes = splitGraphemesSuffix(sourceGraphemes, nextSourceText, sourceText);
 				sourceText = nextSourceText;
-				sourceGraphemes = splitGraphemes(nextSourceText);
 			} else {
 				resetFrameGeneration();
 				sourceText = nextSourceText;
@@ -194,6 +193,7 @@ export function createSmoothStreamingReveal() {
 
 			sourceIdleMs = 0;
 			bufferedMs = 0;
+			lastSyncedRevealedLength = -1;
 		}
 
 		isStreaming = nextIsStreaming;
@@ -218,6 +218,7 @@ export function createSmoothStreamingReveal() {
 		sourceText = "";
 		sourceGraphemes = [];
 		revealedLength = 0;
+		lastSyncedRevealedLength = -1;
 		isStreaming = false;
 		sourceIdleMs = 0;
 		syncState();

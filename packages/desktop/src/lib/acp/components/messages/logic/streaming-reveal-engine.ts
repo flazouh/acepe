@@ -25,11 +25,7 @@ const COMPLETION_BACKLOG_CHARS_PER_SECOND = 10;
 const MAX_STREAMING_CHARS_PER_FRAME = 12;
 const MAX_COMPLETION_CHARS_PER_FRAME = 40;
 const FAIL_OPEN_MAX_CHARS_PER_FRAME = 96;
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
-function splitGraphemes(text: string): string[] {
-	return Array.from(graphemeSegmenter.segment(text), (segment) => segment.segment);
-}
+import { splitGraphemes } from "./grapheme-utils.js";
 
 function clampRevealAdvance(
 	backlogLength: number,

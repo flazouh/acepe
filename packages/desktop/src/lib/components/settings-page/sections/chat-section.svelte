@@ -81,61 +81,54 @@ const selectedLabel = $derived(
 			/>
 		</SettingsControlCard>
 		{#if chatPrefs}
-			<div class="overflow-hidden rounded-sm border border-border bg-muted/30">
-				<div class="flex items-center justify-between gap-3 px-3 py-2">
-					<h3 class="min-w-0 text-[13px] font-medium text-foreground">
-						{m.settings_chat_streaming_animation()}
-					</h3>
-					<Select.Root
-						type="single"
-						value={chatPrefs.streamingAnimationMode}
-						onValueChange={(value) => {
-							void chatPrefs.setStreamingAnimationMode(
-								value as StreamingAnimationMode
-							);
-						}}
-						items={selectItems}
+			<SettingsControlCard
+				label={m.settings_chat_streaming_animation()}
+				description={m.settings_chat_streaming_animation_description()}
+			>
+				<Select.Root
+					type="single"
+					value={chatPrefs.streamingAnimationMode}
+					onValueChange={(value) => {
+						void chatPrefs.setStreamingAnimationMode(
+							value as StreamingAnimationMode
+						);
+					}}
+					items={selectItems}
+				>
+					<Select.Trigger
+						size="sm"
+						class="min-w-[11rem] text-[12px]"
+						aria-label={m.settings_chat_streaming_animation()}
 					>
-						<Select.Trigger
-							size="sm"
-							class="min-w-[11rem] text-[12px]"
-							aria-label={m.settings_chat_streaming_animation()}
-						>
-							<span data-slot="select-value">{selectedLabel}</span>
-							<CaretDown class="size-3 opacity-50" weight="bold" />
-						</Select.Trigger>
-						<Select.Content class="min-w-[14rem]">
-							{#each streamingAnimationOptions as option (option.value)}
-								<Select.Item
-									value={option.value}
-									label={option.label}
-									class="py-2.5"
-								>
-									{#snippet children({ selected: _selected })}
-										<div class="flex flex-col gap-1.5 min-w-0 pe-6">
-											<span class="text-[13px] font-medium">{option.label}</span>
-											<div
-												class="preview-bar preview-{option.value}"
-												aria-hidden="true"
-											>
-												<div class="bg-muted-foreground" style="width: 14px"></div>
-												<div class="bg-muted-foreground" style="width: 22px"></div>
-												<div class="bg-muted-foreground" style="width: 10px"></div>
-												<div class="bg-muted-foreground" style="width: 18px"></div>
-											</div>
+						<span data-slot="select-value">{selectedLabel}</span>
+						<CaretDown class="size-3 opacity-50" weight="bold" />
+					</Select.Trigger>
+					<Select.Content class="min-w-[14rem]">
+						{#each streamingAnimationOptions as option (option.value)}
+							<Select.Item
+								value={option.value}
+								label={option.label}
+								class="py-2.5"
+							>
+								{#snippet children({ selected: _selected })}
+									<div class="flex flex-col gap-1.5 min-w-0 pe-6">
+										<span class="text-[13px] font-medium">{option.label}</span>
+										<div
+											class="preview-bar preview-{option.value}"
+											aria-hidden="true"
+										>
+											<div class="bg-muted-foreground" style="width: 14px"></div>
+											<div class="bg-muted-foreground" style="width: 22px"></div>
+											<div class="bg-muted-foreground" style="width: 10px"></div>
+											<div class="bg-muted-foreground" style="width: 18px"></div>
 										</div>
-									{/snippet}
-								</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-				<div class="border-t border-border/30 px-3 py-2">
-					<p class="text-[12px] text-muted-foreground/60">
-						{m.settings_chat_streaming_animation_description()}
-					</p>
-				</div>
-			</div>
+									</div>
+								{/snippet}
+							</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</SettingsControlCard>
 		{/if}
 	</SettingsSection>
 </div>

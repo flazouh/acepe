@@ -24,8 +24,9 @@ function stopRefreshAnimation(node: HTMLElement) {
 
 function applySmoothFade(node: HTMLElement) {
 	node.classList.remove(SMOOTH_FADE_CLASS);
-	void node.offsetWidth;
-	node.classList.add(SMOOTH_FADE_CLASS);
+	requestAnimationFrame(() => {
+		node.classList.add(SMOOTH_FADE_CLASS);
+	});
 }
 
 export function streamingTailRefresh(node: HTMLElement, params: StreamingTailRefreshParams) {
@@ -36,9 +37,10 @@ export function streamingTailRefresh(node: HTMLElement, params: StreamingTailRef
 	setModeDataAttribute(node, currentMode);
 
 	if (isActive && hasContent) {
-		restartRefreshAnimation(node);
 		if (currentMode === "smooth") {
 			applySmoothFade(node);
+		} else {
+			restartRefreshAnimation(node);
 		}
 	}
 
@@ -55,12 +57,18 @@ export function streamingTailRefresh(node: HTMLElement, params: StreamingTailRef
 				return;
 			}
 
-			if (!isActive) {
-				restartRefreshAnimation(node);
-			}
-
 			if (nextMode === "smooth") {
+				if (currentMode !== "smooth") {
+					node.classList.remove(LIVE_REFRESH_CLASS);
+				}
 				applySmoothFade(node);
+			} else {
+				if (currentMode === "smooth") {
+					node.classList.remove(SMOOTH_FADE_CLASS);
+					restartRefreshAnimation(node);
+				} else if (!isActive) {
+					restartRefreshAnimation(node);
+				}
 			}
 
 			isActive = true;
