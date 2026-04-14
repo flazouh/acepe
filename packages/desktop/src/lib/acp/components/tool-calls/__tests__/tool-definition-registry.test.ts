@@ -80,4 +80,34 @@ describe("tool definition registry", () => {
 		expect(definition.rendererKey).toBe("read_lints");
 		expect(definition).toHaveProperty("component");
 	});
+
+	it("builds browser entries with script and result details for shared previews", () => {
+		const toolCall = createToolCall({
+			id: "tool-browser-1",
+			name: "mcp__tauri__webview_execute_js",
+			kind: "browser",
+			status: "completed",
+			arguments: {
+				kind: "browser",
+				raw: {
+					script: "(() => document.title)()",
+				},
+			},
+			result: {
+				content: "\"Acepe\"",
+			},
+		});
+
+		expect(resolveFullToolEntry({ toolCall, turnState: "completed" })).toEqual({
+			id: "tool-browser-1",
+			type: "tool_call",
+			kind: "browser",
+			title: "Execute JS",
+			subtitle: "(() => document.title)()",
+			filePath: undefined,
+			status: "done",
+			detailsText: "\"Acepe\"",
+			scriptText: "(() => document.title)()",
+		});
+	});
 });

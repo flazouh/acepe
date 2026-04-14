@@ -3,6 +3,7 @@ import { AgentToolBrowser } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { extractBrowserDetailsText, extractBrowserScriptText } from "./browser-tool-display.js";
 
 interface Props {
 	toolCall: ToolCall;
@@ -23,17 +24,9 @@ const agentStatus = $derived.by(() => {
 
 const title = $derived(formatBrowserToolTitle(toolCall.name));
 const subtitle = $derived(extractBrowserSubtitle(toolCall));
+const scriptText = $derived(extractBrowserScriptText(toolCall));
 
-const detailsText = $derived.by(() => {
-	const result = toolCall.result;
-	if (result === null || result === undefined) return null;
-	if (typeof result === "string") return result;
-	const content = (result as Record<string, unknown>).content;
-	if (typeof content === "string") return content;
-	const detailed = (result as Record<string, unknown>).detailedContent;
-	if (typeof detailed === "string") return detailed;
-	return JSON.stringify(result, null, 2);
-});
+const detailsText = $derived(extractBrowserDetailsText(toolCall));
 
 function extractFuncName(name: string): string {
 	// "mcp__server__func_name" → "func_name"
@@ -94,11 +87,13 @@ function extractBrowserSubtitle(tc: ToolCall): string | null {
 	}
 	return null;
 }
+
 </script>
 
 <AgentToolBrowser
 	{title}
 	{subtitle}
+	{scriptText}
 	{detailsText}
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}

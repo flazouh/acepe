@@ -5,6 +5,7 @@ import type { Snippet } from "svelte";
 import { CheckCircle, FileCode, Keyboard, Warning } from "phosphor-svelte";
 
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
+import AgentToolBrowser from "../agent-panel/agent-tool-browser.svelte";
 import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 import type { AgentToolEntry, AgentToolKind, AgentToolStatus } from "../agent-panel/types.js";
 import { BuildIcon, PlanIcon } from "../icons/index.js";
@@ -253,6 +254,23 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 							iconBasePath="/svgs/icons"
 						/>
 					</div>
+
+					{#if todoProgress}
+						<div class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
+							<SegmentedProgress current={todoProgress.current} total={todoProgress.total} />
+							<span class="truncate text-foreground/70">{todoProgress.label}</span>
+						</div>
+					{/if}
+				</div>
+			{:else if latestToolDisplay?.kind === "browser"}
+				<div class="flex w-full min-w-0 flex-col gap-1">
+					<AgentToolBrowser
+						title={latestToolDisplay.title}
+						subtitle={latestToolDisplay.subtitle ?? null}
+						detailsText={latestToolDisplay.detailsText ?? null}
+						scriptText={latestToolDisplay.scriptText ?? null}
+						status={latestToolDisplay.status}
+					/>
 
 					{#if todoProgress}
 						<div class="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">

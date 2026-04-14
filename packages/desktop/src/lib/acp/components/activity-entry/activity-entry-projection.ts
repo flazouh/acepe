@@ -62,7 +62,7 @@ export interface ActivityEntryProjection extends ActivityTaskProjection {
 	readonly todoProgress: ActivityEntryTodoProgress | null;
 	readonly latestToolEntry: Pick<
 		AgentToolEntry,
-		"id" | "kind" | "title" | "subtitle" | "filePath" | "status"
+		"id" | "kind" | "title" | "subtitle" | "detailsText" | "scriptText" | "filePath" | "status"
 	> | null;
 	readonly latestTool: CompactToolDisplay | null;
 }

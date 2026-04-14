@@ -1955,6 +1955,12 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 										id: msg.id,
 										content: msg.content,
 										attachmentCount: msg.attachments.length,
+										attachments: msg.attachments.map((a) => ({
+											id: a.id,
+											displayName: a.displayName,
+											extension: a.extension || null,
+											kind: a.type === "image" ? "image" as const : a.type === "text" ? "other" as const : "file" as const,
+										})),
 									}))}
 									isPaused={queueIsPaused}
 									queueLabel={m.agent_input_queued_messages()}
@@ -1971,6 +1977,9 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									}}
 									onRemove={(messageId) => {
 										if (sessionId) messageQueueStore.removeMessage(sessionId, messageId);
+									}}
+									onRemoveAttachment={(messageId, attachmentId) => {
+										if (sessionId) messageQueueStore.removeAttachmentFromMessage(sessionId, messageId, attachmentId);
 									}}
 									onClear={() => { if (sessionId) messageQueueStore.clearQueue(sessionId); }}
 									onResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}

@@ -27,6 +27,8 @@ export interface ActivityEntryToolDisplay {
   readonly kind?: import("../agent-panel/types.js").AgentToolKind;
   readonly title: string;
   readonly subtitle?: string;
+  readonly detailsText?: string | null;
+  readonly scriptText?: string | null;
   readonly filePath?: string;
   readonly status: "pending" | "running" | "done" | "error";
 }

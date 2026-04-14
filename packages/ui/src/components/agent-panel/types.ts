@@ -53,6 +53,7 @@ export interface AgentToolEntry {
 	title: string;
 	subtitle?: string;
 	detailsText?: string | null;
+	scriptText?: string | null;
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
 	status: AgentToolStatus;
@@ -115,10 +116,18 @@ export interface AgentTodoItem {
 	duration?: number | null;
 }
 
+export interface AgentPanelQueuedMessageAttachment {
+	id: string;
+	displayName: string;
+	extension?: string | null;
+	kind: "file" | "image" | "folder" | "other";
+}
+
 export interface AgentPanelQueuedMessage {
 	id: string;
 	content: string;
 	attachmentCount: number;
+	attachments?: readonly AgentPanelQueuedMessageAttachment[];
 }
 
 /** Normalized question option */

@@ -11,6 +11,7 @@ import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
 import ToolCallBrowser from "./tool-call-browser.svelte";
+import { extractBrowserDetailsText, extractBrowserScriptText } from "./browser-tool-display.js";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
@@ -176,6 +177,22 @@ function buildExecuteFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 	};
 }
 
+function buildBrowserFullEntry(options: ToolDisplayOptions): AgentToolEntry {
+	const baseEntry = buildDefaultFullEntry(options);
+
+	return {
+		id: baseEntry.id,
+		type: baseEntry.type,
+		kind: baseEntry.kind,
+		title: baseEntry.title,
+		subtitle: baseEntry.subtitle,
+		filePath: baseEntry.filePath,
+		status: baseEntry.status,
+		detailsText: extractBrowserDetailsText(options.toolCall),
+		scriptText: extractBrowserScriptText(options.toolCall),
+	};
+}
+
 const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 	read: createToolDefinition("read", ToolCallRead),
 	read_lints: createToolDefinition("read_lints", ToolCallReadLints),
@@ -201,7 +218,12 @@ const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
 	task_output: createToolDefinition("task_output", ToolCallTaskOutput),
 	skill: createToolDefinition("skill", ToolCallSkill),
 	tool_search: createToolDefinition("tool_search", ToolCallToolSearch),
-	browser: createToolDefinition("browser", ToolCallBrowser),
+	browser: {
+		rendererKey: "browser",
+		component: ToolCallBrowser,
+		buildFullEntry: buildBrowserFullEntry,
+		buildCompactEntry: (options) => compactToolEntry(buildBrowserFullEntry(options)),
+	},
 	other: createToolDefinition("other", ToolCallFallback),
 };
 

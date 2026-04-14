@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ArrowUp, PencilSimple, Trash } from "phosphor-svelte";
 	import type { AgentPanelQueuedMessage } from "./types.js";
+	import AgentInputArtefactBadge from "./agent-input-artefact-badge.svelte";
 
 	import { Button } from "../button/index.js";
 
@@ -18,6 +19,7 @@
 		cancelLabel: string;
 		onSaveEdit: (messageId: string, content: string) => void;
 		onRemove: (messageId: string) => void;
+		onRemoveAttachment?: (messageId: string, attachmentId: string) => void;
 		onClear: () => void;
 		onResume?: (() => void) | undefined;
 		onSendNow: (messageId: string) => void;
@@ -37,6 +39,7 @@
 		cancelLabel,
 		onSaveEdit,
 		onRemove,
+		onRemoveAttachment,
 		onClear,
 		onResume,
 		onSendNow,
@@ -84,6 +87,14 @@
 			handleCancelEdit();
 		}
 	}
+
+	/** Max visible characters before truncation */
+	const TEXT_TRUNCATE_LIMIT = 280;
+
+	function truncateContent(text: string): string {
+		if (text.length <= TEXT_TRUNCATE_LIMIT) return text;
+		return text.slice(0, TEXT_TRUNCATE_LIMIT) + "…";
+	}
 </script>
 
 {#if count > 0}
@@ -92,76 +103,94 @@
 			<div class="flex flex-col max-h-[260px] overflow-y-auto">
 				{#each displayQueue as message (message.id)}
 					{@const isNewest = messages[messages.length - 1]?.id === message.id}
+					{@const hasAttachments = (message.attachments?.length ?? 0) > 0}
 					<div
-						class="queue-message-row flex items-start gap-2 px-3 py-1.5 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isNewest ? 'bg-muted/30' : ''}"
+						class="queue-message-row flex flex-col gap-1.5 px-3 py-2 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isNewest ? 'bg-muted/30' : ''}"
 					>
 						{#if editingMessageId === message.id}
-							<div class="flex-1 flex flex-col gap-1.5 py-0.5">
+							<div class="flex flex-col gap-1.5">
 								<textarea
 									bind:value={editingContent}
 									class="min-h-[60px] max-h-[120px] w-full resize-y rounded border border-border bg-background px-2 py-1 text-[0.6875rem] outline-none focus:ring-1 focus:ring-primary/40"
 								></textarea>
 								<div class="flex items-center justify-end gap-1">
-									<button
-										type="button"
-										class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+									<Button
+										variant="headerAction"
+										size="headerAction"
 										onclick={handleCancelEdit}
 									>
 										{cancelLabel}
-									</button>
-									<button
-										type="button"
-										class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/75 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+									</Button>
+									<Button
+										variant="headerAction"
+										size="headerAction"
 										onclick={handleSaveEdit}
 									>
 										{saveLabel}
-									</button>
+									</Button>
 								</div>
 							</div>
 						{:else}
-							<div class="flex min-w-0 flex-1 items-start gap-2">
-								<span class="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground">
-									{message.content}
-								</span>
+							<!-- Attachment chips -->
+							{#if hasAttachments && message.attachments}
+								<div class="flex flex-wrap gap-1">
+									{#each message.attachments as attachment (attachment.id)}
+										<AgentInputArtefactBadge
+											displayName={attachment.displayName}
+											extension={attachment.extension ?? null}
+											kind={attachment.kind}
+											onRemove={() => onRemoveAttachment?.(message.id, attachment.id)}
+										/>
+									{/each}
+								</div>
+							{/if}
 
-								{#if message.attachmentCount > 0}
-									<span class="shrink-0 pt-0.5 font-mono text-[0.625rem] text-muted-foreground">
-										+{message.attachmentCount}
+							<!-- Text content + action buttons row -->
+							<div class="flex items-start gap-2">
+								{#if message.content.trim().length > 0}
+									<span class="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground">
+										{truncateContent(message.content)}
 									</span>
+								{:else if !hasAttachments}
+									<span class="min-w-0 flex-1 text-muted-foreground italic">
+										(empty)
+									</span>
+								{:else}
+									<span class="flex-1"></span>
 								{/if}
-							</div>
 
-							<div class="flex items-center gap-0.5 shrink-0" role="none">
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									class="size-6"
-									aria-label={editLabel}
-									title={editLabel}
-									onclick={() => handleStartEdit(message.id, message.content)}
-								>
-									<PencilSimple weight="fill" class="h-3 w-3" />
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									class="size-6"
-									aria-label={deleteLabel}
-									title={deleteLabel}
-									onclick={() => handleRemove(message.id)}
-								>
-									<Trash weight="fill" class="h-3 w-3" />
-								</Button>
-								<Button
-									type="button"
-									size="sm"
-									class="size-6 rounded-full border-transparent bg-foreground p-0 text-background shadow-none hover:bg-foreground/85"
-									aria-label={sendLabel}
-									title={sendLabel}
-									onclick={() => onSendNow(message.id)}
-								>
-									<ArrowUp weight="bold" class="h-3 w-3" />
-								</Button>
+								<div class="flex items-center gap-1 shrink-0" role="none">
+									<Button
+										variant="headerAction"
+										size="headerAction"
+										aria-label={editLabel}
+										title={editLabel}
+										onclick={() => handleStartEdit(message.id, message.content)}
+									>
+										<PencilSimple size={11} weight="fill" class="shrink-0" />
+										{editLabel}
+									</Button>
+									<Button
+										variant="headerAction"
+										size="headerAction"
+										aria-label={deleteLabel}
+										title={deleteLabel}
+										onclick={() => handleRemove(message.id)}
+									>
+										<Trash size={11} weight="fill" class="shrink-0" />
+										{deleteLabel}
+									</Button>
+									<Button
+										variant="invert"
+										size="headerAction"
+										aria-label={sendLabel}
+										title={sendLabel}
+										onclick={() => onSendNow(message.id)}
+									>
+										<ArrowUp size={11} weight="bold" class="shrink-0" />
+										{sendLabel}
+									</Button>
+								</div>
 							</div>
 						{/if}
 					</div>

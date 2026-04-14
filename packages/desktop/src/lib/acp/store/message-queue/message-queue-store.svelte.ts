@@ -64,6 +64,8 @@ export interface MessageQueueStore {
 	enqueue(sessionId: string, content: string, attachments: readonly Attachment[]): boolean;
 	updateMessage(sessionId: string, messageId: string, content: string): boolean;
 	removeMessage(sessionId: string, messageId: string): void;
+	/** Remove a single attachment from a queued message. */
+	removeAttachmentFromMessage(sessionId: string, messageId: string, attachmentId: string): void;
 	clearQueue(sessionId: string): void;
 	drainNext(sessionId: string): void;
 	/** Send a specific queued message immediately, removing it from the queue. */
@@ -164,6 +166,29 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			queues.set(sessionId, filtered);
 			bumpVersion(sessionId);
 		}
+	}
+
+	function removeAttachmentFromMessage(
+		sessionId: string,
+		messageId: string,
+		attachmentId: string
+	): void {
+		const queue = queues.get(sessionId);
+		if (!queue) return;
+
+		const nextQueue = queue.map((message) => {
+			if (message.id !== messageId) return message;
+			const filtered = message.attachments.filter((a) => a.id !== attachmentId);
+			return {
+				id: message.id,
+				content: message.content,
+				attachments: filtered,
+				queuedAt: message.queuedAt,
+			};
+		});
+
+		queues.set(sessionId, nextQueue);
+		bumpVersion(sessionId);
 	}
 
 	function clearQueue(sessionId: string): void {
@@ -279,6 +304,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 		enqueue,
 		updateMessage,
 		removeMessage,
+		removeAttachmentFromMessage,
 		clearQueue,
 		drainNext,
 		sendNow,

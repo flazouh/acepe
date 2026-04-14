@@ -454,8 +454,13 @@ const demoTodoItems: readonly AgentTodoItem[] = [
 const demoCurrentTask: AgentTodoItem = demoTodoItems[2];
 
 const demoQueueMessages: readonly AgentPanelQueuedMessage[] = [
-	{ id: "q1", content: "Also update the README with the new API docs", attachmentCount: 0 },
-	{ id: "q2", content: "Run the test suite after those changes", attachmentCount: 1 },
+	{ id: "q1", content: "Also update the README with the new API docs", attachmentCount: 0, attachments: [] },
+	{
+		id: "q2",
+		content: "Run the test suite after those changes",
+		attachmentCount: 1,
+		attachments: [{ id: "qa1", displayName: "screenshot.png", extension: "png", kind: "image" }],
+	},
 ];
 
 const demoPrCardModel: AgentPanelPrCardModel = {
