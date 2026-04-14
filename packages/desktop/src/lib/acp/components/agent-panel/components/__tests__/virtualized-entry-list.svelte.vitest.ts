@@ -82,6 +82,7 @@ function renderList(props?: {
 	entries?: readonly SessionEntry[];
 	turnState?: TurnState;
 	isWaitingForResponse?: boolean;
+	sessionId?: string;
 }): ReturnType<typeof render> {
 	return render(VirtualizedEntryList, {
 		panelId: "panel-1",
@@ -89,7 +90,7 @@ function renderList(props?: {
 		turnState: props?.turnState ?? "idle",
 		isWaitingForResponse: props?.isWaitingForResponse ?? false,
 		projectPath: undefined,
-		sessionId: "session-1",
+		sessionId: props?.sessionId ?? "session-1",
 		isFullscreen: false,
 		onNearBottomChange: undefined,
 	});
@@ -211,6 +212,41 @@ describe("VirtualizedEntryList auto-scroll", () => {
 
 		expect(dataLengthHistory).toContain(2);
 		expect(dataLengthHistory.indexOf(0)).toBeLessThan(dataLengthHistory.indexOf(2));
+	});
+
+	it("switches sessions without re-entering empty hydration and still reveals the latest entry", async () => {
+		const view = renderList({
+			entries: [createUserEntry("user-1", "hello"), createUserEntry("user-2", "world")],
+			sessionId: "session-1",
+		});
+		await tick();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		dataLengthHistory.length = 0;
+		scrollToIndexCalls.length = 0;
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [createUserEntry("user-3", "next"), createUserEntry("user-4", "session")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-2",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		expect(dataLengthHistory).not.toContain(0);
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 1,
+			options: { align: "end" },
+		});
 	});
 
 	it("falls back to a native scroll container when Virtua never reports a viewport", async () => {

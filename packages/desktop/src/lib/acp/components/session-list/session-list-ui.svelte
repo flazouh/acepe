@@ -9,10 +9,12 @@ import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
 import { DropdownMenu } from "bits-ui";
 import { ArrowsClockwise } from "phosphor-svelte";
+import { ArrowCounterClockwise } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
+import { ImageSquare } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
 import { Recycle } from "phosphor-svelte";
 import { Sparkle } from "phosphor-svelte";
@@ -23,6 +25,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
@@ -46,7 +49,7 @@ import ProjectHeaderAgentStrip from "../project-header-agent-strip.svelte";
 import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import { ProjectLetterBadge } from "@acepe/ui";
 import {
-	filterLiveSessions,
+	getSidebarSessions,
 	getNextSessionListVisibleCount,
 	getSessionListVisibleCount,
 	isSessionListNearBottom,
@@ -74,6 +77,8 @@ interface Props {
 	/** Initial collapsed project paths for persistence */
 	initialCollapsedProjectPaths?: string[];
 	onProjectColorChange?: (projectPath: string, color: string) => void;
+	onChangeProjectIcon?: (projectPath: string) => void;
+	onResetProjectIcon?: (projectPath: string) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectSession: (item: SessionListItem) => void;
 	onCreateSession?: () => void;
@@ -121,6 +126,8 @@ let {
 	initialProjectFileViewModes = {},
 	initialCollapsedProjectPaths = [],
 	onProjectColorChange,
+	onChangeProjectIcon,
+	onResetProjectIcon,
 	onRemoveProject,
 	onSelectSession,
 	onCreateSession: _onCreateSession,
@@ -273,12 +280,12 @@ function setProjectViewMode(projectPath: string, mode: ProjectViewMode) {
 }
 
 function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
-	const liveSessions = filterLiveSessions(group.sessions);
+	const sidebarSessions = getSidebarSessions(group.sessions);
 	const visibleCount = getSessionListVisibleCount(
-		liveSessions.length,
+		sidebarSessions.length,
 		visibleSessionCounts.get(group.projectPath)
 	);
-	return liveSessions.slice(0, visibleCount);
+	return sidebarSessions.slice(0, visibleCount);
 }
 
 function ensureSessionListOverflow(projectPath: string, totalSessions: number): void {
@@ -721,6 +728,10 @@ function handleProjectHeaderClick(projectPath: string) {
 	toggleProject(projectPath);
 }
 
+function hasProjectIcon(iconSrc: string | null | undefined): boolean {
+	return Boolean(iconSrc);
+}
+
 // ─── Branch picker ───────────────────────────────────────────────
 
 interface BranchPrefix {
@@ -896,68 +907,91 @@ function openCreateBranchDialog(projectPath: string): void {
 								</div>
 							{:else}
 								<!-- Normal header: badge, name, settings, plus icon -->
-								<ProjectHeader
-									projectColor={group.projectColor}
-									projectName={group.projectName}
-									expanded={true}
-									class="group min-w-0 flex-1 cursor-pointer transition-colors"
-								>
-									{#snippet actions()}
-										<div
-											class="flex items-center"
-											role="presentation"
-											onclick={(e) => e.stopPropagation()}
-											onkeydown={(e) => e.stopPropagation()}
+								<ContextMenu.Root>
+									<ContextMenu.Trigger class="flex-1 min-w-0">
+										<ProjectHeader
+											projectColor={group.projectColor}
+											projectName={group.projectName}
+											projectIconSrc={group.projectIconSrc}
+											expanded={true}
+											class="group min-w-0 flex-1 cursor-pointer transition-colors"
 										>
-											<ProjectHeaderOverflowMenu
-												projectName={group.projectName}
-												currentColor={group.projectColor}
-												currentViewMode={viewMode}
-												onColorChange={onProjectColorChange
-													? (color) => onProjectColorChange(group.projectPath, color)
-													: undefined}
-												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-												onRemoveProject={onRemoveProject
-													? () => onRemoveProject(group.projectPath)
-													: undefined}
-											/>
-										{#if shouldShowProjectCreateButton()}
-											<div
-												class="flex items-center"
-												role="presentation"
-												onclick={(e) => {
-													e.stopPropagation();
-													if (shouldShowProjectQuickActions()) {
-														projectPathShowingAgentStrip = group.projectPath;
-													} else {
-														handleCreateClick(e, group.projectPath);
-													}
-												}}
-												onkeydown={(e) => e.stopPropagation()}
-											>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<button
-															type="button"
-															class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-															aria-label={m.thread_list_new_session_in_project({
-																projectName: group.projectName,
-															})}
-														>
-															<IconPlus class="h-3 w-3" />
-														</button>
-													</Tooltip.Trigger>
-													<Tooltip.Content>
-														{m.thread_list_new_session_in_project({
-															projectName: group.projectName,
-														})}
-													</Tooltip.Content>
-												</Tooltip.Root>
+											{#snippet actions()}
+												<div
+													class="flex items-center"
+													role="presentation"
+													onclick={(e) => e.stopPropagation()}
+													onkeydown={(e) => e.stopPropagation()}
+												>
+													<ProjectHeaderOverflowMenu
+														projectName={group.projectName}
+														currentColor={group.projectColor}
+														currentViewMode={viewMode}
+														onColorChange={onProjectColorChange
+															? (color) => onProjectColorChange(group.projectPath, color)
+															: undefined}
+														onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+														hasProjectIcon={hasProjectIcon(group.projectIconSrc)}
+														onResetProjectIcon={onResetProjectIcon
+															? () => onResetProjectIcon(group.projectPath)
+															: undefined}
+														onRemoveProject={onRemoveProject
+															? () => onRemoveProject(group.projectPath)
+															: undefined}
+													/>
+												{#if shouldShowProjectCreateButton()}
+													<div
+														class="flex items-center"
+														role="presentation"
+														onclick={(e) => {
+															e.stopPropagation();
+															if (shouldShowProjectQuickActions()) {
+																projectPathShowingAgentStrip = group.projectPath;
+															} else {
+																handleCreateClick(e, group.projectPath);
+															}
+														}}
+														onkeydown={(e) => e.stopPropagation()}
+													>
+														<Tooltip.Root>
+															<Tooltip.Trigger>
+																<button
+																	type="button"
+																	class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+																	aria-label={m.thread_list_new_session_in_project({
+																		projectName: group.projectName,
+																	})}
+																>
+																	<IconPlus class="h-3 w-3" />
+																</button>
+															</Tooltip.Trigger>
+															<Tooltip.Content>
+																{m.thread_list_new_session_in_project({
+																	projectName: group.projectName,
+																})}
+															</Tooltip.Content>
+														</Tooltip.Root>
+													</div>
+												{/if}
 											</div>
+											{/snippet}
+										</ProjectHeader>
+									</ContextMenu.Trigger>
+									<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
+										{#if onChangeProjectIcon}
+											<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
+												<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
+												{m.project_icon_change()}
+											</ContextMenu.Item>
 										{/if}
-									</div>
-									{/snippet}
-								</ProjectHeader>
+										{#if onResetProjectIcon && hasProjectIcon(group.projectIconSrc)}
+											<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
+												<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
+												{m.project_icon_reset()}
+											</ContextMenu.Item>
+										{/if}
+									</ContextMenu.Content>
+								</ContextMenu.Root>
 							{/if}
 						</div>
 						<!-- Session list skeleton (sessions are what we're loading) -->
@@ -1040,68 +1074,91 @@ function openCreateBranchDialog(projectPath: string): void {
 						</div>
 					{:else}
 						<!-- Normal header: badge, name, settings, plus icon -->
-						<ProjectHeader
-							projectColor={group.projectColor}
-							projectName={group.projectName}
-							expanded={isExpanded}
-							class="group min-w-0 flex-1 cursor-pointer transition-colors"
-						>
-							{#snippet actions()}
-								<div
-									class="flex shrink-0 items-center gap-0.5 pr-0.5"
-									role="presentation"
-									onclick={(e) => e.stopPropagation()}
-									onkeydown={(e) => e.stopPropagation()}
+						<ContextMenu.Root>
+							<ContextMenu.Trigger class="flex-1 min-w-0">
+								<ProjectHeader
+									projectColor={group.projectColor}
+									projectName={group.projectName}
+									projectIconSrc={group.projectIconSrc}
+									expanded={isExpanded}
+									class="group min-w-0 flex-1 cursor-pointer transition-colors"
 								>
-									<ProjectHeaderOverflowMenu
-										projectName={group.projectName}
-										currentColor={group.projectColor}
-										currentViewMode={viewMode}
-										onColorChange={onProjectColorChange
-											? (color) => onProjectColorChange(group.projectPath, color)
-											: undefined}
-										onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-										onRemoveProject={onRemoveProject
-											? () => onRemoveProject(group.projectPath)
-											: undefined}
-									/>
-									{#if shouldShowProjectCreateButton()}
+									{#snippet actions()}
 										<div
-											class="flex shrink-0 items-center"
+											class="flex shrink-0 items-center gap-0.5 pr-0.5"
 											role="presentation"
-											onclick={(e) => {
-												e.stopPropagation();
-												if (shouldShowProjectQuickActions()) {
-													projectPathShowingAgentStrip = group.projectPath;
-												} else {
-													handleCreateClick(e, group.projectPath);
-												}
-											}}
+											onclick={(e) => e.stopPropagation()}
 											onkeydown={(e) => e.stopPropagation()}
 										>
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													<button
-														type="button"
-														class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-														aria-label={m.thread_list_new_session_in_project({
-															projectName: group.projectName,
-														})}
-													>
-														<IconPlus class="h-3 w-3" />
-													</button>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													{m.thread_list_new_session_in_project({
-														projectName: group.projectName,
-													})}
-												</Tooltip.Content>
-											</Tooltip.Root>
+											<ProjectHeaderOverflowMenu
+												projectName={group.projectName}
+												currentColor={group.projectColor}
+												currentViewMode={viewMode}
+												onColorChange={onProjectColorChange
+													? (color) => onProjectColorChange(group.projectPath, color)
+													: undefined}
+												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+												hasProjectIcon={hasProjectIcon(group.projectIconSrc)}
+												onResetProjectIcon={onResetProjectIcon
+													? () => onResetProjectIcon(group.projectPath)
+													: undefined}
+												onRemoveProject={onRemoveProject
+													? () => onRemoveProject(group.projectPath)
+													: undefined}
+											/>
+											{#if shouldShowProjectCreateButton()}
+												<div
+													class="flex shrink-0 items-center"
+													role="presentation"
+													onclick={(e) => {
+														e.stopPropagation();
+														if (shouldShowProjectQuickActions()) {
+															projectPathShowingAgentStrip = group.projectPath;
+														} else {
+															handleCreateClick(e, group.projectPath);
+														}
+													}}
+													onkeydown={(e) => e.stopPropagation()}
+												>
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															<button
+																type="button"
+																class="flex items-center justify-center size-6 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+																aria-label={m.thread_list_new_session_in_project({
+																	projectName: group.projectName,
+																})}
+															>
+																<IconPlus class="h-3 w-3" />
+															</button>
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															{m.thread_list_new_session_in_project({
+																projectName: group.projectName,
+															})}
+														</Tooltip.Content>
+													</Tooltip.Root>
+												</div>
+											{/if}
 										</div>
-									{/if}
-								</div>
-							{/snippet}
-						</ProjectHeader>
+									{/snippet}
+								</ProjectHeader>
+							</ContextMenu.Trigger>
+							<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
+								{#if onChangeProjectIcon}
+									<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
+										<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
+										{m.project_icon_change()}
+									</ContextMenu.Item>
+								{/if}
+								{#if onResetProjectIcon && hasProjectIcon(group.projectIconSrc)}
+									<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
+										<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
+										{m.project_icon_reset()}
+									</ContextMenu.Item>
+								{/if}
+							</ContextMenu.Content>
+						</ContextMenu.Root>
 					{/if}
 				</div>
 
@@ -1109,12 +1166,12 @@ function openCreateBranchDialog(projectPath: string): void {
 					{#if isExpanded}
 						{#if viewMode === "sessions"}
 							<!-- Sessions view - use simple overflow for scrolling -->
-							{@const liveSessions = filterLiveSessions(group.sessions)}
+							{@const sidebarSessions = getSidebarSessions(group.sessions)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
 								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
-								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: liveSessions.length }}
-								onscroll={() => handleSessionListScroll(group.projectPath, liveSessions.length)}
+								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: sidebarSessions.length }}
+								onscroll={() => handleSessionListScroll(group.projectPath, sidebarSessions.length)}
 							>
 								{#if scanningProjectPaths.has(group.projectPath) && group.sessions.length === 0}
 									<SessionListSkeleton sessionCount={3} />

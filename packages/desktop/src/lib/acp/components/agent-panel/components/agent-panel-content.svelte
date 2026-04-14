@@ -107,7 +107,7 @@ export function scrollToTop() {
 </script>
 
 {#if viewState.kind === "project_selection"}
-	<AgentPanelStatePanel class="overflow-y-auto">
+	<AgentPanelStatePanel class="overflow-y-auto" centerContent={true}>
 		{#snippet children()}
 			<ProjectSelectionPanel
 				projects={[...allProjects]}
@@ -128,21 +128,19 @@ export function scrollToTop() {
 	<div class="h-full flex flex-col relative">
 		<div class="flex-1 min-h-0">
 			{#if sessionId}
-				{#key sessionId}
-					<VirtualizedEntryList
-						bind:this={virtualizedListRef}
-						{panelId}
-						entries={sessionEntries}
-						{sessionId}
-						{turnState}
-						{isWaitingForResponse}
-						projectPath={sessionProjectPath ?? undefined}
-						{isFullscreen}
-						{modifiedFilesState}
-						onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
-						onNearTopChange={(nearTop) => (isAtTop = nearTop)}
-					/>
-				{/key}
+				<VirtualizedEntryList
+					bind:this={virtualizedListRef}
+					{panelId}
+					entries={sessionEntries}
+					{sessionId}
+					{turnState}
+					{isWaitingForResponse}
+					projectPath={sessionProjectPath ?? undefined}
+					{isFullscreen}
+					{modifiedFilesState}
+					onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
+					onNearTopChange={(nearTop) => (isAtTop = nearTop)}
+				/>
 			{:else if sessionEntries.length > 0}
 				<!-- Pending entry: session not yet created, show optimistic user message + thinking shimmer -->
 				<div class="h-full overflow-y-auto px-1">

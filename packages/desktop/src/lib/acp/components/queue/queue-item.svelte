@@ -424,7 +424,12 @@ function handleNextQuestion() {
 </script>
 
 {#snippet projectBadge()}
-	<ProjectLetterBadge name={item.projectName} color={item.projectColor} size={16} />
+	<ProjectLetterBadge
+		name={item.projectName}
+		color={item.projectColor}
+		iconSrc={item.projectIconSrc}
+		size={16}
+	/>
 {/snippet}
 
 {#snippet agentBadge()}

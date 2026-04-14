@@ -11,6 +11,7 @@ interface Props {
 	activeFilePanelId: string | null;
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	onSelectFilePanel: (panelId: string) => void;
 	onCloseFilePanel: (panelId: string) => void;
 	onResizeFilePanel: (panelId: string, delta: number) => void;
@@ -21,6 +22,7 @@ let {
 	activeFilePanelId,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	onSelectFilePanel,
 	onCloseFilePanel,
 	onResizeFilePanel,
@@ -78,6 +80,7 @@ const activeFilePanel = $derived.by(() => {
 				projectPath={activeFilePanel.projectPath}
 				{projectName}
 				{projectColor}
+				{projectIconSrc}
 				width={activeFilePanel.width}
 				hideProjectBadge={true}
 				onClose={() => onCloseFilePanel(activeFilePanel.id)}

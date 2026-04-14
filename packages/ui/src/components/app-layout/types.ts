@@ -6,6 +6,7 @@ export interface AppTab {
   title: string;
   projectName?: string;
   projectColor?: string;
+  projectIconSrc?: string | null;
   agentIconSrc?: string;
   mode?: AppTabMode;
   status?: AppTabStatus;
@@ -32,5 +33,6 @@ export interface AppProjectGroup {
 export interface AppTabGroup {
   projectName: string;
   projectColor: string;
+  projectIconSrc?: string | null;
   tabs: AppTab[];
 }

@@ -336,6 +336,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectPath={filePanel.projectPath}
 					projectName={project ? project.name : m.project_unknown()}
 					projectColor={project?.color}
+					projectIconSrc={project?.iconPath ?? null}
 					width={filePanel.width}
 					isFullscreenEmbedded={true}
 					hideProjectBadge={true}
@@ -364,6 +365,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectPath={terminalGroup.projectPath}
 					projectName={project ? project.name : m.project_unknown()}
 					projectColor={project ? project.color : "#4AD0FF"}
+					projectIconSrc={project?.iconPath ?? null}
 					panelStore={terminalTabsPanelStore}
 				/>
 			{:else if fullscreenTopLevelPanel.kind === "browser"}
@@ -394,6 +396,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							activeFilePanelId={panelStore.getActiveTopLevelFilePanelId(group.projectPath)}
 							projectName={project ? project.name : m.project_unknown()}
 							projectColor={project?.color}
+							projectIconSrc={project?.iconPath ?? null}
 							onSelectFilePanel={(panelId) => panelStore.setActiveTopLevelFilePanel(group.projectPath, panelId)}
 							onCloseFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 							onResizeFilePanel={(panelId, delta) => panelStore.resizeFilePanel(panelId, delta)}
@@ -423,6 +426,8 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								projectPath={group.projectPath}
 								projectName={group.projectName}
 								projectColor={group.projectColor}
+								projectIconSrc={projectManager.projects.find((project) => project.path === group.projectPath)?.iconPath ??
+									null}
 								panelStore={terminalTabsPanelStore}
 							/>
 						{/each}

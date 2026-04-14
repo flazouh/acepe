@@ -38,6 +38,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		title: tab.title ?? m.agent_panel_new_thread(),
 		projectName: tab.projectName ?? undefined,
 		projectColor: tab.projectColor ?? undefined,
+		projectIconSrc: tab.projectIconSrc,
 		agentIconSrc: tab.agentId ? getAgentIcon(tab.agentId, themeState.effectiveTheme) : undefined,
 		mode,
 		status,

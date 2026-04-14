@@ -1,6 +1,10 @@
 <script lang="ts">
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import type { ContentBlock } from "../../schemas/content-block.schema.js";
+import {
+	DEFAULT_STREAMING_ANIMATION_MODE,
+	type StreamingAnimationMode,
+} from "../../types/streaming-animation-mode.js";
 import { validateContentBlock } from "../../utils/content-block-validator.js";
 import { getBlockRenderer } from "./acp-block-types/registry.js";
 
@@ -11,9 +15,16 @@ interface Props {
 	revealKey?: string;
 	/** Project path for opening files in panels */
 	projectPath?: string;
+	streamingAnimationMode?: StreamingAnimationMode;
 }
 
-let { block, isStreaming = false, revealKey, projectPath: propProjectPath }: Props = $props();
+let {
+	block,
+	isStreaming = false,
+	revealKey,
+	projectPath: propProjectPath,
+	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
+}: Props = $props();
 
 const sessionContext = useSessionContext();
 const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
@@ -28,7 +39,7 @@ const validationResult = $derived(validateContentBlock(block));
 		{@const blockProps = (
 			renderer as { getProps: (b: ContentBlock) => Record<string, unknown> }
 		).getProps(validatedBlock)}
-		<Component {...blockProps} {isStreaming} {revealKey} {projectPath} />
+		<Component {...blockProps} {isStreaming} {revealKey} {projectPath} {streamingAnimationMode} />
 	{:else}
 		<div class="text-xs text-muted-foreground/70 italic">
 			Unknown block type: {validatedBlock.type}

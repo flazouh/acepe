@@ -3,7 +3,11 @@ import type { Project } from "../../logic/project-manager.svelte.js";
 import type { Checkpoint } from "../../types/checkpoint.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 
-import { createProjectColorMap, createProjectNameMap } from "../../utils/project-utils.js";
+import {
+	createProjectColorMap,
+	createProjectIconSrcMap,
+	createProjectNameMap,
+} from "../../utils/project-utils.js";
 import type {
 	LastToolInfo,
 	SessionActivityInfo,
@@ -12,7 +16,7 @@ import type {
 	TodoProgressInfo,
 } from "./session-list-types.js";
 
-export { createProjectColorMap, createProjectNameMap };
+export { createProjectColorMap, createProjectIconSrcMap, createProjectNameMap };
 
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
@@ -35,6 +39,7 @@ export function createLoadingSessionGroups(projects: readonly Project[]): Sessio
 			projectPath: project.path,
 			projectName: project.name,
 			projectColor: project.color,
+			projectIconSrc: project.iconPath ?? null,
 			sessions: [],
 		}));
 }
@@ -208,6 +213,7 @@ export function createDisplayItems(
 	sessions: readonly SessionWithEntries[],
 	projectNameMap: Map<string, string>,
 	projectColorMap: Map<string, string>,
+	projectIconSrcMap: Map<string, string | null>,
 	openSessionIds: Set<string>,
 	getCheckpoints?: (sessionId: string) => readonly Checkpoint[]
 ): SessionListItem[] {
@@ -215,6 +221,7 @@ export function createDisplayItems(
 		const projectName =
 			projectNameMap.get(session.projectPath) || extractProjectName(session.projectPath);
 		const projectColor = projectColorMap.get(session.projectPath);
+		const projectIconSrc = projectIconSrcMap.get(session.projectPath);
 
 		// Streaming indicator from session flag (no entry scan needed)
 		const activity: SessionActivityInfo | null = session.isStreaming
@@ -234,6 +241,7 @@ export function createDisplayItems(
 			projectPath: session.projectPath,
 			projectName,
 			projectColor,
+			projectIconSrc,
 			agentId: session.agentId,
 			sourcePath: session.sourcePath,
 			createdAt: session.createdAt,
@@ -271,19 +279,13 @@ export function filterItems(
 }
 
 /**
- * Returns true if a session is "live" — currently open in a panel or actively streaming.
- * Live sessions are always shown; historical sessions require the user to opt in.
+ * Returns the sessions that should be rendered in the sidebar.
+ *
+ * Historical sessions remain visible so the project list never appears empty
+ * when there are no currently open or streaming sessions.
  */
-export function isLiveSession(item: SessionListItem): boolean {
-	return item.isLive;
-}
-
-/**
- * Filters a session group's sessions to only live sessions.
- * A session is live if it has an open panel or is actively streaming.
- */
-export function filterLiveSessions(sessions: readonly SessionListItem[]): SessionListItem[] {
-	return sessions.filter(isLiveSession);
+export function getSidebarSessions(sessions: readonly SessionListItem[]): SessionListItem[] {
+	return Array.from(sessions);
 }
 
 /**
@@ -456,6 +458,7 @@ export function createSessionGroups(
 				projectPath: project.path,
 				projectName: project.name,
 				projectColor: project.color,
+				projectIconSrc: project.iconPath ?? null,
 				sessions: [],
 			});
 		}
@@ -468,6 +471,7 @@ export function createSessionGroups(
 				projectPath: item.projectPath,
 				projectName: item.projectName,
 				projectColor: item.projectColor,
+				projectIconSrc: undefined,
 				sessions: [],
 			};
 			groupMap.set(item.projectPath, group);

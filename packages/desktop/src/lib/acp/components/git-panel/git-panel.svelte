@@ -87,6 +87,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	width: number;
 	initialTarget?: GitPanelInitialTarget;
 	voiceSessionId?: string | null;
@@ -103,6 +104,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	width,
 	initialTarget,
 	voiceSessionId = null,
@@ -819,6 +821,7 @@ async function handleOpenPr(prNumber: number) {
 					<ProjectLetterBadge
 						name={projectName}
 						color={effectiveColor}
+						iconSrc={projectIconSrc}
 						size={28}
 						fontSize={15}
 						class="!rounded-none !rounded-tl-lg"

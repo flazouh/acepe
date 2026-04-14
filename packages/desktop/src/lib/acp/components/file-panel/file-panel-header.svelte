@@ -15,6 +15,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	content: string | null;
 	gitStatus: { status: string; insertions: number; deletions: number } | null;
 	compact?: boolean;
@@ -34,6 +35,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	content,
 	gitStatus,
 	compact = false,
@@ -94,6 +96,7 @@ function handleEditorModeChange(modeId: string) {
 	{filePath}
 	{projectName}
 	projectColor={effectiveColor}
+	{projectIconSrc}
 	{compact}
 	{hideProjectBadge}
 	insertions={gitStatus?.insertions}

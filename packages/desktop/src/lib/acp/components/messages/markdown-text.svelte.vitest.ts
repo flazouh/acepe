@@ -458,7 +458,6 @@ describe("MarkdownText", () => {
 
 		await waitFor(() => {
 			expect(firstLiveSection?.textContent).toContain("Hello world");
-			expect(view.container.querySelector(".streaming-live-cursor")).not.toBeNull();
 		});
 
 		expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"]')).toBe(
@@ -546,10 +545,6 @@ describe("MarkdownText", () => {
 			isStreaming: true,
 		});
 		await flushAnimationFrames(8);
-
-		await waitFor(() => {
-			expect(view.container.querySelector(".streaming-live-cursor")).not.toBeNull();
-		});
 	});
 
 	it("keeps stable streaming sections while append-only revealed markdown grows", async () => {

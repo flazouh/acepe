@@ -4,8 +4,10 @@ import { setContext, untrack } from "svelte";
 import { VList, type VListHandle } from "virtua/svelte";
 import type { SessionEntry } from "../../../application/dto/session.js";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
+import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
 import AssistantMessage from "../../messages/assistant-message.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import UserMessage from "../../messages/user-message.svelte";
@@ -65,6 +67,10 @@ let {
 
 // Derive isStreaming from turnState for scroll behavior
 const isStreaming = $derived(turnState === "streaming");
+const chatPrefs = getChatPreferencesStore();
+const streamingAnimationMode = $derived(
+	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
+);
 
 // ===== ICON CONTEXT (for nested components) =====
 setIconConfig({ basePath: "/svgs/icons" });
@@ -226,6 +232,7 @@ const displayEntriesRaw = $derived.by((): readonly VirtualizedDisplayEntry[] => 
 let shouldDeferInitialHydration = untrack(() => displayEntriesRaw.length > 0);
 let hydrationFrameId: number | null = null;
 let initialHydrationComplete = $state(!shouldDeferInitialHydration);
+let lastRenderedSessionId = $state(untrack(() => sessionId));
 const displayEntries = $derived(
 	initialHydrationComplete ? displayEntriesRaw : ([] as readonly VirtualizedDisplayEntry[])
 );
@@ -253,6 +260,43 @@ $effect(() => {
 		if (hydrationFrameId !== null) {
 			cancelAnimationFrame(hydrationFrameId);
 			hydrationFrameId = null;
+		}
+	};
+});
+
+// Fullscreen session switches reuse this component instance now, so reset only the
+// scroll/follow machinery instead of remounting the whole list and replaying hydration.
+$effect(() => {
+	if (sessionId === lastRenderedSessionId) {
+		return;
+	}
+
+	lastRenderedSessionId = sessionId;
+	autoScroll.reset();
+	followController.reset();
+	useNativeFallback = false;
+	viewportNudgeOffsetPx = 0;
+	historicalScrollApplied = false;
+
+	let frameCount = 0;
+	let sessionSwitchRafId: number | null = null;
+	const revealAfterSwitchSettle = () => {
+		frameCount += 1;
+		if (frameCount < 2) {
+			sessionSwitchRafId = requestAnimationFrame(revealAfterSwitchSettle);
+			return;
+		}
+		sessionSwitchRafId = null;
+		autoScroll.revealLatest(true);
+	};
+
+	if (displayEntries.length > 0) {
+		sessionSwitchRafId = requestAnimationFrame(revealAfterSwitchSettle);
+	}
+
+	return () => {
+		if (sessionSwitchRafId !== null) {
+			cancelAnimationFrame(sessionSwitchRafId);
 		}
 	};
 });
@@ -528,6 +572,7 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 						index === displayEntries.length - 1}
 					revealMessageKey={getKey(entry)}
 					{projectPath}
+					{streamingAnimationMode}
 				/>
 			{:else if entry.type === "assistant_merged_thoughts"}
 				<AssistantMessage
@@ -537,6 +582,7 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 						index === displayEntries.length - 1}
 					revealMessageKey={getKey(entry)}
 					{projectPath}
+					{streamingAnimationMode}
 				/>
 			{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
 				<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />

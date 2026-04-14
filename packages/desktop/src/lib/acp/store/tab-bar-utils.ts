@@ -55,6 +55,8 @@ export interface PanelToTabInput {
 	readonly projectName: string | null;
 	/** Project color for badge */
 	readonly projectColor: string | null;
+	/** Project icon source for badge */
+	readonly projectIconSrc: string | null;
 	/** Project path for grouping */
 	readonly projectPath: string | null;
 }
@@ -71,6 +73,7 @@ export interface NonAgentPanelToTabInput {
 	readonly focusedPanelId: string | null;
 	readonly projectName: string | null;
 	readonly projectColor: string | null;
+	readonly projectIconSrc: string | null;
 }
 
 /**
@@ -90,6 +93,8 @@ export interface TabBarTab {
 	readonly projectName: string | null;
 	/** Project color for badge */
 	readonly projectColor: string | null;
+	/** Project icon source for badge */
+	readonly projectIconSrc: string | null;
 	/** Project path for grouping tabs by project */
 	readonly projectPath: string | null;
 	/** User message previews with tool call counts for tooltip display. */
@@ -188,6 +193,8 @@ export interface TabBarTabGroup {
 	readonly projectName: string;
 	/** Resolved project hex color */
 	readonly projectColor: string;
+	/** Optional project icon source */
+	readonly projectIconSrc: string | null;
 	/** Tabs in this group, sorted by createdAt DESC */
 	readonly tabs: readonly TabBarTab[];
 }
@@ -218,6 +225,7 @@ export function groupTabsByProject(
 			projectPath: key,
 			projectName: first.projectName ?? "Unknown",
 			projectColor: first.projectColor ?? "#4AD0FF",
+			projectIconSrc: first.projectIconSrc ?? null,
 			tabs: groupTabs,
 		};
 	});
@@ -245,6 +253,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		isUnseen,
 		projectName,
 		projectColor,
+		projectIconSrc,
 		projectPath,
 	} = input;
 	const currentToolKind = getCurrentToolKind(entries);
@@ -280,6 +289,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		workBucket: selectSessionWorkBucket(workProjection),
 		projectName,
 		projectColor,
+		projectIconSrc,
 		projectPath,
 		conversationPreview: extractConversationPreview(entries),
 		state,
@@ -309,7 +319,7 @@ function getNonAgentPanelTitle(panel: NonAgentWorkspacePanel): string {
 }
 
 export function nonAgentPanelToTab(input: NonAgentPanelToTabInput): TabBarTab {
-	const { panel, focusedPanelId, projectName, projectColor } = input;
+	const { panel, focusedPanelId, projectName, projectColor, projectIconSrc } = input;
 
 	return {
 		panelId: panel.id,
@@ -323,6 +333,7 @@ export function nonAgentPanelToTab(input: NonAgentPanelToTabInput): TabBarTab {
 		workBucket: "idle",
 		projectName,
 		projectColor,
+		projectIconSrc,
 		projectPath: panel.projectPath,
 		conversationPreview: [],
 		state: deriveSessionState({

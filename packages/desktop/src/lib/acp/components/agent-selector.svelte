@@ -1,13 +1,14 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { useTheme } from "$lib/components/theme/context.svelte.js";
-import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/messages.js";
-import { Star } from "phosphor-svelte";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
-import type { AgentInfo } from "../logic/agent-manager.js";
-import { getAgentPreferencesStore } from "../store/index.js";
+	import { Colors } from "@acepe/ui/colors";
+	import { Selector } from "@acepe/ui";
+	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+	import { useTheme } from "$lib/components/theme/context.svelte.js";
+	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
+	import * as m from "$lib/messages.js";
+	import { Heart } from "phosphor-svelte";
+	import { getAgentIcon } from "../constants/thread-list-constants.js";
+	import type { AgentInfo } from "../logic/agent-manager.js";
+	import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
@@ -109,14 +110,18 @@ const currentAgent = $derived(
 					<span class="flex-1 text-sm truncate">{capitalizeName(agent.name)}</span>
 					<button
 						type="button"
-						class="shrink-0 {agent.id === defaultAgentId ? 'text-primary' : 'opacity-0 group-hover/item:opacity-100 text-muted-foreground hover:text-primary'} transition-opacity"
+						class="default-agent-toggle shrink-0 {agent.id === defaultAgentId ? '' : 'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 text-muted-foreground'} transition-opacity"
+						style={`--default-agent-color: ${Colors.red};${agent.id === defaultAgentId ? `color: ${Colors.red};` : ""}`}
 						onclick={(event: MouseEvent) => {
 							event.stopPropagation();
 							event.preventDefault();
 							void agentPreferencesStore.setDefaultAgentId(agent.id === defaultAgentId ? null : agent.id);
 						}}
+						aria-label={agent.id === defaultAgentId
+							? `Unset ${agent.name} as default agent`
+							: `Set ${agent.name} as default agent`}
 					>
-						<Star size={14} weight={agent.id === defaultAgentId ? "fill" : "regular"} />
+						<Heart size={14} weight={agent.id === defaultAgentId ? "fill" : "regular"} />
 					</button>
 					<SelectorCheck visible={isSelected} />
 				</div>
@@ -124,3 +129,10 @@ const currentAgent = $derived(
 		{/each}
 	{/if}
 </Selector>
+
+<style>
+	.default-agent-toggle:hover,
+	.default-agent-toggle:focus-visible {
+		color: var(--default-agent-color);
+	}
+</style>

@@ -33,6 +33,19 @@ export function createProjectColorMap(projects: readonly Project[]): Map<string,
 }
 
 /**
+ * Creates a map of project paths to icon sources.
+ */
+export function createProjectIconSrcMap(
+	projects: readonly Project[]
+): Map<string, string | null> {
+	const map = new Map<string, string | null>();
+	for (const project of projects) {
+		map.set(project.path, project.iconPath ?? null);
+	}
+	return map;
+}
+
+/**
  * Creates a map of project paths to names.
  */
 export function createProjectNameMap(projects: readonly Project[]): Map<string, string> {

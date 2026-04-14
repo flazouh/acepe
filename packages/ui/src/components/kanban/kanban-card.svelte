@@ -95,7 +95,14 @@ function handleKeydown(event: KeyboardEvent): void {
 	<div data-testid="kanban-card-header">
 		<EmbeddedPanelHeader class="bg-card/50">
 			<HeaderCell withDivider={false} class="px-1">
-				<ProjectLetterBadge name={card.projectName} color={card.projectColor} size={14} sequenceId={card.sequenceId} class="shrink-0" />
+				<ProjectLetterBadge
+					name={card.projectName}
+					color={card.projectColor}
+					iconSrc={card.projectIconSrc}
+					size={14}
+					sequenceId={card.sequenceId}
+					class="shrink-0"
+				/>
 			</HeaderCell>
 			<HeaderCell class="px-1">
 				<div class="flex items-center gap-1.5">

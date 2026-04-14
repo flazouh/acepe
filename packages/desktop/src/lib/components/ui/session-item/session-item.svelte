@@ -607,6 +607,7 @@ function handleNextQuestion() {
 					<ProjectLetterBadge
 						name={session.projectName}
 						color={session.projectColor}
+						iconSrc={session.projectIconSrc}
 						size={12}
 						sequenceId={session.sequenceId}
 						showLetter={false}
@@ -768,6 +769,7 @@ function handleNextQuestion() {
 					fileToolDisplayText={activityEntryFileToolDisplayText}
 					toolContent={activityEntryToolContent}
 					showToolShimmer={activityEntryShowToolShimmer}
+					hideToolPreview={true}
 					{statusText}
 					{showStatusShimmer}
 					todoProgress={activityProjection?.todoProgress ?? null}

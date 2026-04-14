@@ -27,6 +27,8 @@ export interface QueueItem {
 	readonly projectName: string;
 	/** Project color for badge */
 	readonly projectColor: string;
+	/** Project icon source for badge */
+	readonly projectIconSrc: string | null;
 	/** Session title */
 	readonly title: string | null;
 	/** Urgency information */

@@ -41,6 +41,7 @@ export interface AgentPanelHeaderProps {
 	readonly sessionStatus: SessionStatusUI;
 	readonly projectName: string;
 	readonly projectColor: string;
+	readonly projectIconSrc?: string | null;
 	readonly sequenceId?: number | null;
 	readonly hideProjectBadge?: boolean;
 	readonly debugPanelState?: unknown;
@@ -62,12 +63,4 @@ export interface AgentPanelHeaderProps {
 	readonly onExportMarkdown?: () => Promise<void>;
 	readonly onExportJson?: () => Promise<void>;
 	readonly onScrollToTop?: () => void;
-	// Worktree close confirmation (inline header strip)
-	readonly worktreeCloseConfirming?: boolean;
-	readonly worktreeName?: string | null;
-	readonly worktreeHasDirtyChanges?: boolean;
-	readonly worktreeDirtyCheckPending?: boolean;
-	readonly onWorktreeCloseOnly?: () => void;
-	readonly onWorktreeRemoveAndClose?: () => void;
-	readonly onWorktreeCloseCancel?: () => void;
 }

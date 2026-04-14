@@ -236,12 +236,14 @@ async fn load_copilot_preconnection_commands(
         flat_agent_commands.extend(commands);
     }
 
-    Ok(crate::acp::preconnection_slash::dedupe_preconnection_commands(
-        nested_skill_commands
-            .into_iter()
-            .chain(nested_agent_commands)
-            .chain(flat_agent_commands),
-    ))
+    Ok(
+        crate::acp::preconnection_slash::dedupe_preconnection_commands(
+            nested_skill_commands
+                .into_iter()
+                .chain(nested_agent_commands)
+                .chain(flat_agent_commands),
+        ),
+    )
 }
 
 fn copilot_agent_roots(cwd: &Path, home_dir: Option<&Path>) -> Vec<PathBuf> {

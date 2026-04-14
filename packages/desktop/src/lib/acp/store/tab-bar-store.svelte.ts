@@ -35,6 +35,8 @@ const TAB_BAR_STORE_KEY = Symbol("tab-bar-store");
  */
 /** Optional lookup for project color (from ProjectManager). */
 export type ProjectColorLookup = (projectPath: string) => string | null;
+/** Optional lookup for project icon source (from ProjectManager). */
+export type ProjectIconSrcLookup = (projectPath: string) => string | null;
 /** Optional lookup for project creation date (from ProjectManager). */
 export type ProjectCreatedAtLookup = (projectPath: string) => Date | null;
 
@@ -43,6 +45,7 @@ export class TabBarStore {
 	readonly groupedTabs = $derived.by(() => groupTabsByProject(this.tabs, this.getProjectCreatedAt));
 
 	private getProjectColor: ProjectColorLookup | null = null;
+	private getProjectIconSrc: ProjectIconSrcLookup | null = null;
 	private getProjectCreatedAt: ProjectCreatedAtLookup | null = null;
 
 	constructor(
@@ -55,6 +58,11 @@ export class TabBarStore {
 	/** Set project color lookup (from ProjectManager) for consistent badge colors. */
 	setProjectColorLookup(lookup: ProjectColorLookup): void {
 		this.getProjectColor = lookup;
+	}
+
+	/** Set project icon source lookup (from ProjectManager) for consistent badge icons. */
+	setProjectIconSrcLookup(lookup: ProjectIconSrcLookup): void {
+		this.getProjectIconSrc = lookup;
 	}
 
 	/** Set project creation date lookup (from ProjectManager) for group ordering. */
@@ -89,6 +97,7 @@ export class TabBarStore {
 				focusedPanelId,
 				projectName,
 				projectColor,
+				projectIconSrc: projectPath ? (this.getProjectIconSrc?.(projectPath) ?? null) : null,
 			});
 		}
 
@@ -134,6 +143,7 @@ export class TabBarStore {
 			isUnseen: this.unseenStore.isUnseen(panel.id),
 			projectName,
 			projectColor,
+			projectIconSrc: projectPath ? (this.getProjectIconSrc?.(projectPath) ?? null) : null,
 			projectPath,
 		});
 	}

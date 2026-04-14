@@ -4,7 +4,12 @@
 	import { ProjectCard } from "../project-card/index.js";
 
 	interface Props {
-		groups: { projectName: string; projectColor: string; tabs: readonly TTab[] }[];
+		groups: {
+			projectName: string;
+			projectColor: string;
+			projectIconSrc?: string | null;
+			tabs: readonly TTab[];
+		}[];
 		tabRenderer: Snippet<[TTab]>;
 	}
 
@@ -16,6 +21,7 @@
 		<ProjectCard
 			projectName={group.projectName}
 			projectColor={group.projectColor}
+			projectIconSrc={group.projectIconSrc}
 			variant="inline"
 		>
 			{#each group.tabs as tab}

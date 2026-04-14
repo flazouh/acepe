@@ -98,7 +98,9 @@ mod session_metadata_tests {
         .await
         .expect("create project");
 
-        let projects = ProjectRepository::get_all(&db).await.expect("load projects");
+        let projects = ProjectRepository::get_all(&db)
+            .await
+            .expect("load projects");
 
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "MyAPIService");
@@ -133,7 +135,10 @@ mod session_metadata_tests {
         )
         .await
         .expect("update icon");
-        assert_eq!(updated_second.icon_path.as_deref(), Some("/tmp/beta-icon.png"));
+        assert_eq!(
+            updated_second.icon_path.as_deref(),
+            Some("/tmp/beta-icon.png")
+        );
 
         let reordered = ProjectRepository::reorder(&db, &[second.path.clone(), first.path.clone()])
             .await
@@ -1222,7 +1227,10 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        assert_eq!(updated, 1, "placeholder title should refresh even when transcript metadata is unchanged");
+        assert_eq!(
+            updated, 1,
+            "placeholder title should refresh even when transcript metadata is unchanged"
+        );
 
         let session = SessionMetadataRepository::get_by_id(&db, session_id)
             .await

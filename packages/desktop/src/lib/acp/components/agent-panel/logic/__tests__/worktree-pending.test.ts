@@ -54,14 +54,14 @@ describe("resolveAgentPanelWorktreePending", () => {
 		).toBe(true);
 	});
 
-	it("returns false after the conversation has started", () => {
+	it("stays pending after the first user message until the worktree is created", () => {
 		expect(
 			resolveAgentPanelWorktreePending({
 				activeWorktreePath: null,
 				hasMessages: true,
 				pendingWorktreeEnabled: true,
 			})
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("returns false when the panel has no pending worktree choice", () => {

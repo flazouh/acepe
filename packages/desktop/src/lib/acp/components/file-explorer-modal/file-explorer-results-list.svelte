@@ -1,12 +1,13 @@
 <script lang="ts">
 import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
 import type { FileExplorerRow } from "$lib/services/converted-session-types.js";
+import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
 import type { FileExplorerModalState } from "./file-explorer-modal-state.svelte.js";
 import FileExplorerResultRow from "./file-explorer-result-row.svelte";
 
 interface Props {
 	state: FileExplorerModalState;
-	projectInfoByPath: Record<string, { name: string; color: string }>;
+	projectInfoByPath: Record<string, FileExplorerProjectInfo>;
 	onSelect: (row: FileExplorerRow) => void;
 }
 
@@ -14,7 +15,7 @@ const { state, projectInfoByPath, onSelect }: Props = $props();
 
 type GroupedRows = {
 	projectPath: string;
-	projectInfo: { name: string; color: string };
+	projectInfo: FileExplorerProjectInfo;
 	items: Array<{ row: FileExplorerRow; index: number }>;
 };
 
@@ -37,7 +38,7 @@ const groupedRows = $derived.by((): GroupedRows[] => {
 	return groups;
 });
 
-function projectInfoForPath(projectPath: string): { name: string; color: string } {
+function projectInfoForPath(projectPath: string): FileExplorerProjectInfo {
 	const info = projectInfoByPath[projectPath];
 	if (info) return info;
 	const segments = projectPath.split("/").filter((segment) => segment.length > 0);
@@ -45,6 +46,7 @@ function projectInfoForPath(projectPath: string): { name: string; color: string 
 	return {
 		name: name ? name : projectPath,
 		color: "#22c55e",
+		iconSrc: null,
 	};
 }
 
@@ -93,6 +95,7 @@ function handleSelect(row: FileExplorerRow) {
 					<ProjectLetterBadge
 						name={group.projectInfo.name}
 						color={group.projectInfo.color}
+						iconSrc={group.projectInfo.iconSrc}
 						size={14}
 					/>
 					<div class="min-w-0 flex items-center gap-1.5 text-[10px] leading-none">

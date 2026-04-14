@@ -2,10 +2,11 @@
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
-import { WorktreeToggleControl } from "$lib/acp/components/worktree-toggle/index.js";
+import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -49,6 +50,7 @@ let selectedAgentId: string | null = $state(null);
 let selectedProject: Project | null = $state(null);
 let activeWorktreePath: string | null = $state(null);
 let worktreePending = $state(false);
+let preparedWorktreeLaunch: PreparedWorktreeLaunch | null = $state(null);
 
 // Derived
 const availableAgents = $derived(
@@ -114,6 +116,7 @@ function handleProjectChange(project: Project) {
 	});
 	selectedProject = project;
 	activeWorktreePath = null;
+	preparedWorktreeLaunch = null;
 	worktreePending = resolveEmptyStateWorktreePendingForProjectChange({
 		globalWorktreeDefault,
 		loadEnabled: loadWorktreeEnabled,
@@ -208,6 +211,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 		panelId: EMPTY_STATE_PANEL_ID,
 		sessionId,
 	});
+	preparedWorktreeLaunch = null;
 
 	if (!attached) {
 		onSessionCreated(sessionId);
@@ -223,6 +227,43 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 	{#if canShowInput}
 		<!-- Agent Input -->
 		<div class="w-full">
+			{#if projectPath}
+				<div class="mb-2">
+					<PreSessionWorktreeCard
+						pendingWorktreeEnabled={effectiveWorktreePending}
+						alwaysEnabled={globalWorktreeDefault}
+						onYes={() => {
+							const store = getWorktreeDefaultStore();
+							if (store.globalDefault) {
+								void store.set(false);
+							}
+							preparedWorktreeLaunch = null;
+							worktreePending = true;
+						}}
+						onNo={() => {
+							const store = getWorktreeDefaultStore();
+							if (store.globalDefault) {
+								void store.set(false);
+							}
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
+						onAlways={() => {
+							const store = getWorktreeDefaultStore();
+							const toggled = !store.globalDefault;
+							void store.set(toggled);
+							if (!toggled) {
+								preparedWorktreeLaunch = null;
+							}
+							worktreePending = toggled;
+						}}
+						onDismiss={() => {
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
+					/>
+				</div>
+			{/if}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
 				projectPath={projectPath ?? undefined}
@@ -236,9 +277,13 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 				onWillSend={handleWillSend}
 				worktreePath={activeWorktreePath ?? undefined}
 				worktreePending={effectiveWorktreePending}
+				{preparedWorktreeLaunch}
 				onWorktreeCreated={(path) => {
 					activeWorktreePath = path;
 					worktreePending = false;
+				}}
+				onPreparedWorktreeLaunch={(launch) => {
+					preparedWorktreeLaunch = launch;
 				}}
 			>
 				{#snippet agentProjectPicker()}
@@ -258,30 +303,6 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					{/if}
 				{/snippet}
 			</AgentInput>
-			{#if projectPath}
-				<div class="flex items-center h-7 mt-2 rounded-b-lg">
-					<WorktreeToggleControl
-						panelId={EMPTY_STATE_PANEL_ID}
-						{projectPath}
-						{projectName}
-						{activeWorktreePath}
-						hasEdits={false}
-						hasMessages={false}
-						{globalWorktreeDefault}
-						variant="minimal"
-						onWorktreeCreated={(info) => {
-							activeWorktreePath = info.directory;
-							worktreePending = false;
-						}}
-						onWorktreeRenamed={(info) => {
-							activeWorktreePath = info.directory;
-						}}
-						onPendingChange={(pending) => {
-							worktreePending = pending;
-						}}
-					/>
-				</div>
-			{/if}
 		</div>
 	{:else}
 		<p class="text-muted-foreground text-sm">

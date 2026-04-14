@@ -28,6 +28,7 @@
 		pendingProjectSelection?: boolean;
 		projectName?: string;
 		projectColor?: string;
+		projectIconSrc?: string | null;
 		sequenceId?: number | null;
 		onClose?: () => void;
 		onToggleFullscreen?: () => void;
@@ -56,6 +57,7 @@
 		pendingProjectSelection = false,
 		projectName,
 		projectColor,
+		projectIconSrc,
 		sequenceId,
 		onClose,
 		onToggleFullscreen,
@@ -110,6 +112,7 @@
 				<ProjectLetterBadge
 					name={projectName}
 					color={projectColor}
+					iconSrc={projectIconSrc}
 					size={14}
 					sequenceId={sequenceId}
 					class="shrink-0"

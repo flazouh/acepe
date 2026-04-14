@@ -7,6 +7,7 @@ use crate::acp::session_update::{
 };
 use crate::acp::types::ContentBlock;
 use crate::history::constants::MAX_SESSIONS_PER_PROJECT;
+use crate::history::title_utils::normalize_display_title;
 use crate::session_jsonl::types::ConvertedSession;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
@@ -107,7 +108,7 @@ struct RawCopilotEventEnvelope {
     timestamp: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Deserialize)]
 struct WorkspaceMetadata {
     cwd: Option<String>,
     summary: Option<String>,
@@ -474,6 +475,7 @@ pub(crate) async fn scan_copilot_sessions_at_root(
         let title = metadata
             .summary
             .filter(|value| !value.trim().is_empty())
+            .map(|value| normalize_display_title(&value))
             .unwrap_or_else(|| fallback_title(&session_id));
         sessions.push(CopilotListedSession {
             session_id,
@@ -656,6 +658,11 @@ fn parse_tool_request(value: &Value) -> Option<AssistantToolRequest> {
 }
 
 fn parse_workspace_metadata(contents: &str) -> WorkspaceMetadata {
+    serde_yaml::from_str::<WorkspaceMetadata>(contents)
+        .unwrap_or_else(|_| parse_workspace_metadata_legacy(contents))
+}
+
+fn parse_workspace_metadata_legacy(contents: &str) -> WorkspaceMetadata {
     let mut metadata = WorkspaceMetadata::default();
     for line in contents.lines() {
         let trimmed = line.trim();
@@ -900,7 +907,10 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Read));
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Read)
+                );
                 match &message.arguments {
                     crate::acp::session_update::ToolArguments::Read { file_path } => {
                         assert_eq!(file_path.as_deref(), Some("/repo/src/file.rs"));
@@ -926,7 +936,10 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
             StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(message.kind, Some(crate::acp::session_update::ToolKind::Todo));
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Todo)
+                );
                 let todos = message
                     .normalized_todos
                     .as_ref()
@@ -1011,6 +1024,33 @@ mod tests {
                 .expect("canonical project")
                 .to_string_lossy()
         );
+    }
+
+    #[tokio::test]
+    async fn scan_copilot_sessions_reads_block_scalar_summary_titles() {
+        let root = tempdir().expect("tempdir");
+        let project = tempdir().expect("project");
+        git2::Repository::init(project.path()).expect("init repo");
+        let session_dir = root.path().join("session-1");
+        std::fs::create_dir_all(&session_dir).expect("create session dir");
+        std::fs::write(
+            session_dir.join("workspace.yaml"),
+            format!(
+                "id: session-1\ncwd: {}\nsummary: |-\n  Demo session title\nupdated_at: 2026-04-10T00:00:02Z\n",
+                project.path().display()
+            ),
+        )
+        .expect("write workspace");
+
+        let sessions = scan_copilot_sessions_at_root(
+            root.path(),
+            &[project.path().to_string_lossy().into_owned()],
+        )
+        .await
+        .expect("scan should succeed");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, "Demo session title");
     }
 
     #[test]

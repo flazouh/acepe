@@ -1,3 +1,4 @@
+pub mod icon_detection;
 mod projects;
 mod reset;
 mod review_state;

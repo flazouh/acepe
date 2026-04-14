@@ -412,7 +412,11 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
         }
         ToolArguments::Browser { raw } => {
-            if raw.is_null() { 0 } else { 1 }
+            if raw.is_null() {
+                0
+            } else {
+                1
+            }
         }
         ToolArguments::Other { raw } => {
             if raw.is_null() {

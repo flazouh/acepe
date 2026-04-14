@@ -16,7 +16,12 @@ import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { QueueItem } from "./types.js";
-import type { ProjectColorLookup, QueueSectionGroup, QueueSessionSnapshot } from "./utils.js";
+import type {
+	ProjectColorLookup,
+	ProjectIconSrcLookup,
+	QueueSectionGroup,
+	QueueSessionSnapshot,
+} from "./utils.js";
 
 import { buildQueueItem, calculateSessionUrgency, classifyItem, groupIntoSections } from "./utils.js";
 
@@ -66,6 +71,7 @@ function getItemPriority(item: QueueItem): number {
 export function createQueueStore(): QueueStore {
 	// Internal state
 	let items = $state<QueueItem[]>([]);
+	let getProjectIconSrc: ProjectIconSrcLookup | null = null;
 
 	// Derived: filtered to only active sessions
 	const activeItems = $derived.by(() => {
@@ -119,6 +125,10 @@ export function createQueueStore(): QueueStore {
 			return sections;
 		},
 
+		setProjectIconSrcLookup(lookup: ProjectIconSrcLookup): void {
+			getProjectIconSrc = lookup;
+		},
+
 		/**
 		 * Update the queue from sessions and panel mappings.
 		 */
@@ -145,7 +155,8 @@ export function createQueueStore(): QueueStore {
 					input.pendingQuestion,
 					input.pendingPlanApproval,
 					input.pendingPermission,
-					getProjectColor
+					getProjectColor,
+					getProjectIconSrc ?? undefined
 				);
 			});
 		},
@@ -178,6 +189,7 @@ export interface QueueStore {
 	readonly actionRequiredCount: number;
 	readonly topItem: QueueItem | null;
 	readonly sections: readonly QueueSectionGroup[];
+	setProjectIconSrcLookup(lookup: ProjectIconSrcLookup): void;
 	updateFromSessions(
 		inputs: readonly QueueUpdateInput[],
 		sessionToPanelMap: ReadonlyMap<string, string>,

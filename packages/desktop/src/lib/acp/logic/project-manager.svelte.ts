@@ -122,13 +122,13 @@ export class ProjectManager {
 				return okAsync(null);
 			}
 
-			// Import on backend (adds to DB)
-			return this.client.importProject(project).map(() => {
+			// Import on backend (adds to DB, auto-detects icon)
+			return this.client.importProject(project).map((importedProject) => {
 				// Check if this is a new project
-				const existingIndex = this.projects.findIndex((p) => p.path === project.path);
+				const existingIndex = this.projects.findIndex((p) => p.path === importedProject.path);
 				const isNew = existingIndex < 0;
 
-				// Update projects list
+				// Update projects list with the backend result (carries detected icon_path)
 				if (isNew) {
 					const shiftedProjects = this.projects.map((existingProject) => ({
 						path: existingProject.path,
@@ -139,23 +139,23 @@ export class ProjectManager {
 						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 						iconPath: existingProject.iconPath ?? null,
 					}));
-					this.projects = [project, ...shiftedProjects];
+					this.projects = [importedProject, ...shiftedProjects];
 					// Update count only for new projects
 					if (this.projectCount !== null) {
 						this.projectCount = this.projectCount + 1;
 					}
 				} else {
-					this.projects = this.projects.map((p, i) => (i === existingIndex ? project : p));
+					this.projects = this.projects.map((p, i) => (i === existingIndex ? importedProject : p));
 				}
 
 				// Trigger session scan for the imported project (fire and forget)
 				if (this.sessionStore) {
-					this.sessionStore.scanSessions([project.path]).mapErr((error) => {
+					this.sessionStore.scanSessions([importedProject.path]).mapErr((error) => {
 						console.warn("Session scan failed:", error);
 					});
 				}
 
-				return project;
+				return importedProject;
 			});
 		});
 	}
@@ -242,6 +242,43 @@ export class ProjectManager {
 				);
 			}
 		});
+	}
+
+	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
+		return this.client.listProjectImages(projectPath);
+	}
+
+	/**
+	 * Browse for a project icon and set it on the project.
+	 * Opens native file picker for images, then updates the project icon if a file was selected.
+	 *
+	 * @param projectPath - The project path to update
+	 * @returns ResultAsync containing void on success
+	 */
+	browseAndSetProjectIcon(projectPath: string): ResultAsync<void, ProjectError> {
+		return this.client.browseProjectIcon().andThen((selectedFilePath) => {
+			if (selectedFilePath === null) {
+				return okAsync(undefined);
+			}
+			return this.updateProjectIcon(projectPath, selectedFilePath);
+		});
+	}
+
+	triggerProjectIconBackfill(): void {
+		void this.client
+			.backfillProjectIcons()
+			.andThen((updatedCount) => {
+				if (updatedCount === 0) {
+					return okAsync(undefined);
+				}
+				return this.loadProjects();
+			})
+			.match(
+				() => undefined,
+				(error) => {
+					console.warn("Project icon backfill failed:", error);
+				}
+			);
 	}
 
 	updateProjectOrder(orderedPaths: string[]): ResultAsync<void, ProjectError> {

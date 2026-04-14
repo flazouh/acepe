@@ -124,11 +124,11 @@
 	--accent: #313131; /* hover/selected item background */
 	--accent-foreground: #ffffff; /* list.hoverForeground */
 	--destructive: #bf616a; /* editorError.foreground */
-	/* Dark: build accent is separate from success-reference surfaces. */
-	--success: var(--token-build-icon-dark);
+	/* Dark: success is the reference green; build icon keeps its own mint accent. */
+	--success: var(--token-success-dark);
 	--success-reference: var(--token-success-dark);
 	--success-foreground: #ffffff;
-	--build-icon: var(--success);
+	--build-icon: var(--token-build-icon-dark);
 	--plan-icon: var(--token-plan-icon-dark);
 	--border: #222222; /* input.border, dropdown.border */
 	--input: #313131; /* input.background */

@@ -37,12 +37,14 @@ export interface SessionsProviderConfig {
 function sessionToPaletteItem(
 	session: SessionCold,
 	projectName: string,
-	projectColor?: string
+	projectColor?: string,
+	projectIconSrc?: string | null
 ): PaletteItem {
 	const metadata: PaletteItemMetadata = {
 		projectPath: session.projectPath,
 		projectName,
 		projectColor,
+		projectIconSrc,
 		agentId: session.agentId,
 	};
 
@@ -70,14 +72,22 @@ export class SessionsProvider implements PaletteProvider {
 	/**
 	 * Get project metadata for a session.
 	 */
-	private getProjectInfo(projectPath: string): { name: string; color?: string } {
+	private getProjectInfo(projectPath: string): {
+		name: string;
+		color?: string;
+		iconSrc: string | null;
+	} {
 		const project = this.config.projectManager.projects.find((p) => p.path === projectPath);
 		if (project) {
-			return { name: project.name, color: project.color };
+			return {
+				name: project.name,
+				color: project.color,
+				iconSrc: project.iconPath ?? null,
+			};
 		}
 		// Fallback: extract name from path
 		const parts = projectPath.split("/");
-		return { name: parts[parts.length - 1] || projectPath };
+		return { name: parts[parts.length - 1] || projectPath, iconSrc: null };
 	}
 
 	/**
@@ -102,10 +112,22 @@ export class SessionsProvider implements PaletteProvider {
 		const results = fuzzySearch(query, searchable);
 
 		// Map back to palette items
-		return results.map(({ item, score }) => ({
-			...sessionToPaletteItem(item._session, item._projectInfo.name, item._projectInfo.color),
-			score,
-		}));
+		return results.map(({ item, score }) => {
+			const paletteItem = sessionToPaletteItem(
+				item._session,
+				item._projectInfo.name,
+				item._projectInfo.color,
+				item._projectInfo.iconSrc
+			);
+			return {
+				id: paletteItem.id,
+				label: paletteItem.label,
+				description: paletteItem.description,
+				icon: paletteItem.icon,
+				metadata: paletteItem.metadata,
+				score,
+			};
+		});
 	}
 
 	/**
@@ -150,7 +172,12 @@ export class SessionsProvider implements PaletteProvider {
 		const session = this.config.sessionStore.sessionById.get(stored.id);
 		if (session) {
 			const projectInfo = this.getProjectInfo(session.projectPath);
-			return sessionToPaletteItem(session, projectInfo.name, projectInfo.color);
+			return sessionToPaletteItem(
+				session,
+				projectInfo.name,
+				projectInfo.color,
+				projectInfo.iconSrc
+			);
 		}
 
 		// Session not found - return a minimal item from stored data

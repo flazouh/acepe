@@ -6,9 +6,11 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { okAsync, ResultAsync } from "neverthrow";
 import { Clock } from "phosphor-svelte";
+import { Trash } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
+import * as Popover from "$lib/components/ui/popover/index.js";
 import * as m from "$lib/messages.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -55,7 +57,6 @@ import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
 import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js";
 import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
-import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
@@ -73,6 +74,7 @@ import {
 	shouldConfirmWorktreeClose,
 } from "../logic";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
+import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target";
@@ -148,10 +150,6 @@ const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-
-// Global worktree default (loaded once at app root in main-app-view, read reactively here)
-const worktreeDefaultStore = getWorktreeDefaultStore();
-const globalWorktreeDefault = $derived(worktreeDefaultStore.globalDefault);
 
 // ============================================================
 // GRANULAR SESSION DATA - Fine-grained reactivity
@@ -340,18 +338,6 @@ const effectiveProjectName = $derived(
 		? project?.name
 		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
 );
-const preSessionProjectName = $derived.by(() => {
-	if (effectiveProjectName) {
-		return effectiveProjectName;
-	}
-
-	if (!worktreeToggleProjectPath) {
-		return "Project";
-	}
-
-	const segments = worktreeToggleProjectPath.split("/").filter((segment) => segment.length > 0);
-	return segments[segments.length - 1] ?? "Project";
-});
 
 // ✅ Derived values from granular session data
 const agentName = $derived(sessionAgentId ?? selectedAgentId);
@@ -420,7 +406,8 @@ const worktreePending = $derived(
 	})
 );
 const showPreSessionWorktreeCard = $derived(
-	sessionId === null && !pendingProjectSelection && worktreeToggleProjectPath !== null
+	sessionId === null && !pendingProjectSelection && worktreeToggleProjectPath !== null &&
+	pendingWorktreeSetup === null && !worktreeSetupState?.isVisible
 );
 
 $effect(() => {
@@ -562,6 +549,7 @@ $effect(() => {
 const projectColor = $derived.by(() => {
 	return project ? getProjectColor(project) : (TAG_COLORS[0] ?? "#FF5D5A");
 });
+const projectIconSrc = $derived(project?.iconPath ?? null);
 
 const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
@@ -608,15 +596,11 @@ const footerWorktreeStatus = $derived.by(() => {
 		return {
 			mode: "worktree" as const,
 			primaryLabel: _activeWorktreeName,
-			secondaryLabel: effectiveProjectName ?? worktreeToggleProjectPath,
+			secondaryLabel: null,
 		};
 	}
 
-	return {
-		mode: "project-root" as const,
-		primaryLabel: "Project root",
-		secondaryLabel: effectiveProjectName ?? worktreeToggleProjectPath,
-	};
+	return null;
 });
 
 const hasPlan = $derived(planState.plan !== null);
@@ -641,6 +625,7 @@ let prCardRenderKey = $state(0);
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 let preSessionWorktreeFailure = $state<string | null>(null);
 let agentInputRef = $state<{ retrySend: () => void } | null>(null);
+let headerRef: HTMLElement | undefined = $state();
 const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const worktreeSetupMatchContext = $derived.by(() => {
 	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
@@ -1659,6 +1644,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 	onkeydown={handlePanelKeyDown}
 >
 	{#snippet header()}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div bind:this={headerRef}>
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
@@ -1673,17 +1660,11 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			sessionStatus={mappedSessionStatus}
 			projectName={displayProjectName}
 			{projectColor}
+			{projectIconSrc}
 			{debugPanelState}
 			onClose={handleClose}
 			{onToggleFullscreen}
 			onScrollToTop={scrollToTop}
-			{worktreeCloseConfirming}
-			worktreeName={_activeWorktreeName}
-			{worktreeHasDirtyChanges}
-			{worktreeDirtyCheckPending}
-			onWorktreeCloseOnly={handleWorktreeCloseOnly}
-			onWorktreeRemoveAndClose={handleWorktreeRemoveAndClose}
-			onWorktreeCloseCancel={handleWorktreeCloseCancel}
 			onCopyContent={handleCopyContent}
 			onOpenInFinder={handleOpenInFinder}
 			onCopyStreamingLogPath={handleCopyStreamingLogPath}
@@ -1699,6 +1680,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
 			onExportJson={sessionId ? handleExportJson : undefined}
 		/>
+		</div>
 	{/snippet}
 
 	{#snippet leadingPane()}
@@ -1849,15 +1831,27 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 							{/if}
 							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
 								<PreSessionWorktreeCard
-									projectPath={worktreeToggleProjectPath}
-									projectName={preSessionProjectName}
 									pendingWorktreeEnabled={worktreePending}
-									globalWorktreeDefault={globalWorktreeDefault}
+									alwaysEnabled={getWorktreeDefaultStore().globalDefault}
 									failureMessage={preSessionWorktreeFailure}
-									onPendingWorktreeChange={(enabled) => {
+									onYes={() => {
 										preSessionWorktreeFailure = null;
+										const store = getWorktreeDefaultStore();
+										if (store.globalDefault) {
+											void store.set(false);
+										}
 										if (panelId) {
-											if (!enabled && panelPreparedWorktreeLaunch) {
+											panelStore.setPendingWorktreeEnabled(panelId, true);
+										}
+									}}
+									onNo={() => {
+										preSessionWorktreeFailure = null;
+										const store = getWorktreeDefaultStore();
+										if (store.globalDefault) {
+											void store.set(false);
+										}
+										if (panelId) {
+											if (panelPreparedWorktreeLaunch) {
 												void tauriClient.git
 													.discardPreparedWorktreeSessionLaunch(
 														panelPreparedWorktreeLaunch.launchToken,
@@ -1874,11 +1868,42 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 														}
 													);
 											}
-											panelStore.setPendingWorktreeEnabled(panelId, enabled);
+											panelStore.setPendingWorktreeEnabled(panelId, false);
 										}
 									}}
-									onRetryWorktree={worktreePending ? handleRetryWorktree : undefined}
-									onStartInProjectRoot={worktreePending ? handleStartInProjectRoot : undefined}
+									onAlways={() => {
+										preSessionWorktreeFailure = null;
+										const store = getWorktreeDefaultStore();
+										const toggled = !store.globalDefault;
+										void store.set(toggled);
+										if (panelId) {
+											panelStore.setPendingWorktreeEnabled(panelId, toggled);
+										}
+									}}
+									onDismiss={() => {
+										preSessionWorktreeFailure = null;
+										if (panelId) {
+											if (panelPreparedWorktreeLaunch) {
+												void tauriClient.git
+													.discardPreparedWorktreeSessionLaunch(
+														panelPreparedWorktreeLaunch.launchToken,
+														true
+													)
+													.match(
+														() => {
+															panelStore.clearPreparedWorktreeLaunch(panelId);
+														},
+														(error) => {
+															toast.error(
+																`Failed to discard prepared worktree: ${error.message}`
+															);
+														}
+													);
+											}
+											panelStore.setPendingWorktreeEnabled(panelId, false);
+										}
+									}}
+									onRetry={worktreePending ? handleRetryWorktree : undefined}
 								/>
 							{/if}
 							{#if worktreeSetupState?.isVisible}
@@ -2165,3 +2190,43 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 		{/if}
 	{/snippet}
 </AgentPanelShell>
+
+<Popover.Root bind:open={worktreeCloseConfirming}>
+	<Popover.Content
+		align="end"
+		customAnchor={headerRef}
+		class="w-52 p-0 overflow-hidden"
+		onInteractOutside={handleWorktreeCloseCancel}
+	>
+		<div class="px-2 py-2">
+			<p class="text-[11px] font-medium">
+				{worktreeDirtyCheckPending
+					? m.worktree_toggle_checking()
+					: worktreeHasDirtyChanges
+					? m.worktree_close_confirm_dirty_title({ name: _activeWorktreeName ?? "worktree" })
+					: m.worktree_close_confirm_title({ name: _activeWorktreeName ?? "worktree" })}
+			</p>
+			<p class="text-[10px] text-muted-foreground leading-snug mt-0.5">
+				{m.worktree_close_confirm_description()}
+			</p>
+		</div>
+		<div class="flex items-stretch border-t border-border/30">
+			<button
+				type="button"
+				class="flex-1 flex items-center justify-center px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-r border-border/30"
+				onclick={handleWorktreeCloseCancel}
+			>
+				{m.common_cancel()}
+			</button>
+			<button
+				type="button"
+				class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+				onclick={handleWorktreeRemoveAndClose}
+				disabled={worktreeDirtyCheckPending}
+			>
+				<Trash class="size-3" weight="fill" />
+				{m.common_confirm()}
+			</button>
+		</div>
+	</Popover.Content>
+</Popover.Root>

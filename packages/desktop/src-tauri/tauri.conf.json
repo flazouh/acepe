@@ -27,6 +27,10 @@
 		],
 		"withGlobalTauri": true,
 		"security": {
+			"assetProtocol": {
+				"enable": true,
+				"scope": ["$HOME/**/*", "$TMP/**/*", "/Volumes/**/*"]
+			},
 			"csp": null
 		}
 	},

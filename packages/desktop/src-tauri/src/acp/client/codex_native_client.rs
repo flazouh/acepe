@@ -735,16 +735,16 @@ fn sanitize_turn_start_params(params: &Value) -> Value {
         if let Some(mode) = collaboration_mode.get("mode") {
             sanitized_mode.insert("mode".to_string(), mode.clone());
         }
-        if let Some(settings) = collaboration_mode.get("settings").and_then(Value::as_object) {
+        if let Some(settings) = collaboration_mode
+            .get("settings")
+            .and_then(Value::as_object)
+        {
             let mut sanitized_settings = serde_json::Map::new();
             if let Some(model) = settings.get("model") {
                 sanitized_settings.insert("model".to_string(), model.clone());
             }
             if let Some(reasoning_effort) = settings.get("reasoning_effort") {
-                sanitized_settings.insert(
-                    "reasoning_effort".to_string(),
-                    reasoning_effort.clone(),
-                );
+                sanitized_settings.insert("reasoning_effort".to_string(), reasoning_effort.clone());
             }
             if settings.contains_key("developer_instructions") {
                 sanitized_settings.insert(
@@ -754,7 +754,10 @@ fn sanitize_turn_start_params(params: &Value) -> Value {
             }
             sanitized_mode.insert("settings".to_string(), Value::Object(sanitized_settings));
         }
-        sanitized.insert("collaborationMode".to_string(), Value::Object(sanitized_mode));
+        sanitized.insert(
+            "collaborationMode".to_string(),
+            Value::Object(sanitized_mode),
+        );
     }
 
     Value::Object(sanitized)
@@ -1351,18 +1354,24 @@ mod tests {
 
         assert_eq!(sanitized["threadId"], json!("thread-1"));
         assert_eq!(sanitized["cwd"], json!("/tmp/project"));
-        assert_eq!(sanitized["input"], json!({
-            "count": 2,
-            "types": ["text", "image"],
-        }));
-        assert_eq!(sanitized["collaborationMode"], json!({
-            "mode": "plan",
-            "settings": {
-                "model": "gpt-5.4",
-                "reasoning_effort": "high",
-                "developer_instructions": "<redacted>",
-            }
-        }));
+        assert_eq!(
+            sanitized["input"],
+            json!({
+                "count": 2,
+                "types": ["text", "image"],
+            })
+        );
+        assert_eq!(
+            sanitized["collaborationMode"],
+            json!({
+                "mode": "plan",
+                "settings": {
+                    "model": "gpt-5.4",
+                    "reasoning_effort": "high",
+                    "developer_instructions": "<redacted>",
+                }
+            })
+        );
     }
 
     #[test]

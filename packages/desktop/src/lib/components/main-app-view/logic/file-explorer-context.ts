@@ -3,6 +3,7 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 export interface FileExplorerProjectInfo {
 	name: string;
 	color: string;
+	iconSrc: string | null;
 }
 
 export function buildFileExplorerProjectPaths(
@@ -46,6 +47,7 @@ export function buildFileExplorerProjectInfoByPath(
 		const projectInfo: FileExplorerProjectInfo = {
 			name: project.name,
 			color: project.color,
+			iconSrc: project.iconPath ?? null,
 		};
 		info[project.path] = projectInfo;
 		if (focusedProjectPath && project.path === focusedProjectPath) {
@@ -57,6 +59,7 @@ export function buildFileExplorerProjectInfoByPath(
 		info[focusedWorktreePath] = {
 			name: focusedProjectInfo.name,
 			color: focusedProjectInfo.color,
+			iconSrc: focusedProjectInfo.iconSrc,
 		};
 	}
 

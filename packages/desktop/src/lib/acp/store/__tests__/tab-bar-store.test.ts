@@ -52,6 +52,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		isUnseen: false,
 		projectName: null,
 		projectColor: null,
+		projectIconSrc: null,
 		projectPath: null,
 		...overrides,
 		pendingPlanApproval,

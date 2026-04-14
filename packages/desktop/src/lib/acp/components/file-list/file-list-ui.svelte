@@ -81,6 +81,7 @@ function getFlattenedFiles(group: FileGroup): Array<{ node: FileTreeNode; projec
 					>
 						<ProjectHeader
 							projectColor={group.projectColor}
+							projectIconSrc={group.projectIconSrc ?? null}
 							projectName={group.projectName}
 							expanded={isExpanded}
 						>

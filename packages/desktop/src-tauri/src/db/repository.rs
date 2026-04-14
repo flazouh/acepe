@@ -18,7 +18,7 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbConn, DbBackend, EntityTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, DbConn, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -1466,7 +1466,9 @@ impl SessionMetadataRepository {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch state not found"))?;
 
-        if AcepeSessionRelationship::from_str(&state.relationship) != AcepeSessionRelationship::Reserved {
+        if AcepeSessionRelationship::from_str(&state.relationship)
+            != AcepeSessionRelationship::Reserved
+        {
             anyhow::bail!("Prepared worktree launch has already been consumed");
         }
 
@@ -1492,10 +1494,19 @@ impl SessionMetadataRepository {
 
     pub async fn discard_reserved_worktree_launch(db: &DbConn, launch_token: &str) -> Result<()> {
         let txn = db.begin().await?;
-        if let Some(state) = AcepeSessionState::find_by_id(launch_token).one(&txn).await? {
-            if AcepeSessionRelationship::from_str(&state.relationship) == AcepeSessionRelationship::Reserved {
-                AcepeSessionState::delete_by_id(launch_token).exec(&txn).await?;
-                SessionMetadata::delete_by_id(launch_token).exec(&txn).await?;
+        if let Some(state) = AcepeSessionState::find_by_id(launch_token)
+            .one(&txn)
+            .await?
+        {
+            if AcepeSessionRelationship::from_str(&state.relationship)
+                == AcepeSessionRelationship::Reserved
+            {
+                AcepeSessionState::delete_by_id(launch_token)
+                    .exec(&txn)
+                    .await?;
+                SessionMetadata::delete_by_id(launch_token)
+                    .exec(&txn)
+                    .await?;
             }
         }
         txn.commit().await?;
@@ -1518,7 +1529,9 @@ impl SessionMetadataRepository {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Prepared worktree launch state not found"))?;
 
-        if AcepeSessionRelationship::from_str(&state.relationship) != AcepeSessionRelationship::Reserved {
+        if AcepeSessionRelationship::from_str(&state.relationship)
+            != AcepeSessionRelationship::Reserved
+        {
             anyhow::bail!("Prepared worktree launch has already been consumed");
         }
 
@@ -1810,7 +1823,9 @@ impl SessionMetadataRepository {
             .await?;
 
         if let Some(existing_model) = existing {
-            let existing_state = AcepeSessionState::find_by_id(&existing_model.id).one(db).await?;
+            let existing_state = AcepeSessionState::find_by_id(&existing_model.id)
+                .one(db)
+                .await?;
             let title_overridden = existing_state
                 .as_ref()
                 .and_then(|state| state.title_override.as_ref())

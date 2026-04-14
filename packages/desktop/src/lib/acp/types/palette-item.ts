@@ -10,6 +10,8 @@ export interface PaletteItemMetadata {
 	projectName?: string;
 	/** Project color for badge */
 	projectColor?: string;
+	/** Project icon source for badge */
+	projectIconSrc?: string | null;
 	/** File extension for files */
 	extension?: string;
 	/** Agent ID for sessions */

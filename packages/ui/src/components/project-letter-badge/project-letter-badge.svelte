@@ -31,10 +31,14 @@
 		class: className = "",
 	}: Props = $props();
 
+	let hasError = $state(false);
+	let errorSrc = $state<string | null>(null);
+
 	const letter = $derived(name.charAt(0).toUpperCase());
 	const hasSequenceId = $derived(sequenceId != null);
 	const displayColor = $derived(color === Colors.green ? "var(--success)" : color);
 	const iconAlt = $derived(name.length > 0 ? `${name} icon` : "Project icon");
+	const showImage = $derived(iconSrc && !(hasError && errorSrc === iconSrc));
 
 	const fontSize = $derived(fontSizeProp ?? size * 0.715);
 	const radius = $derived(size * 0.25);
@@ -45,18 +49,19 @@
 		<div
 			class="flex items-center justify-center shrink-0 overflow-hidden"
 			style="
-				background-color: {displayColor};
+				background-color: {showImage ? 'color-mix(in srgb, var(--foreground) 85%, transparent)' : displayColor};
 				width: {size}px;
 				height: {size}px;
 				border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
 			"
 		>
-			{#if iconSrc}
+			{#if showImage}
 				<img
 					src={iconSrc}
 					alt={iconAlt}
 					class="block h-full w-full object-cover"
 					draggable="false"
+					onerror={() => { hasError = true; errorSrc = iconSrc ?? null; }}
 				/>
 			{:else}
 				<span
@@ -74,14 +79,14 @@
 			style="
 				height: {size}px;
 				padding: 0 {size * 0.25}px;
-				{showLetter ? `border-left: 1px solid color-mix(in srgb, ${displayColor} 30%, black);` : ''}
+				{showLetter ? `border-left: 1px solid ${showImage ? 'color-mix(in srgb, var(--foreground) 50%, transparent)' : `color-mix(in srgb, ${displayColor} 30%, black)`};` : ''}
 				border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
-				background-color: {displayColor};
+				background-color: {showImage ? 'color-mix(in srgb, var(--foreground) 85%, transparent)' : displayColor};
 			"
 		>
 			<span
 				class="font-black leading-none"
-				style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
+				style="font-size: {fontSize}px; color: {showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`};"
 			>{sequenceId}</span>
 		</span>
 	{/if}

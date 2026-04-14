@@ -23,6 +23,7 @@ export interface ProjectGroupRef {
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
+	readonly projectIconSrc: string | null;
 }
 
 export interface ViewModeState {
@@ -35,7 +36,7 @@ export interface ViewModeState {
 	readonly activeProjectPath: string | null;
 	/** List of projects for project switcher when in project/single (card layout); undefined when multi or one group */
 	readonly focusedModeAllProjects:
-		| readonly { name: string; color: string; path: string }[]
+		| readonly { name: string; color: string; path: string; iconSrc: string | null }[]
 		| undefined;
 	/** The agent panel to show in single mode; null when layout is "cards" */
 	readonly fullscreenPanel: PanelWithProject | null;
@@ -96,13 +97,14 @@ export function getViewModeState(
 				})();
 
 	const focusedModeAllProjects:
-		| readonly { name: string; color: string; path: string }[]
+		| readonly { name: string; color: string; path: string; iconSrc: string | null }[]
 		| undefined =
 		viewMode !== "multi" && allGroups.length > 1
 			? allGroups.map((g) => ({
 					name: g.projectName,
 					color: g.projectColor,
 					path: g.projectPath,
+					iconSrc: g.projectIconSrc,
 				}))
 			: undefined;
 

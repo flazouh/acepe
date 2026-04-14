@@ -14,6 +14,7 @@
 	interface Props {
 		projectName: string;
 		projectColor: string;
+		projectIconSrc?: string | null;
 		shell: string | null;
 		hideProjectBadge?: boolean;
 		loading: boolean;
@@ -26,6 +27,7 @@
 	let {
 		projectName,
 		projectColor,
+		projectIconSrc = null,
 		shell,
 		hideProjectBadge = false,
 		loading,
@@ -49,6 +51,7 @@
 						<ProjectLetterBadge
 							name={projectName}
 							color={projectColor}
+							iconSrc={projectIconSrc}
 							size={28}
 							fontSize={15}
 							class="!rounded-none !rounded-tl-lg"

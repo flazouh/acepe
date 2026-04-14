@@ -115,6 +115,7 @@ function computeSessionDiffStats(session: QueueSessionSnapshot): {
  * Returns the project color for a given path, or null if not found.
  */
 export type ProjectColorLookup = (projectPath: string) => string | null;
+export type ProjectIconSrcLookup = (projectPath: string) => string | null;
 
 export interface QueueSessionStateInput {
 	readonly isStreaming: boolean;
@@ -193,11 +194,13 @@ export function buildQueueItem(
 	pendingQuestion: QuestionRequest | null,
 	pendingPlanApproval: PlanApprovalInteraction | null,
 	pendingPermission: PermissionRequest | null,
-	getProjectColor?: ProjectColorLookup
+	getProjectColor?: ProjectColorLookup,
+	getProjectIconSrc?: ProjectIconSrcLookup
 ): QueueItem {
 	const pendingText = pendingQuestionText ?? null;
 	const projectColor =
 		getProjectColor?.(session.projectPath) ?? generateFallbackProjectColor(session.projectPath);
+	const projectIconSrc = getProjectIconSrc?.(session.projectPath) ?? null;
 
 	const diffStats = computeSessionDiffStats(session);
 
@@ -212,6 +215,7 @@ export function buildQueueItem(
 		projectPath: session.projectPath,
 		projectName: extractProjectName(session.projectPath),
 		projectColor,
+		projectIconSrc,
 		title: session.title,
 		urgency,
 		pendingText,

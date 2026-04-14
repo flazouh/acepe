@@ -77,6 +77,8 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		projectPath: overrides.projectPath !== undefined ? overrides.projectPath : "/test/project",
 		projectName: overrides.projectName !== undefined ? overrides.projectName : "project",
 		projectColor: overrides.projectColor !== undefined ? overrides.projectColor : "#ffffff",
+		projectIconSrc:
+			overrides.projectIconSrc !== undefined ? overrides.projectIconSrc : null,
 		title: overrides.title !== undefined ? overrides.title : "Thread",
 		lastActivityAt: overrides.lastActivityAt !== undefined ? overrides.lastActivityAt : 1000,
 		currentModeId: overrides.currentModeId !== undefined ? overrides.currentModeId : null,

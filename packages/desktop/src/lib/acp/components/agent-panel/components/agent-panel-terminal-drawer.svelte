@@ -35,14 +35,24 @@ const MAX_DRAWER_HEIGHT = 600;
 
 let drawerHeight = $state(DEFAULT_DRAWER_HEIGHT);
 let isResizing = $state(false);
+let tabRenderVersion = $state(0);
 
 const clampedHeight = $derived(
 	Math.min(MAX_DRAWER_HEIGHT, Math.max(MIN_DRAWER_HEIGHT, drawerHeight))
 );
 
-const tabs = $derived(embeddedTerminals.getTabs(panelId));
-const selectedTabId = $derived(embeddedTerminals.getSelectedTabId(panelId));
-const selectedTab = $derived(embeddedTerminals.getSelectedTab(panelId));
+const terminalTabs = $derived.by(() => {
+	tabRenderVersion;
+	return embeddedTerminals.getTabs(panelId);
+});
+const selectedTabId = $derived.by(() => {
+	tabRenderVersion;
+	return embeddedTerminals.getSelectedTabId(panelId);
+});
+const selectedTab = $derived.by(() => {
+	tabRenderVersion;
+	return embeddedTerminals.getSelectedTab(panelId);
+});
 
 // ---- Shell detection ----
 
@@ -67,10 +77,12 @@ onMount(() => {
 
 function handleAddTab(): void {
 	embeddedTerminals.addTab(panelId, effectiveCwd);
+	tabRenderVersion += 1;
 }
 
 function handleCloseTab(tabId: string): void {
 	embeddedTerminals.closeTab(panelId, tabId);
+	tabRenderVersion += 1;
 	if (embeddedTerminals.getTabs(panelId).length === 0) {
 		onClose();
 	}
@@ -78,11 +90,13 @@ function handleCloseTab(tabId: string): void {
 
 function handleSelectTab(tabId: string): void {
 	embeddedTerminals.setSelectedTab(panelId, tabId);
+	tabRenderVersion += 1;
 }
 
 function handlePtyCreated(tab: EmbeddedTerminalTab, ptyId: number): void {
 	if (detectedShell) {
 		embeddedTerminals.updatePty(panelId, tab.id, ptyId, detectedShell);
+		tabRenderVersion += 1;
 	}
 }
 
@@ -130,7 +144,7 @@ function handleResizePointerUp(): void {
 	{/snippet}
 
 	{#snippet tabs()}
-		{#each tabs as tab, i (tab.id)}
+		{#each terminalTabs as tab, i (tab.id)}
 			<div
 				class="group inline-flex h-7 shrink-0 items-center gap-1 px-2 text-xs transition-colors cursor-pointer
 					{tab.id === selectedTabId
@@ -172,7 +186,7 @@ function handleResizePointerUp(): void {
 	{#snippet body()}
 		<svelte:boundary>
 			{#if detectedShell}
-				{#each tabs as tab (tab.id)}
+				{#each terminalTabs as tab (tab.id)}
 					<div class="absolute inset-0" class:hidden={tab.id !== selectedTabId}>
 						<TerminalRenderer
 							projectPath={tab.cwd}

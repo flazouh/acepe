@@ -17,6 +17,7 @@ import type { TerminalTab } from "$lib/acp/store/types.js";
 interface Props {
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	shell: string | null;
 	hideProjectBadge?: boolean;
 	onClose: () => void;
@@ -37,6 +38,7 @@ interface Props {
 let {
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	shell,
 	hideProjectBadge = false,
 	onClose,
@@ -131,6 +133,7 @@ function handleFullscreenToggle() {
 				<ProjectLetterBadge
 					name={projectName}
 					color={effectiveColor}
+					iconSrc={projectIconSrc}
 					size={28}
 					fontSize={15}
 					class="!rounded-none !rounded-tl-lg"

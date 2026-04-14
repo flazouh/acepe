@@ -1,8 +1,30 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ResultAsync } from "neverthrow";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { resolveProjectColor } from "../utils/colors.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
+
+/**
+ * Converts a filesystem icon path to a Tauri asset:// URL.
+ * Returns the value unchanged if it's falsy, or already a web/data/asset URL.
+ */
+export function convertIconPath(iconPath: string | null | undefined): string | null {
+	if (!iconPath) {
+		return iconPath === undefined ? null : iconPath;
+	}
+
+	if (
+		iconPath.startsWith("http://") ||
+		iconPath.startsWith("https://") ||
+		iconPath.startsWith("data:") ||
+		iconPath.startsWith("asset://")
+	) {
+		return iconPath;
+	}
+
+	return convertFileSrc(iconPath);
+}
 
 /**
  * Client for communicating with Tauri backend for project operations.
@@ -26,7 +48,7 @@ export class ProjectClient {
 			createdAt: new Date(project.created_at),
 			color: resolveProjectColor(project.color),
 			sortOrder: project.sort_order,
-			iconPath: project.icon_path ?? null,
+			iconPath: convertIconPath(project.icon_path ?? null),
 		};
 	}
 
@@ -100,6 +122,12 @@ export class ProjectClient {
 			.map((project) => this.mapProject(project));
 	}
 
+	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
+		return tauriClient.projects
+			.listProjectImages(projectPath)
+			.mapErr((e) => new ProjectError(`Failed to list project images: ${e}`, "STORAGE_ERROR"));
+	}
+
 	updateProjectOrder(orderedPaths: string[]): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
 			.updateProjectOrder(orderedPaths)
@@ -119,6 +147,12 @@ export class ProjectClient {
 			.mapErr((e) => new ProjectError(`Failed to add project: ${e}`, "STORAGE_ERROR"));
 	}
 
+	backfillProjectIcons(): ResultAsync<number, ProjectError> {
+		return tauriClient.projects
+			.backfillProjectIcons()
+			.mapErr((e) => new ProjectError(`Failed to backfill project icons: ${e}`, "STORAGE_ERROR"));
+	}
+
 	/**
 	 * Remove a project.
 	 *
@@ -129,6 +163,19 @@ export class ProjectClient {
 		return tauriClient.projects
 			.removeProject(path)
 			.mapErr((e) => new ProjectError(`Failed to remove project: ${e}`, "STORAGE_ERROR"));
+	}
+
+	/**
+	 * Browse for a project icon image file.
+	 *
+	 * @returns ResultAsync containing the selected file path or null if cancelled
+	 */
+	browseProjectIcon(): ResultAsync<string | null, ProjectError> {
+		return tauriClient.projects
+			.browseProjectIcon()
+			.mapErr(
+				(e) => new ProjectError(`Failed to browse project icon: ${e}`, "STORAGE_ERROR")
+			);
 	}
 
 	/**

@@ -128,6 +128,11 @@ function getProjectColor(projectPath: string): string | null {
 	return project?.color ?? null;
 }
 
+function getProjectIconSrc(projectPath: string): string | null {
+	const project = projectManager.projects.find((candidate) => candidate.path === projectPath);
+	return project?.iconPath ?? null;
+}
+
 $effect(() => {
 	if (!appState.initializationComplete) return;
 
@@ -147,6 +152,7 @@ $effect(() => {
 		DEFAULT_PANEL_WIDTH
 	);
 
+	queueStore.setProjectIconSrcLookup(getProjectIconSrc);
 	queueStore.updateFromSessions(queueInputs, sessionToPanelMap, getProjectColor);
 });
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
+import { ArrowCounterClockwise } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
 import { Rows } from "phosphor-svelte";
@@ -21,6 +22,8 @@ interface Props {
 	currentViewMode?: ProjectViewMode;
 	onColorChange?: (color: string) => void;
 	onViewModeChange?: (mode: ProjectViewMode) => void;
+	hasProjectIcon?: boolean;
+	onResetProjectIcon?: () => void;
 	onRemoveProject?: () => void;
 }
 
@@ -30,6 +33,8 @@ let {
 	currentViewMode = "sessions",
 	onColorChange,
 	onViewModeChange,
+	hasProjectIcon = false,
+	onResetProjectIcon,
 	onRemoveProject,
 }: Props = $props();
 
@@ -49,12 +54,20 @@ const selectedColorHex = $derived.by(() => {
 	return selectedOption?.hex ?? colorOptions[0]?.hex ?? Colors[COLOR_NAMES.RED];
 });
 
-const showSettingsSection = $derived(Boolean(onColorChange || onViewModeChange || onRemoveProject));
+const hasResetProjectIcon = $derived(Boolean(hasProjectIcon && onResetProjectIcon));
+const showColorPicker = $derived(Boolean(onColorChange && !hasProjectIcon));
+const showSettingsSection = $derived(
+	Boolean(showColorPicker || onViewModeChange || onRemoveProject || hasResetProjectIcon)
+);
 const displaySectionClass = $derived(
-	`px-2 py-1.5${onColorChange || onRemoveProject ? " border-b border-border/20" : ""}`
+	`px-2 py-1.5${showColorPicker || onRemoveProject || hasResetProjectIcon
+		? " border-b border-border/20"
+		: ""}`
 );
 const colorTriggerClass = $derived(
-	`rounded-none px-2 py-1.5 text-[11px]${onRemoveProject ? " border-b border-border/20" : ""}`
+	`rounded-none px-2 py-1.5 text-[11px]${onRemoveProject || hasResetProjectIcon
+		? " border-b border-border/20"
+		: ""}`
 );
 
 function handleRemoveClick() {
@@ -129,7 +142,7 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 						</div>
 					</div>
 				{/if}
-				{#if onColorChange}
+				{#if onColorChange && !hasProjectIcon}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class={colorTriggerClass}>
 							<Palette class="h-3.5 w-3.5 mr-2" weight="fill" />
@@ -165,6 +178,18 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 							</div>
 						</DropdownMenu.SubContent>
 					</DropdownMenu.Sub>
+				{/if}
+				{#if hasProjectIcon && onResetProjectIcon}
+					<DropdownMenu.Item
+						class="rounded-none px-2 py-1.5 text-[11px]"
+						onclick={() => {
+							onResetProjectIcon();
+							menuOpen = false;
+						}}
+					>
+						<ArrowCounterClockwise class="h-3.5 w-3.5 mr-2" weight="bold" />
+						Reset to letter badge
+					</DropdownMenu.Item>
 				{/if}
 				{#if onRemoveProject}
 					<DropdownMenu.Item

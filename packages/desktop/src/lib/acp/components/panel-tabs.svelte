@@ -39,12 +39,12 @@ function getProjectForSession(projectPath: string | null): Project | null {
 	return recentProjects.find((p) => p.path === projectPath) ?? null;
 }
 
-function getProjectInfo(panel: PanelTabInfo): { name: string; color: string } {
+function getProjectInfo(panel: PanelTabInfo): { name: string; color: string; iconSrc: string | null } {
 	const project = getProjectForSession(panel.sessionProjectPath);
 	if (project) {
-		return { name: project.name, color: getProjectColor(project) };
+		return { name: project.name, color: getProjectColor(project), iconSrc: project.iconPath ?? null };
 	}
-	return { name: "?", color: "var(--orange-500, #f97316)" };
+	return { name: "?", color: "var(--orange-500, #f97316)", iconSrc: null };
 }
 </script>
 
@@ -65,7 +65,11 @@ function getProjectInfo(panel: PanelTabInfo): { name: string; color: string } {
 						onclick={() => onSelectPanel(panel.id)}
 					>
 						<!-- Project letter badge -->
-						<ProjectLetterBadge name={projectInfo.name} color={projectInfo.color} />
+						<ProjectLetterBadge
+							name={projectInfo.name}
+							color={projectInfo.color}
+							iconSrc={projectInfo.iconSrc}
+						/>
 
 						<!-- Agent icon -->
 						{#if panel.agentId}

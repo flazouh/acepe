@@ -4,14 +4,14 @@
 //! that isolate agent work from the main repository. Each worktree gets a fun
 //! adjective-noun branch name like "clever-falcon" or "cosmic-harbor".
 
+use crate::db::repository::SessionMetadataRepository;
 use crate::git::worktree_config;
 use crate::path_safety;
-use crate::db::repository::SessionMetadataRepository;
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 use rand::seq::SliceRandom;
+use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sea_orm::DbConn;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, Manager};
@@ -130,7 +130,11 @@ fn slugify_project_name(project_path: &Path) -> String {
     let mut slug = String::new();
     let mut last_was_dash = false;
     for ch in raw.chars() {
-        let normalized = if ch.is_ascii_alphanumeric() { Some(ch) } else { None };
+        let normalized = if ch.is_ascii_alphanumeric() {
+            Some(ch)
+        } else {
+            None
+        };
         if let Some(value) = normalized {
             slug.push(value);
             last_was_dash = false;
@@ -147,10 +151,72 @@ fn slugify_project_name(project_path: &Path) -> String {
     }
 }
 
-fn format_reserved_worktree_basename(project_path: &Path, sequence_id: i32) -> String {
-    let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+fn month_name(month: u32) -> &'static str {
+    match month {
+        1 => "january",
+        2 => "february",
+        3 => "march",
+        4 => "april",
+        5 => "may",
+        6 => "june",
+        7 => "july",
+        8 => "august",
+        9 => "september",
+        10 => "october",
+        11 => "november",
+        12 => "december",
+        _ => "unknown",
+    }
+}
+
+fn slugify_text(value: &str, fallback: &str) -> String {
+    let mut slug = String::with_capacity(value.len());
+    let mut last_was_dash = false;
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            slug.push(ch.to_ascii_lowercase());
+            last_was_dash = false;
+        } else if !last_was_dash {
+            slug.push('-');
+            last_was_dash = true;
+        }
+    }
+    let trimmed = slug.trim_matches('-');
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn format_reserved_worktree_relative_path_at(
+    now: chrono::DateTime<Utc>,
+    project_path: &Path,
+    sequence_id: i32,
+    agent_id: &str,
+) -> String {
+    let day = now.day();
+    let month = month_name(now.month());
+    let year = now.year();
+    let hour = now.format("%H");
+    let minute = now.format("%M");
     let project_slug = slugify_project_name(project_path);
-    format!("{timestamp}-{project_slug}-s{sequence_id}")
+    let agent_slug = slugify_text(agent_id, "agent");
+    format!(
+        "{day}-{month}-{year}-{hour}:{minute}/{project_slug}/{sequence_id}/{agent_slug}"
+    )
+}
+
+fn format_reserved_worktree_relative_path(
+    project_path: &Path,
+    sequence_id: i32,
+    agent_id: &str,
+) -> String {
+    format_reserved_worktree_relative_path_at(Utc::now(), project_path, sequence_id, agent_id)
+}
+
+fn worktree_branch_name(name: &str) -> String {
+    format!("acepe/{}", name.replace(':', "-"))
 }
 
 /// Get the worktrees root directory (~/.acepe/worktrees/)
@@ -248,7 +314,18 @@ fn has_valid_head(repo_path: &Path) -> Result<bool, String> {
     Ok(output.status.success())
 }
 
+fn fetch_latest_base_refs(repo_path: &Path) {
+    for branch in ["main", "master"] {
+        let _ = Command::new("git")
+            .args(["fetch", "origin", branch])
+            .current_dir(repo_path)
+            .output();
+    }
+}
+
 fn resolve_worktree_base_ref(repo_path: &Path) -> Result<String, String> {
+    fetch_latest_base_refs(repo_path);
+
     for candidate in ["origin/main", "origin/master", "main", "master"] {
         if branch_exists(repo_path, candidate)? {
             return Ok(candidate.to_string());
@@ -325,7 +402,7 @@ fn generate_unique_candidate(
             Some(base) => format!("{}-{}", base, generate_name()),
             None => generate_name(),
         };
-        let branch = format!("acepe/{}", name);
+        let branch = worktree_branch_name(&name);
         let directory = worktrees_dir.join(&name);
 
         // Check that neither the directory nor branch already exists
@@ -353,7 +430,7 @@ fn generate_unique_candidate_from_basename(
         } else {
             format!("{basename}-{suffix}")
         };
-        let branch = format!("acepe/{name}");
+        let branch = worktree_branch_name(&name);
         let directory = worktrees_dir.join(&name);
         if !directory.exists() && !branch_exists(project_path, &branch)? {
             return Ok(WorktreeInfo {
@@ -417,6 +494,11 @@ fn create_worktree_from_info(project_path: &str, info: &WorktreeInfo) -> Result<
 
     let base_ref = resolve_worktree_base_ref(&project_path_buf)?;
     tracing::info!(base_ref = %base_ref, "Resolved worktree base ref");
+
+    if let Some(parent) = Path::new(&info.directory).parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create worktree parent directory: {}", e))?;
+    }
 
     let output = Command::new("git")
         .args([
@@ -515,9 +597,10 @@ pub async fn git_prepare_worktree_session_launch(
     }
 
     let db = app.state::<DbConn>();
-    let reserved = SessionMetadataRepository::reserve_worktree_launch(db.inner(), &project_path, &agent_id)
-        .await
-        .map_err(|error| format!("Failed to reserve worktree launch: {error}"))?;
+    let reserved =
+        SessionMetadataRepository::reserve_worktree_launch(db.inner(), &project_path, &agent_id)
+            .await
+            .map_err(|error| format!("Failed to reserve worktree launch: {error}"))?;
 
     let worktrees_dir = match get_project_worktrees_dir(&project_path) {
         Ok(path) => path,
@@ -531,26 +614,39 @@ pub async fn git_prepare_worktree_session_launch(
         }
     };
     if let Err(error) = std::fs::create_dir_all(&worktrees_dir) {
-        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(db.inner(), &reserved.launch_token).await;
+        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
+            db.inner(),
+            &reserved.launch_token,
+        )
+        .await;
         return Err(format!("Failed to create worktrees directory: {error}"));
     }
 
-    let basename = format_reserved_worktree_basename(&project_path_buf, reserved.sequence_id);
-    let info = match generate_unique_candidate_from_basename(&project_path_buf, &worktrees_dir, &basename)
-    {
-        Ok(info) => info,
-        Err(error) => {
-            let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
-                db.inner(),
-                &reserved.launch_token,
-            )
-            .await;
-            return Err(error);
-        }
-    };
+    let basename = format_reserved_worktree_relative_path(
+        &project_path_buf,
+        reserved.sequence_id,
+        &agent_id,
+    );
+    let info =
+        match generate_unique_candidate_from_basename(&project_path_buf, &worktrees_dir, &basename)
+        {
+            Ok(info) => info,
+            Err(error) => {
+                let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
+                    db.inner(),
+                    &reserved.launch_token,
+                )
+                .await;
+                return Err(error);
+            }
+        };
 
     if let Err(error) = create_worktree_from_info(&project_path, &info) {
-        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(db.inner(), &reserved.launch_token).await;
+        let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
+            db.inner(),
+            &reserved.launch_token,
+        )
+        .await;
         return Err(error);
     }
 
@@ -569,7 +665,9 @@ pub async fn git_prepare_worktree_session_launch(
                 &reserved.launch_token,
             )
             .await;
-            return Err(format!("Failed to persist prepared worktree launch: {error}"));
+            return Err(format!(
+                "Failed to persist prepared worktree launch: {error}"
+            ));
         }
     };
 
@@ -1286,6 +1384,7 @@ pub async fn git_has_uncommitted_changes(project_path: String) -> Result<bool, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use std::fs;
     use tempfile::TempDir;
 
@@ -1318,6 +1417,15 @@ mod tests {
         command.output().expect("git command should run")
     }
 
+    fn git_stdout(repo_path: &Path, args: &[&str]) -> String {
+        let output = run_git(repo_path, args);
+        assert!(output.status.success(), "git command should succeed: {:?}", args);
+        String::from_utf8(output.stdout)
+            .expect("git output should be utf8")
+            .trim()
+            .to_string()
+    }
+
     fn init_repo() -> TempDir {
         let temp_dir = TempDir::new().expect("temp dir should create");
         let init_output = run_git(temp_dir.path(), &["init"]);
@@ -1341,6 +1449,30 @@ mod tests {
             fs::create_dir_all(parent).expect("parent directory should be created");
         }
         fs::write(file_path, contents).expect("file contents should be written");
+    }
+
+    #[test]
+    fn formats_reserved_worktree_relative_path_with_timestamp_project_sequence_and_agent() {
+        let now = Utc
+            .with_ymd_and_hms(2026, 4, 14, 14, 35, 0)
+            .single()
+            .expect("fixed datetime should be valid");
+        let formatted = format_reserved_worktree_relative_path_at(
+            now,
+            Path::new("/tmp/My Project"),
+            41,
+            "claude-code",
+        );
+
+        assert_eq!(formatted, "14-april-2026-14:35/my-project/41/claude-code");
+    }
+
+    #[test]
+    fn branch_name_sanitizes_colons_but_preserves_hierarchy() {
+        let branch =
+            worktree_branch_name("14-april-2026-14:35/my-project/41/claude-code");
+
+        assert_eq!(branch, "acepe/14-april-2026-14-35/my-project/41/claude-code");
     }
 
     fn commit_all(repo_path: &Path, message: &str) {
@@ -1593,5 +1725,57 @@ branch refs/heads/acepe/clever-falcon";
         let base_ref = resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
 
         assert_eq!(base_ref, "main");
+    }
+
+    #[test]
+    fn resolve_worktree_base_ref_fetches_latest_origin_main_before_use() {
+        let remote_dir = init_bare_remote();
+        let repo_dir = init_repo();
+
+        write_repo_file(repo_dir.path(), "README.md", "initial\n");
+        commit_all(repo_dir.path(), "initial commit");
+
+        let remote_path = remote_dir.path().to_string_lossy().to_string();
+        let add_remote_output =
+            run_git(repo_dir.path(), &["remote", "add", "origin", &remote_path]);
+        assert!(
+            add_remote_output.status.success(),
+            "git remote add should succeed"
+        );
+
+        let push_output = run_git(repo_dir.path(), &["push", "-u", "origin", "main"]);
+        assert!(push_output.status.success(), "git push should succeed");
+
+        let updater_dir = TempDir::new().expect("temp dir should create");
+        let clone_output = Command::new("git")
+            .args(["clone", &remote_path, updater_dir.path().to_string_lossy().as_ref()])
+            .output()
+            .expect("git clone should run");
+        assert!(clone_output.status.success(), "git clone should succeed");
+
+        write_repo_file(updater_dir.path(), "README.md", "remote update\n");
+        commit_all(updater_dir.path(), "remote update");
+        let updater_push_output = run_git(updater_dir.path(), &["push", "origin", "main"]);
+        assert!(
+            updater_push_output.status.success(),
+            "git push from updater clone should succeed"
+        );
+
+        let remote_head_before = git_stdout(repo_dir.path(), &["rev-parse", "origin/main"]);
+        let local_head_before = git_stdout(repo_dir.path(), &["rev-parse", "main"]);
+        assert_eq!(
+            remote_head_before, local_head_before,
+            "tracking ref should be stale before resolver fetches"
+        );
+
+        let base_ref = resolve_worktree_base_ref(repo_dir.path()).expect("base ref should resolve");
+        assert_eq!(base_ref, "origin/main");
+
+        let remote_head_after = git_stdout(repo_dir.path(), &["rev-parse", "origin/main"]);
+        let actual_remote_head = git_stdout(updater_dir.path(), &["rev-parse", "main"]);
+        assert_eq!(
+            remote_head_after, actual_remote_head,
+            "resolver should refresh origin/main before choosing base ref"
+        );
     }
 }

@@ -65,6 +65,7 @@ function handleRequestGeneration(prompt: string) {
 						projectPath={gitDialog.projectPath}
 						{projectName}
 						projectColor={project?.color}
+						projectIconSrc={project?.iconPath ?? null}
 						width={gitDialog.width}
 						initialTarget={gitDialog.initialTarget}
 						voiceSessionId={gitDialog.id}

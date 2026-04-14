@@ -17,6 +17,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { onDestroy, onMount } from "svelte";
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
 import {
 	copySessionToClipboard,
@@ -33,7 +34,7 @@ import TodoHeader from "$lib/acp/components/todo-header.svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
-import { WorktreeToggleControl } from "$lib/acp/components/worktree-toggle/index.js";
+import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
 import {
@@ -154,6 +155,7 @@ let selectedProjectPath = $state<string | null>(null);
 let selectedAgentId = $state<string | null>(null);
 let activeWorktreePath = $state<string | null>(null);
 let worktreePending = $state(false);
+let preparedWorktreeLaunch = $state<PreparedWorktreeLaunch | null>(null);
 let activeDialogPanelId = $state<string | null>(null);
 let activeDialogMode = $state<KanbanThreadDialogMode>("inspect");
 let questionIndexBySession = $state(
@@ -296,6 +298,12 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			(projectPath) => {
 				const projectColor = projectColorsByPath.get(projectPath);
 				return projectColor ? projectColor : null;
+			},
+			(projectPath) => {
+				const project = projectManager.projects.find(
+					(candidate) => candidate.path === projectPath
+				);
+				return project ? project.iconPath ?? null : null;
 			}
 		);
 
@@ -307,6 +315,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,
+			projectIconSrc: queueItem.projectIconSrc,
 			title: queueItem.title,
 			lastActivityAt: queueItem.lastActivityAt,
 			currentModeId: queueItem.currentModeId,
@@ -407,6 +416,7 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		isAutoMode: item.autonomousEnabled,
 		projectName: item.projectName,
 		projectColor: item.projectColor,
+		projectIconSrc: item.projectIconSrc,
 		activityText,
 		isStreaming,
 		modeId: item.currentModeId,
@@ -508,6 +518,7 @@ function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
 		isAutoMode: card.isAutoMode,
 		projectName: card.projectName,
 		projectColor: card.projectColor,
+		projectIconSrc: card.projectIconSrc,
 		activityText: card.activityText,
 		isStreaming: card.isStreaming,
 		modeId: card.modeId,
@@ -568,6 +579,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : m.project_unknown(),
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
+				projectIconSrc: project ? project.iconPath ?? null : null,
 				activityText,
 				isStreaming: true,
 				modeId: null,
@@ -838,6 +850,7 @@ function resetNewSessionState(request?: KanbanNewSessionRequest): void {
 	newSessionInitialModeId = request?.modeId ?? CanonicalModeId.BUILD;
 	newSessionComposerKey += 1;
 	activeWorktreePath = null;
+	preparedWorktreeLaunch = null;
 	worktreePending = defaults.projectPath
 		? resolveEmptyStateWorktreePending({
 				activeWorktreePath: null,
@@ -880,6 +893,7 @@ function handleNewSessionAgentChange(agentId: string): void {
 function handleNewSessionProjectChange(project: Project): void {
 	selectedProjectPath = project.path;
 	activeWorktreePath = null;
+	preparedWorktreeLaunch = null;
 	worktreePending = resolveEmptyStateWorktreePendingForProjectChange({
 		globalWorktreeDefault,
 		loadEnabled: loadWorktreeEnabled,
@@ -924,6 +938,7 @@ function handleNewSessionWillSend(): string | null {
 }
 
 function handleNewSessionCreated(sessionId: string, panelId?: string | null): void {
+	preparedWorktreeLaunch = null;
 	if (panelId) {
 		panelStore.updatePanelSession(panelId, sessionId);
 		panelStore.focusPanel(panelId);
@@ -1261,6 +1276,43 @@ function handleRejectPlanApproval(sessionId: string): void {
 		>
 			<div class="flex w-full flex-col px-2 py-2">
 				{#if canShowNewSessionInput}
+					{#if selectedProject}
+						<div class="mb-2">
+							<PreSessionWorktreeCard
+								pendingWorktreeEnabled={effectiveWorktreePending}
+								alwaysEnabled={globalWorktreeDefault}
+								onYes={() => {
+									const store = getWorktreeDefaultStore();
+								if (store.globalDefault) {
+									void store.set(false);
+								}
+								preparedWorktreeLaunch = null;
+								worktreePending = true;
+							}}
+							onNo={() => {
+								const store = getWorktreeDefaultStore();
+								if (store.globalDefault) {
+									void store.set(false);
+								}
+								preparedWorktreeLaunch = null;
+								worktreePending = false;
+							}}
+							onAlways={() => {
+								const store = getWorktreeDefaultStore();
+								const toggled = !store.globalDefault;
+								void store.set(toggled);
+								if (!toggled) {
+									preparedWorktreeLaunch = null;
+								}
+								worktreePending = toggled;
+							}}
+							onDismiss={() => {
+								preparedWorktreeLaunch = null;
+								worktreePending = false;
+							}}
+						/>
+						</div>
+					{/if}
 					{#key newSessionComposerKey}
 						<AgentInput
 							panelId={KANBAN_NEW_SESSION_PANEL_ID}
@@ -1277,9 +1329,13 @@ function handleRejectPlanApproval(sessionId: string): void {
 							onSendError={handleNewSessionSendError}
 							worktreePath={activeWorktreePath ? activeWorktreePath : undefined}
 							worktreePending={effectiveWorktreePending}
+							{preparedWorktreeLaunch}
 							onWorktreeCreated={(path) => {
 								activeWorktreePath = path;
 								worktreePending = false;
+							}}
+							onPreparedWorktreeLaunch={(launch) => {
+								preparedWorktreeLaunch = launch;
 							}}
 						>
 							{#snippet agentProjectPicker()}
@@ -1300,30 +1356,6 @@ function handleRejectPlanApproval(sessionId: string): void {
 							{/snippet}
 						</AgentInput>
 					{/key}
-					{#if selectedProject}
-						<div class="mt-2 flex h-7 items-center rounded-b-lg">
-							<WorktreeToggleControl
-								panelId={KANBAN_NEW_SESSION_PANEL_ID}
-								projectPath={selectedProject.path}
-								projectName={selectedProject.name}
-								activeWorktreePath={activeWorktreePath}
-								hasEdits={false}
-								hasMessages={false}
-								{globalWorktreeDefault}
-								variant="minimal"
-								onWorktreeCreated={(info) => {
-									activeWorktreePath = info.directory;
-									worktreePending = false;
-								}}
-								onWorktreeRenamed={(info) => {
-									activeWorktreePath = info.directory;
-								}}
-								onPendingChange={(pending) => {
-									worktreePending = pending;
-								}}
-							/>
-						</div>
-					{/if}
 				{:else}
 					<div class="rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
 						Add at least one project and one available agent to start a session.

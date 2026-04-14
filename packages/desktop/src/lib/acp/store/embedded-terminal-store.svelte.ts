@@ -27,11 +27,19 @@ export class EmbeddedTerminalStore {
 	/** Selected tab ID per agent panel */
 	private selectedTabByPanel = new SvelteMap<string, string>();
 
+	/** Mutation counter per panel to make class-backed updates observable to consumers. */
+	private versionByPanel = new SvelteMap<string, number>();
+
 	/** Callback to dirty-flag workspace for persistence */
 	private readonly onPersist: () => void;
 
 	constructor(onPersist: () => void) {
 		this.onPersist = onPersist;
+	}
+
+	private markPanelChanged(panelId: string): void {
+		const currentVersion = this.versionByPanel.get(panelId) ?? 0;
+		this.versionByPanel.set(panelId, currentVersion + 1);
 	}
 
 	// ============================================
@@ -42,6 +50,7 @@ export class EmbeddedTerminalStore {
 	 * Get all terminal tabs for a panel.
 	 */
 	getTabs(panelId: string): readonly EmbeddedTerminalTab[] {
+		this.versionByPanel.get(panelId);
 		return this.tabsByPanel.get(panelId) || [];
 	}
 
@@ -87,6 +96,7 @@ export class EmbeddedTerminalStore {
 		const existing = this.tabsByPanel.get(panelId) || [];
 		this.tabsByPanel.set(panelId, [...existing, tab]);
 		this.selectedTabByPanel.set(panelId, tab.id);
+		this.markPanelChanged(panelId);
 		this.onPersist();
 		return tab;
 	}
@@ -112,6 +122,7 @@ export class EmbeddedTerminalStore {
 			}
 		}
 
+		this.markPanelChanged(panelId);
 		this.onPersist();
 	}
 
@@ -120,6 +131,7 @@ export class EmbeddedTerminalStore {
 	 */
 	setSelectedTab(panelId: string, tabId: string): void {
 		this.selectedTabByPanel.set(panelId, tabId);
+		this.markPanelChanged(panelId);
 		this.onPersist();
 	}
 
@@ -134,6 +146,7 @@ export class EmbeddedTerminalStore {
 			panelId,
 			tabs.map((t) => (t.id === tabId ? { ...t, ptyId, shell } : t))
 		);
+		this.markPanelChanged(panelId);
 		// No onPersist — ptyId/shell are runtime-only
 	}
 
@@ -153,6 +166,7 @@ export class EmbeddedTerminalStore {
 	cleanup(panelId: string): void {
 		this.tabsByPanel.delete(panelId);
 		this.selectedTabByPanel.delete(panelId);
+		this.versionByPanel.delete(panelId);
 		// onPersist not needed — the panel is being removed
 	}
 
@@ -202,6 +216,7 @@ export class EmbeddedTerminalStore {
 				} else if (tabs.length > 0) {
 					this.selectedTabByPanel.set(newPanelId, tabs[0]?.id);
 				}
+				this.markPanelChanged(newPanelId);
 			}
 		}
 	}

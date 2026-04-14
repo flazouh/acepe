@@ -29,12 +29,19 @@ import {
 import { mountFileBadges } from "./logic/mount-file-badges.js";
 import { mountGitHubBadges } from "./logic/mount-github-badges.js";
 import { parseContentBlocks } from "./logic/parse-content-blocks.js";
-import { createStreamingReveal } from "./logic/create-streaming-reveal.svelte.js";
+import {
+	createStreamingRevealController,
+	type StreamingRevealController,
+} from "./logic/create-streaming-reveal-controller.svelte.js";
 import {
 	parseStreamingTailIncremental,
 	type StreamingTailParseResult,
 } from "./logic/parse-streaming-tail.js";
 import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
+import {
+	DEFAULT_STREAMING_ANIMATION_MODE,
+	type StreamingAnimationMode,
+} from "../../types/streaming-animation-mode.js";
 
 const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 const STREAMING_SYNC_RESULT = {
@@ -45,6 +52,7 @@ const STREAMING_SYNC_RESULT = {
 
 const EMPTY_STREAMING_TAIL = { sections: [] } satisfies StreamingTailParseResult;
 const seededRevealKeys = new Set<string>();
+const latchedRevealModes = new Map<string, StreamingAnimationMode>();
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -69,9 +77,16 @@ interface Props {
 	 * If not provided, will use projectPath from session context.
 	 */
 	projectPath?: string;
+	streamingAnimationMode?: StreamingAnimationMode;
 }
 
-let { text, isStreaming = false, revealKey, projectPath: propProjectPath }: Props = $props();
+let {
+	text,
+	isStreaming = false,
+	revealKey,
+	projectPath: propProjectPath,
+	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
+}: Props = $props();
 
 // Use context projectPath if no prop provided, otherwise use prop (backward compatibility)
 const projectPath = $derived(propProjectPath ?? contextProjectPath);
@@ -85,7 +100,18 @@ let markdownContainerRef: HTMLDivElement | null = $state(null);
 
 let gitStatusByPath = $state<ReadonlyMap<string, FileGitStatus> | null>(null);
 let lastGitStatusRequestKey = "";
-const reveal = createStreamingReveal();
+function resolveRevealMode(): StreamingAnimationMode {
+	if (revealKey !== undefined) {
+		const latchedMode = latchedRevealModes.get(revealKey);
+		if (latchedMode !== undefined) {
+			return latchedMode;
+		}
+	}
+
+	return streamingAnimationMode;
+}
+
+const reveal: StreamingRevealController = createStreamingRevealController(resolveRevealMode());
 let hasStreamingSession = $state(false);
 let hasObservedRevealSource = $state(false);
 let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
@@ -131,6 +157,9 @@ $effect(() => {
 			revealKey !== undefined &&
 			seededRevealKeys.has(revealKey);
 		hasStreamingSession = true;
+		if (revealKey !== undefined && !latchedRevealModes.has(revealKey)) {
+			latchedRevealModes.set(revealKey, streamingAnimationMode);
+		}
 		reveal.setState(text, true, { seedFromSource });
 		hasObservedRevealSource = true;
 		if (revealKey !== undefined) {
@@ -144,6 +173,7 @@ $effect(() => {
 		hasObservedRevealSource = text.length > 0;
 		if (revealKey !== undefined) {
 			seededRevealKeys.delete(revealKey);
+			latchedRevealModes.delete(revealKey);
 		}
 		return;
 	}
@@ -156,7 +186,13 @@ $effect(() => {
 });
 
 const isRenderingReveal = $derived(isStreaming || reveal.isRevealActive);
-const showStreamingCursor = $derived(reveal.cursorVisible);
+const showStreamingCursor = $derived(
+	resolveRevealMode() === "classic" &&
+		(reveal.mode === "streaming" ||
+			reveal.mode === "paused-awaiting-more" ||
+			reveal.mode === "completion-catchup")
+);
+
 
 $effect(() => {
 	return () => {
@@ -521,7 +557,8 @@ function handleKeydown(event: KeyboardEvent) {
 							? ""
 							: section.kind === "live-code"
 								? section.code
-						: section.text,
+								: section.text,
+					mode: resolveRevealMode(),
 				}}
 			>
 				{#if section.kind === "settled"}
@@ -585,15 +622,16 @@ function handleKeydown(event: KeyboardEvent) {
 		}
 	}
 
-	@keyframes streaming-caret {
-		0%,
-		49% {
-			opacity: 0.45;
-		}
+	:global(.streaming-section.streaming-smooth-fade) {
+		animation: smoothFadeIn 300ms ease-out;
+	}
 
-		50%,
-		100% {
-			opacity: 0;
+	@keyframes smoothFadeIn {
+		from {
+			opacity: 0.4;
+		}
+		to {
+			opacity: 1;
 		}
 	}
 

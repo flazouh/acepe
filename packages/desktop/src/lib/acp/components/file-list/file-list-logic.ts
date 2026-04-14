@@ -153,6 +153,7 @@ export function createFileGroups(
 		projectPath: project.path,
 		projectName: project.name,
 		projectColor: project.color,
+		projectIconSrc: project.iconPath ?? null,
 		files: filesByProject.get(project.path) ?? [],
 		totalFiles: countFilesInTree(filesByProject.get(project.path) ?? []),
 		loading: loadingProjects.has(project.path),

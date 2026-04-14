@@ -1,9 +1,11 @@
 <script lang="ts">
 import { createVirtualizer } from "@tanstack/svelte-virtual";
 import { get } from "svelte/store";
+import { getChatPreferencesStore } from "../store/chat-preferences-store.svelte.js";
 import type { SessionEntry, TurnState } from "../store/types.js";
 import type { AskMessage as AskMessageType } from "../types/ask-message.js";
 import type { AssistantMessage as AssistantMessageType } from "../types/assistant-message.js";
+import { DEFAULT_STREAMING_ANIMATION_MODE } from "../types/streaming-animation-mode.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { UserMessage as UserMessageType } from "../types/user-message.js";
 import { AskMessage, AssistantMessage, UserMessage } from "./messages/index.js";
@@ -19,6 +21,10 @@ interface Props {
 
 let { entries, turnState = "idle", onscroll, projectPath }: Props = $props();
 let scrollElement = $state<HTMLDivElement | null>(null);
+const chatPrefs = getChatPreferencesStore();
+const streamingAnimationMode = $derived(
+	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
+);
 const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
 	count: 0,
 	getScrollElement: () => scrollElement,
@@ -118,6 +124,7 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 								message={entry.message as AssistantMessageType}
 								revealMessageKey={entry.id}
 								{projectPath}
+								{streamingAnimationMode}
 							/>
 						{:else if entry.type === "ask"}
 							<AskMessage message={entry.message as AskMessageType} />

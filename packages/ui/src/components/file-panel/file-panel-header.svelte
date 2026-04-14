@@ -27,6 +27,7 @@
 		filePath: string;
 		projectName: string;
 		projectColor: string;
+		projectIconSrc?: string | null;
 		compact?: boolean;
 		hideProjectBadge?: boolean;
 		insertions?: number;
@@ -49,6 +50,7 @@
 		filePath,
 		projectName,
 		projectColor,
+		projectIconSrc = null,
 		compact = false,
 		hideProjectBadge = false,
 		insertions,
@@ -95,6 +97,7 @@
 						<ProjectLetterBadge
 							name={projectName}
 							color={projectColor}
+							iconSrc={projectIconSrc}
 							size={28}
 							fontSize={15}
 							class="!rounded-none !rounded-tl-lg"

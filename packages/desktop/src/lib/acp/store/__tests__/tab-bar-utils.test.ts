@@ -69,6 +69,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		isUnseen: false,
 		projectName: null,
 		projectColor: null,
+		projectIconSrc: null,
 		projectPath: null,
 		...overrides,
 	};
@@ -337,6 +338,7 @@ function makeNonAgentInput(
 		focusedPanelId: null,
 		projectName: "acepe",
 		projectColor: "#16DB95",
+		projectIconSrc: null,
 		...overrides,
 	};
 }

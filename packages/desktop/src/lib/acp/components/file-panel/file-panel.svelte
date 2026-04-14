@@ -27,6 +27,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	width: number;
 	isFullscreenEmbedded?: boolean;
 	hideProjectBadge?: boolean;
@@ -44,6 +45,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	width,
 	isFullscreenEmbedded = false,
 	hideProjectBadge = false,
@@ -312,6 +314,7 @@ const shellClass = $derived(
 					{projectPath}
 					{projectName}
 					{projectColor}
+					{projectIconSrc}
 					{content}
 					{gitStatus}
 					compact={compactHeader}

@@ -36,6 +36,8 @@ interface Props {
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
 	onProjectColorChange?: (projectPath: string, color: string) => void;
+	onChangeProjectIcon?: (projectPath: string) => void;
+	onResetProjectIcon?: (projectPath: string) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when file tree expansion state changes */
@@ -81,6 +83,8 @@ let {
 	effectiveTheme = "light",
 	onProjectClick,
 	onProjectColorChange,
+	onChangeProjectIcon,
+	onResetProjectIcon,
 	onRemoveProject,
 	onSelectFile,
 	onFileTreeExpansionChange,
@@ -114,6 +118,7 @@ const openSessionIds = $derived.by(() => {
 
 // ✅ Derived - all computations using pure logic functions
 const projectColorMap = $derived(logic.createProjectColorMap(recentProjects));
+const projectIconSrcMap = $derived(logic.createProjectIconSrcMap(recentProjects));
 const projectNameMap = $derived(logic.createProjectNameMap(recentProjects));
 const projectCreatedAtMap = $derived(new Map(recentProjects.map((p) => [p.path, p.createdAt])));
 
@@ -126,6 +131,7 @@ const displayItems = $derived(
 		projectSessions,
 		projectNameMap,
 		projectColorMap,
+		projectIconSrcMap,
 		openSessionIds,
 		(sessionId) => checkpointStore.getCheckpoints(sessionId)
 	)
@@ -164,6 +170,8 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{canCreateSession}
 	{shortcutKeys}
 	{onProjectColorChange}
+	{onChangeProjectIcon}
+	{onResetProjectIcon}
 	{onRemoveProject}
 	{sessionGroups}
 	{hasResults}

@@ -285,7 +285,8 @@ impl SessionMetadataSource for CopilotSource {
             .into_iter()
             .map(|(session_id, path, mtime, size)| (session_id, (path, mtime, size)))
             .collect();
-        let existing_rows = SessionMetadataRepository::get_for_session_ids(db, &session_ids).await?;
+        let existing_rows =
+            SessionMetadataRepository::get_for_session_ids(db, &session_ids).await?;
         let mut existing_row_map = HashMap::new();
         for row in existing_rows {
             if let Some(provider_session_id) = row.provider_session_id.clone() {
@@ -1334,7 +1335,11 @@ mod tests {
         }
     }
 
-    fn write_copilot_session(home_path: &Path, project_path: &Path, session_id: &str) -> (String, i64, i64) {
+    fn write_copilot_session(
+        home_path: &Path,
+        project_path: &Path,
+        session_id: &str,
+    ) -> (String, i64, i64) {
         let session_dir = home_path
             .join(".copilot")
             .join("session-state")
@@ -1392,9 +1397,15 @@ mod tests {
             write_copilot_session(&home_dir, &project_dir, session_id);
 
         let db = setup_test_db().await;
-        SessionMetadataRepository::ensure_exists(&db, session_id, &canonical_project, "copilot", None)
-            .await
-            .expect("seed placeholder row");
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            session_id,
+            &canonical_project,
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed placeholder row");
 
         let placeholder = SessionMetadataRepository::get_by_id(&db, session_id)
             .await

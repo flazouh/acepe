@@ -80,7 +80,7 @@
 			size="icon"
 			onclick={onSubmit}
 			disabled={submitDisabled}
-			class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+			class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-muted-foreground text-background hover:bg-muted-foreground/80"
 		>
 			{#if showStop}
 				<Stop weight="fill" class="h-3.5 w-3.5" />

@@ -74,6 +74,10 @@ type TauriWindow = Window & {
 	};
 };
 
+type ProjectManagerLike = Pick<ProjectManager, "loadProjects" | "projectCount" | "projects"> & {
+	triggerProjectIconBackfill?: () => void;
+};
+
 /**
  * Handles app initialization.
  */
@@ -99,7 +103,7 @@ export class InitializationManager {
 		private readonly agentStore: AgentStore,
 		private readonly panelStore: PanelStore,
 		private readonly workspaceStore: WorkspaceStore,
-		private readonly projectManager: ProjectManager,
+		private readonly projectManager: ProjectManagerLike,
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
 		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
@@ -327,6 +331,10 @@ export class InitializationManager {
 			loadAgentsAndWarmPreconnectionCommands,
 			this.projectManager
 				.loadProjects()
+				.map(() => {
+					this.projectManager.triggerProjectIconBackfill?.();
+					return undefined;
+				})
 				.mapErr(
 					(error) =>
 						new InitializationError("loadProjects", error instanceof Error ? error : undefined)

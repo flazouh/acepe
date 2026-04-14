@@ -11,6 +11,7 @@ function makeProject(path: string, name: string, color: string): Project {
 		name,
 		createdAt: new Date("2026-01-01T00:00:00.000Z"),
 		color,
+		iconPath: `asset://${name.toLowerCase()}.png`,
 	};
 }
 
@@ -54,6 +55,7 @@ describe("file-explorer-context", () => {
 		expect(info["/workspace/app/.worktrees/feature-a"]).toEqual({
 			name: "App",
 			color: "cyan",
+			iconSrc: "asset://app.png",
 		});
 	});
 });

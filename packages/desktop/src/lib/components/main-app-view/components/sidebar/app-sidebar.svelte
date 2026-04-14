@@ -4,6 +4,7 @@ import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import { copySessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
+import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
@@ -91,6 +92,27 @@ function handleProjectColorChange(projectPath: string, color: string) {
 	projectManager.updateProjectColor(projectPath, color).mapErr((error) => {
 		toast.error(`Failed to update project color: ${error.message}`);
 		logger.error("[ProjectColor] Failed to update", { projectPath, color, error });
+	});
+}
+
+function handleChangeProjectIcon(projectPath: string) {
+	void projectManager.listProjectImages(projectPath).match(
+		(images) => {
+			iconPickerProjectPath = projectPath;
+			iconPickerImages = images;
+			iconPickerOpen = true;
+		},
+		(error) => {
+			toast.error(`Failed to load project images: ${error.message}`);
+			logger.error("[ProjectIcon] Failed to list project images", { projectPath, error });
+		}
+	);
+}
+
+function handleResetProjectIcon(projectPath: string) {
+	projectManager.updateProjectIcon(projectPath, "").mapErr((error) => {
+		toast.error(`Failed to reset project icon: ${error.message}`);
+		logger.error("[ProjectIcon] Failed to reset", { projectPath, error });
 	});
 }
 
@@ -224,6 +246,46 @@ const availableAgents = $derived(
 );
 const effectiveTheme = $derived(themeState.effectiveTheme);
 
+let iconPickerOpen = $state(false);
+let iconPickerImages = $state<string[]>([]);
+let iconPickerProjectPath = $state("");
+
+function handleIconPickerOpenChange(open: boolean) {
+	iconPickerOpen = open;
+	if (!open) {
+		iconPickerImages = [];
+		iconPickerProjectPath = "";
+	}
+}
+
+function handleSelectProjectIcon(iconPath: string) {
+	const projectPath = iconPickerProjectPath;
+	if (!projectPath) {
+		return;
+	}
+
+	void projectManager.updateProjectIcon(projectPath, iconPath).match(
+		() => undefined,
+		(error) => {
+			toast.error(`Failed to update project icon: ${error.message}`);
+			logger.error("[ProjectIcon] Failed to change", { projectPath, error });
+		}
+	);
+}
+
+function handleBrowseProjectIcon() {
+	const projectPath = iconPickerProjectPath;
+	handleIconPickerOpenChange(false);
+	if (!projectPath) {
+		return;
+	}
+
+	projectManager.browseAndSetProjectIcon(projectPath).mapErr((error) => {
+		toast.error(`Failed to update project icon: ${error.message}`);
+		logger.error("[ProjectIcon] Failed to change", { projectPath, error });
+	});
+}
+
 // Performance: Only read hot state (changes infrequently — on connection/turn transitions).
 // Do NOT read sessionStore.getEntries() here — entries change every rAF during streaming,
 // which would mark this derived dirty on every frame, cascading to ALL SessionItem components.
@@ -267,6 +329,8 @@ const visibleSessions = $derived.by(() => {
 			{availableAgents}
 			{effectiveTheme}
 			onProjectColorChange={handleProjectColorChange}
+			onChangeProjectIcon={handleChangeProjectIcon}
+			onResetProjectIcon={handleResetProjectIcon}
 			onRemoveProject={handleRemoveProject}
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}
@@ -288,3 +352,12 @@ const visibleSessions = $derived.by(() => {
 		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
 	{/snippet}
 </AppSidebarLayout>
+
+<ProjectIconPickerDialog
+	open={iconPickerOpen}
+	projectPath={iconPickerProjectPath}
+	images={iconPickerImages}
+	onSelect={handleSelectProjectIcon}
+	onBrowse={handleBrowseProjectIcon}
+	onOpenChange={handleIconPickerOpenChange}
+/>

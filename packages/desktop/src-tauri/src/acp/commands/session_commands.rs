@@ -371,7 +371,8 @@ pub async fn acp_new_session(
             }
         })?
     } else {
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd).await?
+        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
+            .await?
     };
 
     // Store the client keyed by session_id only after session metadata is durably attached.
@@ -465,8 +466,7 @@ pub async fn acp_resume_session(
         match result {
             Ok(Ok(response)) => {
                 let policy_registry = app_clone.state::<Arc<SessionPolicyRegistry>>();
-                let autonomous_enabled =
-                    policy_registry.is_autonomous(&session_id);
+                let autonomous_enabled = policy_registry.is_autonomous(&session_id);
                 let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
                     session_id: session_id.clone(),
                     attempt_id,

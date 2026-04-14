@@ -10,7 +10,7 @@ import {
 	extractCurrentToolInfo,
 	extractLastToolInfo,
 	extractTodoProgress,
-	filterLiveSessions,
+	getSidebarSessions,
 	getNextSessionListVisibleCount,
 	getSessionListVisibleCount,
 	isSessionListNearBottom,
@@ -41,6 +41,7 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
+			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => []
 		);
@@ -85,6 +86,7 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
+			new Map([["/repo", null]]),
 			new Set(["open-session"]),
 			() => []
 		);
@@ -126,6 +128,7 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
+			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => []
 		);
@@ -168,6 +171,7 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
+			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => [
 				{
@@ -290,8 +294,8 @@ describe("buildSessionRows", () => {
 	});
 });
 
-describe("filterLiveSessions", () => {
-	it("keeps only sessions marked live", () => {
+describe("getSidebarSessions", () => {
+	it("keeps historical sessions visible in the sidebar", () => {
 		const items: SessionListItem[] = [
 			{
 				id: "live-session",
@@ -323,7 +327,10 @@ describe("filterLiveSessions", () => {
 			},
 		];
 
-		expect(filterLiveSessions(items).map((item) => item.id)).toEqual(["live-session"]);
+		expect(getSidebarSessions(items).map((item) => item.id)).toEqual([
+			"live-session",
+			"historical-session",
+		]);
 	});
 });
 

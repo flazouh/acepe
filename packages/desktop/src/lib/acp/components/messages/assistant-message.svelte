@@ -6,6 +6,10 @@ import { groupAssistantChunks } from "../../logic/assistant-chunk-grouper.js";
 import { sanitizeAssistantText } from "../../logic/assistant-text-sanitizer.js";
 import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
 import type { AssistantMessage } from "../../types/assistant-message.js";
+import {
+	DEFAULT_STREAMING_ANIMATION_MODE,
+	type StreamingAnimationMode,
+} from "../../types/streaming-animation-mode.js";
 import ContentBlockRouter from "./content-block-router.svelte";
 import CopyButton from "./copy-button.svelte";
 
@@ -17,9 +21,16 @@ interface Props {
 	revealMessageKey?: string;
 	/** Project path for opening files in panels */
 	projectPath?: string;
+	streamingAnimationMode?: StreamingAnimationMode;
 }
 
-let { message, isStreaming = false, revealMessageKey, projectPath: propProjectPath }: Props = $props();
+let {
+	message,
+	isStreaming = false,
+	revealMessageKey,
+	projectPath: propProjectPath,
+	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
+}: Props = $props();
 
 // Get projectPath from session context, with prop fallback
 const sessionContext = useSessionContext();
@@ -221,6 +232,7 @@ $effect(() => {
 												: undefined
 										}
 										{projectPath}
+										{streamingAnimationMode}
 									/>
 								{:else}
 									<ContentBlockRouter block={group.block} {projectPath} />
@@ -244,6 +256,7 @@ $effect(() => {
 									: undefined
 							}
 							{projectPath}
+							{streamingAnimationMode}
 						/>
 					{:else}
 						<ContentBlockRouter block={group.block} {projectPath} />

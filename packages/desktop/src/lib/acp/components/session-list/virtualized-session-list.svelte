@@ -158,6 +158,7 @@ setSessionListHighlightContext(highlightContext);
 					projectPath: row.item.projectPath,
 					projectName: row.item.projectName,
 					projectColor: row.item.projectColor,
+					projectIconSrc: row.item.projectIconSrc,
 					agentId: row.item.agentId,
 					createdAt: row.item.createdAt,
 					updatedAt: row.item.updatedAt,

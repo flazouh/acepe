@@ -96,6 +96,7 @@ function handleClose(e: MouseEvent) {
 						<ProjectLetterBadge
 							name={tab.projectName}
 							color={tab.projectColor}
+							iconSrc={tab.projectIconSrc}
 							size={14}
 							class="shrink-0"
 						/>

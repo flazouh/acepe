@@ -84,6 +84,8 @@ interface Props {
 	compactPadding?: boolean;
 	/** When true, sidebar is collapsed — show only agent badge, hide all text. */
 	collapsed?: boolean;
+	/** When true, suppress tool/task preview content and fall back to status/todo only. */
+	hideToolPreview?: boolean;
 }
 
 let {
@@ -137,6 +139,7 @@ let {
 	slidingHighlight = false,
 	compactPadding = false,
 	collapsed = false,
+	hideToolPreview = false,
 }: Props = $props();
 
 const taskWidgetSummary = $derived.by(() => {
@@ -151,6 +154,10 @@ const taskWidgetSummary = $derived.by(() => {
 	return null;
 });
 const taskWidgetToolCalls = $derived.by((): AgentToolEntry[] => {
+	if (hideToolPreview) {
+		return [];
+	}
+
 	if (taskSubagentTools.length > 0) {
 		return [...taskSubagentTools];
 	}
@@ -166,20 +173,25 @@ const taskWidgetToolCalls = $derived.by((): AgentToolEntry[] => {
 		status: index === taskSubagentSummaries.length - 1 && isStreaming ? "running" : "done",
 	}));
 });
+const visibleTaskWidgetSummary = $derived(hideToolPreview ? null : taskWidgetSummary);
+const visibleLatestToolDisplay = $derived(hideToolPreview ? null : latestToolDisplay);
+const visibleFileToolDisplayText = $derived(hideToolPreview ? null : fileToolDisplayText);
+const visibleToolContent = $derived(hideToolPreview ? null : toolContent);
+const visibleShowToolShimmer = $derived(hideToolPreview ? false : showToolShimmer);
 
 const showMainRow = $derived(!currentQuestion);
 const hasMainRowContent = $derived(
 	Boolean(
-			taskWidgetSummary ||
-			latestToolDisplay ||
-			fileToolDisplayText ||
-			toolContent ||
+			visibleTaskWidgetSummary ||
+			visibleLatestToolDisplay ||
+			visibleFileToolDisplayText ||
+			visibleToolContent ||
 			statusText ||
 			todoProgress ||
 			taskWidgetToolCalls.length > 0
 	)
 );
-const showTaskWidget = $derived(taskWidgetSummary !== null);
+const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 </script>
 
 <FeedItem selected={selected} onSelect={onSelect} {slidingHighlight} {compactPadding} {collapsed}>
@@ -243,11 +255,11 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 		</div>
 
 		{#if showMainRow && hasMainRowContent}
-			{#if showTaskWidget && taskWidgetSummary}
+			{#if showTaskWidget && visibleTaskWidgetSummary}
 				<div class="flex w-full min-w-0 flex-col gap-1">
 					<div class="flex w-full min-w-0 flex-col gap-1">
 						<AgentToolTask
-							description={taskWidgetSummary}
+							description={visibleTaskWidgetSummary}
 							status={isStreaming ? "running" : "done"}
 							children={taskWidgetToolCalls}
 							compact={true}
@@ -262,14 +274,14 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 						</div>
 					{/if}
 				</div>
-			{:else if latestToolDisplay?.kind === "browser"}
+			{:else if visibleLatestToolDisplay?.kind === "browser"}
 				<div class="flex w-full min-w-0 flex-col gap-1">
 					<AgentToolBrowser
-						title={latestToolDisplay.title}
-						subtitle={latestToolDisplay.subtitle ?? null}
-						detailsText={latestToolDisplay.detailsText ?? null}
-						scriptText={latestToolDisplay.scriptText ?? null}
-						status={latestToolDisplay.status}
+						title={visibleLatestToolDisplay.title}
+						subtitle={visibleLatestToolDisplay.subtitle ?? null}
+						detailsText={visibleLatestToolDisplay.detailsText ?? null}
+						scriptText={visibleLatestToolDisplay.scriptText ?? null}
+						status={visibleLatestToolDisplay.status}
 					/>
 
 					{#if todoProgress}
@@ -281,26 +293,26 @@ const showTaskWidget = $derived(taskWidgetSummary !== null);
 				</div>
 			{:else}
 				<div class="flex items-start gap-1.5">
-					{#if latestToolDisplay}
+					{#if visibleLatestToolDisplay}
 						<AgentCompactToolDisplay
-							tool={latestToolDisplay}
+							tool={visibleLatestToolDisplay}
 							class="max-w-[60%] text-[10px]"
 							fileChipClass="max-w-[9.5rem] font-normal text-muted-foreground/60"
 						/>
-					{:else if fileToolDisplayText}
+					{:else if visibleFileToolDisplayText}
 						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
 							{#if isStreaming}
-								<TextShimmer class="truncate">{fileToolDisplayText}</TextShimmer>
+								<TextShimmer class="truncate">{visibleFileToolDisplayText}</TextShimmer>
 							{:else}
-								<span class="truncate">{fileToolDisplayText}</span>
+								<span class="truncate">{visibleFileToolDisplayText}</span>
 							{/if}
 						</div>
-					{:else if toolContent}
+					{:else if visibleToolContent}
 						<div class="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[60%]">
-							{#if showToolShimmer}
-								<TextShimmer class="truncate">{toolContent}</TextShimmer>
+							{#if visibleShowToolShimmer}
+								<TextShimmer class="truncate">{visibleToolContent}</TextShimmer>
 							{:else}
-								<span class="truncate">{toolContent}</span>
+								<span class="truncate">{visibleToolContent}</span>
 							{/if}
 						</div>
 					{:else if statusText}

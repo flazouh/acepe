@@ -26,6 +26,7 @@ import {
 	AgentPanelPrCard,
 	AgentPanelQueueCardStrip,
 	AgentPanelScene,
+	AgentPanelTerminalDrawer,
 	AgentPanelTodoHeader,
 	AgentPanelWorktreeSetupCard,
 } from "@acepe/ui";
@@ -759,6 +760,36 @@ function handleTerminalToggle(panelId: string): void {
 	panel.terminalActive = !panel.terminalActive;
 }
 
+function getTerminalTranscript(panelId: string): readonly string[] {
+	if (panelId === "composer-primary") {
+		return [
+			"$ cd packages/website",
+			"$ bun run check",
+			"svelte-check found 0 errors and 0 warnings",
+			"$ bun run test -- agent-panel-demo",
+			"PASS agent-panel-demo visual parity",
+		];
+	}
+
+	if (panelId === "composer-verify") {
+		return [
+			"$ rg \"AgentPanelScene\" packages",
+			"packages/ui/src/components/agent-panel-scene/agent-panel-scene.svelte",
+			"packages/website/src/lib/components/agent-panel-demo.svelte",
+			"$ bun run test -- panel-parity",
+			"2 assertions updated",
+		];
+	}
+
+	return [
+		"$ git status --short",
+		"M packages/website/src/lib/components/agent-panel-demo.svelte",
+		"$ bun run build",
+		"vite v7.2.6 building for production...",
+		"build completed in 1.4s",
+	];
+}
+
 function handleSubmit(panel: DemoPanel): void {
 	if (panel.draftText.trim().length === 0) {
 		return;
@@ -976,6 +1007,29 @@ function handleSubmit(panel: DemoPanel): void {
 						{/snippet}
 						{#snippet footerOverride()}
 							{@render panelFooter(panel)}
+						{/snippet}
+						{#snippet bottomDrawer()}
+							{#if panel.terminalActive}
+								<AgentPanelTerminalDrawer height={220}>
+									{#snippet tabs()}
+										<div
+											class="inline-flex h-7 shrink-0 items-center gap-1 bg-accent/25 px-2 text-xs
+												text-foreground"
+											role="tab"
+											aria-selected="true"
+										>
+											<span>Terminal 1</span>
+										</div>
+									{/snippet}
+									{#snippet body()}
+										<div class="absolute inset-0 overflow-auto bg-background px-3 py-2 font-mono text-[11px]">
+											{#each getTerminalTranscript(panel.id) as line, index (`${panel.id}-${index}`)}
+												<div class="whitespace-pre-wrap text-foreground/90">{line}</div>
+											{/each}
+										</div>
+									{/snippet}
+								</AgentPanelTerminalDrawer>
+							{/if}
 						{/snippet}
 					</AgentPanelScene>
 				</div>

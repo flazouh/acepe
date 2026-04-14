@@ -6,15 +6,10 @@ import {
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	CloseAction,
-	EmbeddedPanelHeader,
 	FullscreenAction,
-	HeaderActionCell,
-	HeaderTitleCell,
 	OverflowMenuTriggerAction,
 } from "@acepe/ui/panel-header";
-import { ArrowUUpLeft } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
-import { Tree } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/messages.js";
@@ -35,6 +30,7 @@ let {
 	sessionStatus,
 	projectName,
 	projectColor,
+	projectIconSrc,
 	sequenceId,
 	hideProjectBadge = false,
 	onClose,
@@ -47,83 +43,11 @@ let {
 	onScrollToTop,
 	// Debug props
 	debugPanelState,
-	// Worktree close confirmation
-	worktreeCloseConfirming = false,
-	worktreeName = null,
-	worktreeHasDirtyChanges = false,
-	worktreeDirtyCheckPending = false,
-	onWorktreeCloseOnly,
-	onWorktreeRemoveAndClose,
-	onWorktreeCloseCancel,
 }: AgentPanelHeaderProps = $props();
 
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
-const panelHeaderClass = $derived(
-	isFullscreen ? "bg-card/50" : "bg-card/50 border-r border-border/50"
-);
 </script>
 
-{#if worktreeCloseConfirming}
-	<EmbeddedPanelHeader class={panelHeaderClass}>
-		<HeaderTitleCell>
-			{#snippet children()}
-				<span class="text-[11px] font-medium truncate text-muted-foreground">
-					{worktreeDirtyCheckPending
-						? m.worktree_toggle_checking()
-						: worktreeHasDirtyChanges
-						? m.worktree_close_confirm_dirty_title({ name: worktreeName ?? "worktree" })
-						: m.worktree_close_confirm_title({ name: worktreeName ?? "worktree" })}
-				</span>
-			{/snippet}
-		</HeaderTitleCell>
-		<HeaderActionCell>
-			{#snippet children()}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class="inline-flex items-center justify-center gap-1 h-7 px-2 cursor-pointer hover:text-destructive hover:bg-destructive/10 transition-colors border-l border-border/50"
-						onclick={() => onWorktreeRemoveAndClose?.()}
-						aria-label={m.worktree_close_confirm_remove_and_close()}
-						disabled={worktreeDirtyCheckPending}
-					>
-						<Tree class="h-3.5 w-3.5 text-destructive shrink-0" weight="fill" />
-						<span class="text-[10px] font-medium text-destructive">{m.worktree_close_confirm_remove_label()}</span>
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.worktree_close_confirm_remove_and_close()}</Tooltip.Content>
-			</Tooltip.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class="inline-flex items-center justify-center gap-1 h-7 px-2 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors border-l border-border/50"
-						onclick={() => onWorktreeCloseOnly?.()}
-						aria-label={m.worktree_close_confirm_close_only()}
-					>
-						<Tree class="h-3.5 w-3.5 text-success shrink-0" weight="fill" />
-						<span class="text-[10px] font-medium">{m.worktree_close_confirm_keep_label()}</span>
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.worktree_close_confirm_close_only()}</Tooltip.Content>
-			</Tooltip.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors border-l border-border/50"
-						onclick={() => onWorktreeCloseCancel?.()}
-						aria-label={m.common_cancel()}
-					>
-						<ArrowUUpLeft class="h-3.5 w-3.5" weight="fill" />
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.common_cancel()}</Tooltip.Content>
-			</Tooltip.Root>
-			{/snippet}
-		</HeaderActionCell>
-	</EmbeddedPanelHeader>
-{:else}
 	<AgentPanelHeaderLayout
 		class="bg-card/50"
 		showTrailingBorder={!isFullscreen}
@@ -135,6 +59,7 @@ const panelHeaderClass = $derived(
 		{pendingProjectSelection}
 		projectName={hideProjectBadge ? undefined : projectName}
 		projectColor={hideProjectBadge ? undefined : projectColor}
+		projectIconSrc={hideProjectBadge ? undefined : projectIconSrc}
 		sequenceId={hideProjectBadge ? undefined : sequenceId}
 		{onClose}
 		{onToggleFullscreen}
@@ -235,4 +160,3 @@ const panelHeaderClass = $derived(
 			<CloseAction {onClose} title={m.common_close()} />
 		{/snippet}
 	</AgentPanelHeaderLayout>
-{/if}

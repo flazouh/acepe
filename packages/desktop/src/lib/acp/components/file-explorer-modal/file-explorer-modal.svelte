@@ -11,6 +11,7 @@
  *   - onInsert: called with the selected file path when the user presses Enter
  */
 import { onMount } from "svelte";
+import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { FileExplorerRow } from "$lib/services/converted-session-types.js";
 import { FileExplorerModalState } from "./file-explorer-modal-state.svelte.js";
@@ -19,7 +20,7 @@ import FileExplorerResultsList from "./file-explorer-results-list.svelte";
 
 interface Props {
 	projectPaths: string[];
-	projectInfoByPath: Record<string, { name: string; color: string }>;
+	projectInfoByPath: Record<string, FileExplorerProjectInfo>;
 	onClose: () => void;
 	onInsert: (projectPath: string, filePath: string) => void;
 }

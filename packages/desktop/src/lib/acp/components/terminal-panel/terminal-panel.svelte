@@ -11,6 +11,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectIconSrc?: string | null;
 	width: number;
 	isFullscreenEmbedded?: boolean;
 	shell: string | null;
@@ -37,6 +38,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectIconSrc = null,
 	width,
 	isFullscreenEmbedded = false,
 	shell,
@@ -133,6 +135,7 @@ function handlePointerUp() {
 	<TerminalPanelLayout
 		{projectName}
 		projectColor={projectColor ?? ""}
+		{projectIconSrc}
 		shell={effectiveShell}
 		{hideProjectBadge}
 		loading={!effectiveShell && !combinedError}
@@ -143,6 +146,7 @@ function handlePointerUp() {
 			<TerminalPanelHeader
 				{projectName}
 				{projectColor}
+				{projectIconSrc}
 				shell={effectiveShell}
 				{hideProjectBadge}
 				{onClose}

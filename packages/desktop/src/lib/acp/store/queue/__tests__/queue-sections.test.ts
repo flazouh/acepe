@@ -121,6 +121,7 @@ function makeItem(
 		projectPath: "/test/project",
 		projectName: "project",
 		projectColor: "#fff",
+		projectIconSrc: null,
 		title: "Test",
 		urgency: { level: "low", reason: "Idle", timestamp: 1000, detail: null },
 		pendingText: null,

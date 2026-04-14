@@ -8,9 +8,5 @@ export function resolveAgentPanelWorktreePending(options: {
 		return false;
 	}
 
-	if (options.hasMessages) {
-		return false;
-	}
-
 	return options.pendingWorktreeEnabled === true;
 }

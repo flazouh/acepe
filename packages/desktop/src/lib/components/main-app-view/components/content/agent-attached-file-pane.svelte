@@ -146,6 +146,8 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				projectName={projects.find((project) => project.path === activeFilePanel.projectPath)?.name ??
 					m.project_unknown()}
 				projectColor={projects.find((project) => project.path === activeFilePanel.projectPath)?.color}
+				projectIconSrc={projects.find((project) => project.path === activeFilePanel.projectPath)?.iconPath ??
+					null}
 				width={activeFilePanel.width}
 				isFullscreenEmbedded={true}
 				hideProjectBadge={true}

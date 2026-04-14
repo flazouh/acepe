@@ -73,12 +73,18 @@ function createUserEntry(id: string, text: string): SessionEntry {
 	};
 }
 
-function renderContent(viewState: PanelViewState) {
+function renderContent(
+	viewState: PanelViewState,
+	overrides?: {
+		sessionId?: string;
+		sessionEntries?: readonly SessionEntry[];
+	}
+) {
 	return render(AgentPanelContent, {
 		panelId: "panel-1",
 		viewState,
-		sessionId: "session-1",
-		sessionEntries: [createUserEntry("user-1", "hello")],
+		sessionId: overrides?.sessionId ?? "session-1",
+		sessionEntries: overrides?.sessionEntries ?? [createUserEntry("user-1", "hello")],
 		sessionProjectPath: null,
 		allProjects: [],
 		scrollContainer: null,
@@ -116,5 +122,47 @@ describe("AgentPanelContent", () => {
 
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBeTruthy();
 		expect(view.queryByText("Connection dropped while resuming session")).toBeNull();
+	});
+
+	it("keeps the mounted conversation list when switching sessions in conversation view", async () => {
+		const view = renderContent(
+			{
+				kind: "conversation",
+				errorDetails: null,
+			},
+			{
+				sessionId: "session-1",
+				sessionEntries: [createUserEntry("user-1", "hello")],
+			}
+		);
+
+		const initialList = view.getByTestId("virtualized-entry-list-stub");
+
+		await view.rerender({
+			panelId: "panel-1",
+			viewState: {
+				kind: "conversation",
+				errorDetails: null,
+			},
+			sessionId: "session-2",
+			sessionEntries: [createUserEntry("user-2", "world")],
+			sessionProjectPath: null,
+			allProjects: [],
+			scrollContainer: null,
+			scrollViewport: null,
+			isAtBottom: true,
+			isAtTop: true,
+			isStreaming: false,
+			onProjectAgentSelected: vi.fn(),
+			onRetryConnection: undefined,
+			onCancelConnection: undefined,
+			agentIconSrc: "",
+			isFullscreen: true,
+			availableAgents: [],
+			effectiveTheme: "dark",
+			modifiedFilesState: null,
+		});
+
+		expect(view.getByTestId("virtualized-entry-list-stub")).toBe(initialList);
 	});
 });

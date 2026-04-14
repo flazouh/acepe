@@ -65,6 +65,11 @@ export interface FileGroup {
 	projectColor: string | undefined;
 
 	/**
+	 * Project icon source for visual identification.
+	 */
+	projectIconSrc?: string | null;
+
+	/**
 	 * Root-level file tree nodes.
 	 */
 	files: FileTreeNode[];

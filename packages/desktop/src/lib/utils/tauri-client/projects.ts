@@ -46,11 +46,23 @@ export const projects = {
 		return storageCommands.add_project.invoke<void>({ path, name });
 	},
 
+	backfillProjectIcons: (): ResultAsync<number, AppError> => {
+		return storageCommands.backfill_project_icons.invoke<number>();
+	},
+
 	removeProject: (path: string): ResultAsync<void, AppError> => {
 		return storageCommands.remove_project.invoke<void>({ path });
 	},
 
 	browseProject: (): ResultAsync<ProjectData | null, AppError> => {
 		return storageCommands.browse_project.invoke<ProjectData | null>();
+	},
+
+	browseProjectIcon: (): ResultAsync<string | null, AppError> => {
+		return storageCommands.browse_project_icon.invoke<string | null>();
+	},
+
+	listProjectImages: (projectPath: string): ResultAsync<string[], AppError> => {
+		return storageCommands.list_project_images.invoke<string[]>({ projectPath });
 	},
 };

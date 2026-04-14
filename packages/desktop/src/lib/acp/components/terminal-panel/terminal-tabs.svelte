@@ -26,10 +26,19 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string;
+	projectIconSrc?: string | null;
 	panelStore: TerminalTabsPanelStore;
 }
 
-let { group, tabs, projectPath, projectName, projectColor, panelStore }: Props = $props();
+let {
+	group,
+	tabs,
+	projectPath,
+	projectName,
+	projectColor,
+	projectIconSrc = null,
+	panelStore,
+}: Props = $props();
 
 const selectedId = $derived.by(() => {
 	const preferred = panelStore.getSelectedTerminalTabId(group.id);
@@ -81,6 +90,7 @@ function handleMoveTabToNewPanel(tabId: string) {
 				projectPath={selectedTerminal.projectPath}
 				{projectName}
 				{projectColor}
+				{projectIconSrc}
 				width={group.width}
 				shell={selectedTerminal.shell}
 				hideProjectBadge={true}
