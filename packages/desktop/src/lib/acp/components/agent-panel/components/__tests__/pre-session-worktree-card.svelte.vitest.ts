@@ -1,11 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
-import { okAsync } from "neverthrow";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-const loadWorktreeConfig = vi.fn(() =>
-	okAsync({ setupCommands: ["bun install", "bun test"] })
-);
-const setWorktreeDefault = vi.fn(() => okAsync(undefined));
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -19,61 +13,75 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("$lib/utils/tauri-client.js", () => {
-	return {
-		tauriClient: {
-			git: {
-				loadWorktreeConfig,
-			},
-		},
-	};
-});
-
-vi.mock("$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js", () => {
-	return {
-		getWorktreeDefaultStore: () => ({
-			set: setWorktreeDefault,
-		}),
-	};
-});
-
-vi.mock("../setup-scripts-dialog.svelte", async () => ({
-	default: (await import("../../../worktree-toggle/__tests__/fixtures/setup-scripts-dialog-stub.svelte"))
-		.default,
-}));
-
 const { default: PreSessionWorktreeCard } = await import("../pre-session-worktree-card.svelte");
 
 afterEach(() => {
 	cleanup();
-	setWorktreeDefault.mockClear();
-	loadWorktreeConfig.mockClear();
 });
 
 describe("PreSessionWorktreeCard desktop wrapper", () => {
-	it("loads setup command count, opens the dialog, and updates the global default", async () => {
-		const onPendingWorktreeChange = vi.fn();
+	it("shows worktree prompt and calls onYes when Yes is clicked", async () => {
+		const onYes = vi.fn();
+		const onNo = vi.fn();
+		const onDismiss = vi.fn();
 
-		const { container } = render(PreSessionWorktreeCard, {
-			projectPath: "/repo/current-project",
-			projectName: "Current Project",
-			pendingWorktreeEnabled: true,
-			globalWorktreeDefault: false,
-			onPendingWorktreeChange,
+		render(PreSessionWorktreeCard, {
+			pendingWorktreeEnabled: false,
+			onYes,
+			onNo,
+			onDismiss,
 		});
 
-		expect(await screen.findByText("2 setup commands")).toBeTruthy();
+		expect(screen.getByText("Use a worktree?")).toBeTruthy();
 
-		await fireEvent.click(screen.getByRole("switch"));
-		await fireEvent.click(screen.getByRole("button", { name: /setup commands/i }));
-		await fireEvent.click(screen.getByRole("button", { name: /project root/i }));
+		await fireEvent.click(screen.getByText("Yes"));
+		expect(onYes).toHaveBeenCalled();
+	});
 
-		expect(setWorktreeDefault).toHaveBeenCalledWith(true);
-		expect(onPendingWorktreeChange).toHaveBeenCalledWith(false);
+	it("calls onNo when No is clicked", async () => {
+		const onYes = vi.fn();
+		const onNo = vi.fn();
+		const onDismiss = vi.fn();
 
-		const dialog = container.querySelector("[data-testid='setup-scripts-dialog-stub']");
-		expect(dialog?.getAttribute("data-open")).toBe("true");
-		expect(dialog?.getAttribute("data-project-path")).toBe("/repo/current-project");
-		expect(dialog?.getAttribute("data-project-name")).toBe("Current Project");
+		render(PreSessionWorktreeCard, {
+			pendingWorktreeEnabled: false,
+			onYes,
+			onNo,
+			onDismiss,
+		});
+
+		await fireEvent.click(screen.getByText("No"));
+		expect(onNo).toHaveBeenCalled();
+	});
+
+	it("calls onDismiss when X is clicked", async () => {
+		const onYes = vi.fn();
+		const onNo = vi.fn();
+		const onDismiss = vi.fn();
+
+		render(PreSessionWorktreeCard, {
+			pendingWorktreeEnabled: false,
+			onYes,
+			onNo,
+			onDismiss,
+		});
+
+		await fireEvent.click(screen.getByLabelText("Dismiss"));
+		expect(onDismiss).toHaveBeenCalled();
+	});
+
+	it("hides prompt when worktree is already enabled", () => {
+		const onYes = vi.fn();
+		const onNo = vi.fn();
+		const onDismiss = vi.fn();
+
+		render(PreSessionWorktreeCard, {
+			pendingWorktreeEnabled: true,
+			onYes,
+			onNo,
+			onDismiss,
+		});
+
+		expect(screen.queryByText("Use a worktree?")).toBeNull();
 	});
 });

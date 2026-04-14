@@ -383,6 +383,44 @@ export function settings_chat_thinking_collapsed_description(args: MessageArgs =
 	return interpolate(`Start with the thinking block collapsed; use the chevron to expand.`, args);
 }
 
+export function settings_chat_streaming_animation(args: MessageArgs = {}): string {
+	return interpolate(`Streaming animation`, args);
+}
+
+export function settings_chat_streaming_animation_description(args: MessageArgs = {}): string {
+	return interpolate(`Choose how assistant text appears while it streams in.`, args);
+}
+
+export function settings_chat_streaming_animation_smooth(args: MessageArgs = {}): string {
+	return interpolate(`Smooth`, args);
+}
+
+export function settings_chat_streaming_animation_smooth_description(
+	args: MessageArgs = {}
+): string {
+	return interpolate(`Buffered, calmer append with a subtle tail fade.`, args);
+}
+
+export function settings_chat_streaming_animation_classic(args: MessageArgs = {}): string {
+	return interpolate(`Classic`, args);
+}
+
+export function settings_chat_streaming_animation_classic_description(
+	args: MessageArgs = {}
+): string {
+	return interpolate(`Current typing-style incremental reveal.`, args);
+}
+
+export function settings_chat_streaming_animation_instant(args: MessageArgs = {}): string {
+	return interpolate(`Instant`, args);
+}
+
+export function settings_chat_streaming_animation_instant_description(
+	args: MessageArgs = {}
+): string {
+	return interpolate(`Immediate display with no animation.`, args);
+}
+
 export function settings_voice(args: MessageArgs = {}): string {
 	return interpolate(`Voice`, args);
 }
@@ -1351,6 +1389,14 @@ export function project_settings(args: MessageArgs = {}): string {
 
 export function project_color(args: MessageArgs = {}): string {
 	return interpolate(`Color`, args);
+}
+
+export function project_icon_change(args: MessageArgs = {}): string {
+	return interpolate(`Change icon...`, args);
+}
+
+export function project_icon_reset(args: MessageArgs = {}): string {
+	return interpolate(`Reset to letter badge`, args);
 }
 
 export function project_color_red(args: MessageArgs = {}): string {

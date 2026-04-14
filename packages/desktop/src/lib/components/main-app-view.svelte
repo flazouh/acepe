@@ -524,8 +524,13 @@ const projectColorLookup = (projectPath: string) => {
 	const project = projectManager.projects.find((p) => p.path === projectPath);
 	return project?.color ?? null;
 };
+const projectIconSrcLookup = (projectPath: string) => {
+	const project = projectManager.projects.find((p) => p.path === projectPath);
+	return project?.iconPath ?? null;
+};
 urgencyTabsStore.setProjectColorLookup(projectColorLookup);
 tabBarStore.setProjectColorLookup(projectColorLookup);
+tabBarStore.setProjectIconSrcLookup(projectIconSrcLookup);
 
 // Set up project creation date lookup for tab bar group ordering
 const projectCreatedAtLookup = (projectPath: string) => {
@@ -935,9 +940,9 @@ onMount(async () => {
 	const initResult = await viewState.initialize();
 
 	// Initialize review preference (load persisted setting)
+	await chatPreferencesStore.initialize();
 	reviewPreferenceStore.initialize();
 	planPreferenceStore.initialize();
-	chatPreferencesStore.initialize();
 
 	// Initialize notification popup stores
 	windowFocusStore.initialize();
