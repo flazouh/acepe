@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag to build and publish (for example v2026.4.14)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,6 +26,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref }}
+
+      - name: Resolve release context
+        id: release_context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ inputs.tag_name }}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+
+          VERSION="${TAG_NAME#v}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -37,7 +58,7 @@ jobs:
 
       - name: Set version from tag
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.release_context.outputs.version }}"
           echo "Updating tauri.conf.json to version $VERSION"
           cd packages/desktop/src-tauri
           jq --arg v "$VERSION" '.version = $v' tauri.conf.json > tauri.conf.json.tmp
@@ -49,7 +70,7 @@ jobs:
       - name: Build release notes from changelog
         id: release_notes
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.release_context.outputs.version }}"
           NOTES_FILE="$(mktemp)"
           awk -v version="$VERSION" '
             $0 ~ "^## \\[" version "\\] - " { capture=1; next }
@@ -68,9 +89,19 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Resolve existing release
+        id: release_target
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${{ steps.release_context.outputs.tag_name }}"
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq '.id' 2>/dev/null || true)"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+      # Pin to the exact tauri-action revision used by the last known-good v2026.4.13 release.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
           # Updater signing (Tauri CLI generates .sig files)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -88,10 +119,11 @@ jobs:
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
         with:
+          releaseId: ${{ steps.release_target.outputs.release_id }}
           tauriScript: bunx tauri
           projectPath: packages/desktop
-          tagName: v__VERSION__
-          releaseName: v__VERSION__
+          tagName: ${{ steps.release_context.outputs.tag_name }}
+          releaseName: ${{ steps.release_context.outputs.tag_name }}
           releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: false
           prerelease: false
