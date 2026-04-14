@@ -372,7 +372,7 @@ function handleReorderProjects(orderedPaths: string[]) {
 	void projectManager
 		.updateProjectOrder(orderedPaths)
 		.mapErr((error) => {
-			projectManager.projects = restoreProjectSortOrders(projectManager.projects, previousSortOrders);
+			projectManager.projects = restoreProjectSortOrders(previousProjects, previousSortOrders);
 			logger.error("[ProjectReorder] Failed to persist project order", {
 				error,
 				orderedPaths,
