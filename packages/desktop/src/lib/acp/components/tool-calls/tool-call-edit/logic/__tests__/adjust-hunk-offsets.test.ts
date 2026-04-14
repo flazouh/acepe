@@ -13,9 +13,13 @@ function createMinimalHunk(overrides: Partial<Hunk> = {}): Hunk {
 		additionCount: 1,
 		additionStart: 1,
 		additionLines: 1,
+		additionLineIndex: 0,
 		deletionCount: 1,
 		deletionStart: 1,
 		deletionLines: 1,
+		deletionLineIndex: 0,
+		noEOFCRDeletions: false,
+		noEOFCRAdditions: false,
 		hunkContent: [],
 		hunkContext: undefined,
 		hunkSpecs: undefined,
@@ -32,8 +36,9 @@ function createMinimalFileDiff(overrides: Partial<FileDiffMetadata> = {}): FileD
 		hunks: [],
 		splitLineCount: 0,
 		unifiedLineCount: 0,
-		oldLines: [],
-		newLines: [],
+		isPartial: false,
+		deletionLines: [],
+		additionLines: [],
 	};
 
 	return Object.assign(baseFileDiff, overrides);

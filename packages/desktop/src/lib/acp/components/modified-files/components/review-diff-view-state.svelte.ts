@@ -44,6 +44,8 @@ type LegacyContextContent = {
 	type: "context";
 	lines: number;
 	noEOFCR: boolean;
+	additionLineIndex?: number;
+	deletionLineIndex?: number;
 };
 
 type LegacyChangeContent = {
@@ -73,12 +75,8 @@ function getContentLineCount(lines: string[] | number): number {
 	return Array.isArray(lines) ? lines.length : lines;
 }
 
-function isLegacyChangeContent(content: CompatibleHunkContent): content is LegacyChangeContent {
-	return content.type === "change" && !Array.isArray(content.deletions);
-}
-
 function getLegacyDeletionLines(fileDiffMetadata: CompatibleFileDiffMetadata): string[] {
-	return fileDiffMetadata.oldLines ?? fileDiffMetadata.deletionLines ?? [];
+	return fileDiffMetadata.deletionLines ?? [];
 }
 
 function getChangeDeletionLines(
@@ -87,10 +85,6 @@ function getChangeDeletionLines(
 ): string[] {
 	if (content.type !== "change") {
 		return [];
-	}
-
-	if (!isLegacyChangeContent(content)) {
-		return content.deletions;
 	}
 
 	return getLinesForRange(
