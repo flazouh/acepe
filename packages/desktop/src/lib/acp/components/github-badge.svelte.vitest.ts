@@ -107,4 +107,15 @@ describe("GitHubBadge", () => {
 		await fireEvent.mouseEnter(hoverTarget);
 		expect(fetchCommitDiffMock).toHaveBeenCalledTimes(1);
 	});
+
+	it("loads pr stats on mount without requiring hover", async () => {
+		render(GitHubBadgeComponent, {
+			ref: { type: "pr", owner: "flazouh", repo: "acepe", number: 42 },
+			projectPath: "/repo",
+		});
+
+		await waitFor(() => {
+			expect(fetchPrDiffMock).toHaveBeenCalledWith("flazouh", "acepe", 42);
+		});
+	});
 });

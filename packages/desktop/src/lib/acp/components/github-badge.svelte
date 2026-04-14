@@ -69,6 +69,10 @@ $effect(() => {
 	prState = undefined;
 	statsLoading = false;
 	hasLoadedStats = false;
+
+	if (enhancedRef.type === "pr") {
+		ensureStatsLoaded();
+	}
 });
 
 function ensureStatsLoaded() {

@@ -39,6 +39,8 @@ import {
 import type { AvailableCommand } from "../../types/available-command.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
+import { SoundEffect } from "../../types/sounds.js";
+import { playSound } from "../../utils/sound.js";
 import { createLogger } from "../../utils/logger.js";
 import { filterVisibleModes } from "../../utils/mode-filter.js";
 import FilePreview from "../file-picker/file-preview.svelte";
@@ -1040,29 +1042,27 @@ function captureAndClearInput(): PreparedMessage | null {
 		inputState.attachments
 	);
 	if (result.isErr()) return null;
-	logger.info("[first-send-trace] captureAndClearInput before clear", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		messageLength: inputState.message.length,
-		attachmentCount: inputState.attachments.length,
-		domLengthBeforeClear: editorRef ? serializeInlineComposerMessage(editorRef).length : null,
-	});
+	const messageLength = inputState.message.length;
+	const attachmentCount = inputState.attachments.length;
 
 	inputState.message = "";
 	inputState.clearAttachments();
 	inputState.clearInlineTextMap();
 	syncEditorFromMessage(0);
-	logger.info("[first-send-trace] captureAndClearInput after clear", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		messageLength: inputState.message.length,
-		domLengthAfterClear: editorRef ? serializeInlineComposerMessage(editorRef).length : null,
-	});
 
 	if (inputState.textareaRef) {
 		inputState.textareaRef.style.height = "auto";
 		inputState.textareaRef.style.overflowY = "hidden";
 	}
+
+	queueMicrotask(() => {
+		logger.info("[first-send-trace] captureAndClearInput", {
+			panelId: props.panelId ?? null,
+			sessionId: props.sessionId ?? null,
+			messageLength,
+			attachmentCount,
+		});
+	});
 
 	return result.value;
 }
@@ -1112,20 +1112,11 @@ async function handleSend() {
 		}
 	}
 
-	logger.info("handleSend: preparing send", {
-		panelId: props.panelId,
-		sessionId: props.sessionId ?? null,
-		hasMessage: inputState.message.trim().length > 0,
-		attachmentCount: inputState.attachments.length,
-		isStreaming,
-		isAgentBusy,
-		t0_ms: Math.round(t0),
-	});
 	isSending = true;
 	const restoreSnapshot = createComposerRestoreSnapshot();
 	const isPreSessionSend = Boolean(props.panelId) && !props.sessionId;
 
-	// Capture and clear input before async work
+	// Capture and clear input before async work — this is the visual "instant clear"
 	const prepared = captureAndClearInput();
 	if (!prepared) {
 		isSending = false;
@@ -1152,25 +1143,22 @@ async function handleSend() {
 			title: props.projectName ?? undefined,
 		});
 	}
-	logger.info("[first-send-trace] prepared input", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		projectPath: props.projectPath ?? null,
-		worktreePath: props.worktreePath ?? null,
-		worktreePending: props.worktreePending ?? false,
-		selectedAgentId: props.selectedAgentId ?? null,
-		contentLength: prepared.content.length,
-		t_ms: Math.round(performance.now() - t0),
-	});
 
 	if (effectivePanelId && !props.sessionId) {
-		logger.info("[first-send-trace] setting optimistic pending entry", {
-			panelId: effectivePanelId,
-			preview: prepared.content.slice(0, 120),
-			t_ms: Math.round(performance.now() - t0),
-		});
 		panelStore.setPendingUserEntry(effectivePanelId, createPendingUserEntry(prepared.content));
 	}
+
+	// Sound + logging deferred — never block the UI thread for non-visual work
+	playSound(SoundEffect.Paste);
+	queueMicrotask(() => {
+		logger.info("handleSend: preparing send", {
+			panelId: props.panelId,
+			sessionId: props.sessionId ?? null,
+			contentLength: prepared.content.length,
+			isPreSessionSend,
+			t_ms: Math.round(performance.now() - t0),
+		});
+	});
 
 	// When worktree toggle is pending, create worktree first (need the path), then run setup in background
 	let worktreePathForSend: string | undefined = props.worktreePath ?? undefined;
@@ -1281,26 +1269,12 @@ async function handleSend() {
 		}
 	}
 
-	logger.info("[worktree-flow] handleSend: dispatching normal send", {
-		panelId: props.panelId,
-		sessionId: props.sessionId ?? null,
-		worktreePathForSend: worktreePathForSend ?? null,
-		propsWorktreePath: props.worktreePath ?? null,
-		propsProjectPath: props.projectPath ?? null,
-		pendingEntryPresent: props.panelId
-			? panelStore.getHotState(props.panelId).pendingUserEntry !== null
-			: false,
-		elapsed_ms: Math.round(performance.now() - t0),
-	});
-	logger.info("[worktree-debug] handleSend payload", {
+	logger.info("[worktree-flow] handleSend: dispatching send", {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
-		projectPath: props.projectPath ?? null,
-		projectName: props.projectName ?? null,
-		selectedAgentId: props.selectedAgentId ?? null,
-		propsWorktreePath: props.worktreePath ?? null,
-		worktreePending: props.worktreePending ?? false,
 		worktreePathForSend: worktreePathForSend ?? null,
+		selectedAgentId: props.selectedAgentId ?? null,
+		elapsed_ms: Math.round(performance.now() - t0),
 	});
 	const handleSessionCreated = (createdSessionId: string) => {
 		if (isPreSessionSend && effectivePanelId) {

@@ -582,34 +582,15 @@ export class AgentInputState {
 			launchToken,
 			imageAttachments = [],
 		} = options;
-		this.logger.info("[first-send-trace] sendPreparedMessage entered", {
-			panelId: panelId ?? null,
-			sessionId: sessionId ?? null,
-			initialAutonomousEnabled: initialAutonomousEnabled === true,
-			initialModeId: initialModeId ?? null,
-			initialModelId: initialModelId ?? null,
-			projectPath: projectPath ?? null,
-			worktreePath: worktreePath ?? null,
-			launchToken: launchToken ?? null,
-			selectedAgentId: selectedAgentId ?? null,
-			contentLength: content.length,
-		});
-
 		// Use existing session or create new one
 		const sendT0 = performance.now();
 		if (sessionId) {
-			this.logger.info("[PERF] sendMessage: FAST PATH (eager session ready)", {
-				sessionId,
-				elapsed_ms: Math.round(performance.now() - sendT0),
-			});
 			return sendMessage(this.store, sessionId, content, imageAttachments).map(() => {
-				this.logger.info("[PERF] sendMessage: fast-path IPC resolved, calling onSessionCreated", {
+				this.logger.info("[PERF] sendMessage: fast-path resolved", {
+					sessionId,
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
 				onSessionCreated?.(sessionId, panelId ?? null);
-				this.logger.info("[PERF] sendMessage: onSessionCreated done (panel should be open)", {
-					elapsed_ms: Math.round(performance.now() - sendT0),
-				});
 				this.focusInput();
 			});
 		}
@@ -640,15 +621,10 @@ export class AgentInputState {
 			agentId: selectedAgentId,
 			elapsed_ms: Math.round(performance.now() - sendT0),
 		});
-		this.logger.info("[worktree-flow] createSession (slow path)", {
-			projectPath: effectiveProjectPath,
-			worktreePath: worktreePath ?? undefined,
-		});
-		this.logger.info("[first-send-trace] createSession starting", {
-			panelId: panelId ?? null,
+		this.logger.info("[PERF] sendMessage: slow path (creating session)", {
+			selectedAgentId,
 			projectPath: effectiveProjectPath,
 			worktreePath: worktreePath ?? null,
-			selectedAgentId,
 		});
 
 		// Build optimistic pending entry if the UI has not already done so.
@@ -671,30 +647,9 @@ export class AgentInputState {
 			launchToken: launchToken ?? undefined,
 		})
 			.andThen((newSessionId) => {
-				const createdSession = this.store.getSessionCold(newSessionId);
-				this.logger.info("[first-send-trace] createSession resolved", {
-					panelId: panelId ?? null,
+				this.logger.info("[PERF] sendMessage: session created", {
 					newSessionId,
-					projectPath: effectiveProjectPath,
-					worktreePath: worktreePath ?? null,
-				});
-				this.logger.info("[worktree-debug] createSession resolved session data", {
-					panelId: panelId ?? null,
-					newSessionId,
-					requestedProjectPath: effectiveProjectPath,
-					requestedWorktreePath: worktreePath ?? null,
-					storedProjectPath: createdSession?.projectPath ?? null,
-					storedWorktreePath: createdSession?.worktreePath ?? null,
-				});
-				this.logger.info(
-					"[PERF] sendMessage: slow-path session created, calling onSessionCreated",
-					{
-						newSessionId,
-						elapsed_ms: Math.round(performance.now() - sendT0),
-					}
-				);
-				this.logger.info("[worktree-flow] onSessionCreated called", {
-					sessionId: newSessionId,
+					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
 				// Notify parent with the canonical session ID
 				onSessionCreated?.(newSessionId, panelId ?? null);
@@ -704,7 +659,7 @@ export class AgentInputState {
 				return sendMessage(this.store, newSessionId, content, imageAttachments);
 			})
 			.map(() => {
-				this.logger.info("[PERF] sendMessage: slow-path fully resolved", {
+				this.logger.info("[PERF] sendMessage: slow-path resolved", {
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
 				this.focusInput();

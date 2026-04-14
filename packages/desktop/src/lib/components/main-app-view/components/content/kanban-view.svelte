@@ -70,8 +70,6 @@ import type {
 import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
-import { SoundEffect } from "$lib/acp/types/sounds.js";
-import { playSound } from "$lib/acp/utils/sound.js";
 import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
@@ -106,6 +104,7 @@ import {
 	resolveKanbanNewSessionDefaults,
 	type KanbanNewSessionRequest,
 } from "./kanban-new-session-dialog-state.js";
+import { KANBAN_SESSION_PANEL_WIDTH } from "./kanban-session-panel-width.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -894,7 +893,6 @@ function handleNewSessionWillSend(): string | null {
 	}
 
 	persistSelectedAgent(effectiveAgentId);
-	playSound(SoundEffect.Paste);
 	const optimisticPanel = panelStore.spawnPanel({
 		projectPath,
 		selectedAgentId: effectiveAgentId,
@@ -912,7 +910,7 @@ function handleNewSessionCreated(sessionId: string, panelId?: string | null): vo
 	}
 
 	newSessionOpen = false;
-	panelStore.openSession(sessionId, 450);
+	panelStore.openSession(sessionId, KANBAN_SESSION_PANEL_WIDTH);
 }
 
 function handleNewSessionSendError(panelId: string | null): void {

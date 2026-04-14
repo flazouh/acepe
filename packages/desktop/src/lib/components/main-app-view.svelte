@@ -117,6 +117,18 @@ function focusOnMount(node: HTMLElement) {
 	node.focus();
 }
 
+function handleContextMenu(event: MouseEvent) {
+	if (!import.meta.env.PROD) {
+		return;
+	}
+
+	if (event.defaultPrevented) {
+		return;
+	}
+
+	event.preventDefault();
+}
+
 // Create logger for error logging
 const logger = createLogger({
 	id: LOGGER_IDS.MAIN_PAGE,
@@ -861,6 +873,7 @@ onMount(async () => {
 	preloadSound(SoundEffect.DictationStart);
 	preloadSound(SoundEffect.DictationStop);
 	preloadSound(SoundEffect.Notification);
+	preloadSound(SoundEffect.Paste);
 	const splashResolution = viewState.resolveSplashScreen();
 	void import("@tauri-apps/api/app")
 		.then((mod) => mod.getVersion())
@@ -1094,7 +1107,10 @@ onDestroy(() => {
 </script>
 
 <ThemeProvider class="overflow-hidden h-dvh bg-background">
-	<div class="flex flex-col h-full min-h-0 pt-0.5 pb-0.5 overflow-hidden">
+	<div
+		class="flex flex-col h-full min-h-0 pt-0.5 pb-0.5 overflow-hidden"
+		oncontextmenu={handleContextMenu}
+	>
 		<!-- Top bar -->
 		<div class="shrink-0 overflow-hidden">
 			<TopBar
@@ -1131,8 +1147,8 @@ onDestroy(() => {
 		</div>
 		{#if !viewState.reviewFullscreenOpen}
 			<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
-				{#if showSidebar && viewState.sidebarOpen}
-					<div class="shrink-0 flex flex-col h-full min-h-0 transition-[transform,opacity] duration-200 ease-out">
+				{#if showSidebar}
+					<div class="shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width,opacity] duration-200 ease-out {viewState.sidebarOpen ? 'opacity-100' : 'w-0 opacity-0 pointer-events-none'}">
 						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
 							<AppSidebar {projectManager} state={viewState} />
 							{#snippet failed(error, reset)}

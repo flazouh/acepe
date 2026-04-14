@@ -149,7 +149,6 @@ const sessionGroups = $derived(
 const hasResults = $derived(filteredItems.length > 0);
 const totalCount = $derived(projectSessions.length);
 const hasProjects = $derived(recentProjects.length > 0);
-
 // ✅ Event handlers - can access current props directly
 function handleSelectSession(item: SessionListItem) {
 	onSelectSession(item.id, item);

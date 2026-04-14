@@ -1,0 +1,1 @@
+export const KANBAN_SESSION_PANEL_WIDTH = 600;
