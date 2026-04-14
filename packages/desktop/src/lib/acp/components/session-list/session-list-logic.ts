@@ -34,7 +34,7 @@ import { truncateText } from "../../utils/tool-state-utils.js";
  */
 export function createLoadingSessionGroups(projects: readonly Project[]): SessionGroup[] {
 	return projects
-		.toSorted((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+		.toSorted((a, b) => compareProjectOrder(a.sortOrder, a.createdAt, b.sortOrder, b.createdAt))
 		.map((project) => ({
 			projectPath: project.path,
 			projectName: project.name,
@@ -447,6 +447,7 @@ export function buildSessionRows(
 export function createSessionGroups(
 	items: readonly SessionListItem[],
 	projectCreatedAtMap?: Map<string, Date>,
+	projectSortOrderMap?: Map<string, number>,
 	allProjects?: readonly Project[]
 ): SessionGroup[] {
 	const groupMap = new Map<string, SessionGroup>();
@@ -479,10 +480,30 @@ export function createSessionGroups(
 		group.sessions.push(item);
 	}
 
-	// Sort groups by project creation date (when project was added)
+	// Sort groups by persisted project order, with creation date as tie-breaker.
 	return Array.from(groupMap.values()).sort((a, b) => {
-		const aTime = projectCreatedAtMap?.get(a.projectPath)?.getTime() ?? 0;
-		const bTime = projectCreatedAtMap?.get(b.projectPath)?.getTime() ?? 0;
-		return bTime - aTime;
+		const aCreatedAt = projectCreatedAtMap?.get(a.projectPath);
+		const bCreatedAt = projectCreatedAtMap?.get(b.projectPath);
+		const aSortOrder = projectSortOrderMap?.get(a.projectPath);
+		const bSortOrder = projectSortOrderMap?.get(b.projectPath);
+		return compareProjectOrder(aSortOrder, aCreatedAt, bSortOrder, bCreatedAt);
 	});
+}
+
+function compareProjectOrder(
+	aSortOrder: number | undefined,
+	aCreatedAt: Date | undefined,
+	bSortOrder: number | undefined,
+	bCreatedAt: Date | undefined
+): number {
+	const normalizedASortOrder = aSortOrder ?? Number.POSITIVE_INFINITY;
+	const normalizedBSortOrder = bSortOrder ?? Number.POSITIVE_INFINITY;
+
+	if (normalizedASortOrder !== normalizedBSortOrder) {
+		return normalizedASortOrder - normalizedBSortOrder;
+	}
+
+	const aTime = aCreatedAt?.getTime() ?? 0;
+	const bTime = bCreatedAt?.getTime() ?? 0;
+	return bTime - aTime;
 }

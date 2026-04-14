@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../application/dto/session.js";
+import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import {
 	buildSessionRows,
 	createDisplayItems,
+	createLoadingSessionGroups,
 	createSessionGroups,
 	extractActivityInfo,
 	extractCurrentToolInfo,
@@ -196,61 +198,150 @@ describe("createDisplayItems", () => {
 });
 
 describe("createSessionGroups", () => {
-	const mockItems: SessionListItem[] = [
-		{
-			id: "session-1",
-			title: "Session 1",
-			projectPath: "/path/1",
-			projectName: "project1",
+	function createSessionListItem(
+		id: string,
+		projectPath: string,
+		projectName: string
+	): SessionListItem {
+		const createdAt = new Date("2024-01-01T00:00:00.000Z");
+		return {
+			id,
+			title: id,
+			projectPath,
+			projectName,
 			projectColor: undefined,
 			projectIconSrc: null,
 			agentId: "claude-code",
-			createdAt: new Date(),
-			updatedAt: new Date(),
+			createdAt,
+			updatedAt: createdAt,
 			isLive: false,
 			isOpen: false,
 			activity: null,
 			parentId: null,
-		},
-		{
-			id: "session-2",
-			title: "Session 2",
-			projectPath: "/path/1",
-			projectName: "project1",
-			projectColor: undefined,
-			projectIconSrc: null,
-			agentId: "cursor",
-			createdAt: new Date(),
-			updatedAt: new Date(),
-			isLive: false,
-			isOpen: false,
-			activity: null,
-			parentId: null,
-		},
-		{
-			id: "session-3",
-			title: "Session 3",
-			projectPath: "/path/1",
-			projectName: "project1",
-			projectColor: undefined,
-			projectIconSrc: null,
-			agentId: "claude-code",
-			createdAt: new Date(),
-			updatedAt: new Date(),
-			isLive: false,
-			isOpen: false,
-			activity: null,
-			parentId: null,
-		},
-	];
+		};
+	}
+
+	function createProject(
+		path: string,
+		name: string,
+		createdAt: string,
+		sortOrder?: number
+	): Project {
+		return {
+			path,
+			name,
+			createdAt: new Date(createdAt),
+			color: "#000000",
+			sortOrder,
+			iconPath: null,
+		};
+	}
 
 	it("should group sessions by project", () => {
+		const mockItems: SessionListItem[] = [
+			createSessionListItem("session-1", "/path/1", "project1"),
+			createSessionListItem("session-2", "/path/1", "project1"),
+			createSessionListItem("session-3", "/path/1", "project1"),
+		];
 		const groups = createSessionGroups(mockItems);
 
 		expect(groups).toHaveLength(1);
 		const group = groups[0];
 		expect(group.sessions).toHaveLength(3);
 		expect(group.projectPath).toBe("/path/1");
+	});
+
+	it("sorts groups by persisted sortOrder ascending", () => {
+		const items: SessionListItem[] = [
+			createSessionListItem("session-a", "/project/a", "project-a"),
+			createSessionListItem("session-b", "/project/b", "project-b"),
+			createSessionListItem("session-c", "/project/c", "project-c"),
+		];
+
+		const projectCreatedAtMap = new Map<string, Date>([
+			["/project/a", new Date("2024-01-01T00:00:00.000Z")],
+			["/project/b", new Date("2024-03-01T00:00:00.000Z")],
+			["/project/c", new Date("2024-02-01T00:00:00.000Z")],
+		]);
+		const projectSortOrderMap = new Map<string, number>([
+			["/project/a", 2],
+			["/project/b", 0],
+			["/project/c", 1],
+		]);
+
+		const groups = createSessionGroups(items, projectCreatedAtMap, projectSortOrderMap);
+
+		expect(groups.map((group) => group.projectPath)).toEqual([
+			"/project/b",
+			"/project/c",
+			"/project/a",
+		]);
+	});
+
+	it("sorts loading groups by persisted sortOrder instead of createdAt", () => {
+		const projects: Project[] = [
+			createProject("/project/a", "project-a", "2024-01-01T00:00:00.000Z", 2),
+			createProject("/project/b", "project-b", "2024-03-01T00:00:00.000Z", 0),
+			createProject("/project/c", "project-c", "2024-02-01T00:00:00.000Z", 1),
+		];
+
+		const groups = createLoadingSessionGroups(projects);
+
+		expect(groups.map((group) => group.projectPath)).toEqual([
+			"/project/b",
+			"/project/c",
+			"/project/a",
+		]);
+	});
+
+	it("treats missing sortOrder as Infinity and falls back to createdAt desc", () => {
+		const items: SessionListItem[] = [
+			createSessionListItem("session-a", "/project/a", "project-a"),
+			createSessionListItem("session-b", "/project/b", "project-b"),
+			createSessionListItem("session-c", "/project/c", "project-c"),
+		];
+
+		const projectCreatedAtMap = new Map<string, Date>([
+			["/project/a", new Date("2024-01-01T00:00:00.000Z")],
+			["/project/b", new Date("2024-03-01T00:00:00.000Z")],
+			["/project/c", new Date("2024-02-01T00:00:00.000Z")],
+		]);
+		const projectSortOrderMap = new Map<string, number>([["/project/a", 0]]);
+
+		const groups = createSessionGroups(items, projectCreatedAtMap, projectSortOrderMap);
+
+		expect(groups.map((group) => group.projectPath)).toEqual([
+			"/project/a",
+			"/project/b",
+			"/project/c",
+		]);
+	});
+
+	it("falls back to createdAt desc when sortOrder values match", () => {
+		const items: SessionListItem[] = [
+			createSessionListItem("session-a", "/project/a", "project-a"),
+			createSessionListItem("session-b", "/project/b", "project-b"),
+			createSessionListItem("session-c", "/project/c", "project-c"),
+		];
+
+		const projectCreatedAtMap = new Map<string, Date>([
+			["/project/a", new Date("2024-01-01T00:00:00.000Z")],
+			["/project/b", new Date("2024-03-01T00:00:00.000Z")],
+			["/project/c", new Date("2024-02-01T00:00:00.000Z")],
+		]);
+		const projectSortOrderMap = new Map<string, number>([
+			["/project/a", 0],
+			["/project/b", 0],
+			["/project/c", 0],
+		]);
+
+		const groups = createSessionGroups(items, projectCreatedAtMap, projectSortOrderMap);
+
+		expect(groups.map((group) => group.projectPath)).toEqual([
+			"/project/b",
+			"/project/c",
+			"/project/a",
+		]);
 	});
 });
 

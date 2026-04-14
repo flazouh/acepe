@@ -121,6 +121,13 @@ const projectColorMap = $derived(logic.createProjectColorMap(recentProjects));
 const projectIconSrcMap = $derived(logic.createProjectIconSrcMap(recentProjects));
 const projectNameMap = $derived(logic.createProjectNameMap(recentProjects));
 const projectCreatedAtMap = $derived(new Map(recentProjects.map((p) => [p.path, p.createdAt])));
+const projectSortOrderMap = $derived(
+	new Map(
+		recentProjects
+			.filter((project) => project.sortOrder !== undefined)
+			.map((project) => [project.path, project.sortOrder])
+	)
+);
 
 // Filter sessions to only include those belonging to known projects
 const projectPaths = $derived(new Set(recentProjects.map((p) => p.path)));
@@ -139,7 +146,12 @@ const displayItems = $derived(
 
 const filteredItems = $derived(logic.filterItems(displayItems, state.searchQuery));
 const sessionGroupsFromData = $derived(
-	logic.createSessionGroups(filteredItems, projectCreatedAtMap, recentProjects)
+	logic.createSessionGroups(
+		filteredItems,
+		projectCreatedAtMap,
+		projectSortOrderMap,
+		recentProjects
+	)
 );
 const loadingSessionGroups = $derived(logic.createLoadingSessionGroups(recentProjects));
 // Only show skeletons on initial load (no sessions yet).
