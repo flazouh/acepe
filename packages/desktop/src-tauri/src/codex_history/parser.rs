@@ -13,10 +13,10 @@ use chrono::Utc;
 use ignore::WalkBuilder;
 use serde_json::Value;
 
-use crate::acp::operation_projectors::project_read_model_for_kind;
 use crate::acp::parsers::{get_parser, AgentParser, AgentType, CodexParser};
 use crate::acp::session_update::{
-    tool_call_status_from_str, ToolArguments, ToolCallData,
+    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
+    ToolCallData,
 };
 use crate::session_jsonl::types::{
     ConvertedSession, SessionStats, StoredAssistantChunk, StoredAssistantMessage,
@@ -189,12 +189,10 @@ pub async fn load_session(
                             .unwrap_or_else(|| serde_json::json!({}));
 
                         let kind = CodexParser.detect_tool_kind(&name);
-                        let projection = project_read_model_for_kind(
-                            kind,
-                            &name,
-                            &raw_arguments,
-                            AgentType::Codex,
-                        );
+                        let normalized_questions =
+                            parse_normalized_questions(&name, &raw_arguments, AgentType::Codex);
+                        let normalized_todos =
+                            parse_normalized_todos(&name, &raw_arguments, AgentType::Codex);
 
                         serial += 1;
                         let entry = StoredEntry::ToolCall {
@@ -216,8 +214,8 @@ pub async fn load_session(
                                 raw_input: None,
                                 skill_meta: None,
                                 locations: None,
-                                normalized_questions: projection.normalized_questions,
-                                normalized_todos: projection.normalized_todos,
+                                normalized_questions,
+                                normalized_todos,
                                 parent_tool_use_id: None,
                                 task_children: None,
                                 awaiting_plan_approval: false,

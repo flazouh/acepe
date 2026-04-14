@@ -11,9 +11,9 @@ use std::sync::LazyLock;
 use std::time::Instant;
 
 use super::partial_json::parse_partial_json;
-use super::operation_projectors::project_read_model_for_kind;
 use super::session_update::{
-    PlanConfidence, PlanData, PlanSource, QuestionItem, TodoItem, ToolArguments, ToolKind,
+    parse_normalized_questions, parse_normalized_todos, PlanConfidence, PlanData, PlanSource,
+    QuestionItem, TodoItem, ToolArguments, ToolKind,
 };
 use super::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::parsers::{get_parser, AgentType};
@@ -218,11 +218,12 @@ impl SessionStreamingState {
         );
 
         // Optional todos/questions for TodoWrite/AskUserQuestion
-        let projection = project_read_model_for_kind(classified.kind, &classified.name, value, agent);
+        let todos = parse_normalized_todos(&classified.name, value, agent);
+        let questions = parse_normalized_questions(&classified.name, value, agent);
 
         Some(StreamingNormalized {
-            todos: projection.normalized_todos,
-            questions: projection.normalized_questions,
+            todos,
+            questions,
             streaming_arguments: Some(classified.arguments),
             effective_tool_name: Some(classified.name),
         })

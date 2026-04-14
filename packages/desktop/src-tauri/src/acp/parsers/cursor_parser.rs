@@ -6,9 +6,9 @@ use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::cursor::parse_edit_arguments;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::types::{
-    extract_plan_from_raw_input_impl, infer_operation_family_from_payload,
-    parse_common_update_type_name, parse_standard_usage_telemetry, AgentParser, AgentType,
-    ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
+    extract_plan_from_raw_input_impl, parse_common_update_type_name,
+    parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
+    ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::parsers::{acp_fields, kind as kind_utils};
 use crate::acp::session_update::{
@@ -229,7 +229,6 @@ impl CursorParser {
             .cloned()
             .unwrap_or(serde_json::json!({}));
         let kind = CursorAdapter::normalize(&name);
-        let semantic_family = infer_operation_family_from_payload(kind, &arguments);
 
         Ok(RawToolCallInput {
             id,
@@ -237,7 +236,6 @@ impl CursorParser {
             arguments,
             status: ToolCallStatus::Pending,
             kind: Some(kind),
-            semantic_family: Some(semantic_family),
             title: None,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -292,7 +290,6 @@ impl CursorParser {
         if let Some(location_path) = location_path.as_deref() {
             inject_path_hint(&mut raw_arguments, kind, &location_path);
         }
-        let semantic_family = infer_operation_family_from_payload(kind, &raw_arguments);
 
         let name = raw_name.unwrap_or_else(|| "unknown".to_string());
 
@@ -302,7 +299,6 @@ impl CursorParser {
             arguments: raw_arguments,
             status,
             kind: Some(kind),
-            semantic_family: Some(semantic_family),
             title,
             suppress_title_read_path_hint: has_locations && location_path.is_none(),
             parent_tool_use_id: None,
@@ -333,7 +329,6 @@ impl CursorParser {
         Ok(RawToolCallUpdateInput {
             id,
             status: Some(ToolCallStatus::Completed),
-            semantic_family: None,
             result,
             content: None,
             title: None,
@@ -429,14 +424,10 @@ impl CursorParser {
         }
 
         let locations = data.get(acp_fields::LOCATIONS).cloned();
-        let semantic_family = raw_input
-            .as_ref()
-            .map(|arguments| infer_operation_family_from_payload(kind, arguments));
 
         Ok(RawToolCallUpdateInput {
             id,
             status,
-            semantic_family,
             result,
             content: None,
             title,

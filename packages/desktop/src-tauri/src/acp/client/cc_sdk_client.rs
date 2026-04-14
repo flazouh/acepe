@@ -30,7 +30,6 @@ use crate::acp::client_transport::{
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::model_display::{build_models_for_display, ModelPresentationMetadata};
-use crate::acp::operation_projectors::project_read_model_for_kind;
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::{
@@ -42,8 +41,9 @@ use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_update::{
-    QuestionData, QuestionItem, SessionUpdate, ToolCallStatus, ToolCallUpdateData, ToolKind,
-    ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
+    parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
+    ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
+    TurnErrorSource,
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
@@ -425,13 +425,8 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
             .await;
 
         if tool_name == "AskUserQuestion" {
-            let normalized_questions = project_read_model_for_kind(
-                ToolKind::Question,
-                tool_name,
-                input,
-                self.agent_type,
-            )
-            .normalized_questions;
+            let normalized_questions =
+                parse_normalized_questions(tool_name, input, self.agent_type);
             let question_request = QuestionPermissionRequest {
                 tool_call_id: tool_call_id.clone(),
                 original_input: input.clone(),

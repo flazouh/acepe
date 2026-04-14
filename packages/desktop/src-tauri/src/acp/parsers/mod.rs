@@ -28,7 +28,7 @@ pub(crate) mod opencode_parser;
 pub mod provider_capabilities;
 pub(crate) mod shared_chat;
 pub mod status;
-pub(crate) mod types;
+mod types;
 
 pub use adapters::{
     ClaudeCodeAdapter, CodexAdapter, CopilotAdapter, CursorAdapter, OpenCodeAdapter,

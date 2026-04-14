@@ -7,9 +7,9 @@ use crate::acp::parsers::kind as kind_utils;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::status as status_utils;
 use crate::acp::parsers::types::{
-    infer_operation_family_from_payload, parse_ask_user_question, parse_common_update_type_name,
-    parse_standard_usage_telemetry, parse_todo_write, AgentParser, AgentType, ParseError,
-    ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
+    parse_ask_user_question, parse_common_update_type_name, parse_standard_usage_telemetry,
+    parse_todo_write, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
+    ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
@@ -469,7 +469,6 @@ impl CodexParser {
         if inferred_kind == ToolKind::Execute {
             Self::add_mcp_command_if_missing(&mut arguments);
         }
-        let semantic_family = infer_operation_family_from_payload(inferred_kind, &arguments);
 
         Ok(RawToolCallInput {
             id,
@@ -477,7 +476,6 @@ impl CodexParser {
             arguments,
             status,
             kind,
-            semantic_family: Some(semantic_family),
             title,
             suppress_title_read_path_hint: false,
             parent_tool_use_id: None,
@@ -568,9 +566,6 @@ impl CodexParser {
             inferred_kind,
         ));
         let kind = Some(inferred_kind);
-        let semantic_family = raw_input
-            .as_ref()
-            .map(|arguments| infer_operation_family_from_payload(inferred_kind, arguments));
 
         let locations = data.get("locations").cloned();
 
@@ -588,7 +583,6 @@ impl CodexParser {
         Ok(RawToolCallUpdateInput {
             id,
             status: Some(status),
-            semantic_family,
             result,
             content: None,
             title,
