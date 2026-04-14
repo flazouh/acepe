@@ -1,4 +1,5 @@
 pub mod acp;
+pub mod analytics;
 pub mod browser_webview;
 pub mod cc_sdk;
 pub mod checkpoint;
@@ -710,6 +711,9 @@ pub fn run() {
 
     // Initialize logging
     init_logging();
+
+    // Initialize Sentry error reporting (no-op when SENTRY_DSN is not set)
+    analytics::init(option_env!("CARGO_PKG_VERSION"));
 
     // Create a Tokio runtime and register it with Tauri's async runtime.
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
