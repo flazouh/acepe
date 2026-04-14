@@ -221,7 +221,7 @@ export function createDisplayItems(
 		const projectName =
 			projectNameMap.get(session.projectPath) || extractProjectName(session.projectPath);
 		const projectColor = projectColorMap.get(session.projectPath);
-		const projectIconSrc = projectIconSrcMap.get(session.projectPath);
+		const projectIconSrc = projectIconSrcMap.get(session.projectPath) ?? null;
 
 		// Streaming indicator from session flag (no entry scan needed)
 		const activity: SessionActivityInfo | null = session.isStreaming
@@ -471,7 +471,7 @@ export function createSessionGroups(
 				projectPath: item.projectPath,
 				projectName: item.projectName,
 				projectColor: item.projectColor,
-				projectIconSrc: undefined,
+				projectIconSrc: item.projectIconSrc ?? null,
 				sessions: [],
 			};
 			groupMap.set(item.projectPath, group);

@@ -237,4 +237,14 @@ describe("AssistantMessage thinking auto-scroll", () => {
 			expect(scrollTopValue).toBe(60);
 		});
 	});
+
+	it("accepts streamingAnimationMode prop without breaking existing behavior", () => {
+		const view = render(AssistantMessageComponent, {
+			message: createStreamingThoughtMessage(),
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		expect(view.container.querySelector(".group\\/assistant-message")).toBeTruthy();
+	});
 });

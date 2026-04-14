@@ -108,6 +108,9 @@ nested/
 packages/website/.mcp.json
 .cursorrules
 .opencode/
+.context/
+.playwright-mcp/
+.svelte-kit/
 compound-engineering.local.md
 
 # GSD plugin artifacts

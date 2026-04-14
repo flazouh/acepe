@@ -47,7 +47,7 @@ export interface SessionListItem {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
-	projectIconSrc?: string | null;
+	projectIconSrc: string | null;
 	agentId: string;
 	sourcePath?: string;
 	createdAt: Date;
@@ -84,6 +84,6 @@ export interface SessionGroup {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
-	projectIconSrc: string | null | undefined;
+	projectIconSrc: string | null;
 	sessions: SessionListItem[];
 }

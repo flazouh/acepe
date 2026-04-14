@@ -8,6 +8,7 @@ export const buttonVariants = tv({
 	variants: {
 		variant: {
 			default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+			/** Inverted pill: muted foreground bg with background text. Softer than true fg/bg inversion. */
 			invert: "rounded-full bg-muted-foreground text-background shadow-none hover:bg-muted-foreground/80",
 			destructive:
 				"bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",

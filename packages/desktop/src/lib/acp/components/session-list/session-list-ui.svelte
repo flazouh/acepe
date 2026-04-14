@@ -728,10 +728,6 @@ function handleProjectHeaderClick(projectPath: string) {
 	toggleProject(projectPath);
 }
 
-function hasProjectIcon(iconSrc: string | null | undefined): boolean {
-	return Boolean(iconSrc);
-}
-
 // ─── Branch picker ───────────────────────────────────────────────
 
 interface BranchPrefix {
@@ -931,7 +927,7 @@ function openCreateBranchDialog(projectPath: string): void {
 															? (color) => onProjectColorChange(group.projectPath, color)
 															: undefined}
 														onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-														hasProjectIcon={hasProjectIcon(group.projectIconSrc)}
+														projectIconSrc={group.projectIconSrc}
 														onResetProjectIcon={onResetProjectIcon
 															? () => onResetProjectIcon(group.projectPath)
 															: undefined}
@@ -984,7 +980,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												{m.project_icon_change()}
 											</ContextMenu.Item>
 										{/if}
-										{#if onResetProjectIcon && hasProjectIcon(group.projectIconSrc)}
+										{#if onResetProjectIcon && group.projectIconSrc}
 											<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
 												<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
 												{m.project_icon_reset()}
@@ -1098,7 +1094,7 @@ function openCreateBranchDialog(projectPath: string): void {
 													? (color) => onProjectColorChange(group.projectPath, color)
 													: undefined}
 												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-												hasProjectIcon={hasProjectIcon(group.projectIconSrc)}
+												projectIconSrc={group.projectIconSrc}
 												onResetProjectIcon={onResetProjectIcon
 													? () => onResetProjectIcon(group.projectPath)
 													: undefined}
@@ -1151,7 +1147,7 @@ function openCreateBranchDialog(projectPath: string): void {
 										{m.project_icon_change()}
 									</ContextMenu.Item>
 								{/if}
-								{#if onResetProjectIcon && hasProjectIcon(group.projectIconSrc)}
+								{#if onResetProjectIcon && group.projectIconSrc}
 									<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
 										<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
 										{m.project_icon_reset()}

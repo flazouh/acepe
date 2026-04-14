@@ -21,6 +21,27 @@ fn project_from_row(row: crate::db::repository::ProjectRow) -> Project {
     }
 }
 
+/// Detects and persists a project icon if the project has no icon set.
+/// Returns the updated row (with icon_path populated when detection succeeds).
+async fn detect_and_persist_icon(
+    db: &DatabaseConnection,
+    row: crate::db::repository::ProjectRow,
+) -> Result<crate::db::repository::ProjectRow, String> {
+    if row.icon_path.is_some() {
+        return Ok(row);
+    }
+    let Some(detected_icon) = detect_project_icon(std::path::Path::new(&row.path)) else {
+        return Ok(row);
+    };
+    tracing::info!(icon = %detected_icon, path = %row.path, "Auto-detected project icon");
+    ProjectRepository::update_icon_path(db, &row.path, Some(detected_icon))
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, path = %row.path, "Failed to persist detected icon");
+            e.to_string()
+        })
+}
+
 fn classify_missing_project_paths(paths: &[String]) -> Vec<String> {
     paths
         .iter()
@@ -130,7 +151,7 @@ pub async fn import_project(
         name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
 
     // Create or update project (color will be randomly assigned if new)
-    let mut project_row =
+    let project_row =
         ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
             .await
             .map_err(|e| {
@@ -139,19 +160,7 @@ pub async fn import_project(
             })?;
 
     // Auto-detect icon if not already set
-    if project_row.icon_path.is_none() {
-        if let Some(detected_icon) = detect_project_icon(std::path::Path::new(&canonical_path_str))
-        {
-            tracing::info!(icon = %detected_icon, "Auto-detected project icon");
-            project_row =
-                ProjectRepository::update_icon_path(&db, &project_row.path, Some(detected_icon))
-                    .await
-                    .map_err(|e| {
-                        tracing::error!(error = %e, "Failed to persist detected icon");
-                        e.to_string()
-                    })?;
-        }
-    }
+    let project_row = detect_and_persist_icon(&db, project_row).await?;
 
     tracing::info!(path = %canonical_path_str, "Project imported successfully");
 
@@ -205,18 +214,7 @@ pub async fn add_project(app: AppHandle, path: String, name: Option<String>) -> 
             })?;
 
     // Auto-detect icon if not already set
-    if project_row.icon_path.is_none() {
-        if let Some(detected_icon) = detect_project_icon(std::path::Path::new(&canonical_path_str))
-        {
-            tracing::info!(icon = %detected_icon, "Auto-detected project icon");
-            ProjectRepository::update_icon_path(&db, &project_row.path, Some(detected_icon))
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Failed to persist detected icon in add_project");
-                    e.to_string()
-                })?;
-        }
-    }
+    detect_and_persist_icon(&db, project_row).await?;
 
     tracing::info!("Project added successfully");
 
@@ -263,6 +261,22 @@ pub async fn update_project_icon(
     icon_path: Option<String>,
 ) -> Result<Project, String> {
     tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
+
+    // Validate icon_path is a real image file when set
+    if let Some(ref ip) = icon_path {
+        let icon = std::path::Path::new(ip);
+        if !icon.is_file() {
+            return Err(format!("Icon path is not a file: {}", ip));
+        }
+        let valid_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
+        let ext_ok = icon
+            .extension()
+            .map(|ext| valid_extensions.contains(&ext.to_string_lossy().to_lowercase().as_str()))
+            .unwrap_or(false);
+        if !ext_ok {
+            return Err(format!("Icon path is not a supported image format: {}", ip));
+        }
+    }
 
     let db = get_db(&app);
     let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
@@ -422,6 +436,14 @@ pub async fn list_project_images(project_path: String) -> Result<Vec<String>, St
             let path = entry.path();
             let file_name = entry.file_name();
             let name_str = file_name.to_string_lossy();
+
+            // Skip symlinks to prevent traversal outside the project root
+            let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() {
+                continue;
+            }
 
             if path.is_dir() {
                 if (!name_str.starts_with('.') || name_str == ".github")

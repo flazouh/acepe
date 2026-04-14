@@ -18,4 +18,8 @@
 	--token-plan-icon-dark: #ffc799;
 	/** Default floating surface layer. Desktop overrides this above app-shell overlays. */
 	--overlay-z: 50;
+	/** Badge icon background when showing a project image (neutral, not project color) */
+	--badge-icon-bg: color-mix(in srgb, var(--foreground) 85%, transparent);
+	/** Badge icon border/divider when showing a project image */
+	--badge-icon-border: color-mix(in srgb, var(--foreground) 50%, transparent);
 }

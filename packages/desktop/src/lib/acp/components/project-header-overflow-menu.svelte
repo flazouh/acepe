@@ -22,7 +22,8 @@ interface Props {
 	currentViewMode?: ProjectViewMode;
 	onColorChange?: (color: string) => void;
 	onViewModeChange?: (mode: ProjectViewMode) => void;
-	hasProjectIcon?: boolean;
+	/** When set, shows "Reset to letter badge" and hides color picker */
+	projectIconSrc?: string | null;
 	onResetProjectIcon?: () => void;
 	onRemoveProject?: () => void;
 }
@@ -33,7 +34,7 @@ let {
 	currentViewMode = "sessions",
 	onColorChange,
 	onViewModeChange,
-	hasProjectIcon = false,
+	projectIconSrc = null,
 	onResetProjectIcon,
 	onRemoveProject,
 }: Props = $props();
@@ -54,8 +55,9 @@ const selectedColorHex = $derived.by(() => {
 	return selectedOption?.hex ?? colorOptions[0]?.hex ?? Colors[COLOR_NAMES.RED];
 });
 
-const hasResetProjectIcon = $derived(Boolean(hasProjectIcon && onResetProjectIcon));
-const showColorPicker = $derived(Boolean(onColorChange && !hasProjectIcon));
+const hasIcon = $derived(Boolean(projectIconSrc));
+const hasResetProjectIcon = $derived(Boolean(hasIcon && onResetProjectIcon));
+const showColorPicker = $derived(Boolean(onColorChange && !hasIcon));
 const showSettingsSection = $derived(
 	Boolean(showColorPicker || onViewModeChange || onRemoveProject || hasResetProjectIcon)
 );
@@ -142,7 +144,7 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 						</div>
 					</div>
 				{/if}
-				{#if onColorChange && !hasProjectIcon}
+				{#if onColorChange && !hasIcon}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class={colorTriggerClass}>
 							<Palette class="h-3.5 w-3.5 mr-2" weight="fill" />
@@ -179,7 +181,7 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 						</DropdownMenu.SubContent>
 					</DropdownMenu.Sub>
 				{/if}
-				{#if hasProjectIcon && onResetProjectIcon}
+				{#if hasIcon && onResetProjectIcon}
 					<DropdownMenu.Item
 						class="rounded-none px-2 py-1.5 text-[11px]"
 						onclick={() => {

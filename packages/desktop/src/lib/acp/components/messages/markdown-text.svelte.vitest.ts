@@ -433,6 +433,7 @@ describe("MarkdownText", () => {
 		const view = render(MarkdownText, {
 			text: "Hello",
 			isStreaming: true,
+			streamingAnimationMode: "classic",
 		});
 
 		expect(view.container.textContent ?? "").not.toContain("Hello");
@@ -453,6 +454,7 @@ describe("MarkdownText", () => {
 		await view.rerender({
 			text: "Hello world",
 			isStreaming: true,
+			streamingAnimationMode: "classic",
 		});
 		await flushAnimationFrames(6, 32);
 
@@ -580,6 +582,230 @@ describe("MarkdownText", () => {
 		);
 		expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')).toBe(liveSection);
 		expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
+	});
+
+	describe("streaming animation modes", () => {
+		it("uses the default buffered reveal when no mode is specified", async () => {
+			renderMarkdownSyncMock.mockReturnValue({
+				html: null,
+				fromCache: false,
+				needsAsync: false,
+			});
+
+			const longText =
+				"Hello world this is a streaming test message with enough text to reveal gradually";
+			const view = render(MarkdownText, {
+				text: longText,
+				isStreaming: true,
+				revealKey: "default-mode",
+			});
+
+			expect(view.container.textContent ?? "").not.toContain(longText);
+
+			await flushAnimationFrames(4, 16);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const streamingSection = view.container.querySelector(".streaming-section");
+			expect(streamingSection).toBeTruthy();
+			expect(streamingSection?.textContent?.length ?? 0).toBeGreaterThan(1);
+			expect(streamingSection?.textContent ?? "").not.toContain(longText);
+
+			await flushAllAnimationFrames(96);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			expect(view.container.textContent).toContain(longText);
+		});
+
+		it("reveals all text immediately in instant mode while deferring final markdown until streaming ends", async () => {
+			renderMarkdownSyncMock.mockImplementation((text) => ({
+				html: `<p>${text.replace("**bold**", "<strong>bold</strong>")}</p>`,
+				fromCache: false,
+				needsAsync: false,
+			}));
+
+			const text = "**bold** text";
+			const view = render(MarkdownText, {
+				text,
+				isStreaming: true,
+				revealKey: "instant-test",
+				streamingAnimationMode: "instant",
+			});
+
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			expect(view.container.textContent).toContain(text);
+			expect(view.container.querySelector(".streaming-section")).toBeTruthy();
+			expect(view.container.querySelector("strong")).toBeNull();
+
+			await view.rerender({
+				text,
+				isStreaming: false,
+				revealKey: "instant-test",
+				streamingAnimationMode: "instant",
+			});
+
+			await waitFor(() => {
+				const rendered = view.container.querySelector(".markdown-content strong");
+				expect(rendered).toBeTruthy();
+				expect(rendered?.textContent).toBe("bold");
+			});
+		});
+
+		it("preserves settled and live markdown behavior in classic mode", async () => {
+			renderMarkdownSyncMock.mockImplementation((text) => ({
+				html: text === "# Hello streaming" ? "<h1>Hello streaming</h1>" : `<p>${text}</p>`,
+				fromCache: false,
+				needsAsync: false,
+			}));
+
+			const view = render(MarkdownText, {
+				text: "# Hello streaming\n\nBody",
+				isStreaming: true,
+				revealKey: "classic-mode",
+				streamingAnimationMode: "classic",
+			});
+			await flushAnimationFrames(8);
+
+			await waitFor(() => {
+				expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe(
+					"Hello streaming"
+				);
+				expect(view.container.querySelector(".streaming-live-text")?.textContent).toContain("Body");
+			});
+
+			expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
+			expect(renderMarkdownSyncMock).toHaveBeenCalledWith("# Hello streaming");
+		});
+
+		it("reveals smooth mode text in buffered chunks instead of character-by-character", async () => {
+			renderMarkdownSyncMock.mockReturnValue({
+				html: null,
+				fromCache: false,
+				needsAsync: false,
+			});
+
+			const text = "abcdefghijklmnopqrstuvwxyz".repeat(8);
+			const view = render(MarkdownText, {
+				text,
+				isStreaming: true,
+				revealKey: "smooth-mode",
+				streamingAnimationMode: "smooth",
+			});
+
+			expect(view.container.textContent ?? "").not.toContain(text);
+
+			await flushAnimationFrames(4, 16);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const firstChunk = view.container.querySelector(".streaming-section")?.textContent ?? "";
+			expect(firstChunk.length).toBeGreaterThan(10);
+			expect(firstChunk.length).toBeLessThan(text.length);
+
+			await flushAnimationFrames(4, 96);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const secondChunk = view.container.querySelector(".streaming-section")?.textContent ?? "";
+			expect(secondChunk.length).toBeGreaterThan(firstChunk.length + 1);
+			expect(secondChunk.length).toBeLessThan(text.length);
+		});
+
+		it("transitions from streaming text to final rendered markdown in every mode", async () => {
+			renderMarkdownSyncMock.mockImplementation((mdText) => ({
+				html: `<p>${mdText}</p>`,
+				fromCache: false,
+				needsAsync: false,
+			}));
+
+			const text = "Final content";
+			const modes = ["smooth", "classic", "instant"] as const;
+
+			for (const mode of modes) {
+				const view = render(MarkdownText, {
+					text,
+					isStreaming: true,
+					revealKey: `final-${mode}`,
+					streamingAnimationMode: mode,
+				});
+
+				await flushAllAnimationFrames();
+				await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+				await view.rerender({
+					text,
+					isStreaming: false,
+					revealKey: `final-${mode}`,
+					streamingAnimationMode: mode,
+				});
+
+				await flushAllAnimationFrames();
+				await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+				await waitFor(() => {
+					const rendered = view.container.querySelector(".markdown-content");
+					expect(rendered).toBeTruthy();
+					expect(rendered?.innerHTML).toContain(text);
+				});
+
+				view.unmount();
+			}
+		});
+	});
+
+	describe("mode latching", () => {
+		it("keeps an in-flight reveal stable when the mode changes and applies the new mode to later entries", async () => {
+			renderMarkdownSyncMock.mockReturnValue({
+				html: null,
+				fromCache: false,
+				needsAsync: false,
+			});
+
+			const initialText = "Streaming text content here";
+			const updatedText = `${initialText} more text`;
+			const view = render(MarkdownText, {
+				text: initialText,
+				isStreaming: true,
+				revealKey: "latch-test",
+				streamingAnimationMode: "classic",
+			});
+
+			await flushAnimationFrames(1, 16);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const firstPassText = view.container.querySelector(".streaming-section")?.textContent ?? "";
+			expect(firstPassText.length).toBeGreaterThan(0);
+			expect(firstPassText.length).toBeLessThan(initialText.length);
+
+			await view.rerender({
+				text: updatedText,
+				isStreaming: true,
+				revealKey: "latch-test",
+				streamingAnimationMode: "instant",
+			});
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const latchedText = view.container.querySelector(".streaming-section")?.textContent ?? "";
+			expect(latchedText).not.toContain(updatedText);
+
+			await flushAnimationFrames(1, 32);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			const stillLatchedText = view.container.querySelector(".streaming-section")?.textContent ?? "";
+			expect(stillLatchedText.length).toBeGreaterThan(firstPassText.length);
+			expect(stillLatchedText).not.toContain(updatedText);
+
+			view.unmount();
+
+			const nextEntry = render(MarkdownText, {
+				text: updatedText,
+				isStreaming: true,
+				revealKey: "latch-next-entry",
+				streamingAnimationMode: "instant",
+			});
+
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+			expect(nextEntry.container.textContent).toContain(updatedText);
+		});
 	});
 
 	it("defers rich markdown rendering until streaming stops", async () => {

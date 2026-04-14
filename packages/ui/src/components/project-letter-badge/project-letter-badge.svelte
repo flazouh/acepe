@@ -42,6 +42,9 @@
 
 	const fontSize = $derived(fontSizeProp ?? size * 0.715);
 	const radius = $derived(size * 0.25);
+	const badgeBg = $derived(showImage ? 'var(--badge-icon-bg)' : displayColor);
+	const badgeFg = $derived(showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
+	const badgeBorder = $derived(showImage ? 'var(--badge-icon-border)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
 </script>
 
 <span class="inline-flex items-center {className}" style="gap: 0px;">
@@ -49,7 +52,7 @@
 		<div
 			class="flex items-center justify-center shrink-0 overflow-hidden"
 			style="
-				background-color: {showImage ? 'color-mix(in srgb, var(--foreground) 85%, transparent)' : displayColor};
+				background-color: {badgeBg};
 				width: {size}px;
 				height: {size}px;
 				border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
@@ -61,12 +64,16 @@
 					alt={iconAlt}
 					class="block h-full w-full object-cover"
 					draggable="false"
-					onerror={() => { hasError = true; errorSrc = iconSrc ?? null; }}
+					onerror={(e: Event) => {
+						const img = e.currentTarget as HTMLImageElement;
+						hasError = true;
+						errorSrc = img.src;
+					}}
 				/>
 			{:else}
 				<span
 					class="font-black leading-none"
-					style="font-size: {fontSize}px; color: color-mix(in srgb, {displayColor} 30%, black);"
+					style="font-size: {fontSize}px; color: {badgeFg};"
 				>
 					{letter}
 				</span>
@@ -79,14 +86,14 @@
 			style="
 				height: {size}px;
 				padding: 0 {size * 0.25}px;
-				{showLetter ? `border-left: 1px solid ${showImage ? 'color-mix(in srgb, var(--foreground) 50%, transparent)' : `color-mix(in srgb, ${displayColor} 30%, black)`};` : ''}
+				{showLetter ? `border-left: 1px solid ${badgeBorder};` : ''}
 				border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
-				background-color: {showImage ? 'color-mix(in srgb, var(--foreground) 85%, transparent)' : displayColor};
+				background-color: {badgeBg};
 			"
 		>
 			<span
 				class="font-black leading-none"
-				style="font-size: {fontSize}px; color: {showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`};"
+				style="font-size: {fontSize}px; color: {badgeFg};"
 			>{sequenceId}</span>
 		</span>
 	{/if}
