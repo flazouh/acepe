@@ -41,6 +41,7 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import type { GitRemoteStatus } from "$lib/utils/tauri-client/git.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
+import { TAG_COLORS } from "../../utils/colors.js";
 import { createFileTree, flattenFileTree } from "../file-list/file-list-logic.js";
 import type { FileTreeNode } from "../file-list/file-list-types.js";
 import FileTreeItem from "../file-list/file-tree-item.svelte";
@@ -54,6 +55,8 @@ import {
 	getSessionListVisibleCount,
 	isSessionListNearBottom,
 } from "./session-list-logic.js";
+import type { SidebarReorderGroupElement } from "./sidebar-reorder-state.svelte.js";
+import { SidebarReorderState } from "./sidebar-reorder-state.svelte.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
 
@@ -111,6 +114,8 @@ interface Props {
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	/** Called when user exports session as JSON */
 	onExportJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when project order changes from sidebar drag/drop */
+	onReorderProjects?: (orderedPaths: string[]) => void;
 }
 
 let {
@@ -147,7 +152,12 @@ let {
 	onRenameSession,
 	onExportMarkdown,
 	onExportJson,
+	onReorderProjects,
 }: Props = $props();
+
+const REORDER_AUTO_SCROLL_STEP_PX = 14;
+const REORDER_GHOST_OFFSET_X_PX = 10;
+const REORDER_GHOST_FALLBACK_COLOR = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
 
 // Project collapse state (hydrated from persisted state in one-time effect)
 const collapsedProjects = new SvelteSet<string>();
@@ -156,6 +166,12 @@ const expandedProjects = $derived(
 		sessionGroups.map((group) => group.projectPath).filter((path) => !collapsedProjects.has(path))
 	)
 );
+const reorderState = new SidebarReorderState();
+const projectGroupElements = new Map<string, HTMLDivElement>();
+let sidebarContainer = $state<HTMLDivElement | null>(null);
+let dragPointerId = $state<number | null>(null);
+let lastDragPointerY = $state<number | null>(null);
+let autoScrollFrame = 0;
 
 // Per-project files state
 const filesByProject = new SvelteMap<string, FileTreeNode[]>();
@@ -260,7 +276,142 @@ function toggleProject(projectPath: string) {
 			openBranchPickerProject = null;
 		}
 	}
-	onCollapsedProjectPathsChange?.([...collapsedProjects]);
+	notifyCollapsedProjectPathsChange();
+}
+
+function notifyCollapsedProjectPathsChange(): void {
+	onCollapsedProjectPathsChange?.(Array.from(collapsedProjects));
+}
+
+function registerProjectGroupElement(projectPath: string, node: HTMLDivElement | null): void {
+	if (node === null) {
+		projectGroupElements.delete(projectPath);
+		return;
+	}
+
+	projectGroupElements.set(projectPath, node);
+}
+
+function projectGroupElement(
+	node: HTMLDivElement,
+	projectPath: string
+): { update: (nextProjectPath: string) => void; destroy: () => void } {
+	let currentProjectPath = projectPath;
+	registerProjectGroupElement(currentProjectPath, node);
+
+	return {
+		update(nextProjectPath: string): void {
+			if (nextProjectPath === currentProjectPath) {
+				return;
+			}
+
+			projectGroupElements.delete(currentProjectPath);
+			currentProjectPath = nextProjectPath;
+			registerProjectGroupElement(currentProjectPath, node);
+		},
+		destroy(): void {
+			projectGroupElements.delete(currentProjectPath);
+		},
+	};
+}
+
+function getReorderGroupElements(): SidebarReorderGroupElement[] {
+	const elements: SidebarReorderGroupElement[] = [];
+	for (const group of sessionGroups) {
+		const element = projectGroupElements.get(group.projectPath);
+		if (element === undefined) {
+			continue;
+		}
+
+		elements.push({
+			projectPath: group.projectPath,
+			element,
+		});
+	}
+
+	return elements;
+}
+
+function getReorderGroupRects(): { top: number; bottom: number }[] {
+	const rects: { top: number; bottom: number }[] = [];
+	for (const group of getReorderGroupElements()) {
+		rects.push(group.element.getBoundingClientRect());
+	}
+	return rects;
+}
+
+function restoreDraggedProjectExpansion(projectPath: string | null): void {
+	if (projectPath === null) {
+		return;
+	}
+
+	if (reorderState.preCollapsedPaths.has(projectPath)) {
+		collapsedProjects.delete(projectPath);
+	} else {
+		collapsedProjects.add(projectPath);
+	}
+	notifyCollapsedProjectPathsChange();
+}
+
+function updateReorderPointer(clientY: number): void {
+	if (!reorderState.isDragging || sidebarContainer === null) {
+		return;
+	}
+
+	const containerRect = sidebarContainer.getBoundingClientRect();
+	reorderState.updatePointer(
+		clientY,
+		{ top: containerRect.top, bottom: containerRect.bottom },
+		getReorderGroupRects()
+	);
+	syncAutoScrollLoop();
+}
+
+function stopAutoScrollLoop(): void {
+	if (autoScrollFrame === 0) {
+		return;
+	}
+
+	cancelAnimationFrame(autoScrollFrame);
+	autoScrollFrame = 0;
+}
+
+function runAutoScrollStep(): void {
+	autoScrollFrame = 0;
+	if (
+		!reorderState.isDragging ||
+		reorderState.autoScrollDirection === null ||
+		sidebarContainer === null
+	) {
+		return;
+	}
+
+	const nextScrollTop =
+		reorderState.autoScrollDirection === "up"
+			? sidebarContainer.scrollTop - REORDER_AUTO_SCROLL_STEP_PX
+			: sidebarContainer.scrollTop + REORDER_AUTO_SCROLL_STEP_PX;
+	sidebarContainer.scrollTop = nextScrollTop;
+
+	if (lastDragPointerY !== null) {
+		updateReorderPointer(lastDragPointerY);
+	}
+
+	if (reorderState.autoScrollDirection !== null) {
+		autoScrollFrame = requestAnimationFrame(runAutoScrollStep);
+	}
+}
+
+function syncAutoScrollLoop(): void {
+	if (!reorderState.isDragging || reorderState.autoScrollDirection === null) {
+		stopAutoScrollLoop();
+		return;
+	}
+
+	if (autoScrollFrame !== 0) {
+		return;
+	}
+
+	autoScrollFrame = requestAnimationFrame(runAutoScrollStep);
 }
 
 function setProjectViewMode(projectPath: string, mode: ProjectViewMode) {
@@ -725,8 +876,177 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 }
 
 function handleProjectHeaderClick(projectPath: string) {
+	if (reorderState.isDragging) {
+		return;
+	}
 	toggleProject(projectPath);
 }
+
+function releaseSidebarPointerCapture(pointerId: number | null): void {
+	if (sidebarContainer === null || pointerId === null) {
+		return;
+	}
+
+	if (sidebarContainer.hasPointerCapture(pointerId)) {
+		sidebarContainer.releasePointerCapture(pointerId);
+	}
+}
+
+function handleProjectGripPointerDown(projectPath: string, event: PointerEvent): void {
+	if (event.button !== 0 || sidebarContainer === null || reorderState.isDragging) {
+		return;
+	}
+
+	const groupElements = getReorderGroupElements();
+	if (groupElements.length === 0) {
+		return;
+	}
+
+	lastDragPointerY = event.clientY;
+	dragPointerId = event.pointerId;
+	reorderState.startDrag(projectPath, groupElements, collapsedProjects);
+	collapsedProjects.add(projectPath);
+	notifyCollapsedProjectPathsChange();
+	sidebarContainer.setPointerCapture(event.pointerId);
+	updateReorderPointer(event.clientY);
+}
+
+function finishProjectReorder(shouldCommit: boolean): void {
+	const draggedProjectPath = reorderState.draggedProjectPath;
+
+	if (shouldCommit) {
+		const orderedPaths = reorderState.commitDrop(sessionGroups);
+		restoreDraggedProjectExpansion(draggedProjectPath);
+		onReorderProjects?.(orderedPaths);
+	} else {
+		reorderState.cancelDrag();
+		restoreDraggedProjectExpansion(draggedProjectPath);
+	}
+
+	stopAutoScrollLoop();
+	lastDragPointerY = null;
+	releaseSidebarPointerCapture(dragPointerId);
+	dragPointerId = null;
+}
+
+function handleSidebarPointerMove(event: PointerEvent): void {
+	if (!reorderState.isDragging) {
+		return;
+	}
+
+	lastDragPointerY = event.clientY;
+	updateReorderPointer(event.clientY);
+}
+
+function handleSidebarPointerUp(event: PointerEvent): void {
+	if (!reorderState.isDragging || sidebarContainer === null) {
+		return;
+	}
+
+	const sidebarRect = sidebarContainer.getBoundingClientRect();
+	const pointerInsideSidebar =
+		event.clientX >= sidebarRect.left &&
+		event.clientX <= sidebarRect.right &&
+		event.clientY >= sidebarRect.top &&
+		event.clientY <= sidebarRect.bottom;
+
+	finishProjectReorder(pointerInsideSidebar && reorderState.insertionIndex !== null);
+}
+
+function handleSidebarPointerCancel(): void {
+	if (!reorderState.isDragging) {
+		return;
+	}
+
+	finishProjectReorder(false);
+}
+
+function handleSidebarKeyDown(event: KeyboardEvent): void {
+	if (event.key !== "Escape" || !reorderState.isDragging) {
+		return;
+	}
+
+	event.preventDefault();
+	finishProjectReorder(false);
+}
+
+const draggedProjectGroup = $derived.by(() => {
+	const draggedProjectPath = reorderState.draggedProjectPath;
+	if (draggedProjectPath === null) {
+		return null;
+	}
+
+	for (const group of sessionGroups) {
+		if (group.projectPath === draggedProjectPath) {
+			return group;
+		}
+	}
+
+	return null;
+});
+
+const insertionLineTop = $derived.by(() => {
+	if (
+		!reorderState.isDragging ||
+		reorderState.insertionIndex === null ||
+		sidebarContainer === null ||
+		draggedProjectGroup === null
+	) {
+		return null;
+	}
+
+	const candidateElements: HTMLDivElement[] = [];
+	for (const group of sessionGroups) {
+		if (group.projectPath === draggedProjectGroup.projectPath) {
+			continue;
+		}
+
+		const element = projectGroupElements.get(group.projectPath);
+		if (element === undefined) {
+			continue;
+		}
+
+		candidateElements.push(element);
+	}
+
+	if (candidateElements.length === 0) {
+		return null;
+	}
+
+	const containerRect = sidebarContainer.getBoundingClientRect();
+	const targetIndex = reorderState.insertionIndex;
+	const edgeRect =
+		targetIndex <= 0
+			? candidateElements[0]?.getBoundingClientRect()
+			: targetIndex >= candidateElements.length
+				? candidateElements[candidateElements.length - 1]?.getBoundingClientRect()
+				: candidateElements[targetIndex]?.getBoundingClientRect();
+
+	if (edgeRect === undefined) {
+		return null;
+	}
+
+	const viewportTop =
+		targetIndex <= 0
+			? edgeRect.top
+			: targetIndex >= candidateElements.length
+				? edgeRect.bottom
+				: edgeRect.top;
+
+	return viewportTop - containerRect.top + sidebarContainer.scrollTop - 1;
+});
+
+const ghostOverlayLeft = $derived.by(() => {
+	if (sidebarContainer === null) {
+		return null;
+	}
+
+	return sidebarContainer.getBoundingClientRect().left + REORDER_GHOST_OFFSET_X_PX;
+});
+
+const ghostOverlayColor = $derived(
+	draggedProjectGroup?.projectColor ? draggedProjectGroup.projectColor : REORDER_GHOST_FALLBACK_COLOR
+);
 
 // ─── Branch picker ───────────────────────────────────────────────
 
@@ -847,7 +1167,16 @@ function openCreateBranchDialog(projectPath: string): void {
 }
 </script>
 
-<div class="flex h-full flex-col gap-2" data-thread-list-scrollable>
+<svelte:window onkeydown={handleSidebarKeyDown} />
+
+<div
+	class="relative flex h-full min-h-0 flex-col gap-2 overflow-y-auto outline-none"
+	data-thread-list-scrollable
+	bind:this={sidebarContainer}
+	onpointermove={handleSidebarPointerMove}
+	onpointerup={handleSidebarPointerUp}
+	onpointercancel={handleSidebarPointerCancel}
+>
 	{#if loading && !scanning && sessionGroups.every((g) => g.sessions.length === 0)}
 		<!-- Initial loading (no sessions cached yet): real project headers + session list skeleton -->
 		{#if sessionGroups.length > 0}
@@ -910,6 +1239,8 @@ function openCreateBranchDialog(projectPath: string): void {
 											projectName={group.projectName}
 											projectIconSrc={group.projectIconSrc}
 											expanded={true}
+											draggable={true}
+											onGripPointerDown={(event) => handleProjectGripPointerDown(group.projectPath, event)}
 											class="group min-w-0 flex-1 cursor-pointer transition-colors"
 										>
 											{#snippet actions()}
@@ -1009,7 +1340,7 @@ function openCreateBranchDialog(projectPath: string): void {
 		<!-- Session groups - expanded sections share available space equally -->
 		{@const expandedCount = expandedProjects.size}
 		{@const maxHeightPercent = expandedCount > 0 ? 100 / expandedCount : 100}
-		<div class="flex flex-col flex-1 min-h-0 gap-0.5">
+		<div class="relative flex flex-col flex-1 min-h-0 gap-0.5">
 			{#each sessionGroups as group (group.projectPath)}
 				{@const isExpanded = expandedProjects.has(group.projectPath)}
 				{@const viewMode = getProjectViewMode(group.projectPath)}
@@ -1021,6 +1352,7 @@ function openCreateBranchDialog(projectPath: string): void {
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
+					use:projectGroupElement={group.projectPath}
 				>
 				<!-- Project header -->
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -1077,6 +1409,8 @@ function openCreateBranchDialog(projectPath: string): void {
 									projectName={group.projectName}
 									projectIconSrc={group.projectIconSrc}
 									expanded={isExpanded}
+									draggable={true}
+									onGripPointerDown={(event) => handleProjectGripPointerDown(group.projectPath, event)}
 									class="group min-w-0 flex-1 cursor-pointer transition-colors"
 								>
 									{#snippet actions()}
@@ -1454,6 +1788,14 @@ function openCreateBranchDialog(projectPath: string): void {
 				</div>
 			{/each}
 
+			{#if insertionLineTop !== null}
+				<div
+					aria-hidden="true"
+					class="pointer-events-none absolute left-2 right-2 z-20 h-0.5 rounded-full bg-primary"
+					style={`top: ${insertionLineTop}px;`}
+				></div>
+			{/if}
+
 			<!-- Trailing project card skeletons while scanning -->
 			{#if scanning && sessionGroups.length > 0}
 				<div class="shrink-0 flex flex-col gap-0.5 opacity-50">
@@ -1462,6 +1804,22 @@ function openCreateBranchDialog(projectPath: string): void {
 					{/each}
 				</div>
 			{/if}
+		</div>
+	{/if}
+
+	{#if reorderState.isDragging && draggedProjectGroup !== null && reorderState.ghostY !== null && ghostOverlayLeft !== null}
+		<div
+			aria-hidden="true"
+			class="pointer-events-none fixed z-50 flex h-7 w-7 items-center justify-center rounded-md bg-card/60 opacity-50 shadow-lg backdrop-blur-sm"
+			style={`left: ${ghostOverlayLeft}px; top: ${reorderState.ghostY}px; transform: translateY(-50%);`}
+		>
+			<ProjectLetterBadge
+				name={draggedProjectGroup.projectName}
+				color={ghostOverlayColor}
+				iconSrc={draggedProjectGroup.projectIconSrc}
+				size={16}
+				draggable={true}
+			/>
 		</div>
 	{/if}
 </div>

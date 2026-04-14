@@ -62,6 +62,8 @@ interface Props {
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	/** Called when user exports session as JSON */
 	onExportJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when project order changes from sidebar drag/drop */
+	onReorderProjects?: (orderedPaths: string[]) => void;
 }
 
 let {
@@ -98,6 +100,7 @@ let {
 	onRenameSession,
 	onExportMarkdown,
 	onExportJson,
+	onReorderProjects,
 }: Props = $props();
 
 // ✅ State manager for local UI state only
@@ -122,11 +125,12 @@ const projectIconSrcMap = $derived(logic.createProjectIconSrcMap(recentProjects)
 const projectNameMap = $derived(logic.createProjectNameMap(recentProjects));
 const projectCreatedAtMap = $derived(new Map(recentProjects.map((p) => [p.path, p.createdAt])));
 const projectSortOrderMap = $derived(
-	new Map(
-		recentProjects
-			.filter((project) => project.sortOrder !== undefined)
-			.map((project) => [project.path, project.sortOrder])
-	)
+	recentProjects.reduce((map, project) => {
+		if (project.sortOrder !== undefined) {
+			map.set(project.path, project.sortOrder);
+		}
+		return map;
+	}, new Map<string, number>())
 );
 
 // Filter sessions to only include those belonging to known projects
@@ -214,4 +218,5 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	onRenameSession={onRenameSession}
 	{onExportMarkdown}
 	{onExportJson}
+	{onReorderProjects}
 />

@@ -23,6 +23,10 @@ interface Props {
 	trailing?: Snippet;
 	/** Optional actions to render at the end (view toggle, terminal, plus, etc.) */
 	actions?: Snippet;
+	/** Whether the badge grip should be available for dragging */
+	draggable?: boolean;
+	/** Called when the badge grip receives pointer down */
+	onGripPointerDown?: (event: PointerEvent) => void;
 }
 
 let {
@@ -34,6 +38,8 @@ let {
 	class: className = "",
 	trailing,
 	actions,
+	draggable = false,
+	onGripPointerDown,
 }: Props = $props();
 
 /**
@@ -53,19 +59,44 @@ const resolvedColor = $derived(
 	project?.color ? project.color : projectColor ? projectColor : fallbackColor
 );
 const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
+
+function handleGripPointerDown(event: PointerEvent): void {
+	event.stopPropagation();
+	onGripPointerDown?.(event);
+}
+
+function handleGripClick(event: MouseEvent): void {
+	event.stopPropagation();
+}
+
+function handleGripKeyDown(event: KeyboardEvent): void {
+	if (event.key === "Enter" || event.key === " ") {
+		event.preventDefault();
+		event.stopPropagation();
+	}
+}
 </script>
 
 <div
 	class="shrink-0 flex items-center rounded-md {expanded ? 'bg-background/30' : ''} {className}"
 >
-	<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
+	<button
+		type="button"
+		class="inline-flex items-center justify-center h-7 w-7 shrink-0 border-0 bg-transparent p-0"
+		tabindex={draggable ? 0 : -1}
+		aria-label={draggable ? `Reorder ${displayName}` : undefined}
+		onpointerdown={draggable ? handleGripPointerDown : undefined}
+		onclick={draggable ? handleGripClick : undefined}
+		onkeydown={draggable ? handleGripKeyDown : undefined}
+	>
 		<ProjectLetterBadge
 			name={displayName}
 			color={resolvedColor}
 			iconSrc={resolvedIconSrc}
+			{draggable}
 			size={16}
 		/>
-	</div>
+	</button>
 	<div
 		class="flex items-center flex-1 min-w-0 h-7 pl-2 pr-2 cursor-pointer rounded-md hover:bg-background/70 transition-colors"
 	>
