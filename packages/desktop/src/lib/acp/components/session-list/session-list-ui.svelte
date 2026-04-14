@@ -9,7 +9,9 @@ import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
 import { DropdownMenu } from "bits-ui";
 import { ArrowsClockwise } from "phosphor-svelte";
+import { ArrowDown } from "phosphor-svelte";
 import { ArrowCounterClockwise } from "phosphor-svelte";
+import { ArrowUp } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
@@ -21,6 +23,7 @@ import { Sparkle } from "phosphor-svelte";
 import { TestTube } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
 import type { Component } from "svelte";
+import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -168,10 +171,12 @@ const expandedProjects = $derived(
 );
 const reorderState = new SidebarReorderState();
 const projectGroupElements = new Map<string, HTMLDivElement>();
+const projectHeaderFocusTargets = new Map<string, HTMLDivElement>();
 let sidebarContainer = $state<HTMLDivElement | null>(null);
 let dragPointerId = $state<number | null>(null);
 let lastDragPointerY = $state<number | null>(null);
 let autoScrollFrame = 0;
+let reorderAnnouncement = $state("");
 
 // Per-project files state
 const filesByProject = new SvelteMap<string, FileTreeNode[]>();
@@ -292,6 +297,15 @@ function registerProjectGroupElement(projectPath: string, node: HTMLDivElement |
 	projectGroupElements.set(projectPath, node);
 }
 
+function registerProjectHeaderFocusTarget(projectPath: string, node: HTMLDivElement | null): void {
+	if (node === null) {
+		projectHeaderFocusTargets.delete(projectPath);
+		return;
+	}
+
+	projectHeaderFocusTargets.set(projectPath, node);
+}
+
 function projectGroupElement(
 	node: HTMLDivElement,
 	projectPath: string
@@ -311,6 +325,29 @@ function projectGroupElement(
 		},
 		destroy(): void {
 			projectGroupElements.delete(currentProjectPath);
+		},
+	};
+}
+
+function projectHeaderFocusTarget(
+	node: HTMLDivElement,
+	projectPath: string
+): { update: (nextProjectPath: string) => void; destroy: () => void } {
+	let currentProjectPath = projectPath;
+	registerProjectHeaderFocusTarget(currentProjectPath, node);
+
+	return {
+		update(nextProjectPath: string): void {
+			if (nextProjectPath === currentProjectPath) {
+				return;
+			}
+
+			projectHeaderFocusTargets.delete(currentProjectPath);
+			currentProjectPath = nextProjectPath;
+			registerProjectHeaderFocusTarget(currentProjectPath, node);
+		},
+		destroy(): void {
+			projectHeaderFocusTargets.delete(currentProjectPath);
 		},
 	};
 }
@@ -911,13 +948,113 @@ function handleProjectGripPointerDown(projectPath: string, event: PointerEvent):
 	updateReorderPointer(event.clientY);
 }
 
+function getProjectGroupByPath(projectPath: string): SessionGroup | null {
+	for (const group of sessionGroups) {
+		if (group.projectPath === projectPath) {
+			return group;
+		}
+	}
+
+	return null;
+}
+
+function getCurrentProjectOrder(): string[] {
+	const orderedPaths: string[] = [];
+	for (const group of sessionGroups) {
+		orderedPaths.push(group.projectPath);
+	}
+
+	return orderedPaths;
+}
+
+function isProjectOrderUnchanged(orderedPaths: string[]): boolean {
+	if (orderedPaths.length !== sessionGroups.length) {
+		return false;
+	}
+
+	for (let index = 0; index < orderedPaths.length; index += 1) {
+		if (orderedPaths[index] !== sessionGroups[index]?.projectPath) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function announceProjectReorder(projectPath: string, orderedPaths: string[]): void {
+	const group = getProjectGroupByPath(projectPath);
+	const position = orderedPaths.indexOf(projectPath);
+
+	if (group === null || position < 0) {
+		return;
+	}
+
+	reorderAnnouncement = "";
+	queueMicrotask(() => {
+		reorderAnnouncement = m.project_reorder_announcement({
+			projectName: group.projectName,
+			position: position + 1,
+			total: orderedPaths.length,
+		});
+	});
+}
+
+function applyProjectOrder(projectPath: string, orderedPaths: string[]): void {
+	if (onReorderProjects === undefined || isProjectOrderUnchanged(orderedPaths)) {
+		return;
+	}
+
+	announceProjectReorder(projectPath, orderedPaths);
+	onReorderProjects(orderedPaths);
+}
+
+function getMovedProjectOrder(projectPath: string, offset: -1 | 1): string[] | null {
+	const orderedPaths = getCurrentProjectOrder();
+	const currentIndex = orderedPaths.indexOf(projectPath);
+	const nextIndex = currentIndex + offset;
+
+	if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedPaths.length) {
+		return null;
+	}
+
+	const currentPath = orderedPaths[currentIndex];
+	const nextPath = orderedPaths[nextIndex];
+
+	if (currentPath === undefined || nextPath === undefined) {
+		return null;
+	}
+
+	orderedPaths[currentIndex] = nextPath;
+	orderedPaths[nextIndex] = currentPath;
+
+	return orderedPaths;
+}
+
+async function focusProjectContextTrigger(projectPath: string): Promise<void> {
+	await tick();
+	projectHeaderFocusTargets.get(projectPath)?.focus();
+}
+
+async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Promise<void> {
+	const orderedPaths = getMovedProjectOrder(projectPath, offset);
+
+	if (orderedPaths === null) {
+		return;
+	}
+
+	applyProjectOrder(projectPath, orderedPaths);
+	await focusProjectContextTrigger(projectPath);
+}
+
 function finishProjectReorder(shouldCommit: boolean): void {
 	const draggedProjectPath = reorderState.draggedProjectPath;
 
 	if (shouldCommit) {
 		const orderedPaths = reorderState.commitDrop(sessionGroups);
 		restoreDraggedProjectExpansion(draggedProjectPath);
-		onReorderProjects?.(orderedPaths);
+		if (draggedProjectPath !== null) {
+			applyProjectOrder(draggedProjectPath, orderedPaths);
+		}
 	} else {
 		reorderState.cancelDrag();
 		restoreDraggedProjectExpansion(draggedProjectPath);
@@ -1181,12 +1318,13 @@ function openCreateBranchDialog(projectPath: string): void {
 		<!-- Initial loading (no sessions cached yet): real project headers + session list skeleton -->
 		{#if sessionGroups.length > 0}
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
-				{#each sessionGroups as group (group.projectPath)}
+				{#each sessionGroups as group, projectIndex (group.projectPath)}
 					{@const viewMode = getProjectViewMode(group.projectPath)}
 					<div class="flex min-w-0 flex-col overflow-hidden rounded-md bg-card/75">
 						<!-- Real project header (only sessions are loading) -->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<div
+							use:projectHeaderFocusTarget={group.projectPath}
 							class="shrink-0 flex items-center"
 							role={projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
 							tabindex={projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
@@ -1305,6 +1443,29 @@ function openCreateBranchDialog(projectPath: string): void {
 										</ProjectHeader>
 									</ContextMenu.Trigger>
 									<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
+										<ContextMenu.Item
+											disabled={onReorderProjects === undefined || projectIndex === 0}
+											onSelect={() => {
+												void handleProjectContextMove(group.projectPath, -1);
+											}}
+										>
+											<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
+											{m.project_move_up()}
+										</ContextMenu.Item>
+										<ContextMenu.Item
+											disabled={
+												onReorderProjects === undefined || projectIndex === sessionGroups.length - 1
+											}
+											onSelect={() => {
+												void handleProjectContextMove(group.projectPath, 1);
+											}}
+										>
+											<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
+											{m.project_move_down()}
+										</ContextMenu.Item>
+										{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
+											<ContextMenu.Separator />
+										{/if}
 										{#if onChangeProjectIcon}
 											<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
 												<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
@@ -1341,7 +1502,7 @@ function openCreateBranchDialog(projectPath: string): void {
 		{@const expandedCount = expandedProjects.size}
 		{@const maxHeightPercent = expandedCount > 0 ? 100 / expandedCount : 100}
 		<div class="relative flex flex-col flex-1 min-h-0 gap-0.5">
-			{#each sessionGroups as group (group.projectPath)}
+			{#each sessionGroups as group, projectIndex (group.projectPath)}
 				{@const isExpanded = expandedProjects.has(group.projectPath)}
 				{@const viewMode = getProjectViewMode(group.projectPath)}
 				{@const filesLoading = loadingFilesProjects.has(group.projectPath)}
@@ -1357,6 +1518,7 @@ function openCreateBranchDialog(projectPath: string): void {
 				<!-- Project header -->
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<div
+					use:projectHeaderFocusTarget={group.projectPath}
 					class="shrink-0 flex items-center"
 					role={projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
 					tabindex={projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
@@ -1475,6 +1637,27 @@ function openCreateBranchDialog(projectPath: string): void {
 								</ProjectHeader>
 							</ContextMenu.Trigger>
 							<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
+								<ContextMenu.Item
+									disabled={onReorderProjects === undefined || projectIndex === 0}
+									onSelect={() => {
+										void handleProjectContextMove(group.projectPath, -1);
+									}}
+								>
+									<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
+									{m.project_move_up()}
+								</ContextMenu.Item>
+								<ContextMenu.Item
+									disabled={onReorderProjects === undefined || projectIndex === sessionGroups.length - 1}
+									onSelect={() => {
+										void handleProjectContextMove(group.projectPath, 1);
+									}}
+								>
+									<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
+									{m.project_move_down()}
+								</ContextMenu.Item>
+								{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
+									<ContextMenu.Separator />
+								{/if}
 								{#if onChangeProjectIcon}
 									<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
 										<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
@@ -1822,6 +2005,7 @@ function openCreateBranchDialog(projectPath: string): void {
 			/>
 		</div>
 	{/if}
+	<span class="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
 </div>
 
 <!-- New file dialog -->

@@ -1399,6 +1399,18 @@ export function project_icon_reset(args: MessageArgs = {}): string {
 	return interpolate(`Reset to letter badge`, args);
 }
 
+export function project_move_up(args: MessageArgs = {}): string {
+	return interpolate(`Move Up`, args);
+}
+
+export function project_move_down(args: MessageArgs = {}): string {
+	return interpolate(`Move Down`, args);
+}
+
+export function project_reorder_announcement(args: MessageArgs = {}): string {
+	return interpolate(`Moved {projectName} to position {position} of {total}`, args);
+}
+
 export function project_color_red(args: MessageArgs = {}): string {
 	return interpolate(`Red`, args);
 }
