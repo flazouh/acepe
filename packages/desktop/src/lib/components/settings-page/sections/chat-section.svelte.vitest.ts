@@ -71,4 +71,15 @@ describe("ChatSection", () => {
 		expect(trigger).not.toBeNull();
 		expect(trigger!.textContent).toContain("Smooth");
 	});
+
+	it("renders trigger with instant label when mode is instant", () => {
+		chatPrefs.streamingAnimationMode = "instant";
+		const view = render(ChatSection);
+		const trigger = view.container.querySelector(
+			'[aria-label="Streaming animation"]'
+		);
+
+		expect(trigger).not.toBeNull();
+		expect(trigger!.textContent).toContain("Instant");
+	});
 });

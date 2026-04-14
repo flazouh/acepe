@@ -96,6 +96,42 @@ describe("ChatPreferencesStore", () => {
 		const smoothStore = new ChatPreferencesStore();
 		await smoothStore.initialize();
 		expect(smoothStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
+
+		vi.resetModules();
+		vi.doMock("$lib/utils/tauri-client.js", () => ({
+			tauriClient: {
+				settings: {
+					get: getSettingMock,
+					set: setSettingMock,
+				},
+			},
+		}));
+		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
+
+		getSettingMock.mockReset();
+		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("fade"));
+
+		const fadeStore = new ChatPreferencesStore();
+		await fadeStore.initialize();
+		expect(fadeStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
+
+		vi.resetModules();
+		vi.doMock("$lib/utils/tauri-client.js", () => ({
+			tauriClient: {
+				settings: {
+					get: getSettingMock,
+					set: setSettingMock,
+				},
+			},
+		}));
+		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
+
+		getSettingMock.mockReset();
+		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("bogus_unknown"));
+
+		const unknownStore = new ChatPreferencesStore();
+		await unknownStore.initialize();
+		expect(unknownStore.streamingAnimationMode).toBe(DEFAULT_STREAMING_ANIMATION_MODE);
 	});
 
 	it("persists streaming animation updates optimistically", async () => {

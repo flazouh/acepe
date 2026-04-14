@@ -35,13 +35,12 @@ function computeCompletionChunk(backlogLength: number): number {
 }
 
 function computeMode(
-	sourceText: string,
-	revealedLength: number,
 	sourceLength: number,
+	revealedLength: number,
 	isStreaming: boolean,
 	sourceIdleMs: number
 ): RevealMode {
-	if (sourceText.length === 0) {
+	if (sourceLength === 0) {
 		return "idle";
 	}
 
@@ -88,11 +87,11 @@ export function createSmoothStreamingReveal() {
 
 	function syncState(): void {
 		displayedText = sourceGraphemes.slice(0, revealedLength).join("");
-		mode = computeMode(sourceText, revealedLength, sourceGraphemes.length, isStreaming, sourceIdleMs);
+		mode = computeMode(sourceGraphemes.length, revealedLength, isStreaming, sourceIdleMs);
 		isRevealActive = revealedLength < sourceGraphemes.length;
-		const shouldContinueTicking = isRevealActive || (shouldWatchForPause && isStreaming && mode === "streaming");
+		const keepTicking = isRevealActive || (shouldWatchForPause && isStreaming && mode === "streaming");
 
-		if (!shouldContinueTicking) {
+		if (!keepTicking) {
 			stopAnimationFrame();
 		}
 	}

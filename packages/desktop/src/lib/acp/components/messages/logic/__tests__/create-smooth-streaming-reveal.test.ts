@@ -138,6 +138,33 @@ describe("createSmoothStreamingReveal", () => {
 		expect(queuedFrames.length).toBe(0);
 	});
 
+	it("resumes reveal after entering paused-awaiting-more when new text arrives", () => {
+		const reveal = createSmoothStreamingReveal();
+
+		reveal.setState("hello", true);
+		flushNextFrame(16);
+		flushNextFrame(32);
+		flushNextFrame(48);
+		flushNextFrame(64);
+		expect(reveal.displayedText).toBe("hello");
+		expect(reveal.isRevealActive).toBe(false);
+
+		flushNextFrame(196);
+		expect(reveal.mode).toBe("paused-awaiting-more");
+		expect(queuedFrames.length).toBe(0);
+
+		reveal.setState("hello world", true);
+		expect(reveal.mode).toBe("streaming");
+		expect(reveal.isRevealActive).toBe(true);
+		expect(queuedFrames.length).toBe(1);
+
+		flushNextFrame(212);
+		flushNextFrame(228);
+		flushNextFrame(244);
+		flushNextFrame(260);
+		expect(reveal.displayedText).toBe("hello world");
+	});
+
 	it("seeds from source without replaying the existing text", () => {
 		const reveal = createSmoothStreamingReveal();
 
