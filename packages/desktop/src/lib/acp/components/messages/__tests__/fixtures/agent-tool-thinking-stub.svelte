@@ -8,7 +8,7 @@ interface Props {
 	showHeader?: boolean;
 }
 
-let { children, collapsed = false, headerLabel = "Thought", showHeader = true }: Props = $props();
+let { children, collapsed = false, headerLabel = "Thought for 0s", showHeader = true }: Props = $props();
 </script>
 
 <div data-testid="agent-tool-thinking-stub" data-collapsed={collapsed ? "true" : "false"}>

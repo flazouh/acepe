@@ -70,10 +70,14 @@ const hasAnyContent = $derived(hasThinking || hasMessageContent);
 /** Show thinking block only while there is no assistant message content yet; hide once reply text starts. */
 const showThinkingBlock = $derived(hasThinking && !hasMessageContent);
 
-/** "Thinking" while streaming, "Thought" or "Thought for Xs" when duration available */
+/** "Thinking" or "Thinking for Xs" while streaming, "Thought" or "Thought for Xs" when done */
 const thinkingHeaderLabel = $derived.by(() => {
-	if (isStreaming) return m.tool_thinking_streaming();
 	const ms = message.thinkingDurationMs;
+	if (isStreaming && ms != null && ms >= 0) {
+		const s = Math.round(ms / 1000);
+		return `Thinking for ${String(s <= 1 ? 1 : s)}s`;
+	}
+	if (isStreaming) return m.tool_thinking_streaming();
 	if (ms != null && ms >= 0) {
 		const s = Math.round(ms / 1000);
 		return m.tool_thinking_done_duration({ seconds: String(s <= 1 ? 1 : s) });
@@ -193,7 +197,7 @@ $effect(() => {
 			{#if showThinkingBlock}
 				<AgentToolThinking
 					headerLabel={thinkingHeaderLabel}
-					showHeader={!isStreaming}
+					showHeader={!isStreaming || message.thinkingDurationMs != null}
 					status={isStreaming ? "running" : "done"}
 					collapsed={isCollapsed}
 					onCollapseChange={(next: boolean) => {

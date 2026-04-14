@@ -5,7 +5,7 @@
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
-		/** Label to display (e.g. "Thinking", "Thought", "Thought for 3s") */
+		/** Label to display (e.g. "Thinking", "Thinking for 3s", "Thought for 3s") */
 		headerLabel?: string;
 		/** When false, header row is hidden (e.g. while streaming). Default true. */
 		showHeader?: boolean;

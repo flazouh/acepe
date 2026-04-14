@@ -34,7 +34,7 @@ describe("streamingTailRefresh", () => {
 		streamingTailRefresh(node, { active: true, value: "Hello" });
 
 		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-		expect(getReflowCount()).toBe(1);
+		expect(getReflowCount()).toBe(0);
 	});
 
 	it("does not restart the animation when the active value is unchanged", () => {
@@ -44,17 +44,17 @@ describe("streamingTailRefresh", () => {
 		action.update({ active: true, value: "Hello" });
 
 		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-		expect(getReflowCount()).toBe(1);
+		expect(getReflowCount()).toBe(0);
 	});
 
-	it("restarts the animation when the live value changes", () => {
+	it("keeps the refresh class active without forcing reflow when the live value changes", () => {
 		const { node, getReflowCount } = createRefreshNode();
 		const action = streamingTailRefresh(node, { active: true, value: "Hello" });
 
 		action.update({ active: true, value: "Hello world" });
 
 		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-		expect(getReflowCount()).toBe(2);
+		expect(getReflowCount()).toBe(0);
 	});
 
 	it("restarts the animation when the section becomes active again", () => {
@@ -66,7 +66,7 @@ describe("streamingTailRefresh", () => {
 		action.update({ active: true, value: "Hello" });
 
 		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-		expect(getReflowCount()).toBe(1);
+		expect(getReflowCount()).toBe(0);
 	});
 
 	it("removes the refresh class when deactivated and destroyed", () => {

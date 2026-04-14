@@ -97,7 +97,32 @@ function createStreamingThoughtMessage(): AssistantMessage {
 	};
 }
 
+function createThoughtMessageWithDuration(thinkingDurationMs: number): AssistantMessage {
+	return {
+		chunks: [{ type: "thought", block: { type: "text", text: "thinking" } }],
+		thinkingDurationMs,
+	};
+}
+
 describe("AssistantMessage thinking auto-scroll", () => {
+	it("shows seconds in the thinking header while streaming and after completion", () => {
+		const streamingView = render(AssistantMessageComponent, {
+			message: createThoughtMessageWithDuration(3_200),
+			isStreaming: true,
+		});
+
+		expect(streamingView.getByText("Thinking for 3s")).toBeTruthy();
+
+		streamingView.unmount();
+
+		const completedView = render(AssistantMessageComponent, {
+			message: createThoughtMessageWithDuration(3_200),
+			isStreaming: false,
+		});
+
+		expect(completedView.getByText("Thought for 3s")).toBeTruthy();
+	});
+
 	it("coalesces repeated thinking growth notifications into one scroll update per frame", async () => {
 		vi.stubGlobal("ResizeObserver", TestResizeObserver);
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback): number => {

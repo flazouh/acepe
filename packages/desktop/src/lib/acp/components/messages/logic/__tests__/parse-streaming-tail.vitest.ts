@@ -83,6 +83,7 @@ describe("parseStreamingTail", () => {
 			{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
 			{ key: "SETTLED:1", kind: "settled", markdown: "Hello" },
 			{ key: "LIVE:2", kind: "live-text", text: "Next", source: "Next" },
+			{ key: "LIVE:2", kind: "live-text", text: "Next", source: "Next" },
 		]);
 		expect(next.sections[0]).toBe(previous.sections[0]);
 	});

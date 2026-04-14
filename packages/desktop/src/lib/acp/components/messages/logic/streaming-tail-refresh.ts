@@ -6,38 +6,39 @@ export interface StreamingTailRefreshParams {
 }
 
 function restartRefreshAnimation(node: HTMLElement) {
-	node.classList.remove(LIVE_REFRESH_CLASS);
-	void node.offsetWidth;
 	node.classList.add(LIVE_REFRESH_CLASS);
+}
+
+function stopRefreshAnimation(node: HTMLElement) {
+	node.classList.remove(LIVE_REFRESH_CLASS);
 }
 
 export function streamingTailRefresh(node: HTMLElement, params: StreamingTailRefreshParams) {
 	let isActive = params.active;
-	let currentValue = params.value;
+	let hasContent = params.value.length > 0;
 
-	if (isActive && currentValue.length > 0) {
+	if (isActive && hasContent) {
 		restartRefreshAnimation(node);
 	}
 
 	return {
 		update(next: StreamingTailRefreshParams) {
-			const valueChanged = next.value !== currentValue;
-			currentValue = next.value;
+			hasContent = next.value.length > 0;
 
-			if (!next.active) {
+			if (!next.active || !hasContent) {
 				isActive = false;
-				node.classList.remove(LIVE_REFRESH_CLASS);
+				stopRefreshAnimation(node);
 				return;
 			}
 
-			if (!isActive || valueChanged) {
+			if (!isActive) {
 				restartRefreshAnimation(node);
 			}
 
 			isActive = true;
 		},
 		destroy() {
-			node.classList.remove(LIVE_REFRESH_CLASS);
+			stopRefreshAnimation(node);
 		},
 	};
 }

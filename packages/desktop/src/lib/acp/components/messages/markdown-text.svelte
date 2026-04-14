@@ -34,6 +34,7 @@ import {
 	parseStreamingTailIncremental,
 	type StreamingTailParseResult,
 } from "./logic/parse-streaming-tail.js";
+import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
 
 const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 const STREAMING_SYNC_RESULT = {
@@ -509,7 +510,20 @@ function handleKeydown(event: KeyboardEvent) {
 	>
 		{#each streamingTail.sections as section, index (section.key)}
 			{@const isLastSection = index === streamingTail.sections.length - 1}
-			<div class="streaming-section" data-streaming-section-key={section.key}>
+			<div
+				class="streaming-section"
+				data-streaming-section-key={section.key}
+				data-streaming-live={section.kind === "settled" ? undefined : "true"}
+				use:streamingTailRefresh={{
+					active: section.kind !== "settled",
+					value:
+						section.kind === "settled"
+							? ""
+							: section.kind === "live-code"
+								? section.code
+						: section.text,
+				}}
+			>
 				{#if section.kind === "settled"}
 					{@const settledHtml = streamingSettledHtmlByKey.get(section.key)}
 					{#if settledHtml}
@@ -560,6 +574,18 @@ function handleKeydown(event: KeyboardEvent) {
 	}
 
 	@keyframes streaming-live-cursor {
+		0%,
+		49% {
+			opacity: 0.45;
+		}
+
+		50%,
+		100% {
+			opacity: 0;
+		}
+	}
+
+	@keyframes streaming-caret {
 		0%,
 		49% {
 			opacity: 0.45;

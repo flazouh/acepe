@@ -48,7 +48,7 @@ export type AssistantMessage = {
 
 	/**
 	 * Thinking phase duration in milliseconds (when available).
-	 * Used to show "Thought for Xs" in the thinking block header.
+	 * Used to show "Thinking for Xs" while streaming and "Thought for Xs" after completion.
 	 */
 	thinkingDurationMs?: number;
 };
