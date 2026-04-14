@@ -63,6 +63,7 @@ jobs:
           # Analytics
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
         with:
           tauriScript: bunx tauri
           projectPath: packages/desktop
