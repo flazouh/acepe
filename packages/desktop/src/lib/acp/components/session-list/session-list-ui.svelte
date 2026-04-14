@@ -1032,6 +1032,9 @@ function getMovedProjectOrder(projectPath: string, offset: -1 | 1): string[] | n
 
 async function focusProjectContextTrigger(projectPath: string): Promise<void> {
 	await tick();
+	// V1 intentionally returns focus to the outer header wrapper instead of the bits-ui
+	// ContextMenu.Trigger because the wrapper is reliably focusable and still supports
+	// reopening the context menu with Shift+F10 for consecutive keyboard moves.
 	projectHeaderFocusTargets.get(projectPath)?.focus();
 }
 
@@ -1377,7 +1380,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											projectName={group.projectName}
 											projectIconSrc={group.projectIconSrc}
 											expanded={true}
-											draggable={true}
+											draggable={false}
 											onGripPointerDown={(event) => handleProjectGripPointerDown(group.projectPath, event)}
 											class="group min-w-0 flex-1 cursor-pointer transition-colors"
 										>

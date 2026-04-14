@@ -251,20 +251,37 @@ let iconPickerImages = $state<string[]>([]);
 let iconPickerProjectPath = $state("");
 let reorderInFlight = $state(false);
 
-function cloneProject(project: Project): Project {
+function copyProject(project: Project, sortOrder: number | undefined = project.sortOrder): Project {
 	return {
 		path: project.path,
 		name: project.name,
 		lastOpened: project.lastOpened,
 		createdAt: project.createdAt,
 		color: project.color,
-		sortOrder: project.sortOrder,
+		sortOrder,
 		iconPath: project.iconPath ?? null,
 	};
 }
 
-function cloneProjects(projects: readonly Project[]): Project[] {
-	return projects.map((project) => cloneProject(project));
+function snapshotProjectSortOrders(projects: readonly Project[]): Map<string, number | undefined> {
+	const sortOrders = new Map<string, number | undefined>();
+	for (const project of projects) {
+		sortOrders.set(project.path, project.sortOrder);
+	}
+	return sortOrders;
+}
+
+function restoreProjectSortOrders(
+	projects: readonly Project[],
+	sortOrders: ReadonlyMap<string, number | undefined>
+): Project[] {
+	return projects.map((project) => {
+		if (!sortOrders.has(project.path)) {
+			return copyProject(project);
+		}
+
+		return copyProject(project, sortOrders.get(project.path));
+	});
 }
 
 function compareProjectOrder(a: Project, b: Project): number {
@@ -323,15 +340,7 @@ function buildOptimisticProjectOrder(
 			continue;
 		}
 
-		reorderedProjects.push({
-			path: project.path,
-			name: project.name,
-			lastOpened: project.lastOpened,
-			createdAt: project.createdAt,
-			color: project.color,
-			sortOrder: reorderedProjects.length,
-			iconPath: project.iconPath ?? null,
-		});
+		reorderedProjects.push(copyProject(project, reorderedProjects.length));
 	}
 
 	return reorderedProjects;
@@ -350,7 +359,8 @@ function handleReorderProjects(orderedPaths: string[]) {
 		return;
 	}
 
-	const previousProjects = cloneProjects(projectManager.projects);
+	const previousSortOrders = snapshotProjectSortOrders(projectManager.projects);
+	const previousProjects = projectManager.projects;
 	const currentOrder = getCurrentProjectOrder(previousProjects);
 	if (areProjectOrdersEqual(currentOrder, orderedPaths)) {
 		return;
@@ -362,7 +372,7 @@ function handleReorderProjects(orderedPaths: string[]) {
 	void projectManager
 		.updateProjectOrder(orderedPaths)
 		.mapErr((error) => {
-			projectManager.projects = previousProjects;
+			projectManager.projects = restoreProjectSortOrders(projectManager.projects, previousSortOrders);
 			logger.error("[ProjectReorder] Failed to persist project order", {
 				error,
 				orderedPaths,

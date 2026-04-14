@@ -4,7 +4,7 @@ import {
 SidebarReorderState,
 type SidebarReorderGroupElement,
 type SidebarReorderRect,
-} from "../sidebar-reorder-state.svelte.js";
+} from "../sidebar-reorder-state.js";
 import type { SessionGroup } from "../session-list-types.js";
 
 function createRect(top: number, height = 40): SidebarReorderRect {
