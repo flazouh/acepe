@@ -46,6 +46,13 @@ const THREAD_RESUME_TIMEOUT_SNIPPET: &str = "timed out waiting for server";
 type ChildHandle = StdArc<std::sync::Mutex<Option<Child>>>;
 type PendingCodexRequests = StdArc<Mutex<HashMap<u64, oneshot::Sender<Value>>>>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodexRuntimeIdentity {
+    command: String,
+    resolved_path: String,
+    version: Option<String>,
+}
+
 pub struct CodexNativeClient {
     provider: StdArc<dyn AgentProvider>,
     cwd: PathBuf,
@@ -68,6 +75,7 @@ pub struct CodexNativeClient {
     config_state: CodexNativeConfigState,
     current_mode_id: String,
     initialized: bool,
+    runtime_identity: Option<CodexRuntimeIdentity>,
 }
 
 impl CodexNativeClient {
@@ -105,6 +113,7 @@ impl CodexNativeClient {
             config_state,
             current_mode_id: "build".to_string(),
             initialized: false,
+            runtime_identity: None,
         })
     }
 
@@ -131,8 +140,12 @@ impl CodexNativeClient {
             .map_err(|_| AcpError::ChannelClosed)?;
 
         if let Some(error) = response.get("error") {
-            let message = serde_json::to_string(error).unwrap_or_else(|_| error.to_string());
-            return Err(AcpError::JsonRpcError(message));
+            return Err(AcpError::JsonRpcError(build_codex_json_rpc_error_message(
+                method,
+                &params,
+                self.runtime_identity.as_ref(),
+                error,
+            )));
         }
 
         response
@@ -156,20 +169,17 @@ impl CodexNativeClient {
         resume_thread_id: Option<String>,
     ) -> AcpResult<String> {
         let thread_result = if let Some(thread_id) = resume_thread_id.clone() {
-            let params = json!({
-                "threadId": thread_id,
-                "cwd": cwd,
-            });
+            let params = build_thread_resume_params(&thread_id, cwd);
             match self.send_request("thread/resume", params).await {
                 Ok(result) => result,
                 Err(error) if is_recoverable_thread_resume_error(&error) => {
-                    self.send_request("thread/start", json!({ "cwd": cwd }))
+                    self.send_request("thread/start", build_thread_start_params(cwd))
                         .await?
                 }
                 Err(error) => return Err(error),
             }
         } else {
-            self.send_request("thread/start", json!({ "cwd": cwd }))
+            self.send_request("thread/start", build_thread_start_params(cwd))
                 .await?
         };
 
@@ -220,6 +230,16 @@ impl AgentClient for CodexNativeClient {
         }
 
         let spawn_config = self.provider.spawn_config();
+        let runtime_identity = detect_codex_runtime_identity(&spawn_config.command);
+        if let Some(identity) = runtime_identity.clone() {
+            tracing::info!(
+                command = %identity.command,
+                resolved_path = %identity.resolved_path,
+                version = %identity.version.as_deref().unwrap_or("unknown"),
+                "Launching Codex runtime"
+            );
+        }
+        self.runtime_identity = runtime_identity;
         let mut command = Command::new(&spawn_config.command);
         command
             .args(&spawn_config.args)
@@ -606,6 +626,170 @@ fn build_codex_initialize_params() -> Value {
             "experimentalApi": true,
         },
     })
+}
+
+fn build_thread_start_params(cwd: &str) -> Value {
+    json!({
+        "cwd": cwd,
+        "experimentalRawEvents": false,
+        "persistExtendedHistory": true,
+    })
+}
+
+fn build_thread_resume_params(thread_id: &str, cwd: &str) -> Value {
+    json!({
+        "threadId": thread_id,
+        "cwd": cwd,
+        "persistExtendedHistory": true,
+    })
+}
+
+fn build_codex_json_rpc_error_message(
+    method: &str,
+    params: &Value,
+    runtime_identity: Option<&CodexRuntimeIdentity>,
+    error: &Value,
+) -> String {
+    let error_body = serde_json::to_string(error).unwrap_or_else(|_| error.to_string());
+    let sanitized_params = sanitize_codex_request_params(method, params);
+    let sanitized_params_json = serde_json::to_string(&sanitized_params)
+        .unwrap_or_else(|_| "<unserializable sanitized params>".to_string());
+
+    let mut details = vec![
+        format!("{method} failed: {error_body}"),
+        format!("Codex request method: {method}"),
+        format!("Codex request params: {sanitized_params_json}"),
+    ];
+
+    if let Some(identity) = runtime_identity {
+        details.push(format!("Codex command: {}", identity.command));
+        details.push(format!("Codex binary path: {}", identity.resolved_path));
+        details.push(format!(
+            "Codex binary version: {}",
+            identity.version.as_deref().unwrap_or("unknown")
+        ));
+    }
+
+    details.join("\n")
+}
+
+fn sanitize_codex_request_params(method: &str, params: &Value) -> Value {
+    match method {
+        "turn/start" => sanitize_turn_start_params(params),
+        _ => params.clone(),
+    }
+}
+
+fn sanitize_turn_start_params(params: &Value) -> Value {
+    let Some(object) = params.as_object() else {
+        return Value::String("<invalid turn/start params>".to_string());
+    };
+
+    let mut sanitized = serde_json::Map::new();
+
+    if let Some(thread_id) = object.get("threadId") {
+        sanitized.insert("threadId".to_string(), thread_id.clone());
+    }
+
+    if let Some(cwd) = object.get("cwd") {
+        sanitized.insert("cwd".to_string(), cwd.clone());
+    }
+
+    if let Some(model) = object.get("model") {
+        sanitized.insert("model".to_string(), model.clone());
+    }
+
+    if let Some(effort) = object.get("effort") {
+        sanitized.insert("effort".to_string(), effort.clone());
+    }
+
+    if let Some(service_tier) = object.get("serviceTier") {
+        sanitized.insert("serviceTier".to_string(), service_tier.clone());
+    }
+
+    if let Some(approval_policy) = object.get("approvalPolicy") {
+        sanitized.insert("approvalPolicy".to_string(), approval_policy.clone());
+    }
+
+    if let Some(sandbox_policy) = object.get("sandboxPolicy") {
+        sanitized.insert("sandboxPolicy".to_string(), sandbox_policy.clone());
+    }
+
+    if let Some(input) = object.get("input").and_then(Value::as_array) {
+        let input_types = input
+            .iter()
+            .filter_map(|item| item.get("type").and_then(Value::as_str))
+            .map(|entry| Value::String(entry.to_string()))
+            .collect::<Vec<_>>();
+        sanitized.insert(
+            "input".to_string(),
+            json!({
+                "count": input.len(),
+                "types": input_types,
+            }),
+        );
+    }
+
+    if let Some(collaboration_mode) = object.get("collaborationMode").and_then(Value::as_object) {
+        let mut sanitized_mode = serde_json::Map::new();
+        if let Some(mode) = collaboration_mode.get("mode") {
+            sanitized_mode.insert("mode".to_string(), mode.clone());
+        }
+        if let Some(settings) = collaboration_mode.get("settings").and_then(Value::as_object) {
+            let mut sanitized_settings = serde_json::Map::new();
+            if let Some(model) = settings.get("model") {
+                sanitized_settings.insert("model".to_string(), model.clone());
+            }
+            if let Some(reasoning_effort) = settings.get("reasoning_effort") {
+                sanitized_settings.insert(
+                    "reasoning_effort".to_string(),
+                    reasoning_effort.clone(),
+                );
+            }
+            if settings.contains_key("developer_instructions") {
+                sanitized_settings.insert(
+                    "developer_instructions".to_string(),
+                    Value::String("<redacted>".to_string()),
+                );
+            }
+            sanitized_mode.insert("settings".to_string(), Value::Object(sanitized_settings));
+        }
+        sanitized.insert("collaborationMode".to_string(), Value::Object(sanitized_mode));
+    }
+
+    Value::Object(sanitized)
+}
+
+fn detect_codex_runtime_identity(command: &str) -> Option<CodexRuntimeIdentity> {
+    let resolved_path = resolve_command_path(command)?;
+    let version = std::process::Command::new(&resolved_path)
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|stdout| stdout.trim().to_string())
+        .filter(|stdout| !stdout.is_empty());
+
+    Some(CodexRuntimeIdentity {
+        command: command.to_string(),
+        resolved_path,
+        version,
+    })
+}
+
+fn resolve_command_path(command: &str) -> Option<String> {
+    let path = std::path::Path::new(command);
+    if path.components().count() > 1 {
+        return std::fs::canonicalize(path)
+            .ok()
+            .map(|resolved| resolved.to_string_lossy().to_string())
+            .or_else(|| Some(command.to_string()));
+    }
+
+    which::which(command)
+        .ok()
+        .map(|resolved| resolved.to_string_lossy().to_string())
 }
 
 fn next_request_id(request_id: &StdArc<std::sync::Mutex<u64>>) -> AcpResult<u64> {
@@ -1117,6 +1301,89 @@ mod tests {
         assert!(!is_recoverable_thread_resume_error(
             &AcpError::JsonRpcError("thread/start failed: permission denied".to_string(),)
         ));
+    }
+
+    #[test]
+    fn thread_start_payload_includes_required_protocol_flags() {
+        assert_eq!(
+            build_thread_start_params("/tmp/project"),
+            json!({
+                "cwd": "/tmp/project",
+                "experimentalRawEvents": false,
+                "persistExtendedHistory": true,
+            })
+        );
+    }
+
+    #[test]
+    fn thread_resume_payload_includes_required_protocol_flags() {
+        assert_eq!(
+            build_thread_resume_params("thread-1", "/tmp/project"),
+            json!({
+                "threadId": "thread-1",
+                "cwd": "/tmp/project",
+                "persistExtendedHistory": true,
+            })
+        );
+    }
+
+    #[test]
+    fn turn_start_sanitization_redacts_sensitive_fields() {
+        let sanitized = sanitize_codex_request_params(
+            "turn/start",
+            &json!({
+                "threadId": "thread-1",
+                "input": [
+                    { "type": "text", "text": "secret prompt", "text_elements": [] },
+                    { "type": "image", "url": "data:image/png;base64,AAAA" }
+                ],
+                "cwd": "/tmp/project",
+                "collaborationMode": {
+                    "mode": "plan",
+                    "settings": {
+                        "model": "gpt-5.4",
+                        "reasoning_effort": "high",
+                        "developer_instructions": "sensitive instructions"
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(sanitized["threadId"], json!("thread-1"));
+        assert_eq!(sanitized["cwd"], json!("/tmp/project"));
+        assert_eq!(sanitized["input"], json!({
+            "count": 2,
+            "types": ["text", "image"],
+        }));
+        assert_eq!(sanitized["collaborationMode"], json!({
+            "mode": "plan",
+            "settings": {
+                "model": "gpt-5.4",
+                "reasoning_effort": "high",
+                "developer_instructions": "<redacted>",
+            }
+        }));
+    }
+
+    #[test]
+    fn json_rpc_failure_message_includes_runtime_identity_and_sanitized_params() {
+        let message = build_codex_json_rpc_error_message(
+            "thread/start",
+            &json!({ "cwd": "/tmp/project", "experimentalRawEvents": false }),
+            Some(&CodexRuntimeIdentity {
+                command: "codex".to_string(),
+                resolved_path: "/opt/homebrew/bin/codex".to_string(),
+                version: Some("codex-cli 0.116.0".to_string()),
+            }),
+            &json!({ "code": -32600, "message": "Invalid request" }),
+        );
+
+        assert!(message.contains("thread/start failed"));
+        assert!(message.contains("Codex request method: thread/start"));
+        assert!(message.contains("\"cwd\":\"/tmp/project\""));
+        assert!(message.contains("Codex command: codex"));
+        assert!(message.contains("Codex binary path: /opt/homebrew/bin/codex"));
+        assert!(message.contains("Codex binary version: codex-cli 0.116.0"));
     }
 
     #[test]

@@ -44,4 +44,23 @@ describe("buildAgentErrorIssueDraft", () => {
 		expect(draft.body).toContain("`ERROR`");
 		expect(draft.body).toContain("2026-01-15T10:00:00.000Z");
 	});
+
+	it("preserves multiline backend diagnostics in the error details block", () => {
+		const draft = buildAgentErrorIssueDraft({
+			agentId: "codex",
+			sessionId: null,
+			projectPath: "/project",
+			worktreePath: null,
+			errorSummary: "Failed to connect session",
+			errorDetails:
+				'thread/start failed: {"code":-32600,"message":"Invalid request"}\nCodex request method: thread/start\nCodex request params: {"cwd":"/project","experimentalRawEvents":false,"persistExtendedHistory":true}\nCodex command: codex\nCodex binary path: /opt/homebrew/bin/codex\nCodex binary version: codex-cli 0.116.0',
+		});
+
+		expect(draft.body).toContain("Codex request method: thread/start");
+		expect(draft.body).toContain(
+			'Codex request params: {"cwd":"/project","experimentalRawEvents":false,"persistExtendedHistory":true}'
+		);
+		expect(draft.body).toContain("Codex binary path: /opt/homebrew/bin/codex");
+		expect(draft.body).toContain("Codex binary version: codex-cli 0.116.0");
+	});
 });
