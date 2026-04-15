@@ -1,12 +1,11 @@
 <script lang="ts">
+import { SegmentedToggleGroup } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
 import { ArrowCounterClockwise } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
-import { Rows } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
-import { TreeView } from "phosphor-svelte";
+	import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/messages.js";
@@ -115,32 +114,18 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 				</DropdownMenu.GroupHeading>
 				{#if onViewModeChange}
 					<div class={displaySectionClass}>
-						<div class="px-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60">
-							Display
-						</div>
-						<div class="mt-1 flex rounded-md bg-muted/50 p-0.5" role="group" aria-label="Display">
-							<button
-								type="button"
-								class="flex h-6 flex-1 cursor-pointer items-center justify-center gap-1 rounded px-2 text-[11px] transition-colors {currentViewMode === 'sessions'
-									? 'bg-background text-foreground shadow-sm'
-									: 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}"
-								aria-pressed={currentViewMode === "sessions"}
-								onclick={() => handleViewModeSelect("sessions")}
-							>
-								<Rows class="h-3.5 w-3.5" weight="fill" />
-								{m.sidebar_view_sessions()}
-							</button>
-							<button
-								type="button"
-								class="flex h-6 flex-1 cursor-pointer items-center justify-center gap-1 rounded px-2 text-[11px] transition-colors {currentViewMode === 'files'
-									? 'bg-background text-foreground shadow-sm'
-									: 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}"
-								aria-pressed={currentViewMode === "files"}
-								onclick={() => handleViewModeSelect("files")}
-							>
-								<TreeView class="h-3.5 w-3.5" weight="fill" />
-								{m.sidebar_view_files()}
-							</button>
+						<div class="flex items-center justify-between gap-2">
+							<div class="text-[11px] text-muted-foreground/60">
+								Display
+							</div>
+							<SegmentedToggleGroup
+								items={[
+									{ id: "sessions", label: m.sidebar_view_sessions() },
+									{ id: "files", label: m.sidebar_view_files() },
+								]}
+								value={currentViewMode}
+								onChange={(id) => handleViewModeSelect(id as ProjectViewMode)}
+							/>
 						</div>
 					</div>
 				{/if}

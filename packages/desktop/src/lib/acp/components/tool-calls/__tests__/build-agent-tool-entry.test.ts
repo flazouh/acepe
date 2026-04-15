@@ -139,6 +139,37 @@ describe("tool definition display builders", () => {
 		});
 	});
 
+	it("builds execute entries from tool-call result objects with detailed content", () => {
+		const entry = resolveFullToolEntry({
+			toolCall: createToolCall({
+				id: "tool-8",
+				name: "Bash",
+				kind: "execute",
+				status: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				result: {
+					content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+					detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+				},
+			}),
+			turnState: "completed",
+		});
+
+		expect(entry).toEqual({
+			id: "tool-8",
+			type: "tool_call",
+			kind: "execute",
+			title: "Executed",
+			subtitle: "pwd",
+			filePath: undefined,
+			status: "done",
+			command: "pwd",
+			stdout: "/Users/alex/Documents/acepe",
+			stderr: null,
+			exitCode: 0,
+		});
+	});
+
 	it("marks unfinished child tools as done when the parent task has completed", () => {
 		const entry = resolveFullToolEntry({
 			toolCall: createToolCall({

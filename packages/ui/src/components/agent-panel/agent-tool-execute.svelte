@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
-	import { Check } from "phosphor-svelte";
-	import { X } from "phosphor-svelte";
+	import { Terminal, CheckCircle, XCircle, CaretDown } from "phosphor-svelte";
 	import { TextShimmer } from "../text-shimmer/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolLabel from "./tool-label.svelte";
+	import { Colors } from "../../lib/colors.js";
 	import type { AgentToolStatus } from "./types.js";
+	import {
+		splitCommandSegments,
+		highlightBashSegment,
+	} from "../../lib/bash-tokenizer.js";
 
 	interface Props {
 		command: string | null;
@@ -14,16 +16,12 @@
 		exitCode?: number;
 		status?: AgentToolStatus;
 		durationLabel?: string;
-		/** Label when running with no command yet */
-		runningNoCmdLabel?: string;
-		/** Label when running with command */
+		/** Pre-highlighted HTML per command segment (e.g. from Shiki). Overrides built-in tokenizer. */
+		commandHtmls?: string[];
+		/** Label shown while command is running (shimmer) */
 		runningLabel?: string;
-		/** Label when done */
-		doneLabel?: string;
-		/** Label for success exit */
-		successLabel?: string;
-		/** Label for failed exit */
-		failedLabel?: string;
+		/** Label shown after command finishes */
+		finishedLabel?: string;
 		/** Aria label to collapse output */
 		ariaCollapseOutput?: string;
 		/** Aria label to expand output */
@@ -37,132 +35,228 @@
 		exitCode,
 		status = "done",
 		durationLabel,
-		runningNoCmdLabel = "Running command…",
-		runningLabel = "Running command:",
-		doneLabel = "Ran command:",
-		successLabel = "Success",
-		failedLabel = "Failed",
+		commandHtmls,
+		runningLabel = "Executing…",
+		finishedLabel = "Executed",
 		ariaCollapseOutput = "Collapse output",
 		ariaExpandOutput = "Expand output",
 	}: Props = $props();
 
-	let isExpanded = $state(false);
+	let isExpanded = $state(true);
 
 	const isPending = $derived(status === "pending" || status === "running");
 	const isSuccess = $derived(exitCode === 0);
 	const isError = $derived(exitCode !== undefined && exitCode !== 0);
 	const hasOutput = $derived(Boolean(stdout || stderr));
 
-	function extractCommandSummary(cmd: string): string {
-		const normalizedCommand = cmd.replace(/\\\s*\n\s*/g, " ");
-		const parts = normalizedCommand.split(/\s*(?:&&|\|\||;|\|)\s*/);
-		const firstWords = parts.map((p) => p.trim().split(/\s+/)[0]).filter(Boolean);
-		const limited = firstWords.slice(0, 4);
-		if (firstWords.length > 4) {
-			return limited.join(", ") + "...";
-		}
-		return limited.join(", ");
-	}
-
-	const commandSummary = $derived(command ? extractCommandSummary(command) : "");
-
-	const stderrColorClass = $derived(
-		exitCode === 0 || exitCode === undefined
-			? "text-amber-600 dark:text-amber-400"
-			: "text-rose-500 dark:text-rose-400"
+	const segments = $derived(command ? splitCommandSegments(command) : []);
+	const fallbackHtmls = $derived(
+		segments.map((s) => highlightBashSegment(s))
 	);
+
+	const useShiki = $derived(
+		commandHtmls !== undefined && commandHtmls.length > 0
+	);
+	const displayHtmls = $derived(useShiki ? commandHtmls! : fallbackHtmls);
+
+	const stderrColor = $derived(
+		exitCode === 0 || exitCode === undefined
+			? "execute-stderr-warn"
+			: "execute-stderr-err"
+	);
+
+	/** Svelte action: scroll element to bottom on mount and content changes */
+	function scrollToEnd(node: HTMLElement) {
+		node.scrollTop = node.scrollHeight;
+		const observer = new MutationObserver(() => {
+			node.scrollTop = node.scrollHeight;
+		});
+		observer.observe(node, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+		});
+		return { destroy() { observer.disconnect(); } };
+	}
 </script>
 
 <AgentToolCard>
-	<!-- Header: fixed h-7 height -->
-	{#if isPending && !command}
-		<div class="flex h-7 items-center justify-between gap-2 px-2.5">
-			<ToolLabel {status}>
-				{runningNoCmdLabel}
-			</ToolLabel>
+	<!-- ── Header ── -->
+	<div class="flex h-7 items-center gap-1.5 px-2.5">
+		<Terminal weight="fill" size={12} class="shrink-0" style="color: {Colors.purple}" />
+
+		{#if isPending}
+			<TextShimmer class="flex-1 text-xs leading-none">
+				{runningLabel}
+			</TextShimmer>
+		{:else}
+			<span class="flex-1 text-xs text-muted-foreground">
+				{finishedLabel}
+			</span>
+		{/if}
+
+		<div class="ml-auto flex shrink-0 items-center gap-1.5">
 			{#if durationLabel}
-				<span class="shrink-0 font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+				<span class="font-mono text-[10px] tabular-nums {isPending ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
+					{durationLabel}
+				</span>
+			{/if}
+
+			{#if isSuccess}
+				<CheckCircle weight="fill" size={12} class="text-success" />
+			{:else if isError}
+				<XCircle weight="fill" size={12} class="text-destructive" />
+			{/if}
+
+			{#if !isPending && hasOutput}
+				<button
+					type="button"
+					onclick={() => {
+						isExpanded = !isExpanded;
+					}}
+					class="flex items-center justify-center rounded-md border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
+					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
+				>
+					<CaretDown
+						weight="fill"
+						size={10}
+						class="transition-transform duration-150 {isExpanded
+							? 'rotate-180'
+							: ''}"
+					/>
+				</button>
 			{/if}
 		</div>
-	{:else}
-		<div class="flex h-7 items-center justify-between px-2.5">
-			<span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-				{#if isPending}
-					<TextShimmer class="inline-flex items-center text-xs leading-none">
-						{runningLabel}
-					</TextShimmer>
-				{:else}
-					{doneLabel}
-				{/if}
-				{commandSummary}
-			</span>
+	</div>
 
-			<div class="ml-2 flex shrink-0 items-center gap-2">
-				{#if durationLabel}
-					<span class="font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
-				{/if}
-				<!-- Exit status indicator -->
-				<div class="flex min-w-[60px] items-center justify-end gap-1 text-xs text-muted-foreground">
-					{#if isSuccess}
-						<Check size={12} weight="bold" class="text-green-500" />
-						<span>{successLabel}</span>
-					{:else if isError}
-						<X size={12} weight="bold" class="text-rose-500" />
-						<span>{failedLabel}</span>
-					{/if}
+	<!-- ── Command blocks ── -->
+	{#if displayHtmls.length > 0}
+		<div class="execute-blocks">
+			{#each displayHtmls as html}
+				<div class="execute-block" class:shiki={useShiki}>
+					{@html html}
 				</div>
-
-				<!-- Expand/collapse toggle: only when not pending and has output -->
-				{#if !isPending && hasOutput}
-					<button
-						type="button"
-						onclick={() => { isExpanded = !isExpanded; }}
-						class="flex items-center justify-center p-1 rounded-md bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-accent active:scale-95 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
-						aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
-					>
-						<CaretRight
-							size={10}
-							weight="bold"
-							class="text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
-						/>
-					</button>
-				{/if}
-			</div>
+			{/each}
 		</div>
 	{/if}
 
-	<!-- Content: collapsible, click-to-expand when collapsed -->
-	{#if command || stdout || stderr}
+	<!-- ── Output ── -->
+	{#if hasOutput}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
+			use:scrollToEnd
 			onclick={() => {
-				if (hasOutput && !isExpanded) isExpanded = true;
+				if (!isExpanded) isExpanded = true;
 			}}
-			class="border-t border-border px-2.5 py-1.5 transition-colors duration-150 {isExpanded
-				? 'max-h-[200px] overflow-y-auto'
-				: 'max-h-[72px] overflow-hidden'} {hasOutput && !isExpanded
-				? 'cursor-pointer hover:bg-muted/50'
-				: ''}"
+			class="execute-output-area
+				{isExpanded ? 'execute-output-expanded' : 'execute-output-collapsed'}
+				{!isExpanded ? 'cursor-pointer' : ''}"
 		>
-			{#if command}
-				<div class="font-mono text-xs">
-					<span class="text-amber-600 dark:text-amber-400">$ </span>
-					<span class="whitespace-pre-wrap break-all text-foreground">{command}</span>
-				</div>
-			{/if}
-
 			{#if stdout}
-				<div class="mt-1.5 font-mono text-xs text-muted-foreground">
-					<pre class="whitespace-pre-wrap break-all m-0">{stdout}</pre>
-				</div>
+				<pre class="execute-output">{stdout}</pre>
 			{/if}
-
 			{#if stderr}
-				<div class="mt-1.5 font-mono text-xs {stderrColorClass}">
-					<pre class="whitespace-pre-wrap break-all m-0">{stderr}</pre>
-				</div>
+				<pre class="execute-output {stderrColor}">{stderr}</pre>
 			{/if}
 		</div>
 	{/if}
 </AgentToolCard>
+
+<style>
+	/* ── Command blocks ── */
+	.execute-blocks {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 4px 6px;
+		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+	}
+
+	.execute-block {
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: 0.75rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		word-break: break-all;
+		padding: 2px 6px;
+		border-radius: 3px;
+		background: var(--muted);
+	}
+
+	/* ── Syntax highlight tokens ── */
+	.execute-block :global(.sh-cmd) {
+		color: var(--success);
+		font-weight: 500;
+	}
+
+	.execute-block :global(.sh-flg) {
+		color: color-mix(in srgb, var(--primary) 70%, var(--muted-foreground));
+	}
+
+	.execute-block :global(.sh-str) {
+		color: var(--primary);
+	}
+
+	.execute-block :global(.sh-var) {
+		color: color-mix(in srgb, #4ad0ff 65%, var(--foreground));
+	}
+
+	.execute-block :global(.sh-op) {
+		color: var(--muted-foreground);
+	}
+
+	.execute-block :global(.sh-cmt) {
+		color: var(--muted-foreground);
+		opacity: 0.6;
+		font-style: italic;
+	}
+
+	/* ── Output area — dark terminal zone ── */
+	.execute-output-area {
+		background: var(--muted);
+		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+		padding: 6px 10px;
+		transition: max-height 0.15s ease-out;
+	}
+
+	:global(.dark) .execute-output-area {
+		background: color-mix(in srgb, var(--background) 80%, black);
+	}
+
+	.execute-output-collapsed {
+		max-height: 52px;
+		overflow-y: auto;
+	}
+
+	.execute-output-expanded {
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.execute-output {
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: 0.6875rem;
+		line-height: 1.5;
+		margin: 0;
+		white-space: pre-wrap;
+		word-break: break-all;
+		color: color-mix(in srgb, var(--foreground) 60%, transparent);
+	}
+
+	:global(.dark) .execute-output {
+		color: color-mix(in srgb, var(--foreground) 50%, transparent);
+	}
+
+	.execute-output + .execute-output {
+		margin-top: 0.25rem;
+	}
+
+	.execute-stderr-warn {
+		color: color-mix(in srgb, var(--primary) 80%, var(--foreground));
+	}
+
+	.execute-stderr-err {
+		color: var(--destructive);
+	}
+</style>

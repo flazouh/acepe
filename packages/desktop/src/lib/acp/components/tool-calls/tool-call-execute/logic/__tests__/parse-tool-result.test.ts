@@ -193,6 +193,18 @@ describe("parseToolResultOutput", () => {
 			expect(result.value).toBe("1:# Acepe");
 		}
 	});
+
+	it("prefers detailed content objects and strips shell exit markers", () => {
+		const result = parseToolResultOutput({
+			content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+			detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+		});
+
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value).toBe("/Users/alex/Documents/acepe");
+		}
+	});
 });
 
 describe("parseToolResultWithExitCode", () => {
@@ -222,5 +234,16 @@ describe("parseToolResultWithExitCode", () => {
 		expect(parsed.stdout).toBe("test output\ndone");
 		expect(parsed.stderr).toBeNull();
 		expect(parsed.exitCode).toBeUndefined();
+	});
+
+	it("extracts stdout and exit code from tool-call result objects with detailed content", () => {
+		const parsed = parseToolResultWithExitCode({
+			content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+			detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+		});
+
+		expect(parsed.stdout).toBe("/Users/alex/Documents/acepe");
+		expect(parsed.stderr).toBeNull();
+		expect(parsed.exitCode).toBe(0);
 	});
 });

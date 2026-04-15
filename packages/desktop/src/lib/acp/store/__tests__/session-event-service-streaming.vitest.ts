@@ -1213,7 +1213,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("allows terminal tool calls through replay suppression while idle", () => {
+	it("drops orphan terminal tool calls through replay suppression while idle", () => {
 		const suppressedHandler = createMockHandler();
 		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
@@ -1239,19 +1239,51 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, suppressedHandler);
 
-		expect(suppressedHandler.createToolCallEntry).toHaveBeenCalledWith(
-			"session-123",
-			update.tool_call
-		);
+		expect(suppressedHandler.createToolCallEntry).not.toHaveBeenCalled();
 	});
 
-	it("allows terminal tool call updates through replay suppression while idle", () => {
+	it("drops orphan terminal tool call updates through replay suppression while idle", () => {
 		const suppressedHandler = createMockHandler();
 		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "ready",
 			turnState: "idle",
 		});
+		service.suppressReplayForSession("session-123");
+
+		const update: SessionUpdate = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-replay-completed-1",
+				status: "completed",
+				title: "Read /tmp/test.txt",
+				result: "file contents",
+				locations: [{ path: "/tmp/test.txt" }],
+			},
+		};
+
+		service.handleSessionUpdate(update, suppressedHandler);
+
+		expect(suppressedHandler.updateToolCallEntry).not.toHaveBeenCalled();
+	});
+
+	it("still forwards terminal tool call updates during replay suppression when the tool already exists", () => {
+		const suppressedHandler = createMockHandler();
+		(suppressedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+		});
+		(suppressedHandler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			{
+				id: "tool-replay-completed-1",
+				type: "tool_call",
+				message: {
+					id: "tool-replay-completed-1",
+				},
+			},
+		]);
 		service.suppressReplayForSession("session-123");
 
 		const update: SessionUpdate = {

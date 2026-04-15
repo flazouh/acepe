@@ -121,7 +121,11 @@ const currentAgent = $derived(
 							? `Unset ${agent.name} as default agent`
 							: `Set ${agent.name} as default agent`}
 					>
-						<Heart size={14} weight={agent.id === defaultAgentId ? "fill" : "regular"} />
+							{#if agent.id === defaultAgentId}
+							<Heart size={14} weight="fill" color={Colors.red} />
+						{:else}
+							<Heart size={14} weight="regular" />
+						{/if}
 					</button>
 					<SelectorCheck visible={isSelected} />
 				</div>

@@ -16,7 +16,7 @@
 
 	const base = "rounded-sm border border-border overflow-hidden";
 	const variantClasses: Record<Variant, string> = {
-		default: "bg-accent/50",
+		default: "bg-input/30",
 		muted: "bg-muted/30",
 		card: "bg-card",
 	};

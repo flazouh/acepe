@@ -25,10 +25,10 @@
 </script>
 
 <SharedPreSessionWorktreeCard
-	label="Use a worktree?"
+	label="Worktree"
 	yesLabel="Yes"
 	noLabel="No"
-	alwaysLabel="Always"
+	alwaysLabel="Remember"
 	{pendingWorktreeEnabled}
 	{alwaysEnabled}
 	{failureMessage}

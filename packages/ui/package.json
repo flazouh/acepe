@@ -48,6 +48,10 @@
       "svelte": "./src/components/text-shimmer/index.ts",
       "default": "./src/components/text-shimmer/index.ts"
     },
+    "./bash-tokenizer": {
+      "svelte": "./src/lib/bash-tokenizer.ts",
+      "default": "./src/lib/bash-tokenizer.ts"
+    },
     "./colors": {
       "svelte": "./src/lib/colors.ts",
       "default": "./src/lib/colors.ts"

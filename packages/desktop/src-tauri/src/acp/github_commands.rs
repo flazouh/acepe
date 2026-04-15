@@ -109,6 +109,31 @@ fn parse_github_remote(remote_url: &str) -> Option<(String, String)> {
     None
 }
 
+fn extract_named_remote_url(config_content: &str, remote_name: &str) -> Option<String> {
+    let target_section = format!(r#"[remote "{}"]"#, remote_name);
+    let mut in_target_section = false;
+
+    for line in config_content.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_target_section = trimmed == target_section;
+            continue;
+        }
+
+        if !in_target_section {
+            continue;
+        }
+
+        let (key, value) = trimmed.split_once('=')?;
+        if key.trim() == "url" {
+            return Some(value.trim().to_string());
+        }
+    }
+
+    None
+}
+
 /// Reads .git/config and extracts the GitHub remote URL
 fn get_repo_context(project_path: &Path) -> Result<RepoContext, String> {
     let git_config_path = project_path.join(".git").join("config");
@@ -120,18 +145,8 @@ fn get_repo_context(project_path: &Path) -> Result<RepoContext, String> {
     let config_content = fs::read_to_string(&git_config_path)
         .map_err(|e| format!("Failed to read .git/config: {}", e))?;
 
-    // Find the remote.origin.url line
-    let mut remote_url = None;
-    for line in config_content.lines() {
-        if line.contains("remote.origin") || line.contains("url") {
-            if let Some(url_part) = line.split('=').nth(1) {
-                remote_url = Some(url_part.trim().to_string());
-                break;
-            }
-        }
-    }
-
-    let remote_url = remote_url.ok_or("Could not find remote.origin.url in .git/config")?;
+    let remote_url = extract_named_remote_url(&config_content, "origin")
+        .ok_or("Could not find remote.origin.url in .git/config")?;
 
     let (owner, repo) = parse_github_remote(&remote_url)
         .ok_or("Could not parse GitHub repository from remote URL")?;
@@ -697,7 +712,7 @@ pub fn list_pull_requests(
 
 #[cfg(test)]
 mod tests {
-    use super::fetch_working_file_diff_impl;
+    use super::{fetch_working_file_diff_impl, get_repo_context};
     use std::fs;
     use std::path::Path;
     use std::process::Command;
@@ -784,5 +799,26 @@ mod tests {
         assert_eq!(diff.additions, 1);
         assert_eq!(diff.deletions, 0);
         assert!(diff.patch.contains("+draft"));
+    }
+
+    #[test]
+    fn repo_context_uses_origin_even_when_other_remotes_appear_first() {
+        let temp_dir = init_repo();
+        let path = temp_dir.path();
+
+        git(
+            path,
+            &["remote", "add", "fork", "git@github.com:flazouh/forgecode.git"],
+        );
+        git(
+            path,
+            &["remote", "add", "origin", "git@github.com:flazouh/acepe.git"],
+        );
+
+        let context = get_repo_context(path).expect("repo context should resolve from origin");
+
+        assert_eq!(context.owner, "flazouh");
+        assert_eq!(context.repo, "acepe");
+        assert_eq!(context.remote_url, "git@github.com:flazouh/acepe.git");
     }
 }

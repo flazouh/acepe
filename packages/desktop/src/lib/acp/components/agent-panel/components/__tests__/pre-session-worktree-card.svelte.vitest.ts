@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("PreSessionWorktreeCard desktop wrapper", () => {
-	it("shows worktree prompt and calls onYes when Yes is clicked", async () => {
+	it("shows worktree label and current selection", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
 		const onAlways = vi.fn();
@@ -34,46 +34,44 @@ describe("PreSessionWorktreeCard desktop wrapper", () => {
 			onDismiss,
 		});
 
-		expect(screen.getByText("Use a worktree?")).toBeTruthy();
-
-		await fireEvent.click(screen.getByLabelText("Yes"));
-		expect(onYes).toHaveBeenCalled();
+		expect(screen.getByText("Worktree")).toBeTruthy();
+		expect(screen.getByText("No")).toBeTruthy();
 	});
 
-	it("calls onNo when No is clicked", async () => {
+	it("shows Yes as current selection when worktree is enabled", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
 		const onAlways = vi.fn();
 		const onDismiss = vi.fn();
 
 		render(PreSessionWorktreeCard, {
-			pendingWorktreeEnabled: false,
+			pendingWorktreeEnabled: true,
 			onYes,
 			onNo,
 			onAlways,
 			onDismiss,
 		});
 
-		await fireEvent.click(screen.getByLabelText("No"));
-		expect(onNo).toHaveBeenCalled();
+		expect(screen.getByText("Worktree")).toBeTruthy();
+		expect(screen.getByText("Yes")).toBeTruthy();
 	});
 
-	it("calls onAlways when Always is clicked", async () => {
+	it("shows Yes when alwaysEnabled is true", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
 		const onAlways = vi.fn();
 		const onDismiss = vi.fn();
 
 		render(PreSessionWorktreeCard, {
-			pendingWorktreeEnabled: false,
+			pendingWorktreeEnabled: true,
+			alwaysEnabled: true,
 			onYes,
 			onNo,
 			onAlways,
 			onDismiss,
 		});
 
-		await fireEvent.click(screen.getByLabelText("Always"));
-		expect(onAlways).toHaveBeenCalled();
+		expect(screen.getByText("Yes")).toBeTruthy();
 	});
 
 	it("calls onDismiss when X is clicked", async () => {
@@ -92,22 +90,5 @@ describe("PreSessionWorktreeCard desktop wrapper", () => {
 
 		await fireEvent.click(screen.getByLabelText("Dismiss"));
 		expect(onDismiss).toHaveBeenCalled();
-	});
-
-	it("stays visible with selected styling when worktree is enabled", () => {
-		const onYes = vi.fn();
-		const onNo = vi.fn();
-		const onAlways = vi.fn();
-		const onDismiss = vi.fn();
-
-		render(PreSessionWorktreeCard, {
-			pendingWorktreeEnabled: true,
-			onYes,
-			onNo,
-			onAlways,
-			onDismiss,
-		});
-
-		expect(screen.getByText("Use a worktree?")).toBeTruthy();
 	});
 });

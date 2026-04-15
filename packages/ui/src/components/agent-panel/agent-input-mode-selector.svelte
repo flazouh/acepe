@@ -190,7 +190,7 @@
 						<Robot
 							class="mt-0.5 size-3 shrink-0 self-start"
 							style={`color: ${modeColor(option.id)}`}
-							weight={selected ? "fill" : "regular"}
+							weight="fill"
 						/>
 					{:else}
 						<BuildIcon size="sm" class="mt-0.5 self-start" style={`color: ${modeColor(option.id)}`} />

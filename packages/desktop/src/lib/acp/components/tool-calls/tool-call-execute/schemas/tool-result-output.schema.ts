@@ -40,9 +40,11 @@ const ObjectResultSchema = z
 		output: z.string().optional(),
 		stdout: z.string().optional(),
 		stderr: z.string().optional(),
+		content: z.string().optional(),
+		detailedContent: z.string().optional(),
 	})
 	.transform((obj) => {
-		return obj.output ?? obj.stdout ?? obj.stderr ?? null;
+		return obj.output ?? obj.stdout ?? obj.detailedContent ?? obj.content ?? obj.stderr ?? null;
 	});
 
 /**

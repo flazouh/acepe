@@ -1,11 +1,13 @@
 <script lang="ts">
 import { AgentToolExecute } from "@acepe/ui/agent-panel";
+import { splitCommandSegments } from "@acepe/ui/bash-tokenizer";
 import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { stripAnsiCodes } from "../../utils/ansi-utils.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { bashHighlighter } from "../../utils/bash-highlighter.svelte.js";
 import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import { resolveExecuteCommand } from "./tool-call-execute/logic/resolve-execute-command.js";
 
@@ -48,6 +50,15 @@ const agentStatus = $derived.by(() => {
 	if (toolStatus.isError) return "error" as const;
 	return "done" as const;
 });
+
+// Shiki bash highlighting — bashHighlighter.ready is reactive ($state)
+const commandHtmls = $derived(
+	bashHighlighter.ready && extractedCommand
+		? splitCommandSegments(extractedCommand)
+				.map((s) => bashHighlighter.highlight(s))
+				.filter((h): h is string => h !== null)
+		: []
+);
 </script>
 
 <AgentToolExecute
@@ -57,11 +68,9 @@ const agentStatus = $derived.by(() => {
 	exitCode={parsedResult.exitCode}
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}
-	runningNoCmdLabel={m.tool_bash_running_no_cmd()}
-	runningLabel={m.tool_bash_running_label()}
-	doneLabel={m.tool_bash_completed_label()}
-	successLabel={m.tool_bash_success()}
-	failedLabel={m.tool_bash_failed()}
+	{commandHtmls}
+	runningLabel={m.tool_bash_running_no_cmd()}
+	finishedLabel={agentStatus === "error" ? m.tool_bash_failed() : m.tool_bash_success()}
 	ariaCollapseOutput={m.aria_collapse_output()}
 	ariaExpandOutput={m.aria_expand_output()}
 />

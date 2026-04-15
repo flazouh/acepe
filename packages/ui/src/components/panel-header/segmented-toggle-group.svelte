@@ -26,16 +26,18 @@
 	}: Props = $props();
 </script>
 
-<div class="h-6 flex items-center rounded-md border border-border/60 bg-muted/30 p-0.5 {className}">
+<div class="w-fit flex items-center rounded-md border border-border overflow-hidden bg-background/50 {className}" role="radiogroup">
 	{#each items as item (item.id)}
 		<button
 			type="button"
+			role="radio"
+			aria-checked={value === item.id}
 			disabled={item.disabled}
 			onclick={() => onChange(item.id)}
-			class="h-5 inline-flex items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none {value ===
+			class="inline-flex items-center gap-1 px-2 py-0.5 text-[0.6875rem] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none {value ===
 			item.id
-				? 'bg-background text-foreground shadow-sm'
-				: 'text-muted-foreground hover:text-foreground hover:bg-accent/40'} {itemClass}"
+				? 'bg-foreground/15 text-foreground'
+				: 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-foreground/5'} {itemClass}"
 			data-header-control
 		>
 			{#if itemContent}

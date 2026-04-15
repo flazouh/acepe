@@ -14,37 +14,15 @@ const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
 
 const gitDialog = $derived(panelStore.gitDialog);
-const project = $derived.by(() => {
-	if (gitDialog === null) {
-		return null;
-	}
-	return (
-		projectManager.projects.find((candidate) => candidate.path === gitDialog.projectPath) ?? null
-	);
-});
-const projectName = $derived.by(() => {
-	if (project?.name) {
-		return project.name;
-	}
-	if (gitDialog === null) {
-		return "";
-	}
-	const segments = gitDialog.projectPath.split("/");
-	const lastSegment = segments[segments.length - 1];
-	return lastSegment ? lastSegment : gitDialog.projectPath;
-});
 function handleOpenChange(open: boolean) {
 	if (!open) {
 		panelStore.closeGitDialog();
 	}
 }
 
-function handleRequestGeneration(prompt: string) {
-	if (gitDialog === null) {
-		return;
-	}
+function handleRequestGeneration(projectPath: string, prompt: string) {
 	const agentPanel = panelStore.panels.find(
-		(panel) => panel.projectPath === gitDialog.projectPath && panel.sessionId
+		(panel) => panel.projectPath === projectPath && panel.sessionId
 	);
 	if (agentPanel?.sessionId) {
 		sessionStore.sendMessage(agentPanel.sessionId, prompt);
@@ -54,26 +32,36 @@ function handleRequestGeneration(prompt: string) {
 
 <Dialog.Root open={gitDialog !== null} onOpenChange={handleOpenChange}>
 	{#if gitDialog}
+		{@const activeGitDialog = gitDialog}
+		{@const project =
+			projectManager.projects.find(
+				(candidate) => candidate.path === activeGitDialog.projectPath
+			) ?? null}
+		{@const projectName =
+			project?.name ??
+			activeGitDialog.projectPath.split("/").pop() ??
+			activeGitDialog.projectPath}
 		<Dialog.Content
 			class="flex h-[90vh] w-fit max-w-[96vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none"
 			showCloseButton={false}
 		>
-			{#key gitDialog.id}
+			{#key activeGitDialog.id}
 				<div class="h-full w-[min(1100px,96vw)] max-w-[1100px] min-w-0 overflow-hidden">
 					<GitPanel
-						panelId={gitDialog.id}
-						projectPath={gitDialog.projectPath}
+						panelId={activeGitDialog.id}
+						projectPath={activeGitDialog.projectPath}
 						{projectName}
 						projectColor={project?.color}
 						projectIconSrc={project?.iconPath ?? null}
-						width={gitDialog.width}
-						initialTarget={gitDialog.initialTarget}
-						voiceSessionId={gitDialog.id}
+						width={activeGitDialog.width}
+						initialTarget={activeGitDialog.initialTarget}
+						voiceSessionId={activeGitDialog.id}
 						isFullscreenEmbedded={true}
 						hideProjectBadge={true}
 						onClose={() => panelStore.closeGitDialog()}
 						onResize={() => undefined}
-						onRequestGeneration={handleRequestGeneration}
+						onRequestGeneration={(prompt) =>
+							handleRequestGeneration(activeGitDialog.projectPath, prompt)}
 					/>
 				</div>
 			{/key}

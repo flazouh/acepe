@@ -113,7 +113,7 @@
 	--foreground: #D4D4D4; /* editor.foreground */
 	--card: #1A1A1A; /* editorWidget.background */
 	--card-foreground: #ffffff; /* editorSuggestWidget.foreground */
-	--popover: #1E1E1E; /* dropdown background */
+	--popover: #181818; /* dropdown background */
 	--popover-foreground: #ffffff; /* editorSuggestWidget.foreground */
 	--primary: var(--token-brand-primary); /* brand primary */
 	--primary-foreground: var(--token-brand-primary-foreground);

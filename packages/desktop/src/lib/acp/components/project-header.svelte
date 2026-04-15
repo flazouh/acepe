@@ -55,7 +55,7 @@ const resolvedColor = $derived(
 const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 </script>
 
-<div class="shrink-0 flex items-center rounded-md {expanded ? 'bg-background/30' : ''} {className}">
+<div class="shrink-0 flex items-center rounded-md bg-card {className}">
 	<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}
@@ -70,13 +70,17 @@ const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 		>
 			{displayName}
 		</span>
+	</div>
+	<button
+		type="button"
+		class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+		aria-label={expanded ? "Collapse project" : "Expand project"}
+	>
 		<CaretDown
-			class="ml-auto h-3 w-3 shrink-0 text-muted-foreground/55 transition-transform duration-200 {expanded
-				? 'rotate-180'
-				: ''}"
+			class="h-3 w-3 transition-transform duration-200 {expanded ? 'rotate-180' : ''}"
 			weight="bold"
 		/>
-	</div>
+	</button>
 	{#if trailing}
 		<div
 			class="flex items-center gap-0.5"

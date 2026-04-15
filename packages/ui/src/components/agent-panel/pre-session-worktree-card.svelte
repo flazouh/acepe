@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { ArrowCounterClockwise, CheckCircle, Infinity as InfinityIcon, Tree, WarningCircle, X, XCircle } from "phosphor-svelte";
+	import { ArrowCounterClockwise, CheckCircle, Tree, WarningCircle, X, XCircle } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
-
-	type SelectionState = "no" | "yes" | "always";
+	import { SegmentedToggleGroup } from "../panel-header/index.js";
 
 	interface Props {
 		label: string;
@@ -38,16 +37,23 @@
 		onRetry,
 	}: Props = $props();
 
-	const selection: SelectionState = $derived(
-		alwaysEnabled ? "always" : pendingWorktreeEnabled ? "yes" : "no"
-	);
+	const worktreeOn = $derived(pendingWorktreeEnabled || alwaysEnabled);
+	const toggleValue = $derived(worktreeOn ? "yes" : "no");
+	const toggleItems = $derived([
+		{ id: "yes", label: yesLabel },
+		{ id: "no", label: noLabel },
+	] as const);
+
+	function handleToggleChange(id: string) {
+		if (id === "yes") {
+			onYes();
+		} else {
+			onNo();
+		}
+	}
 
 	const treeIconClass = $derived(
-		selection === "always" ? "text-purple-400" : selection === "yes" ? "text-success" : "text-destructive"
-	);
-
-	const labelClass = $derived(
-		selection === "no" ? "text-muted-foreground" : "text-foreground"
+		alwaysEnabled ? "text-purple-400" : worktreeOn ? "text-success" : "text-destructive"
 	);
 </script>
 
@@ -75,20 +81,36 @@
 		class="w-fit mx-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-input/30"
 	>
 		<Tree size={12} weight="fill" class="shrink-0 {treeIconClass}" />
-		<span class="font-medium text-[0.6875rem] {labelClass}">{label}</span>
+		<span class="font-medium text-[0.6875rem] text-foreground">{label}</span>
+
 		<div class="flex items-center gap-1.5 shrink-0" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
-			<Button variant="headerAction" size="headerAction" onclick={onAlways} aria-label={alwaysLabel}>
-				<InfinityIcon size={13} weight="bold" class={selection === 'always' ? 'text-purple-400' : 'text-muted-foreground'} />
-				<span class="{selection === 'always' ? '' : 'text-muted-foreground'}">{alwaysLabel}</span>
-			</Button>
-			<Button variant="headerAction" size="headerAction" onclick={onNo} aria-label={noLabel}>
-				<XCircle size={13} weight="fill" class={selection === 'no' ? 'text-destructive' : 'text-muted-foreground'} />
-				<span class="{selection === 'no' ? '' : 'text-muted-foreground'}">{noLabel}</span>
-			</Button>
-			<Button variant="headerAction" size="headerAction" onclick={onYes} aria-label={yesLabel}>
-				<CheckCircle size={13} weight="fill" class={selection === 'yes' ? 'text-success' : 'text-muted-foreground'} />
-				<span class="{selection === 'yes' ? '' : 'text-muted-foreground'}">{yesLabel}</span>
-			</Button>
+			<!-- Yes/No segmented toggle -->
+			<SegmentedToggleGroup
+				items={toggleItems}
+				value={toggleValue}
+				onChange={handleToggleChange}
+			>
+				{#snippet itemContent(item)}
+					{#if item.id === "yes"}
+						<CheckCircle size={12} weight={worktreeOn ? "fill" : "regular"} class={worktreeOn ? "text-success" : ""} />
+					{:else}
+						<XCircle size={12} weight={!worktreeOn ? "fill" : "regular"} class={!worktreeOn ? "text-destructive" : ""} />
+					{/if}
+					{item.label}
+				{/snippet}
+			</SegmentedToggleGroup>
+
+			<!-- Remember checkbox -->
+			<label class="flex items-center gap-1 cursor-pointer select-none">
+				<input
+					type="checkbox"
+					checked={alwaysEnabled}
+					onchange={onAlways}
+					class="accent-current h-3 w-3"
+				/>
+				<span class="text-[0.625rem] text-muted-foreground">{alwaysLabel}</span>
+			</label>
+
 			<button
 				type="button"
 				class="flex items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"

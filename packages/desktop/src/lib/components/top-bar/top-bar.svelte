@@ -1,27 +1,23 @@
 <script lang="ts">
-import { Button, VoiceDownloadProgress } from "@acepe/ui";
+import { Button, SegmentedToggleGroup, VoiceDownloadProgress } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Bug } from "phosphor-svelte";
+import { Check } from "phosphor-svelte";
 import { Columns } from "phosphor-svelte";
-import { Desktop } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
-import { Moon } from "phosphor-svelte";
-import { Rows } from "phosphor-svelte";
 import { SlidersHorizontal } from "phosphor-svelte";
 import { Square } from "phosphor-svelte";
 import { SquaresFour } from "phosphor-svelte";
-import { Sun } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
 import type { Snippet } from "svelte";
 import { getPanelStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
-import { slide } from "svelte/transition";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
@@ -74,21 +70,20 @@ const updateActionText = $derived(
 type LayoutFamily = "standard" | "kanban";
 type ThemeOption = { value: Theme; label: string };
 
-const layoutFamilies: { value: LayoutFamily; label: string }[] = [
-	{ value: "standard", label: "Standard" },
-	{ value: "kanban", label: "Kanban" },
+const layoutFamilies: { value: LayoutFamily; label: string; description: string; color: string }[] = [
+	{ value: "standard", label: "Standard", description: "Classic panel layout.", color: Colors[COLOR_NAMES.PURPLE] },
+	{ value: "kanban", label: "Kanban", description: "Board-style columns.", color: Colors[COLOR_NAMES.PINK] },
 ];
 const themeOptions: ThemeOption[] = [
 	{ value: "light", label: "Light" },
 	{ value: "dark", label: "Dark" },
 	{ value: "system", label: "System" },
 ];
-const themePillActiveClass = "bg-background text-foreground shadow-sm";
 
-const standardViewModes: { value: Exclude<ViewMode, "kanban">; label: string; color: string }[] = [
-	{ value: "single", label: "Single", color: Colors[COLOR_NAMES.PURPLE] },
-	{ value: "project", label: "Project", color: Colors[COLOR_NAMES.ORANGE] },
-	{ value: "multi", label: "Multi", color: "var(--success)" },
+const standardViewModes: { value: Exclude<ViewMode, "kanban">; label: string; description: string; color: string }[] = [
+	{ value: "single", label: "Single", description: "One agent at a time.", color: Colors[COLOR_NAMES.PURPLE] },
+	{ value: "project", label: "Project", description: "Group by project.", color: Colors[COLOR_NAMES.ORANGE] },
+	{ value: "multi", label: "Multi", description: "All agents side by side.", color: "var(--success)" },
 ];
 
 const isKanbanView = $derived(panelStore.viewMode === "kanban");
@@ -100,15 +95,6 @@ const activeStandardViewMode = $derived.by((): Exclude<ViewMode, "kanban"> => {
 	return panelStore.viewMode;
 });
 
-const layoutSectionLabelClass =
-	"text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60";
-const layoutSectionHeaderClass = "flex items-center gap-1.5 px-1";
-const layoutPillGroupClass = "flex w-full rounded-md bg-muted/50 p-0.5";
-
-const layoutPillBaseClass =
-	"flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-2 h-6 text-[11px] text-muted-foreground transition-colors";
-
-const layoutPillActiveClass = "bg-background text-foreground shadow-sm";
 function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	if (nextFamily === "kanban") {
 		panelStore.setViewMode("kanban");
@@ -189,103 +175,88 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content
 					align="end"
-					class="w-[240px] rounded-xl border border-border/40 bg-background/95 p-2 text-[11px] shadow-xl backdrop-blur"
+					class="w-[200px]"
 				>
-					<div class="flex flex-col gap-2">
-						<div class="space-y-1.5">
-							<div class={layoutSectionHeaderClass}>
-								<div class={layoutSectionLabelClass}>View</div>
-							</div>
-							<div class={layoutPillGroupClass} role="radiogroup" aria-label="View mode">
-								{#each layoutFamilies as family (family.value)}
-									{@const isActive = family.value === (isKanbanView ? "kanban" : "standard")}
-									<button
-										type="button"
-										role="radio"
-										aria-checked={isActive}
-										class="{layoutPillBaseClass} {isActive ? layoutPillActiveClass : ''}"
-										onclick={() => switchLayoutFamily(family.value)}
-									>
-										{#if family.value === "standard"}
-											<SquaresFour class="size-3" weight="fill" style="color: {Colors[COLOR_NAMES.PURPLE]}" />
-										{:else}
-											<Kanban class="size-3" weight="fill" style="color: {Colors[COLOR_NAMES.PINK]}" />
-										{/if}
-										<span>{family.label}</span>
-									</button>
-								{/each}
-							</div>
-						</div>
-
-						{#if !isKanbanView}
-							<div transition:slide={{ duration: 150 }} class="flex flex-col gap-2">
-								<div class="space-y-1.5">
-									<div class={layoutSectionHeaderClass}>
-										<div class={layoutSectionLabelClass}>Grouping</div>
-									</div>
-									<div class={layoutPillGroupClass} role="radiogroup" aria-label="Grouping mode">
-										{#each standardViewModes as mode (mode.value)}
-											{@const isActive = mode.value === activeStandardViewMode}
-											<button
-												type="button"
-												role="radio"
-												aria-checked={isActive}
-												class="{layoutPillBaseClass} {isActive ? layoutPillActiveClass : ''}"
-												onclick={() => panelStore.setViewMode(mode.value)}
-											>
-												{#if mode.value === "single"}
-													<Square class="size-3" weight="fill" style="color: {mode.color}" />
-												{:else if mode.value === "project"}
-													<Columns class="size-3" weight="fill" style="color: {mode.color}" />
-												{:else}
-													<SquaresFour class="size-3" weight="fill" style="color: {mode.color}" />
-												{/if}
-												<span>{mode.label}</span>
-											</button>
-										{/each}
-									</div>
-								</div>
-
-								<div class="flex items-center justify-between px-1 py-0.5">
-									<div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-										<Rows class="size-3" weight="fill" style="color: {Colors[COLOR_NAMES.ORANGE]}" />
-										<span>Tab Bar</span>
-									</div>
-									<Switch
-										checked={viewState.topBarVisible}
-										onclick={() => viewState.setTopBarVisible(!viewState.topBarVisible)}
-										class="data-[state=checked]:bg-foreground/50 data-[state=unchecked]:bg-input/60 h-3.5 w-6 [&_[data-slot=switch-thumb]]:size-2.5 [&_[data-slot=switch-thumb]]:data-[state=checked]:translate-x-[11px]"
+					<DropdownMenu.Group>
+						<DropdownMenu.GroupHeading class="px-2 py-1 text-[11px] font-medium text-muted-foreground">View</DropdownMenu.GroupHeading>
+						{#each layoutFamilies as family (family.value)}
+							{@const selected = isKanbanView ? family.value === "kanban" : family.value === "standard"}
+							<DropdownMenu.Item
+								onSelect={() => switchLayoutFamily(family.value)}
+								class="cursor-pointer"
+							>
+								<div class="flex w-full items-start gap-2">
+									<Check
+										class={selected
+											? "mt-0.5 size-3 shrink-0 text-foreground"
+											: "mt-0.5 size-3 shrink-0 text-transparent"}
+										weight="bold"
 									/>
+									{#if family.value === "kanban"}
+										<Kanban class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+									{:else}
+										<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+									{/if}
+									<div class="flex min-w-0 flex-1 flex-col">
+										<span class="text-[12px] font-medium">{family.label}</span>
+										<span class="text-[10px] leading-[1.25] text-muted-foreground">{family.description}</span>
+									</div>
 								</div>
-							</div>
-						{/if}
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Group>
 
-						<div class="space-y-1.5">
-							<div class={layoutSectionHeaderClass}>
-								<div class={layoutSectionLabelClass}>Theme</div>
-							</div>
-							<div class={layoutPillGroupClass} role="radiogroup" aria-label="Theme">
-								{#each themeOptions as option (option.value)}
-									{@const isActive = option.value === themeState.theme}
-									<button
-										type="button"
-										role="radio"
-										aria-checked={isActive}
-										class="{layoutPillBaseClass} {isActive ? themePillActiveClass : ''}"
-										onclick={() => themeState.setTheme(option.value)}
-									>
-										{#if option.value === "light"}
-											<Sun class="size-3" weight="fill" />
-										{:else if option.value === "dark"}
-											<Moon class="size-3" weight="fill" />
+					{#if !isKanbanView}
+						<DropdownMenu.Separator />
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading class="px-2 py-1 text-[11px] font-medium text-muted-foreground">Grouping</DropdownMenu.GroupHeading>
+							{#each standardViewModes as mode (mode.value)}
+								{@const selected = activeStandardViewMode === mode.value}
+								<DropdownMenu.Item
+									onSelect={() => panelStore.setViewMode(mode.value)}
+									class="cursor-pointer"
+								>
+									<div class="flex w-full items-start gap-2">
+										<Check
+											class={selected
+												? "mt-0.5 size-3 shrink-0 text-foreground"
+												: "mt-0.5 size-3 shrink-0 text-transparent"}
+											weight="bold"
+										/>
+										{#if mode.value === "single"}
+											<Square class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+										{:else if mode.value === "project"}
+											<Columns class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
 										{:else}
-											<Desktop class="size-3" weight="fill" />
+											<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
 										{/if}
-										<span>{option.label}</span>
-									</button>
-								{/each}
-							</div>
-						</div>
+										<div class="flex min-w-0 flex-1 flex-col">
+											<span class="text-[12px] font-medium">{mode.label}</span>
+											<span class="text-[10px] leading-[1.25] text-muted-foreground">{mode.description}</span>
+										</div>
+									</div>
+								</DropdownMenu.Item>
+								{#if mode.value === "single" && selected}
+									<div class="flex items-center justify-between py-1 pl-[52px] pr-2">
+										<span class="text-[11px] text-muted-foreground">Tab Bar</span>
+										<Switch
+											checked={viewState.topBarVisible}
+											onclick={() => viewState.setTopBarVisible(!viewState.topBarVisible)}
+										/>
+									</div>
+								{/if}
+							{/each}
+						</DropdownMenu.Group>
+					{/if}
+
+					<DropdownMenu.Separator />
+					<div class="flex items-center justify-between gap-2 px-2 py-1.5">
+						<div class="text-[11px] text-muted-foreground">Theme</div>
+						<SegmentedToggleGroup
+							items={themeOptions.map((o) => ({ id: o.value, label: o.label }))}
+							value={themeState.theme}
+							onChange={(id) => themeState.setTheme(id as Theme)}
+						/>
 					</div>
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>

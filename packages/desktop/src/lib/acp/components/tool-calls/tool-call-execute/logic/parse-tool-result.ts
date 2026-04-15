@@ -21,7 +21,20 @@ function normalizeExecEnvelope(raw: string): NormalizedExecEnvelope {
 	const outputMarker = /(?:^|\n)Output:\r?\n/;
 	const markerMatch = outputMarker.exec(raw);
 	if (!markerMatch) {
-		return { output: raw, exitCode: undefined };
+		const shellExitMatch = /(?:\r?\n)?<exited with exit code (-?\d+)>\s*$/i.exec(raw);
+		if (!shellExitMatch || shellExitMatch.index === undefined) {
+			return { output: raw, exitCode: undefined };
+		}
+
+		const parsedExitCode = Number(shellExitMatch[1]);
+		const outputWithoutExitMarker = raw
+			.slice(0, shellExitMatch.index)
+			.replace(/\r?\n$/, "");
+
+		return {
+			output: outputWithoutExitMarker,
+			exitCode: Number.isFinite(parsedExitCode) ? parsedExitCode : undefined,
+		};
 	}
 
 	const header = raw.slice(0, markerMatch.index + markerMatch[0].length);
@@ -70,6 +83,14 @@ export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
 			envelopeExitCode = normalized.exitCode;
 		} else if (typeof obj.stdout === "string") {
 			const normalized = normalizeExecEnvelope(obj.stdout);
+			stdout = normalized.output;
+			envelopeExitCode = normalized.exitCode;
+		} else if (typeof obj.detailedContent === "string") {
+			const normalized = normalizeExecEnvelope(obj.detailedContent);
+			stdout = normalized.output;
+			envelopeExitCode = normalized.exitCode;
+		} else if (typeof obj.content === "string") {
+			const normalized = normalizeExecEnvelope(obj.content);
 			stdout = normalized.output;
 			envelopeExitCode = normalized.exitCode;
 		}

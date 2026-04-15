@@ -20,7 +20,7 @@
 	class="build-icon-root inline-flex shrink-0 items-center justify-center {sizeClasses[size]} {className ? className : ''}"
 	style={style}
 >
-	<Screwdriver class="block size-full max-h-full max-w-full" weight="fill" />
+	<Screwdriver class="block size-full max-h-full max-w-full text-current" weight="fill" />
 </span>
 
 <style>
