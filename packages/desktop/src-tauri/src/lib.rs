@@ -339,7 +339,6 @@ where
 fn orphaned_acp_process_patterns(agents_dir: &std::path::Path) -> Vec<String> {
     let agents_dir_str = agents_dir.to_string_lossy();
     vec![
-        format!("{}/claude-code/claude-agent-acp", agents_dir_str),
         format!("{}/codex-acp/codex-acp", agents_dir_str),
         format!("{}/codex/codex", agents_dir_str),
         format!("{}/opencode/opencode", agents_dir_str),
