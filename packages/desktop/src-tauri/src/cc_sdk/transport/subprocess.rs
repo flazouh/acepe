@@ -10,9 +10,11 @@ use crate::cc_sdk::{
 };
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::Stdio;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
@@ -20,6 +22,7 @@ use tracing::{debug, error, info, warn};
 
 /// Default buffer size for channels
 const CHANNEL_BUFFER_SIZE: usize = 100;
+const CLI_VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Simple semantic version struct
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -67,29 +70,79 @@ fn minimum_supported_cli_version() -> SemVer {
         .unwrap_or_else(|| SemVer::new(2, 1, 0))
 }
 
-fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
-    let output = std::process::Command::new(path)
+fn read_claude_cli_version_with_timeout(path: &Path, timeout: Duration) -> Result<SemVer> {
+    let mut child = std::process::Command::new(path)
         .arg("--version")
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(SdkError::ProcessError)?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(SdkError::ConfigError(format!(
-            "Acepe could not inspect its managed Claude CLI at {}: {}",
-            path.display(),
-            stderr.trim()
-        )));
-    }
-
-    let version_str = String::from_utf8_lossy(&output.stdout);
-    SemVer::parse(version_str.trim()).ok_or_else(|| {
+    let mut stdout = child.stdout.take().ok_or_else(|| {
         SdkError::ConfigError(format!(
-            "Acepe could not parse the managed Claude CLI version at {} from output {:?}",
-            path.display(),
-            version_str.trim()
+            "Acepe could not inspect its managed Claude CLI at {} because stdout was unavailable",
+            path.display()
         ))
-    })
+    })?;
+    let mut stderr = child.stderr.take().ok_or_else(|| {
+        SdkError::ConfigError(format!(
+            "Acepe could not inspect its managed Claude CLI at {} because stderr was unavailable",
+            path.display()
+        ))
+    })?;
+
+    let start = Instant::now();
+
+    loop {
+        match child.try_wait().map_err(SdkError::ProcessError)? {
+            Some(status) => {
+                let mut stdout_bytes = Vec::new();
+                stdout
+                    .read_to_end(&mut stdout_bytes)
+                    .map_err(SdkError::ProcessError)?;
+
+                let mut stderr_bytes = Vec::new();
+                stderr
+                    .read_to_end(&mut stderr_bytes)
+                    .map_err(SdkError::ProcessError)?;
+
+                if !status.success() {
+                    let stderr_text = String::from_utf8_lossy(&stderr_bytes);
+                    return Err(SdkError::ConfigError(format!(
+                        "Acepe could not inspect its managed Claude CLI at {}: {}",
+                        path.display(),
+                        stderr_text.trim()
+                    )));
+                }
+
+                let version_str = String::from_utf8_lossy(&stdout_bytes);
+                return SemVer::parse(version_str.trim()).ok_or_else(|| {
+                    SdkError::ConfigError(format!(
+                        "Acepe could not parse the managed Claude CLI version at {} from output {:?}",
+                        path.display(),
+                        version_str.trim()
+                    ))
+                });
+            }
+            None => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(SdkError::ConfigError(format!(
+                        "Acepe timed out inspecting its managed Claude CLI at {} after {}ms",
+                        path.display(),
+                        timeout.as_millis()
+                    )));
+                }
+
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+    }
+}
+
+fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
+    read_claude_cli_version_with_timeout(path, CLI_VERSION_TIMEOUT)
 }
 
 fn ensure_supported_managed_claude_cli(path: &Path) -> Result<()> {
@@ -686,8 +739,8 @@ impl SubprocessTransport {
                 warn!("Failed to check CLI version: {}", e);
                 return Ok(()); // Don't fail connection, just warn
             }
-            Err(_) => {
-                warn!("CLI version check timed out after 5 seconds");
+            Err(error) => {
+                warn!("CLI version check task failed: {}", error);
                 return Ok(());
             }
         };
@@ -1177,7 +1230,10 @@ pub fn find_claude_cli() -> Result<PathBuf> {
         })?;
 
     ensure_supported_managed_claude_cli(&cached_path)?;
-    debug!("Using Acepe-managed Claude CLI at: {}", cached_path.display());
+    debug!(
+        "Using Acepe-managed Claude CLI at: {}",
+        cached_path.display()
+    );
     Ok(cached_path)
 }
 
@@ -1335,6 +1391,7 @@ mod tests {
         assert_eq!(version.patch, 0);
     }
 
+    #[cfg(unix)]
     #[test]
     fn read_claude_cli_version_parses_managed_binary_output() {
         let temp = tempfile::tempdir().expect("temp dir");
@@ -1347,7 +1404,9 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&cli_path).expect("metadata").permissions();
+            let mut perms = std::fs::metadata(&cli_path)
+                .expect("metadata")
+                .permissions();
             perms.set_mode(0o755);
             std::fs::set_permissions(&cli_path, perms).expect("chmod");
         }
@@ -1356,6 +1415,26 @@ mod tests {
         assert_eq!(version.major, 2);
         assert_eq!(version.minor, 1);
         assert_eq!(version.patch, 104);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_claude_cli_version_times_out_for_hung_binary() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let cli_path = temp.path().join("claude");
+        std::fs::write(&cli_path, "#!/bin/sh\nsleep 1\n").expect("write cli");
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&cli_path)
+                .expect("metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&cli_path, perms).expect("chmod");
+        }
+
+        let error = read_claude_cli_version_with_timeout(&cli_path, Duration::from_millis(50))
+            .expect_err("hung binary should time out");
+        assert!(error.to_string().contains("timed out inspecting"));
     }
 
     #[tokio::test]

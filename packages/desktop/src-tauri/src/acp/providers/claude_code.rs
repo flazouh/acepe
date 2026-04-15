@@ -7,7 +7,6 @@ use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
-use crate::cc_sdk;
 use crate::history::session_context::SessionContext;
 use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
@@ -39,10 +38,9 @@ impl AgentProvider for ClaudeCodeProvider {
             .into_iter()
             .next()
             .unwrap_or(SpawnConfig {
-                command: cc_sdk::cli_download::get_cached_cli_path()
-                    .unwrap_or_else(|| PathBuf::from("acepe-managed-claude-missing"))
-                    .to_string_lossy()
-                    .to_string(),
+                command: crate::cc_sdk::transport::subprocess::find_claude_cli()
+                    .map(|path| path.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| "acepe-managed-claude-missing".to_string()),
                 args: vec![],
                 env: claude_env(),
             })
@@ -373,26 +371,70 @@ fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConf
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
     use std::sync::Mutex as StdMutex;
 
     static HOME_ENV_LOCK: std::sync::LazyLock<StdMutex<()>> =
         std::sync::LazyLock::new(|| StdMutex::new(()));
 
-    fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
-        let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
-        let previous_home = std::env::var_os("HOME");
-        let temp = tempfile::tempdir().expect("temp dir");
-        std::env::set_var("HOME", temp.path());
-        let result = test();
-        match previous_home {
-            Some(home) => std::env::set_var("HOME", home),
-            None => std::env::remove_var("HOME"),
-        }
-        result
+    struct TempHomeEnvGuard {
+        previous_home: Option<OsString>,
+        previous_xdg_cache_home: Option<OsString>,
+        #[cfg(windows)]
+        previous_local_app_data: Option<OsString>,
     }
 
+    impl TempHomeEnvGuard {
+        fn install(temp_root: &Path) -> Self {
+            let previous_home = std::env::var_os("HOME");
+            let previous_xdg_cache_home = std::env::var_os("XDG_CACHE_HOME");
+            #[cfg(windows)]
+            let previous_local_app_data = std::env::var_os("LOCALAPPDATA");
+
+            std::env::set_var("HOME", temp_root);
+            std::env::set_var("XDG_CACHE_HOME", temp_root.join(".cache"));
+            #[cfg(windows)]
+            std::env::set_var("LOCALAPPDATA", temp_root.join("AppData").join("Local"));
+
+            Self {
+                previous_home,
+                previous_xdg_cache_home,
+                #[cfg(windows)]
+                previous_local_app_data,
+            }
+        }
+    }
+
+    impl Drop for TempHomeEnvGuard {
+        fn drop(&mut self) {
+            match self.previous_home.as_ref() {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+
+            match self.previous_xdg_cache_home.as_ref() {
+                Some(path) => std::env::set_var("XDG_CACHE_HOME", path),
+                None => std::env::remove_var("XDG_CACHE_HOME"),
+            }
+
+            #[cfg(windows)]
+            match self.previous_local_app_data.as_ref() {
+                Some(path) => std::env::set_var("LOCALAPPDATA", path),
+                None => std::env::remove_var("LOCALAPPDATA"),
+            }
+        }
+    }
+
+    fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
+        let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
+        let temp = tempfile::tempdir().expect("temp dir");
+        let _home_guard = TempHomeEnvGuard::install(temp.path());
+        test()
+    }
+
+    #[cfg(unix)]
     fn write_managed_claude(version: &str) -> PathBuf {
-        let path = cc_sdk::cli_download::get_cached_cli_path().expect("managed cache path");
+        let path = crate::cc_sdk::cli_download::get_cached_cli_path().expect("managed cache path");
         let parent = path.parent().expect("parent");
         std::fs::create_dir_all(parent).expect("create cache dir");
         std::fs::write(
@@ -413,6 +455,7 @@ mod tests {
         path
     }
 
+    #[cfg(unix)]
     #[test]
     fn spawn_config_uses_managed_cache_path() {
         with_temp_home(|| {
@@ -424,6 +467,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn spawn_configs_do_not_fall_back_to_path() {
         with_temp_home(|| {
@@ -436,6 +480,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn model_discovery_uses_claude_print_mode() {
         with_temp_home(|| {
@@ -458,12 +503,27 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn provider_reports_unavailable_when_managed_claude_is_below_floor() {
         with_temp_home(|| {
             write_managed_claude("2.0.9");
             let provider = ClaudeCodeProvider;
             assert!(!provider.is_available());
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_config_does_not_bypass_managed_version_gate() {
+        with_temp_home(|| {
+            write_managed_claude("2.0.9");
+            let provider = ClaudeCodeProvider;
+
+            assert_eq!(
+                provider.spawn_config().command,
+                "acepe-managed-claude-missing"
+            );
         });
     }
 
@@ -508,6 +568,9 @@ mod tests {
     #[test]
     fn claude_provider_owns_permission_mode_resolution_logic() {
         let provider = ClaudeCodeProvider;
-        assert_eq!(provider.resolve_runtime_mode_id(Some("build"), Path::new(".")), "build");
+        assert_eq!(
+            provider.resolve_runtime_mode_id(Some("build"), Path::new(".")),
+            "build"
+        );
     }
 }
