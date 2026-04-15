@@ -3,15 +3,18 @@
 //! This module implements the Transport trait using a subprocess to run the Claude CLI.
 
 use super::{InputMessage, Transport, TransportState};
+use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::cc_sdk::{
     errors::{Result, SdkError},
     types::{ClaudeCodeOptions, ControlRequest, ControlResponse, Message, PermissionMode},
 };
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::Stdio;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
@@ -19,9 +22,7 @@ use tracing::{debug, error, info, warn};
 
 /// Default buffer size for channels
 const CHANNEL_BUFFER_SIZE: usize = 100;
-
-/// Minimum required CLI version
-const MIN_CLI_VERSION: (u32, u32, u32) = (2, 0, 0);
+const CLI_VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Simple semantic version struct
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -62,6 +63,103 @@ impl SemVer {
             patch: parts.get(2).and_then(|p| p.parse().ok()).unwrap_or(0),
         })
     }
+}
+
+fn minimum_supported_cli_version() -> SemVer {
+    SemVer::parse(crate::cc_sdk::cli_download::MIN_CLI_VERSION)
+        .unwrap_or_else(|| SemVer::new(2, 1, 0))
+}
+
+fn read_claude_cli_version_with_timeout(path: &Path, timeout: Duration) -> Result<SemVer> {
+    let mut child = std::process::Command::new(path)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(SdkError::ProcessError)?;
+
+    let mut stdout = child.stdout.take().ok_or_else(|| {
+        SdkError::ConfigError(format!(
+            "Acepe could not inspect its managed Claude CLI at {} because stdout was unavailable",
+            path.display()
+        ))
+    })?;
+    let mut stderr = child.stderr.take().ok_or_else(|| {
+        SdkError::ConfigError(format!(
+            "Acepe could not inspect its managed Claude CLI at {} because stderr was unavailable",
+            path.display()
+        ))
+    })?;
+
+    let start = Instant::now();
+
+    loop {
+        match child.try_wait().map_err(SdkError::ProcessError)? {
+            Some(status) => {
+                let mut stdout_bytes = Vec::new();
+                stdout
+                    .read_to_end(&mut stdout_bytes)
+                    .map_err(SdkError::ProcessError)?;
+
+                let mut stderr_bytes = Vec::new();
+                stderr
+                    .read_to_end(&mut stderr_bytes)
+                    .map_err(SdkError::ProcessError)?;
+
+                if !status.success() {
+                    let stderr_text = String::from_utf8_lossy(&stderr_bytes);
+                    return Err(SdkError::ConfigError(format!(
+                        "Acepe could not inspect its managed Claude CLI at {}: {}",
+                        path.display(),
+                        stderr_text.trim()
+                    )));
+                }
+
+                let version_str = String::from_utf8_lossy(&stdout_bytes);
+                return SemVer::parse(version_str.trim()).ok_or_else(|| {
+                    SdkError::ConfigError(format!(
+                        "Acepe could not parse the managed Claude CLI version at {} from output {:?}",
+                        path.display(),
+                        version_str.trim()
+                    ))
+                });
+            }
+            None => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(SdkError::ConfigError(format!(
+                        "Acepe timed out inspecting its managed Claude CLI at {} after {}ms",
+                        path.display(),
+                        timeout.as_millis()
+                    )));
+                }
+
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+    }
+}
+
+fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
+    read_claude_cli_version_with_timeout(path, CLI_VERSION_TIMEOUT)
+}
+
+fn ensure_supported_managed_claude_cli(path: &Path) -> Result<()> {
+    let current_version = read_claude_cli_version(path)?;
+    let minimum_version = minimum_supported_cli_version();
+
+    if current_version < minimum_version {
+        return Err(SdkError::ConfigError(format!(
+            "Acepe's managed Claude CLI at {} is below the minimum supported version {}.{}.{}. Repair or upgrade Claude from Acepe's install flow.",
+            path.display(),
+            minimum_version.major,
+            minimum_version.minor,
+            minimum_version.patch
+        )));
+    }
+
+    Ok(())
 }
 
 /// Subprocess-based transport for Claude CLI
@@ -629,54 +727,44 @@ impl SubprocessTransport {
 
     /// Check CLI version and warn if below minimum required version
     async fn check_cli_version(&self) -> Result<()> {
-        // Run the CLI with --version flag (with a timeout to avoid hanging)
-        let output = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            tokio::process::Command::new(&self.cli_path)
-                .arg("--version")
-                .output(),
-        )
+        let version = tokio::task::spawn_blocking({
+            let cli_path = self.cli_path.clone();
+            move || read_claude_cli_version(&cli_path)
+        })
         .await;
 
-        let output = match output {
-            Ok(Ok(output)) => output,
+        let version = match version {
+            Ok(Ok(version)) => version,
             Ok(Err(e)) => {
                 warn!("Failed to check CLI version: {}", e);
                 return Ok(()); // Don't fail connection, just warn
             }
-            Err(_) => {
-                warn!("CLI version check timed out after 5 seconds");
+            Err(error) => {
+                warn!("CLI version check task failed: {}", error);
                 return Ok(());
             }
         };
 
-        let version_str = String::from_utf8_lossy(&output.stdout);
-        let version_str = version_str.trim();
+        let minimum_version = minimum_supported_cli_version();
 
-        if let Some(semver) = SemVer::parse(version_str) {
-            let min_version = SemVer::new(MIN_CLI_VERSION.0, MIN_CLI_VERSION.1, MIN_CLI_VERSION.2);
-
-            if semver < min_version {
-                warn!(
-                    "⚠️  Claude CLI version {}.{}.{} is below minimum required version {}.{}.{}",
-                    semver.major,
-                    semver.minor,
-                    semver.patch,
-                    MIN_CLI_VERSION.0,
-                    MIN_CLI_VERSION.1,
-                    MIN_CLI_VERSION.2
-                );
-                warn!(
-                    "   Some features may not work correctly. Please upgrade with: npm install -g @anthropic-ai/claude-code@latest"
-                );
-            } else {
-                info!(
-                    "Claude CLI version: {}.{}.{}",
-                    semver.major, semver.minor, semver.patch
-                );
-            }
+        if version < minimum_version {
+            warn!(
+                "⚠️  Claude CLI version {}.{}.{} is below minimum required version {}.{}.{}",
+                version.major,
+                version.minor,
+                version.patch,
+                minimum_version.major,
+                minimum_version.minor,
+                minimum_version.patch
+            );
+            warn!(
+                "   Some features may not work correctly. Please upgrade Claude through Acepe's managed install flow."
+            );
         } else {
-            debug!("Could not parse CLI version: {}", version_str);
+            info!(
+                "Claude CLI version: {}.{}.{}",
+                version.major, version.minor, version.patch
+            );
         }
 
         Ok(())
@@ -1133,99 +1221,20 @@ impl Drop for SubprocessTransport {
 
 /// Find the Claude CLI binary
 ///
-/// Search order:
-/// 1. System PATH (`claude`, `claude-code`)
-/// 2. SDK cache directory (auto-downloaded CLI)
-/// 3. Common installation locations
+/// Uses Acepe's managed Claude CLI cache only.
 pub fn find_claude_cli() -> Result<PathBuf> {
-    // First check if it's in PATH - try both 'claude' and 'claude-code'
-    for cmd_name in &["claude", "claude-code"] {
-        if let Ok(path) = which::which(cmd_name) {
-            debug!("Found Claude CLI in PATH at: {}", path.display());
-            return Ok(path);
-        }
-    }
+    let cached_path = agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode)
+        .ok_or_else(|| SdkError::CliNotFound {
+            searched_paths:
+                "Acepe did not find its managed Claude CLI in the cc-sdk cache. Install or repair Claude from Acepe's built-in install flow.".to_string(),
+        })?;
 
-    // Check SDK cache directory (for auto-downloaded CLI)
-    if let Some(cached_path) = crate::cc_sdk::cli_download::get_cached_cli_path() {
-        if cached_path.exists() && cached_path.is_file() {
-            debug!("Found cached Claude CLI at: {}", cached_path.display());
-            return Ok(cached_path);
-        }
-    }
-
-    // Check common installation locations
-    let home = dirs::home_dir().ok_or_else(|| SdkError::CliNotFound {
-        searched_paths: "Unable to determine home directory".into(),
-    })?;
-
-    let locations = vec![
-        // npm global installations
-        home.join(".npm-global/bin/claude"),
-        home.join(".npm-global/bin/claude-code"),
-        PathBuf::from("/usr/local/bin/claude"),
-        PathBuf::from("/usr/local/bin/claude-code"),
-        // Local installations
-        home.join(".local/bin/claude"),
-        home.join(".local/bin/claude-code"),
-        home.join("node_modules/.bin/claude"),
-        home.join("node_modules/.bin/claude-code"),
-        // Yarn installations
-        home.join(".yarn/bin/claude"),
-        home.join(".yarn/bin/claude-code"),
-        // macOS specific npm location
-        PathBuf::from("/opt/homebrew/bin/claude"),
-        PathBuf::from("/opt/homebrew/bin/claude-code"),
-        // Claude local directory
-        home.join(".claude/local/claude"),
-    ];
-
-    let mut searched = Vec::new();
-    for path in &locations {
-        searched.push(path.display().to_string());
-        if path.exists() && path.is_file() {
-            debug!("Found Claude CLI at: {}", path.display());
-            return Ok(path.clone());
-        }
-    }
-
-    // Log detailed error information
-    warn!("Claude CLI not found in any standard location");
-    warn!("Searched paths: {:?}", searched);
-
-    // Check if Node.js is installed
-    if which::which("node").is_err() && which::which("npm").is_err() {
-        error!("Node.js/npm not found - Claude CLI requires Node.js");
-        return Err(SdkError::CliNotFound {
-            searched_paths: format!(
-                "Node.js is not installed. Install from https://nodejs.org/\n\n\
-                Alternatively, enable auto_download_cli to automatically download the CLI:\n\
-                ```rust\n\
-                let options = ClaudeCodeOptions::builder()\n\
-                    .auto_download_cli(true)\n\
-                    .build();\n\
-                ```\n\n\
-                Searched in:\n{}",
-                searched.join("\n")
-            ),
-        });
-    }
-
-    Err(SdkError::CliNotFound {
-        searched_paths: format!(
-            "Claude CLI not found.\n\n\
-            Option 1 - Auto-download (recommended):\n\
-            ```rust\n\
-            let options = ClaudeCodeOptions::builder()\n\
-                .auto_download_cli(true)\n\
-                .build();\n\
-            ```\n\n\
-            Option 2 - Manual installation:\n\
-            npm install -g @anthropic-ai/claude-code\n\n\
-            Searched in:\n{}",
-            searched.join("\n")
-        ),
-    })
+    ensure_supported_managed_claude_cli(&cached_path)?;
+    debug!(
+        "Using Acepe-managed Claude CLI at: {}",
+        cached_path.display()
+    );
+    Ok(cached_path)
 }
 
 pub(crate) fn apply_process_user(cmd: &mut Command, user: &str) -> Result<()> {
@@ -1372,6 +1381,60 @@ mod tests {
         let error_msg = error.to_string();
         assert!(error_msg.contains("npm install -g @anthropic-ai/claude-code"));
         assert!(error_msg.contains("test paths"));
+    }
+
+    #[test]
+    fn minimum_supported_cli_version_parses() {
+        let version = minimum_supported_cli_version();
+        assert_eq!(version.major, 2);
+        assert_eq!(version.minor, 1);
+        assert_eq!(version.patch, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_claude_cli_version_parses_managed_binary_output() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let cli_path = temp.path().join("claude");
+        std::fs::write(
+            &cli_path,
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n  echo 2.1.104\nelse\n  exit 1\nfi\n",
+        )
+        .expect("write cli");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&cli_path)
+                .expect("metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&cli_path, perms).expect("chmod");
+        }
+
+        let version = read_claude_cli_version(&cli_path).expect("version should parse");
+        assert_eq!(version.major, 2);
+        assert_eq!(version.minor, 1);
+        assert_eq!(version.patch, 104);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_claude_cli_version_times_out_for_hung_binary() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let cli_path = temp.path().join("claude");
+        std::fs::write(&cli_path, "#!/bin/sh\nsleep 1\n").expect("write cli");
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&cli_path)
+                .expect("metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&cli_path, perms).expect("chmod");
+        }
+
+        let error = read_claude_cli_version_with_timeout(&cli_path, Duration::from_millis(50))
+            .expect_err("hung binary should time out");
+        assert!(error.to_string().contains("timed out inspecting"));
     }
 
     #[tokio::test]

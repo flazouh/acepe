@@ -5,9 +5,8 @@
 //!
 //! # Download Strategy
 //!
-//! 1. First, check if CLI is already installed (PATH, common locations)
-//! 2. If not found, check the SDK's local cache directory
-//! 3. If not cached, download from official source and cache locally
+//! 1. First, check Acepe's managed Claude CLI cache
+//! 2. If not cached, download from official source into that managed cache
 //!
 //! # Cache Location
 //!
@@ -26,7 +25,7 @@ use std::path::PathBuf;
 use tracing::{debug, info, warn};
 
 /// Minimum CLI version required by this SDK
-pub const MIN_CLI_VERSION: &str = "2.0.0";
+pub const MIN_CLI_VERSION: &str = "2.1.0";
 
 /// Default CLI version to download if not specified
 pub const DEFAULT_CLI_VERSION: &str = "latest";
@@ -394,17 +393,9 @@ async fn install_cli_windows(
 /// This is the main entry point for CLI management.
 #[allow(dead_code)]
 pub async fn ensure_cli(auto_download: bool) -> Result<PathBuf> {
-    // First, try to find existing CLI
+    // First, try the managed CLI resolver.
     if let Ok(path) = super::transport::subprocess::find_claude_cli() {
         return Ok(path);
-    }
-
-    // Check cached CLI
-    if let Some(cached_path) = get_cached_cli_path() {
-        if cached_path.exists() {
-            debug!("Using cached CLI at: {}", cached_path.display());
-            return Ok(cached_path);
-        }
     }
 
     // Download if auto_download is enabled

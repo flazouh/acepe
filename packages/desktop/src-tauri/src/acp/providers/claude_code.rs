@@ -1,13 +1,12 @@
 use super::super::provider::{
-    command_exists, AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness,
-    ProjectPathListing, SpawnConfig,
+    AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness, ProjectPathListing,
+    SpawnConfig,
 };
 use super::claude_code_settings::resolve_claude_runtime_mode_id;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
-use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::history::session_context::SessionContext;
 use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
@@ -33,11 +32,18 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn spawn_config(&self) -> SpawnConfig {
         // Not used for CcSdk mode, but trait requires it.
-        // Fallback to ACP spawn configs for compatibility.
+        // Return the managed-cache command path so accidental callers stay on the
+        // deterministic Claude runtime rather than falling back to PATH.
         self.spawn_configs()
             .into_iter()
             .next()
-            .expect("Claude provider must always return at least one spawn config")
+            .unwrap_or(SpawnConfig {
+                command: crate::cc_sdk::transport::subprocess::find_claude_cli()
+                    .map(|path| path.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| "acepe-managed-claude-missing".to_string()),
+                args: vec![],
+                env: claude_env(),
+            })
     }
 
     fn spawn_configs(&self) -> Vec<SpawnConfig> {
@@ -53,20 +59,13 @@ impl AgentProvider for ClaudeCodeProvider {
     }
 
     fn is_available(&self) -> bool {
-        agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode).is_some()
-            || command_exists("claude")
-            || command_exists("claude-code")
+        crate::cc_sdk::transport::subprocess::find_claude_cli().is_ok()
     }
 
     fn model_discovery_commands(&self) -> Vec<SpawnConfig> {
-        let primary = resolve_claude_spawn_configs()
-            .into_iter()
-            .next()
-            .unwrap_or(SpawnConfig {
-                command: "claude".to_string(),
-                args: vec![],
-                env: claude_env(),
-            });
+        let Some(primary) = resolve_claude_spawn_configs().into_iter().next() else {
+            return Vec::new();
+        };
 
         let mut args = primary.args;
         args.extend([
@@ -220,47 +219,11 @@ impl AgentProvider for ClaudeCodeProvider {
 fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
 
-    // 1. Cached Claude CLI (managed by the vendored SDK).
-    if let Some(cached) = agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode) {
+    if let Ok(cached) = crate::cc_sdk::transport::subprocess::find_claude_cli() {
         push_unique_spawn_config(
             &mut configs,
             SpawnConfig {
                 command: cached.to_string_lossy().to_string(),
-                args: vec![],
-                env: claude_env(),
-            },
-        );
-    }
-
-    // 2. System Claude CLI in PATH.
-    if command_exists("claude") {
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command: "claude".to_string(),
-                args: vec![],
-                env: claude_env(),
-            },
-        );
-    }
-
-    // 3. Alternate command name used by some installs.
-    if command_exists("claude-code") {
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command: "claude-code".to_string(),
-                args: vec![],
-                env: claude_env(),
-            },
-        );
-    }
-
-    if configs.is_empty() {
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command: "claude".to_string(),
                 args: vec![],
                 env: claude_env(),
             },
@@ -408,43 +371,160 @@ fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConf
 #[cfg(test)]
 mod tests {
     use super::*;
-    const CLAUDE_PROVIDER_SOURCE: &str = include_str!("claude_code.rs");
-    const CLAUDE_PROVIDER_SETTINGS_SOURCE: &str = include_str!("claude_code_settings.rs");
-    const CC_SDK_CLIENT_SOURCE: &str = include_str!("../client/cc_sdk_client.rs");
+    use std::ffi::OsString;
+    use std::sync::Mutex as StdMutex;
 
-    #[test]
-    fn spawn_config_never_panics() {
-        let provider = ClaudeCodeProvider;
-        let result = std::panic::catch_unwind(|| provider.spawn_config());
+    static HOME_ENV_LOCK: std::sync::LazyLock<StdMutex<()>> =
+        std::sync::LazyLock::new(|| StdMutex::new(()));
 
-        assert!(result.is_ok(), "spawn_config should never panic");
-        let config = result.expect("spawn_config should return config");
-        assert!(
-            !config.command.trim().is_empty(),
-            "spawn command should never be empty"
-        );
+    struct TempHomeEnvGuard {
+        previous_home: Option<OsString>,
+        previous_xdg_cache_home: Option<OsString>,
+        #[cfg(windows)]
+        previous_local_app_data: Option<OsString>,
     }
 
-    #[test]
-    fn spawn_configs_return_a_launcher_candidate() {
-        let provider = ClaudeCodeProvider;
-        let configs = provider.spawn_configs();
+    impl TempHomeEnvGuard {
+        fn install(temp_root: &Path) -> Self {
+            let previous_home = std::env::var_os("HOME");
+            let previous_xdg_cache_home = std::env::var_os("XDG_CACHE_HOME");
+            #[cfg(windows)]
+            let previous_local_app_data = std::env::var_os("LOCALAPPDATA");
 
-        assert!(!configs.is_empty());
-        assert!(configs
-            .iter()
-            .all(|config| !config.command.trim().is_empty()));
+            std::env::set_var("HOME", temp_root);
+            std::env::set_var("XDG_CACHE_HOME", temp_root.join(".cache"));
+            #[cfg(windows)]
+            std::env::set_var("LOCALAPPDATA", temp_root.join("AppData").join("Local"));
+
+            Self {
+                previous_home,
+                previous_xdg_cache_home,
+                #[cfg(windows)]
+                previous_local_app_data,
+            }
+        }
     }
 
+    impl Drop for TempHomeEnvGuard {
+        fn drop(&mut self) {
+            match self.previous_home.as_ref() {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+
+            match self.previous_xdg_cache_home.as_ref() {
+                Some(path) => std::env::set_var("XDG_CACHE_HOME", path),
+                None => std::env::remove_var("XDG_CACHE_HOME"),
+            }
+
+            #[cfg(windows)]
+            match self.previous_local_app_data.as_ref() {
+                Some(path) => std::env::set_var("LOCALAPPDATA", path),
+                None => std::env::remove_var("LOCALAPPDATA"),
+            }
+        }
+    }
+
+    fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
+        let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
+        let temp = tempfile::tempdir().expect("temp dir");
+        let _home_guard = TempHomeEnvGuard::install(temp.path());
+        test()
+    }
+
+    #[cfg(unix)]
+    fn write_managed_claude(version: &str) -> PathBuf {
+        let path = crate::cc_sdk::cli_download::get_cached_cli_path().expect("managed cache path");
+        let parent = path.parent().expect("parent");
+        std::fs::create_dir_all(parent).expect("create cache dir");
+        std::fs::write(
+            &path,
+            format!(
+                "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n  echo {}\nelse\n  exit 0\nfi\n",
+                version
+            ),
+        )
+        .expect("write cli");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&path).expect("metadata").permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&path, perms).expect("chmod");
+        }
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_config_uses_managed_cache_path() {
+        with_temp_home(|| {
+            let cached_path = write_managed_claude("2.1.104");
+            let provider = ClaudeCodeProvider;
+            let config = provider.spawn_config();
+
+            assert_eq!(config.command, cached_path.to_string_lossy());
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_configs_do_not_fall_back_to_path() {
+        with_temp_home(|| {
+            let cached_path = write_managed_claude("2.1.104");
+            let provider = ClaudeCodeProvider;
+            let configs = provider.spawn_configs();
+
+            assert_eq!(configs.len(), 1);
+            assert_eq!(configs[0].command, cached_path.to_string_lossy());
+        });
+    }
+
+    #[cfg(unix)]
     #[test]
     fn model_discovery_uses_claude_print_mode() {
-        let provider = ClaudeCodeProvider;
-        let attempts = provider.model_discovery_commands();
+        with_temp_home(|| {
+            let cached_path = write_managed_claude("2.1.104");
+            let provider = ClaudeCodeProvider;
+            let attempts = provider.model_discovery_commands();
 
-        assert_eq!(attempts.len(), 1);
-        assert!(!attempts[0].command.trim().is_empty());
-        assert_eq!(attempts[0].args[0], "--no-session-persistence");
-        assert_eq!(attempts[0].args[1], "-p");
+            assert_eq!(attempts.len(), 1);
+            assert_eq!(attempts[0].command, cached_path.to_string_lossy());
+            assert_eq!(attempts[0].args[0], "--no-session-persistence");
+            assert_eq!(attempts[0].args[1], "-p");
+        });
+    }
+
+    #[test]
+    fn provider_reports_unavailable_when_managed_claude_is_missing() {
+        with_temp_home(|| {
+            let provider = ClaudeCodeProvider;
+            assert!(!provider.is_available());
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn provider_reports_unavailable_when_managed_claude_is_below_floor() {
+        with_temp_home(|| {
+            write_managed_claude("2.0.9");
+            let provider = ClaudeCodeProvider;
+            assert!(!provider.is_available());
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_config_does_not_bypass_managed_version_gate() {
+        with_temp_home(|| {
+            write_managed_claude("2.0.9");
+            let provider = ClaudeCodeProvider;
+
+            assert_eq!(
+                provider.spawn_config().command,
+                "acepe-managed-claude-missing"
+            );
+        });
     }
 
     #[test]
@@ -487,17 +567,10 @@ mod tests {
 
     #[test]
     fn claude_provider_owns_permission_mode_resolution_logic() {
-        assert!(
-            CLAUDE_PROVIDER_SOURCE.contains("resolve_runtime_mode_id"),
-            "Claude provider should own runtime mode resolution"
-        );
-        assert!(
-            CLAUDE_PROVIDER_SETTINGS_SOURCE.contains("configured_claude_permission_mode"),
-            "Claude provider helper should own settings-based permission resolution"
-        );
-        assert!(
-            !CC_SDK_CLIENT_SOURCE.contains("configured_claude_permission_mode"),
-            "cc_sdk_client should not parse Claude settings directly"
+        let provider = ClaudeCodeProvider;
+        assert_eq!(
+            provider.resolve_runtime_mode_id(Some("build"), Path::new(".")),
+            "build"
         );
     }
 }
