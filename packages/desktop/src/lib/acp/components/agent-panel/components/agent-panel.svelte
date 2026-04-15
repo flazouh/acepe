@@ -861,8 +861,9 @@ function resolveReviewWorkspaceEntryIndex(filesState: ModifiedFilesState): numbe
 	return getReviewWorkspaceDefaultIndex(workspaceFiles) ?? 0;
 }
 
-function handleEnterReviewMode(filesState: ModifiedFilesState): void {
-	onEnterReviewMode?.(filesState, resolveReviewWorkspaceEntryIndex(filesState));
+function handleEnterReviewMode(filesState: ModifiedFilesState, restoredFileIndex?: number): void {
+	const fileIndex = restoredFileIndex ?? resolveReviewWorkspaceEntryIndex(filesState);
+	onEnterReviewMode?.(filesState, fileIndex);
 }
 
 const reviewStatusByFilePath = $derived.by((): ReadonlyMap<string, FileReviewStatus | undefined> => {
@@ -901,7 +902,7 @@ $effect(() => {
 
 	if (!modifiedFilesState) return;
 
-	handleEnterReviewMode(modifiedFilesState);
+	handleEnterReviewMode(modifiedFilesState, pendingFileIndex);
 });
 
 $effect(() => {
@@ -1881,7 +1882,6 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 						{sessionId}
 						projectPath={sessionProjectPath}
 						isActive={reviewMode}
-						showHeader={false}
 						onClose={() => onExitReviewMode?.()}
 						onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
 					/>

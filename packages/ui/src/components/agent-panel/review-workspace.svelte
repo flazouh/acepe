@@ -1,12 +1,9 @@
 <script lang="ts">
-	import { onMount, type Snippet } from "svelte";
+	import { type Snippet } from "svelte";
 
 	import ReviewWorkspaceFileList from "./review-workspace-file-list.svelte";
 	import ReviewWorkspaceHeader from "./review-workspace-header.svelte";
-	import {
-		resolveReviewWorkspaceSelectedIndex,
-		type ReviewWorkspaceFileItem,
-	} from "./types.js";
+	import type { ReviewWorkspaceFileItem } from "./types.js";
 
 	interface Props {
 		files: readonly ReviewWorkspaceFileItem[];
@@ -30,27 +27,7 @@
 		closeButtonLabel = "Back",
 	}: Props = $props();
 
-	const effectiveSelectedIndex = $derived.by(() =>
-		resolveReviewWorkspaceSelectedIndex(files, selectedFileIndex)
-	);
-
 	const showEmptyState = $derived(files.length === 0 || !content);
-
-	onMount(() => {
-		if (effectiveSelectedIndex === null) {
-			return;
-		}
-
-		if (selectedFileIndex === undefined || selectedFileIndex === null) {
-			onFileSelect?.(effectiveSelectedIndex);
-			return;
-		}
-
-		if (selectedFileIndex < 0 || selectedFileIndex >= files.length) {
-			onFileSelect?.(effectiveSelectedIndex);
-			return;
-		}
-	});
 </script>
 
 <div
@@ -70,7 +47,7 @@
 		>
 			<ReviewWorkspaceFileList
 				{files}
-				selectedIndex={effectiveSelectedIndex}
+				selectedIndex={selectedFileIndex}
 				emptyStateLabel={emptyStateLabel}
 				onFileSelect={onFileSelect}
 			/>

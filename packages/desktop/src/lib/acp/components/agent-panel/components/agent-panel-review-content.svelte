@@ -1,10 +1,6 @@
 <script lang="ts">
-import { AgentPanelReviewContent as SharedAgentPanelReviewContent } from "@acepe/ui/agent-panel";
-import { IconMaximize } from "@tabler/icons-svelte";
-import { IconX } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
-import { Button } from "$lib/components/ui/button/index.js";
 import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../../review/review-file-revision.js";
@@ -19,17 +15,14 @@ import ReviewBottomWidget from "../../review-panel/review-bottom-widget.svelte";
 import ReviewPanelDiff from "../../review-panel/review-panel-diff.svelte";
 import type {
 	FileReviewCounters,
-	FileReviewStatus,
 	PerFileReviewState,
 } from "../../review-panel/review-session-state.js";
 import {
 	computeFileReviewStatus,
-	nextUnacceptedFileIndex,
 	nextSequentialFileIndex,
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
 } from "../../review-panel/review-session-state.js";
-import ReviewTabStrip from "../../review-panel/review-tab-strip.svelte";
 
 interface Props {
 	modifiedFilesState: ModifiedFilesState;
@@ -39,9 +32,6 @@ interface Props {
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
 	isActive?: boolean;
-	showHeader?: boolean;
-	/** Optional: when provided, shows expand icon to open full-screen review overlay */
-	onExpandToFullscreen?: () => void;
 }
 
 let {
@@ -52,8 +42,6 @@ let {
 	onClose,
 	onFileIndexChange,
 	isActive = true,
-	showHeader = true,
-	onExpandToFullscreen,
 }: Props = $props();
 
 let diffViewStateRef = $state<ReviewDiffViewState | null>(null);
@@ -69,11 +57,6 @@ const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
 const files = $derived(modifiedFilesState.files);
 const fileRevisionKeys = $derived(files.map((file) => getReviewFileRevisionKey(file)));
 const fileRevisionKeySignature = $derived(fileRevisionKeys.join("\u0000"));
-
-const fileStatusArray = $derived.by(
-	(): Array<FileReviewStatus | undefined> =>
-		files.map((f) => fileStatuses.get(getReviewFileRevisionKey(f))?.status)
-);
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
 const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
@@ -132,14 +115,18 @@ function recordResolvedAction(
 	resolvedActionsByFile.set(fileKey, [...existing, { hunkIndex, action }]);
 }
 
-function maybeAutoAdvanceAfterResolve(nextState: PerFileReviewState): void {
+function maybeAutoAdvanceAfterResolve(nextState: PerFileReviewState, fileIndex?: number): void {
 	if (!shouldAutoAdvanceAfterFileResolution(nextState)) return;
-	const nextFileStatuses = fileStatusArray.map((status, index) =>
-		index === selectedFileIndex ? nextState.status : status
-	);
-	const nextFileIndex = nextUnacceptedFileIndex(selectedFileIndex, nextFileStatuses);
-	if (nextFileIndex !== null) {
-		onFileIndexChange(nextFileIndex);
+	const resolvedIndex = fileIndex ?? selectedFileIndex;
+	// Use per-file state to find next file with actual pending hunks,
+	// not just "unaccepted" status (which includes fully-rejected files with 0 pending)
+	for (let i = resolvedIndex + 1; i < files.length; i += 1) {
+		const state = fileStatuses.get(getReviewFileRevisionKey(files[i]));
+		// Untracked files (no state yet) are considered pending
+		if (!state || state.pendingHunks > 0) {
+			onFileIndexChange(i);
+			return;
+		}
 	}
 }
 
@@ -161,7 +148,10 @@ function handleHunkAccept(hunkIndex: number): void {
 		};
 		return {
 			filePath: selectedFile.filePath,
-			...counters,
+			acceptedHunks: counters.acceptedHunks,
+			rejectedHunks: counters.rejectedHunks,
+			pendingHunks: counters.pendingHunks,
+			totalHunks: counters.totalHunks,
 			status: computeFileReviewStatus(counters, false),
 		};
 	});
@@ -181,11 +171,15 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 		return;
 	}
 
-	tauriClient.fs.writeTextFile(selectedFile.filePath, revertedContent, sessionId).match(
+	// Capture file reference before async write to prevent race if selection changes
+	const capturedFile = selectedFile;
+	const capturedFileIndex = selectedFileIndex;
+
+	tauriClient.fs.writeTextFile(capturedFile.filePath, revertedContent, sessionId).match(
 		() => {
-			toast.success(m.hunk_revert_success({ filePath: selectedFile.fileName }));
-			recordResolvedAction(selectedFile, hunkIndex, "reject");
-			const nextState = updateFileStatus(selectedFile, (prev) => {
+			toast.success(m.hunk_revert_success({ filePath: capturedFile.fileName }));
+			recordResolvedAction(capturedFile, hunkIndex, "reject");
+			const nextState = updateFileStatus(capturedFile, (prev) => {
 				const stats = diffViewStateRef?.getHunkStats() ?? {
 					total: prev?.totalHunks ?? 0,
 					pending: (prev?.pendingHunks ?? 1) - 1,
@@ -199,12 +193,15 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 					totalHunks: stats.total,
 				};
 				return {
-					filePath: selectedFile.filePath,
-					...counters,
+					filePath: capturedFile.filePath,
+					acceptedHunks: counters.acceptedHunks,
+					rejectedHunks: counters.rejectedHunks,
+					pendingHunks: counters.pendingHunks,
+					totalHunks: counters.totalHunks,
 					status: computeFileReviewStatus(counters, false),
 				};
 			});
-			maybeAutoAdvanceAfterResolve(nextState);
+			maybeAutoAdvanceAfterResolve(nextState, capturedFileIndex);
 		},
 		(error: Error) => toast.error(m.hunk_revert_failed({ error: error.message }))
 	);
@@ -382,40 +379,6 @@ $effect(() => {
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#snippet reviewHeader()}
-	<div class="flex-1 min-w-0 overflow-hidden">
-		<ReviewTabStrip
-			{files}
-			selectedIndex={selectedFileIndex}
-			fileStatuses={fileStatusArray}
-			onSelectFile={onFileIndexChange}
-		/>
-	</div>
-	<div class="flex items-center gap-0.5 shrink-0 px-1">
-		{#if onExpandToFullscreen}
-			<Button
-				variant="ghost"
-				size="icon"
-				class="h-6 w-6 shrink-0"
-				onclick={onExpandToFullscreen}
-				title={m.aria_open_expanded_view()}
-				aria-label={m.aria_open_expanded_view()}
-			>
-				<IconMaximize class="h-3.5 w-3.5" />
-			</Button>
-		{/if}
-		<Button
-			variant="ghost"
-			size="icon"
-			class="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-			onclick={onClose}
-			title="Close review"
-		>
-			<IconX class="h-3.5 w-3.5" />
-		</Button>
-	</div>
-{/snippet}
-
 {#snippet reviewBody()}
 	{#if selectedFile}
 		{#key getReviewFileRevisionKey(selectedFile)}
@@ -453,27 +416,11 @@ $effect(() => {
 	{/if}
 {/snippet}
 
-{#if showHeader}
-	<SharedAgentPanelReviewContent>
-		{#snippet header()}
-			{@render reviewHeader()}
-		{/snippet}
-
-		{#snippet body()}
+<div class="flex h-full w-full flex-col overflow-hidden">
+	<div class="relative flex-1 min-h-0 overflow-hidden">
+		<div class="absolute inset-0 overflow-auto">
 			{@render reviewBody()}
-		{/snippet}
-
-		{#snippet footer()}
-			{@render reviewFooter()}
-		{/snippet}
-	</SharedAgentPanelReviewContent>
-{:else}
-	<div class="flex h-full w-full flex-col overflow-hidden">
-		<div class="relative flex-1 min-h-0 overflow-hidden">
-			<div class="absolute inset-0 overflow-auto">
-				{@render reviewBody()}
-			</div>
-			{@render reviewFooter()}
 		</div>
+		{@render reviewFooter()}
 	</div>
-{/if}
+</div>
