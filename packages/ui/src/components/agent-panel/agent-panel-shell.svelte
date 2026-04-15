@@ -12,6 +12,7 @@
 		ondragstart?: ((event: DragEvent) => void) | undefined;
 		header: Snippet;
 		leadingPane?: Snippet;
+		reviewPane?: Snippet;
 		topBar?: Snippet;
 		body: Snippet;
 		preComposer?: Snippet;
@@ -33,6 +34,7 @@
 		ondragstart,
 		header,
 		leadingPane,
+		reviewPane,
 		topBar,
 		body,
 		preComposer,
@@ -60,6 +62,10 @@
 		<div class="flex flex-row flex-1 min-h-0 min-w-0 gap-0 overflow-hidden">
 			{#if leadingPane}
 				{@render leadingPane()}
+			{/if}
+
+			{#if reviewPane}
+				{@render reviewPane()}
 			{/if}
 
 			<div class="flex h-full flex-col min-h-0 min-w-0 overflow-hidden flex-1" style={centerColumnStyle}>

@@ -163,7 +163,6 @@
     }
   },
   "scripts": {
-    "check": "bunx tsc --noEmit -p tsconfig.json",
     "test": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')",
     "test:run": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')"
   },

@@ -47,9 +47,6 @@ export { default as AgentPanelPlanHeader } from "./plan-header.svelte";
 export { default as AgentPanelModifiedFileRow } from "./agent-panel-modified-file-row.svelte";
 export { default as AgentPanelModifiedFilesTrailingControls } from "./agent-panel-modified-files-trailing-controls.svelte";
 export { default as AgentPanelModifiedFilesHeader } from "./modified-files-header.svelte";
-export { default as ReviewWorkspace } from "./review-workspace.svelte";
-export { default as ReviewWorkspaceFileList } from "./review-workspace-file-list.svelte";
-export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
@@ -116,8 +113,8 @@ export type {
 	AgentPanelFileReviewStatus,
 	AgentPanelMetaItem,
 	AgentPanelModifiedFileItem,
+	AgentPanelModifiedFilesReviewOption,
 	AgentPanelModifiedFilesTrailingModel,
-	ReviewWorkspaceFileItem,
 	AgentPanelPlanSidebarItem,
 	AgentPanelPlanSidebarModel,
 	AgentPanelSceneModel,
@@ -154,7 +151,3 @@ export type {
 	AgentQuestion,
 } from "./types.js";
 export { AGENT_PANEL_ACTION_IDS } from "./types.js";
-export {
-	getReviewWorkspaceDefaultIndex,
-	resolveReviewWorkspaceSelectedIndex,
-} from "./types.js";

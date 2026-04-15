@@ -1,6 +1,7 @@
 <script lang="ts">
 import { getChatPreferencesStore } from "$lib/acp/store/chat-preferences-store.svelte.js";
 import { getPlanPreferenceStore } from "$lib/acp/store/plan-preference-store.svelte.js";
+import { getReviewPreferenceStore } from "$lib/acp/store/review-preference-store.svelte.js";
 import {
 	STREAMING_ANIMATION_MODE_CLASSIC,
 	STREAMING_ANIMATION_MODE_INSTANT,
@@ -16,6 +17,7 @@ import SettingsSection from "../settings-section.svelte";
 
 const chatPrefs = getChatPreferencesStore();
 const planPrefs = getPlanPreferenceStore();
+const reviewPreferenceStore = getReviewPreferenceStore();
 
 const streamingAnimationOptions: ReadonlyArray<{
 	value: StreamingAnimationMode;
@@ -137,6 +139,23 @@ const selectedLabel = $derived(
 				</div>
 			</div>
 		{/if}
+	</SettingsSection>
+
+	<SettingsSection
+		title={m.modified_files_review_title()}
+		description="Set how review opens when you inspect modified files."
+	>
+		<SettingsControlCard
+			label={m.settings_review_prefer_fullscreen()}
+			description={m.settings_review_prefer_fullscreen_description()}
+		>
+			<Switch
+				checked={reviewPreferenceStore.preferFullscreen}
+				onCheckedChange={(checked) => {
+					reviewPreferenceStore.setPreferFullscreen(checked === true);
+				}}
+			/>
+		</SettingsControlCard>
 	</SettingsSection>
 </div>
 

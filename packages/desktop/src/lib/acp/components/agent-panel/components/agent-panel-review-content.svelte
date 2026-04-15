@@ -24,7 +24,6 @@ import type {
 } from "../../review-panel/review-session-state.js";
 import {
 	computeFileReviewStatus,
-	nextUnacceptedFileIndex,
 	nextSequentialFileIndex,
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
@@ -39,7 +38,6 @@ interface Props {
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
 	isActive?: boolean;
-	showHeader?: boolean;
 	/** Optional: when provided, shows expand icon to open full-screen review overlay */
 	onExpandToFullscreen?: () => void;
 }
@@ -52,7 +50,6 @@ let {
 	onClose,
 	onFileIndexChange,
 	isActive = true,
-	showHeader = true,
 	onExpandToFullscreen,
 }: Props = $props();
 
@@ -132,12 +129,9 @@ function recordResolvedAction(
 	resolvedActionsByFile.set(fileKey, [...existing, { hunkIndex, action }]);
 }
 
-function maybeAutoAdvanceAfterResolve(nextState: PerFileReviewState): void {
-	if (!shouldAutoAdvanceAfterFileResolution(nextState)) return;
-	const nextFileStatuses = fileStatusArray.map((status, index) =>
-		index === selectedFileIndex ? nextState.status : status
-	);
-	const nextFileIndex = nextUnacceptedFileIndex(selectedFileIndex, nextFileStatuses);
+function maybeAutoAdvanceAfterResolve(counters: FileReviewCounters): void {
+	if (!shouldAutoAdvanceAfterFileResolution(counters)) return;
+	const nextFileIndex = nextSequentialFileIndex(selectedFileIndex, files.length);
 	if (nextFileIndex !== null) {
 		onFileIndexChange(nextFileIndex);
 	}
@@ -382,98 +376,75 @@ $effect(() => {
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#snippet reviewHeader()}
-	<div class="flex-1 min-w-0 overflow-hidden">
-		<ReviewTabStrip
-			{files}
-			selectedIndex={selectedFileIndex}
-			fileStatuses={fileStatusArray}
-			onSelectFile={onFileIndexChange}
-		/>
-	</div>
-	<div class="flex items-center gap-0.5 shrink-0 px-1">
-		{#if onExpandToFullscreen}
+<SharedAgentPanelReviewContent>
+	{#snippet header()}
+		<div class="flex-1 min-w-0 overflow-hidden">
+			<ReviewTabStrip
+				{files}
+				selectedIndex={selectedFileIndex}
+				fileStatuses={fileStatusArray}
+				onSelectFile={onFileIndexChange}
+			/>
+		</div>
+		<div class="flex items-center gap-0.5 shrink-0 px-1">
+			{#if onExpandToFullscreen}
+				<Button
+					variant="ghost"
+					size="icon"
+					class="h-6 w-6 shrink-0"
+					onclick={onExpandToFullscreen}
+					title={m.aria_open_expanded_view()}
+					aria-label={m.aria_open_expanded_view()}
+				>
+					<IconMaximize class="h-3.5 w-3.5" />
+				</Button>
+			{/if}
 			<Button
 				variant="ghost"
 				size="icon"
-				class="h-6 w-6 shrink-0"
-				onclick={onExpandToFullscreen}
-				title={m.aria_open_expanded_view()}
-				aria-label={m.aria_open_expanded_view()}
+				class="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+				onclick={onClose}
+				title="Close review"
 			>
-				<IconMaximize class="h-3.5 w-3.5" />
+				<IconX class="h-3.5 w-3.5" />
 			</Button>
-		{/if}
-		<Button
-			variant="ghost"
-			size="icon"
-			class="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-			onclick={onClose}
-			title="Close review"
-		>
-			<IconX class="h-3.5 w-3.5" />
-		</Button>
-	</div>
-{/snippet}
-
-{#snippet reviewBody()}
-	{#if selectedFile}
-		{#key getReviewFileRevisionKey(selectedFile)}
-			<ReviewPanelDiff
-				file={selectedFile}
-				projectPath={projectPath ?? undefined}
-				{isActive}
-				onHunkAccept={handleHunkAccept}
-				onHunkReject={handleHunkReject}
-				onDiffStateReady={handleDiffStateReady}
-			/>
-		{/key}
-	{/if}
-{/snippet}
-
-{#snippet reviewFooter()}
-	{#if selectedFile}
-		<ReviewBottomWidget
-			hunkCurrent={hunkStats.hunkCurrent}
-			hunkTotal={hunkStats.hunkTotal}
-			{fileCurrent}
-			{fileTotal}
-			hasPrevHunk={hunkStats.hasPrev}
-			hasNextHunk={hunkStats.hasNext}
-			hasPrevPendingFile={prevFileIdx !== null}
-			hasNextPendingFile={nextFileIdx !== null}
-			hasPendingHunks={hunkStats.hasPending}
-			onPrevHunk={handlePrevHunk}
-			onNextHunk={handleNextHunk}
-			onPrevFile={handlePrevFile}
-			onNextFile={handleNextFile}
-			onAcceptFile={handleAcceptFile}
-			onRejectFile={handleRejectFile}
-		/>
-	{/if}
-{/snippet}
-
-{#if showHeader}
-	<SharedAgentPanelReviewContent>
-		{#snippet header()}
-			{@render reviewHeader()}
-		{/snippet}
-
-		{#snippet body()}
-			{@render reviewBody()}
-		{/snippet}
-
-		{#snippet footer()}
-			{@render reviewFooter()}
-		{/snippet}
-	</SharedAgentPanelReviewContent>
-{:else}
-	<div class="flex h-full w-full flex-col overflow-hidden">
-		<div class="relative flex-1 min-h-0 overflow-hidden">
-			<div class="absolute inset-0 overflow-auto">
-				{@render reviewBody()}
-			</div>
-			{@render reviewFooter()}
 		</div>
-	</div>
-{/if}
+	{/snippet}
+
+	{#snippet body()}
+		{#if selectedFile}
+			{#key getReviewFileRevisionKey(selectedFile)}
+				<ReviewPanelDiff
+					file={selectedFile}
+					projectPath={projectPath ?? undefined}
+					{isActive}
+					onHunkAccept={handleHunkAccept}
+					onHunkReject={handleHunkReject}
+					onDiffStateReady={handleDiffStateReady}
+				/>
+			{/key}
+		{/if}
+	{/snippet}
+
+	{#snippet footer()}
+		{#if selectedFile}
+			<ReviewBottomWidget
+				hunkCurrent={hunkStats.hunkCurrent}
+				hunkTotal={hunkStats.hunkTotal}
+				{fileCurrent}
+				{fileTotal}
+				hasPrevHunk={hunkStats.hasPrev}
+				hasNextHunk={hunkStats.hasNext}
+				hasPrevPendingFile={prevFileIdx !== null}
+				hasNextPendingFile={nextFileIdx !== null}
+				hasPendingHunks={hunkStats.hasPending}
+				onPrevHunk={handlePrevHunk}
+				onNextHunk={handleNextHunk}
+				onPrevFile={handlePrevFile}
+				onNextFile={handleNextFile}
+				onAcceptFile={handleAcceptFile}
+				onRejectFile={handleRejectFile}
+			/>
+		{/if}
+	{/snippet}
+</SharedAgentPanelReviewContent>

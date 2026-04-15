@@ -18,8 +18,8 @@ export type {
 	AgentPanelHeaderModel,
 	AgentPanelMetaItem,
 	AgentPanelModifiedFileItem,
+	AgentPanelModifiedFilesReviewOption,
 	AgentPanelModifiedFilesTrailingModel,
-	ReviewWorkspaceFileItem,
 	AgentPanelPlanSidebarItem,
 	AgentPanelPlanSidebarModel,
 	AgentPanelPrCardModel,
@@ -86,9 +86,6 @@ export {
 	AgentPanelModifiedFilesTrailingControls,
 	AgentPanelPlanHeader,
 	AgentPanelModifiedFilesHeader,
-	ReviewWorkspace,
-	ReviewWorkspaceFileList,
-	ReviewWorkspaceHeader,
 	AgentPanelCreatePrButton,
 	AgentPanelMergeButton,
 	AgentPanelPermissionBar,
@@ -124,10 +121,6 @@ export {
 	AgentUserMessage,
 	ToolTally,
 	TodoNumberIcon,
-} from "./components/agent-panel/index.js";
-export {
-	getReviewWorkspaceDefaultIndex,
-	resolveReviewWorkspaceSelectedIndex,
 } from "./components/agent-panel/index.js";
 export {
 	AgentPanelScene,

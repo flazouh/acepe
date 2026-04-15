@@ -8,10 +8,9 @@
 
 	interface Props {
 		file: AgentPanelModifiedFileItem;
-		isSelected?: boolean;
 	}
 
-	let { file, isSelected = false }: Props = $props();
+	let { file }: Props = $props();
 
 	const reviewIndicator = $derived.by(() => {
 		if (file.reviewStatus === "accepted") {
@@ -46,10 +45,7 @@
 <button
 	type="button"
 	onclick={() => file.onSelect?.()}
-	data-selected={isSelected ? "true" : "false"}
-	class="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[0.6875rem] transition-colors {isSelected
-		? 'bg-accent text-accent-foreground ring-1 ring-ring/50'
-		: 'hover:bg-muted/30'}"
+	class="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[0.6875rem] transition-colors hover:bg-muted/30"
 >
 	<FilePathBadge
 		filePath={file.filePath}

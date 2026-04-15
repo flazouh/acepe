@@ -424,6 +424,7 @@ const demoModifiedFiles: readonly AgentPanelModifiedFileItem[] = [
 
 const demoModifiedFilesTrailing: AgentPanelModifiedFilesTrailingModel = {
 	reviewLabel: "Review",
+	reviewOptions: [],
 	keepState: "enabled",
 	keepLabel: "Keep",
 	reviewedCount: 1,

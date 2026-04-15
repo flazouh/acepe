@@ -26,6 +26,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		composerOverride?: Snippet;
 		footerOverride?: Snippet;
 		bottomDrawer?: Snippet;
+		reviewPaneBody?: Snippet;
 		leadingPane?: Snippet;
 		trailingPaneOverride?: Snippet;
 	}
@@ -44,6 +45,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		composerOverride,
 		footerOverride,
 		bottomDrawer,
+		reviewPaneBody,
 		leadingPane,
 		trailingPaneOverride,
 	}: Props = $props();
@@ -66,6 +68,12 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 	{#if leadingPane}
 		{#snippet leadingPane()}
 			{@render leadingPane()}
+		{/snippet}
+	{/if}
+
+	{#if reviewPaneBody}
+		{#snippet reviewPane()}
+			{@render reviewPaneBody()}
 		{/snippet}
 	{/if}
 

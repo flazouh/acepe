@@ -356,6 +356,17 @@ export function settings_appearance_streaming_animation_typewriter_description(
 	return interpolate(`Characters appear one by one`, args);
 }
 
+export function settings_review_prefer_fullscreen(args: MessageArgs = {}): string {
+	return interpolate(`Open review in full screen`, args);
+}
+
+export function settings_review_prefer_fullscreen_description(args: MessageArgs = {}): string {
+	return interpolate(
+		`When enabled, the Review button opens the full-screen overlay instead of the inline panel view`,
+		args
+	);
+}
+
 export function settings_chat(args: MessageArgs = {}): string {
 	return interpolate(`Chat`, args);
 }

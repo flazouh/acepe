@@ -1,12 +1,5 @@
 <script lang="ts">
-import {
-	AgentPanelShell,
-	ReviewWorkspace,
-	getReviewWorkspaceDefaultIndex,
-	resolveReviewWorkspaceSelectedIndex,
-	type AgentPanelFileReviewStatus,
-	type ReviewWorkspaceFileItem,
-} from "@acepe/ui/agent-panel";
+import { AgentPanelShell } from "@acepe/ui/agent-panel";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import { listen } from "@tauri-apps/api/event";
@@ -29,7 +22,6 @@ import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import { getAgentStore } from "../../../store/index.js";
 import { getConnectionStore } from "../../../store/connection-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
-import { sessionReviewStateStore } from "../../../store/session-review-state-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
 import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
@@ -46,7 +38,6 @@ import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import { aggregateFileEdits } from "../../modified-files/logic/aggregate-file-edits.js";
-import { getReviewStatusByFilePath } from "../../modified-files/logic/review-progress.js";
 import ModifiedFilesHeader, {
 	type PrGenerationConfig,
 } from "../../modified-files/modified-files-header.svelte";
@@ -111,7 +102,6 @@ import {
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
-import type { FileReviewStatus } from "../../review-panel/review-session-state.js";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -143,6 +133,7 @@ let {
 	onEnterReviewMode,
 	onExitReviewMode,
 	onReviewFileIndexChange,
+	onOpenFullscreenReview,
 	attachedFilePanels = [],
 	activeAttachedFilePanelId = null,
 	onSelectAttachedFilePanel,
@@ -615,9 +606,9 @@ const footerWorktreeStatus = $derived.by(() => {
 const hasPlan = $derived(planState.plan !== null);
 const ATTACHED_COLUMN_WIDTH = 450;
 const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
+const REVIEW_COLUMN_WIDTH = 450;
 const BROWSER_SIDEBAR_COLUMN_WIDTH = 500;
 const ATTACHED_COLUMN_GAP_WIDTH = 2;
-const REVIEW_WORKSPACE_EMPTY_STATE_LABEL = "Nothing to review";
 
 // Dynamic minimum width reported by the toolbar's intrinsic content measurement.
 // The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
@@ -755,6 +746,7 @@ const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding
 const effectiveWidth = $derived.by(() => {
 	let w = baseWidth;
 	if (showPlanSidebar && hasPlan) w += PLAN_SIDEBAR_COLUMN_WIDTH;
+	if (reviewMode && reviewFilesState) w += REVIEW_COLUMN_WIDTH;
 	if (showBrowserSidebar) w += BROWSER_SIDEBAR_COLUMN_WIDTH;
 	return w;
 });
@@ -826,69 +818,6 @@ $effect(() => {
 	return () => clearTimeout(id);
 });
 
-function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileReviewStatus {
-	if (status === "accepted" || status === "partial" || status === "denied") {
-		return status;
-	}
-
-	return "unreviewed";
-}
-
-function buildReviewWorkspaceFiles(
-	filesState: ModifiedFilesState,
-	statusByFilePath: ReadonlyMap<string, FileReviewStatus | undefined>
-): ReviewWorkspaceFileItem[] {
-	return filesState.files.map((file) => ({
-		id: file.filePath,
-		filePath: file.filePath,
-		fileName: file.fileName,
-		reviewStatus: mapReviewStatus(statusByFilePath.get(file.filePath)),
-		additions: file.totalAdded,
-		deletions: file.totalRemoved,
-	}));
-}
-
-function resolveReviewWorkspaceEntryIndex(filesState: ModifiedFilesState): number {
-	if (!sessionId || !sessionReviewStateStore.isLoaded(sessionId)) {
-		return 0;
-	}
-
-	const reviewStatusByPath = getReviewStatusByFilePath(
-		filesState.files,
-		sessionReviewStateStore.getState(sessionId)
-	);
-	const workspaceFiles = buildReviewWorkspaceFiles(filesState, reviewStatusByPath);
-	return getReviewWorkspaceDefaultIndex(workspaceFiles) ?? 0;
-}
-
-function handleEnterReviewMode(filesState: ModifiedFilesState): void {
-	onEnterReviewMode?.(filesState, resolveReviewWorkspaceEntryIndex(filesState));
-}
-
-const reviewStatusByFilePath = $derived.by((): ReadonlyMap<string, FileReviewStatus | undefined> => {
-	if (!reviewFilesState) {
-		return new Map<string, FileReviewStatus | undefined>();
-	}
-
-	if (!sessionId || !sessionReviewStateStore.isLoaded(sessionId)) {
-		return new Map<string, FileReviewStatus | undefined>();
-	}
-
-	return getReviewStatusByFilePath(reviewFilesState.files, sessionReviewStateStore.getState(sessionId));
-});
-
-const reviewWorkspaceFiles = $derived.by((): ReviewWorkspaceFileItem[] => {
-	if (!reviewFilesState) {
-		return [];
-	}
-
-	return buildReviewWorkspaceFiles(reviewFilesState, reviewStatusByFilePath);
-});
-
-const reviewWorkspaceSelectedIndex = $derived.by(() =>
-	resolveReviewWorkspaceSelectedIndex(reviewWorkspaceFiles, reviewFileIndex)
-);
-
 // Track panelId changes for tab switching detection
 let lastPanelId = $state<string | undefined>(undefined);
 
@@ -901,7 +830,7 @@ $effect(() => {
 
 	if (!modifiedFilesState) return;
 
-	handleEnterReviewMode(modifiedFilesState);
+	onEnterReviewMode?.(modifiedFilesState, pendingFileIndex);
 });
 
 $effect(() => {
@@ -1772,33 +1701,66 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 		{/if}
 	{/snippet}
 
-	{#snippet topBar()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
-				<SharedPlanHeader
-					title={planState.plan.title}
-					isExpanded={showPlanSidebar}
-					expandLabel={m.plan_sidebar_expand()}
-					collapseLabel={m.plan_sidebar_collapse()}
-					onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
+	{#snippet reviewPane()}
+		{#if reviewFilesState}
+			<div
+				class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
+				style="min-width: {REVIEW_COLUMN_WIDTH}px; width: {REVIEW_COLUMN_WIDTH}px; max-width: {REVIEW_COLUMN_WIDTH}px; flex-basis: {REVIEW_COLUMN_WIDTH}px;"
+				style:display={reviewMode ? undefined : "none"}
+			>
+				<AgentPanelReviewContent
+					modifiedFilesState={reviewFilesState}
+					selectedFileIndex={reviewFileIndex}
+					{sessionId}
+					projectPath={sessionProjectPath}
+					isActive={reviewMode}
+					onClose={() => onExitReviewMode?.()}
+					onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
+					onExpandToFullscreen={sessionId && onOpenFullscreenReview
+						? () => onOpenFullscreenReview(sessionId, reviewFileIndex)
+						: undefined}
 				/>
-			{/if}
+			</div>
+		{/if}
+	{/snippet}
 
-			{#if planState.plan}
-				<PlanDialog
-					plan={planState.plan}
-					open={panelState.showPlanDialog}
-					onOpenChange={(open) => (panelState.showPlanDialog = open)}
-					projectPath={sessionProjectPath ?? undefined}
-				/>
-			{/if}
-		</div>
+	{#snippet topBar()}
+		{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
+			<SharedPlanHeader
+				title={planState.plan.title}
+				isExpanded={showPlanSidebar}
+				expandLabel={m.plan_sidebar_expand()}
+				collapseLabel={m.plan_sidebar_collapse()}
+				onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
+			/>
+		{/if}
+
+		{#if planState.plan}
+			<PlanDialog
+				plan={planState.plan}
+				open={panelState.showPlanDialog}
+				onOpenChange={(open) => (panelState.showPlanDialog = open)}
+				projectPath={sessionProjectPath ?? undefined}
+			/>
+		{/if}
 	{/snippet}
 
 	{#snippet body()}
-		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
-			{#if showCheckpointTimeline && sessionProjectPath && sessionId}
-				<CheckpointTimeline
+		{#if showCheckpointTimeline && sessionProjectPath && sessionId}
+			<CheckpointTimeline
+				{sessionId}
+				projectPath={sessionProjectPath}
+				{checkpoints}
+				isLoading={isLoadingCheckpoints}
+				onClose={handleCloseCheckpointTimeline}
+				onRevertComplete={handleCheckpointRevertComplete}
+			/>
+		{:else}
+			<div class="flex-1 min-h-0 mb-2">
+				<AgentPanelContent
+					bind:this={contentRef}
+					panelId={effectivePanelId}
+					{viewState}
 					{sessionId}
 					{sessionEntries}
 					sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
@@ -1819,93 +1781,41 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					turnState={sessionHotState?.turnState ?? "idle"}
 					isWaitingForResponse={runtimeState?.showThinking ?? false}
 				/>
-			{:else}
-				<div class="flex-1 min-h-0 mb-2">
-					<AgentPanelContent
-						bind:this={contentRef}
-						panelId={effectivePanelId}
-						{viewState}
-						{sessionId}
-						sessionEntries={visibleSessionEntries}
-						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
-						{allProjects}
-						bind:scrollContainer
-						bind:scrollViewport={contentScrollViewport}
-						bind:isAtBottom={contentIsAtBottom}
-						bind:isAtTop={contentIsAtTop}
-						bind:isStreaming={contentIsStreaming}
-						onProjectAgentSelected={handleProjectAgentSelected}
-						onRetryConnection={handleRetryConnection}
-						onCancelConnection={handleCancelConnection}
-						{agentIconSrc}
-						isFullscreen={centeredFullscreenContent}
-						{availableAgents}
-						{effectiveTheme}
-						{modifiedFilesState}
-						turnState={sessionHotState?.turnState ?? "idle"}
-						isWaitingForResponse={runtimeState?.showThinking ?? false}
-					/>
+			</div>
+			{#if viewState.kind === "conversation" && !contentIsAtTop}
+				<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+					<button
+						class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
+						onclick={scrollToTop}
+						aria-label={m.agent_panel_scroll_top()}
+					>
+						<ArrowUp class="h-4 w-4" />
+					</button>
 				</div>
-				{#if viewState.kind === "conversation" && !contentIsAtTop}
-					<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-						<button
-							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
-							onclick={scrollToTop}
-							aria-label={m.agent_panel_scroll_top()}
-						>
-							<ArrowUp class="h-4 w-4" />
-						</button>
-					</div>
-				{/if}
-				{#if viewState.kind === "conversation" && !contentIsAtBottom}
-					<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-						<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
-					</div>
-				{/if}
 			{/if}
-		</div>
-		{#if reviewMode && reviewFilesState}
-			<ReviewWorkspace
-				files={reviewWorkspaceFiles}
-				selectedFileIndex={reviewWorkspaceSelectedIndex}
-				onClose={() => onExitReviewMode?.()}
-				onFileSelect={(index) => onReviewFileIndexChange?.(index)}
-				headerLabel={m.modified_files_review_title()}
-				closeButtonLabel={m.modified_files_back_button()}
-				emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
-			>
-				{#snippet content()}
-					<AgentPanelReviewContent
-						modifiedFilesState={reviewFilesState}
-						selectedFileIndex={reviewWorkspaceSelectedIndex ?? 0}
-						{sessionId}
-						projectPath={sessionProjectPath}
-						isActive={reviewMode}
-						showHeader={false}
-						onClose={() => onExitReviewMode?.()}
-						onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
-					/>
-				{/snippet}
-			</ReviewWorkspace>
+			{#if viewState.kind === "conversation" && !contentIsAtBottom}
+				<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+					<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
+				</div>
+			{/if}
 		{/if}
 	{/snippet}
 
 	{#snippet preComposer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-				{#if worktreeDeleted}
-					<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
-						<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
-							<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-								<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
-								<span class="text-[0.6875rem] text-muted-foreground">
-									{m.worktree_deleted_banner()}
-								</span>
-							</div>
+		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+			{#if worktreeDeleted}
+				<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
+					<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
+						<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
+							<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+							<span class="text-[0.6875rem] text-muted-foreground">
+								{m.worktree_deleted_banner()}
+							</span>
 						</div>
 					</div>
-				{/if}
-				<div class="flex shrink-0 flex-col gap-0.5 pb-1">
+				</div>
+			{/if}
+			<div class="flex shrink-0 flex-col gap-0.5 pb-1">
 				<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 					<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
 						<div class="flex flex-col gap-0.5 px-5">
@@ -2031,7 +1941,10 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 								<ModifiedFilesHeader
 									{modifiedFilesState}
 									{sessionId}
-									onEnterReviewMode={handleEnterReviewMode}
+									{onEnterReviewMode}
+									onOpenFullscreenReview={onOpenFullscreenReview && sessionId
+										? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
+										: undefined}
 									onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
 									createPrLoading={createPrRunning}
 									{createPrLabel}
@@ -2103,20 +2016,18 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 						</div>
 					</div>
 				</div>
-				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	{/snippet}
 
 	{#snippet composer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-				<SharedAgentPanelComposerFrame
-					centered={centeredFullscreenContent}
-					widthClass="max-w-[60%]"
-				>
-					{#key inputRenderKey}
-						<AgentInput
+		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+			<SharedAgentPanelComposerFrame
+				centered={centeredFullscreenContent}
+				widthClass="max-w-[60%]"
+			>
+				{#key inputRenderKey}
+					<AgentInput
 						bind:this={agentInputRef}
 						sessionId={sessionId ?? undefined}
 						{sessionStatus}
@@ -2169,72 +2080,67 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 								</EmbeddedIconButton>
 							{/if}
 						{/snippet}
-						</AgentInput>
-					{/key}
-				</SharedAgentPanelComposerFrame>
-			{/if}
-		</div>
+					</AgentInput>
+				{/key}
+			</SharedAgentPanelComposerFrame>
+		{/if}
 	{/snippet}
 
 	{#snippet footer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if
-				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-				worktreeToggleProjectPath &&
-				panelId
-			}
-				<SharedFooter
-					showTrailingBorder={!isFullscreen}
-					browserActive={showBrowserSidebar}
-					browserTitle="Toggle browser"
-					browserAriaLabel="Toggle browser"
-					onToggleBrowser={() => {
-						if (panelId) {
-							panelStore.toggleBrowserSidebar(panelId);
-						}
-					}}
-					terminalActive={isTerminalDrawerOpen}
-					terminalDisabled={effectivePathForGit === null}
-					terminalTitle={effectivePathForGit !== null
-						? m.embedded_terminal_toggle_tooltip()
-						: m.embedded_terminal_no_cwd_tooltip()}
-					terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
-					onToggleTerminal={() => {
-						if (panelId && effectivePathForGit) {
-							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-						}
-					}}
-				>
-					{#snippet left()}
-						{#if footerWorktreeStatus}
-							<SharedWorktreeStatusDisplay
-								mode={footerWorktreeStatus.mode}
-								primaryLabel={footerWorktreeStatus.primaryLabel}
-								secondaryLabel={footerWorktreeStatus.secondaryLabel}
-							/>
-						{/if}
-					{/snippet}
-				</SharedFooter>
-			{/if}
-		</div>
+		{#if
+			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+			worktreeToggleProjectPath &&
+			panelId
+		}
+			<SharedFooter
+				showTrailingBorder={!isFullscreen}
+				browserActive={showBrowserSidebar}
+				browserTitle="Toggle browser"
+				browserAriaLabel="Toggle browser"
+				onToggleBrowser={() => {
+					if (panelId) {
+						panelStore.toggleBrowserSidebar(panelId);
+					}
+				}}
+				terminalActive={isTerminalDrawerOpen}
+				terminalDisabled={effectivePathForGit === null}
+				terminalTitle={effectivePathForGit !== null
+					? m.embedded_terminal_toggle_tooltip()
+					: m.embedded_terminal_no_cwd_tooltip()}
+				terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
+				onToggleTerminal={() => {
+					if (panelId && effectivePathForGit) {
+						panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+					}
+				}}
+			>
+				{#snippet left()}
+					{#if footerWorktreeStatus}
+						<SharedWorktreeStatusDisplay
+							mode={footerWorktreeStatus.mode}
+							primaryLabel={footerWorktreeStatus.primaryLabel}
+							secondaryLabel={footerWorktreeStatus.secondaryLabel}
+						/>
+					{/if}
+				{/snippet}
+			</SharedFooter>
+		{/if}
 	{/snippet}
 
 	{#snippet bottomDrawer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if
-				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-				isTerminalDrawerOpen &&
-				panelId &&
-				effectivePathForGit
-			}
-				<AgentPanelTerminalDrawer
-					{panelId}
-					effectiveCwd={effectivePathForGit}
-					embeddedTerminals={panelStore.embeddedTerminals}
-					onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
-				/>
-			{/if}
-		</div>
+		{#if
+			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+			isTerminalDrawerOpen &&
+			panelId &&
+			effectivePathForGit
+		}
+			<AgentPanelTerminalDrawer
+				{panelId}
+				effectiveCwd={effectivePathForGit}
+				embeddedTerminals={panelStore.embeddedTerminals}
+				onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
+			/>
+		{/if}
 	{/snippet}
 
 	{#snippet trailingPane()}

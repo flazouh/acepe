@@ -89,22 +89,6 @@ export function shouldAutoAdvanceAfterFileResolution(counters: FileReviewCounter
 }
 
 /**
- * Returns the next file whose review status is not accepted.
- * Undefined entries are treated as unreviewed.
- */
-export function nextUnacceptedFileIndex(
-	currentIndex: number,
-	fileStatuses: ReadonlyArray<FileReviewStatus | undefined>
-): number | null {
-	for (let i = currentIndex + 1; i < fileStatuses.length; i += 1) {
-		if (fileStatuses[i] !== "accepted") {
-			return i;
-		}
-	}
-	return null;
-}
-
-/**
  * Returns the immediate next file index, or null when current is the last file.
  */
 export function nextSequentialFileIndex(currentIndex: number, totalFiles: number): number | null {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const setThinkingBlockCollapsedByDefaultMock = vi.fn();
 const setStreamingAnimationModeMock = vi.fn();
 const setPreferInlineMock = vi.fn();
+const setPreferFullscreenMock = vi.fn();
 
 const chatPrefs = {
 	thinkingBlockCollapsedByDefault: false,
@@ -16,6 +17,11 @@ const chatPrefs = {
 const planPrefs = {
 	preferInline: true,
 	setPreferInline: setPreferInlineMock,
+};
+
+const reviewPreferenceStore = {
+	preferFullscreen: false,
+	setPreferFullscreen: setPreferFullscreenMock,
 };
 
 vi.mock("svelte", async () => {
@@ -38,6 +44,10 @@ vi.mock("$lib/acp/store/plan-preference-store.svelte.js", () => ({
 	getPlanPreferenceStore: () => planPrefs,
 }));
 
+vi.mock("$lib/acp/store/review-preference-store.svelte.js", () => ({
+	getReviewPreferenceStore: () => reviewPreferenceStore,
+}));
+
 import ChatSection from "./chat-section.svelte";
 
 describe("ChatSection", () => {
@@ -45,9 +55,11 @@ describe("ChatSection", () => {
 		setThinkingBlockCollapsedByDefaultMock.mockReset();
 		setStreamingAnimationModeMock.mockReset();
 		setPreferInlineMock.mockReset();
+		setPreferFullscreenMock.mockReset();
 		chatPrefs.thinkingBlockCollapsedByDefault = false;
 		chatPrefs.streamingAnimationMode = "classic";
 		planPrefs.preferInline = true;
+		reviewPreferenceStore.preferFullscreen = false;
 	});
 
 	it("renders streaming animation trigger with current mode label and description", () => {
