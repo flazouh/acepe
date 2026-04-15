@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Claude Sonnet sessions now request Claude's 1M context variant via the runtime model ID where supported, while Opus and Haiku continue using their standard context windows
+- Acepe now resolves Claude exclusively through its managed Claude install, and outdated managed installs trigger the existing repair flow instead of falling back to `claude` or `claude-code` on PATH
+
+### Fixed
+- Changing the Claude model before the first prompt now rebuilds deferred cc-sdk launch options so the first live turn uses the newly selected model
+
 ## [2026.4.14] - 2026-04-14
 
 ### Added

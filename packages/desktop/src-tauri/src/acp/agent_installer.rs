@@ -482,7 +482,7 @@ async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBu
         agent_id,
         "downloading",
         Some(0.0),
-        "Resolving Claude CLI...",
+        "Preparing Acepe-managed Claude install...",
     );
 
     let app_handle = app.clone();
@@ -499,13 +499,16 @@ async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBu
                 (
                     Some(0.05 + progress * 0.90),
                     format!(
-                        "Downloading Claude CLI... {:.1} MB / {:.1} MB",
+                        "Downloading Acepe-managed Claude CLI... {:.1} MB / {:.1} MB",
                         downloaded as f64 / 1_048_576.0,
                         total_bytes as f64 / 1_048_576.0
                     ),
                 )
             } else {
-                (Some(0.5), "Downloading Claude CLI...".to_string())
+                (
+                    Some(0.5),
+                    "Downloading Acepe-managed Claude CLI...".to_string(),
+                )
             };
 
             emit_progress(
@@ -520,7 +523,13 @@ async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBu
     .await
     .map_err(|error| AcpError::InvalidState(format!("Failed to install Claude CLI: {}", error)))?;
 
-    emit_progress(app, agent_id, "complete", Some(1.0), "Installed");
+    emit_progress(
+        app,
+        agent_id,
+        "complete",
+        Some(1.0),
+        "Acepe-managed Claude ready",
+    );
     Ok(path)
 }
 
