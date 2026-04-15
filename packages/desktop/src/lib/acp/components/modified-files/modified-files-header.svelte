@@ -9,16 +9,13 @@ import {
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ArrowsOut } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
-import { FileCode } from "phosphor-svelte";
 import { GitMerge } from "phosphor-svelte";
 import { GitPullRequest } from "phosphor-svelte";
 import { NotePencil } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
-import { SidebarSimple } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as m from "$lib/messages.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -28,7 +25,6 @@ import type { Model } from "../../application/dto/model.js";
 import { getAgentIcon } from "../../constants/thread-list-constants.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
-import { getReviewPreferenceStore } from "../../store/review-preference-store.svelte.js";
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
@@ -69,8 +65,6 @@ interface Props {
 	sessionId?: string | null;
 	/** Called when Review button is clicked - enters panel review mode */
 	onEnterReviewMode?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
-	/** Optional: when provided, shows expand icon to open full-screen review overlay */
-	onOpenFullscreenReview?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Optional: when provided, shows Create PR pill button */
 	onCreatePr?: (config?: PrGenerationConfig) => void;
 	/** Disables the Create PR button when true (e.g. while request in flight) */
@@ -97,7 +91,6 @@ let {
 	modifiedFilesState,
 	sessionId = null,
 	onEnterReviewMode,
-	onOpenFullscreenReview,
 	onCreatePr,
 	createPrLoading = false,
 	createPrLabel = null,
@@ -109,9 +102,6 @@ let {
 	currentModelId = null,
 	effectiveTheme = "dark",
 }: Props = $props();
-
-// Get review preference store at component initialization (not in handlers)
-const reviewPreferenceStore = getReviewPreferenceStore();
 
 let hasPromptDraft = $state(false);
 let promptDraft = $state("");
@@ -252,28 +242,10 @@ const canKeepAll = $derived.by(() => {
 
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	reviewLabel: m.modified_files_review_button(),
-	reviewOptions: [
-		{
-			id: "panel",
-			label: m.modified_files_review_panel(),
-			kind: "panel",
-			onSelect: () => {
-				void reviewPreferenceStore.setPreferFullscreen(false);
-				if (modifiedFilesState) onEnterReviewMode?.(modifiedFilesState, 0);
-			},
-		},
-		{
-			id: "fullscreen",
-			label: m.modified_files_review_fullscreen(),
-			kind: "fullscreen",
-			onSelect: () => {
-				void reviewPreferenceStore.setPreferFullscreen(true);
-				if (modifiedFilesState) onOpenFullscreenReview?.(modifiedFilesState, 0);
-			},
-		},
-	],
 	onReview: () => {
-		handleReviewButtonClick(0);
+		if (modifiedFilesState) {
+			onEnterReviewMode?.(modifiedFilesState, 0);
+		}
 	},
 	keepState: isKeepAllApplied ? "applied" : canKeepAll ? "enabled" : "disabled",
 	keepLabel: m.review_keep(),
@@ -287,16 +259,6 @@ $effect(() => {
 	if (!sessionId) return;
 	sessionReviewStateStore.ensureLoaded(sessionId);
 });
-
-function handleReviewButtonClick(fileIndex: number): void {
-	if (!modifiedFilesState) return;
-	const preferFullscreen = reviewPreferenceStore.preferFullscreen;
-	if (preferFullscreen && onOpenFullscreenReview) {
-		onOpenFullscreenReview(modifiedFilesState, fileIndex);
-	} else {
-		onEnterReviewMode?.(modifiedFilesState, fileIndex);
-	}
-}
 
 function handleCreatePrClick(): void {
 	if (!onCreatePr) return;
@@ -425,7 +387,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 						additions: file.totalAdded,
 						deletions: file.totalRemoved,
 						onSelect: () => {
-							handleReviewButtonClick(index);
+							onEnterReviewMode?.(modifiedFilesState, index);
 						},
 					}}
 				/>

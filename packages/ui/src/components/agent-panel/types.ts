@@ -379,16 +379,46 @@ export interface AgentPanelModifiedFileItem {
 	onSelect?: () => void;
 }
 
-export interface AgentPanelModifiedFilesReviewOption {
-	id: string;
-	label: string;
-	kind?: "panel" | "fullscreen";
-	onSelect?: () => void;
+export type ReviewWorkspaceFileItem = AgentPanelModifiedFileItem;
+
+export function getReviewWorkspaceDefaultIndex(
+	files: readonly ReviewWorkspaceFileItem[]
+): number | null {
+	if (files.length === 0) {
+		return null;
+	}
+
+	for (let index = 0; index < files.length; index += 1) {
+		const reviewStatus = files[index].reviewStatus ?? "unreviewed";
+		if (reviewStatus !== "accepted") {
+			return index;
+		}
+	}
+
+	return 0;
+}
+
+export function resolveReviewWorkspaceSelectedIndex(
+	files: readonly ReviewWorkspaceFileItem[],
+	selectedIndex?: number | null
+): number | null {
+	if (files.length === 0) {
+		return null;
+	}
+
+	if (selectedIndex === undefined || selectedIndex === null) {
+		return getReviewWorkspaceDefaultIndex(files);
+	}
+
+	if (selectedIndex < 0 || selectedIndex >= files.length) {
+		return getReviewWorkspaceDefaultIndex(files);
+	}
+
+	return selectedIndex;
 }
 
 export interface AgentPanelModifiedFilesTrailingModel {
 	reviewLabel: string;
-	reviewOptions: readonly AgentPanelModifiedFilesReviewOption[];
 	onReview?: () => void;
 	keepState: "enabled" | "disabled" | "applied";
 	keepLabel: string;

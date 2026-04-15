@@ -1942,9 +1942,6 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									{modifiedFilesState}
 									{sessionId}
 									{onEnterReviewMode}
-									onOpenFullscreenReview={onOpenFullscreenReview && sessionId
-										? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
-										: undefined}
 									onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
 									createPrLoading={createPrRunning}
 									{createPrLabel}
