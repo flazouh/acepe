@@ -40,6 +40,20 @@ describe("review-workspace selection helpers", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(createFiles(), null)).toBe(1);
 	});
 
+	it("falls back to the first file when every file is already accepted", () => {
+		const files = createFiles().map((file) => ({
+			id: file.id,
+			filePath: file.filePath,
+			fileName: file.fileName,
+			reviewStatus: "accepted" as const,
+			additions: file.additions,
+			deletions: file.deletions,
+		}));
+
+		expect(getReviewWorkspaceDefaultIndex(files)).toBe(0);
+		expect(resolveReviewWorkspaceSelectedIndex(files, null)).toBe(0);
+	});
+
 	it("keeps an explicit valid selection", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(createFiles(), 0)).toBe(0);
 	});

@@ -303,9 +303,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							onExitReviewMode={() => panelStore.exitReviewMode(fullscreenPanelSnapshot.panelId)}
 							onReviewFileIndexChange={(index) =>
 								panelStore.setReviewFileIndex(fullscreenPanelSnapshot.panelId, index)}
-							onOpenFullscreenReview={fullscreenPanelSnapshot.sessionId
-								? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
-								: undefined}
 							attachedFilePanels={panelStore.getAttachedFilePanels(fullscreenPanelSnapshot.panelId)}
 							activeAttachedFilePanelId={panelStore.getActiveFilePanelId(
 								fullscreenPanelSnapshot.panelId
@@ -503,9 +500,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 										panelStore.enterReviewMode(panel.id, modifiedFilesState, initialFileIndex)}
 									onExitReviewMode={() => panelStore.exitReviewMode(panel.id)}
 									onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panel.id, index)}
-									onOpenFullscreenReview={panel.sessionId
-										? (sessionId, fileIndex) => state.openReviewFullscreen(sessionId, fileIndex)
-										: undefined}
 									attachedFilePanels={panelStore.getAttachedFilePanels(panel.id)}
 									activeAttachedFilePanelId={panelStore.getActiveFilePanelId(panel.id)}
 									onSelectAttachedFilePanel={(ownerPanelId, panelId) =>

@@ -5,6 +5,7 @@ import {
 	isPendingFile,
 	nextPendingFileIndex,
 	nextSequentialFileIndex,
+	nextUnacceptedFileIndex,
 	type PerFileReviewState,
 	prevPendingFileIndex,
 	prevSequentialFileIndex,
@@ -174,6 +175,20 @@ describe("shouldAutoAdvanceAfterFileResolution", () => {
 				totalHunks: 0,
 			})
 		).toBe(false);
+	});
+});
+
+describe("nextUnacceptedFileIndex", () => {
+	it("returns the next file that is not accepted", () => {
+		expect(nextUnacceptedFileIndex(0, ["accepted", "accepted", "partial"])).toBe(2);
+	});
+
+	it("treats undefined entries as unreviewed", () => {
+		expect(nextUnacceptedFileIndex(0, ["accepted", undefined, "accepted"])).toBe(1);
+	});
+
+	it("returns null when all later files are accepted", () => {
+		expect(nextUnacceptedFileIndex(1, ["partial", "accepted", "accepted"])).toBeNull();
 	});
 });
 

@@ -14,7 +14,6 @@
 		ondragstart?: ((event: DragEvent) => void) | undefined;
 		header: Snippet;
 		leadingPane?: Snippet;
-		reviewPane?: Snippet;
 		topBar?: Snippet;
 		body: Snippet;
 		preComposer?: Snippet;
@@ -36,7 +35,6 @@
 		ondragstart,
 		header,
 		leadingPane,
-		reviewPane,
 		topBar,
 		body,
 		preComposer,
@@ -64,12 +62,6 @@
 	{#if leadingPane}
 		{#snippet leadingPane()}
 			{@render leadingPane()}
-		{/snippet}
-	{/if}
-
-	{#if reviewPane}
-		{#snippet reviewPane()}
-			{@render reviewPane()}
 		{/snippet}
 	{/if}
 
