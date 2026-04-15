@@ -52,7 +52,7 @@
 <div>
 	<div class="flex items-start gap-1.5">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5">
-			<div class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+			<div class="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
 				<!-- Status label with shimmer when pending -->
 				<ToolLabel {status}>
 					{#if isPending}

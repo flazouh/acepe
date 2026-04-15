@@ -279,6 +279,6 @@ $effect(() => {
 	.thinking-content,
 	.thinking-content :global(.markdown-content),
 	.thinking-content :global(.markdown-content *) {
-		font-size: 12px !important;
+		font-size: 14px !important;
 	}
 </style>

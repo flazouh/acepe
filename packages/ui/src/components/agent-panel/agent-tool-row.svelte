@@ -9,6 +9,7 @@
 		filePath?: string;
 		status?: AgentToolStatus;
 		durationLabel?: string;
+		padded?: boolean;
 		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
 		/** Tool kind (e.g. "edit", "think") for styling or analytics; optional. */
@@ -21,15 +22,16 @@
 		filePath,
 		status = "done",
 		durationLabel,
+		padded = false,
 		iconBasePath = "",
 	}: Props = $props();
 
 	const fileName = $derived(filePath ? (filePath.split("/").pop() || filePath) : null);
 </script>
 
-<div class="flex items-start gap-1.5 px-2">
+<div class="flex items-start gap-1.5 {padded ? 'px-2' : ''}">
 	<div class="flex min-w-0 flex-1 items-center gap-1.5">
-		<div class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+		<div class="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
 			<!-- Title -->
 			<ToolLabel {status}>{title}</ToolLabel>
 

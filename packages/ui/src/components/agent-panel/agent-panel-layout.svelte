@@ -146,6 +146,7 @@
 							subtitle={entry.subtitle}
 							filePath={entry.filePath}
 							status={entry.status}
+							padded={true}
 							{iconBasePath}
 						/>
 					{/if}

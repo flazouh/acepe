@@ -77,35 +77,39 @@
 <!-- No card: when streaming show content; when done show summary only, click to expand -->
 <div class="flex min-w-0 flex-1 flex-col">
 	<!-- Header: label + query/count/duration; whole row clickable when done to expand -->
-	<button
-		type="button"
-		class="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
-		onclick={() => { isCollapsed = !isCollapsed; }}
-		aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
-	>
-		<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-			<ToolLabel {status}>{headerLabel}</ToolLabel>
-			{#if query}
-				<code class="min-w-0 max-w-[200px] truncate rounded bg-muted px-1 py-px font-mono text-[10px] text-foreground" title={query}>
-					{query}
-				</code>
-				{#if resultText}
-					<span class="text-muted-foreground/80">·</span>
-					<span class="font-mono text-[10px] text-muted-foreground/80">{resultText}</span>
+	<div class="flex items-start gap-1.5">
+		<button
+			type="button"
+			class="flex min-w-0 flex-1 cursor-pointer items-start justify-between gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
+			onclick={() => { isCollapsed = !isCollapsed; }}
+			aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
+		>
+			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
+				<ToolLabel {status}>{headerLabel}</ToolLabel>
+				{#if query}
+					<code class="min-w-0 max-w-[200px] truncate rounded bg-muted px-1 py-px font-mono text-[10px] text-foreground" title={query}>
+						{query}
+					</code>
+					{#if resultText}
+						<span class="text-muted-foreground/80">·</span>
+						<span class="font-mono text-[10px] text-muted-foreground/80">{resultText}</span>
+					{/if}
 				{/if}
-			{/if}
-			{#if durationLabel}
-				<span class="shrink-0 font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
-			{/if}
-		</div>
-		{#if hasFiles}
-			<CaretRight
-				size={10}
-				weight="bold"
-				class="shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
-			/>
-		{/if}
-	</button>
+			</div>
+			<div class="flex shrink-0 items-center gap-2">
+				{#if durationLabel}
+					<span class="pt-0.5 font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+				{/if}
+				{#if hasFiles}
+					<CaretRight
+						size={10}
+						weight="bold"
+						class="shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+					/>
+				{/if}
+			</div>
+		</button>
+	</div>
 
 	<!-- Body: file list only when expanded (or when streaming) -->
 	{#if !isCollapsed && hasFiles}
@@ -139,4 +143,3 @@
 		</div>
 	{/if}
 </div>
-

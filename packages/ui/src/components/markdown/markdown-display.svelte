@@ -9,16 +9,18 @@
 
 	import "./markdown-prose.css";
 
-	interface Props {
-		content: string;
-		class?: string;
-		scrollable?: boolean;
-		/** Custom error message. Defaults to "Error rendering markdown" */
-		errorMessage?: (error: string) => string;
-		/**
-		 * Base path for file type SVG icons (e.g. "/svgs/icons").
-		 * Empty string (default) falls back to extension-colored dots.
-		 */
+interface Props {
+	content: string;
+	class?: string;
+	scrollable?: boolean;
+	/** Text size class for the markdown content (e.g. "text-sm", "text-xs"). Defaults to "text-sm". */
+	textSize?: string;
+	/** Custom error message. Defaults to "Error rendering markdown" */
+	errorMessage?: (error: string) => string;
+	/**
+	 * Base path for file type SVG icons (e.g. "/svgs/icons").
+	 * Empty string (default) falls back to extension-colored dots.
+	 */
 		iconBasePath?: string;
 	}
 
@@ -28,6 +30,7 @@
 		scrollable = false,
 		errorMessage,
 		iconBasePath = getIconBasePath(),
+		textSize = "text-sm",
 	}: Props = $props();
 
 	const api = $derived(getMarkdownRenderApi());
@@ -158,16 +161,16 @@
 			<p class="whitespace-pre-wrap mt-2">{content}</p>
 		</div>
 	{:else if html}
-		<div bind:this={containerRef} class="markdown-content min-w-0 max-w-full p-6 text-sm leading-relaxed text-foreground">
+		<div bind:this={containerRef} class="markdown-content min-w-0 max-w-full p-6 {textSize} leading-relaxed text-foreground">
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			{@html html}
 		</div>
 	{:else if isLoading}
-		<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap leading-relaxed p-6">
+		<div class="markdown-loading {textSize} text-foreground whitespace-pre-wrap leading-relaxed p-6">
 			{content}
 		</div>
 	{:else}
-		<p class="text-sm text-foreground whitespace-pre-wrap leading-relaxed p-6">
+		<p class="{textSize} text-foreground whitespace-pre-wrap leading-relaxed p-6">
 			{content}
 		</p>
 	{/if}

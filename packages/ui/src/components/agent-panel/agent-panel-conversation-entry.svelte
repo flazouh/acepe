@@ -44,9 +44,7 @@
 {:else if entry.type === "assistant"}
 	<AgentAssistantMessage markdown={entry.markdown} isStreaming={entry.isStreaming} {iconBasePath} />
 {:else if entry.type === "thinking"}
-	<div class="py-2 text-sm text-muted-foreground">
-		<TextShimmer>Planning next moves…</TextShimmer>
-	</div>
+	<AgentToolRow title={getPlanningPlaceholderLabel(entry.durationMs)} status="running" padded={false} />
 {:else if isToolCall(entry) && entry.todos && entry.todos.length > 0}
 	<AgentToolTodo todos={entry.todos} isLive={entry.status === "running"} />
 {:else if isToolCall(entry) && entry.question}
@@ -134,6 +132,7 @@
 		filePath={entry.filePath}
 		status={entry.status}
 		kind={entry.kind}
+		padded={true}
 		{iconBasePath}
 	/>
 {/if}

@@ -188,6 +188,7 @@
 				filePath={lastToolCall.filePath}
 				status={lastToolCall.status}
 				kind={lastToolCall.kind}
+				padded={true}
 				{iconBasePath}
 			/>
 		</div>

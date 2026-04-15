@@ -19,6 +19,6 @@
 			<TextShimmer>Planning next moves…</TextShimmer>
 		</div>
 	{:else}
-		<MarkdownDisplay content={markdown} {iconBasePath} />
+		<MarkdownDisplay content={markdown} textSize="text-sm" {iconBasePath} />
 	{/if}
 </div>

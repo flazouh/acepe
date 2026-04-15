@@ -16,7 +16,7 @@
 	const isPending = $derived(status === "pending" || status === "running");
 </script>
 
-<span class="shrink-0 text-xs font-normal tracking-normal text-muted-foreground">
+<span class="shrink-0 text-sm font-normal tracking-normal text-muted-foreground">
 	{#if isPending}
 		<TextShimmer>
 			{@render children()}
