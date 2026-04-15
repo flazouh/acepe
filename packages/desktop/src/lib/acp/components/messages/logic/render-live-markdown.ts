@@ -145,6 +145,11 @@ function renderList(markdown: string): string {
 	const lines = markdown.split("\n");
 	const isOrdered = ORDERED_LIST_PREFIX_PATTERN.test(lines[0]);
 	const tagName = isOrdered ? "ol" : "ul";
+	const orderedListStartMatch = isOrdered ? /^\s*(\d+)\.\s+/.exec(lines[0]) : null;
+	const startAttribute =
+		orderedListStartMatch !== null && orderedListStartMatch[1] !== "1"
+			? ` start="${escapeHtml(orderedListStartMatch[1])}"`
+			: "";
 	const itemsHtml = lines
 		.map((line) => {
 			const itemText = isOrdered
@@ -153,7 +158,7 @@ function renderList(markdown: string): string {
 			return `<li>${renderInlineMarkdown(itemText)}</li>`;
 		})
 		.join("");
-	return `<${tagName}>${itemsHtml}</${tagName}>`;
+	return `<${tagName}${startAttribute}>${itemsHtml}</${tagName}>`;
 }
 
 function renderPresentation(markdown: string, presentation: LiveMarkdownPresentation): string | null {

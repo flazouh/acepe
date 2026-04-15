@@ -40,6 +40,29 @@ describe("parseStreamingTail", () => {
 		});
 	});
 
+	it("splits safe mixed blocks in the live tail instead of flattening them", () => {
+		expect(parseStreamingTail("# Title\nBody")).toEqual({
+			sections: [
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "# Title",
+					markdown: "# Title",
+					presentation: "heading",
+					source: "# Title",
+				},
+				{
+					key: "LIVE:1",
+					kind: "live-markdown",
+					text: "Body",
+					markdown: "Body",
+					presentation: "paragraph",
+					source: "Body",
+				},
+			],
+		});
+	});
+
 	it("returns only settled sections when trailing blank lines flush the final buffer", () => {
 		expect(parseStreamingTail("# Title\n\n")).toEqual({
 			sections: [{ key: "SETTLED:0", kind: "settled", markdown: "# Title" }],
@@ -102,6 +125,30 @@ describe("parseStreamingTail", () => {
 			},
 		]);
 		expect(next.sections[0]).toBe(previous.sections[0]);
+	});
+
+	it("keeps an already-revealed heading stable when body text begins underneath it", () => {
+		const previous = parseStreamingTail("# Title");
+		const next = parseStreamingTailIncremental("# Title", previous, "# Title\nBody");
+
+		expect(next.sections).toEqual([
+			{
+				key: "LIVE:0",
+				kind: "live-markdown",
+				text: "# Title",
+				markdown: "# Title",
+				presentation: "heading",
+				source: "# Title",
+			},
+			{
+				key: "LIVE:1",
+				kind: "live-markdown",
+				text: "Body",
+				markdown: "Body",
+				presentation: "paragraph",
+				source: "Body",
+			},
+		]);
 	});
 
 	it("reparses only the previous live tail when reveal growth creates a new block", () => {

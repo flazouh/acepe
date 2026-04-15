@@ -126,6 +126,98 @@ function parseFenceLanguage(line: string): string | null {
 	return language && language.length > 0 ? language : null;
 }
 
+function isHeadingLine(line: string): boolean {
+	return /^#{1,6}\s+\S/.test(line);
+}
+
+function isBlockquoteLine(line: string): boolean {
+	return /^\s*>\s?.+/.test(line);
+}
+
+function getListMarkerFamily(line: string): "ordered" | "unordered" | null {
+	if (/^\s*[-*+]\s+(?!\[[ xX]\])\S/.test(line)) {
+		return "unordered";
+	}
+
+	if (/^\s*\d+\.\s+\S/.test(line)) {
+		return "ordered";
+	}
+
+	return null;
+}
+
+function createLiveTextOrMarkdownSection(index: number, text: string): StreamingTailSection {
+	const promotion = promoteLiveMarkdownText(text);
+	if (promotion === null) {
+		return createLiveTextSection(index, text);
+	}
+
+	return createLiveMarkdownSection(index, text, promotion.markdown, promotion.presentation, text);
+}
+
+function parseLiveMarkdownSections(buffer: string[], startIndex: number): StreamingTailSection[] {
+	const sections: StreamingTailSection[] = [];
+	let sectionIndex = startIndex;
+	let lineIndex = 0;
+
+	while (lineIndex < buffer.length) {
+		const currentLine = buffer[lineIndex];
+		if (isHeadingLine(currentLine)) {
+			sections.push(createLiveTextOrMarkdownSection(sectionIndex, currentLine));
+			sectionIndex += 1;
+			lineIndex += 1;
+			continue;
+		}
+
+		if (isBlockquoteLine(currentLine)) {
+			let nextIndex = lineIndex + 1;
+			while (nextIndex < buffer.length && isBlockquoteLine(buffer[nextIndex])) {
+				nextIndex += 1;
+			}
+
+			sections.push(
+				createLiveTextOrMarkdownSection(sectionIndex, buffer.slice(lineIndex, nextIndex).join("\n"))
+			);
+			sectionIndex += 1;
+			lineIndex = nextIndex;
+			continue;
+		}
+
+		const listMarkerFamily = getListMarkerFamily(currentLine);
+		if (listMarkerFamily !== null) {
+			let nextIndex = lineIndex + 1;
+			while (nextIndex < buffer.length && getListMarkerFamily(buffer[nextIndex]) === listMarkerFamily) {
+				nextIndex += 1;
+			}
+
+			sections.push(
+				createLiveTextOrMarkdownSection(sectionIndex, buffer.slice(lineIndex, nextIndex).join("\n"))
+			);
+			sectionIndex += 1;
+			lineIndex = nextIndex;
+			continue;
+		}
+
+		let nextIndex = lineIndex + 1;
+		while (
+			nextIndex < buffer.length &&
+			!isHeadingLine(buffer[nextIndex]) &&
+			!isBlockquoteLine(buffer[nextIndex]) &&
+			getListMarkerFamily(buffer[nextIndex]) === null
+		) {
+			nextIndex += 1;
+		}
+
+		sections.push(
+			createLiveTextOrMarkdownSection(sectionIndex, buffer.slice(lineIndex, nextIndex).join("\n"))
+		);
+		sectionIndex += 1;
+		lineIndex = nextIndex;
+	}
+
+	return sections;
+}
+
 export function parseStreamingTail(text: string): StreamingTailParseResult {
 	if (text.length === 0) {
 		return { sections: [] };
@@ -193,22 +285,9 @@ export function parseStreamingTail(text: string): StreamingTailParseResult {
 		return { sections };
 	}
 
-	const liveText = buffer.join("\n");
-	const promotion = promoteLiveMarkdownText(liveText);
-	if (promotion) {
-		sections.push(
-			createLiveMarkdownSection(
-				blockIndex,
-				liveText,
-				promotion.markdown,
-				promotion.presentation,
-				liveText
-			)
-		);
-		return { sections };
+	for (const section of parseLiveMarkdownSections(buffer, blockIndex)) {
+		sections.push(section);
 	}
-
-	sections.push(createLiveTextSection(blockIndex, liveText));
 	return { sections };
 }
 

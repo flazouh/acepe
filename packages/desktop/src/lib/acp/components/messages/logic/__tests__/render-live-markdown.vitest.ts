@@ -55,6 +55,32 @@ describe("renderLiveMarkdownSection", () => {
 		expect(result.html).not.toContain("<a");
 	});
 
+	it("preserves non-1 ordered list starts during reveal", () => {
+		const result = renderLiveMarkdownSection(
+			{
+				key: "LIVE:0",
+				kind: "live-markdown",
+				text: "3. third\n4. fourth",
+				markdown: "3. third\n4. fourth",
+				presentation: "list",
+				source: "3. third\n4. fourth",
+			},
+			{
+				nowMs: (() => {
+					let tick = 15;
+					return () => {
+						tick += 1;
+						return tick;
+					};
+				})(),
+			}
+		);
+
+		expect(result.html).toContain('<ol start="3">');
+		expect(result.html).toContain("<li>third</li>");
+		expect(result.html).toContain("<li>fourth</li>");
+	});
+
 	it("renders a settled fenced code block without using the final renderer", () => {
 		const result = renderLiveMarkdownSection(
 			{

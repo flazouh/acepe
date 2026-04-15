@@ -441,6 +441,29 @@ describe("MarkdownText", () => {
 		expect(mountGitHubBadgesMock).not.toHaveBeenCalled();
 	});
 
+	it("renders a live heading and following paragraph as separate reveal-safe blocks", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "# Title\nBody",
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"] h1')?.textContent).toBe(
+			"Title"
+		);
+		expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent).toBe(
+			"Body"
+		);
+	});
+
 	it("reveals streaming text over animation frames instead of immediate raw bursts", async () => {
 		renderMarkdownSyncMock.mockImplementation((text) => ({
 			html: `<p>${text}</p>`,
