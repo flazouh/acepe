@@ -328,7 +328,21 @@ fn combine_user_blocks(chunks: &[StoredContentBlock]) -> StoredContentBlock {
 }
 
 fn merge_replay_tool_arguments(current: ToolArguments, incoming: ToolArguments) -> ToolArguments {
+    fn merge_optional<T>(current: Option<T>, incoming: Option<T>) -> Option<T> {
+        incoming.or(current)
+    }
+
     match (current, incoming) {
+        (
+            ToolArguments::Read {
+                file_path: current_file_path,
+            },
+            ToolArguments::Read {
+                file_path: incoming_file_path,
+            },
+        ) => ToolArguments::Read {
+            file_path: merge_optional(current_file_path, incoming_file_path),
+        },
         (
             ToolArguments::Edit {
                 edits: current_edits,
@@ -338,6 +352,142 @@ fn merge_replay_tool_arguments(current: ToolArguments, incoming: ToolArguments) 
             },
         ) => ToolArguments::Edit {
             edits: merge_replay_edit_entries(current_edits, incoming_edits),
+        },
+        (
+            ToolArguments::Execute {
+                command: current_command,
+            },
+            ToolArguments::Execute {
+                command: incoming_command,
+            },
+        ) => ToolArguments::Execute {
+            command: merge_optional(current_command, incoming_command),
+        },
+        (
+            ToolArguments::Search {
+                query: current_query,
+                file_path: current_file_path,
+            },
+            ToolArguments::Search {
+                query: incoming_query,
+                file_path: incoming_file_path,
+            },
+        ) => ToolArguments::Search {
+            query: merge_optional(current_query, incoming_query),
+            file_path: merge_optional(current_file_path, incoming_file_path),
+        },
+        (
+            ToolArguments::Glob {
+                pattern: current_pattern,
+                path: current_path,
+            },
+            ToolArguments::Glob {
+                pattern: incoming_pattern,
+                path: incoming_path,
+            },
+        ) => ToolArguments::Glob {
+            pattern: merge_optional(current_pattern, incoming_pattern),
+            path: merge_optional(current_path, incoming_path),
+        },
+        (ToolArguments::Fetch { url: current_url }, ToolArguments::Fetch { url: incoming_url }) => {
+            ToolArguments::Fetch {
+                url: merge_optional(current_url, incoming_url),
+            }
+        }
+        (
+            ToolArguments::WebSearch {
+                query: current_query,
+            },
+            ToolArguments::WebSearch {
+                query: incoming_query,
+            },
+        ) => ToolArguments::WebSearch {
+            query: merge_optional(current_query, incoming_query),
+        },
+        (
+            ToolArguments::Think {
+                description: current_description,
+                prompt: current_prompt,
+                subagent_type: current_subagent_type,
+                skill: current_skill,
+                skill_args: current_skill_args,
+                raw: current_raw,
+            },
+            ToolArguments::Think {
+                description: incoming_description,
+                prompt: incoming_prompt,
+                subagent_type: incoming_subagent_type,
+                skill: incoming_skill,
+                skill_args: incoming_skill_args,
+                raw: incoming_raw,
+            },
+        ) => ToolArguments::Think {
+            description: merge_optional(current_description, incoming_description),
+            prompt: merge_optional(current_prompt, incoming_prompt),
+            subagent_type: merge_optional(current_subagent_type, incoming_subagent_type),
+            skill: merge_optional(current_skill, incoming_skill),
+            skill_args: merge_optional(current_skill_args, incoming_skill_args),
+            raw: merge_optional(current_raw, incoming_raw),
+        },
+        (
+            ToolArguments::TaskOutput {
+                task_id: current_task_id,
+                timeout: current_timeout,
+            },
+            ToolArguments::TaskOutput {
+                task_id: incoming_task_id,
+                timeout: incoming_timeout,
+            },
+        ) => ToolArguments::TaskOutput {
+            task_id: merge_optional(current_task_id, incoming_task_id),
+            timeout: merge_optional(current_timeout, incoming_timeout),
+        },
+        (
+            ToolArguments::Move {
+                from: current_from,
+                to: current_to,
+            },
+            ToolArguments::Move {
+                from: incoming_from,
+                to: incoming_to,
+            },
+        ) => ToolArguments::Move {
+            from: merge_optional(current_from, incoming_from),
+            to: merge_optional(current_to, incoming_to),
+        },
+        (
+            ToolArguments::Delete {
+                file_path: current_file_path,
+                file_paths: current_file_paths,
+            },
+            ToolArguments::Delete {
+                file_path: incoming_file_path,
+                file_paths: incoming_file_paths,
+            },
+        ) => ToolArguments::Delete {
+            file_path: merge_optional(current_file_path, incoming_file_path),
+            file_paths: merge_optional(current_file_paths, incoming_file_paths),
+        },
+        (
+            ToolArguments::PlanMode { mode: current_mode },
+            ToolArguments::PlanMode {
+                mode: incoming_mode,
+            },
+        ) => ToolArguments::PlanMode {
+            mode: merge_optional(current_mode, incoming_mode),
+        },
+        (
+            ToolArguments::ToolSearch {
+                query: current_query,
+                max_results: current_max_results,
+            },
+            ToolArguments::ToolSearch {
+                query: incoming_query,
+                max_results: incoming_max_results,
+            },
+        ) => ToolArguments::ToolSearch {
+            query: merge_optional(current_query, incoming_query),
+            max_results: merge_optional(current_max_results, incoming_max_results),
         },
         (_, incoming_arguments) => incoming_arguments,
     }
@@ -852,6 +1002,89 @@ mod tests {
                     .expect("task children should be preserved");
                 assert_eq!(children.len(), 1);
                 assert_eq!(children[0].id, "child-read-1");
+            }
+            other => panic!("expected tool call entry, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn preserves_search_arguments_when_replayed_tool_call_becomes_sparse() {
+        let session_id = "copilot-session-search";
+        let converted = convert_replay_updates_to_session(
+            session_id,
+            "Copilot Session",
+            &[
+                (
+                    1_710_000_012_000,
+                    crate::acp::session_update::SessionUpdate::ToolCall {
+                        tool_call: ToolCallData {
+                            id: "tool-search-1".to_string(),
+                            name: "Search".to_string(),
+                            arguments: ToolArguments::Search {
+                                query: Some("#\\[tauri::command\\]".to_string()),
+                                file_path: Some("src/".to_string()),
+                            },
+                            raw_input: None,
+                            status: ToolCallStatus::Pending,
+                            result: None,
+                            kind: Some(ToolKind::Search),
+                            title: Some("Grepped".to_string()),
+                            locations: None,
+                            skill_meta: None,
+                            normalized_questions: None,
+                            normalized_todos: None,
+                            parent_tool_use_id: None,
+                            task_children: None,
+                            question_answer: None,
+                            awaiting_plan_approval: false,
+                            plan_approval_request_id: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+                (
+                    1_710_000_012_500,
+                    crate::acp::session_update::SessionUpdate::ToolCall {
+                        tool_call: ToolCallData {
+                            id: "tool-search-1".to_string(),
+                            name: "Search".to_string(),
+                            arguments: ToolArguments::Search {
+                                query: None,
+                                file_path: None,
+                            },
+                            raw_input: None,
+                            status: ToolCallStatus::Completed,
+                            result: None,
+                            kind: Some(ToolKind::Search),
+                            title: Some("Grepped".to_string()),
+                            locations: None,
+                            skill_meta: None,
+                            normalized_questions: None,
+                            normalized_todos: None,
+                            parent_tool_use_id: None,
+                            task_children: None,
+                            question_answer: None,
+                            awaiting_plan_approval: false,
+                            plan_approval_request_id: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+            ],
+        );
+
+        assert_eq!(converted.entries.len(), 1);
+
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.status, ToolCallStatus::Completed);
+                match &message.arguments {
+                    ToolArguments::Search { query, file_path } => {
+                        assert_eq!(query.as_deref(), Some("#\\[tauri::command\\]"));
+                        assert_eq!(file_path.as_deref(), Some("src/"));
+                    }
+                    other => panic!("expected search arguments, got {:?}", other),
+                }
             }
             other => panic!("expected tool call entry, got {:?}", other),
         }

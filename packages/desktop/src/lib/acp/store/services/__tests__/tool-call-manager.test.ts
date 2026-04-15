@@ -347,6 +347,57 @@ describe("ToolCallManager", () => {
 			}
 		});
 
+		it("preserves richer search arguments when duplicate create data is sparse", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "Search",
+					status: "pending",
+					arguments: {
+						kind: "search",
+						query: "#\\[tauri::command\\]",
+						file_path: "src/",
+					},
+					kind: "search",
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const sparseData = createToolCallData("tc-1", {
+				name: "Search",
+				status: "completed",
+				kind: "search",
+				arguments: {
+					kind: "search",
+					query: null,
+					file_path: null,
+				},
+			});
+			const result = manager.createEntry("s1", sparseData);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.arguments).toEqual({
+					kind: "search",
+					query: "#\\[tauri::command\\]",
+					file_path: "src/",
+				});
+			}
+		});
+
 		it("does not downgrade terminal status when replayed create data is pending", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
@@ -759,6 +810,55 @@ describe("ToolCallManager", () => {
 			if (updatedEntry.type === "tool_call") {
 				// Structured result should be preserved
 				expect(updatedEntry.message.result).toEqual({ numFiles: 4, pattern: "*.ts" });
+			}
+		});
+
+		it("preserves richer search arguments when a sparse completion update arrives", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-1",
+				type: "tool_call",
+				message: {
+					id: "tc-1",
+					name: "Search",
+					status: "in_progress",
+					arguments: {
+						kind: "search",
+						query: "#\\[tauri::command\\]",
+						file_path: "src/",
+					},
+					kind: "search",
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const entryStore = createMockEntryStore({
+				getEntries: vi.fn(() => [existingEntry]),
+			});
+			const entryIndex = createMockEntryIndex({
+				getToolCallIdIndex: vi.fn(() => 0),
+			});
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const update = createToolCallUpdate("tc-1", {
+				status: "completed",
+				arguments: {
+					kind: "search",
+					query: null,
+					file_path: null,
+				},
+			});
+			const result = manager.updateEntry("s1", update);
+
+			expect(result.isOk()).toBe(true);
+			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+				.calls[0][2] as SessionEntry;
+			if (updatedEntry.type === "tool_call") {
+				expect(updatedEntry.message.arguments).toEqual({
+					kind: "search",
+					query: "#\\[tauri::command\\]",
+					file_path: "src/",
+				});
 			}
 		});
 

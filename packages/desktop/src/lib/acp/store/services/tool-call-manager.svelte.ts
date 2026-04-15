@@ -127,15 +127,112 @@ function mergeEditEntries(
 	return merged;
 }
 
+function mergeOptionalField<T>(
+	currentValue: T | null | undefined,
+	incomingValue: T | null | undefined
+): T | null | undefined {
+	return incomingValue ?? currentValue;
+}
+
 function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments): ToolArguments {
-	if (currentArgs.kind === "edit" && nextArgs.kind === "edit") {
-		return {
-			kind: "edit",
-			edits: mergeEditEntries(currentArgs.edits, nextArgs.edits),
-		};
+	if (currentArgs.kind !== nextArgs.kind) {
+		return nextArgs;
 	}
 
-	return nextArgs;
+	switch (currentArgs.kind) {
+		case "read":
+			if (nextArgs.kind !== "read") return nextArgs;
+			return {
+				kind: "read",
+				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
+			};
+		case "edit":
+			if (nextArgs.kind !== "edit") return nextArgs;
+			return {
+				kind: "edit",
+				edits: mergeEditEntries(currentArgs.edits, nextArgs.edits),
+			};
+		case "execute":
+			if (nextArgs.kind !== "execute") return nextArgs;
+			return {
+				kind: "execute",
+				command: mergeOptionalField(currentArgs.command, nextArgs.command),
+			};
+		case "search":
+			if (nextArgs.kind !== "search") return nextArgs;
+			return {
+				kind: "search",
+				query: mergeOptionalField(currentArgs.query, nextArgs.query),
+				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
+			};
+		case "glob":
+			if (nextArgs.kind !== "glob") return nextArgs;
+			return {
+				kind: "glob",
+				pattern: mergeOptionalField(currentArgs.pattern, nextArgs.pattern),
+				path: mergeOptionalField(currentArgs.path, nextArgs.path),
+			};
+		case "fetch":
+			if (nextArgs.kind !== "fetch") return nextArgs;
+			return {
+				kind: "fetch",
+				url: mergeOptionalField(currentArgs.url, nextArgs.url),
+			};
+		case "webSearch":
+			if (nextArgs.kind !== "webSearch") return nextArgs;
+			return {
+				kind: "webSearch",
+				query: mergeOptionalField(currentArgs.query, nextArgs.query),
+			};
+		case "think":
+			if (nextArgs.kind !== "think") return nextArgs;
+			return {
+				kind: "think",
+				description: mergeOptionalField(currentArgs.description, nextArgs.description),
+				prompt: mergeOptionalField(currentArgs.prompt, nextArgs.prompt),
+				subagent_type: mergeOptionalField(currentArgs.subagent_type, nextArgs.subagent_type),
+				skill: mergeOptionalField(currentArgs.skill, nextArgs.skill),
+				skill_args: mergeOptionalField(currentArgs.skill_args, nextArgs.skill_args),
+				raw: mergeOptionalField(currentArgs.raw, nextArgs.raw),
+			};
+		case "taskOutput":
+			if (nextArgs.kind !== "taskOutput") return nextArgs;
+			return {
+				kind: "taskOutput",
+				task_id: mergeOptionalField(currentArgs.task_id, nextArgs.task_id),
+				timeout: mergeOptionalField(currentArgs.timeout, nextArgs.timeout),
+			};
+		case "move":
+			if (nextArgs.kind !== "move") return nextArgs;
+			return {
+				kind: "move",
+				from: mergeOptionalField(currentArgs.from, nextArgs.from),
+				to: mergeOptionalField(currentArgs.to, nextArgs.to),
+			};
+		case "delete":
+			if (nextArgs.kind !== "delete") return nextArgs;
+			return {
+				kind: "delete",
+				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
+				file_paths: mergeOptionalField(currentArgs.file_paths, nextArgs.file_paths),
+			};
+		case "planMode":
+			if (nextArgs.kind !== "planMode") return nextArgs;
+			return {
+				kind: "planMode",
+				mode: mergeOptionalField(currentArgs.mode, nextArgs.mode),
+			};
+		case "toolSearch":
+			if (nextArgs.kind !== "toolSearch") return nextArgs;
+			return {
+				kind: "toolSearch",
+				query: mergeOptionalField(currentArgs.query, nextArgs.query),
+				max_results: mergeOptionalField(currentArgs.max_results, nextArgs.max_results),
+			};
+		case "browser":
+		case "other":
+			return nextArgs;
+	}
 }
 
 function hasMaterializedToolUpdateFields(update: ToolCallUpdate): boolean {
