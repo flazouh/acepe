@@ -500,8 +500,6 @@ export interface PersistedWorkspaceState {
 	readonly fullscreenPanelIndex?: number | null;
 	/** SQL Studio state (added in version 4) */
 	readonly sqlStudio?: PersistedSqlStudioState;
-	/** Full-screen review overlay state (added in version 5) */
-	readonly reviewFullscreen?: PersistedReviewFullscreenState;
 	/** Open terminal panels persisted across app restarts (added in version 7, legacy flat shape) */
 	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
 	/** Explicit top-level terminal groups persisted across app restarts (added in version 10). */
@@ -536,15 +534,6 @@ export interface PersistedSqlStudioState {
 	readonly selectedConnectionId: string | null;
 	readonly selectedSchemaName: string | null;
 	readonly selectedTableName: string | null;
-}
-
-/**
- * Persisted full-screen review overlay state.
- */
-export interface PersistedReviewFullscreenState {
-	readonly open: boolean;
-	readonly sessionId: string | null;
-	readonly fileIndex: number;
 }
 
 /**

@@ -49,8 +49,6 @@ pub enum UserSettingKey {
     CustomAgentConfigs,
     /// Persisted per-agent environment overrides (JSON object)
     AgentEnvOverrides,
-    /// Whether opening review should use full-screen overlay (boolean string "true"/"false")
-    ReviewPreferFullscreen,
     /// Use worktrees by default for new sessions (boolean)
     #[serde(rename = "worktree_global_default_enabled")]
     WorktreeGlobalDefault,
@@ -112,7 +110,6 @@ impl UserSettingKey {
             UserSettingKey::SelectedAgentIds => "selected_agent_ids",
             UserSettingKey::CustomAgentConfigs => "custom_agent_configs",
             UserSettingKey::AgentEnvOverrides => "agent_env_overrides",
-            UserSettingKey::ReviewPreferFullscreen => "review_prefer_fullscreen",
             UserSettingKey::WorktreeGlobalDefault => "worktree_global_default_enabled",
             UserSettingKey::WorktreeTrust => "worktree_trust",
             UserSettingKey::ChatThinkingBlockCollapsedByDefault => {

@@ -29,7 +29,6 @@ import {
 	type PersistedBrowserWorkspacePanelState,
 	type PersistedFilePanelState,
 	type PersistedFileWorkspacePanelState,
-	type PersistedReviewFullscreenState,
 	type PersistedReviewWorkspacePanelState,
 	type PersistedSqlStudioState,
 	type PersistedTerminalPanelGroupState,
@@ -437,10 +436,6 @@ export interface WorkspaceStateProviders {
 	getSqlStudioState?: () => PersistedSqlStudioState;
 	/** Set SQL Studio state on restore */
 	setSqlStudioState?: (state: PersistedSqlStudioState) => void;
-	/** Get full-screen review overlay state */
-	getReviewFullscreenState?: () => PersistedReviewFullscreenState;
-	/** Set full-screen review overlay state on restore */
-	setReviewFullscreenState?: (state: PersistedReviewFullscreenState) => void;
 	/** Get collapsed project paths */
 	getCollapsedProjectPaths?: () => string[];
 	/** Set collapsed project paths on restore */
@@ -535,8 +530,6 @@ export class WorkspaceStore {
 					: null,
 				// SQL Studio state
 				sqlStudio: this.providers.getSqlStudioState?.(),
-				// Full-screen review state
-				reviewFullscreen: this.providers.getReviewFullscreenState?.(),
 				// Terminal + browser panels (version 7+)
 				terminalPanels: serializeTerminalPanels(this.panelStore.terminalPanels),
 				terminalPanelGroups: serializeTerminalPanelGroups(this.panelStore.terminalPanelGroups),
@@ -584,9 +577,6 @@ export class WorkspaceStore {
 		}
 		if (state.sqlStudio) {
 			this.providers.setSqlStudioState?.(state.sqlStudio);
-		}
-		if (state.reviewFullscreen) {
-			this.providers.setReviewFullscreenState?.(state.reviewFullscreen);
 		}
 		if (state.collapsedProjectPaths !== undefined) {
 			this.providers.setCollapsedProjectPaths?.(Array.from(state.collapsedProjectPaths));

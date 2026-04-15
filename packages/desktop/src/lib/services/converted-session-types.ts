@@ -624,14 +624,10 @@ export type UserSettingKey =
  * Persisted per-agent environment overrides (JSON object)
  */
 "agent_env_overrides" | 
-/**
- * Whether opening review should use full-screen overlay (boolean string "true"/"false")
- */
-"review_prefer_fullscreen" | 
-/**
- * Use worktrees by default for new sessions (boolean)
- */
-"worktree_global_default_enabled" | 
+	/**
+	 * Use worktrees by default for new sessions (boolean)
+	 */
+	"worktree_global_default_enabled" | 
 /**
  * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
  */

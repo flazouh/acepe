@@ -28,7 +28,6 @@ import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type {
 	Panel,
-	PersistedReviewFullscreenState,
 	PersistedSqlStudioState,
 	ViewMode,
 } from "$lib/acp/store/types.js";
@@ -71,21 +70,6 @@ export class MainAppViewState {
 	 * Whether the SQL Studio overlay is open.
 	 */
 	sqlStudioModalOpen = $state(false);
-
-	/**
-	 * Whether the full-screen review overlay is open.
-	 */
-	reviewFullscreenOpen = $state(false);
-
-	/**
-	 * Session ID for the full-screen review overlay (when open).
-	 */
-	reviewFullscreenSessionId = $state<string | null>(null);
-
-	/**
-	 * Selected file index in the full-screen review overlay.
-	 */
-	reviewFullscreenFileIndex = $state(0);
 
 	/**
 	 * Whether the command palette is open.
@@ -405,18 +389,6 @@ export class MainAppViewState {
 			getQueueExpanded: () => this.queueExpanded,
 			setQueueExpanded: (expanded) => {
 				this.queueExpanded = expanded;
-			},
-			getReviewFullscreenState: () => ({
-				open: this.reviewFullscreenOpen,
-				sessionId: this.reviewFullscreenSessionId,
-				fileIndex: this.reviewFullscreenFileIndex,
-			}),
-			setReviewFullscreenState: (state: PersistedReviewFullscreenState) => {
-				if (state.open && state.sessionId) {
-					this.reviewFullscreenOpen = true;
-					this.reviewFullscreenSessionId = state.sessionId;
-					this.reviewFullscreenFileIndex = state.fileIndex ?? 0;
-				}
 			},
 		});
 	}
@@ -803,48 +775,6 @@ export class MainAppViewState {
 		} else {
 			this.openFileExplorer();
 		}
-	}
-
-	/**
-	 * Opens the full-screen review overlay for a session.
-	 */
-	openReviewFullscreen(sessionId: string, fileIndex: number = 0): void {
-		if (this.showSplash === true) return;
-		this.reviewFullscreenOpen = true;
-		this.reviewFullscreenSessionId = sessionId;
-		this.reviewFullscreenFileIndex = fileIndex;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Closes the full-screen review overlay.
-	 * Preserves sessionId and fileIndex so the component stays alive
-	 * and hunk accept/reject decisions survive re-open.
-	 */
-	closeReviewFullscreen(): void {
-		this.reviewFullscreenOpen = false;
-		// Keep reviewFullscreenSessionId and reviewFullscreenFileIndex
-		// so the overlay component survives in hidden state.
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Fully clears review fullscreen state.
-	 * Called when the session is no longer valid (e.g., deleted).
-	 */
-	clearReviewFullscreen(): void {
-		this.reviewFullscreenOpen = false;
-		this.reviewFullscreenSessionId = null;
-		this.reviewFullscreenFileIndex = 0;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Updates the selected file index in the full-screen review overlay.
-	 */
-	setReviewFullscreenFileIndex(index: number): void {
-		this.reviewFullscreenFileIndex = index;
-		this.workspaceStore.persist();
 	}
 
 	/**

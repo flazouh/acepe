@@ -88,11 +88,6 @@ export {
 	type QueueStore,
 	type QueueUpdateInput,
 } from "./queue/index.js";
-export {
-	createReviewPreferenceStore,
-	getReviewPreferenceStore,
-	ReviewPreferenceStore,
-} from "./review-preference-store.svelte.js";
 export { LiveInteractionProjectionSync } from "./services/live-interaction-projection-sync.js";
 export { SessionProjectionHydrator } from "./services/session-projection-hydrator.js";
 // Session state model
