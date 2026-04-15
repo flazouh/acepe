@@ -12,8 +12,16 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 function computeStreamingChunk(backlogLength: number): number {
-	if (backlogLength <= STREAMING_MIN_CHARS_PER_FLUSH) {
+	if (backlogLength <= 1) {
 		return backlogLength;
+	}
+
+	if (backlogLength <= 12) {
+		return backlogLength;
+	}
+
+	if (backlogLength <= STREAMING_MIN_CHARS_PER_FLUSH) {
+		return Math.max(1, Math.ceil(backlogLength / 2));
 	}
 
 	const scaledChunk = Math.ceil(backlogLength / 4);

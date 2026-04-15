@@ -64,6 +64,21 @@ describe("createSmoothStreamingReveal", () => {
 		expect(reveal.isRevealActive).toBe(true);
 	});
 
+	it("does not reveal a short streaming chunk all at once on the first flush", () => {
+		const reveal = createSmoothStreamingReveal();
+		const text = "small streamed chunk";
+
+		reveal.setState(text, true);
+		flushNextFrame(16);
+		flushNextFrame(32);
+		flushNextFrame(48);
+		flushNextFrame(64);
+
+		expect(reveal.displayedText.length).toBeGreaterThan(0);
+		expect(reveal.displayedText.length).toBeLessThan(text.length);
+		expect(reveal.isRevealActive).toBe(true);
+	});
+
 	it("ignores stale animation frames after reset or destroy", () => {
 		const reveal = createSmoothStreamingReveal();
 		const text = "b".repeat(240);

@@ -951,8 +951,8 @@ function handleSubmit(panel: DemoPanel): void {
 										{#snippet leadingContent()}
 											<span class="pl-2 text-[10px] font-medium text-muted-foreground">3 files changed</span>
 										{/snippet}
-										{#snippet trailingContent(isExpanded)}
-											<AgentPanelModifiedFilesTrailingControls model={demoModifiedFilesTrailing} {isExpanded} />
+										{#snippet trailingContent(isExpanded: boolean, toggleExpanded: () => void)}
+											<AgentPanelModifiedFilesTrailingControls model={demoModifiedFilesTrailing} {isExpanded} onToggle={toggleExpanded} />
 										{/snippet}
 										{#snippet fileList()}
 											{#each demoModifiedFiles as file (file.id)}
@@ -988,13 +988,9 @@ function handleSubmit(panel: DemoPanel): void {
 										pausedLabel="Paused"
 										resumeLabel="Resume"
 										clearLabel="Clear"
-										editLabel="Edit"
-										deleteLabel="Delete"
 										sendLabel="Send"
-										saveLabel="Save"
 										cancelLabel="Cancel"
-										onSaveEdit={() => {}}
-										onRemove={() => {}}
+										onCancel={() => {}}
 										onClear={() => {}}
 										onSendNow={() => {}}
 									/>

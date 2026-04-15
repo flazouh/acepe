@@ -26,6 +26,10 @@ export function convertIconPath(iconPath: string | null | undefined): string | n
 	return convertFileSrc(iconPath);
 }
 
+export function normalizeProjectIconUpdatePath(iconPath: string | null): string | null {
+	return iconPath === "" ? null : iconPath;
+}
+
 /**
  * Client for communicating with Tauri backend for project operations.
  *
@@ -116,8 +120,9 @@ export class ProjectClient {
 	}
 
 	updateProjectIcon(path: string, iconPath: string | null): ResultAsync<Project, ProjectError> {
+		const normalizedIconPath = normalizeProjectIconUpdatePath(iconPath);
 		return tauriClient.projects
-			.updateProjectIcon(path, iconPath)
+			.updateProjectIcon(path, normalizedIconPath)
 			.mapErr((e) => new ProjectError(`Failed to update project icon: ${e}`, "STORAGE_ERROR"))
 			.map((project) => this.mapProject(project));
 	}

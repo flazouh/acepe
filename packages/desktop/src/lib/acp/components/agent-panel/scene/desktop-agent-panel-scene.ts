@@ -784,12 +784,17 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 	entry: VirtualizedDisplayEntry,
 	turnState: TurnState | undefined,
 	isStreamingAssistant: boolean,
-	activeToolCallId: string | null = null
+	activeToolCallId: string | null = null,
+	nowMs: number = Date.now()
 ): AgentPanelSceneEntryModel {
 	if (entry.type === "thinking") {
 		return {
 			id: entry.id,
 			type: "thinking",
+			durationMs:
+				entry.startedAtMs === null || entry.startedAtMs === undefined
+					? null
+					: Math.max(0, nowMs - entry.startedAtMs),
 		};
 	}
 

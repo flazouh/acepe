@@ -465,6 +465,10 @@ pub(crate) fn parse_todo_write(
     name: &str,
     arguments: &serde_json::Value,
 ) -> Option<Vec<ParsedTodo>> {
+    if let Some(parsed_sql_todos) = parse_sql_todo_updates(arguments) {
+        return Some(parsed_sql_todos);
+    }
+
     if !matches!(
         name,
         "TodoWrite"
@@ -514,6 +518,88 @@ pub(crate) fn parse_todo_write(
         None
     } else {
         Some(parsed)
+    }
+}
+
+fn parse_sql_todo_updates(arguments: &serde_json::Value) -> Option<Vec<ParsedTodo>> {
+    let query = arguments.get("query").and_then(|value| value.as_str())?;
+    let mut parsed = Vec::new();
+
+    for statement in query.split(';') {
+        let trimmed = statement.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let lower = trimmed.to_ascii_lowercase();
+        if !lower.contains("todos") || !lower.starts_with("update todos") {
+            continue;
+        }
+
+        let status = extract_sql_single_quoted_value(trimmed, "status = '")
+            .and_then(|value| parse_sql_todo_status(&value));
+        let todo_id = extract_sql_single_quoted_value(trimmed, "where id = '");
+        let (Some(status), Some(todo_id)) = (status, todo_id) else {
+            continue;
+        };
+
+        let content = humanize_sql_todo_identifier(&todo_id);
+        parsed.push(ParsedTodo {
+            content: content.clone(),
+            active_form: content,
+            status,
+        });
+    }
+
+    if parsed.is_empty() {
+        None
+    } else {
+        Some(parsed)
+    }
+}
+
+fn extract_sql_single_quoted_value(statement: &str, marker: &str) -> Option<String> {
+    let lower_statement = statement.to_ascii_lowercase();
+    let lower_marker = marker.to_ascii_lowercase();
+    let start = lower_statement.find(&lower_marker)? + lower_marker.len();
+    let remainder = &statement[start..];
+    let end = remainder.find('\'')?;
+    Some(remainder[..end].trim().to_string())
+}
+
+fn parse_sql_todo_status(value: &str) -> Option<ParsedTodoStatus> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "pending" => Some(ParsedTodoStatus::Pending),
+        "in_progress" => Some(ParsedTodoStatus::InProgress),
+        "done" | "completed" => Some(ParsedTodoStatus::Completed),
+        "cancelled" | "canceled" => Some(ParsedTodoStatus::Cancelled),
+        _ => None,
+    }
+}
+
+fn humanize_sql_todo_identifier(identifier: &str) -> String {
+    let words: Vec<String> = identifier
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let lower = segment.to_ascii_lowercase();
+            let mut characters = lower.chars();
+            match characters.next() {
+                Some(first) => {
+                    let mut title = String::new();
+                    title.push(first.to_ascii_uppercase());
+                    title.push_str(characters.as_str());
+                    title
+                }
+                None => String::new(),
+            }
+        })
+        .collect();
+
+    if words.is_empty() {
+        identifier.to_string()
+    } else {
+        words.join(" ")
     }
 }
 
@@ -1040,6 +1126,49 @@ mod tests {
             assert_eq!(parsed[0].question, "Which theme should we use?");
             assert_eq!(parsed[0].options.len(), 2);
             assert!(!parsed[0].multi_select);
+        }
+    }
+
+    mod todo_sql_parser {
+        use super::*;
+
+        #[test]
+        fn parses_sql_todo_status_updates() {
+            let parsed = parse_todo_write(
+                "Search",
+                &json!({
+                    "query": "UPDATE todos SET status = 'done', updated_at = CURRENT_TIMESTAMP WHERE id = 'tighten-project-header-action-rail';\nUPDATE todos SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE id = 'shrink-session-list-header-buttons';"
+                }),
+            )
+            .expect("expected todo updates");
+
+            assert_eq!(
+                parsed,
+                vec![
+                    ParsedTodo {
+                        content: "Tighten Project Header Action Rail".to_string(),
+                        active_form: "Tighten Project Header Action Rail".to_string(),
+                        status: ParsedTodoStatus::Completed,
+                    },
+                    ParsedTodo {
+                        content: "Shrink Session List Header Buttons".to_string(),
+                        active_form: "Shrink Session List Header Buttons".to_string(),
+                        status: ParsedTodoStatus::InProgress,
+                    },
+                ]
+            );
+        }
+
+        #[test]
+        fn ignores_non_update_todo_sql_queries() {
+            let parsed = parse_todo_write(
+                "Search",
+                &json!({
+                    "query": "SELECT COUNT(*) AS done_count FROM todos WHERE status = 'done';"
+                }),
+            );
+
+            assert!(parsed.is_none());
         }
     }
 

@@ -94,10 +94,10 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 							{...props}
 							bind:this={triggerRef}
 							type="button"
-							class="flex items-center justify-center size-6 min-w-0 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 							aria-label="Project menu"
 						>
-							<DotsThreeVertical class="h-4 w-4" weight="bold" />
+							<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
 						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>

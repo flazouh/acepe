@@ -21,17 +21,17 @@ interface Props {
 	 * Base path for file type SVG icons (e.g. "/svgs/icons").
 	 * Empty string (default) falls back to extension-colored dots.
 	 */
-		iconBasePath?: string;
-	}
+	iconBasePath?: string;
+}
 
-	let {
-		content,
-		class: className = "",
-		scrollable = false,
-		errorMessage,
-		iconBasePath = getIconBasePath(),
-		textSize = "text-sm",
-	}: Props = $props();
+let {
+	content,
+	class: className = "",
+	scrollable = false,
+	textSize = "text-sm",
+	errorMessage,
+	iconBasePath = getIconBasePath(),
+}: Props = $props();
 
 	const api = $derived(getMarkdownRenderApi());
 

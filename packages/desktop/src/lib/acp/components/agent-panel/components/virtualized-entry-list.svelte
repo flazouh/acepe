@@ -25,6 +25,8 @@ import {
 	buildVirtualizedDisplayEntries,
 	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
+	getVirtualizedDisplayEntryTimestampMs,
+	resolveDisplayEntryThinkingDurationMs,
 	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
@@ -71,6 +73,22 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
+let thinkingNowMs = $state(Date.now());
+
+$effect(() => {
+	if (!isWaitingForResponse) {
+		return;
+	}
+
+	thinkingNowMs = Date.now();
+	const intervalId = window.setInterval(() => {
+		thinkingNowMs = Date.now();
+	}, 1000);
+
+	return () => {
+		window.clearInterval(intervalId);
+	};
+});
 
 // ===== ICON CONTEXT (for nested components) =====
 setIconConfig({ basePath: "/svgs/icons" });
@@ -211,6 +229,20 @@ const activeRootToolCallId = $derived.by(() => {
 
 // ===== DISPLAY ENTRIES =====
 const mergedEntries = $derived(buildVirtualizedDisplayEntries(entries));
+const thinkingIndicatorStartedAtMs = $derived.by(() => {
+	if (!isWaitingForResponse) {
+		return null;
+	}
+
+	for (let index = mergedEntries.length - 1; index >= 0; index -= 1) {
+		const timestampMs = getVirtualizedDisplayEntryTimestampMs(mergedEntries[index]!);
+		if (timestampMs !== null) {
+			return timestampMs;
+		}
+	}
+
+	return entries.at(-1)?.timestamp?.getTime() ?? null;
+});
 // Avoid spread-based allocation on every streaming update — reuse the merged
 // reference directly when no thinking indicator is needed. When waiting, pre-allocate
 // the result array to the known size rather than using concat/spread.
@@ -220,7 +252,11 @@ const displayEntriesRaw = $derived.by((): readonly VirtualizedDisplayEntry[] => 
 	for (let i = 0; i < mergedEntries.length; i++) {
 		result[i] = mergedEntries[i]!;
 	}
-	result[mergedEntries.length] = THINKING_DISPLAY_ENTRY;
+	result[mergedEntries.length] = {
+		type: THINKING_DISPLAY_ENTRY.type,
+		id: THINKING_DISPLAY_ENTRY.id,
+		startedAtMs: thinkingIndicatorStartedAtMs,
+	};
 	return result;
 });
 
@@ -552,7 +588,13 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 					(entry.type === "assistant_merged_thoughts" &&
 						entry.memberIds.includes(lastAssistantId ?? ""))) &&
 				index === displayEntries.length - 1,
-			activeRootToolCallId
+			activeRootToolCallId,
+			thinkingNowMs
+		)}
+		{@const mergedThoughtDurationMs = resolveDisplayEntryThinkingDurationMs(
+			displayEntries,
+			index,
+			thinkingNowMs
 		)}
 		<MessageWrapper
 			entryIndex={index}
@@ -576,7 +618,14 @@ function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool
 				/>
 			{:else if entry.type === "assistant_merged_thoughts"}
 				<AssistantMessage
-					message={entry.message}
+					message={{
+						chunks: entry.message.chunks,
+						model: entry.message.model,
+						displayModel: entry.message.displayModel,
+						receivedAt: entry.message.receivedAt,
+						thinkingDurationMs:
+							mergedThoughtDurationMs ?? entry.message.thinkingDurationMs,
+					}}
 					isStreaming={isStreaming &&
 						entry.memberIds.includes(lastAssistantId ?? "") &&
 						index === displayEntries.length - 1}

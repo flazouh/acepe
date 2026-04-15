@@ -89,6 +89,7 @@ export interface AgentToolEntry {
 export interface AgentThinkingEntry {
 	id: string;
 	type: "thinking";
+	durationMs?: number | null;
 }
 
 export type AnyAgentEntry =

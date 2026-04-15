@@ -98,6 +98,7 @@ export interface AgentPanelToolCallEntry {
 export interface AgentPanelThinkingEntry {
 	id: string;
 	type: "thinking";
+	durationMs?: number | null;
 }
 
 export type AgentPanelConversationEntry =

@@ -210,6 +210,7 @@ pub(crate) fn convert_full_session_to_entries_with_agent(
             StoredEntry::ToolCall { id, .. } => id.as_str(),
             StoredEntry::Assistant { id, .. } => id.as_str(),
             StoredEntry::User { id, .. } => id.as_str(),
+            StoredEntry::Error { id, .. } => id.as_str(),
         };
         seen_ids.insert(id.to_string())
     });

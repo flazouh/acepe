@@ -202,9 +202,7 @@ fn format_reserved_worktree_relative_path_at(
     let minute = now.format("%M");
     let project_slug = slugify_project_name(project_path);
     let agent_slug = slugify_text(agent_id, "agent");
-    format!(
-        "{day}-{month}-{year}-{hour}:{minute}/{project_slug}/{sequence_id}/{agent_slug}"
-    )
+    format!("{day}-{month}-{year}-{hour}:{minute}/{project_slug}/{sequence_id}/{agent_slug}")
 }
 
 fn format_reserved_worktree_relative_path(
@@ -658,11 +656,8 @@ pub async fn git_prepare_worktree_session_launch(
         return Err(format!("Failed to create worktrees directory: {error}"));
     }
 
-    let basename = format_reserved_worktree_relative_path(
-        &project_path_buf,
-        reserved.sequence_id,
-        &agent_id,
-    );
+    let basename =
+        format_reserved_worktree_relative_path(&project_path_buf, reserved.sequence_id, &agent_id);
     let info =
         match generate_unique_candidate_from_basename(&project_path_buf, &worktrees_dir, &basename)
         {
@@ -1444,7 +1439,11 @@ mod tests {
 
     fn git_stdout(repo_path: &Path, args: &[&str]) -> String {
         let output = run_git(repo_path, args);
-        assert!(output.status.success(), "git command should succeed: {:?}", args);
+        assert!(
+            output.status.success(),
+            "git command should succeed: {:?}",
+            args
+        );
         String::from_utf8(output.stdout)
             .expect("git output should be utf8")
             .trim()
@@ -1494,8 +1493,7 @@ mod tests {
 
     #[test]
     fn branch_name_sanitizes_colons_but_preserves_hierarchy() {
-        let branch =
-            worktree_branch_name("14-april-2026-14:35/my-project/41/claude-code");
+        let branch = worktree_branch_name("14-april-2026-14:35/my-project/41/claude-code");
 
         assert_eq!(branch, "14-april-2026-14-35/my-project/41/claude-code");
     }
@@ -1803,7 +1801,11 @@ branch refs/heads/clever-falcon";
 
         let updater_dir = TempDir::new().expect("temp dir should create");
         let clone_output = Command::new("git")
-            .args(["clone", &remote_path, updater_dir.path().to_string_lossy().as_ref()])
+            .args([
+                "clone",
+                &remote_path,
+                updater_dir.path().to_string_lossy().as_ref(),
+            ])
             .output()
             .expect("git clone should run");
         assert!(clone_output.status.success(), "git clone should succeed");

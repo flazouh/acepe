@@ -646,8 +646,8 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 				{/if}
 		{/snippet}
 
-		{#snippet trailingContent(isExpanded: boolean)}
-			<SharedAgentPanelModifiedFilesTrailingControls model={trailingControlsModel} {isExpanded} />
+		{#snippet trailingContent(isExpanded: boolean, toggleExpanded: () => void)}
+			<SharedAgentPanelModifiedFilesTrailingControls model={trailingControlsModel} {isExpanded} onToggle={toggleExpanded} />
 		{/snippet}
 	</SharedAgentPanelModifiedFilesHeader>
 {/if}

@@ -8,9 +8,10 @@
 	interface Props {
 		model: AgentPanelModifiedFilesTrailingModel;
 		isExpanded: boolean;
+		onToggle?: () => void;
 	}
 
-	let { model, isExpanded }: Props = $props();
+	let { model, isExpanded, onToggle }: Props = $props();
 
 	const reviewDisabled = $derived(!model.onReview || model.totalCount === 0);
 </script>
@@ -46,12 +47,15 @@
 	{/if}
 </div>
 
-<span class="text-muted-foreground tabular-nums text-[0.6875rem]">
+<button
+	type="button"
+	class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground tabular-nums text-[0.6875rem] transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+	onclick={(event: MouseEvent) => { event.stopPropagation(); onToggle?.(); }}
+>
 	{model.reviewedCount}/{model.totalCount}
-</span>
-
-<CaretDown
-	size={14}
-	weight="bold"
-	class="size-3.5 text-muted-foreground transition-transform {isExpanded ? 'rotate-180' : ''}"
-/>
+	<CaretDown
+		size={12}
+		weight="bold"
+		class="shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
+	/>
+</button>

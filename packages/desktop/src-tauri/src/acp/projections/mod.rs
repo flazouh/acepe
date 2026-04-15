@@ -464,6 +464,7 @@ impl ProjectionRegistry {
                         snapshot.last_event_seq,
                     );
                 }
+                StoredEntry::Error { .. } => {}
             }
         }
 

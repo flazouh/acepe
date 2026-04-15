@@ -1,6 +1,6 @@
 use crate::acp::parsers::kind::{
-    canonical_name_for_kind, infer_kind_from_payload, is_browser_tool_name, is_web_search_id,
-    is_web_search_title, looks_like_web_search_arguments,
+    canonical_name_for_kind, has_sql_query_argument, infer_kind_from_payload, is_browser_tool_name,
+    is_web_search_id, is_web_search_title, looks_like_web_search_arguments,
 };
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
 use crate::acp::session_update::{ToolArguments, ToolCallLocation, ToolKind};
@@ -47,6 +47,7 @@ fn usable_tool_name(name: Option<&str>) -> Option<&str> {
 
 fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option<ToolKind> {
     let object = arguments.as_object()?;
+    let has_sql_query = has_sql_query_argument(arguments);
 
     if object.contains_key("questions") {
         return Some(ToolKind::Question);
@@ -93,7 +94,7 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
         return Some(ToolKind::Edit);
     }
 
-    if object.contains_key("query") || object.contains_key("pattern") {
+    if object.contains_key("pattern") || (object.contains_key("query") && !has_sql_query) {
         return Some(ToolKind::Search);
     }
 
@@ -113,12 +114,13 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
         return Some(ToolKind::Read);
     }
 
-    if object.contains_key("description")
-        || object.contains_key("prompt")
-        || object.contains_key("agent_type")
-        || object.contains_key("agentType")
-        || object.contains_key("subagent_type")
-        || object.contains_key("subagentType")
+    if !has_sql_query
+        && (object.contains_key("description")
+            || object.contains_key("prompt")
+            || object.contains_key("agent_type")
+            || object.contains_key("agentType")
+            || object.contains_key("subagent_type")
+            || object.contains_key("subagentType"))
     {
         return Some(ToolKind::Task);
     }
@@ -457,5 +459,7 @@ mod tests {
         );
 
         assert_ne!(classified.kind, ToolKind::Task);
+        assert_eq!(classified.kind, ToolKind::Other);
+        assert!(matches!(classified.arguments, ToolArguments::Other { .. }));
     }
 }

@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { IconArrowUp } from "@tabler/icons-svelte";
+
 	import { Stop } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
@@ -72,25 +72,8 @@
 	{@render leading()}
 {/if}
 
-<div class="relative min-w-0">
-	<!-- Embedded submit button: top-right -->
-	<div class="absolute top-0 right-0 flex items-center gap-2 z-10">
-		<Button
-			type="button"
-			size="icon"
-			onclick={onSubmit}
-			disabled={submitDisabled}
-			class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-muted-foreground text-background hover:bg-muted-foreground/80"
-		>
-			{#if showStop}
-				<Stop weight="fill" class="h-3.5 w-3.5" />
-			{:else}
-				<IconArrowUp class="h-3.5 w-3.5" />
-			{/if}
-			<span class="sr-only">{submitAriaLabel}</span>
-		</Button>
-	</div>
-	<div class="relative flex-1 min-w-0 pr-12">
+<div class="flex gap-1.5 min-w-0">
+	<div class="relative flex-1 min-w-0">
 		<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 		<div
 			bind:this={editorRef}
@@ -101,7 +84,7 @@
 			contenteditable="true"
 			autocapitalize="off"
 			spellcheck={false}
-			class="min-h-[72px] max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
+			class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
 			{onbeforeinput}
 			{oninput}
 			{onkeydown}
@@ -123,6 +106,31 @@
 			>
 				{placeholder}
 			</div>
+		{/if}
+	</div>
+	<!-- Submit button: in-flow, bottom-aligned -->
+	<div class="flex items-end shrink-0">
+		{#if showStop}
+			<Button
+				type="button"
+				size="icon"
+				onclick={onSubmit}
+				disabled={submitDisabled}
+				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-muted-foreground text-background hover:bg-muted-foreground/80"
+			>
+				<Stop weight="fill" class="h-3.5 w-3.5" />
+				<span class="sr-only">{submitAriaLabel}</span>
+			</Button>
+		{:else}
+			<Button
+				type="button"
+				size="sm"
+				onclick={onSubmit}
+				disabled={submitDisabled}
+				class="h-7 cursor-pointer shrink-0 rounded-full bg-muted-foreground text-background hover:bg-muted-foreground/80 px-3 text-xs font-medium"
+			>
+				Send
+			</Button>
 		{/if}
 	</div>
 </div>

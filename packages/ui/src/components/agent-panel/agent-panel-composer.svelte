@@ -33,7 +33,7 @@
 		footer: footerSnippet,
 		class: className = "",
 		inputClass = "border border-border/50 bg-background/70",
-		contentClass = "px-3 py-2.5",
+		contentClass = "px-3 py-1.5",
 		disabledReason = null,
 		children,
 	}: Props = $props();
@@ -78,7 +78,7 @@
 				{@render contentSnippet()}
 			{:else if composer}
 				<textarea
-					class="min-h-24 w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+					class="min-h-[67px] w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
 					value={composer.draftText}
 					placeholder={composer.placeholder}
 					readonly={onDraftTextChange === undefined}

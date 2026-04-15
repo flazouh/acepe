@@ -7,6 +7,7 @@ import {
 	getLatestRevealTargetKey,
 	getVirtualizedDisplayEntryKey,
 	isMergedThoughtAssistantDisplayEntry,
+	resolveDisplayEntryThinkingDurationMs,
 	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
 } from "../virtualized-entry-display.js";
@@ -92,5 +93,55 @@ describe("virtualized-entry-display", () => {
 		expect(shouldObserveRevealResize(display, display[0]!, true)).toBe(true);
 		expect(shouldObserveRevealResize(display, display[0]!, false)).toBe(true);
 		expect(shouldObserveRevealResize(display, THINKING_DISPLAY_ENTRY, true)).toBe(false);
+	});
+
+	it("measures merged thought duration until the next timed entry", () => {
+		const display = buildVirtualizedDisplayEntries([
+			{
+				id: "thought-1",
+				type: "assistant",
+				message: {
+					chunks: [{ type: "thought", block: { type: "text", text: "thinking one" } }],
+				},
+				timestamp: new Date("2026-01-01T00:00:00.000Z"),
+			},
+			{
+				id: "message-1",
+				type: "assistant",
+				message: {
+					chunks: [{ type: "message", block: { type: "text", text: "done" } }],
+				},
+				timestamp: new Date("2026-01-01T00:00:05.000Z"),
+			},
+		]);
+
+		expect(resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
+			5_000
+		);
+	});
+
+	it("keeps live thought durations growing while the trailing thinking indicator is visible", () => {
+		const display = buildVirtualizedDisplayEntries([
+			{
+				id: "thought-1",
+				type: "assistant",
+				message: {
+					chunks: [{ type: "thought", block: { type: "text", text: "thinking one" } }],
+				},
+				timestamp: new Date("2026-01-01T00:00:00.000Z"),
+			},
+		]);
+		display.push({
+			type: "thinking",
+			id: "thinking-indicator",
+			startedAtMs: Date.parse("2026-01-01T00:00:00.000Z"),
+		});
+
+		expect(resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
+			8_000
+		);
+		expect(resolveDisplayEntryThinkingDurationMs(display, 1, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
+			8_000
+		);
 	});
 });

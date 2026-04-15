@@ -250,7 +250,7 @@ $effect(() => {
 					}}
 				>
 					<div
-						class="thinking-content scrollbar-none max-h-[5.04rem] overflow-y-auto opacity-60"
+						class="thinking-content scrollbar-none overflow-y-auto opacity-60"
 						bind:this={thinkingContainerRef}
 					>
 						<div bind:this={thinkingContentRef}>
@@ -319,5 +319,17 @@ $effect(() => {
 	.thinking-content :global(.markdown-content),
 	.thinking-content :global(.markdown-content *) {
 		font-size: 14px !important;
+	}
+
+	.thinking-content {
+		--thinking-visible-lines: 4;
+		--thinking-line-height: 1.4rem;
+		max-height: calc(var(--thinking-visible-lines) * var(--thinking-line-height));
+		line-height: var(--thinking-line-height);
+	}
+
+	.thinking-content :global(.markdown-content),
+	.thinking-content :global(.markdown-content *) {
+		line-height: var(--thinking-line-height) !important;
 	}
 </style>

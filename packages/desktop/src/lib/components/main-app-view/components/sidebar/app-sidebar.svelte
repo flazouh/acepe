@@ -110,7 +110,7 @@ function handleChangeProjectIcon(projectPath: string) {
 }
 
 function handleResetProjectIcon(projectPath: string) {
-	projectManager.updateProjectIcon(projectPath, "").mapErr((error) => {
+	projectManager.updateProjectIcon(projectPath, null).mapErr((error) => {
 		toast.error(`Failed to reset project icon: ${error.message}`);
 		logger.error("[ProjectIcon] Failed to reset", { projectPath, error });
 	});

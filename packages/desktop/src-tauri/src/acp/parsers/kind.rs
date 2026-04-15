@@ -196,15 +196,38 @@ pub fn is_web_search_title(title: &str) -> bool {
     title.to_lowercase().contains("searching the web")
 }
 
-/// Check whether arguments contain web-search signals.
-pub fn looks_like_web_search_arguments(arguments: &serde_json::Value) -> bool {
-    let Some(obj) = arguments.as_object() else {
+pub(crate) fn has_sql_query_argument(arguments: &serde_json::Value) -> bool {
+    let Some(query) = arguments
+        .as_object()
+        .and_then(|object| object.get("query"))
+        .and_then(|value| value.as_str())
+    else {
         return false;
     };
 
-    if obj.contains_key("query") {
-        return true;
+    let trimmed = query.trim_start();
+    if trimmed.is_empty() {
+        return false;
     }
+
+    let upper = trimmed.to_ascii_uppercase();
+    [
+        "SELECT", "UPDATE", "INSERT", "DELETE", "CREATE", "ALTER", "DROP", "WITH", "PRAGMA",
+        "EXPLAIN", "BEGIN", "COMMIT", "ROLLBACK",
+    ]
+    .iter()
+    .any(|keyword| upper.starts_with(keyword))
+}
+
+/// Check whether arguments contain web-search signals.
+pub fn looks_like_web_search_arguments(arguments: &serde_json::Value) -> bool {
+    if has_sql_query_argument(arguments) {
+        return false;
+    }
+
+    let Some(obj) = arguments.as_object() else {
+        return false;
+    };
 
     if let Some(action) = obj.get("action").and_then(|value| value.as_object()) {
         if action.get("type").and_then(|value| value.as_str()) == Some("search") {
@@ -374,5 +397,16 @@ mod tests {
             infer_kind_from_payload("id", Some("driver_session"), None),
             Some(ToolKind::Browser)
         );
+    }
+
+    #[test]
+    fn sql_queries_do_not_look_like_web_search_arguments() {
+        assert!(!looks_like_web_search_arguments(&serde_json::json!({
+            "description": "Check todo completion",
+            "query": "SELECT COUNT(*) AS done_count FROM todos WHERE status = 'done';"
+        })));
+        assert!(has_sql_query_argument(&serde_json::json!({
+            "query": "UPDATE todos SET status = 'done' WHERE id = 'todo-1';"
+        })));
     }
 }

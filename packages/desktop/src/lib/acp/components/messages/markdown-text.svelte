@@ -203,7 +203,6 @@ const showStreamingCursor = $derived(
 			reveal.mode === "completion-catchup")
 );
 
-
 $effect(() => {
 	onRevealActivityChange?.(isRenderingReveal);
 });

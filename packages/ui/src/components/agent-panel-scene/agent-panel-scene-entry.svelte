@@ -18,7 +18,6 @@
 	import AgentToolWebSearch from "../agent-panel/agent-tool-web-search.svelte";
 	import AgentUserMessage from "../agent-panel/agent-user-message.svelte";
 	import { getPlanningPlaceholderLabel } from "../agent-panel/planning-label.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
 
 	interface Props {
 		entry: AgentPanelConversationEntryModel;
@@ -61,7 +60,8 @@
 			if (child.type === "thinking") {
 				return {
 					id: child.id,
-					type: "thinking"
+					type: "thinking",
+					durationMs: child.durationMs
 				};
 			}
 
@@ -130,7 +130,7 @@
 {:else if entry.type === "assistant"}
 	<AgentAssistantMessage markdown={entry.markdown} isStreaming={entry.isStreaming} {iconBasePath} />
 {:else if entry.type === "thinking"}
-	<AgentToolRow title={getPlanningPlaceholderLabel()} status="running" padded={false} />
+	<AgentToolRow title={getPlanningPlaceholderLabel(entry.durationMs)} status="running" padded={false} />
 {:else if isToolCall(entry) && entry.todos && entry.todos.length > 0}
 	<AgentToolTodo
 		todos={entry.todos.map((todo) => ({

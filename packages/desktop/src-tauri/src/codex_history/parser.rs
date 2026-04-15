@@ -523,6 +523,7 @@ fn build_stats(entries: &[StoredEntry]) -> SessionStats {
                     stats.tool_results += 1;
                 }
             }
+            StoredEntry::Error { .. } => {}
         }
     }
 

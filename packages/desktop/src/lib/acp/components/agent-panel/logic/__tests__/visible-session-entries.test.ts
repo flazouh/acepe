@@ -68,4 +68,34 @@ describe("resolveVisibleSessionEntries", () => {
 
 		expect(result).toEqual([createUserEntry("user-1"), historicalError]);
 	});
+
+	it("removes all trailing duplicate error entries for the active failed turn", () => {
+		const userEntry = createUserEntry("user-1");
+		const transportError: SessionEntry = {
+			id: "error-1",
+			type: "error",
+			message: {
+				content: "Usage limit reached",
+				kind: "fatal",
+				source: "transport",
+			},
+		};
+		const processError: SessionEntry = {
+			id: "error-2",
+			type: "error",
+			message: {
+				content: "Usage limit reached",
+				kind: "fatal",
+				source: "process",
+			},
+		};
+
+		const result = resolveVisibleSessionEntries({
+			sessionEntries: [userEntry, transportError, processError],
+			showInlineErrorCard: true,
+			activeTurnError: processError.message,
+		});
+
+		expect(result).toEqual([userEntry]);
+	});
 });

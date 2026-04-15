@@ -521,7 +521,7 @@ describe("MarkdownText", () => {
 			isStreaming: true,
 		});
 
-		await flushAnimationFrames(6);
+		await flushAnimationFrames(12);
 
 		await waitFor(() => {
 			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).not.toBeNull();
@@ -536,7 +536,7 @@ describe("MarkdownText", () => {
 			text: "# Title\n\nHello\n\nNext",
 			isStreaming: true,
 		});
-		await flushAnimationFrames(6, 112);
+		await flushAnimationFrames(12, 112);
 
 		await waitFor(() => {
 			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).toBe(
@@ -576,7 +576,7 @@ describe("MarkdownText", () => {
 		expect(renderMarkdownMock).not.toHaveBeenCalled();
 	});
 
-	it("keeps the streaming cursor visible when the revealed tail currently has no live section", async () => {
+	it("does not render a cursor-only placeholder when the revealed tail has no live section", async () => {
 		renderMarkdownSyncMock.mockImplementation((text) => ({
 			html: `<p>${text}</p>`,
 			fromCache: false,
@@ -588,6 +588,8 @@ describe("MarkdownText", () => {
 			isStreaming: true,
 		});
 		await flushAnimationFrames(8);
+
+		expect(view.container.querySelector(".streaming-live-cursor")).toBeNull();
 	});
 
 	it("keeps stable streaming sections while append-only revealed markdown grows", async () => {
@@ -601,7 +603,7 @@ describe("MarkdownText", () => {
 			text: "# Title\n\nHello",
 			isStreaming: true,
 		});
-		await flushAnimationFrames(6);
+		await flushAnimationFrames(12);
 
 		const settledSection = view.container.querySelector('[data-streaming-section-key="SETTLED:0"]');
 		const liveSection = view.container.querySelector('[data-streaming-section-key="LIVE:1"]');
@@ -610,7 +612,7 @@ describe("MarkdownText", () => {
 			text: "# Title\n\nHello world",
 			isStreaming: true,
 		});
-		await flushAnimationFrames(6, 112);
+		await flushAnimationFrames(12, 112);
 
 		await waitFor(() => {
 			expect(

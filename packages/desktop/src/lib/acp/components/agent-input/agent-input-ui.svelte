@@ -16,7 +16,6 @@ import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.j
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
 	AgentInputArtefactBadge,
-	AgentInputAutonomousToggle,
 	AgentInputConfigOptionSelector,
 	AgentInputMicButton,
 	AgentInputModeSelector,
@@ -96,6 +95,10 @@ import {
 	resolveToolbarModeId,
 	resolveToolbarModelId,
 } from "./logic/toolbar-state.js";
+import {
+	resolveModeMenuAction,
+	resolveSelectedModeMenuOptionId,
+} from "./logic/mode-menu-state.js";
 import { resolveAutonomousSupport } from "./logic/autonomous-support.js";
 import { getToolbarConfigOptions } from "./logic/toolbar-config-options.js";
 import { createPendingUserEntry } from "./logic/pending-user-entry.js";
@@ -118,6 +121,7 @@ import { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
 import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
 import { SessionCreationError } from "./errors/agent-input-error.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
+import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
 
 // Keep props as reactive object instead of destructuring
@@ -243,11 +247,11 @@ const effectiveCurrentModeId = $derived.by(() =>
 	})
 );
 
-const autonomousSupportState = $derived.by(() =>
+const autoModeSupportState = $derived.by(() =>
 	resolveAutonomousSupport({
 		agentId: capabilitiesAgentId,
 		connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-		currentUiModeId: effectiveCurrentModeId,
+		currentUiModeId: CanonicalModeId.BUILD,
 		agents: agentStore.agents,
 	})
 );
@@ -268,29 +272,28 @@ const autonomousToggleBusy = $derived(
 	sessionHotState ? sessionHotState.autonomousTransition !== "idle" : false
 );
 
-const autonomousToggleDisabled = $derived.by(() => {
+const autoModeDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
+const autoModeDisabledReason = $derived.by(() => {
+	if (autoModeSupportState.disabledReason === "unsupported-agent") {
+		return "This agent does not support Auto.";
+	}
+
+	if (autoModeSupportState.disabledReason === "unsupported-mode") {
+		return "Auto is unavailable for this agent.";
+	}
+
 	if (autonomousToggleBusy) {
-		return true;
+		return "Updating Auto…";
 	}
 
-	return !autonomousSupportState.supported;
+	return null;
 });
-
-const autonomousTooltip = $derived.by(() => {
-	if (autonomousSupportState.disabledReason === "unsupported-agent") {
-		return "This agent does not support Autonomous.";
-	}
-
-	if (autonomousSupportState.disabledReason === "unsupported-mode") {
-		return "This mode does not support Autonomous for this agent.";
-	}
-
-	if (autonomousToggleActive) {
-		return "Autonomous is on. New permissions for this session auto-approve.";
-	}
-
-	return "Autonomous will auto-approve new permissions for this session.";
-});
+const selectedModeMenuOptionId = $derived(
+	resolveSelectedModeMenuOptionId({
+		currentModeId: effectiveCurrentModeId,
+		autonomousEnabled: autonomousToggleActive,
+	})
+);
 
 // Fallback: session capabilities → persisted cache
 const effectiveAvailableModels = $derived.by(() => {
@@ -1347,6 +1350,20 @@ export function retrySend(): void {
 	void handleSend();
 }
 
+export function restoreQueuedMessage(
+	draft: string,
+	attachments: readonly Attachment[]
+): void {
+	const restoredAttachments = attachments.map((attachment) =>
+		cloneAttachmentForRestore(attachment)
+	);
+	applyComposerRestoreSnapshot({
+		draft,
+		attachments: restoredAttachments,
+		inlineTextEntries: [],
+	});
+}
+
 // Handle steer: cancel current streaming + send immediately
 function handleSteer() {
 	const sessionId = props.sessionId;
@@ -1437,32 +1454,26 @@ async function handleModeChange(modeId: string) {
 	}
 }
 
-async function handleAutonomousToggle(): Promise<void> {
-	if (autonomousToggleDisabled) {
-		return;
-	}
-
+async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
 	if (!props.sessionId) {
 		if (!props.panelId) {
-			return;
+			return false;
 		}
-		const nextEnabled = !provisionalAutonomousEnabled;
 		panelStore.setProvisionalAutonomousEnabled(props.panelId, nextEnabled);
 		if (!nextEnabled) {
 			autonomousStatusMessage = "Future actions now require approval again.";
 		}
-		return;
+		return true;
 	}
 
 	if (!sessionHotState) {
-		return;
+		return false;
 	}
 
-	const nextEnabled = !sessionHotState.autonomousEnabled;
 	const result = await sessionStore.setAutonomousEnabled(props.sessionId, nextEnabled);
 	if (result.isErr()) {
 		toast.error(nextEnabled ? "Failed to enable Autonomous." : "Failed to disable Autonomous.");
-		return;
+		return false;
 	}
 
 	if (nextEnabled) {
@@ -1471,10 +1482,66 @@ async function handleAutonomousToggle(): Promise<void> {
 			logger.error("Failed to drain Autonomous permissions", { error: drainResult.error });
 			toast.error("Autonomous is on, but some pending permissions still need attention.");
 		}
-		return;
+		return true;
 	}
 
 	autonomousStatusMessage = "Future actions now require approval again.";
+	return true;
+}
+
+async function handleModeMenuChange(optionId: string): Promise<void> {
+	const resolution = resolveModeMenuAction({
+		selectedOptionId: optionId,
+		currentModeId: effectiveCurrentModeId,
+		autonomousEnabled: autonomousToggleActive,
+		buildModeId: CanonicalModeId.BUILD,
+	});
+
+	if (!props.sessionId) {
+		if (resolution.modeIdToApply) {
+			provisionalModeId = resolution.modeIdToApply;
+		}
+
+		if (resolution.autonomousEnabledToApply !== null) {
+			await setAutonomousEnabled(resolution.autonomousEnabledToApply);
+		}
+
+		return;
+	}
+
+	pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
+		if (resolution.modeIdToApply) {
+			const shouldAnnounceForcedOff =
+				autonomousToggleActive &&
+				!resolveAutonomousSupport({
+					agentId: capabilitiesAgentId,
+					connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
+					currentUiModeId: resolution.modeIdToApply,
+					agents: agentStore.agents,
+				}).supported;
+			const modeResult = await sessionStore.setMode(props.sessionId!, resolution.modeIdToApply);
+			if (modeResult.isErr()) {
+				toast.error("Failed to switch mode.");
+				return false;
+			}
+
+			if (shouldAnnounceForcedOff) {
+				autonomousStatusMessage =
+					"Autonomous turned off because this mode is unsupported for the current agent.";
+			}
+		}
+
+		if (resolution.autonomousEnabledToApply !== null) {
+			const autonomousResult = await setAutonomousEnabled(resolution.autonomousEnabledToApply);
+			if (!autonomousResult) {
+				return false;
+			}
+		}
+
+		return true;
+	});
+
+	await pendingSessionConfigOperation;
 }
 
 // Handle model change
@@ -2063,7 +2130,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative" : "p-2"}
+			contentClass={voiceOverlayActive ? "relative" : "p-1.5"}
 		>
 			{#snippet content()}
 				{#if voiceState !== null && voiceOverlayActive}
@@ -2087,9 +2154,53 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 							{/each}
 						</div>
 					{/if}
-					<div class="relative min-w-0">
-						<!-- Embedded submit button: top-right -->
-						<div class="absolute top-0 right-0 flex items-center gap-2 z-10">
+					<div class="flex gap-1.5 min-w-0">
+						<div class="relative flex-1 min-w-0">
+							<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+							<div
+								bind:this={editorRef}
+								role="textbox"
+								aria-multiline="true"
+								aria-label={m.agent_input_placeholder()}
+								tabindex="0"
+								contenteditable="true"
+								autocapitalize="off"
+								spellcheck={false}
+							class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
+							onbeforeinput={handleEditorBeforeInput}
+							oninput={() => handleEditorInput()}
+								onkeydown={handleEditorKeyDown}
+								onkeyup={handleEditorKeyUp}
+								onfocus={handleEditorFocus}
+								onblur={handleEditorBlur}
+								onclick={handleEditorClick}
+							onmouseover={handleEditorMouseOver}
+								onmouseout={handleEditorMouseOut}
+								onpaste={(event) => handleEditorPaste(event)}
+								oncut={handleEditorCut}
+							></div>
+							{#if overlayMode && overlayRefId && overlayAnchorRect}
+								{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
+								<AgentInputPastedTextOverlay
+									mode={overlayMode}
+									refId={overlayRefId}
+									anchorRect={overlayAnchorRect}
+									textContent={overlayText}
+									onSave={handleOverlaySave}
+									onClose={closeOverlay}
+									onMouseEnter={cancelOverlayClose}
+								/>
+							{/if}
+							{#if inputState.message.length === 0}
+								<div
+									class="pointer-events-none absolute left-0 top-0 text-sm leading-relaxed text-muted-foreground select-none"
+								>
+									{m.agent_input_placeholder()}
+								</div>
+							{/if}
+						</div>
+						<!-- Submit button: in-flow, bottom-aligned -->
+						<div class="flex items-end shrink-0">
 							<Tooltip.Root>
 								<Tooltip.Trigger>
 									{#snippet child({ props: triggerProps })}
@@ -2137,50 +2248,6 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 									{/if}
 								</Tooltip.Content>
 							</Tooltip.Root>
-						</div>
-						<div class="relative flex-1 min-w-0 pr-12">
-							<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-							<div
-								bind:this={editorRef}
-								role="textbox"
-								aria-multiline="true"
-								aria-label={m.agent_input_placeholder()}
-								tabindex="0"
-								contenteditable="true"
-								autocapitalize="off"
-								spellcheck={false}
-							class="min-h-[72px] max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
-							onbeforeinput={handleEditorBeforeInput}
-							oninput={() => handleEditorInput()}
-								onkeydown={handleEditorKeyDown}
-								onkeyup={handleEditorKeyUp}
-								onfocus={handleEditorFocus}
-								onblur={handleEditorBlur}
-								onclick={handleEditorClick}
-							onmouseover={handleEditorMouseOver}
-								onmouseout={handleEditorMouseOut}
-								onpaste={(event) => handleEditorPaste(event)}
-								oncut={handleEditorCut}
-							></div>
-							{#if overlayMode && overlayRefId && overlayAnchorRect}
-								{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
-								<AgentInputPastedTextOverlay
-									mode={overlayMode}
-									refId={overlayRefId}
-									anchorRect={overlayAnchorRect}
-									textContent={overlayText}
-									onSave={handleOverlaySave}
-									onClose={closeOverlay}
-									onMouseEnter={cancelOverlayClose}
-								/>
-							{/if}
-							{#if inputState.message.length === 0}
-								<div
-									class="pointer-events-none absolute left-0 top-0 text-sm leading-relaxed text-muted-foreground select-none"
-								>
-									{m.agent_input_placeholder()}
-								</div>
-							{/if}
 						</div>
 					</div>
 				{:else}
@@ -2241,11 +2308,15 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 					{#if visibleModes.length > 0}
 						<AgentInputModeSelector
 							availableModes={visibleModes}
-							currentModeId={effectiveCurrentModeId}
+							currentModeId={selectedModeMenuOptionId}
 							planLabel={m.plan_heading()}
 							buildLabel={m.plan_sidebar_build()}
+							autoLabel="Auto"
+							autonomousActive={autonomousToggleActive}
+							autoDisabled={autoModeDisabled}
+							autoDisabledReason={autoModeDisabledReason}
 							onModeChange={(modeId) => {
-								void handleModeChange(modeId);
+								void handleModeMenuChange(modeId);
 							}}
 						/>
 						<div class="h-full w-px bg-border/50"></div>
@@ -2253,17 +2324,6 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 						<Skeleton class="h-7 w-7" />
 						<div class="h-full w-px bg-border/50"></div>
 					{/if}
-					<AgentInputAutonomousToggle
-						active={autonomousToggleActive}
-						disabled={autonomousToggleDisabled}
-						busy={autonomousToggleBusy}
-						title={autonomousTooltip}
-						ariaLabel={autonomousTooltip}
-						onToggle={() => {
-							void handleAutonomousToggle();
-						}}
-					/>
-					<div class="h-full w-px bg-border/50"></div>
 					<ModelSelector
 						availableModels={effectiveAvailableModels}
 						currentModelId={effectiveCurrentModelId}
@@ -2362,17 +2422,17 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 										void voiceSettingsStore.downloadModel(modelId);
 									}}
 								/>
-							<AgentInputMicButton
-								visualState={getMicButtonVisualState(currentVoiceState.phase)}
-								downloadPercent={currentVoiceState.downloadPercent}
-								title={resolveVoiceMicLabel(currentVoiceState)}
-								ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
-								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
-								onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
-								onpointerup={() => currentVoiceState.onMicPointerUp()}
-								onpointercancel={() => currentVoiceState.onMicPointerCancel()}
-								onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
-							/>
+								<AgentInputMicButton
+									visualState={getMicButtonVisualState(currentVoiceState.phase)}
+									downloadPercent={currentVoiceState.downloadPercent}
+									title={resolveVoiceMicLabel(currentVoiceState)}
+									ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
+									disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
+									onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+									onpointerup={() => currentVoiceState.onMicPointerUp()}
+									onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+									onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
+								/>
 							</div>
 						{/if}
 					{/if}

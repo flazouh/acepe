@@ -8,8 +8,6 @@
 		color: string;
 		/** Optional project icon source. When provided, renders the image instead of the letter badge. */
 		iconSrc?: string | null;
-		/** Whether the badge should show a draggable grip on hover. */
-		draggable?: boolean;
 		/** Badge size in px (default 20) */
 		size?: number;
 		/** Override font size in px (default: size * 0.55) */
@@ -26,7 +24,6 @@
 		name,
 		color,
 		iconSrc = null,
-		draggable = false,
 		size = 20,
 		fontSize: fontSizeProp,
 		sequenceId,
@@ -48,14 +45,14 @@
 	const badgeBg = $derived(showImage ? 'var(--badge-icon-bg)' : displayColor);
 	const badgeFg = $derived(showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
 	const badgeBorder = $derived(showImage ? 'var(--badge-icon-border)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
+	const seqBg = $derived(showImage ? 'var(--badge-seq-bg)' : badgeBg);
+	const seqFg = $derived(showImage ? 'var(--badge-seq-fg)' : badgeFg);
 </script>
 
 <span class="inline-flex items-center {className}" style="gap: 0px;">
 	{#if showLetter}
 		<div
-			class="relative flex items-center justify-center shrink-0 overflow-hidden {draggable
-				? 'group/project-letter-badge'
-				: ''}"
+			class="relative flex items-center justify-center shrink-0 overflow-hidden"
 			style="
 				background-color: {badgeBg};
 				width: {size}px;
@@ -64,9 +61,7 @@
 			"
 		>
 			<div
-				class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 ease-out motion-reduce:transition-none {draggable
-					? 'opacity-100 group-hover/project-letter-badge:opacity-0'
-					: ''}"
+				class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 ease-out motion-reduce:transition-none"
 			>
 				{#if showImage}
 					<img
@@ -89,28 +84,6 @@
 					</span>
 				{/if}
 			</div>
-			{#if draggable}
-				<div
-					aria-hidden="true"
-					class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out motion-reduce:transition-none group-hover/project-letter-badge:opacity-100"
-				>
-					<span class="inline-flex h-full w-full cursor-grab items-center justify-center">
-						<svg
-							viewBox="0 0 8 12"
-							class="h-[60%] w-[60%]"
-							fill="currentColor"
-							style="color: {badgeFg};"
-						>
-							<circle cx="2" cy="2" r="1" />
-							<circle cx="6" cy="2" r="1" />
-							<circle cx="2" cy="6" r="1" />
-							<circle cx="6" cy="6" r="1" />
-							<circle cx="2" cy="10" r="1" />
-							<circle cx="6" cy="10" r="1" />
-						</svg>
-					</span>
-				</div>
-			{/if}
 		</div>
 	{/if}
 	{#if hasSequenceId}
@@ -121,13 +94,24 @@
 				padding: 0 {size * 0.25}px;
 				{showLetter ? `border-left: 1px solid ${badgeBorder};` : ''}
 				border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
-				background-color: {badgeBg};
+				background-color: {seqBg};
 			"
 		>
 			<span
 				class="font-black leading-none"
-				style="font-size: {fontSize}px; color: {badgeFg};"
+				style="font-size: {fontSize}px; color: {seqFg};"
 			>{sequenceId}</span>
 		</span>
 	{/if}
 </span>
+
+<style>
+	:global(:root) {
+		--badge-seq-bg: #141413;
+		--badge-seq-fg: #B0AEA5;
+	}
+	:global(.dark) {
+		--badge-seq-bg: #B0AEA5;
+		--badge-seq-fg: #141413;
+	}
+</style>

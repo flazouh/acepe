@@ -5,7 +5,7 @@ mock.module("@tauri-apps/api/core", () => ({
 	convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 }));
 
-import { convertIconPath } from "../project-client.js";
+import { convertIconPath, normalizeProjectIconUpdatePath } from "../project-client.js";
 
 describe("convertIconPath", () => {
 	it("returns null when iconPath is null", () => {
@@ -63,5 +63,19 @@ describe("convertIconPath", () => {
 		const result = convertIconPath("icons/project.svg");
 		expect(result).toStartWith("asset://");
 		expect(result).toContain("project.svg");
+	});
+});
+
+describe("normalizeProjectIconUpdatePath", () => {
+	it("converts empty string reset sentinel to null", () => {
+		expect(normalizeProjectIconUpdatePath("")).toBeNull();
+	});
+
+	it("keeps file paths unchanged", () => {
+		expect(normalizeProjectIconUpdatePath("/tmp/icon.png")).toBe("/tmp/icon.png");
+	});
+
+	it("keeps null unchanged", () => {
+		expect(normalizeProjectIconUpdatePath(null)).toBeNull();
 	});
 });

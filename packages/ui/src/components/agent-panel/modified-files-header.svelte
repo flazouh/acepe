@@ -6,7 +6,7 @@
 		initiallyExpanded?: boolean;
 		fileList?: Snippet;
 		leadingContent?: Snippet;
-		trailingContent: Snippet<[boolean]>;
+		trailingContent: Snippet<[boolean, () => void]>;
 	}
 
 	let {
@@ -35,16 +35,7 @@
 		{/if}
 
 		<div
-			role="button"
-			tabindex="0"
-			onclick={toggleExpanded}
-			onkeydown={(event: KeyboardEvent) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					toggleExpanded();
-				}
-			}}
-			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 cursor-pointer {isExpanded
+			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 {isExpanded
 				? 'rounded-t-none border-t-0'
 				: ''}"
 		>
@@ -55,7 +46,7 @@
 			{/if}
 
 			<div class="flex items-center gap-3 shrink-0 ml-auto">
-				{@render trailingContent(isExpanded)}
+				{@render trailingContent(isExpanded, toggleExpanded)}
 			</div>
 		</div>
 	</div>

@@ -62,7 +62,7 @@ interface Props {
 	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
 	/** Called when user exports session as JSON */
 	onExportJson?: (sessionId: string) => void | Promise<void>;
-	/** Called when project order changes from sidebar drag/drop */
+	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
 }
 
