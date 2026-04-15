@@ -37,6 +37,11 @@ import {
 	parseStreamingTailIncremental,
 	type StreamingTailParseResult,
 } from "./logic/parse-streaming-tail.js";
+import {
+	LIVE_MARKDOWN_RENDER_BREACH_LIMIT,
+	LIVE_MARKDOWN_RENDER_BUDGET_MS,
+	renderLiveMarkdownSection,
+} from "./logic/render-live-markdown.js";
 import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
 import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
@@ -324,7 +329,17 @@ const visibleHtml = $derived.by(() => {
 });
 const error = $derived(asyncError);
 const isLoading = $derived(syncResult.needsAsync && asyncPending);
+
+interface StreamingLiveMarkdownState {
+	html: string;
+	renderedText: string;
+	overBudgetStreak: number;
+	isFrozen: boolean;
+	tailText: string;
+}
+
 let streamingSettledHtmlByKey = $state<ReadonlyMap<string, string>>(new Map());
+let streamingLiveMarkdownByKey = $state<ReadonlyMap<string, StreamingLiveMarkdownState>>(new Map());
 const hasLiveStreamingSection = $derived(
 	streamingTail.sections.some((section) => section.kind !== "settled")
 );
@@ -386,29 +401,80 @@ $effect(() => {
 $effect(() => {
 	if (!isRenderingReveal) {
 		streamingSettledHtmlByKey = new Map();
+		streamingLiveMarkdownByKey = new Map();
 		return;
 	}
 
 	const previousSettledHtmlByKey = untrack(() => streamingSettledHtmlByKey);
+	const previousLiveMarkdownByKey = untrack(() => streamingLiveMarkdownByKey);
 	const nextSettledHtmlByKey = new Map<string, string>();
+	const nextLiveMarkdownByKey = new Map<string, StreamingLiveMarkdownState>();
 	for (const section of streamingTail.sections) {
-		if (section.kind !== "settled") {
+		if (section.kind === "settled") {
+			const cachedHtml = previousSettledHtmlByKey.get(section.key);
+			if (cachedHtml !== undefined) {
+				nextSettledHtmlByKey.set(section.key, cachedHtml);
+				continue;
+			}
+
+			const result = renderLiveMarkdownSection(section);
+			if (result.html !== null) {
+				nextSettledHtmlByKey.set(section.key, result.html);
+			}
 			continue;
 		}
 
-		const cachedHtml = previousSettledHtmlByKey.get(section.key);
-		if (cachedHtml !== undefined) {
-			nextSettledHtmlByKey.set(section.key, cachedHtml);
+		if (section.kind !== "live-markdown") {
 			continue;
 		}
 
-		const result = renderMarkdownSync(section.markdown);
-		if (result.html !== null && !htmlNeedsBadgeMount(result.html)) {
-			nextSettledHtmlByKey.set(section.key, result.html);
+		const previousState = previousLiveMarkdownByKey.get(section.key);
+		if (previousState?.isFrozen) {
+			nextLiveMarkdownByKey.set(section.key, {
+				html: previousState.html,
+				renderedText: previousState.renderedText,
+				overBudgetStreak: previousState.overBudgetStreak,
+				isFrozen: true,
+				tailText: section.text.slice(previousState.renderedText.length),
+			});
+			continue;
 		}
+
+		const result = renderLiveMarkdownSection(section);
+		if (result.html === null) {
+			continue;
+		}
+
+		const overBudgetStreak =
+			result.durationMs > LIVE_MARKDOWN_RENDER_BUDGET_MS
+				? (previousState?.overBudgetStreak ?? 0) + 1
+				: 0;
+		const shouldFreeze =
+			previousState !== undefined &&
+			overBudgetStreak >= LIVE_MARKDOWN_RENDER_BREACH_LIMIT;
+
+		if (shouldFreeze) {
+			nextLiveMarkdownByKey.set(section.key, {
+				html: previousState.html,
+				renderedText: previousState.renderedText,
+				overBudgetStreak,
+				isFrozen: true,
+				tailText: section.text.slice(previousState.renderedText.length),
+			});
+			continue;
+		}
+
+		nextLiveMarkdownByKey.set(section.key, {
+			html: result.html,
+			renderedText: section.text,
+			overBudgetStreak,
+			isFrozen: false,
+			tailText: "",
+		});
 	}
 
 	streamingSettledHtmlByKey = nextSettledHtmlByKey;
+	streamingLiveMarkdownByKey = nextLiveMarkdownByKey;
 });
 
 /**
@@ -570,6 +636,22 @@ function handleKeydown(event: KeyboardEvent) {
 					{/if}
 				{:else if section.kind === "live-code"}
 					<pre class="streaming-live-code"><code>{section.code}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</code></pre>
+				{:else if section.kind === "live-markdown"}
+					{@const liveMarkdown = streamingLiveMarkdownByKey.get(section.key)}
+					{#if liveMarkdown}
+						{@html liveMarkdown.html}
+						{#if liveMarkdown.tailText.length > 0}
+							<div class="streaming-live-fallback-tail whitespace-pre-wrap">
+								{liveMarkdown.tailText}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}
+							</div>
+						{:else if showStreamingCursor && isLastSection}
+							<div class="streaming-live-cursor-shell" aria-hidden="true">
+								<span class="streaming-live-cursor"></span>
+							</div>
+						{/if}
+					{:else}
+						<div class="streaming-live-text whitespace-pre-wrap">{section.text}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</div>
+					{/if}
 				{:else}
 					<div class="streaming-live-text whitespace-pre-wrap">{section.text}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</div>
 				{/if}
@@ -624,6 +706,19 @@ function handleKeydown(event: KeyboardEvent) {
 
 	:global(.streaming-section.streaming-smooth-fade) {
 		animation: smoothFadeIn 300ms ease-out;
+	}
+
+	:global(.streaming-live-link.is-disabled) {
+		color: var(--color-primary);
+		cursor: text;
+		opacity: 0.85;
+		pointer-events: none;
+		text-decoration: underline;
+	}
+
+	.streaming-live-fallback-tail,
+	.streaming-live-cursor-shell {
+		display: inline;
 	}
 
 	@keyframes smoothFadeIn {

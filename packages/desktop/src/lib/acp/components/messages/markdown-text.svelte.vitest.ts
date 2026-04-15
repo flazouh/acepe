@@ -15,8 +15,10 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
+const openUrlMock = vi.fn();
+
 vi.mock("@tauri-apps/plugin-opener", () => ({
-	openUrl: vi.fn(),
+	openUrl: openUrlMock,
 }));
 
 vi.mock("$lib/messages.js", () => ({
@@ -107,8 +109,10 @@ vi.mock("./logic/mount-github-badges.js", () => ({
 	) => mountGitHubBadgesMock(container, options),
 }));
 
+const parseContentBlocksMock = vi.fn(() => []);
+
 vi.mock("./logic/parse-content-blocks.js", () => ({
-	parseContentBlocks: vi.fn(() => []),
+	parseContentBlocks: () => parseContentBlocksMock(),
 }));
 
 const pendingAsyncRenders = new Map<
@@ -131,6 +135,7 @@ type QueuedAnimationFrame = {
 
 let queuedAnimationFrames: QueuedAnimationFrame[] = [];
 let nextAnimationFrameId = 1;
+let performanceNowSequence: number[] = [];
 
 async function flushAnimationFrames(frameCount = 1, startTime = 16): Promise<void> {
 	for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
@@ -160,10 +165,16 @@ async function flushAllAnimationFrames(startTime = 16): Promise<void> {
 
 const { default: MarkdownText } = await import("./markdown-text.svelte");
 
+function setPerformanceNowSequence(values: number[]) {
+	performanceNowSequence = [...values];
+}
+
 beforeEach(() => {
 	queuedAnimationFrames = [];
 	nextAnimationFrameId = 1;
+	performanceNowSequence = [];
 	pendingAsyncRenders.clear();
+	openUrlMock.mockReset();
 	getRepoContextMock.mockReset();
 	getProjectGitStatusMapMock.mockReset();
 	getProjectGitStatusMapMock.mockReturnValue({
@@ -171,6 +182,8 @@ beforeEach(() => {
 	});
 	mountFileBadgesMock.mockClear();
 	mountGitHubBadgesMock.mockClear();
+	parseContentBlocksMock.mockReset();
+	parseContentBlocksMock.mockReturnValue([]);
 	renderMarkdownMock.mockClear();
 	renderMarkdownSyncMock.mockReset();
 	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback): number => {
@@ -182,10 +195,14 @@ beforeEach(() => {
 	vi.stubGlobal("cancelAnimationFrame", (id: number): void => {
 		queuedAnimationFrames = queuedAnimationFrames.filter((frame) => frame.id !== id);
 	});
+	vi.spyOn(performance, "now").mockImplementation(
+		() => performanceNowSequence.shift() ?? queuedAnimationFrames.length * 16
+	);
 });
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
 
@@ -414,11 +431,12 @@ describe("MarkdownText", () => {
 			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe(
 				"Hello streaming"
 			);
-			expect(view.container.querySelector(".streaming-live-text")?.textContent).toContain("Body");
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent
+			).toContain("Body");
 		});
 
-		expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
-		expect(renderMarkdownSyncMock).toHaveBeenCalledWith("# Hello streaming");
+		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 		expect(mountFileBadgesMock).not.toHaveBeenCalled();
 		expect(mountGitHubBadgesMock).not.toHaveBeenCalled();
 	});
@@ -448,7 +466,7 @@ describe("MarkdownText", () => {
 			return section;
 		});
 
-		expect(view.container.querySelector(".streaming-live-text")).not.toBeNull();
+		expect(firstLiveSection?.textContent).not.toBe("");
 		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 
 		await view.rerender({
@@ -581,7 +599,143 @@ describe("MarkdownText", () => {
 			settledSection
 		);
 		expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')).toBe(liveSection);
-		expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
+		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+	});
+
+	it("renders reveal-time links as disabled text instead of interactive anchors", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "[Acepe](https://acepe.dev)",
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		await waitFor(() => {
+			const disabledLink = view.container.querySelector(".streaming-live-link.is-disabled");
+			expect(disabledLink).toBeTruthy();
+			expect(disabledLink?.textContent).toBe("Acepe");
+		});
+
+		expect(view.container.querySelector("a")).toBeNull();
+		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownMock).not.toHaveBeenCalled();
+	});
+
+	it("freezes promoted live markdown after consecutive over-budget renders and appends new text as fallback", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+		setPerformanceNowSequence([0, 10, 10, 20]);
+
+		const view = render(MarkdownText, {
+			text: "Hello",
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		await waitFor(() => {
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:0"] p')?.textContent
+			).toBe("Hello");
+		});
+
+		await view.rerender({
+			text: "Hello world",
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		await waitFor(() => {
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:0"] p')?.textContent
+			).toBe("Hello");
+			expect(
+				view.container.querySelector(".streaming-live-fallback-tail")?.textContent
+			).toContain(" world");
+		});
+	});
+
+	it("keeps final-only settled blocks on plain fallback during reveal and upgrades them after settle", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html:
+				text === "```mermaid\ngraph TD;\n```"
+					? '<div class="mermaid">graph TD;</div>'
+					: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const text = "```mermaid\ngraph TD;\n```";
+		const view = render(MarkdownText, {
+			text,
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(view.container.textContent).toContain(text);
+		expect(view.container.querySelector(".mermaid")).toBeNull();
+		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+
+		await view.rerender({
+			text,
+			isStreaming: false,
+			streamingAnimationMode: "instant",
+		});
+
+		await waitFor(() => {
+			expect(view.container.querySelector(".mermaid")?.textContent).toContain("graph TD;");
+		});
+	});
+
+	it("upgrades reveal-time disabled links into interactive anchors after settle", async () => {
+		renderMarkdownSyncMock.mockReturnValue({
+			html: '<p><a href="https://acepe.dev">Acepe</a></p>',
+			fromCache: false,
+			needsAsync: false,
+		});
+
+		const text = "[Acepe](https://acepe.dev)";
+		const view = render(MarkdownText, {
+			text,
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(view.container.querySelector(".streaming-live-link.is-disabled")?.textContent).toBe("Acepe");
+		expect(view.container.querySelector("a")).toBeNull();
+
+		await view.rerender({
+			text,
+			isStreaming: false,
+			streamingAnimationMode: "instant",
+		});
+
+		await waitFor(() => {
+			expect(view.container.querySelector('a[href="https://acepe.dev"]')?.textContent).toBe(
+				"Acepe"
+			);
+		});
+
+		const anchor = view.container.querySelector('a[href="https://acepe.dev"]');
+		anchor?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(openUrlMock).toHaveBeenCalledWith("https://acepe.dev");
 	});
 
 	describe("streaming animation modes", () => {
@@ -633,9 +787,10 @@ describe("MarkdownText", () => {
 
 			await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-			expect(view.container.textContent).toContain(text);
+			expect(view.container.textContent).toContain("bold text");
 			expect(view.container.querySelector(".streaming-section")).toBeTruthy();
-			expect(view.container.querySelector("strong")).toBeNull();
+			expect(view.container.querySelector(".streaming-section strong")?.textContent).toBe("bold");
+			expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 
 			await view.rerender({
 				text,
@@ -670,11 +825,12 @@ describe("MarkdownText", () => {
 				expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe(
 					"Hello streaming"
 				);
-				expect(view.container.querySelector(".streaming-live-text")?.textContent).toContain("Body");
+				expect(
+					view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent
+				).toContain("Body");
 			});
 
-			expect(renderMarkdownSyncMock).toHaveBeenCalledTimes(1);
-			expect(renderMarkdownSyncMock).toHaveBeenCalledWith("# Hello streaming");
+			expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 		});
 
 		it("reveals smooth mode text in buffered chunks instead of character-by-character", async () => {

@@ -1,8 +1,19 @@
+import type { LiveMarkdownPresentation } from "./live-markdown-promotion.js";
+import { promoteLiveMarkdownText } from "./live-markdown-promotion.js";
+
 export type StreamingTailSection =
 	| {
 			key: string;
 			kind: "settled";
 			markdown: string;
+	  }
+	| {
+			key: string;
+			kind: "live-markdown";
+			text: string;
+			markdown: string;
+			presentation: LiveMarkdownPresentation;
+			source: string;
 	  }
 	| {
 			key: string;
@@ -31,10 +42,24 @@ function rekeySection(section: StreamingTailSection, index: number): StreamingTa
 		return createLiveCodeSection(index, section.code, section.language, section.source);
 	}
 
+	if (section.kind === "live-markdown") {
+		return createLiveMarkdownSection(
+			index,
+			section.text,
+			section.markdown,
+			section.presentation,
+			section.source
+		);
+	}
+
 	return createLiveTextSection(index, section.text);
 }
 
 function buildReparseSource(section: StreamingTailSection): string | null {
+	if (section.kind === "live-markdown") {
+		return section.source;
+	}
+
 	if (section.kind === "live-text") {
 		return section.source;
 	}
@@ -60,6 +85,23 @@ function createLiveTextSection(index: number, text: string): StreamingTailSectio
 		kind: "live-text",
 		text,
 		source: text,
+	};
+}
+
+function createLiveMarkdownSection(
+	index: number,
+	text: string,
+	markdown: string,
+	presentation: LiveMarkdownPresentation,
+	source: string
+): StreamingTailSection {
+	return {
+		key: `LIVE:${index}`,
+		kind: "live-markdown",
+		text,
+		markdown,
+		presentation,
+		source,
 	};
 }
 
@@ -151,7 +193,22 @@ export function parseStreamingTail(text: string): StreamingTailParseResult {
 		return { sections };
 	}
 
-	sections.push(createLiveTextSection(blockIndex, buffer.join("\n")));
+	const liveText = buffer.join("\n");
+	const promotion = promoteLiveMarkdownText(liveText);
+	if (promotion) {
+		sections.push(
+			createLiveMarkdownSection(
+				blockIndex,
+				liveText,
+				promotion.markdown,
+				promotion.presentation,
+				liveText
+			)
+		);
+		return { sections };
+	}
+
+	sections.push(createLiveTextSection(blockIndex, liveText));
 	return { sections };
 }
 
