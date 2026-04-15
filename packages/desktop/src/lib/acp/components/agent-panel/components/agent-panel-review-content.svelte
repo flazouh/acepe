@@ -174,13 +174,14 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 	// Capture file reference before async write to prevent race if selection changes
 	const capturedFile = selectedFile;
 	const capturedFileIndex = selectedFileIndex;
+	const capturedDiffState = diffViewStateRef;
 
 	tauriClient.fs.writeTextFile(capturedFile.filePath, revertedContent, sessionId).match(
 		() => {
 			toast.success(m.hunk_revert_success({ filePath: capturedFile.fileName }));
 			recordResolvedAction(capturedFile, hunkIndex, "reject");
 			const nextState = updateFileStatus(capturedFile, (prev) => {
-				const stats = diffViewStateRef?.getHunkStats() ?? {
+				const stats = capturedDiffState?.getHunkStats() ?? {
 					total: prev?.totalHunks ?? 0,
 					pending: (prev?.pendingHunks ?? 1) - 1,
 					accepted: prev?.acceptedHunks ?? 0,
