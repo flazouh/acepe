@@ -4,7 +4,7 @@
 export interface WorktreeInfo {
 	/** The worktree name (e.g., "clever-falcon") */
 	readonly name: string;
-	/** The git branch name (e.g., "acepe/clever-falcon") */
+	/** The git branch name (matches the worktree name, e.g., "clever-falcon") */
 	readonly branch: string;
 	/** The full path to the worktree directory */
 	readonly directory: string;

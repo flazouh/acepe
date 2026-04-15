@@ -1153,7 +1153,7 @@ impl SessionMetadataRepository {
         db: &impl sea_orm::ConnectionTrait,
         project_path: &str,
     ) -> Result<i32> {
-        let max_seq: Option<i32> = AcepeSessionState::find()
+        let max_state_seq: Option<i32> = AcepeSessionState::find()
             .select_only()
             .column_as(acepe_session_state::Column::SequenceId.max(), "max_seq")
             .filter(acepe_session_state::Column::ProjectPath.eq(project_path))
@@ -1163,7 +1163,57 @@ impl SessionMetadataRepository {
             .await?
             .flatten();
 
+        let max_metadata_seq: Option<i32> = SessionMetadata::find()
+            .select_only()
+            .column_as(session_metadata::Column::SequenceId.max(), "max_seq")
+            .filter(session_metadata::Column::ProjectPath.eq(project_path))
+            .filter(session_metadata::Column::SequenceId.is_not_null())
+            .into_tuple::<Option<i32>>()
+            .one(db)
+            .await?
+            .flatten();
+
+        let max_seq = match (max_state_seq, max_metadata_seq) {
+            (Some(state), Some(metadata)) => Some(state.max(metadata)),
+            (Some(state), None) => Some(state),
+            (None, Some(metadata)) => Some(metadata),
+            (None, None) => None,
+        };
+
         Ok(max_seq.map_or(1, |max| max + 1))
+    }
+
+    async fn sequence_id_taken_by_other_session(
+        db: &impl sea_orm::ConnectionTrait,
+        project_path: &str,
+        session_id: &str,
+        sequence_id: i32,
+    ) -> Result<bool> {
+        let state_conflict = AcepeSessionState::find()
+            .filter(
+                Condition::all()
+                    .add(acepe_session_state::Column::ProjectPath.eq(project_path))
+                    .add(acepe_session_state::Column::SequenceId.eq(sequence_id))
+                    .add(acepe_session_state::Column::SessionId.ne(session_id)),
+            )
+            .one(db)
+            .await?;
+
+        if state_conflict.is_some() {
+            return Ok(true);
+        }
+
+        let metadata_conflict = SessionMetadata::find()
+            .filter(
+                Condition::all()
+                    .add(session_metadata::Column::ProjectPath.eq(project_path))
+                    .add(session_metadata::Column::SequenceId.eq(sequence_id))
+                    .add(session_metadata::Column::Id.ne(session_id)),
+            )
+            .one(db)
+            .await?;
+
+        Ok(metadata_conflict.is_some())
     }
 
     fn is_non_persisted_session_file_path(file_path: &str) -> bool {
@@ -1609,11 +1659,25 @@ impl SessionMetadataRepository {
                 }
             }
 
-            let next_sequence_id =
-                Self::next_sequence_id_for_project(&txn, &latest_model.project_path).await?;
+            let assigned_sequence_id = if let Some(existing_sequence_id) = latest_model.sequence_id {
+                if Self::sequence_id_taken_by_other_session(
+                    &txn,
+                    &latest_model.project_path,
+                    &latest_model.id,
+                    existing_sequence_id,
+                )
+                .await?
+                {
+                    Self::next_sequence_id_for_project(&txn, &latest_model.project_path).await?
+                } else {
+                    existing_sequence_id
+                }
+            } else {
+                Self::next_sequence_id_for_project(&txn, &latest_model.project_path).await?
+            };
             let mut active: session_metadata::ActiveModel = latest_model.into();
             active.is_acepe_managed = Set(1);
-            active.sequence_id = Set(Some(next_sequence_id));
+            active.sequence_id = Set(Some(assigned_sequence_id));
             active.updated_at = Set(Utc::now());
             let state_project_path = active.project_path.as_ref().clone();
             let state_worktree_path = active.worktree_path.as_ref().clone();
@@ -1628,9 +1692,15 @@ impl SessionMetadataRepository {
                             Set(AcepeSessionRelationship::Opened.as_str().to_string());
                         state_active.project_path = Set(state_project_path.clone());
                         state_active.worktree_path = Set(state_worktree_path.clone());
-                        state_active.sequence_id = Set(Some(next_sequence_id));
+                        state_active.sequence_id = Set(Some(assigned_sequence_id));
                         state_active.updated_at = Set(now);
-                        state_active.update(&txn).await?;
+                        if let Err(error) = state_active.update(&txn).await {
+                            if Self::is_sequence_constraint_violation(&error) {
+                                txn.rollback().await?;
+                                continue;
+                            }
+                            return Err(error.into());
+                        }
                     } else {
                         let state = acepe_session_state::ActiveModel {
                             session_id: Set(existing_model.id.clone()),
@@ -1641,14 +1711,20 @@ impl SessionMetadataRepository {
                             title_override: Set(None),
                             worktree_path: Set(state_worktree_path),
                             pr_number: Set(state_pr_number),
-                            sequence_id: Set(Some(next_sequence_id)),
+                            sequence_id: Set(Some(assigned_sequence_id)),
                             created_at: Set(now),
                             updated_at: Set(now),
                         };
-                        state.insert(&txn).await?;
+                        if let Err(error) = state.insert(&txn).await {
+                            if Self::is_sequence_constraint_violation(&error) {
+                                txn.rollback().await?;
+                                continue;
+                            }
+                            return Err(error.into());
+                        }
                     }
                     txn.commit().await?;
-                    return Ok(Some(next_sequence_id));
+                    return Ok(Some(assigned_sequence_id));
                 }
                 Err(error) => {
                     if Self::is_sequence_constraint_violation(&error) {

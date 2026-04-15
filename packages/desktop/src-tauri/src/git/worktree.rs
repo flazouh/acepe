@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality to create, manage, and cleanup git worktrees
 //! that isolate agent work from the main repository. Each worktree gets a fun
-//! adjective-noun branch name like "clever-falcon" or "cosmic-harbor".
+//! adjective-noun name like "clever-falcon" or "cosmic-harbor".
 
 use crate::db::repository::SessionMetadataRepository;
 use crate::git::worktree_config;
@@ -46,7 +46,7 @@ pub enum WorktreeOrigin {
 pub struct WorktreeInfo {
     /// The worktree name (e.g., "clever-falcon")
     pub name: String,
-    /// The git branch name (e.g., "acepe/clever-falcon")
+    /// The git branch name (matches the worktree name, e.g., "clever-falcon")
     pub branch: String,
     /// The full path to the worktree directory
     pub directory: String,
@@ -66,7 +66,7 @@ pub struct PreparedWorktreeLaunch {
 pub struct WorktreeListItem {
     /// The worktree name (e.g., "clever-falcon")
     pub name: String,
-    /// The git branch name (e.g., "acepe/clever-falcon")
+    /// The git branch name (matches the worktree name, e.g., "clever-falcon")
     pub branch: String,
     /// The full path to the worktree directory
     pub path: String,
@@ -216,7 +216,51 @@ fn format_reserved_worktree_relative_path(
 }
 
 fn worktree_branch_name(name: &str) -> String {
-    format!("acepe/{}", name.replace(':', "-"))
+    name.replace(':', "-")
+}
+
+fn worktree_relative_name(worktree_path: &Path) -> Result<String, String> {
+    let root = get_worktrees_root()?;
+    let within_root = worktree_path
+        .strip_prefix(&root)
+        .map_err(|_| "Worktree path does not belong to the Acepe worktrees root".to_string())?;
+    let mut components = within_root.components();
+    let _project_id = components
+        .next()
+        .ok_or("Could not determine project worktrees directory")?;
+    let relative = components.as_path();
+    if relative.as_os_str().is_empty() {
+        return Err("Could not determine worktree relative name".to_string());
+    }
+
+    Ok(relative.to_string_lossy().replace('\\', "/"))
+}
+
+fn managed_worktree_branch_name(worktree_path: &Path) -> Result<String, String> {
+    let relative_name = worktree_relative_name(worktree_path)?;
+    Ok(worktree_branch_name(&relative_name))
+}
+
+fn legacy_managed_worktree_branch_name(worktree_path: &Path) -> Result<String, String> {
+    let relative_name = worktree_relative_name(worktree_path)?;
+    Ok(format!("acepe/{}", worktree_branch_name(&relative_name)))
+}
+
+fn resolve_existing_managed_worktree_branch_name(
+    repo_path: &Path,
+    worktree_path: &Path,
+) -> Result<Option<String>, String> {
+    let managed_branch = managed_worktree_branch_name(worktree_path)?;
+    if branch_exists(repo_path, &managed_branch)? {
+        return Ok(Some(managed_branch));
+    }
+
+    let legacy_branch = legacy_managed_worktree_branch_name(worktree_path)?;
+    if branch_exists(repo_path, &legacy_branch)? {
+        return Ok(Some(legacy_branch));
+    }
+
+    Ok(None)
 }
 
 /// Get the worktrees root directory (~/.acepe/worktrees/)
@@ -443,14 +487,6 @@ fn generate_unique_candidate_from_basename(
     }
 
     Err("Failed to generate unique deterministic worktree name after 99 attempts".to_string())
-}
-
-fn rename_acepe_branch_name(current_branch: &str, new_name: &str) -> String {
-    if current_branch.starts_with("acepe/") {
-        return format!("acepe/{}", new_name);
-    }
-
-    new_name.to_string()
 }
 
 fn build_renamed_worktree_path(current_path: &Path, new_name: &str) -> Result<PathBuf, String> {
@@ -728,22 +764,12 @@ pub async fn git_worktree_remove(worktree_path: String, force: bool) -> Result<(
     let worktree_path_buf = worktree_config::validate_worktree_path(&worktree_path_buf)
         .map_err(|e| format!("Invalid worktree path: {}", e))?;
 
-    // Extract the worktree name to determine the branch
-    let worktree_name = worktree_path_buf
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or("Could not determine worktree name")?;
-    let branch_name = format!("acepe/{}", worktree_name);
-
     // Find the main repository by going up the directory tree
     // Worktrees are in ~/.acepe/worktrees/<project-id>/<name>
     // We need to find the original repo to run git commands
-    let _parent_dir = worktree_path_buf
-        .parent()
-        .ok_or("Could not determine parent directory")?;
-
     // Read the gitdir file to find the main repo
     let main_repo = get_main_repo_from_worktree_path(&worktree_path_buf)?;
+    let branch_name = resolve_existing_managed_worktree_branch_name(&main_repo, &worktree_path_buf)?;
 
     // Remove the worktree
     let mut args = vec!["worktree", "remove"];
@@ -769,21 +795,23 @@ pub async fn git_worktree_remove(worktree_path: String, force: bool) -> Result<(
     }
 
     // Delete the branch
-    let output = Command::new("git")
-        .args(["branch", "-D", &branch_name])
-        .current_dir(&main_repo)
-        .output()
-        .map_err(|e| format!("Failed to execute git branch delete: {}", e))?;
+    if let Some(branch_name) = branch_name.as_ref() {
+        let output = Command::new("git")
+            .args(["branch", "-D", branch_name])
+            .current_dir(&main_repo)
+            .output()
+            .map_err(|e| format!("Failed to execute git branch delete: {}", e))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // Branch might already be deleted, just log warning
-        tracing::warn!(stderr = %stderr, "Failed to delete branch (may already be deleted)");
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Branch might already be deleted, just log warning
+            tracing::warn!(stderr = %stderr, "Failed to delete branch (may already be deleted)");
+        }
     }
 
     tracing::info!(
         worktree_path = %worktree_path,
-        branch = %branch_name,
+        branch = ?branch_name,
         "Worktree and branch removed successfully"
     );
 
@@ -836,10 +864,10 @@ pub async fn git_worktree_rename(
         return Err(format!("A worktree named '{}' already exists", new_name));
     }
 
-    let current_branch = get_current_branch(&worktree_path_buf)?;
-    let renamed_branch = rename_acepe_branch_name(&current_branch, &new_name);
-
     let main_repo = get_main_repo_from_worktree_path(&worktree_path_buf)?;
+    let current_branch = resolve_existing_managed_worktree_branch_name(&main_repo, &worktree_path_buf)?
+        .ok_or("Could not determine managed branch for worktree")?;
+    let renamed_branch = managed_worktree_branch_name(&validated_renamed_path)?;
 
     if current_branch != renamed_branch {
         if branch_exists(&main_repo, &renamed_branch)? {
@@ -850,8 +878,8 @@ pub async fn git_worktree_rename(
         }
 
         let output = Command::new("git")
-            .args(["branch", "-m", &renamed_branch])
-            .current_dir(&worktree_path_buf)
+            .args(["branch", "-m", &current_branch, &renamed_branch])
+            .current_dir(&main_repo)
             .output()
             .map_err(|e| format!("Failed to execute git branch rename: {}", e))?;
 
@@ -965,11 +993,8 @@ pub async fn git_worktree_reset(worktree_path: String) -> Result<(), String> {
 }
 
 /// Determine the origin of a worktree based on its path and branch name.
-fn determine_worktree_origin(directory: &str, branch: &str) -> WorktreeOrigin {
-    // Acepe-created worktrees live under ~/.acepe/worktrees/ and use acepe/ branch prefix
-    if branch.starts_with("acepe/") {
-        return WorktreeOrigin::Acepe;
-    }
+fn determine_worktree_origin(directory: &str, _branch: &str) -> WorktreeOrigin {
+    // Acepe-created worktrees live under ~/.acepe/worktrees/
     if let Ok(root) = get_worktrees_root() {
         if Path::new(directory).starts_with(&root) {
             return WorktreeOrigin::Acepe;
@@ -1472,7 +1497,7 @@ mod tests {
         let branch =
             worktree_branch_name("14-april-2026-14:35/my-project/41/claude-code");
 
-        assert_eq!(branch, "acepe/14-april-2026-14-35/my-project/41/claude-code");
+        assert_eq!(branch, "14-april-2026-14-35/my-project/41/claude-code");
     }
 
     fn commit_all(repo_path: &Path, message: &str) {
@@ -1604,11 +1629,11 @@ branch refs/heads/main
 
 worktree /nonexistent-acepe-test/wt-last
 HEAD def456
-branch refs/heads/acepe/clever-falcon";
+branch refs/heads/clever-falcon";
         let result =
             parse_worktree_list_porcelain(output, Path::new("/nonexistent-acepe-test/main-repo"));
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].branch, "acepe/clever-falcon");
+        assert_eq!(result[0].branch, "clever-falcon");
     }
 
     #[test]
@@ -1619,9 +1644,10 @@ branch refs/heads/acepe/clever-falcon";
 
     #[test]
     fn test_determine_origin_acepe_branch() {
+        // Origin is now determined by path, not branch prefix
         assert_eq!(
-            determine_worktree_origin("/some/path", "acepe/cool-name"),
-            WorktreeOrigin::Acepe
+            determine_worktree_origin("/some/path", "cool-name"),
+            WorktreeOrigin::External
         );
     }
 
@@ -1634,10 +1660,39 @@ branch refs/heads/acepe/clever-falcon";
     }
 
     #[test]
-    fn test_rename_acepe_branch_name_updates_prefix() {
+    fn test_worktree_relative_name_preserves_nested_segments() {
+        let worktree_dir = get_project_worktrees_dir("/Users/example/code/acepe")
+            .expect("worktrees dir should resolve");
+        let worktree_path = worktree_dir.join("15-april-2026-20:22/acepe/50/copilot");
+
         assert_eq!(
-            rename_acepe_branch_name("acepe/happy-canyon", "brave-river"),
-            "acepe/brave-river"
+            worktree_relative_name(&worktree_path).expect("relative name should resolve"),
+            "15-april-2026-20:22/acepe/50/copilot"
+        );
+    }
+
+    #[test]
+    fn test_managed_worktree_branch_name_sanitizes_nested_relative_path() {
+        let worktree_dir = get_project_worktrees_dir("/Users/example/code/acepe")
+            .expect("worktrees dir should resolve");
+        let worktree_path = worktree_dir.join("15-april-2026-20:22/acepe/50/copilot");
+
+        assert_eq!(
+            managed_worktree_branch_name(&worktree_path).expect("managed branch name should resolve"),
+            "15-april-2026-20-22/acepe/50/copilot"
+        );
+    }
+
+    #[test]
+    fn test_legacy_managed_worktree_branch_name_preserves_acepe_prefix() {
+        let worktree_dir = get_project_worktrees_dir("/Users/example/code/acepe")
+            .expect("worktrees dir should resolve");
+        let worktree_path = worktree_dir.join("15-april-2026-20:22/acepe/50/copilot");
+
+        assert_eq!(
+            legacy_managed_worktree_branch_name(&worktree_path)
+                .expect("legacy managed branch name should resolve"),
+            "acepe/15-april-2026-20-22/acepe/50/copilot"
         );
     }
 
