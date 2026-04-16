@@ -923,6 +923,37 @@ mod tests {
     }
 
     #[test]
+    fn assistant_generic_read_tool_request_with_pattern_replays_as_find_tool_call() {
+        let jsonl = r#"
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-1","name":"read","arguments":{"path":"/repo","pattern":"packages/**/*agent-panel*"},"intentionSummary":"find agent panel files"}]},"timestamp":"2026-04-10T00:00:02Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Glob)
+                );
+                assert_eq!(message.name, "Find");
+                match &message.arguments {
+                    crate::acp::session_update::ToolArguments::Glob { pattern, path } => {
+                        assert_eq!(pattern.as_deref(), Some("packages/**/*agent-panel*"));
+                        assert_eq!(path.as_deref(), Some("/repo"));
+                    }
+                    other => panic!("expected glob arguments, got {other:?}"),
+                }
+            }
+            other => panic!("expected tool call entry, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn assistant_update_todos_tool_request_replays_as_todo_tool_call() {
         let jsonl = r#"
 {"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-1","name":"update_todos","arguments":{"todos":[{"content":"Inspect warning payload","activeForm":"Inspecting warning payload","status":"in_progress"}]},"intentionSummary":"update the task list"}]},"timestamp":"2026-04-10T00:00:02Z"}

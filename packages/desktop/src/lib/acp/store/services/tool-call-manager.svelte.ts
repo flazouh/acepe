@@ -20,6 +20,7 @@ import type {
 import type { AppError } from "../../errors/app-error.js";
 import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
+import { reclassifyGenericToolCall } from "../../utils/reclassify-generic-tool-call.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
@@ -369,23 +370,33 @@ export class ToolCallManager implements IToolCallManager {
 			const nextProgressiveArguments = isTerminalStatus(nextStatus ?? data.status)
 				? undefined
 				: existingToolCall.progressiveArguments;
-			const nextArguments = mergeToolArguments(existingToolCall.arguments, data.arguments);
+			const reclassified = reclassifyGenericToolCall(data);
+			const nextName = reclassified ? reclassified.name : data.name;
+			const nextArguments = mergeToolArguments(
+				existingToolCall.arguments,
+				reclassified ? reclassified.arguments : data.arguments
+			);
 			const nextResult = data.result ?? existingToolCall.result;
+			const shouldPromoteGenericReadKind =
+				existingToolCall.kind === "read" &&
+				(reclassified?.kind === "search" ||
+					reclassified?.kind === "glob" ||
+					reclassified?.kind === "edit");
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
-				name: data.name,
+				name: nextName,
 				arguments: nextArguments,
 				rawInput: data.rawInput ?? existingToolCall.rawInput,
 				status: nextStatus ?? existingToolCall.status,
 				result: nextResult,
-				kind: nextKind,
+				kind: shouldPromoteGenericReadKind ? reclassified.kind : nextKind,
 				title: data.title ?? existingToolCall.title,
 				locations: data.locations ?? existingToolCall.locations,
 				skillMeta: data.skillMeta ?? existingToolCall.skillMeta,
 				normalizedQuestions: data.normalizedQuestions ?? existingToolCall.normalizedQuestions,
 				normalizedTodos: data.normalizedTodos ?? existingToolCall.normalizedTodos,
 				normalizedResult: normalizeToolResult({
-					kind: nextKind,
+					kind: shouldPromoteGenericReadKind ? reclassified.kind : nextKind,
 					arguments: nextArguments,
 					result: nextResult,
 				}),
@@ -422,21 +433,25 @@ export class ToolCallManager implements IToolCallManager {
 
 		// Create new tool call entry - taskChildren already assembled by backend
 		const createdAtMs = nowMs();
+		const reclassified = reclassifyGenericToolCall(data);
+		const nextKind = reclassified ? reclassified.kind : data.kind;
+		const nextName = reclassified ? reclassified.name : data.name;
+		const nextArguments = reclassified ? reclassified.arguments : data.arguments;
 		const newToolCall: ToolCall = {
 			id: data.id,
-			name: data.name,
-			arguments: data.arguments,
+			name: nextName,
+			arguments: nextArguments,
 			status: data.status,
 			result: data.result,
-			kind: data.kind,
+			kind: nextKind,
 			title: data.title,
 			locations: data.locations,
 			skillMeta: data.skillMeta,
 			normalizedQuestions: data.normalizedQuestions,
 			normalizedTodos: data.normalizedTodos,
 			normalizedResult: normalizeToolResult({
-				kind: data.kind,
-				arguments: data.arguments,
+				kind: nextKind,
+				arguments: nextArguments,
 				result: data.result,
 			}),
 			parentToolUseId: data.parentToolUseId,

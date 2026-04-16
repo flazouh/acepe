@@ -45,6 +45,17 @@ fn usable_tool_name(name: Option<&str>) -> Option<&str> {
         .filter(|value| !is_unknown_tool_name(value))
 }
 
+fn has_flag_like_keys(object: &serde_json::Map<String, serde_json::Value>) -> bool {
+    object.keys().any(|key| key.starts_with('-'))
+}
+
+fn looks_like_glob_pattern(pattern: &str) -> bool {
+    pattern.contains('*')
+        || pattern.contains('?')
+        || pattern.contains('[')
+        || pattern.contains('{')
+}
+
 fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option<ToolKind> {
     let object = arguments.as_object()?;
     let has_sql_query = has_sql_query_argument(arguments);
@@ -92,6 +103,22 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
                 || object.contains_key("path")));
     if has_edit_markers {
         return Some(ToolKind::Edit);
+    }
+
+    let path_like_target = object.contains_key("path")
+        || object.contains_key("file_path")
+        || object.contains_key("filePath")
+        || object.contains_key("target_directory")
+        || object.contains_key("targetDirectory");
+    let explicit_glob_pattern = object.contains_key("glob_pattern") || object.contains_key("globPattern");
+    let wildcard_pattern = object
+        .get("pattern")
+        .and_then(|value| value.as_str())
+        .is_some_and(looks_like_glob_pattern);
+    let ripgrep_shape =
+        object.contains_key("glob") || object.contains_key("output_mode") || has_flag_like_keys(object);
+    if explicit_glob_pattern || (path_like_target && wildcard_pattern && !ripgrep_shape) {
+        return Some(ToolKind::Glob);
     }
 
     if object.contains_key("pattern") || (object.contains_key("query") && !has_sql_query) {
@@ -166,12 +193,15 @@ fn resolve_identity_impl(
     let payload_kind = infer_kind_from_payload(id, hints.title, hints.kind_hint)
         .filter(|kind| *kind != ToolKind::Other);
 
-    let serialized_kind = if serialized {
-        raw_arguments
-            .and_then(infer_kind_from_serialized_arguments)
-            .filter(|kind| *kind != ToolKind::Other)
-    } else {
-        None
+    let argument_kind = raw_arguments
+        .and_then(infer_kind_from_serialized_arguments)
+        .filter(|kind| *kind != ToolKind::Other);
+
+    let promoted_argument_kind = match (detected_kind, argument_kind) {
+        (Some(ToolKind::Read), Some(kind @ (ToolKind::Glob | ToolKind::Search | ToolKind::Edit))) => {
+            Some(kind)
+        }
+        _ => None,
     };
 
     let location_kind = if serialized && hints.locations.is_some_and(|entries| !entries.is_empty())
@@ -197,10 +227,11 @@ fn resolve_identity_impl(
         None
     };
 
-    let kind = detected_kind
+    let kind = promoted_argument_kind
+        .or(detected_kind)
         .or(hint_kind)
         .or(payload_kind)
-        .or(serialized_kind)
+        .or(argument_kind)
         .or(location_kind)
         .or(title_read_kind)
         .unwrap_or(ToolKind::Other);
@@ -224,7 +255,16 @@ fn resolve_identity_impl(
     };
 
     let name = if let Some(name) = explicit_name {
-        name.to_string()
+        if let Some(original_kind) = detected_kind {
+            let original_canonical = canonical_tool_call_name_for_kind(original_kind);
+            if kind != original_kind && name.eq_ignore_ascii_case(original_canonical) {
+                canonical_tool_call_name_for_kind(kind).to_string()
+            } else {
+                name.to_string()
+            }
+        } else {
+            name.to_string()
+        }
     } else if kind != ToolKind::Other {
         canonical_tool_call_name_for_kind(kind).to_string()
     } else {
@@ -438,6 +478,69 @@ mod tests {
 
         assert_eq!(classified.kind, ToolKind::Edit);
         assert_eq!(classified.name, "Edit");
+    }
+
+    #[test]
+    fn raw_generic_read_name_with_path_and_pattern_promotes_to_glob() {
+        let parser = CopilotParser;
+        let classified = classify_raw_tool_call(
+            &parser,
+            "tool-read-glob",
+            &serde_json::json!({
+                "path": "/Users/alex/Documents/acepe",
+                "pattern": "packages/**/*agent-panel*"
+            }),
+            ToolClassificationHints {
+                name: Some("Read"),
+                title: Some("Read"),
+                kind: Some(ToolKind::Read),
+                kind_hint: Some("read"),
+                locations: None,
+            },
+        );
+
+        assert_eq!(classified.kind, ToolKind::Glob);
+        assert_eq!(classified.name, "Find");
+        match classified.arguments {
+            ToolArguments::Glob { pattern, path } => {
+                assert_eq!(pattern.as_deref(), Some("packages/**/*agent-panel*"));
+                assert_eq!(path.as_deref(), Some("/Users/alex/Documents/acepe"));
+            }
+            other => panic!("expected glob arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn raw_generic_read_name_with_ripgrep_shape_promotes_to_search() {
+        let parser = CopilotParser;
+        let classified = classify_raw_tool_call(
+            &parser,
+            "tool-read-grep",
+            &serde_json::json!({
+                "pattern": "ProjectHeader",
+                "glob": "packages/desktop/src/lib/acp/components/session-list/session-list-ui.svelte",
+                "output_mode": "content",
+                "-n": true,
+                "-A": 5
+            }),
+            ToolClassificationHints {
+                name: Some("Read"),
+                title: Some("Read"),
+                kind: Some(ToolKind::Read),
+                kind_hint: Some("read"),
+                locations: None,
+            },
+        );
+
+        assert_eq!(classified.kind, ToolKind::Search);
+        assert_eq!(classified.name, "Search");
+        match classified.arguments {
+            ToolArguments::Search { query, file_path } => {
+                assert_eq!(query.as_deref(), Some("ProjectHeader"));
+                assert!(file_path.is_none());
+            }
+            other => panic!("expected search arguments, got {other:?}"),
+        }
     }
 
     #[test]

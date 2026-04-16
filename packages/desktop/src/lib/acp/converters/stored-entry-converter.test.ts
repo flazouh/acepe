@@ -211,6 +211,72 @@ describe("stored-entry-converter", () => {
 					});
 				}
 			});
+
+			it("reclassifies stored generic Read tool calls with search-shaped raw input", () => {
+				const stored: StoredEntry = {
+					type: "tool_call",
+					id: "tool-search-from-read",
+					message: {
+						id: "toolu_search_from_read",
+						name: "Read",
+						status: "completed",
+						kind: "read",
+						arguments: { kind: "read" },
+						rawInput: {
+							path: "/Users/alex/Documents/sandbox",
+							output_mode: "files_with_matches",
+							pattern: "What do you want to build",
+							"-i": true,
+						},
+						awaitingPlanApproval: false,
+					},
+					timestamp: null,
+				};
+
+				const result = convertStoredEntryToSessionEntry(stored, new Date());
+
+				if (result.type === "tool_call") {
+					expect(result.message.name).toBe("Search");
+					expect(result.message.kind).toBe("search");
+					expect(result.message.arguments).toEqual({
+						kind: "search",
+						query: "What do you want to build",
+						file_path: "/Users/alex/Documents/sandbox",
+					});
+				}
+			});
+
+			it("reclassifies stored generic Read tool calls with glob-shaped raw input", () => {
+				const stored: StoredEntry = {
+					type: "tool_call",
+					id: "tool-glob-from-read",
+					message: {
+						id: "toolu_glob_from_read",
+						name: "Read",
+						status: "completed",
+						kind: "read",
+						arguments: { kind: "read" },
+						rawInput: {
+							path: "/repo",
+							pattern: "packages/**/*agent-panel*",
+						},
+						awaitingPlanApproval: false,
+					},
+					timestamp: null,
+				};
+
+				const result = convertStoredEntryToSessionEntry(stored, new Date());
+
+				if (result.type === "tool_call") {
+					expect(result.message.name).toBe("Find");
+					expect(result.message.kind).toBe("glob");
+					expect(result.message.arguments).toEqual({
+						kind: "glob",
+						pattern: "packages/**/*agent-panel*",
+						path: "/repo",
+					});
+				}
+			});
 		});
 
 		describe("user entries", () => {

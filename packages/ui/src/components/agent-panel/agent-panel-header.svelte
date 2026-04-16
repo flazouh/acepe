@@ -124,7 +124,7 @@
 				<img src={agentIconSrc} alt="" class="w-3.5 h-3.5" role="presentation" />
 			</HeaderCell>
 		{/if}
-		<HeaderTitleCell hoverable={Boolean(onScrollToTop)}>
+		<HeaderTitleCell>
 			{#snippet children()}
 				<div class="flex items-center gap-1.5 min-w-0">
 					{#if statusIndicator}

@@ -297,14 +297,7 @@ $effect(() => {
 {/if}
 
 <style>
-	/* Line budget vars: packages/desktop/.../logic/thinking-viewport-policy.ts (DEFAULT_THINKING_VIEWPORT_POLICY) */
-	.thinking-content,
-	.thinking-content :global(.markdown-content),
-	.thinking-content :global(.markdown-content *) {
-		font-size: 14px !important;
-	}
-
-	.thinking-content {
+	/* Line budget vars: packages/desktop/.../logic/thinking-viewport-policy.ts (DEFAULT_THINKING_VIEWPORT_POLICY) */	.thinking-content {
 		max-height: calc(var(--thinking-visible-lines) * var(--thinking-line-height));
 		line-height: var(--thinking-line-height);
 		/* Block-level snap: reduces mid-block clipping at the top when scrolling */
