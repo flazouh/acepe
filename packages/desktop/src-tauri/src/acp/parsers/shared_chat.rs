@@ -139,6 +139,7 @@ pub(crate) fn detect_update_type(data: &serde_json::Value) -> Result<UpdateType,
     ))
 }
 
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
     use super::infer_tool_kind_from_raw_arguments;

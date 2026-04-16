@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getKeybindingsService, resetKeybindingsService } from "$lib/keybindings/index.js";
+import {
+	getKeybindingsService,
+	resetKeybindingsService,
+} from "../../../../../keybindings/index.js";
 
 describe("composer focus keybinding context", () => {
 	afterEach(() => {

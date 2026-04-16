@@ -808,7 +808,7 @@ async fn test_scan_all_threads_with_dir(claude_dir: &Path) -> Result<Vec<History
         }
     }
 
-    all_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    all_entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
     Ok(all_entries)
 }
 
@@ -1496,6 +1496,7 @@ async fn test_cache_hit_project_path_override_scenario() {
     invalidate_cache().await;
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_scan_projects_streaming_emits_entries_progressively_per_project() {
     use crate::session_jsonl::cache::invalidate_cache;
@@ -1556,6 +1557,7 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
 
 /// Test that find_session_file returns immediately when direct path exists.
 /// This verifies O(1) lookup behavior - no scanning of other files.
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_find_session_file_direct_path_no_scanning() {
     let _lock = claude_home_test_lock().lock().unwrap();
@@ -1594,6 +1596,7 @@ async fn test_find_session_file_direct_path_no_scanning() {
 }
 
 /// Test that parse_converted_session only reads the specific session file.
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_parse_converted_session_single_file_read() {
     let lock = claude_home_test_lock().lock().unwrap();
@@ -1647,6 +1650,7 @@ async fn test_parse_converted_session_single_file_read() {
 /// Regression test: Claude transcripts can split one assistant response into
 /// multiple JSONL lines (same message.id/requestId). We should merge these
 /// fragments into one assistant entry.
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_parse_converted_session_merges_fragmented_assistant_response() {
     let lock = claude_home_test_lock().lock().unwrap();

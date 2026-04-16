@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { okAsync, ResultAsync } from "neverthrow";
-import type { AppError } from "$lib/acp/errors/app-error.js";
-import { AgentError } from "$lib/acp/errors/app-error.js";
+import type { AppError } from "../../errors/app-error.js";
+import { AgentError } from "../../errors/app-error.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 import { createGitStatusCache } from "../git-status-cache.svelte.js";

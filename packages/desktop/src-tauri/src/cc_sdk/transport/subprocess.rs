@@ -1451,8 +1451,10 @@ mod tests {
 
     #[test]
     fn test_transport_auto_configures_permission_prompt_tool_for_can_use_tool() {
-        let mut options = ClaudeCodeOptions::default();
-        options.can_use_tool = Some(Arc::new(AllowAllTools));
+        let options = ClaudeCodeOptions {
+            can_use_tool: Some(Arc::new(AllowAllTools)),
+            ..Default::default()
+        };
 
         let transport = SubprocessTransport::with_cli_path(options, "/usr/bin/true");
         let command_debug = format!("{:?}", transport.build_command());

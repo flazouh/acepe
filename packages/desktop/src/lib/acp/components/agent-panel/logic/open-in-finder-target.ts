@@ -1,4 +1,4 @@
-import { getAgentCapabilities } from "$lib/acp/constants/agent-capabilities.js";
+import { getAgentCapabilities } from "../../../constants/agent-capabilities.js";
 
 export type OpenInFinderTarget =
 	| { kind: "reveal"; path: string }

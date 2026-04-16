@@ -1375,6 +1375,7 @@ mod tests {
         )
     }
 
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn copilot_source_fetch_emits_title_refresh_when_only_summary_changed() {
         let _lock = home_test_lock().lock().expect("home lock");

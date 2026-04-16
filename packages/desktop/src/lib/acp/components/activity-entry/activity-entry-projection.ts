@@ -3,7 +3,7 @@ import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
 
 import type { SessionEntry } from "../../application/dto/session-entry.js";
-import * as m from "$lib/messages.js";
+import * as m from "../../../messages.js";
 import { getToolCompactDisplayText, getToolKindFilePath } from "../../registry/tool-kind-ui-registry.js";
 import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { TurnState } from "../../store/types.js";

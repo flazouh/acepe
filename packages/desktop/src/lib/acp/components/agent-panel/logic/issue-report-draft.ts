@@ -2,7 +2,7 @@ import {
 	buildIssueReportDraft,
 	type IssueReportDraft,
 	type IssueReportMetadataEntry,
-} from "$lib/errors/issue-report.js";
+} from "../../../../errors/issue-report.js";
 
 export interface AgentErrorIssueDraftInput {
 	agentId: string;
