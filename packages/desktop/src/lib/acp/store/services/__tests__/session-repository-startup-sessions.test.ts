@@ -248,6 +248,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 			worktreeDeleted: true,
 			prNumber: 129,
 			prState: "OPEN",
+			parentId: "stale-parent",
 			sequenceId: 42,
 		});
 		const repository = new SessionRepository(
@@ -292,6 +293,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 		expect(reconciled[0]?.worktreeDeleted).toBe(true);
 		expect(reconciled[0]?.prNumber).toBe(129);
 		expect(reconciled[0]?.prState).toBe("OPEN");
+		expect(reconciled[0]?.parentId).toBeNull();
 		expect(reconciled[0]?.sequenceId).toBe(42);
 	});
 

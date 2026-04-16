@@ -14,7 +14,7 @@ pub struct SessionThreadSnapshot {
 impl SessionThreadSnapshot {
     #[must_use]
     pub fn empty(session_id: &str) -> Self {
-        let short_id = &session_id[..8.min(session_id.len())];
+        let short_id = session_id.chars().take(8).collect::<String>();
         Self {
             entries: vec![],
             title: format!("Session {short_id}"),
@@ -43,5 +43,17 @@ impl From<ConvertedSession> for SessionThreadSnapshot {
             created_at: value.created_at,
             current_mode_id: value.current_mode_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SessionThreadSnapshot;
+
+    #[test]
+    fn empty_truncates_session_id_on_char_boundary() {
+        let snapshot = SessionThreadSnapshot::empty("ééééééééé");
+
+        assert_eq!(snapshot.title, "Session éééééééé");
     }
 }

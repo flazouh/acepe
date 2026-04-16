@@ -718,7 +718,7 @@ export class SessionRepository {
 					sourcePath: session.sourcePath ?? canonicalAliasSession.sourcePath,
 					sessionLifecycleState:
 						session.sessionLifecycleState ?? canonicalAliasSession.sessionLifecycleState,
-					parentId: session.parentId ?? canonicalAliasSession.parentId,
+					parentId: session.parentId,
 					prNumber: session.prNumber ?? canonicalAliasSession.prNumber,
 					prState: session.prState ?? canonicalAliasSession.prState,
 					worktreeDeleted: session.worktreeDeleted ?? canonicalAliasSession.worktreeDeleted,

@@ -1014,8 +1014,8 @@ mod tests {
     };
     use crate::acp::types::ContentBlock;
     use crate::session_jsonl::types::{
-        QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock,
-        StoredEntry, StoredUserMessage,
+        ConvertedSession, QuestionAnswer, SessionStats, StoredAssistantChunk,
+        StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1788,10 +1788,13 @@ mod tests {
             current_mode_id: None,
         };
 
-        let projection = ProjectionRegistry::project_converted_session(
+        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
+            converted,
+        );
+        let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
-            &converted,
+            &thread_snapshot,
         );
 
         let session = projection
@@ -1857,10 +1860,13 @@ mod tests {
             current_mode_id: None,
         };
 
-        let projection = ProjectionRegistry::project_converted_session(
+        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
+            converted,
+        );
+        let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
-            &converted,
+            &thread_snapshot,
         );
 
         let session = projection
@@ -1890,10 +1896,13 @@ mod tests {
             current_mode_id: None,
         };
 
-        let projection = ProjectionRegistry::project_converted_session(
+        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
+            converted,
+        );
+        let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
-            &converted,
+            &thread_snapshot,
         );
 
         let session = projection

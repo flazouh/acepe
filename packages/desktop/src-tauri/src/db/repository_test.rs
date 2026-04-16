@@ -526,6 +526,7 @@ mod session_metadata_tests {
 
         let update = crate::acp::session_update::SessionUpdate::TurnComplete {
             session_id: Some("seq-iso-a".to_string()),
+            turn_id: None,
         };
         // Append 2 events for session A
         SessionJournalEventRepository::append_session_update(&db, "seq-iso-a", &update)
@@ -537,6 +538,7 @@ mod session_metadata_tests {
         // Append 5 events for session B
         let update_b = crate::acp::session_update::SessionUpdate::TurnComplete {
             session_id: Some("seq-iso-b".to_string()),
+            turn_id: None,
         };
         for _ in 0..5 {
             SessionJournalEventRepository::append_session_update(&db, "seq-iso-b", &update_b)
