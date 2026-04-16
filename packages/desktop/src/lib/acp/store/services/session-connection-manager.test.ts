@@ -399,6 +399,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
+			undefined,
 			undefined
 		);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
@@ -451,7 +452,8 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			"plan"
+			"plan",
+			undefined
 		);
 	});
 
@@ -569,6 +571,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
+			undefined,
 			undefined
 		);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
@@ -637,6 +640,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			"/tmp/project",
 			expect.any(Number),
 			undefined,
+			undefined,
 			undefined
 		);
 	});
@@ -661,6 +665,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			"claude-code",
+			undefined,
 			undefined
 		);
 	});
@@ -944,10 +949,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		flushSpy.mockRestore();
 	});
 
-	it("suppresses replay when connecting a preloaded session", async () => {
+	it("passes the session open token through reconnect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
-		(stateReader.isPreloaded as ReturnType<typeof vi.fn>).mockReturnValue(true);
-		const suppressSpy = vi.spyOn(SessionEventService.prototype, "suppressReplayForSession");
 
 		const manager = createManager({
 			stateReader,
@@ -958,54 +961,19 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		const result = await manager.connectSession(sessionId, createMockEventHandler(), {
+			openToken: "open-token-123",
+		});
 		result._unsafeUnwrap();
 
-		expect(suppressSpy).toHaveBeenCalledWith(sessionId);
-		suppressSpy.mockRestore();
-	});
-
-	it("clears replay suppression when connecting a non-preloaded session", async () => {
-		getSessionModelForMode.mockReturnValue(undefined);
-		(stateReader.isPreloaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
-		const clearSpy = vi.spyOn(SessionEventService.prototype, "clearReplaySuppressionForSession");
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			hotState,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.connectSession(sessionId, createMockEventHandler());
-		result._unsafeUnwrap();
-
-		expect(clearSpy).toHaveBeenCalledWith(sessionId);
-		clearSpy.mockRestore();
-	});
-
-	it("clears replay suppression if connection fails", async () => {
-		getSessionModelForMode.mockReturnValue(undefined);
-		(stateReader.isPreloaded as ReturnType<typeof vi.fn>).mockReturnValue(true);
-		resumeSession.mockReturnValue(errAsync(new Error("resume failed")));
-		const clearSpy = vi.spyOn(SessionEventService.prototype, "clearReplaySuppressionForSession");
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			hotState,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.connectSession(sessionId, createMockEventHandler());
-
-		expect(result.isErr()).toBe(true);
-		expect(clearSpy).toHaveBeenCalledWith(sessionId);
-		clearSpy.mockRestore();
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined,
+			"open-token-123"
+		);
 	});
 });
 

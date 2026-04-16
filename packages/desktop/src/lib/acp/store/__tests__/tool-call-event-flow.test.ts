@@ -1036,12 +1036,12 @@ describe("Tool Call Event Flow", () => {
 			expect(entries[0].message.locations?.[0]?.path).toBe(filePath);
 		});
 
-		it("updates placeholder tool entry with final streaming state from full tool data", () => {
+		it("ignores update-first placeholder synthesis and waits for canonical tool data", () => {
 			const sessionId = "sess-codex-replay";
 			const toolCallId = "tool-codex-search-1";
 			const entryStore = new SessionEntryStore();
 
-			// Step 1: Update arrives first (no tool_call yet) and creates placeholder entry.
+			// Step 1: Update arrives first (no tool_call yet) and is discarded.
 			entryStore.updateToolCallEntry(sessionId, {
 				toolCallId,
 				status: "pending",
@@ -1052,13 +1052,7 @@ describe("Tool Call Event Flow", () => {
 				locations: null,
 			});
 
-			const afterPlaceholder = entryStore.getEntries(sessionId);
-			expect(afterPlaceholder.length).toBe(1);
-			expect(afterPlaceholder[0]?.isStreaming).toBe(true);
-			if (afterPlaceholder[0]?.type === "tool_call") {
-				// Guard against queue pollution from verbose titles.
-				expect(afterPlaceholder[0].message.name).toBe("Tool");
-			}
+			expect(entryStore.getEntries(sessionId)).toHaveLength(0);
 
 			// Step 2: Full tool call data arrives with completed status.
 			entryStore.createToolCallEntry(sessionId, {

@@ -872,4 +872,3 @@ export type FileExplorerPreviewResponse =
  * Fallback for binary, too-large, deleted, or unsupported files.
  */
 { kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
-

@@ -30,12 +30,12 @@
  *
  * ## Session Loading Strategy
  *
- * Restored panels only preload after session history is loaded and validated, so
+ * Restored panels only open after session history is loaded and validated, so
  * startup never attempts to resume created session ids that have no persisted
  * history on disk.
  *
  * earlyPreloadPanelSessions clears panel session references on load failure and
- * reconnects restored sessions after preloading them. validateRestoredSessions
+ * reconnects restored sessions after backend-owned session open. validateRestoredSessions
  * handles remaining edge cases.
  */
 
@@ -50,7 +50,7 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
+import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -61,10 +61,12 @@ import { settings } from "$lib/utils/tauri-client/settings.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
+import { openPersistedSession } from "../open-persisted-session.js";
 
 const logger = createLogger({ id: "initialization-manager", name: "InitializationManager" });
 const HAS_SEEN_SPLASH_KEY: UserSettingKey = "has_seen_splash";
 const LAST_SEEN_VERSION_KEY: UserSettingKey = "last_seen_version";
+const SESSION_OPEN_TIMEOUT_MS = 30_000;
 
 import { InitializationError, type MainAppViewError } from "../../errors/main-app-view-error.js";
 
@@ -107,9 +109,9 @@ export class InitializationManager {
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
 		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
-		private readonly projectionHydrator: Pick<
-			SessionProjectionHydrator,
-			"hydrateSession" | "clearSession"
+		private readonly sessionOpenHydrator: Pick<
+			SessionOpenHydrator,
+			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 		>
 	) {}
 
@@ -604,73 +606,18 @@ export class InitializationManager {
 	private earlyPreloadPanelSessions(): void {
 		for (const panel of this.panelStore.panels) {
 			if (!panel.sessionId) continue;
-			if (this.sessionStore.isPreloaded(panel.sessionId)) {
-				this.reconnectRestoredPanelSession(panel.id, panel.sessionId);
-				continue;
-			}
-
 			const session = this.sessionStore.getSessionCold(panel.sessionId);
-			const projectPath = session?.projectPath ?? panel.projectPath;
-			const agentId = session?.agentId ?? panel.agentId;
-			const sourcePath = session?.sourcePath ?? panel.sourcePath;
-			const worktreePath = session?.worktreePath ?? panel.worktreePath;
-			const sessionTitle = session?.title ?? panel.sessionTitle;
+			if (!session) continue;
 
-			if (!projectPath || !agentId) continue;
-
-			const panelId = panel.id;
-			const sessionId = panel.sessionId;
-			void this.sessionStore
-				.loadSessionById(
-					sessionId,
-					projectPath,
-					agentId,
-					sourcePath ?? undefined,
-					worktreePath ?? undefined,
-					sessionTitle ?? undefined
-				)
-				.match(
-					() => {
-						this.reconnectRestoredPanelSession(panelId, sessionId);
-					},
-					(error) => {
-					logger.warn("Early panel preload failed, clearing session reference", {
-						panelId,
-						sessionId,
-						error,
-					});
-					this.panelStore.updatePanelSession(panelId, null);
-					}
-				);
+			openPersistedSession({
+				panelId: panel.id,
+				sessionId: panel.sessionId,
+				sessionStore: this.sessionStore,
+				sessionOpenHydrator: this.sessionOpenHydrator,
+				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
+				source: "initialization-manager",
+			});
 		}
-	}
-
-	private reconnectRestoredPanelSession(panelId: string, sessionId: string): void {
-		void this.projectionHydrator
-			.hydrateSession(sessionId, {
-				includePendingTurnInputs: false,
-			})
-			.orElse((error) => {
-				logger.warn("Failed to hydrate restored session before reconnect", {
-					panelId,
-					sessionId,
-					error,
-				});
-				this.projectionHydrator.clearSession(sessionId);
-				return okAsync(undefined);
-			})
-			.andThen(() => this.sessionStore.connectSession(sessionId))
-			.andThen(() => this.projectionHydrator.hydrateSession(sessionId))
-			.match(
-				() => undefined,
-				(error) => {
-					logger.warn("Failed to reconnect restored panel session", {
-						panelId,
-						sessionId,
-						error,
-					});
-				}
-			);
 	}
 
 	/**

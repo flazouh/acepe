@@ -22,6 +22,7 @@ mock.module("$lib/acp/utils/logger.js", () => ({
 	createLogger: () => ({
 		debug: () => {},
 		info: () => {},
+		isLevelEnabled: () => false,
 		warn: () => {},
 		error: () => {},
 	}),
@@ -56,6 +57,7 @@ mock.module("posthog-js", () => ({
 
 import {
 	__resetAnalyticsForTests,
+	captureContractViolation,
 	captureEvent,
 	captureException,
 	initAnalytics,
@@ -212,6 +214,23 @@ describe("analytics", () => {
 		captureEvent("test_event", { version: "1.0" });
 
 		expect(posthogCaptureMock).toHaveBeenCalledWith("test_event", { version: "1.0" });
+	});
+
+	it("captureContractViolation emits the contract event with merged properties", async () => {
+		import.meta.env.VITE_POSTHOG_KEY = "ph_test";
+
+		await initAnalytics();
+		captureContractViolation("tool_call_update_without_canonical_entry", {
+			contract: "wrong_contract",
+			source: "test",
+			hasRawOutput: true,
+		});
+
+		expect(posthogCaptureMock).toHaveBeenCalledWith("contract_violation", {
+			contract: "tool_call_update_without_canonical_entry",
+			source: "test",
+			hasRawOutput: true,
+		});
 	});
 
 	it("captureEvent is a no-op when opted out", async () => {

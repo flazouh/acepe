@@ -3,12 +3,12 @@ use super::super::provider::{
 };
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::types::ContentBlock;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -93,7 +93,7 @@ impl AgentProvider for CodexProvider {
         _app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async move {
             let session_id = &context.local_session_id;
 
@@ -104,7 +104,7 @@ impl AgentProvider for CodexProvider {
             )
             .await
             {
-                Ok(session) => Ok(session),
+                Ok(session) => Ok(session.map(Into::into)),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

@@ -30,6 +30,9 @@ pub use super::session_projection_snapshot::Model as SessionProjectionSnapshotMo
 pub use super::session_review_state::Column as SessionReviewStateColumn;
 pub use super::session_review_state::Entity as SessionReviewState;
 pub use super::session_review_state::Model as SessionReviewStateModel;
+pub use super::session_thread_snapshot::Column as SessionThreadSnapshotColumn;
+pub use super::session_thread_snapshot::Entity as SessionThreadSnapshot;
+pub use super::session_thread_snapshot::Model as SessionThreadSnapshotModel;
 pub use super::skill::Column as SkillColumn;
 pub use super::skill::Entity as Skill;
 pub use super::skill::Model as SkillModel;

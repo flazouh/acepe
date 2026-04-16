@@ -1,6 +1,7 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SessionOpenFound } from "$lib/services/acp-types.js";
 import type { HistoryEntry } from "$lib/services/claude-history-types.js";
 import type { ConvertedSession } from "$lib/services/converted-session-types.js";
 
@@ -51,6 +52,28 @@ function mockHistoryEntry(overrides: Partial<HistoryEntry>): HistoryEntry {
 		agentId: "cursor",
 		updatedAt: Date.now(),
 		...overrides,
+	};
+}
+
+function mockSessionOpenFound(
+	overrides: Partial<SessionOpenFound> = {}
+): SessionOpenFound {
+	return {
+		requestedSessionId: overrides.requestedSessionId ?? "requested-session",
+		canonicalSessionId: overrides.canonicalSessionId ?? "canonical-session",
+		isAlias: overrides.isAlias ?? false,
+		lastEventSeq: overrides.lastEventSeq ?? 0,
+		openToken: overrides.openToken ?? "open-token",
+		agentId: overrides.agentId ?? "claude-code",
+		projectPath: overrides.projectPath ?? "/project",
+		worktreePath: overrides.worktreePath ?? null,
+		sourcePath: overrides.sourcePath ?? null,
+		threadEntries: overrides.threadEntries ?? [],
+		sessionTitle: overrides.sessionTitle ?? "Hydrated title",
+		operations: overrides.operations ?? [],
+		interactions: overrides.interactions ?? [],
+		turnState: overrides.turnState ?? "Idle",
+		messageCount: overrides.messageCount ?? 0,
 	};
 }
 
@@ -219,6 +242,40 @@ describe("SessionStore loadSessionById title update", () => {
 
 		// Converter title should win since it's meaningful
 		expect(store.getSessionCold("session-oc2")?.title).toBe("Better Title From Converter");
+	});
+
+	it("reconciles alias sessions onto the canonical session id during snapshot replacement", () => {
+		const createdAt = new Date("2026-04-01T00:00:00.000Z");
+		const updatedAt = new Date("2026-04-02T00:00:00.000Z");
+		store.addSession({
+			id: "provider-session",
+			projectPath: "/project",
+			agentId: "claude-code",
+			title: "Alias title",
+			updatedAt,
+			createdAt,
+			parentId: "parent-1",
+		});
+
+		store.replaceSessionOpenSnapshot(
+			mockSessionOpenFound({
+				requestedSessionId: "provider-session",
+				canonicalSessionId: "canonical-session",
+				isAlias: true,
+				sessionTitle: "Canonical title",
+			})
+		);
+
+		expect(store.getSessionCold("provider-session")).toBeUndefined();
+		expect(store.getSessionCold("canonical-session")).toMatchObject({
+			id: "canonical-session",
+			title: "Canonical title",
+			parentId: "parent-1",
+			projectPath: "/project",
+			agentId: "claude-code",
+		});
+		expect(store.getSessionCold("canonical-session")?.createdAt).toEqual(createdAt);
+		expect(store.getSessionCold("canonical-session")?.updatedAt).toEqual(updatedAt);
 	});
 
 	it("loads codex sessions from disk and applies returned title", async () => {

@@ -8,6 +8,7 @@ mod session_metadata_tests {
         InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
         SessionSnapshot, SessionTurnState,
     };
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionDescriptorMissingFact,
         SessionDescriptorResolutionError, SessionReplayContext,
@@ -17,7 +18,7 @@ mod session_metadata_tests {
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -225,6 +226,43 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_session_thread_snapshot_round_trips() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-thread".to_string(),
+            "Thread session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-thread.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![],
+            title: "Thread session".to_string(),
+            created_at: "2026-04-16T00:00:00Z".to_string(),
+            current_mode_id: Some("plan".to_string()),
+        };
+
+        SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionThreadSnapshotRepository::get(&db, "session-thread")
+            .await
+            .unwrap()
+            .expect("expected persisted thread snapshot");
+
+        assert_eq!(loaded.title, "Thread session");
+        assert_eq!(loaded.current_mode_id.as_deref(), Some("plan"));
+        assert!(loaded.entries.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_session_journal_replays_projection_state() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
@@ -401,6 +439,122 @@ mod session_metadata_tests {
             replayed.operations[0].kind,
             Some(crate::acp::session_update::ToolKind::Read)
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // max_event_seq
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn max_event_seq_returns_none_for_session_with_no_events() {
+        let db = setup_test_db().await;
+
+        let result = SessionJournalEventRepository::max_event_seq(&db, "no-events-session")
+            .await
+            .expect("query should succeed");
+
+        assert_eq!(result, None, "no events → max_event_seq should be None");
+    }
+
+    #[tokio::test]
+    async fn max_event_seq_returns_highest_seq_after_appends() {
+        let db = setup_test_db().await;
+        let session_id = "max-seq-session";
+
+        // Seed metadata so the session is known
+        SessionMetadataRepository::ensure_exists(&db, session_id, "/test/repo", "claude-code", None)
+            .await
+            .expect("ensure exists");
+
+        let tool_call = crate::acp::session_update::SessionUpdate::ToolCall {
+            tool_call: crate::acp::session_update::ToolCallData {
+                id: "tc-1".to_string(),
+                name: "Read".to_string(),
+                arguments: crate::acp::session_update::ToolArguments::Read {
+                    file_path: Some("/repo/README.md".to_string()),
+                },
+                raw_input: None,
+                status: crate::acp::session_update::ToolCallStatus::Completed,
+                result: None,
+                kind: Some(crate::acp::session_update::ToolKind::Read),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some(session_id.to_string()),
+        };
+
+        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+            .await
+            .expect("append first");
+        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+            .await
+            .expect("append second");
+        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+            .await
+            .expect("append third");
+
+        let max_seq = SessionJournalEventRepository::max_event_seq(&db, session_id)
+            .await
+            .expect("query should succeed");
+
+        assert_eq!(max_seq, Some(3), "three events → max_event_seq should be 3");
+    }
+
+    #[tokio::test]
+    async fn max_event_seq_is_isolated_per_session() {
+        let db = setup_test_db().await;
+
+        for session_id in ["seq-iso-a", "seq-iso-b"] {
+            SessionMetadataRepository::ensure_exists(
+                &db,
+                session_id,
+                "/test/repo",
+                "claude-code",
+                None,
+            )
+            .await
+            .expect("ensure exists");
+        }
+
+        let update = crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some("seq-iso-a".to_string()),
+            turn_id: None,
+        };
+        // Append 2 events for session A
+        SessionJournalEventRepository::append_session_update(&db, "seq-iso-a", &update)
+            .await
+            .expect("append a1");
+        SessionJournalEventRepository::append_session_update(&db, "seq-iso-a", &update)
+            .await
+            .expect("append a2");
+        // Append 5 events for session B
+        let update_b = crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some("seq-iso-b".to_string()),
+            turn_id: None,
+        };
+        for _ in 0..5 {
+            SessionJournalEventRepository::append_session_update(&db, "seq-iso-b", &update_b)
+                .await
+                .expect("append b");
+        }
+
+        let max_a = SessionJournalEventRepository::max_event_seq(&db, "seq-iso-a")
+            .await
+            .expect("query a");
+        let max_b = SessionJournalEventRepository::max_event_seq(&db, "seq-iso-b")
+            .await
+            .expect("query b");
+
+        assert_eq!(max_a, Some(2), "session A should have max_seq=2");
+        assert_eq!(max_b, Some(5), "session B should have max_seq=5");
     }
 
     #[tokio::test]
