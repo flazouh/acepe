@@ -233,6 +233,9 @@ export class SessionMessagingService {
 			hotState?.turnState === "error" &&
 			matchesTurnId(hotState.lastTerminalTurnId, turnId ?? null)
 		) {
+			// Still finalize streaming entries — tool calls may have been streaming when
+			// the error occurred and need to stop shimmering.
+			this.entryManager.finalizeStreamingEntries(sessionId);
 			return;
 		}
 

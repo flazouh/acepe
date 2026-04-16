@@ -509,10 +509,9 @@ export class SessionEventService {
 			if (
 				!hasActiveTurn &&
 				update.type === "toolCall" &&
-				isPendingToolCallStatus(update.tool_call.status) &&
 				hasToolCallEntry(handler, sessionId, update.tool_call.id)
 			) {
-				logger.debug("Dropping replayed pending tool call already present in session", {
+				logger.debug("Dropping replayed tool call already present in session", {
 					sessionId,
 					toolCallId: update.tool_call.id,
 				});

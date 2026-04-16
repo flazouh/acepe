@@ -168,6 +168,12 @@ export interface AgentPanelProps {
 	readonly onReviewFileIndexChange?: (fileIndex: number) => void;
 
 	/**
+	 * Optional callback to open the full-screen review overlay.
+	 * When provided, shows an expand icon in the modified files header.
+	 */
+	readonly onOpenFullscreenReview?: (sessionId: string, fileIndex: number) => void;
+
+	/**
 	 * Attached file panels owned by this agent panel.
 	 */
 	readonly attachedFilePanels?: readonly FilePanel[];

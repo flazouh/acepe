@@ -536,12 +536,9 @@ impl AgentClient for CodexNativeClient {
             "turn/interrupt",
             build_turn_interrupt_params(&provider_thread_id, &turn_id),
         )
-        .await
-        .map(|_| {
-            if let Ok(mut active_turn_id) = self.current_turn_id.try_lock() {
-                *active_turn_id = None;
-            }
-        })
+        .await?;
+        *self.current_turn_id.lock().await = None;
+        Ok(())
     }
 
     async fn list_sessions(&mut self, _cwd: Option<String>) -> AcpResult<ListSessionsResponse> {

@@ -543,6 +543,7 @@ impl ProjectionRegistry {
                 StoredEntry::Error { message, .. } => {
                     snapshot.active_turn_failure = Some(convert_stored_error_snapshot(message));
                     snapshot.last_terminal_turn_id = None;
+                    snapshot.active_tool_call_ids.clear();
                 }
             }
         }

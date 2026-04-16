@@ -479,6 +479,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	clearSessionProjection(sessionId: string): void {
+		if (!this.hotStateStore.hasHotState(sessionId)) {
+			return;
+		}
 		this.hotStateStore.updateHotState(sessionId, {
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,

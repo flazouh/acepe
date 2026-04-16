@@ -768,6 +768,13 @@ const agentContentColumnStyle = $derived.by(() =>
 // Ensure panel is never narrower than the toolbar's natural content width
 const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding));
 
+// Clamp reviewFileIndex to valid bounds so a stale index never leaves the review pane empty.
+const clampedReviewFileIndex = $derived.by(() => {
+	const fileCount = reviewFilesState?.fileCount ?? 0;
+	if (fileCount === 0) return 0;
+	return Math.min(reviewFileIndex, fileCount - 1);
+});
+
 // Add embedded pane widths (plan sidebar, review) when expanded
 const effectiveWidth = $derived.by(() => {
 	let w = baseWidth;
@@ -1736,14 +1743,14 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			>
 				<AgentPanelReviewContent
 					modifiedFilesState={reviewFilesState}
-					selectedFileIndex={reviewFileIndex}
+					selectedFileIndex={clampedReviewFileIndex}
 					{sessionId}
 					projectPath={sessionProjectPath}
 					isActive={reviewMode}
 					onClose={() => onExitReviewMode?.()}
 					onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
 					onExpandToFullscreen={sessionId && onOpenFullscreenReview
-						? () => onOpenFullscreenReview(sessionId, reviewFileIndex)
+						? () => onOpenFullscreenReview(sessionId, clampedReviewFileIndex)
 						: undefined}
 				/>
 			</div>
