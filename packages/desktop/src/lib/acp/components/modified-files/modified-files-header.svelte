@@ -268,7 +268,13 @@ const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 			kind: "fullscreen",
 			onSelect: () => {
 				void reviewPreferenceStore.setPreferFullscreen(true);
-				if (modifiedFilesState) onOpenFullscreenReview?.(modifiedFilesState, 0);
+				if (modifiedFilesState) {
+					if (onOpenFullscreenReview) {
+						onOpenFullscreenReview(modifiedFilesState, 0);
+					} else {
+						onEnterReviewMode?.(modifiedFilesState, 0);
+					}
+				}
 			},
 		},
 	],

@@ -24,7 +24,7 @@ const projectPath = $derived(identity?.projectPath ?? null);
 const hasModifications = $derived(modifiedFilesState.fileCount > 0);
 const isValidIndex = $derived(fileIndex >= 0 && fileIndex < modifiedFilesState.files.length);
 const effectiveFileIndex = $derived(
-	isValidIndex ? fileIndex : Math.min(fileIndex, Math.max(0, modifiedFilesState.files.length - 1))
+	isValidIndex ? fileIndex : Math.max(0, Math.min(fileIndex, modifiedFilesState.files.length - 1))
 );
 
 function handleFileIndexChange(index: number): void {
