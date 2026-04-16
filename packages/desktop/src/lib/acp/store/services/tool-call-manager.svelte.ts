@@ -26,6 +26,7 @@ import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
 import type { IEntryStoreInternal } from "./interfaces/entry-store-internal.js";
 import type { IToolCallManager } from "./interfaces/tool-call-manager-interface.js";
+import { normalizeToolResult } from "./tool-result-normalizer.js";
 
 const logger = createLogger({ id: "tool-call-manager", name: "ToolCallManager" });
 
@@ -368,19 +369,26 @@ export class ToolCallManager implements IToolCallManager {
 			const nextProgressiveArguments = isTerminalStatus(nextStatus ?? data.status)
 				? undefined
 				: existingToolCall.progressiveArguments;
+			const nextArguments = mergeToolArguments(existingToolCall.arguments, data.arguments);
+			const nextResult = data.result ?? existingToolCall.result;
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
 				name: data.name,
-				arguments: mergeToolArguments(existingToolCall.arguments, data.arguments),
+				arguments: nextArguments,
 				rawInput: data.rawInput ?? existingToolCall.rawInput,
 				status: nextStatus ?? existingToolCall.status,
-				result: data.result ?? existingToolCall.result,
+				result: nextResult,
 				kind: nextKind,
 				title: data.title ?? existingToolCall.title,
 				locations: data.locations ?? existingToolCall.locations,
 				skillMeta: data.skillMeta ?? existingToolCall.skillMeta,
 				normalizedQuestions: data.normalizedQuestions ?? existingToolCall.normalizedQuestions,
 				normalizedTodos: data.normalizedTodos ?? existingToolCall.normalizedTodos,
+				normalizedResult: normalizeToolResult({
+					kind: nextKind,
+					arguments: nextArguments,
+					result: nextResult,
+				}),
 				parentToolUseId: data.parentToolUseId ?? existingToolCall.parentToolUseId,
 				// Backend sends pre-assembled taskChildren - use incoming if present, else keep existing
 				taskChildren: data.taskChildren ?? existingToolCall.taskChildren,
@@ -426,6 +434,11 @@ export class ToolCallManager implements IToolCallManager {
 			skillMeta: data.skillMeta,
 			normalizedQuestions: data.normalizedQuestions,
 			normalizedTodos: data.normalizedTodos,
+			normalizedResult: normalizeToolResult({
+				kind: data.kind,
+				arguments: data.arguments,
+				result: data.result,
+			}),
 			parentToolUseId: data.parentToolUseId,
 			taskChildren: data.taskChildren,
 			awaitingPlanApproval: data.awaitingPlanApproval,
@@ -498,6 +511,11 @@ export class ToolCallManager implements IToolCallManager {
 				locations: update.locations,
 				normalizedTodos: update.normalizedTodos,
 				normalizedQuestions: update.normalizedQuestions,
+				normalizedResult: normalizeToolResult({
+					kind: null,
+					arguments: update.arguments ?? { kind: "other", raw: {} },
+					result: extractedResult,
+				}),
 				awaitingPlanApproval: false,
 				progressiveArguments: update.streamingArguments ?? undefined,
 				startedAtMs: createdAtMs,
@@ -551,19 +569,32 @@ export class ToolCallManager implements IToolCallManager {
 			: (update.arguments ?? null) != null
 				? undefined
 				: (update.streamingArguments ?? toolCall.progressiveArguments);
+		const nextResult = shouldPreserveStructuredResult
+			? toolCall.result
+			: (extractedResult ?? toolCall.result);
+		const argumentsChanged = nextArguments !== toolCall.arguments;
+		const shouldRefreshNormalizedResult =
+			(!shouldPreserveStructuredResult && extractedResult !== null) ||
+			toolCall.normalizedResult === undefined ||
+			(argumentsChanged && nextResult !== null && nextResult !== undefined);
 
 		const updatedToolCall: ToolCall = {
 			...toolCall,
 			status: newStatus ?? toolCall.status,
-			result: shouldPreserveStructuredResult
-				? toolCall.result
-				: (extractedResult ?? toolCall.result),
+			result: nextResult,
 			title: update.title ?? toolCall.title,
 			locations: update.locations ?? toolCall.locations,
 			arguments: nextArguments,
 			// Progressive normalized data from streaming accumulator
 			normalizedTodos: update.normalizedTodos ?? toolCall.normalizedTodos,
 			normalizedQuestions: update.normalizedQuestions ?? toolCall.normalizedQuestions,
+			normalizedResult: shouldRefreshNormalizedResult
+				? normalizeToolResult({
+					kind: toolCall.kind,
+					arguments: nextArguments,
+					result: nextResult,
+				})
+				: toolCall.normalizedResult,
 			progressiveArguments: nextProgressiveArguments,
 			startedAtMs,
 			completedAtMs,

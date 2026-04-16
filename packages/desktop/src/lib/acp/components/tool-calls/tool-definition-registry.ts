@@ -1,6 +1,10 @@
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel";
 import type { Component } from "svelte";
 import {
+	isBrowserNormalizedResult,
+	isExecuteNormalizedResult,
+} from "../../types/normalized-tool-result.js";
+import {
 	getToolKindFilePath,
 	getToolKindSubtitle,
 	getToolKindTitle,
@@ -11,12 +15,11 @@ import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
 import ToolCallBrowser from "./tool-call-browser.svelte";
-import { extractBrowserDetailsText, extractBrowserScriptText } from "./browser-tool-display.js";
+import { extractBrowserScriptText } from "./browser-tool-display.js";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";
 import ToolCallEnterPlanMode from "./tool-call-enter-plan-mode.svelte";
-import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import ToolCallExecute from "./tool-call-execute.svelte";
 import ToolCallExitPlanMode from "./tool-call-exit-plan-mode.svelte";
 import ToolCallFallback from "./tool-call-fallback.svelte";
@@ -61,6 +64,36 @@ export interface ToolDefinition {
 	buildCompactEntry: (options: ToolDisplayOptions) => CompactToolDisplay;
 }
 
+function isNormalizedResultKind(kind: ToolKind | null | undefined): boolean {
+	return (
+		kind === "execute" ||
+		kind === "search" ||
+		kind === "fetch" ||
+		kind === "web_search" ||
+		kind === "browser"
+	);
+}
+
+function serializeToolResult(toolCall: ToolCall): string | null {
+	if (toolCall.result === null || toolCall.result === undefined) {
+		return null;
+	}
+
+	if (typeof toolCall.result === "string") {
+		return toolCall.result;
+	}
+
+	return JSON.stringify(toolCall.result, null, 2);
+}
+
+function getBrowserDetailsText(toolCall: ToolCall): string | null {
+	if (isBrowserNormalizedResult(toolCall.normalizedResult)) {
+		return toolCall.normalizedResult.detailedContent ?? toolCall.normalizedResult.content;
+	}
+
+	return serializeToolResult(toolCall);
+}
+
 function mapAgentToolStatus(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
@@ -75,7 +108,12 @@ function mapAgentToolStatus(
 	}
 
 	const hasResult = toolCall.result !== null && toolCall.result !== undefined;
-	if (hasResult) {
+	const hasNormalizedResult =
+		toolCall.normalizedResult !== null && toolCall.normalizedResult !== undefined;
+	if (
+		(isNormalizedResultKind(toolCall.kind ?? null) && (hasResult || hasNormalizedResult)) ||
+		(!isNormalizedResultKind(toolCall.kind ?? null) && hasResult)
+	) {
 		return "done";
 	}
 
@@ -156,7 +194,9 @@ function createToolDefinition(
 
 function buildExecuteFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 	const baseEntry = buildDefaultFullEntry(options);
-	const parsedResult = parseToolResultWithExitCode(options.toolCall.result);
+	const normalizedResult = isExecuteNormalizedResult(options.toolCall.normalizedResult)
+		? options.toolCall.normalizedResult
+		: null;
 	const command =
 		options.toolCall.arguments.kind === "execute"
 			? options.toolCall.arguments.command
@@ -171,9 +211,9 @@ function buildExecuteFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 		filePath: baseEntry.filePath,
 		status: baseEntry.status,
 		command,
-		stdout: parsedResult.stdout,
-		stderr: parsedResult.stderr,
-		exitCode: parsedResult.exitCode,
+		stdout: normalizedResult?.stdout ?? null,
+		stderr: normalizedResult?.stderr ?? null,
+		exitCode: normalizedResult?.exitCode,
 	};
 }
 
@@ -188,7 +228,7 @@ function buildBrowserFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 		subtitle: baseEntry.subtitle,
 		filePath: baseEntry.filePath,
 		status: baseEntry.status,
-		detailsText: extractBrowserDetailsText(options.toolCall),
+		detailsText: getBrowserDetailsText(options.toolCall),
 		scriptText: extractBrowserScriptText(options.toolCall),
 	};
 }

@@ -8,8 +8,8 @@ import type { ToolCall } from "../../types/tool-call.js";
 import { stripAnsiCodes } from "../../utils/ansi-utils.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
 import { bashHighlighter } from "../../utils/bash-highlighter.svelte.js";
-import { parseToolResultWithExitCode } from "./tool-call-execute/logic/parse-tool-result.js";
 import { resolveExecuteCommand } from "./tool-call-execute/logic/resolve-execute-command.js";
+import { resolveExecuteDisplayResult } from "./tool-result-display.js";
 
 interface ToolCallExecuteProps {
 	/**
@@ -42,7 +42,7 @@ const extractedCommand = $derived(
 );
 
 // Parse result with stdout, stderr, and exit code
-const parsedResult = $derived(parseToolResultWithExitCode(toolCall.result));
+const parsedResult = $derived(resolveExecuteDisplayResult(toolCall));
 
 // Map tool status to AgentToolStatus
 const agentStatus = $derived.by(() => {

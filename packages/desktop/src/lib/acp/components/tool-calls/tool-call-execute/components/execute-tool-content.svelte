@@ -1,7 +1,5 @@
 <script lang="ts">
-import { safeJsonStringify } from "../../../../logic/json-utils.js";
-import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
-import { parseToolResultOutput } from "../logic/parse-tool-result.js";
+	import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
 
 /**
  * Strip the "Exited with code X.Final output:\n\n" or "New output:\n\n" prefix
@@ -36,10 +34,7 @@ interface ExecuteToolContentProps {
 	 */
 	exitCode?: number;
 
-	/**
-	 * Raw result from tool call. Validated at use via parseToolResultOutput (Zod ToolResultOutputSchema).
-	 */
-	result: unknown;
+	fallbackOutput: string | null;
 
 	/**
 	 * Whether the content is expanded.
@@ -57,7 +52,7 @@ let {
 	stdout,
 	stderr,
 	exitCode,
-	result,
+	fallbackOutput,
 	isExpanded = false,
 	onClickExpand,
 }: ExecuteToolContentProps = $props();
@@ -68,19 +63,8 @@ const displayStdout = $derived.by(() => {
 		return stripOutputPrefix(stripAnsiCodes(stdout));
 	}
 
-	// Try to extract and parse output from result using shared parsing function
-	const parseResult = parseToolResultOutput(result);
-	if (parseResult.isOk() && parseResult.value) {
-		return stripOutputPrefix(stripAnsiCodes(parseResult.value));
-	}
-
-	// Fallback to JSON stringify of entire result
-	if (result) {
-		const stringifyResult = safeJsonStringify(result);
-		if (stringifyResult.isOk()) {
-			return stripOutputPrefix(stringifyResult.value);
-		}
-		return stripOutputPrefix(String(result));
+	if (fallbackOutput) {
+		return stripOutputPrefix(stripAnsiCodes(fallbackOutput));
 	}
 
 	return null;

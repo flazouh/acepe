@@ -18,16 +18,18 @@ import type { SessionStatus } from "../../../application/dto/session.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
+import type {
+	NormalizedBrowserResult,
+	NormalizedFetchResult,
+	NormalizedSearchResult,
+	NormalizedWebSearchResult,
+} from "../../../types/normalized-tool-result.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
-import type { JsonValue } from "../../../../services/converted-session-types.js";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
-import { parseToolResultWithExitCode } from "../../tool-calls/tool-call-execute/logic/parse-tool-result.js";
-import { parseSearchResult } from "../../tool-calls/tool-call-search/logic/parse-grep-output.js";
-import { parseWebSearchResult } from "../../tool-calls/tool-call-web-search/logic/parse-web-search-result.js";
 import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
@@ -133,7 +135,7 @@ function mapToolStatus(
 		return "done";
 	}
 
-	const hasResult = toolCall.result !== null && toolCall.result !== undefined;
+	const hasResult = hasToolResult(toolCall);
 	if (hasResult || parentCompleted) {
 		return "done";
 	}
@@ -167,7 +169,7 @@ function getActiveTailToolCallId(
 		return null;
 	}
 
-	if (lastChild.result !== null && lastChild.result !== undefined) {
+	if (hasToolResult(lastChild)) {
 		return null;
 	}
 
@@ -192,7 +194,7 @@ function getActiveRootToolCallId(
 		return null;
 	}
 
-	if (toolCall.result !== null && toolCall.result !== undefined) {
+	if (hasToolResult(toolCall)) {
 		return null;
 	}
 
@@ -369,6 +371,68 @@ function serializeOtherToolDetails(toolCall: ToolCall): string | null {
 	);
 }
 
+function hasToolResult(toolCall: ToolCall): boolean {
+	const hasRawResult = toolCall.result !== null && toolCall.result !== undefined;
+	const hasNormalizedResult =
+		toolCall.normalizedResult !== null && toolCall.normalizedResult !== undefined;
+	if (
+		toolCall.kind === "execute" ||
+		toolCall.kind === "search" ||
+		toolCall.kind === "fetch" ||
+		toolCall.kind === "web_search" ||
+		toolCall.kind === "browser"
+	) {
+		return hasRawResult || hasNormalizedResult;
+	}
+
+	return hasRawResult;
+}
+
+function isSearchNormalizedResult(
+	result: ToolCall["normalizedResult"]
+): result is NormalizedSearchResult {
+	return result?.kind === "search";
+}
+
+function isFetchNormalizedResult(
+	result: ToolCall["normalizedResult"]
+): result is NormalizedFetchResult {
+	return result?.kind === "fetch";
+}
+
+function isWebSearchNormalizedResult(
+	result: ToolCall["normalizedResult"]
+): result is NormalizedWebSearchResult {
+	return result?.kind === "web_search";
+}
+
+function isBrowserNormalizedResult(
+	result: ToolCall["normalizedResult"]
+): result is NormalizedBrowserResult {
+	return result?.kind === "browser";
+}
+
+function serializeToolResult(result: ToolCall["result"]): string | null {
+	if (result === null || result === undefined) {
+		return null;
+	}
+
+	if (typeof result === "string") {
+		return result;
+	}
+
+	return JSON.stringify(result, null, 2);
+}
+
+function getToolResultObject(toolCall: ToolCall): Record<string, unknown> | null {
+	const { result } = toolCall;
+	if (result === null || result === undefined || typeof result !== "object" || Array.isArray(result)) {
+		return null;
+	}
+
+	return result as Record<string, unknown>;
+}
+
 function mapQuestion(
 	toolCall: ToolCall
 ):
@@ -425,54 +489,57 @@ function mapTaskChildren(
 	);
 }
 
-function getToolResultObject(toolCall: ToolCall): Record<string, unknown> | null {
-	const { result } = toolCall;
-	if (!result || typeof result !== "object" || Array.isArray(result)) {
-		return null;
-	}
-
-	return result as Record<string, unknown>;
-}
-
 function mapSearchPayload(toolCall: ToolCall): {
 	searchFiles?: string[];
 	searchResultCount?: number;
 } {
-	if (toolCall.arguments.kind !== "search" && toolCall.arguments.kind !== "glob") {
+	if (toolCall.arguments.kind === "search") {
+		const normalizedResult = isSearchNormalizedResult(toolCall.normalizedResult)
+			? toolCall.normalizedResult
+			: null;
+		if (normalizedResult === null) {
+			return {};
+		}
+
+		return {
+			searchFiles: Array.from(normalizedResult.files),
+			searchResultCount:
+				normalizedResult.mode === "content"
+					? (normalizedResult.numMatches ?? normalizedResult.numFiles)
+					: normalizedResult.files.length,
+		};
+	}
+
+	if (toolCall.arguments.kind !== "glob") {
 		return {};
 	}
 
-	const resultObject = getToolResultObject(toolCall);
-	const toolResponseMeta = resultObject
-		? {
-				mode: typeof resultObject.mode === "string" ? resultObject.mode : undefined,
-				numFiles:
-					typeof resultObject.numFiles === "number"
-						? resultObject.numFiles
-						: typeof resultObject.totalFiles === "number"
-							? resultObject.totalFiles
-							: undefined,
-				numLines: typeof resultObject.numLines === "number" ? resultObject.numLines : undefined,
-				filenames: Array.isArray(resultObject.filenames)
-					? resultObject.filenames.filter((value): value is string => typeof value === "string")
-					: undefined,
-				content: typeof resultObject.content === "string" ? resultObject.content : undefined,
-			}
-		: undefined;
-	const searchPath =
-		toolCall.arguments.kind === "search"
-			? (toolCall.arguments.file_path ?? undefined)
-			: toolCall.arguments.pattern
-				? (toolCall.arguments.path ?? undefined)
-				: undefined;
-	const parsedResult = parseSearchResult(toolCall.result, toolResponseMeta, searchPath);
+	const rawResult = toolCall.result;
+	if (Array.isArray(rawResult)) {
+		const files = rawResult.filter((value): value is string => typeof value === "string");
+		return {
+			searchFiles: files,
+			searchResultCount: files.length,
+		};
+	}
+
+	if (rawResult === null || rawResult === undefined || typeof rawResult !== "object") {
+		return {};
+	}
+
+	const filenames = Array.isArray(rawResult.filenames)
+		? rawResult.filenames.filter((value): value is string => typeof value === "string")
+		: [];
+	const totalFiles =
+		typeof rawResult.totalFiles === "number"
+			? rawResult.totalFiles
+			: typeof rawResult.numFiles === "number"
+				? rawResult.numFiles
+				: filenames.length;
 
 	return {
-		searchFiles: Array.from(parsedResult.files),
-		searchResultCount:
-			parsedResult.mode === "content"
-				? (parsedResult.numMatches ?? parsedResult.numFiles)
-				: parsedResult.files.length,
+		searchFiles: filenames,
+		searchResultCount: totalFiles,
 	};
 }
 
@@ -481,15 +548,11 @@ function mapFetchResultText(toolCall: ToolCall): string | null {
 		return null;
 	}
 
-	if (typeof toolCall.result === "string") {
-		return toolCall.result;
+	if (isFetchNormalizedResult(toolCall.normalizedResult)) {
+		return toolCall.normalizedResult.responseBody;
 	}
 
-	if (toolCall.result === null || toolCall.result === undefined) {
-		return null;
-	}
-
-	return JSON.stringify(toolCall.result, null, 2);
+	return serializeToolResult(toolCall.result);
 }
 
 function mapWebSearchPayload(toolCall: ToolCall): {
@@ -505,16 +568,40 @@ function mapWebSearchPayload(toolCall: ToolCall): {
 		return {};
 	}
 
-	const parsedResult = parseWebSearchResult(toolCall.result as JsonValue | undefined | null);
+	const normalizedResult = isWebSearchNormalizedResult(toolCall.normalizedResult)
+		? toolCall.normalizedResult
+		: null;
+	if (normalizedResult === null) {
+		return {};
+	}
 
 	return {
-		webSearchLinks: parsedResult.links.map((link) => ({
+		webSearchLinks: normalizedResult.links.map((link) => ({
 			title: link.title,
 			url: link.url,
 			domain: link.domain,
 			pageAge: link.pageAge,
 		})),
-		webSearchSummary: parsedResult.summary,
+		webSearchSummary: normalizedResult.summary,
+	};
+}
+
+function mapBrowserPayload(toolCall: ToolCall): {
+	detailsText?: string | null;
+} {
+	if (toolCall.kind !== "browser") {
+		return {};
+	}
+
+	if (isBrowserNormalizedResult(toolCall.normalizedResult)) {
+		return {
+			detailsText:
+				toolCall.normalizedResult.detailedContent ?? toolCall.normalizedResult.content ?? null,
+		};
+	}
+
+	return {
+		detailsText: serializeToolResult(toolCall.result),
 	};
 }
 
@@ -589,10 +676,14 @@ function mapToolCallEntry(
 	activeToolCallId: string | null
 ): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
-	const parsedResult = kind === "execute" ? parseToolResultWithExitCode(toolCall.result) : null;
+	const executeResult =
+		kind === "execute" && toolCall.normalizedResult?.kind === "execute"
+			? toolCall.normalizedResult
+			: null;
 	const subtitle = getToolSubtitle(toolCall);
 	const searchPayload = mapSearchPayload(toolCall);
 	const webSearchPayload = mapWebSearchPayload(toolCall);
+	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
 	const status = mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
 
@@ -602,13 +693,14 @@ function mapToolCallEntry(
 		kind: normalizeToolKind(kind),
 		title: resolveToolTitle(toolCall, kind, turnState),
 		subtitle,
-		detailsText: serializeOtherToolDetails(toolCall),
+		detailsText:
+			kind === "browser" ? (browserPayload.detailsText ?? null) : serializeOtherToolDetails(toolCall),
 		filePath: getToolFilePath(toolCall),
 		status,
 		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
-		stdout: parsedResult?.stdout ? stripAnsiCodes(parsedResult.stdout) : null,
-		stderr: parsedResult?.stderr ? stripAnsiCodes(parsedResult.stderr) : null,
-		exitCode: parsedResult?.exitCode,
+		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
+		stderr: executeResult?.stderr ? stripAnsiCodes(executeResult.stderr) : null,
+		exitCode: executeResult?.exitCode,
 		query:
 			toolCall.arguments.kind === "search" || toolCall.arguments.kind === "webSearch"
 				? toolCall.arguments.query ?? null

@@ -31,7 +31,14 @@ function createBrowserToolCall(script: string): ToolCall {
 			},
 		},
 		result: {
+			content: '{"ok":false}',
+		},
+		normalizedResult: {
+			kind: "browser",
 			content: '{"ok":true}',
+			detailedContent: null,
+			screenshotUrl: null,
+			outcome: "success",
 		},
 		locations: null,
 		skillMeta: null,
@@ -68,6 +75,8 @@ describe("ToolCallBrowser", () => {
 
 		expect(view.getByText("Execute Js")).toBeTruthy();
 		expect(view.getByLabelText("Expand script")).toBeTruthy();
+		expect(view.getAllByText('{"ok":true}').length).toBeGreaterThan(0);
+		expect(view.queryByText('{"ok":false}')).toBeNull();
 		expect(view.queryByTestId("browser-script-content")).toBeNull();
 		expect(view.getByTestId("browser-script-preview").textContent).toContain("const elements");
 
