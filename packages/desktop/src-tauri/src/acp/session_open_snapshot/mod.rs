@@ -20,8 +20,8 @@ use crate::acp::projections::{InteractionSnapshot, OperationSnapshot, SessionTur
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::types::CanonicalAgentId;
-use crate::db::repository::SessionJournalEventRepository;
-use crate::session_jsonl::types::{ConvertedSession, StoredEntry};
+use crate::db::repository::{SessionJournalEventRepository, SessionThreadSnapshotRepository};
+use crate::session_jsonl::types::StoredEntry;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -123,7 +123,6 @@ pub async fn assemble_session_open_result(
     hub: &Arc<AcpEventHubState>,
     replay_context: &SessionReplayContext,
     requested_session_id: &str,
-    thread_content: Option<ConvertedSession>,
 ) -> SessionOpenResult {
     let canonical_session_id = &replay_context.local_session_id;
     let is_alias = requested_session_id != canonical_session_id;
@@ -181,8 +180,20 @@ pub async fn assemble_session_open_result(
     };
 
     // --- 4. Resolve thread content ---
-    let (thread_entries, session_title) = match thread_content {
-        Some(converted) => (converted.entries, converted.title),
+    let thread_snapshot = match SessionThreadSnapshotRepository::get(db, canonical_session_id).await {
+        Ok(snapshot) => snapshot,
+        Err(err) => {
+            hub.supersede_reservation(open_token);
+            return SessionOpenResult::Error(SessionOpenError {
+                requested_session_id: requested_session_id.to_string(),
+                message: format!(
+                    "Failed to load thread snapshot for session {canonical_session_id}: {err}"
+                ),
+            });
+        }
+    };
+    let (thread_entries, session_title) = match thread_snapshot {
+        Some(snapshot) => (snapshot.entries, snapshot.title),
         None => (vec![], default_session_title(canonical_session_id)),
     };
 
@@ -419,8 +430,7 @@ mod tests {
         append_tool_call_event(&db, session_id).await;
 
         let replay_context = make_copilot_replay_context(session_id);
-        let result =
-            assemble_session_open_result(&db, &hub, &replay_context, session_id, None).await;
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
 
         let SessionOpenResult::Found(found) = result else {
             panic!("expected Found, got {result:?}");
@@ -443,8 +453,7 @@ mod tests {
         seed_session_metadata(&db, canonical_id, "copilot").await;
 
         let replay_context = make_copilot_replay_context(canonical_id);
-        let result =
-            assemble_session_open_result(&db, &hub, &replay_context, alias_id, None).await;
+        let result = assemble_session_open_result(&db, &hub, &replay_context, alias_id).await;
 
         let SessionOpenResult::Found(found) = result else {
             panic!("expected Found, got {result:?}");
@@ -691,8 +700,7 @@ mod tests {
             compatibility: SessionDescriptorCompatibility::Canonical,
         };
 
-        let result =
-            assemble_session_open_result(&db, &hub, &replay_context, session_id, None).await;
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
 
         let SessionOpenResult::Found(found) = result else {
             panic!("expected Found, got {result:?}");

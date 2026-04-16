@@ -199,6 +199,12 @@ export type TurnFailureSnapshot = { turn_id: string | null; message: string; cod
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[] }
 
 /**
+ * Payload for the `error` outcome — persisted state was found but could not
+ * be loaded or proven consistent.
+ */
+export type SessionOpenError = { requestedSessionId: string; message: string }
+
+/**
  * Full payload for a `found` outcome.
  */
 export type SessionOpenFound = { 
@@ -229,13 +235,27 @@ lastEventSeq: number;
 openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; threadEntries: StoredEntry[]; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number }
 
 /**
+ * Payload for the `missing` outcome — no persisted content was found for the
+ * requested session identifier.
+ */
+export type SessionOpenMissing = { requestedSessionId: string }
+
+/**
  * The unified outcome of a session-open request.
  * 
  * Returned by every session entry point (new, resume, history open).  The
  * frontend MUST NOT fetch projection state separately after receiving a
  * `Found` result; everything needed before live connect begins is included.
  */
-export type SessionOpenResult = ({ outcome: "found" } & SessionOpenFound) | { outcome: "missing"; requested_session_id: string } | { outcome: "error"; requested_session_id: string; message: string }
+export type SessionOpenResult = 
+/**
+ * Session was found; all pre-connect state is fully populated.
+ * 
+ * `Box`ed to keep the enum size bounded — `SessionOpenFound` carries
+ * the full projection snapshot, which is significantly larger than the
+ * `Missing` and `Error` payloads.
+ */
+({ outcome: "found" } & SessionOpenFound) | ({ outcome: "missing" } & SessionOpenMissing) | ({ outcome: "error" } & SessionOpenError)
 
 
 export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";

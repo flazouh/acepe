@@ -1,12 +1,17 @@
 use super::*;
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::{
     assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
 };
-use crate::db::repository::SessionJournalEventRepository;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionProjectionSnapshotRepository,
+    SessionThreadSnapshotRepository,
+};
 use std::sync::Arc;
 
 fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
@@ -26,9 +31,9 @@ fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path
 }
 
 fn apply_session_title_metadata(
-    mut session: ConvertedSession,
+    mut session: SessionThreadSnapshot,
     metadata: Option<&crate::db::repository::SessionMetadataRow>,
-) -> ConvertedSession {
+) -> SessionThreadSnapshot {
     if let Some(row) = metadata {
         if row.title_overridden {
             session.title = row.display.clone();
@@ -41,8 +46,8 @@ fn apply_session_title_metadata(
 fn build_empty_session_with_metadata(
     session_id: &str,
     metadata: Option<&crate::db::repository::SessionMetadataRow>,
-) -> ConvertedSession {
-    apply_session_title_metadata(ConvertedSession::empty(session_id), metadata)
+) -> SessionThreadSnapshot {
+    apply_session_title_metadata(SessionThreadSnapshot::empty(session_id), metadata)
 }
 
 fn derive_current_mode_id_from_entries(
@@ -77,7 +82,7 @@ fn derive_current_mode_id_from_entries(
     current_mode_id
 }
 
-fn apply_derived_current_mode_metadata(mut session: ConvertedSession) -> ConvertedSession {
+fn apply_derived_current_mode_metadata(mut session: SessionThreadSnapshot) -> SessionThreadSnapshot {
     if session.current_mode_id.is_none() {
         session.current_mode_id = derive_current_mode_id_from_entries(&session.entries);
     }
@@ -93,30 +98,16 @@ fn history_replay_family(agent: &CanonicalAgentId) -> HistoryReplayFamily {
     .family
 }
 
-pub async fn load_unified_session_from_replay_context(
-    app: AppHandle,
-    replay_context: &SessionReplayContext,
-) -> Result<Option<ConvertedSession>, String> {
-    load_unified_session_with_context(
-        app,
-        crate::history::session_context::SessionContext {
-            local_session_id: replay_context.local_session_id.clone(),
-            history_session_id: replay_context.history_session_id.clone(),
-            project_path: replay_context.project_path.clone(),
-            worktree_path: replay_context.worktree_path.clone(),
-            effective_project_path: replay_context.effective_cwd.clone(),
-            source_path: replay_context.source_path.clone(),
-            agent_id: replay_context.agent_id.clone(),
-            compatibility: replay_context.compatibility.clone(),
-        },
-    )
-    .await
+fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
+    snapshot.session.is_some()
+        || !snapshot.operations.is_empty()
+        || !snapshot.interactions.is_empty()
 }
 
 async fn load_unified_session_content_with_context(
     app: AppHandle,
     context: crate::history::session_context::SessionContext,
-) -> Result<Option<ConvertedSession>, String> {
+) -> Result<Option<SessionThreadSnapshot>, String> {
     tracing::info!(
         session_id = %context.local_session_id,
         agent_id = %context.agent_id,
@@ -125,6 +116,19 @@ async fn load_unified_session_content_with_context(
     );
 
     let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+    if let Some(db) = db.as_ref() {
+        if let Some(persisted) = SessionThreadSnapshotRepository::get(db, &context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load persisted thread snapshot for {}: {error}",
+                    context.local_session_id
+                )
+            })?
+        {
+            return Ok(Some(persisted));
+        }
+    }
     let replay_context = context.replay_context();
     let registry = app.state::<Arc<AgentRegistry>>();
     let provider = registry.get(&context.agent_id);
@@ -184,7 +188,94 @@ async fn load_unified_session_with_context(
         found = normalized.is_some(),
         "Unified session loaded"
     );
-    Ok(normalized)
+    Ok(normalized.map(SessionThreadSnapshot::into_converted_session))
+}
+
+pub async fn ensure_canonical_session_materialized(
+    app: AppHandle,
+    replay_context: &SessionReplayContext,
+) -> Result<Option<SessionThreadSnapshot>, String> {
+    let Some(db) = app.try_state::<DbConn>().map(|s| s.inner().clone()) else {
+        return Err("Database unavailable for session materialization".to_string());
+    };
+
+    if let Some(persisted) =
+        SessionThreadSnapshotRepository::get(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load persisted thread snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?
+    {
+        return Ok(Some(persisted));
+    }
+
+    let context = crate::history::session_context::SessionContext {
+        local_session_id: replay_context.local_session_id.clone(),
+        history_session_id: replay_context.history_session_id.clone(),
+        project_path: replay_context.project_path.clone(),
+        worktree_path: replay_context.worktree_path.clone(),
+        effective_project_path: replay_context.effective_cwd.clone(),
+        source_path: replay_context.source_path.clone(),
+        agent_id: replay_context.agent_id.clone(),
+        compatibility: replay_context.compatibility.clone(),
+    };
+    let snapshot = load_unified_session_content_with_context(app, context).await?;
+    let Some(snapshot) = snapshot else {
+        return Ok(None);
+    };
+
+    SessionThreadSnapshotRepository::set(&db, &replay_context.local_session_id, &snapshot)
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to persist thread snapshot for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?;
+
+    let projection = ProjectionRegistry::project_thread_snapshot(
+        &replay_context.local_session_id,
+        Some(replay_context.agent_id.clone()),
+        &snapshot,
+    );
+    if projection_has_runtime_state(&projection) {
+        SessionProjectionSnapshotRepository::set(&db, &replay_context.local_session_id, &projection)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to persist projection snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
+    }
+
+    if SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to determine journal cutoff for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?
+        .is_none()
+    {
+        SessionJournalEventRepository::append_materialization_barrier(
+            &db,
+            &replay_context.local_session_id,
+        )
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to append materialization barrier for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?;
+    }
+
+    Ok(Some(snapshot))
 }
 
 #[tauri::command]
@@ -230,7 +321,7 @@ pub async fn get_session_open_result(
     )
     .await;
     let replay_context = context.replay_context();
-    let thread_content = load_unified_session_content_with_context(app_clone, context).await?;
+    let thread_content = ensure_canonical_session_materialized(app_clone, &replay_context).await?;
     let has_thread_content = thread_content.is_some();
 
     let session_metadata =
@@ -243,11 +334,6 @@ pub async fn get_session_open_result(
                 )
             })?;
     let metadata_exists = session_metadata.is_some();
-    let normalized_thread_content = thread_content.or_else(|| {
-        session_metadata.as_ref().map(|row| {
-            build_empty_session_with_metadata(&replay_context.local_session_id, Some(row))
-        })
-    });
     let journal_cutoff =
         SessionJournalEventRepository::max_event_seq(db.inner(), &replay_context.local_session_id)
             .await
@@ -269,7 +355,6 @@ pub async fn get_session_open_result(
         &hub,
         &replay_context,
         &session_id,
-        normalized_thread_content,
     )
     .await)
 }
@@ -280,15 +365,15 @@ mod tests {
         apply_session_title_metadata, build_empty_session_with_metadata, history_replay_family,
     };
     use crate::acp::provider::HistoryReplayFamily;
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::SessionMetadataRow;
     use crate::session_jsonl::types::{ConvertedSession, SessionStats, StoredEntry};
 
-    fn make_session(title: &str) -> ConvertedSession {
-        ConvertedSession {
+    fn make_session(title: &str) -> SessionThreadSnapshot {
+        SessionThreadSnapshot {
             entries: vec![],
-            stats: SessionStats::default(),
             title: title.to_string(),
             created_at: "2026-04-06T00:00:00Z".to_string(),
             current_mode_id: None,

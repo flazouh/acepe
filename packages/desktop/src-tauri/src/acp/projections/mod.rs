@@ -2,8 +2,9 @@ use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
-use crate::session_jsonl::types::{ConvertedSession, StoredEntry};
+use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -250,13 +251,13 @@ impl ProjectionRegistry {
     }
 
     #[must_use]
-    pub fn project_converted_session(
+    pub fn project_thread_snapshot(
         session_id: &str,
         agent_id: Option<CanonicalAgentId>,
-        converted_session: &ConvertedSession,
+        thread_snapshot: &SessionThreadSnapshot,
     ) -> SessionProjectionSnapshot {
         let registry = Self::new();
-        registry.import_converted_session(session_id, agent_id, converted_session);
+        registry.import_thread_snapshot(session_id, agent_id, thread_snapshot);
         registry.session_projection(session_id)
     }
 
@@ -493,15 +494,15 @@ impl ProjectionRegistry {
         self.resolve_interaction(session_id, &interaction_id, state, response)
     }
 
-    fn import_converted_session(
+    fn import_thread_snapshot(
         &self,
         session_id: &str,
         agent_id: Option<CanonicalAgentId>,
-        converted_session: &ConvertedSession,
+        thread_snapshot: &SessionThreadSnapshot,
     ) {
         let mut snapshot = SessionSnapshot::new(session_id.to_string(), agent_id);
 
-        for entry in &converted_session.entries {
+        for entry in &thread_snapshot.entries {
             snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
 
             match entry {
@@ -1013,8 +1014,8 @@ mod tests {
     };
     use crate::acp::types::ContentBlock;
     use crate::session_jsonl::types::{
-        ConvertedSession, QuestionAnswer, SessionStats, StoredAssistantChunk,
-        StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+        QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock,
+        StoredEntry, StoredUserMessage,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1634,7 +1635,7 @@ mod tests {
     }
 
     #[test]
-    fn project_converted_session_imports_operations_and_answered_questions() {
+    fn project_thread_snapshot_imports_operations_and_answered_questions() {
         let mut answers = HashMap::new();
         answers.insert("Approve deploy?".to_string(), json!("yes"));
 
@@ -1648,7 +1649,7 @@ mod tests {
             multi_select: false,
         }];
 
-        let converted = ConvertedSession {
+        let thread_snapshot = SessionThreadSnapshot {
             entries: vec![
                 StoredEntry::User {
                     id: "user-1".to_string(),
@@ -1729,16 +1730,15 @@ mod tests {
                     timestamp: Some("2026-04-08T00:00:03Z".to_string()),
                 },
             ],
-            stats: SessionStats::default(),
             title: "Imported".to_string(),
             created_at: "2026-04-08T00:00:00Z".to_string(),
             current_mode_id: None,
         };
 
-        let projection = ProjectionRegistry::project_converted_session(
+        let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::ClaudeCode),
-            &converted,
+            &thread_snapshot,
         );
 
         let session = projection

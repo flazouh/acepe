@@ -4,12 +4,12 @@ use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
 use crate::db::repository::SessionMetadataRepository;
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -167,7 +167,7 @@ impl AgentProvider for CopilotProvider {
         app: &'a AppHandle,
         context: &'a SessionContext,
         replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async move {
             let session_id = &context.local_session_id;
             let db = app.try_state::<DbConn>().map(|state| state.inner().clone());
@@ -191,7 +191,7 @@ impl AgentProvider for CopilotProvider {
             )
             .await
             {
-                Ok(session) => Ok(session),
+                Ok(session) => Ok(session.map(Into::into)),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

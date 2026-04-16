@@ -12,6 +12,7 @@ use crate::{
         ProjectionJournalUpdate, SessionJournalEvent as SessionJournalRecord,
         SessionJournalEventPayload,
     },
+    acp::session_thread_snapshot::SessionThreadSnapshot,
     db::entities::session_journal_event,
 };
 use anyhow::Result;
@@ -729,6 +730,58 @@ impl SessionProjectionSnapshotRepository {
 }
 
 // ============================================================================
+// Session Thread Snapshot Repository
+// ============================================================================
+
+pub struct SessionThreadSnapshotRepository;
+
+impl SessionThreadSnapshotRepository {
+    pub async fn get(db: &DbConn, session_id: &str) -> Result<Option<SessionThreadSnapshot>> {
+        tracing::debug!(session_id = %session_id, "Loading session thread snapshot");
+
+        let model = crate::db::entities::session_thread_snapshot::Entity::find_by_id(session_id)
+            .one(db)
+            .await?;
+        model
+            .map(|row| serde_json::from_str::<SessionThreadSnapshot>(&row.snapshot_json).map_err(anyhow::Error::from))
+            .transpose()
+    }
+
+    pub async fn set(
+        db: &DbConn,
+        session_id: &str,
+        snapshot: &SessionThreadSnapshot,
+    ) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Saving session thread snapshot");
+
+        let snapshot_json = serde_json::to_string(snapshot)?;
+        let now = Utc::now();
+        let existing = crate::db::entities::session_thread_snapshot::Entity::find_by_id(session_id)
+            .one(db)
+            .await?;
+
+        if let Some(existing_model) = existing {
+            let mut active: crate::db::entities::session_thread_snapshot::ActiveModel =
+                existing_model.into();
+            active.snapshot_json = Set(snapshot_json);
+            active.updated_at = Set(now);
+            active.update(db).await?;
+        } else {
+            let active = crate::db::entities::session_thread_snapshot::ActiveModel {
+                session_id: Set(session_id.to_string()),
+                snapshot_json: Set(snapshot_json),
+                updated_at: Set(now),
+            };
+            crate::db::entities::session_thread_snapshot::Entity::insert(active)
+                .exec(db)
+                .await?;
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
 // Session Journal Event Repository
 // ============================================================================
 
@@ -807,6 +860,13 @@ impl SessionJournalEventRepository {
             },
         )
         .await
+    }
+
+    pub async fn append_materialization_barrier(
+        db: &DbConn,
+        session_id: &str,
+    ) -> Result<SessionJournalRecord> {
+        Self::append(db, session_id, SessionJournalEventPayload::MaterializationBarrier).await
     }
 
     async fn append(

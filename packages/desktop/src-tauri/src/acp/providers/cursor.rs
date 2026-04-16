@@ -14,11 +14,11 @@ use crate::acp::cursor_extensions::{
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::future::Future;
@@ -220,7 +220,7 @@ impl AgentProvider for CursorProvider {
         _app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async move {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
@@ -235,7 +235,8 @@ impl AgentProvider for CursorProvider {
                     Ok(Some(full_session)) => Ok(Some(
                         crate::session_converter::convert_cursor_full_session_to_entries(
                             &full_session,
-                        ),
+                        )
+                        .into(),
                     )),
                     Ok(None) => {
                         match crate::cursor_history::parser::find_session_by_id(lookup_session_id)
@@ -244,7 +245,8 @@ impl AgentProvider for CursorProvider {
                             Ok(Some(full_session)) => Ok(Some(
                                 crate::session_converter::convert_cursor_full_session_to_entries(
                                     &full_session,
-                                ),
+                                )
+                                .into(),
                             )),
                             Ok(None) => Ok(None),
                             Err(error) => {
@@ -270,7 +272,8 @@ impl AgentProvider for CursorProvider {
                             Ok(Some(full_session)) => Ok(Some(
                                 crate::session_converter::convert_cursor_full_session_to_entries(
                                     &full_session,
-                                ),
+                                )
+                                .into(),
                             )),
                             Ok(None) => Ok(None),
                             Err(error) => {
@@ -289,7 +292,8 @@ impl AgentProvider for CursorProvider {
                     Ok(Some(full_session)) => Ok(Some(
                         crate::session_converter::convert_cursor_full_session_to_entries(
                             &full_session,
-                        ),
+                        )
+                        .into(),
                     )),
                     Ok(None) => Ok(None),
                     Err(error) => {

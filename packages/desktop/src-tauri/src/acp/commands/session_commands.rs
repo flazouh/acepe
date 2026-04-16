@@ -259,8 +259,8 @@ pub async fn acp_get_session_projection(
         return Ok(runtime_projection);
     };
 
-    let imported_session =
-        crate::history::commands::session_loading::load_unified_session_from_replay_context(
+    let imported_thread_snapshot =
+        crate::history::commands::session_loading::ensure_canonical_session_materialized(
             app.clone(),
             replay_context
                 .as_ref()
@@ -269,15 +269,15 @@ pub async fn acp_get_session_projection(
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
-                "Failed to import legacy session {session_id} into projection view: {error}"
+                "Failed to materialize legacy session {session_id} into canonical state: {error}"
             ),
         })?;
 
-    let Some(imported_session) = imported_session else {
+    let Some(imported_thread_snapshot) = imported_thread_snapshot else {
         return Ok(runtime_projection);
     };
 
-    let imported_projection = ProjectionRegistry::project_converted_session(
+    let imported_projection = ProjectionRegistry::project_thread_snapshot(
         &session_id,
         Some(
             replay_context
@@ -286,7 +286,7 @@ pub async fn acp_get_session_projection(
                 .agent_id
                 .clone(),
         ),
-        &imported_session,
+        &imported_thread_snapshot,
     );
 
     if projection_has_runtime_state(&imported_projection) {

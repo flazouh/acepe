@@ -124,7 +124,7 @@ describe("openPersistedSession", () => {
 			() =>
 				okAsync({
 					outcome: "missing",
-					requested_session_id: "session-1",
+					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
 		);
 
