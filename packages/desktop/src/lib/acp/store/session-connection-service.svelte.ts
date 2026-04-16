@@ -15,6 +15,7 @@
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { createActor } from "xstate";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 import {
 	ConnectionEvent,
 	ContentEvent,
@@ -211,14 +212,13 @@ export class SessionConnectionService implements IConnectionManager {
 	 */
 	sendTurnFailed(
 		sessionId: string,
-		failure: { kind: "recoverable" | "fatal"; message: string }
+		failure: ActiveTurnFailure
 	): void {
 		const machine = this.getMachine(sessionId);
 		if (machine) {
 			machine.send({
 				type: ConnectionEvent.TURN_FAILED,
-				kind: failure.kind,
-				message: failure.message,
+				failure,
 			});
 		}
 	}

@@ -45,6 +45,7 @@ const THREAD_RESUME_TIMEOUT_SNIPPET: &str = "timed out waiting for server";
 
 type ChildHandle = StdArc<std::sync::Mutex<Option<Child>>>;
 type PendingCodexRequests = StdArc<Mutex<HashMap<u64, oneshot::Sender<Value>>>>;
+type ActiveTurnId = StdArc<Mutex<Option<String>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CodexRuntimeIdentity {
@@ -70,7 +71,7 @@ pub struct CodexNativeClient {
     pending_question_ids: StdArc<Mutex<HashMap<String, Vec<String>>>>,
     session_id: Option<String>,
     provider_thread_id: Option<String>,
-    current_turn_id: Option<String>,
+    current_turn_id: ActiveTurnId,
     execution_profile: CodexExecutionProfile,
     config_state: CodexNativeConfigState,
     current_mode_id: String,
@@ -108,7 +109,7 @@ impl CodexNativeClient {
             pending_question_ids: StdArc::new(Mutex::new(HashMap::new())),
             session_id: None,
             provider_thread_id: None,
-            current_turn_id: None,
+            current_turn_id: StdArc::new(Mutex::new(None)),
             execution_profile: CodexExecutionProfile::Standard,
             config_state,
             current_mode_id: "build".to_string(),
@@ -276,6 +277,7 @@ impl AgentClient for CodexNativeClient {
         let dispatcher = self.dispatcher.clone();
         let cancel = self.stdout_reader_cancel.clone();
         let active_session_id = self.active_session_id.clone();
+        let current_turn_id = self.current_turn_id.clone();
         let pending_question_ids = self.pending_question_ids.clone();
         let stdin_writer = self.stdin_writer.clone();
         let db = self.db.clone();
@@ -296,7 +298,14 @@ impl AgentClient for CodexNativeClient {
                                     Err(error) => {
                                         let reason = format!("Received invalid JSON from codex app-server: {error}");
                                         fail_pending_requests(&pending_requests, &reason).await;
-                                        dispatch_transport_error(&dispatcher, &active_session_id, &reason, crate::acp::session_update::TurnErrorSource::Transport).await;
+                                        dispatch_transport_error(
+                                            &dispatcher,
+                                            &active_session_id,
+                                            &current_turn_id,
+                                            &reason,
+                                            crate::acp::session_update::TurnErrorSource::Transport,
+                                        )
+                                        .await;
                                         break;
                                     }
                                 };
@@ -363,6 +372,8 @@ impl AgentClient for CodexNativeClient {
                                 if auto_accepted_permission {
                                     mark_permission_updates_auto_accepted(&mut updates);
                                 }
+                                clear_active_turn_id_for_terminal_updates(&current_turn_id, &updates)
+                                    .await;
                                 for update in updates {
                                     log_emitted_event(&session_id, &update);
                                     dispatcher.enqueue(AcpUiEvent::session_update(update));
@@ -376,13 +387,27 @@ impl AgentClient for CodexNativeClient {
                                     .map(|stderr| format!("Codex app-server exited unexpectedly:\n{stderr}"))
                                     .unwrap_or_else(|| "Codex app-server exited unexpectedly".to_string());
                                 fail_pending_requests(&pending_requests, &reason).await;
-                                dispatch_transport_error(&dispatcher, &active_session_id, &reason, crate::acp::session_update::TurnErrorSource::Process).await;
+                                dispatch_transport_error(
+                                    &dispatcher,
+                                    &active_session_id,
+                                    &current_turn_id,
+                                    &reason,
+                                    crate::acp::session_update::TurnErrorSource::Process,
+                                )
+                                .await;
                                 break;
                             }
                             Err(error) => {
                                 let reason = format!("Failed reading Codex stdout: {error}");
                                 fail_pending_requests(&pending_requests, &reason).await;
-                                dispatch_transport_error(&dispatcher, &active_session_id, &reason, crate::acp::session_update::TurnErrorSource::Transport).await;
+                                dispatch_transport_error(
+                                    &dispatcher,
+                                    &active_session_id,
+                                    &current_turn_id,
+                                    &reason,
+                                    crate::acp::session_update::TurnErrorSource::Transport,
+                                )
+                                .await;
                                 break;
                             }
                         }
@@ -490,7 +515,7 @@ impl AgentClient for CodexNativeClient {
         );
         let payload = serde_json::to_value(params).map_err(AcpError::SerializationError)?;
         let response = self.send_request("turn/start", payload).await?;
-        self.current_turn_id = Some(parse_turn_id(&response).ok_or_else(|| {
+        *self.current_turn_id.lock().await = Some(parse_turn_id(&response).ok_or_else(|| {
             AcpError::ProtocolError("turn/start response did not include a turn id".to_string())
         })?);
         Ok(response)
@@ -504,7 +529,7 @@ impl AgentClient for CodexNativeClient {
         let provider_thread_id = self.provider_thread_id.clone().ok_or_else(|| {
             AcpError::InvalidState("Codex session is missing a provider thread id".to_string())
         })?;
-        let turn_id = self.current_turn_id.clone().ok_or_else(|| {
+        let turn_id = self.current_turn_id.lock().await.clone().ok_or_else(|| {
             AcpError::InvalidState("Codex session is missing an active turn id".to_string())
         })?;
         self.send_request(
@@ -513,7 +538,9 @@ impl AgentClient for CodexNativeClient {
         )
         .await
         .map(|_| {
-            self.current_turn_id = None;
+            if let Ok(mut active_turn_id) = self.current_turn_id.try_lock() {
+                *active_turn_id = None;
+            }
         })
     }
 
@@ -593,6 +620,9 @@ impl AgentClient for CodexNativeClient {
 
         if let Ok(mut question_ids) = self.pending_question_ids.try_lock() {
             question_ids.clear();
+        }
+        if let Ok(mut active_turn_id) = self.current_turn_id.try_lock() {
+            *active_turn_id = None;
         }
 
         self.session_id = None;
@@ -1088,28 +1118,59 @@ async fn fail_pending_requests(pending_requests: &PendingCodexRequests, reason: 
     }
 }
 
+fn build_transport_turn_error(
+    session_id: String,
+    turn_id: Option<String>,
+    reason: &str,
+    source: crate::acp::session_update::TurnErrorSource,
+) -> crate::acp::session_update::SessionUpdate {
+    crate::acp::session_update::SessionUpdate::TurnError {
+        error: crate::acp::session_update::TurnErrorData::Structured(
+            crate::acp::session_update::TurnErrorInfo {
+                message: reason.to_string(),
+                kind: crate::acp::session_update::TurnErrorKind::Fatal,
+                code: None,
+                source: Some(source),
+            },
+        ),
+        session_id: Some(session_id),
+        turn_id,
+    }
+}
+
 async fn dispatch_transport_error(
     dispatcher: &AcpUiEventDispatcher,
     active_session_id: &StdArc<Mutex<Option<String>>>,
+    current_turn_id: &ActiveTurnId,
     reason: &str,
     source: crate::acp::session_update::TurnErrorSource,
 ) {
     let session_id = active_session_id.lock().await.clone();
     if let Some(session_id) = session_id {
-        dispatcher.enqueue(AcpUiEvent::session_update(
-            crate::acp::session_update::SessionUpdate::TurnError {
-                error: crate::acp::session_update::TurnErrorData::Structured(
-                    crate::acp::session_update::TurnErrorInfo {
-                        message: reason.to_string(),
-                        kind: crate::acp::session_update::TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(source),
-                    },
-                ),
-                session_id: Some(session_id),
-            },
-        ));
+        let turn_id = current_turn_id.lock().await.clone();
+        dispatcher.enqueue(AcpUiEvent::session_update(build_transport_turn_error(
+            session_id, turn_id, reason, source,
+        )));
     }
+}
+
+async fn clear_active_turn_id_for_terminal_updates(
+    current_turn_id: &ActiveTurnId,
+    updates: &[SessionUpdate],
+) {
+    if !updates.iter().any(is_terminal_turn_update) {
+        return;
+    }
+
+    let mut active_turn_id = current_turn_id.lock().await;
+    *active_turn_id = None;
+}
+
+fn is_terminal_turn_update(update: &SessionUpdate) -> bool {
+    matches!(
+        update,
+        SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
+    )
 }
 
 async fn remember_question_ids(
@@ -1404,6 +1465,60 @@ mod tests {
                 "turnId": "turn-1",
             })
         );
+    }
+
+    #[test]
+    fn transport_turn_errors_preserve_active_turn_identity() {
+        let update = build_transport_turn_error(
+            "session-1".to_string(),
+            Some("turn-1".to_string()),
+            "Codex app-server exited unexpectedly",
+            crate::acp::session_update::TurnErrorSource::Process,
+        );
+
+        assert!(matches!(
+            update,
+            SessionUpdate::TurnError {
+                turn_id,
+                error: crate::acp::session_update::TurnErrorData::Structured(
+                    crate::acp::session_update::TurnErrorInfo {
+                        message,
+                        kind: crate::acp::session_update::TurnErrorKind::Fatal,
+                        code: None,
+                        source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    }
+                ),
+                session_id: Some(session_id),
+            } if session_id == "session-1" && turn_id.as_deref() == Some("turn-1") && message == "Codex app-server exited unexpectedly"
+        ));
+    }
+
+    #[tokio::test]
+    async fn terminal_updates_clear_active_turn_identity() {
+        let current_turn_id = StdArc::new(Mutex::new(Some("turn-1".to_string())));
+        let updates = vec![SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        }];
+
+        clear_active_turn_id_for_terminal_updates(&current_turn_id, &updates).await;
+
+        assert!(current_turn_id.lock().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn non_terminal_updates_keep_active_turn_identity() {
+        let current_turn_id = StdArc::new(Mutex::new(Some("turn-1".to_string())));
+        let updates = vec![SessionUpdate::AvailableCommandsUpdate {
+            update: crate::acp::session_update::AvailableCommandsData {
+                available_commands: Vec::new(),
+            },
+            session_id: Some("session-1".to_string()),
+        }];
+
+        clear_active_turn_id_for_terminal_updates(&current_turn_id, &updates).await;
+
+        assert_eq!(current_turn_id.lock().await.as_deref(), Some("turn-1"));
     }
 
     #[test]

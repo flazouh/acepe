@@ -451,6 +451,7 @@ describe("Session Machine", () => {
 			expect(context.currentModeId).toBeNull();
 			expect(context.currentModelId).toBeNull();
 			expect(context.connectionError).toBeNull();
+			expect(context.turnFailure).toBeNull();
 			expect(context.contentError).toBeNull();
 		});
 	});
@@ -617,8 +618,13 @@ describe("Session Machine", () => {
 
 			actor.send({
 				type: ConnectionEvent.TURN_FAILED,
-				kind: "recoverable",
-				message: "Rate limit reached",
+				failure: {
+					turnId: "turn-1",
+					message: "Rate limit reached",
+					code: null,
+					kind: "recoverable",
+					source: "unknown",
+				},
 			});
 
 			const state = actor.getSnapshot().value as SessionMachineSnapshot;
@@ -628,7 +634,14 @@ describe("Session Machine", () => {
 			expect(uiState.showThinking).toBe(false);
 			expect(uiState.showStreaming).toBe(false);
 			expect(uiState.showError).toBe(false);
-			expect(context.connectionError).toBe("Rate limit reached");
+			expect(context.connectionError).toBeNull();
+			expect(context.turnFailure).toEqual({
+				turnId: "turn-1",
+				message: "Rate limit reached",
+				code: null,
+				kind: "recoverable",
+				source: "unknown",
+			});
 		});
 
 		it("should transition to error on fatal turn failure", () => {
@@ -644,8 +657,13 @@ describe("Session Machine", () => {
 
 			actor.send({
 				type: ConnectionEvent.TURN_FAILED,
-				kind: "fatal",
-				message: "Process transport is not ready",
+				failure: {
+					turnId: "turn-2",
+					message: "Process transport is not ready",
+					code: null,
+					kind: "fatal",
+					source: "process",
+				},
 			});
 
 			const state = actor.getSnapshot().value as SessionMachineSnapshot;
@@ -654,6 +672,36 @@ describe("Session Machine", () => {
 			expect(uiState.showThinking).toBe(false);
 			expect(uiState.showStreaming).toBe(false);
 			expect(uiState.showError).toBe(true);
+		});
+
+		it("clears stored turn failure when a new turn starts", () => {
+			const actor = createActor(sessionMachine, {
+				input: { sessionId: "turn-failure-reset" },
+			});
+			actor.start();
+
+			actor.send({ type: ContentEvent.LOAD });
+			actor.send({ type: ContentEvent.LOADED });
+			actor.send({ type: ConnectionEvent.CONNECT });
+			actor.send({ type: ConnectionEvent.SUCCESS });
+			actor.send({ type: ConnectionEvent.CAPABILITIES_LOADED });
+			actor.send({ type: ConnectionEvent.SEND_MESSAGE });
+			actor.send({
+				type: ConnectionEvent.TURN_FAILED,
+				failure: {
+					turnId: "turn-1",
+					message: "Rate limit reached",
+					code: null,
+					kind: "recoverable",
+					source: "unknown",
+				},
+			});
+
+			expect((actor.getSnapshot().context as SessionMachineContext).turnFailure).not.toBeNull();
+
+			actor.send({ type: ConnectionEvent.SEND_MESSAGE });
+
+			expect((actor.getSnapshot().context as SessionMachineContext).turnFailure).toBeNull();
 		});
 
 		it("should show streaming state for typewriter animation (THE TYPEWRITER FIX)", () => {

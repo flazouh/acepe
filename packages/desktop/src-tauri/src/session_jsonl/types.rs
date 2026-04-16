@@ -367,6 +367,8 @@ pub struct StoredErrorMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
     pub kind: crate::acp::session_update::TurnErrorKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<crate::acp::session_update::TurnErrorSource>,
 }
 
 /// Answered question data from toolUseResult field in JSONL.

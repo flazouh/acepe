@@ -11,7 +11,10 @@ import type { SessionHotState } from "./types.js";
 
 export interface LiveSessionWorkInput {
 	readonly runtimeState: SessionRuntimeState | null;
-	readonly hotState: Pick<SessionHotState, "status" | "currentMode" | "connectionError">;
+	readonly hotState: Pick<
+		SessionHotState,
+		"status" | "currentMode" | "connectionError" | "activeTurnFailure"
+	>;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
@@ -101,6 +104,7 @@ export function deriveLiveSessionWorkProjection(
 		state,
 		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 		connectionError: input.hotState.connectionError,
+		activeTurnFailure: input.hotState.activeTurnFailure ?? null,
 	});
 }
 

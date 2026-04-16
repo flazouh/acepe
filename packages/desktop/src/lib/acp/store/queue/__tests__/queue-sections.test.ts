@@ -177,6 +177,22 @@ describe("classifyItem", () => {
 		expect(classifyItem(makeItem({ hasError: true, status: "error" }))).toBe("error");
 	});
 
+	it("should classify active turn failure as error without connectionError", () => {
+		expect(
+			classifyItem(
+				makeItem({
+					activeTurnFailure: {
+						turnId: "turn-1",
+						message: "Usage limit reached",
+						code: "429",
+						kind: "recoverable",
+						source: "process",
+					},
+				})
+			)
+		).toBe("error");
+	});
+
 	it("should classify streaming without plan mode as working", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "code" }))

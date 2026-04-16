@@ -26,8 +26,8 @@ import { aggregateFileEdits } from "../../logic/aggregate-file-edits.js";
 import { ConnectionState } from "../../logic/session-machine.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import type { ToolCallUpdate } from "../../types/tool-call.js";
-import type { TurnErrorPayload } from "../../types/turn-error.js";
-import { normalizeTurnError } from "../../types/turn-error.js";
+import type { TurnCompleteUpdate, TurnErrorUpdate } from "../../types/turn-error.js";
+import { normalizeActiveTurnFailure } from "../../types/turn-error.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
@@ -41,6 +41,14 @@ import type {
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });
+
+function matchesTurnId(previousTurnId: string | null | undefined, nextTurnId: string | null | undefined): boolean {
+	if (previousTurnId == null || nextTurnId == null) {
+		return previousTurnId == null && nextTurnId == null;
+	}
+
+	return previousTurnId === nextTurnId;
+}
 
 /**
  * Service for messaging and streaming operations.
@@ -137,6 +145,8 @@ export class SessionMessagingService {
 			status: "streaming",
 			turnState: "streaming",
 			connectionError: null, // Clear any previous turn error
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 		});
 		logger.debug("Sending message (optimistic)", { sessionId });
 
@@ -162,13 +172,18 @@ export class SessionMessagingService {
 				// accept messages. Must pair machine event with hot-state update per the
 				// reactive anchor pattern to prevent stuck UI.
 				this.connectionManager.sendTurnFailed(sessionId, {
+					turnId: null,
 					kind: "fatal",
 					message: error.message,
+					code: null,
+					source: "unknown",
 				});
 				this.hotStateManager.updateHotState(sessionId, {
 					status: "error",
 					turnState: "error",
 					connectionError: error.message,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 				});
 				logger.error("Failed to send message, rolling back", {
 					sessionId,
@@ -208,9 +223,16 @@ export class SessionMessagingService {
 	/**
 	 * Handle stream complete from Tauri events.
 	 */
-	handleStreamComplete(sessionId: string): void {
+	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
 		const hotState = this.hotStateManager.getHotState(sessionId);
 		if (hotState?.turnState === "completed") {
+			return;
+		}
+
+		if (
+			hotState?.turnState === "error" &&
+			matchesTurnId(hotState.lastTerminalTurnId, turnId ?? null)
+		) {
 			return;
 		}
 
@@ -224,6 +246,8 @@ export class SessionMessagingService {
 		this.hotStateManager.updateHotState(sessionId, {
 			status: "ready",
 			turnState: "completed",
+			activeTurnFailure: null,
+			lastTerminalTurnId: turnId ?? null,
 		});
 
 		// Mark any still-streaming tool call entries as not streaming
@@ -337,6 +361,8 @@ export class SessionMessagingService {
 			status: "error",
 			turnState: "error",
 			connectionError: error.message,
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 		});
 		logger.error("Stream error", { sessionId, error });
 	}
@@ -345,50 +371,52 @@ export class SessionMessagingService {
 	 * Handle turn error from agent (e.g., usage limit reached).
 	 * Uses explicit turn failure semantics from the backend.
 	 */
-	handleTurnError(sessionId: string, error: TurnErrorPayload): void {
-		this.entryManager.clearStreamingAssistantEntry(sessionId);
-		const normalized = normalizeTurnError(error);
-		const errorEntry: SessionEntry = {
-			id: crypto.randomUUID(),
-			type: "error",
-			message: {
-				content: normalized.message,
-				code: normalized.code != null ? String(normalized.code) : undefined,
-				kind: normalized.kind,
-				source: normalized.source ?? undefined,
-			},
-			timestamp: new Date(),
-		};
-		this.entryManager.addEntry(sessionId, errorEntry);
+	handleTurnError(sessionId: string, update: TurnErrorUpdate): void {
+		const hotState = this.hotStateManager.getHotState(sessionId);
+		const normalized = normalizeActiveTurnFailure(update);
+		if (
+			hotState?.turnState === "error" &&
+			matchesTurnId(hotState.lastTerminalTurnId, normalized.turnId)
+		) {
+			logger.warn("Ignoring duplicate turn error for terminal turn", {
+				sessionId,
+				turnId: normalized.turnId,
+			});
+			return;
+		}
 
-		this.connectionManager.sendTurnFailed(sessionId, {
-			kind: normalized.kind,
-			message: normalized.message,
-		});
+		this.entryManager.clearStreamingAssistantEntry(sessionId);
+		this.connectionManager.sendTurnFailed(sessionId, normalized);
 
 		if (normalized.kind === "fatal") {
 			this.hotStateManager.updateHotState(sessionId, {
 				status: "error",
 				turnState: "error",
 				connectionError: null,
+				activeTurnFailure: normalized,
+				lastTerminalTurnId: normalized.turnId,
 			});
 			logger.error("Fatal turn error", {
 				sessionId,
 				error: normalized.message,
 				code: normalized.code ?? undefined,
-				source: normalized.source ?? undefined,
+				source: normalized.source,
+				turnId: normalized.turnId,
 			});
 		} else {
 			this.hotStateManager.updateHotState(sessionId, {
 				status: "ready",
 				turnState: "error",
 				connectionError: null,
+				activeTurnFailure: normalized,
+				lastTerminalTurnId: normalized.turnId,
 			});
 			logger.error("Recoverable turn error", {
 				sessionId,
 				error: normalized.message,
 				code: normalized.code ?? undefined,
-				source: normalized.source ?? undefined,
+				source: normalized.source,
+				turnId: normalized.turnId,
 			});
 		}
 	}
@@ -426,6 +454,10 @@ export class SessionMessagingService {
 	ensureStreamingState(sessionId: string): void {
 		const hotState = this.hotStateManager.getHotState(sessionId);
 		const machineState = this.connectionManager.getState(sessionId);
+
+		if (hotState.turnState === "error" && hotState.activeTurnFailure !== null) {
+			return;
+		}
 
 		// Transition connection state from awaitingResponse to streaming
 		// This hides the "Thinking_" indicator when response starts

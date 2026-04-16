@@ -55,10 +55,12 @@ pub enum ProjectionJournalUpdate {
     },
     TurnComplete {
         session_id: Option<String>,
+        turn_id: Option<String>,
     },
     TurnError {
         error: TurnErrorData,
         session_id: Option<String>,
+        turn_id: Option<String>,
     },
 }
 
@@ -117,12 +119,21 @@ impl ProjectionJournalUpdate {
                 question: question.clone(),
                 session_id: session_id.clone(),
             }),
-            SessionUpdate::TurnComplete { session_id } => Some(Self::TurnComplete {
+            SessionUpdate::TurnComplete {
+                session_id,
+                turn_id,
+            } => Some(Self::TurnComplete {
                 session_id: session_id.clone(),
+                turn_id: turn_id.clone(),
             }),
-            SessionUpdate::TurnError { error, session_id } => Some(Self::TurnError {
+            SessionUpdate::TurnError {
+                error,
+                session_id,
+                turn_id,
+            } => Some(Self::TurnError {
                 error: error.clone(),
                 session_id: session_id.clone(),
+                turn_id: turn_id.clone(),
             }),
             _ => None,
         }
@@ -180,8 +191,22 @@ impl ProjectionJournalUpdate {
                 question,
                 session_id,
             },
-            Self::TurnComplete { session_id } => SessionUpdate::TurnComplete { session_id },
-            Self::TurnError { error, session_id } => SessionUpdate::TurnError { error, session_id },
+            Self::TurnComplete {
+                session_id,
+                turn_id,
+            } => SessionUpdate::TurnComplete {
+                session_id,
+                turn_id,
+            },
+            Self::TurnError {
+                error,
+                session_id,
+                turn_id,
+            } => SessionUpdate::TurnError {
+                error,
+                session_id,
+                turn_id,
+            },
         }
     }
 }

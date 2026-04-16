@@ -195,7 +195,12 @@ export class UrgencyTabsStore {
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
 		const hotState = sessionId
 			? this.sessionStore.getHotState(sessionId)
-			: { status: "idle" as const, statusChangedAt: Date.now(), connectionError: null };
+			: {
+					status: "idle" as const,
+					statusChangedAt: Date.now(),
+					connectionError: null,
+					activeTurnFailure: null,
+				};
 
 		// Get pending question for this session
 		const interactionSnapshot =
@@ -221,6 +226,7 @@ export class UrgencyTabsStore {
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
 			statusChangedAt: hotState.statusChangedAt,
 			connectionError: hotState.connectionError,
+			activeTurnFailure: hotState.activeTurnFailure ?? null,
 		});
 
 		return {

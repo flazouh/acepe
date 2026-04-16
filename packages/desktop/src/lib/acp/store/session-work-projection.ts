@@ -1,5 +1,6 @@
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { SessionState } from "./session-state.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 
 export type SessionWorkBucket =
 	| "answer_needed"
@@ -17,6 +18,7 @@ export interface SessionWorkProjectionInput {
 	readonly state: SessionState;
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 }
 
 export interface SessionWorkProjection {
@@ -84,7 +86,10 @@ export function deriveSessionWorkProjection(
 ): SessionWorkProjection {
 	const effectiveModeId = resolveEffectiveModeId(input);
 	const hasPendingInput = input.state.pendingInput.kind !== "none";
-	const hasError = input.state.connection === "error" || input.connectionError != null;
+	const hasError =
+		input.state.connection === "error" ||
+		input.connectionError != null ||
+		input.activeTurnFailure != null;
 	const needsReview = input.state.activity.kind === "idle" && input.state.attention.hasUnseenCompletion;
 
 	return {

@@ -18,6 +18,16 @@ pub enum SessionTurnState {
     Failed,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct TurnFailureSnapshot {
+    pub turn_id: Option<String>,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    pub kind: crate::acp::session_update::TurnErrorKind,
+    pub source: crate::acp::session_update::TurnErrorSource,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct SessionSnapshot {
     pub session_id: String,
@@ -28,6 +38,10 @@ pub struct SessionSnapshot {
     pub last_agent_message_id: Option<String>,
     pub active_tool_call_ids: Vec<String>,
     pub completed_tool_call_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_turn_failure: Option<TurnFailureSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_terminal_turn_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -128,8 +142,37 @@ impl SessionSnapshot {
             last_agent_message_id: None,
             active_tool_call_ids: Vec::new(),
             completed_tool_call_ids: Vec::new(),
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
         }
     }
+}
+
+fn matches_terminal_turn_id(left: Option<&str>, right: Option<&str>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => left == right,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn preserves_failed_turn(snapshot: &SessionSnapshot) -> bool {
+    snapshot.turn_state == SessionTurnState::Failed && snapshot.active_turn_failure.is_some()
+}
+
+fn start_running_turn(snapshot: &mut SessionSnapshot) {
+    snapshot.turn_state = SessionTurnState::Running;
+    snapshot.active_turn_failure = None;
+    snapshot.last_terminal_turn_id = None;
+}
+
+fn should_ignore_turn_complete(
+    snapshot: &SessionSnapshot,
+    turn_id: Option<&str>,
+) -> bool {
+    preserves_failed_turn(snapshot)
+        && (turn_id.is_none()
+            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -258,17 +301,21 @@ impl ProjectionRegistry {
         match update {
             SessionUpdate::UserMessageChunk { .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                snapshot.turn_state = SessionTurnState::Running;
+                start_running_turn(&mut snapshot);
             }
             SessionUpdate::AgentMessageChunk { message_id, .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
                 if let Some(message_id) = message_id {
                     snapshot.last_agent_message_id = Some(message_id.clone());
                 }
-                snapshot.turn_state = SessionTurnState::Running;
+                if !preserves_failed_turn(&snapshot) {
+                    start_running_turn(&mut snapshot);
+                }
             }
             SessionUpdate::AgentThoughtChunk { .. } => {
-                snapshot.turn_state = SessionTurnState::Running;
+                if !preserves_failed_turn(&snapshot) {
+                    start_running_turn(&mut snapshot);
+                }
             }
             SessionUpdate::ToolCall { tool_call, .. } => {
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &tool_call.id);
@@ -282,7 +329,9 @@ impl ProjectionRegistry {
                     tool_call.parent_tool_use_id.clone(),
                 );
                 self.register_plan_approval_interaction(session_id, tool_call);
-                snapshot.turn_state = SessionTurnState::Running;
+                if !preserves_failed_turn(&snapshot) {
+                    start_running_turn(&mut snapshot);
+                }
             }
             SessionUpdate::ToolCallUpdate { update, .. } => {
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &update.tool_call_id);
@@ -294,7 +343,9 @@ impl ProjectionRegistry {
                     mark_tool_call_completed(&mut snapshot, &update.tool_call_id);
                 }
                 self.apply_tool_call_update_projection(session_id, update);
-                snapshot.turn_state = SessionTurnState::Running;
+                if !preserves_failed_turn(&snapshot) {
+                    start_running_turn(&mut snapshot);
+                }
             }
             SessionUpdate::PermissionRequest { permission, .. } => {
                 self.register_permission_interaction(permission, snapshot.last_event_seq);
@@ -302,13 +353,29 @@ impl ProjectionRegistry {
             SessionUpdate::QuestionRequest { question, .. } => {
                 self.register_question_interaction(question);
             }
-            SessionUpdate::TurnComplete { .. } => {
+            SessionUpdate::TurnComplete { turn_id, .. } => {
+                if should_ignore_turn_complete(&snapshot, turn_id.as_deref()) {
+                    return;
+                }
                 snapshot.turn_state = SessionTurnState::Completed;
                 snapshot.active_tool_call_ids.clear();
+                snapshot.active_turn_failure = None;
+                snapshot.last_terminal_turn_id = turn_id.clone();
             }
-            SessionUpdate::TurnError { .. } => {
+            SessionUpdate::TurnError { error, turn_id, .. } => {
+                if preserves_failed_turn(&snapshot)
+                    && matches_terminal_turn_id(
+                        snapshot.last_terminal_turn_id.as_deref(),
+                        turn_id.as_deref(),
+                    )
+                {
+                    return;
+                }
                 snapshot.turn_state = SessionTurnState::Failed;
                 snapshot.active_tool_call_ids.clear();
+                snapshot.active_turn_failure =
+                    Some(convert_turn_error_snapshot(error, turn_id.clone()));
+                snapshot.last_terminal_turn_id = turn_id.clone();
             }
             _ => {}
         }
@@ -439,13 +506,22 @@ impl ProjectionRegistry {
 
             match entry {
                 StoredEntry::User { .. } => {
+                    if snapshot.active_turn_failure.is_some() {
+                        start_running_turn(&mut snapshot);
+                    }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                 }
                 StoredEntry::Assistant { id, .. } => {
+                    if snapshot.active_turn_failure.is_some() {
+                        start_running_turn(&mut snapshot);
+                    }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                     snapshot.last_agent_message_id = Some(id.clone());
                 }
                 StoredEntry::ToolCall { message, .. } => {
+                    if snapshot.active_turn_failure.is_some() {
+                        start_running_turn(&mut snapshot);
+                    }
                     upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &message.id);
                     if is_terminal_tool_call_status(&message.status) {
                         mark_tool_call_completed(&mut snapshot, &message.id);
@@ -464,11 +540,16 @@ impl ProjectionRegistry {
                         snapshot.last_event_seq,
                     );
                 }
-                StoredEntry::Error { .. } => {}
+                StoredEntry::Error { message, .. } => {
+                    snapshot.active_turn_failure = Some(convert_stored_error_snapshot(message));
+                    snapshot.last_terminal_turn_id = None;
+                }
             }
         }
 
-        if !snapshot.active_tool_call_ids.is_empty() {
+        if snapshot.active_turn_failure.is_some() {
+            snapshot.turn_state = SessionTurnState::Failed;
+        } else if !snapshot.active_tool_call_ids.is_empty() {
             snapshot.turn_state = SessionTurnState::Running;
         } else if snapshot.last_event_seq > 0 {
             snapshot.turn_state = SessionTurnState::Completed;
@@ -800,6 +881,44 @@ fn create_session_tool_key(session_id: &str, tool_call_id: &str) -> String {
     format!("{session_id}::{tool_call_id}")
 }
 
+fn convert_turn_error_snapshot(
+    error: &crate::acp::session_update::TurnErrorData,
+    turn_id: Option<String>,
+) -> TurnFailureSnapshot {
+    match error {
+        crate::acp::session_update::TurnErrorData::Legacy(message) => TurnFailureSnapshot {
+            turn_id,
+            message: message.clone(),
+            code: None,
+            kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+            source: crate::acp::session_update::TurnErrorSource::Unknown,
+        },
+        crate::acp::session_update::TurnErrorData::Structured(info) => TurnFailureSnapshot {
+            turn_id,
+            message: info.message.clone(),
+            code: info.code.map(|code| code.to_string()),
+            kind: info.kind,
+            source: info
+                .source
+                .unwrap_or(crate::acp::session_update::TurnErrorSource::Unknown),
+        },
+    }
+}
+
+fn convert_stored_error_snapshot(
+    message: &crate::session_jsonl::types::StoredErrorMessage,
+) -> TurnFailureSnapshot {
+    TurnFailureSnapshot {
+        turn_id: None,
+        message: message.content.clone(),
+        code: message.code.clone(),
+        kind: message.kind,
+        source: message
+            .source
+            .unwrap_or(crate::acp::session_update::TurnErrorSource::Unknown),
+    }
+}
+
 fn create_session_request_key(session_id: &str, request_id: u64) -> String {
     format!("{session_id}::{request_id}")
 }
@@ -922,6 +1041,7 @@ mod tests {
             "session-1",
             &SessionUpdate::TurnComplete {
                 session_id: Some("session-1".to_string()),
+                turn_id: None,
             },
         );
 
@@ -933,6 +1053,127 @@ mod tests {
         assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
         assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
         assert_eq!(snapshot.last_event_seq, 2);
+    }
+
+    #[test]
+    fn apply_session_update_keeps_failed_turn_terminal_for_late_same_turn_updates() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("session-1".to_string(), CanonicalAgentId::Codex);
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnError {
+                error: crate::acp::session_update::TurnErrorData::Structured(
+                    crate::acp::session_update::TurnErrorInfo {
+                        message: "Usage limit reached".to_string(),
+                        kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                        code: Some(429),
+                        source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    },
+                ),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let failed_snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected failed snapshot");
+        assert_eq!(failed_snapshot.turn_state, SessionTurnState::Failed);
+        assert_eq!(failed_snapshot.last_terminal_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            failed_snapshot
+                .active_turn_failure
+                .as_ref()
+                .map(|failure| failure.message.as_str()),
+            Some("Usage limit reached")
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnComplete {
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "late chunk".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                session_id: Some("session-1".to_string()),
+                message_id: Some("msg-late".to_string()),
+            },
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnComplete {
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let failed_snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected failed snapshot after late updates");
+        assert_eq!(failed_snapshot.turn_state, SessionTurnState::Failed);
+        assert_eq!(failed_snapshot.last_terminal_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            failed_snapshot
+                .active_turn_failure
+                .as_ref()
+                .map(|failure| failure.message.as_str()),
+            Some("Usage limit reached")
+        );
+    }
+
+    #[test]
+    fn apply_session_update_clears_failed_turn_when_new_user_turn_starts() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("session-1".to_string(), CanonicalAgentId::Codex);
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnError {
+                error: crate::acp::session_update::TurnErrorData::Structured(
+                    crate::acp::session_update::TurnErrorInfo {
+                        message: "Usage limit reached".to_string(),
+                        kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                        code: Some(429),
+                        source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    },
+                ),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::UserMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "retry".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let running_snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected running snapshot");
+        assert_eq!(running_snapshot.turn_state, SessionTurnState::Running);
+        assert!(running_snapshot.active_turn_failure.is_none());
+        assert!(running_snapshot.last_terminal_turn_id.is_none());
     }
 
     fn create_execute_tool_call(id: &str, command: &str, status: ToolCallStatus) -> ToolCallData {
@@ -1330,6 +1571,8 @@ mod tests {
                 last_agent_message_id: Some("msg-2".to_string()),
                 active_tool_call_ids: vec![],
                 completed_tool_call_ids: vec!["tool-1".to_string()],
+                active_turn_failure: None,
+                last_terminal_turn_id: None,
             }),
             operations: vec![OperationSnapshot {
                 id: "session-1:tool-1".to_string(),
@@ -1523,5 +1766,144 @@ mod tests {
             .find(|interaction| interaction.kind == InteractionKind::PlanApproval)
             .expect("expected imported plan approval interaction");
         assert_eq!(plan_approval.state, InteractionState::Pending);
+    }
+
+    #[test]
+    fn project_converted_session_preserves_stored_error_source() {
+        let converted = ConvertedSession {
+            entries: vec![StoredEntry::Error {
+                id: "error-1".to_string(),
+                message: crate::session_jsonl::types::StoredErrorMessage {
+                    content: "Usage limit reached".to_string(),
+                    code: Some("429".to_string()),
+                    kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                    source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                },
+                timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+            }],
+            stats: SessionStats::default(),
+            title: "Imported error".to_string(),
+            created_at: "2026-04-15T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+
+        let projection = ProjectionRegistry::project_converted_session(
+            "session-1",
+            Some(CanonicalAgentId::Codex),
+            &converted,
+        );
+
+        let session = projection
+            .session
+            .expect("expected imported session snapshot");
+        assert_eq!(session.turn_state, SessionTurnState::Failed);
+        assert_eq!(
+            session
+                .active_turn_failure
+                .as_ref()
+                .map(|failure| failure.source),
+            Some(crate::acp::session_update::TurnErrorSource::Process)
+        );
+    }
+
+    #[test]
+    fn project_converted_session_clears_historical_error_when_later_entries_continue() {
+        let converted = ConvertedSession {
+            entries: vec![
+                StoredEntry::Error {
+                    id: "error-1".to_string(),
+                    message: crate::session_jsonl::types::StoredErrorMessage {
+                        content: "Usage limit reached".to_string(),
+                        code: Some("429".to_string()),
+                        kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                        source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    },
+                    timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+                },
+                StoredEntry::User {
+                    id: "user-1".to_string(),
+                    message: StoredUserMessage {
+                        id: Some("user-1".to_string()),
+                        content: StoredContentBlock {
+                            block_type: "text".to_string(),
+                            text: Some("try again".to_string()),
+                        },
+                        chunks: vec![],
+                        sent_at: Some("2026-04-15T00:00:01Z".to_string()),
+                    },
+                    timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+                },
+                StoredEntry::Assistant {
+                    id: "assistant-1".to_string(),
+                    message: StoredAssistantMessage {
+                        chunks: vec![StoredAssistantChunk {
+                            chunk_type: "message".to_string(),
+                            block: StoredContentBlock {
+                                block_type: "text".to_string(),
+                                text: Some("Recovered".to_string()),
+                            },
+                        }],
+                        model: Some("gpt-5.4".to_string()),
+                        display_model: Some("GPT-5.4".to_string()),
+                        received_at: Some("2026-04-15T00:00:02Z".to_string()),
+                    },
+                    timestamp: Some("2026-04-15T00:00:02Z".to_string()),
+                },
+            ],
+            stats: SessionStats::default(),
+            title: "Recovered session".to_string(),
+            created_at: "2026-04-15T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+
+        let projection = ProjectionRegistry::project_converted_session(
+            "session-1",
+            Some(CanonicalAgentId::Codex),
+            &converted,
+        );
+
+        let session = projection
+            .session
+            .expect("expected imported session snapshot");
+        assert_eq!(session.turn_state, SessionTurnState::Completed);
+        assert!(session.active_turn_failure.is_none());
+        assert!(session.last_terminal_turn_id.is_none());
+    }
+
+    #[test]
+    fn project_converted_session_defaults_missing_stored_error_source_to_unknown() {
+        let converted = ConvertedSession {
+            entries: vec![StoredEntry::Error {
+                id: "error-1".to_string(),
+                message: crate::session_jsonl::types::StoredErrorMessage {
+                    content: "Usage limit reached".to_string(),
+                    code: Some("429".to_string()),
+                    kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                    source: None,
+                },
+                timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+            }],
+            stats: SessionStats::default(),
+            title: "Imported error".to_string(),
+            created_at: "2026-04-15T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+
+        let projection = ProjectionRegistry::project_converted_session(
+            "session-1",
+            Some(CanonicalAgentId::Codex),
+            &converted,
+        );
+
+        let session = projection
+            .session
+            .expect("expected imported session snapshot");
+        assert_eq!(
+            session
+                .active_turn_failure
+                .as_ref()
+                .map(|failure| failure.source),
+            Some(crate::acp::session_update::TurnErrorSource::Unknown)
+        );
     }
 }

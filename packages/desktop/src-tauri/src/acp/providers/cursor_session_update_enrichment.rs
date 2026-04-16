@@ -72,7 +72,7 @@ fn enrich_tool_call_from_index(
 
 pub(crate) async fn enrich_cursor_session_update(update: SessionUpdate) -> SessionUpdate {
     match &update {
-        SessionUpdate::TurnComplete { session_id }
+        SessionUpdate::TurnComplete { session_id, .. }
         | SessionUpdate::TurnError { session_id, .. } => {
             if let Some(session_id) = session_id {
                 CURSOR_TOOL_USE_CACHE.remove(session_id);

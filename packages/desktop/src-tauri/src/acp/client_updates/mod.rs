@@ -204,8 +204,10 @@ mod tests {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::TurnComplete {
                     session_id: emitted,
+                    turn_id,
                 } => {
                     assert_eq!(emitted.as_deref(), Some(session_id));
+                    assert_eq!(turn_id, &None);
                 }
                 other => panic!("Expected turn complete update, got {:?}", other),
             },
@@ -243,6 +245,7 @@ mod tests {
                 "sessionId": session_id,
                 "update": {
                     "sessionUpdate": "turnError",
+                    "turnId": "turn-7",
                     "error": {
                         "message": "boom",
                         "kind": "fatal",
@@ -272,9 +275,11 @@ mod tests {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::TurnError {
                     session_id: emitted,
+                    turn_id,
                     ..
                 } => {
                     assert_eq!(emitted.as_deref(), Some(session_id));
+                    assert_eq!(turn_id.as_deref(), Some("turn-7"));
                 }
                 other => panic!("Expected turn error update, got {:?}", other),
             },

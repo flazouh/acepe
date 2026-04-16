@@ -11,6 +11,7 @@
 import { assign, setup } from "xstate";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 
 // ============================================
 // CONTENT REGION STATES
@@ -117,10 +118,13 @@ export const sessionMachine = setup({
 			connectionError: ({ event }) => (event as ConnectionErrorEvent).error ?? "Unknown error",
 		}),
 		storeTurnFailure: assign({
-			connectionError: ({ event }) => (event as TurnFailureEvent).message,
+			turnFailure: ({ event }) => (event as TurnFailureEvent).failure,
 		}),
 		clearConnectionError: assign({
 			connectionError: () => null,
+		}),
+		clearTurnFailure: assign({
+			turnFailure: () => null,
 		}),
 	},
 }).createMachine({
@@ -133,6 +137,7 @@ export const sessionMachine = setup({
 		currentModeId: null,
 		currentModelId: null,
 		connectionError: null,
+		turnFailure: null,
 		contentError: null,
 	}),
 	states: {
@@ -175,7 +180,7 @@ export const sessionMachine = setup({
 					on: {
 						[ConnectionEvent.SUCCESS]: {
 							target: ConnectionState.WARMING_UP,
-							actions: "clearConnectionError",
+							actions: ["clearConnectionError", "clearTurnFailure"],
 						},
 						[ConnectionEvent.ERROR]: {
 							target: ConnectionState.ERROR,
@@ -194,7 +199,10 @@ export const sessionMachine = setup({
 				},
 				[ConnectionState.READY]: {
 					on: {
-						[ConnectionEvent.SEND_MESSAGE]: ConnectionState.AWAITING_RESPONSE,
+						[ConnectionEvent.SEND_MESSAGE]: {
+							target: ConnectionState.AWAITING_RESPONSE,
+							actions: "clearTurnFailure",
+						},
 						[ConnectionEvent.DISCONNECT]: ConnectionState.DISCONNECTED,
 						[ConnectionEvent.ERROR]: {
 							target: ConnectionState.ERROR,
@@ -205,10 +213,13 @@ export const sessionMachine = setup({
 				[ConnectionState.AWAITING_RESPONSE]: {
 					on: {
 						[ConnectionEvent.RESPONSE_STARTED]: ConnectionState.STREAMING,
-						[ConnectionEvent.RESPONSE_COMPLETE]: ConnectionState.READY,
+						[ConnectionEvent.RESPONSE_COMPLETE]: {
+							target: ConnectionState.READY,
+							actions: "clearTurnFailure",
+						},
 						[ConnectionEvent.TURN_FAILED]: [
 							{
-								guard: ({ event }) => (event as TurnFailureEvent).kind === "fatal",
+								guard: ({ event }) => (event as TurnFailureEvent).failure.kind === "fatal",
 								target: ConnectionState.ERROR,
 								actions: "storeTurnFailure",
 							},
@@ -226,10 +237,13 @@ export const sessionMachine = setup({
 				},
 				[ConnectionState.STREAMING]: {
 					on: {
-						[ConnectionEvent.RESPONSE_COMPLETE]: ConnectionState.READY,
+						[ConnectionEvent.RESPONSE_COMPLETE]: {
+							target: ConnectionState.READY,
+							actions: "clearTurnFailure",
+						},
 						[ConnectionEvent.TURN_FAILED]: [
 							{
-								guard: ({ event }) => (event as TurnFailureEvent).kind === "fatal",
+								guard: ({ event }) => (event as TurnFailureEvent).failure.kind === "fatal",
 								target: ConnectionState.ERROR,
 								actions: "storeTurnFailure",
 							},
@@ -249,10 +263,13 @@ export const sessionMachine = setup({
 				[ConnectionState.PAUSED]: {
 					on: {
 						[ConnectionEvent.RESUME]: ConnectionState.STREAMING,
-						[ConnectionEvent.RESPONSE_COMPLETE]: ConnectionState.READY,
+						[ConnectionEvent.RESPONSE_COMPLETE]: {
+							target: ConnectionState.READY,
+							actions: "clearTurnFailure",
+						},
 						[ConnectionEvent.TURN_FAILED]: [
 							{
-								guard: ({ event }) => (event as TurnFailureEvent).kind === "fatal",
+								guard: ({ event }) => (event as TurnFailureEvent).failure.kind === "fatal",
 								target: ConnectionState.ERROR,
 								actions: "storeTurnFailure",
 							},
@@ -270,7 +287,10 @@ export const sessionMachine = setup({
 				},
 				[ConnectionState.ERROR]: {
 					on: {
-						[ConnectionEvent.RETRY]: ConnectionState.CONNECTING,
+						[ConnectionEvent.RETRY]: {
+							target: ConnectionState.CONNECTING,
+							actions: ["clearConnectionError", "clearTurnFailure"],
+						},
 						[ConnectionEvent.DISCONNECT]: ConnectionState.DISCONNECTED,
 					},
 				},
@@ -310,6 +330,7 @@ export interface SessionMachineContext {
 	currentModelId: string | null;
 	// Error state
 	connectionError: string | null;
+	turnFailure?: ActiveTurnFailure | null;
 	contentError: string | null;
 }
 
@@ -338,8 +359,7 @@ export type ConnectionErrorEvent = {
 
 export type TurnFailureEvent = {
 	type: typeof ConnectionEvent.TURN_FAILED;
-	kind: "recoverable" | "fatal";
-	message: string;
+	failure: ActiveTurnFailure;
 };
 
 /**

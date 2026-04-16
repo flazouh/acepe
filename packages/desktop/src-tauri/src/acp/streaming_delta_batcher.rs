@@ -710,10 +710,15 @@ impl StreamingDeltaBatcher {
     /// Flushes all buffered updates for the session, then appends TurnComplete.
     /// This guarantees correct ordering: all streaming chunks come before TurnComplete.
     #[must_use = "updates must be emitted to the frontend"]
-    pub fn process_turn_complete(&mut self, session_id: &str) -> Vec<SessionUpdate> {
+    pub fn process_turn_complete(
+        &mut self,
+        session_id: &str,
+        turn_id: Option<String>,
+    ) -> Vec<SessionUpdate> {
         let mut results = self.flush_session(session_id);
         results.push(SessionUpdate::TurnComplete {
             session_id: Some(session_id.to_string()),
+            turn_id,
         });
         results
     }
@@ -726,12 +731,14 @@ impl StreamingDeltaBatcher {
     pub fn process_turn_error(
         &mut self,
         session_id: &str,
+        turn_id: Option<String>,
         error: TurnErrorData,
     ) -> Vec<SessionUpdate> {
         let mut results = self.flush_session(session_id);
         results.push(SessionUpdate::TurnError {
             error,
             session_id: Some(session_id.to_string()),
+            turn_id,
         });
         results
     }
@@ -1037,7 +1044,7 @@ mod tests {
                 session_id: Some(session_id.to_string()),
             }));
         }
-        emitted_updates.extend(batcher.process_turn_complete(session_id));
+        emitted_updates.extend(batcher.process_turn_complete(session_id, None));
 
         let mut text_by_part: std::collections::BTreeMap<String, String> =
             std::collections::BTreeMap::new();
@@ -1063,6 +1070,7 @@ mod tests {
                 }
                 SessionUpdate::TurnComplete {
                     session_id: completed_session_id,
+                    ..
                 } => {
                     assert_eq!(completed_session_id.as_deref(), Some(session_id));
                     turn_complete_count += 1;
@@ -1432,7 +1440,7 @@ mod tests {
         assert!(batcher.has_pending());
 
         // Process turn complete
-        let result = batcher.process_turn_complete("session-1");
+        let result = batcher.process_turn_complete("session-1", Some("turn-1".to_string()));
 
         // Should have 1 flushed message chunk + 1 TurnComplete
         assert_eq!(result.len(), 2);
@@ -1449,8 +1457,13 @@ mod tests {
         }
 
         // Last should be TurnComplete
-        if let SessionUpdate::TurnComplete { session_id } = &result[1] {
+        if let SessionUpdate::TurnComplete {
+            session_id,
+            turn_id,
+        } = &result[1]
+        {
             assert_eq!(session_id.as_deref(), Some("session-1"));
+            assert_eq!(turn_id.as_deref(), Some("turn-1"));
         } else {
             panic!("Expected TurnComplete last");
         }
@@ -1469,6 +1482,7 @@ mod tests {
         // Process turn error
         let result = batcher.process_turn_error(
             "session-1",
+            Some("turn-2".to_string()),
             TurnErrorData::Legacy("Rate limit exceeded".to_string()),
         );
 
@@ -1482,12 +1496,18 @@ mod tests {
         ));
 
         // Last should be TurnError with the legacy error message
-        if let SessionUpdate::TurnError { error, session_id } = &result[1] {
+        if let SessionUpdate::TurnError {
+            error,
+            session_id,
+            turn_id,
+        } = &result[1]
+        {
             assert_eq!(
                 error,
                 &TurnErrorData::Legacy("Rate limit exceeded".to_string())
             );
             assert_eq!(session_id.as_deref(), Some("session-1"));
+            assert_eq!(turn_id.as_deref(), Some("turn-2"));
         } else {
             panic!("Expected TurnError last");
         }
@@ -1525,7 +1545,7 @@ mod tests {
         assert_eq!(batcher.buffer_count(), 2);
 
         // Complete only session-1
-        let result = batcher.process_turn_complete("session-1");
+        let result = batcher.process_turn_complete("session-1", None);
 
         // Should have session-1's chunk + TurnComplete
         assert_eq!(result.len(), 2);
@@ -1553,7 +1573,7 @@ mod tests {
         let mut batcher = StreamingDeltaBatcher::new();
 
         // No data buffered - should just return TurnComplete
-        let result = batcher.process_turn_complete("session-1");
+        let result = batcher.process_turn_complete("session-1", None);
 
         assert_eq!(result.len(), 1);
         assert!(matches!(&result[0], SessionUpdate::TurnComplete { .. }));

@@ -563,9 +563,13 @@ fn translate_result(
         updates.push(SessionUpdate::TurnError {
             error: TurnErrorData::Legacy(result.unwrap_or_else(|| "Turn failed".to_string())),
             session_id,
+            turn_id: None,
         });
     } else {
-        updates.push(SessionUpdate::TurnComplete { session_id });
+        updates.push(SessionUpdate::TurnComplete {
+            session_id,
+            turn_id: None,
+        });
     }
 
     updates

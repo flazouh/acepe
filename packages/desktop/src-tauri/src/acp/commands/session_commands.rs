@@ -839,6 +839,8 @@ mod tests {
                 last_agent_message_id: None,
                 active_tool_call_ids: vec![],
                 completed_tool_call_ids: vec![],
+                active_turn_failure: None,
+                last_terminal_turn_id: None,
             }),
             operations: vec![],
             interactions: vec![InteractionSnapshot {

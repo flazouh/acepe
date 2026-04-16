@@ -91,6 +91,8 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		deletions: overrides.deletions !== undefined ? overrides.deletions : 0,
 		todoProgress: overrides.todoProgress !== undefined ? overrides.todoProgress : null,
 		connectionError: overrides.connectionError !== undefined ? overrides.connectionError : null,
+		activeTurnFailure:
+			overrides.activeTurnFailure !== undefined ? overrides.activeTurnFailure : null,
 		state: overrides.state !== undefined ? overrides.state : makeState(),
 		sequenceId: overrides.sequenceId !== undefined ? overrides.sequenceId : null,
 	};
@@ -141,6 +143,21 @@ describe("classifyThreadBoardStatus", () => {
 		const source = makeSource({
 			connectionError: "Session failed",
 			state: makeState({ connection: "error", hasUnseenCompletion: true }),
+		});
+
+		expect(classifyThreadBoardStatus(source)).toBe("error");
+	});
+
+	it("maps active turn failure threads to error without connectionError", () => {
+		const source = makeSource({
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "Usage limit reached",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			},
+			state: makeState({ hasUnseenCompletion: true }),
 		});
 
 		expect(classifyThreadBoardStatus(source)).toBe("error");

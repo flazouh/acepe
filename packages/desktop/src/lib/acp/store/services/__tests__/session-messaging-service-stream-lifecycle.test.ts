@@ -133,6 +133,8 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
 			status: "ready",
 			turnState: "completed",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 		});
 	});
 
@@ -161,6 +163,30 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	it("is idempotent when the turn is already completed", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
+		});
+
+		service.handleStreamComplete(sessionId);
+
+		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("ignores a late turnComplete for a turn that already failed", () => {
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			turnState: "error",
+			lastTerminalTurnId: "turn-1",
+		});
+
+		service.handleStreamComplete(sessionId, "turn-1");
+
+		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("ignores a late turnComplete when both terminal updates have null turn ids", () => {
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			turnState: "error",
+			lastTerminalTurnId: null,
 		});
 
 		service.handleStreamComplete(sessionId);
@@ -256,6 +282,8 @@ describe("SessionMessagingService.handleStreamError", () => {
 			status: "error",
 			turnState: "error",
 			connectionError: "stream broke",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 		});
 	});
 
@@ -284,6 +312,16 @@ describe("SessionMessagingService.handleStreamError", () => {
 
 describe("SessionMessagingService.handleTurnError", () => {
 	const sessionId = "session-1";
+	const turnErrorUpdate = {
+		type: "turnError" as const,
+		session_id: sessionId,
+		turn_id: "turn-1",
+		error: {
+			message: "You're out of extra usage",
+			kind: "recoverable" as const,
+			source: "unknown" as const,
+		},
+	};
 	let service: InstanceType<typeof SessionMessagingService>;
 	let deps: ReturnType<typeof createMockDeps>;
 
@@ -302,60 +340,162 @@ describe("SessionMessagingService.handleTurnError", () => {
 		);
 	});
 
-	it("adds an inline error entry for recoverable turn errors", () => {
-		service.handleTurnError(sessionId, {
-			message: "You're out of extra usage",
-			kind: "recoverable",
-			source: "unknown",
-		});
+	it("stores recoverable turn failures in hot state instead of appending transcript entries", () => {
+		service.handleTurnError(sessionId, turnErrorUpdate);
 
-		expect(deps.entryManager.addEntry).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				type: "error",
-				message: {
-					content: "You're out of extra usage",
-					kind: "recoverable",
-					source: "unknown",
-				},
-			})
-		);
+		expect(deps.entryManager.addEntry).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "ready",
+			turnState: "error",
+			connectionError: null,
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "You're out of extra usage",
+				code: null,
+				kind: "recoverable",
+				source: "unknown",
+			},
+			lastTerminalTurnId: "turn-1",
+		});
 	});
 
-	it("stringifies numeric turn error codes for inline error entries", () => {
+	it("stringifies numeric turn error codes in canonical failed-turn state", () => {
 		service.handleTurnError(sessionId, {
-			message: "Rate limit reached",
-			kind: "recoverable",
-			source: "unknown",
-			code: 429,
-		});
-
-		expect(deps.entryManager.addEntry).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				type: "error",
-				message: expect.objectContaining({
-					content: "Rate limit reached",
-					code: "429",
-					kind: "recoverable",
-					source: "unknown",
-				}),
-			})
-		);
-	});
-
-	it("does not populate header-level connectionError for recoverable turn errors", () => {
-		service.handleTurnError(sessionId, {
-			message: "You're out of extra usage",
-			kind: "recoverable",
-			source: "unknown",
+			type: "turnError",
+			session_id: sessionId,
+			turn_id: "turn-1",
+			error: {
+				message: "Rate limit reached",
+				kind: "recoverable",
+				source: "unknown",
+				code: 429,
+			},
 		});
 
 		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
 			status: "ready",
 			turnState: "error",
 			connectionError: null,
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "Rate limit reached",
+				code: "429",
+				kind: "recoverable",
+				source: "unknown",
+			},
+			lastTerminalTurnId: "turn-1",
 		});
+	});
+
+	it("does not populate header-level connectionError for recoverable turn errors", () => {
+		service.handleTurnError(sessionId, turnErrorUpdate);
+
+		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "ready",
+			turnState: "error",
+			connectionError: null,
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "You're out of extra usage",
+				code: null,
+				kind: "recoverable",
+				source: "unknown",
+			},
+			lastTerminalTurnId: "turn-1",
+		});
+	});
+
+	it("ignores duplicate terminal errors for the same turn", () => {
+		(
+			deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>
+		).mockReturnValueOnce({
+			turnState: "error",
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "You're out of extra usage",
+				code: null,
+				kind: "recoverable",
+				source: "unknown",
+			},
+			lastTerminalTurnId: "turn-1",
+		});
+
+		service.handleTurnError(sessionId, turnErrorUpdate);
+
+		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("ignores duplicate terminal errors when both turn ids are null", () => {
+		(
+			deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>
+		).mockReturnValueOnce({
+			turnState: "error",
+			activeTurnFailure: {
+				turnId: null,
+				message: "You're out of extra usage",
+				code: null,
+				kind: "recoverable",
+				source: "unknown",
+			},
+			lastTerminalTurnId: null,
+		});
+
+		service.handleTurnError(sessionId, {
+			type: "turnError",
+			session_id: sessionId,
+			turn_id: null,
+			error: {
+				message: "You're out of extra usage",
+				kind: "recoverable",
+				source: "unknown",
+			},
+		});
+
+		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+});
+
+describe("SessionMessagingService.ensureStreamingState", () => {
+	const sessionId = "session-1";
+	let service: InstanceType<typeof SessionMessagingService>;
+	let deps: ReturnType<typeof createMockDeps>;
+
+	beforeAll(async () => {
+		const module = await import("../session-messaging-service.js");
+		SessionMessagingService = module.SessionMessagingService;
+	});
+
+	beforeEach(() => {
+		deps = createMockDeps();
+		service = new SessionMessagingService(
+			deps.stateReader,
+			deps.hotStateManager,
+			deps.entryManager,
+			deps.connectionManager
+		);
+	});
+
+	it("keeps a failed turn terminal when late provider updates arrive", () => {
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			turnState: "error",
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "Usage limit reached",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			},
+		});
+		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+			connection: "streaming",
+		});
+
+		service.ensureStreamingState(sessionId);
+
+		expect(deps.connectionManager.sendResponseStarted).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 });
 

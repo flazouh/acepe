@@ -173,4 +173,23 @@ describe("deriveSessionWorkProjection", () => {
 		expect(projection.hasError).toBe(true);
 		expect(selectLegacySessionStatus(projection)).toBe("error");
 	});
+
+	it("maps active turn failure to error without a connection-level error", () => {
+		const projection = deriveSessionWorkProjection({
+			state: makeState(),
+			currentModeId: null,
+			connectionError: null,
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "Usage limit reached",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			},
+		});
+
+		expect(projection.hasError).toBe(true);
+		expect(selectSessionWorkBucket(projection)).toBe("error");
+		expect(selectLegacySessionStatus(projection)).toBe("error");
+	});
 });

@@ -65,12 +65,18 @@ pub(crate) fn normalize_message_id(
                 session_id,
             })
         }
-        SessionUpdate::TurnComplete { session_id } => {
+        SessionUpdate::TurnComplete {
+            session_id,
+            turn_id,
+        } => {
             if let Some(session_id) = session_id.as_ref() {
                 tracker.remove(session_id);
                 assistant_text_tracker.remove(session_id);
             }
-            Some(SessionUpdate::TurnComplete { session_id })
+            Some(SessionUpdate::TurnComplete {
+                session_id,
+                turn_id,
+            })
         }
         _ => Some(update),
     }
@@ -212,6 +218,7 @@ mod tests {
             AgentType::Codex,
             SessionUpdate::TurnComplete {
                 session_id: Some("session-1".to_string()),
+                turn_id: None,
             },
             &mut tracker,
             &mut assistant_tracker,
@@ -403,6 +410,7 @@ mod tests {
             AgentType::Codex,
             SessionUpdate::TurnComplete {
                 session_id: Some(session.to_string()),
+                turn_id: None,
             },
             &mut tracker,
             &mut assistant_tracker,

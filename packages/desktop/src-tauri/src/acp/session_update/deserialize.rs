@@ -65,6 +65,12 @@ where
         .or_else(|| raw.data.get("session_id"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let turn_id = raw
+        .data
+        .get("turnId")
+        .or_else(|| raw.data.get("turn_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     let update_type = extract_update_type_with_agent::<E>(
         &raw.data,
@@ -267,7 +273,10 @@ where
                 session_id,
             })
         }
-        "turnComplete" => Ok(SessionUpdate::TurnComplete { session_id }),
+        "turnComplete" => Ok(SessionUpdate::TurnComplete {
+            session_id,
+            turn_id,
+        }),
         "turnError" => {
             let error = raw
                 .data
@@ -279,7 +288,11 @@ where
                 .map_err(|e| serde::de::Error::custom(format!("Invalid turn error: {}", e)))?
                 .unwrap_or_else(|| TurnErrorData::Legacy("Unknown error".to_string()));
 
-            Ok(SessionUpdate::TurnError { error, session_id })
+            Ok(SessionUpdate::TurnError {
+                error,
+                session_id,
+                turn_id,
+            })
         }
         "usageTelemetryUpdate" => {
             let data = parse_usage_telemetry_data_with_agent::<E>(

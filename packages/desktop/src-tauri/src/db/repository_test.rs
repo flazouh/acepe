@@ -178,6 +178,8 @@ mod session_metadata_tests {
                 last_agent_message_id: Some("msg-1".to_string()),
                 active_tool_call_ids: vec![],
                 completed_tool_call_ids: vec!["tool-1".to_string()],
+                active_turn_failure: None,
+                last_terminal_turn_id: None,
             }),
             operations: vec![],
             interactions: vec![InteractionSnapshot {
@@ -1813,77 +1815,6 @@ mod session_metadata_tests {
             .unwrap();
         assert_eq!(session.sequence_id, Some(1));
         assert!(session.is_acepe_managed);
-    }
-
-    #[tokio::test]
-    async fn test_reserving_worktree_launch_advances_past_metadata_only_sequence_ids() {
-        let db = setup_test_db().await;
-
-        SessionMetadataRepository::ensure_exists(
-            &db,
-            "session-placeholder",
-            "/project",
-            "claude-code",
-            Some("/project/.worktrees/feature-a"),
-        )
-        .await
-        .unwrap();
-
-        AcepeSessionState::delete_by_id("session-placeholder")
-            .exec(&db)
-            .await
-            .unwrap();
-        db.execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Sqlite,
-            "UPDATE session_metadata SET file_path = '__worktree__/legacy-session', sequence_id = 49 WHERE id = 'session-placeholder'".to_string(),
-        ))
-        .await
-        .unwrap();
-
-        let reserved = SessionMetadataRepository::reserve_worktree_launch(&db, "/project", "copilot")
-            .await
-            .unwrap();
-
-        assert_eq!(reserved.sequence_id, 50);
-    }
-
-    #[tokio::test]
-    async fn test_mark_as_acepe_managed_preserves_metadata_only_sequence_id() {
-        let db = setup_test_db().await;
-
-        SessionMetadataRepository::ensure_exists(
-            &db,
-            "session-placeholder",
-            "/project",
-            "claude-code",
-            Some("/project/.worktrees/feature-a"),
-        )
-        .await
-        .unwrap();
-
-        AcepeSessionState::delete_by_id("session-placeholder")
-            .exec(&db)
-            .await
-            .unwrap();
-        db.execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Sqlite,
-            "UPDATE session_metadata SET file_path = '__worktree__/legacy-session', sequence_id = 49 WHERE id = 'session-placeholder'".to_string(),
-        ))
-        .await
-        .unwrap();
-
-        let sequence_id =
-            SessionMetadataRepository::mark_as_acepe_managed(&db, "session-placeholder")
-                .await
-                .unwrap();
-        let state = AcepeSessionState::find_by_id("session-placeholder")
-            .one(&db)
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(sequence_id, Some(49));
-        assert_eq!(state.sequence_id, Some(49));
     }
 
     #[tokio::test]

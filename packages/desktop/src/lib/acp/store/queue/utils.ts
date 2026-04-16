@@ -10,6 +10,7 @@ import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
+import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
@@ -47,6 +48,7 @@ export interface QueueSessionSnapshot {
 	readonly currentModeId: string | null;
 	/** Connection/agent error message (e.g. acp_resume_session failure) */
 	readonly connectionError?: string | null;
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 }
 
 export interface BuildQueueSessionSnapshotInput {
@@ -57,7 +59,10 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly updatedAt: Date;
 	readonly runtimeState: SessionRuntimeState | null;
-	readonly hotState: Pick<SessionHotState, "status" | "currentMode" | "connectionError">;
+	readonly hotState: Pick<
+		SessionHotState,
+		"status" | "currentMode" | "connectionError" | "activeTurnFailure"
+	>;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
@@ -172,11 +177,13 @@ export function buildQueueSessionSnapshot(
 				state,
 				currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 				connectionError: input.hotState.connectionError,
+				activeTurnFailure: input.hotState.activeTurnFailure ?? null,
 			})
 		),
 		updatedAt: input.updatedAt,
 		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 		connectionError: input.hotState.connectionError,
+		activeTurnFailure: input.hotState.activeTurnFailure ?? null,
 	};
 }
 
@@ -232,6 +239,7 @@ export function buildQueueItem(
 		pendingPlanApproval,
 		status: session.status,
 		connectionError: session.connectionError ?? null,
+		activeTurnFailure: session.activeTurnFailure ?? null,
 		state: session.state,
 	};
 }
@@ -252,5 +260,6 @@ export function calculateSessionUrgency(
 		pendingQuestionText,
 		statusChangedAt: session.updatedAt.getTime(),
 		connectionError: session.connectionError ?? null,
+		activeTurnFailure: session.activeTurnFailure ?? null,
 	});
 }

@@ -40,13 +40,16 @@ const SECTION_ORDER: readonly QueueSectionId[] = [
  * - The LLM turn has reached ready state
  * - The completion is still unseen by the user
  */
-export function isNeedsReview(item: Pick<QueueItem, "status" | "state" | "connectionError">): boolean {
+export function isNeedsReview(
+	item: Pick<QueueItem, "status" | "state" | "connectionError" | "activeTurnFailure">
+): boolean {
 	return (
 		selectSessionWorkBucket(
 			deriveSessionWorkProjection({
 				state: item.state,
 				currentModeId: null,
 				connectionError: item.connectionError,
+				activeTurnFailure: item.activeTurnFailure ?? null,
 			})
 		) === "needs_review"
 	);
@@ -61,6 +64,7 @@ export function classifyItem(item: QueueItem): QueueSectionId | null {
 			state: item.state,
 			currentModeId: item.currentModeId,
 			connectionError: item.connectionError,
+			activeTurnFailure: item.activeTurnFailure ?? null,
 		})
 	);
 }

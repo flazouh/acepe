@@ -37,12 +37,12 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Indicates that the current turn/prompt has completed.
  * This is emitted when the JSON-RPC response for a prompt request is received.
  */
-{ type: "turnComplete"; session_id?: string | null } | 
+{ type: "turnComplete"; session_id?: string | null; turn_id?: string | null } | 
 /**
  * Indicates that the current turn/prompt failed with an error.
  * This is emitted when the JSON-RPC response contains an error.
  */
-{ type: "turnError"; error: TurnErrorData; session_id?: string | null } | 
+{ type: "turnError"; error: TurnErrorData; session_id?: string | null; turn_id?: string | null } | 
 /**
  * Usage/cost and token telemetry from the agent (adapter-agnostic).
  * Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
@@ -477,7 +477,7 @@ displayModel?: string | null; receivedAt?: string | null }
 /**
  * Error entry stored in replayed session history.
  */
-export type StoredErrorMessage = { content: string; code?: string | null; kind: TurnErrorKind }
+export type StoredErrorMessage = { content: string; code?: string | null; kind: TurnErrorKind; source?: TurnErrorSource | null }
 
 /**
  * Skill metadata for skill tool calls.
@@ -629,10 +629,14 @@ export type UserSettingKey =
  * Persisted per-agent environment overrides (JSON object)
  */
 "agent_env_overrides" | 
-	/**
-	 * Use worktrees by default for new sessions (boolean)
-	 */
-	"worktree_global_default_enabled" | 
+/**
+ * Whether opening review should use full-screen overlay (boolean string "true"/"false")
+ */
+"review_prefer_fullscreen" | 
+/**
+ * Use worktrees by default for new sessions (boolean)
+ */
+"worktree_global_default_enabled" | 
 /**
  * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
  */

@@ -327,6 +327,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			deletions: queueItem.deletions,
 			todoProgress: queueItem.todoProgress,
 			connectionError: snapshot.connectionError ? snapshot.connectionError : null,
+			activeTurnFailure: snapshot.activeTurnFailure ?? null,
 			state: queueItem.state,
 			sequenceId: metadata
 				? metadata.sequenceId !== undefined
@@ -1420,6 +1421,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 								state: item.state,
 								currentModeId: item.currentModeId,
 								connectionError: item.connectionError,
+								activeTurnFailure: item.activeTurnFailure ?? null,
 							})
 						)}
 						isStreaming={card.isStreaming}
