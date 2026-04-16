@@ -1930,6 +1930,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									pendingWorktreeEnabled={worktreePending}
 									alwaysEnabled={getWorktreeDefaultStore().globalDefault}
 									failureMessage={preSessionWorktreeFailure}
+									projectPath={worktreeToggleProjectPath}
+									projectName={effectiveProjectName ?? null}
 									onYes={() => {
 										preSessionWorktreeFailure = null;
 										const store = getWorktreeDefaultStore();
