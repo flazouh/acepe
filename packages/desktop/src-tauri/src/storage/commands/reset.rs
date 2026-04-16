@@ -17,10 +17,7 @@ pub async fn reset_database(app: AppHandle) -> CommandResult<()>  {
 
         DatabaseResetRepository::reset_all_data(&db)
             .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to reset database");
-                format!("Failed to reset database: {}", e)
-            })?;
+            .map_err(|e| format!("Failed to reset database: {}", e))?;
 
         tracing::info!("Database reset successful");
         Ok(())
