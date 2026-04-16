@@ -129,17 +129,12 @@ describe("SessionStore.applySessionProjection", () => {
 
 	it("defaults missing projected failure source to unknown during hydration", () => {
 		const store = new SessionStore();
+		const snapshot = createProjectionSnapshot();
+		if (snapshot.session && snapshot.session.active_turn_failure) {
+			Reflect.deleteProperty(snapshot.session.active_turn_failure, "source");
+		}
 
-		store.applySessionProjection(
-			createProjectionSnapshot({
-				active_turn_failure: {
-					turn_id: "turn-1",
-					message: "Usage limit reached",
-					code: "429",
-					kind: "recoverable",
-				},
-			})
-		);
+		store.applySessionProjection(snapshot);
 
 		expect(store.getHotState("session-1")).toMatchObject({
 			activeTurnFailure: {

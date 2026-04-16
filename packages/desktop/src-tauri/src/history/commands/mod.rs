@@ -33,8 +33,8 @@ pub use scanning::{
     discover_all_projects_with_sessions, get_startup_sessions, scan_project_sessions,
 };
 pub use session_loading::{
-    audit_session_load_timing, audit_session_load_timing_cli, get_unified_session,
-    set_session_pr_number, set_session_title, set_session_worktree_path,
+    audit_session_load_timing, audit_session_load_timing_cli, get_session_open_result,
+    get_unified_session, set_session_pr_number, set_session_title, set_session_worktree_path,
 };
 
 /// Information about a project with session counts per agent.

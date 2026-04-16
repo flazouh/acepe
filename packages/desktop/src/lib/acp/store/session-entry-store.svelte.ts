@@ -321,18 +321,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	/**
-	 * Update tool call entry.
-	 * Splits assistant aggregation boundary only when this update creates
-	 * a new tool entry (missing initial toolCall event). Routine status/result
-	 * updates should not fragment assistant text boundaries.
+	 * Update an existing tool call entry.
+	 * Canonical tool rows are created by toolCall events; update events are
+	 * mutation-only and must not create synthetic placeholders.
 	 */
 	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
-		const hasExistingToolEntry = this.getEntries(sessionId).some(
-			(entry) => isToolCallEntry(entry) && entry.message.id === update.toolCallId
-		);
-		if (!hasExistingToolEntry) {
-			this.chunkAggregator.splitAssistantAggregationBoundary(sessionId);
-		}
 		this.toolCallManager.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>

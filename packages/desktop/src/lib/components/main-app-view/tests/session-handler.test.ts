@@ -4,11 +4,18 @@ import type { SessionListItem } from "$lib/acp/components/session-list/session-l
 import { ConnectionError, SessionNotFoundError } from "$lib/acp/errors/app-error.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
+import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { SessionSelectionError } from "../errors/main-app-view-error.js";
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
+
+const openPersistedSessionMock = mock(() => {});
+
+mock.module("../logic/open-persisted-session.js", () => ({
+	openPersistedSession: openPersistedSessionMock,
+}));
+
 import { SessionHandler } from "../logic/managers/session-handler.js";
 
 describe("SessionHandler", () => {
@@ -16,11 +23,15 @@ describe("SessionHandler", () => {
 	let mockSessionStore: SessionStore;
 	let mockPanelStore: PanelStore;
 	let mockConnectionStore: ConnectionStore;
-	let mockProjectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
+	let mockSessionOpenHydrator: Pick<
+		SessionOpenHydrator,
+		"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
+	>;
 	let handler: SessionHandler;
 	let mockSessionsArray: any[];
 
 	beforeEach(() => {
+		openPersistedSessionMock.mockReset();
 		mockState = {} as MainAppViewState;
 
 		// Create mock sessions array - accessible to tests for setup
@@ -33,12 +44,12 @@ describe("SessionHandler", () => {
 			getSessionDetail: mock(() => null),
 			getSession: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
 			getSessionById: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
+			getSessionCold: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
 			loadHistoricalSession: mock((sessionId: string) => {
 				const session = { id: sessionId };
 				mockSessionsArray.push(session);
 				return okAsync(session as any);
 			}),
-			preloadSessions: mock(() => okAsync({ loaded: ["session-1"], missing: [] } as any)),
 			connectSession: mock(() => okAsync({} as any)),
 			createSession: mock(() => okAsync({ id: "acp-session-id" } as any)),
 			setSessionLoading: mock(() => {}),
@@ -51,41 +62,50 @@ describe("SessionHandler", () => {
 			}),
 		} as unknown as SessionStore;
 
+		const panel = {
+			id: "panel-1",
+			kind: "agent",
+			ownerPanelId: null,
+			sessionId: null,
+			width: 450,
+			pendingProjectSelection: false,
+			selectedAgentId: "agent-1",
+			projectPath: null,
+			agentId: null,
+			sessionTitle: null,
+		};
+
 		mockPanelStore = {
-			openSession: mock(() => {}),
+			openSession: mock(() => panel),
+			getPanelBySessionId: mock(() => panel),
 			updatePanelSession: mock(() => {}),
 			closePanelBySessionId: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
-			panels: [
-				{
-					id: "panel-1",
-					kind: "agent",
-					ownerPanelId: null,
-					sessionId: null,
-					width: 450,
-					pendingProjectSelection: false,
-					selectedAgentId: "agent-1",
-					projectPath: null,
-					agentId: null,
-					sessionTitle: null,
-				},
-			],
+			panels: [panel],
 		} as unknown as PanelStore;
 
 		mockConnectionStore = {
 			send: mock(() => {}),
 		} as unknown as ConnectionStore;
 
-		mockProjectionHydrator = {
-			hydrateSession: mock(() => okAsync(undefined)),
-			clearSession: mock(() => {}),
+		mockSessionOpenHydrator = {
+			beginAttempt: mock(() => "request-1"),
+			clearAttempt: mock(() => {}),
+			hydrateFound: mock(() =>
+				okAsync({
+					canonicalSessionId: "session-1",
+					openToken: "open-token-1",
+					applied: true,
+				})
+			),
+			isCurrentAttempt: mock(() => true),
 		};
 
 		handler = new SessionHandler(
 			mockState,
 			mockSessionStore,
 			mockPanelStore,
-			mockProjectionHydrator
+			mockSessionOpenHydrator
 		);
 	});
 
@@ -138,66 +158,85 @@ describe("SessionHandler", () => {
 			);
 		});
 
-		it("should preload session details if not cached", async () => {
-			mockSessionStore.getSessionDetail = mock(() => null);
-			mockSessionsArray.push({ id: "session-1" } as any);
+		it("should start session open through the unified helper", async () => {
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+				sourcePath: "/tmp/session-1.store.db",
+			} as any);
 
 			const result = await handler.selectSession("session-1");
 
 			expect(result.isOk()).toBe(true);
-			expect(mockSessionStore.preloadSessions).toHaveBeenCalledWith(["session-1"]);
-			await new Promise((resolve) => setTimeout(resolve, 10));
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "session-handler",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
 		});
 
-		it("should not preload if details are already cached", async () => {
-			mockSessionStore.getSessionDetail = mock(() => ({ entries: [] }) as any);
-			mockSessionsArray.push({ id: "session-1" } as any);
+		it("should still use the unified helper when the panel already exists", async () => {
+			const existingPanel = {
+				id: "existing-panel",
+				kind: "agent" as const,
+				ownerPanelId: null,
+				sessionId: "session-1",
+				width: 450,
+				pendingProjectSelection: false,
+				selectedAgentId: "agent-1",
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			};
+			mockPanelStore.openSession = mock(() => undefined as never);
+			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
 
 			const result = await handler.selectSession("session-1");
 
 			expect(result.isOk()).toBe(true);
-			expect(mockSessionStore.preloadSessions).not.toHaveBeenCalled();
-		});
-
-		it("should auto-connect session after opening", async () => {
-			mockSessionsArray.push({ id: "session-1" } as any);
-			mockSessionStore.getSessionDetail = mock(() => ({ entries: [] }) as any);
-
-			const result = await handler.selectSession("session-1");
-
-			expect(result.isOk()).toBe(true);
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "existing-panel",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "session-handler",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
 		});
 
-		it("should auto-connect codex session after opening", async () => {
-			mockSessionsArray.push({ id: "session-codex", agentId: "codex" } as any);
-			mockSessionStore.getSessionDetail = mock(() => ({ entries: [] }) as any);
+		it("should not directly connect during selectSession", async () => {
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+		});
+
+		it("should not close the panel when session open remains async", async () => {
+			mockSessionsArray.push({
+				id: "session-codex",
+				projectPath: "/test",
+				agentId: "codex",
+			} as any);
 
 			const result = await handler.selectSession("session-codex");
 
 			expect(result.isOk()).toBe(true);
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-codex");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(
-				1,
-				"session-codex",
-				{
-					includePendingTurnInputs: false,
-				}
-			);
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(
-				2,
-				"session-codex"
-			);
+			expect(mockPanelStore.closePanelBySessionId).not.toHaveBeenCalled();
 		});
 
 		it("should return error if session not found and no sessionInfo", async () => {
@@ -209,25 +248,26 @@ describe("SessionHandler", () => {
 			}
 		});
 
-		it("should mark missing session as loaded (empty) instead of removing it", async () => {
-			mockSessionStore.preloadSessions = mock(() =>
-				okAsync({ loaded: [], missing: ["session-1"] } as any)
-			);
-			mockSessionsArray.push({ id: "session-1" } as any);
-			mockSessionStore.getSessionDetail = mock(() => null);
+		it("should delegate missing-session handling to the helper", async () => {
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
 
 			const result = await handler.selectSession("session-1");
 
-			// With async preloading, we return success immediately
 			expect(result.isOk()).toBe(true);
-
-			// Wait for async preload to complete
-			await new Promise((resolve) => setTimeout(resolve, 10));
-
-			// Session should be marked as loaded (empty), NOT removed
-			expect(mockSessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+			expect(openPersistedSessionMock).toHaveBeenLastCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "session-handler",
+			});
+			expect(mockSessionStore.setSessionLoaded).not.toHaveBeenCalled();
 			expect(mockSessionStore.removeSession).not.toHaveBeenCalled();
-			expect(mockPanelStore.closePanelBySessionId).not.toHaveBeenCalled();
 		});
 
 		it("should return error if loadHistoricalSession fails", async () => {

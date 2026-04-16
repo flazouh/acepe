@@ -6,6 +6,7 @@ import type {
 	ConvertedSession,
 	SessionPlanResponse,
 } from "../../services/converted-session-types.js";
+import type { SessionOpenResult } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
 	HistorySessionMessage,
@@ -38,6 +39,20 @@ export const history = {
 		sourcePath?: string
 	): ResultAsync<ConvertedSession | null, AppError> => {
 		return historyCommands.get_unified_session.invoke<ConvertedSession | null>({
+			sessionId,
+			projectPath,
+			agentId,
+			sourcePath,
+		});
+	},
+
+	getSessionOpenResult: (
+		sessionId: string,
+		projectPath: string,
+		agentId: string,
+		sourcePath?: string
+	): ResultAsync<SessionOpenResult, AppError> => {
+		return historyCommands.get_session_open_result.invoke<SessionOpenResult>({
 			sessionId,
 			projectPath,
 			agentId,

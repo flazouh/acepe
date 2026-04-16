@@ -19,9 +19,9 @@ use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionE
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 
 #[derive(Debug, Clone)]
 pub struct ModelFallbackCandidate {
@@ -360,7 +360,7 @@ pub trait AgentProvider: Send + Sync {
         _app: &'a AppHandle,
         _context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async { Ok(None) })
     }
 

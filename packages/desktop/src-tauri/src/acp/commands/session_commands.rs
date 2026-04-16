@@ -270,8 +270,8 @@ pub async fn acp_get_session_projection(
         return Ok(runtime_projection);
     };
 
-    let imported_session =
-        crate::history::commands::session_loading::load_unified_session_from_replay_context(
+    let imported_thread_snapshot =
+        crate::history::commands::session_loading::ensure_canonical_session_materialized(
             app.clone(),
             replay_context
                 .as_ref()
@@ -280,15 +280,15 @@ pub async fn acp_get_session_projection(
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
-                "Failed to import legacy session {session_id} into projection view: {error}"
+                "Failed to materialize legacy session {session_id} into canonical state: {error}"
             ),
         })?;
 
-    let Some(imported_session) = imported_session else {
+    let Some(imported_thread_snapshot) = imported_thread_snapshot else {
         return Ok(runtime_projection);
     };
 
-    let imported_projection = ProjectionRegistry::project_converted_session(
+    let imported_projection = ProjectionRegistry::project_thread_snapshot(
         &session_id,
         Some(
             replay_context
@@ -297,7 +297,7 @@ pub async fn acp_get_session_projection(
                 .agent_id
                 .clone(),
         ),
-        &imported_session,
+        &imported_thread_snapshot,
     );
 
     if projection_has_runtime_state(&imported_projection) {
@@ -434,6 +434,7 @@ pub async fn acp_resume_session(
     agent_id: Option<String>,
     launch_mode_id: Option<String>,
     attempt_id: u64,
+    open_token: Option<String>,
 ) -> CommandResult<()> {
     expected_acp_command_result("acp_resume_session", async {
         tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, attempt_id, "acp_resume_session called");
@@ -471,6 +472,7 @@ pub async fn acp_resume_session(
                     agent_id_enum,
                     resolved_launch_mode_id,
                     &resume_descriptor,
+                    open_token,
                 ),
             )
             .await;
@@ -586,11 +588,29 @@ async fn async_resume_session_work(
     agent_id_enum: CanonicalAgentId,
     resolved_launch_mode_id: Option<String>,
     resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
+    open_token: Option<String>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     let registry = app.state::<Arc<AgentRegistry>>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let parsed_open_token = if let Some(raw_open_token) = open_token.as_deref() {
+        let token = uuid::Uuid::parse_str(raw_open_token).map_err(|error| {
+            SerializableAcpError::InvalidState {
+                message: format!("Failed to parse open token for session {session_id}: {error}"),
+            }
+        })?;
+        let hub = app.state::<Arc<AcpEventHubState>>();
+        hub.gc_expired_reservations();
+        if !hub.has_reservation_for_session(token, session_id) {
+            return Err(SerializableAcpError::InvalidState {
+                message: format!("Session open token is no longer valid for session {session_id}"),
+            });
+        }
+        Some(token)
+    } else {
+        None
+    };
 
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
@@ -625,6 +645,18 @@ async fn async_resume_session_work(
         session_registry
             .bind_provider_session_id(session_id, provider_session_id)
             .map_err(SerializableAcpError::from)?;
+    }
+
+    if let Some(open_token) = parsed_open_token {
+        let hub = app.state::<Arc<AcpEventHubState>>();
+        if hub
+            .claim_reservation_for_session(open_token, session_id)
+            .is_none()
+        {
+            return Err(SerializableAcpError::InvalidState {
+                message: format!("Session open token is no longer valid for session {session_id}"),
+            });
+        }
     }
 
     let db = app.state::<DbConn>();

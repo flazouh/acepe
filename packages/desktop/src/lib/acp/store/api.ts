@@ -8,6 +8,7 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type {
 	ProviderMetadataProjection,
+	SessionOpenResult,
 	SessionProjectionSnapshot,
 } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
@@ -38,9 +39,17 @@ export function resumeSession(
 	cwd: string,
 	attemptId: number,
 	agentId?: string,
-	launchModeId?: string
+	launchModeId?: string,
+	openToken?: string
 ): ResultAsync<void, AppError> {
-	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId);
+	return tauriClient.acp.resumeSession(
+		sessionId,
+		cwd,
+		attemptId,
+		agentId,
+		launchModeId,
+		openToken
+	);
 }
 
 /**
@@ -222,7 +231,16 @@ export function getSession(
 				return okAsync(session);
 			}
 			return errAsync(new AgentError("get_session", new Error(`Session ${sessionId} not found`)));
-		});
+	});
+}
+
+export function getSessionOpenResult(
+	sessionId: string,
+	projectPath: string,
+	agentId: string,
+	sourcePath?: string
+): ResultAsync<SessionOpenResult, AppError> {
+	return tauriClient.history.getSessionOpenResult(sessionId, projectPath, agentId, sourcePath);
 }
 
 /**
@@ -329,6 +347,7 @@ export const api = {
 	scanSessions,
 	getStartupSessions,
 	getSession,
+	getSessionOpenResult,
 	getConvertedSession,
 	setSessionTitle,
 

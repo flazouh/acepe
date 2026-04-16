@@ -58,6 +58,7 @@ let nextAttemptId = 1;
 
 interface ConnectSessionOptions {
 	agentOverrideId?: string;
+	openToken?: string;
 }
 
 type ProviderAwareSessionModelState = AcpSessionModelState & {
@@ -623,13 +624,6 @@ export class SessionConnectionManager {
 		}
 
 		this.connectionManager.setConnecting(sessionId, true);
-		const shouldSuppressReplay = this.stateReader.isPreloaded(sessionId);
-		if (shouldSuppressReplay) {
-			this.eventService.suppressReplayForSession(sessionId);
-		} else {
-			this.eventService.clearReplaySuppressionForSession(sessionId);
-		}
-
 		// Start connection in state machine
 		this.connectionManager.sendConnectionConnect(sessionId);
 
@@ -669,7 +663,8 @@ export class SessionConnectionManager {
 					resumeCwd,
 					attemptId,
 					options?.agentOverrideId,
-					resumeLaunchModeId ?? undefined
+					resumeLaunchModeId ?? undefined,
+					options?.openToken
 				)
 			)
 			.andThen(() =>
@@ -692,7 +687,6 @@ export class SessionConnectionManager {
 				this.pendingConnections.delete(sessionId);
 				this.connectionManager.setConnecting(sessionId, false);
 				lifecycleWaiter.cancel();
-				this.eventService.clearReplaySuppressionForSession(sessionId);
 
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				const isMethodNotFound =
@@ -847,7 +841,6 @@ export class SessionConnectionManager {
 		const session = this.stateReader.getSessionCold(sessionId);
 		if (!session) return;
 		this.pendingConnections.delete(sessionId);
-		this.eventService.clearReplaySuppressionForSession(sessionId);
 
 		// Disconnect in state machine
 		this.connectionManager.sendDisconnect(sessionId);

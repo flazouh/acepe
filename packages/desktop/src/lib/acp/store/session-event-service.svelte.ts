@@ -9,7 +9,7 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteMap } from "svelte/reactivity";
 
 import type {
 	AvailableCommand,
@@ -244,8 +244,6 @@ export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
 	private eventSubscriptionId: string | null = null;
-	private replaySuppressedSessionIds = new SvelteSet<string>();
-
 	// Pending events buffer for sessions being created (race condition handling)
 	private pendingEvents = new SvelteMap<string, SessionUpdate[]>();
 	private pendingEventTimestamps = new SvelteMap<string, number>();
@@ -378,21 +376,6 @@ export class SessionEventService {
 	}
 
 	/**
-	 * Suppress replay-style content updates for a preloaded session.
-	 * Used when connecting a historical session that already has full disk content.
-	 */
-	suppressReplayForSession(sessionId: string): void {
-		this.replaySuppressedSessionIds.add(sessionId);
-	}
-
-	/**
-	 * Clear replay suppression so all updates are processed normally.
-	 */
-	clearReplaySuppressionForSession(sessionId: string): void {
-		this.replaySuppressedSessionIds.delete(sessionId);
-	}
-
-	/**
 	 * Initialize session update subscription.
 	 */
 	initializeSessionUpdates(handler: SessionEventHandler): ResultAsync<void, AppError> {
@@ -435,7 +418,6 @@ export class SessionEventService {
 			clearTimeout(timeoutId);
 		}
 		this.pendingFlushTimeouts.clear();
-		this.replaySuppressedSessionIds.clear();
 		this.replayFingerprintState.clear();
 		this.stopTelemetryReporter();
 
@@ -495,31 +477,6 @@ export class SessionEventService {
 				fingerprint: replayStats.fingerprint,
 			});
 			return;
-		}
-
-		// If replay suppression is active for this session, drop historical content
-		// while idle. During an active turn we allow updates to flow through, but we keep
-		// suppression armed so any later idle-time replay bursts are still blocked.
-		if (this.replaySuppressedSessionIds.has(sessionId)) {
-			const hasActiveTurn = hotState?.turnState !== undefined && hotState.turnState !== "idle";
-			if (
-				!hasActiveTurn &&
-				update.type === "toolCall" &&
-				hasToolCallEntry(handler, sessionId, update.tool_call.id)
-			) {
-				logger.debug("Dropping replayed tool call already present in session", {
-					sessionId,
-					toolCallId: update.tool_call.id,
-				});
-				return;
-			}
-			if (!hasActiveTurn && this.isReplaySuppressedUpdate(update)) {
-				logger.debug("Dropping replay update for preloaded session", {
-					sessionId,
-					updateType: update.type,
-				});
-				return;
-			}
 		}
 
 		// Buffer events for known disconnected sessions so they can be replayed
@@ -806,21 +763,6 @@ export class SessionEventService {
 			default: {
 				update satisfies never;
 			}
-		}
-	}
-
-	private isReplaySuppressedUpdate(update: SessionUpdate): boolean {
-		switch (update.type) {
-			case "agentMessageChunk":
-			case "agentThoughtChunk":
-			case "userMessageChunk":
-			case "plan":
-			case "turnComplete":
-			case "turnError":
-			case "usageTelemetryUpdate":
-				return true;
-			default:
-				return false;
 		}
 	}
 

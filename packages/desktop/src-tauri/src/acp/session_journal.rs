@@ -222,6 +222,7 @@ pub enum SessionJournalEventPayload {
         state: InteractionState,
         response: InteractionResponse,
     },
+    MaterializationBarrier,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -250,6 +251,7 @@ impl SessionJournalEvent {
         match &self.payload {
             SessionJournalEventPayload::ProjectionUpdate { .. } => "projection_update",
             SessionJournalEventPayload::InteractionTransition { .. } => "interaction_transition",
+            SessionJournalEventPayload::MaterializationBarrier => "materialization_barrier",
         }
     }
 
@@ -273,6 +275,7 @@ impl SessionJournalEvent {
                     response.clone(),
                 );
             }
+            SessionJournalEventPayload::MaterializationBarrier => {}
         }
     }
 }

@@ -168,7 +168,8 @@ export class AcpClient {
 		cwd: string,
 		attemptId: number,
 		agentId?: string,
-		launchModeId?: string
+		launchModeId?: string,
+		openToken?: string
 	): ResultAsync<void, AcpError> {
 		this.logger.debug(
 			"resumeSession() called with sessionId:",
@@ -183,7 +184,7 @@ export class AcpClient {
 			launchModeId
 		);
 		return tauriClient.acp
-			.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId)
+			.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken)
 			.mapErr((error) => this.deserializeTauriError(error, "Failed to resume session"))
 			.map(() => {
 				this.logger.debug("Session resume invoke accepted (fire-and-forget)", {

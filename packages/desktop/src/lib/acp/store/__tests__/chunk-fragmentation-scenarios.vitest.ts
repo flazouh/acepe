@@ -287,10 +287,10 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 		expect(assistantEntries).toHaveLength(2);
 	});
 
-	it("splits boundary when update creates a missing tool entry", async () => {
+	it("does not split boundary when a missing-tool update is discarded", async () => {
 		await sendChunk(store, "s1", "Before tool", "msg-1");
 
-		// No preceding createToolCallEntry; update path creates the tool entry.
+		// No preceding createToolCallEntry; update-only path is discarded.
 		store.updateToolCallEntry("s1", {
 			toolCallId: "tool-2",
 			status: "completed",
@@ -299,7 +299,7 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 		await sendChunk(store, "s1", "After tool", "msg-1");
 
 		const assistantEntries = store.getEntries("s1").filter((e) => e.type === "assistant");
-		expect(assistantEntries).toHaveLength(2);
+		expect(assistantEntries).toHaveLength(1);
 	});
 });
 

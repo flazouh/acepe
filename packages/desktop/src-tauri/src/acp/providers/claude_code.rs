@@ -5,10 +5,10 @@ use super::super::provider::{
 use super::claude_code_settings::resolve_claude_runtime_mode_id;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -149,7 +149,7 @@ impl AgentProvider for ClaudeCodeProvider {
         _app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async move {
             let session_id = &context.local_session_id;
 
@@ -160,7 +160,8 @@ impl AgentProvider for ClaudeCodeProvider {
             .await
             {
                 Ok(full_session) => Ok(Some(
-                    crate::session_converter::convert_claude_full_session_to_entries(&full_session),
+                    crate::session_converter::convert_claude_full_session_to_entries(&full_session)
+                        .into(),
                 )),
                 Err(_) if context.effective_project_path != context.project_path => {
                     match crate::session_jsonl::parser::parse_full_session(
@@ -172,7 +173,8 @@ impl AgentProvider for ClaudeCodeProvider {
                         Ok(full_session) => Ok(Some(
                             crate::session_converter::convert_claude_full_session_to_entries(
                                 &full_session,
-                            ),
+                            )
+                            .into(),
                         )),
                         Err(error) => {
                             tracing::warn!(

@@ -6,11 +6,17 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
+import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
+
+const openPersistedSessionMock = mock(() => {});
+
+mock.module("../logic/open-persisted-session.js", () => ({
+	openPersistedSession: openPersistedSessionMock,
+}));
 
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
@@ -64,10 +70,14 @@ describe("InitializationManager", () => {
 	let mockAgentPreferencesStore: AgentPreferencesStore;
 	let mockKeybindingsService: KeybindingsService;
 	let mockPreconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
-	let mockProjectionHydrator: Pick<SessionProjectionHydrator, "hydrateSession" | "clearSession">;
+	let mockSessionOpenHydrator: Pick<
+		SessionOpenHydrator,
+		"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
+	>;
 	let manager: InitializationManager;
 
 	beforeEach(() => {
+		openPersistedSessionMock.mockReset();
 		globalThis.window = {
 			addEventListener: mock(() => {}),
 			removeEventListener: mock(() => {}),
@@ -87,13 +97,6 @@ describe("InitializationManager", () => {
 			loadSessions: mock(() => okAsync([])),
 			loadStartupSessions: mock(() => okAsync({ missing: [], aliasRemaps: {} })),
 			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
-			loadSessionById: mock(() =>
-				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
-			),
-			isPreloaded: mock(() => false),
-			connectSession: mock(() =>
-				okAsync(buildSession("session-1", "claude-code", "/project1", "Session 1"))
-			),
 			scanSessions: mock(() => okAsync(undefined)),
 			createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
 				okAsync(
@@ -159,9 +162,17 @@ describe("InitializationManager", () => {
 			refresh: mock(() => okAsync(undefined)),
 		} as unknown as PreconnectionAgentSkillsStore;
 
-		mockProjectionHydrator = {
-			hydrateSession: mock(() => okAsync(undefined)),
-			clearSession: mock(() => {}),
+		mockSessionOpenHydrator = {
+			beginAttempt: mock(() => "request-1"),
+			clearAttempt: mock(() => {}),
+			hydrateFound: mock(() =>
+				okAsync({
+					canonicalSessionId: "session-1",
+					openToken: "open-token-1",
+					applied: true,
+				})
+			),
+			isCurrentAttempt: mock(() => true),
 		};
 
 		manager = new InitializationManager(
@@ -174,7 +185,7 @@ describe("InitializationManager", () => {
 			mockAgentPreferencesStore,
 			mockKeybindingsService,
 			mockPreconnectionAgentSkillsStore,
-			mockProjectionHydrator
+			mockSessionOpenHydrator
 		);
 	});
 
@@ -243,7 +254,7 @@ describe("InitializationManager", () => {
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
 				mockPreconnectionAgentSkillsStore,
-				mockProjectionHydrator
+				mockSessionOpenHydrator
 			);
 
 			const result = await manager.initialize();
@@ -296,20 +307,6 @@ describe("InitializationManager", () => {
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
 			) as SessionStore["getSessionCold"];
-			mockSessionStore.loadSessionById = mock(() => {
-				callOrder.push("preload");
-				return okAsync(restoredSession);
-			}) as SessionStore["loadSessionById"];
-			mockProjectionHydrator.hydrateSession = mock((_, options?: { includePendingTurnInputs?: boolean }) => {
-				callOrder.push(
-					options?.includePendingTurnInputs === false ? "hydrate:without-pending" : "hydrate:full"
-				);
-				return okAsync(undefined);
-			});
-			mockSessionStore.connectSession = mock(() => {
-				callOrder.push("connect");
-				return okAsync(restoredSession);
-			}) as SessionStore["connectSession"];
 			mockSessionStore.scanSessions = mock((projectPaths: string[]) => {
 				callOrder.push(`scan:${projectPaths.join(",")}`);
 				return okAsync(undefined);
@@ -321,14 +318,15 @@ describe("InitializationManager", () => {
 
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
-			expect(callOrder).toEqual([
-				"startup",
-				"preload",
-				"scan:/project1,/project2",
-				"hydrate:without-pending",
-				"connect",
-				"hydrate:full",
-			]);
+			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
+			});
 		});
 
 		it("clears orphaned restored session ids before attempting startup reconnect", async () => {
@@ -380,8 +378,7 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["missing-session"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
-			expect(mockSessionStore.loadSessionById).not.toHaveBeenCalled();
-			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
 
 		it("preserves recoverable created-session restored ids", async () => {
@@ -500,20 +497,14 @@ describe("InitializationManager", () => {
 
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
-			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
-				"session-1",
-				"/project1",
-				"cursor",
-				undefined,
-				undefined,
-				"Recovered session"
-			);
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
 			});
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
-			expect(mockProjectionHydrator.clearSession).not.toHaveBeenCalled();
 		});
 
 		it("preloads restored sessions with persisted worktree context", async () => {
@@ -558,20 +549,14 @@ describe("InitializationManager", () => {
 
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
-			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
-				"session-1",
-				"/project1",
-				"claude-code",
-				"/project1/.cursor/sessions/session-1.json",
-				"/project1/.git/worktrees/feature-a",
-				"Feature thread"
-			);
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
-			expect(mockProjectionHydrator.clearSession).not.toHaveBeenCalled();
 		});
 
 		it("preloads restored sessions from canonical session metadata before stale panel cache", async () => {
@@ -614,20 +599,14 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
-				"session-1",
-				"/project1",
-				"claude-code",
-				"/project1/.claude/session-1.jsonl",
-				"/project1/.git/worktrees/feature-b",
-				"Canonical title"
-			);
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
-			expect(mockProjectionHydrator.clearSession).not.toHaveBeenCalled();
 		});
 
 		it("does not clear a restored worktree session when history contains it", async () => {
@@ -723,20 +702,14 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
-			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
-				"session-1",
-				"/Users/example/Documents/acepe",
-				"claude-code",
-				undefined,
-				"/Users/example/.acepe/worktrees/worktree-123456/feature-branch",
-				"Feature thread"
-			);
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("session-1");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "session-1", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "session-1");
-			expect(mockProjectionHydrator.clearSession).not.toHaveBeenCalled();
 		});
 
 		it("remaps aliased panel session ids before validation", async () => {
@@ -803,9 +776,6 @@ describe("InitializationManager", () => {
 			mockSessionStore.getSessionCold = mock((sessionId: string) =>
 				sessionId === "acepe-uuid" ? canonicalSession : undefined
 			) as SessionStore["getSessionCold"];
-			mockSessionStore.loadSessionById = mock(() =>
-				okAsync(canonicalSession)
-			) as SessionStore["loadSessionById"];
 			await manager.initialize();
 			await Promise.resolve();
 
@@ -813,21 +783,14 @@ describe("InitializationManager", () => {
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", "acepe-uuid");
 			// Panel should NOT be cleared as orphaned
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
-			// Session should be preloaded using the canonical ID
-			expect(mockSessionStore.loadSessionById).toHaveBeenCalledWith(
-				"acepe-uuid",
-				"/project1",
-				"opencode",
-				"/opencode/storage/session/acepe-uuid.json",
-				undefined,
-				"Aliased Session"
-			);
-			expect(mockSessionStore.connectSession).toHaveBeenCalledWith("acepe-uuid");
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(1, "acepe-uuid", {
-				includePendingTurnInputs: false,
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "acepe-uuid",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "initialization-manager",
 			});
-			expect(mockProjectionHydrator.hydrateSession).toHaveBeenNthCalledWith(2, "acepe-uuid");
-			expect(mockProjectionHydrator.clearSession).not.toHaveBeenCalled();
 		});
 
 		it("should handle initialization errors", async () => {
@@ -845,7 +808,7 @@ describe("InitializationManager", () => {
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
 				mockPreconnectionAgentSkillsStore,
-				mockProjectionHydrator
+				mockSessionOpenHydrator
 			);
 
 			const result = await manager.initialize();

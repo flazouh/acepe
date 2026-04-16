@@ -7,10 +7,10 @@ use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
-use crate::session_jsonl::types::ConvertedSession;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
@@ -169,7 +169,7 @@ impl AgentProvider for OpenCodeProvider {
         app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<ConvertedSession>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
         Box::pin(async move {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
@@ -185,7 +185,7 @@ impl AgentProvider for OpenCodeProvider {
                     session_id = %session_id,
                     "Loaded OpenCode session from local disk"
                 );
-                return Ok(Some(converted));
+                return Ok(Some(converted.into()));
             }
 
             match &disk_result {
@@ -208,7 +208,7 @@ impl AgentProvider for OpenCodeProvider {
             )
             .await
             {
-                Ok(converted) => Ok(Some(converted)),
+                Ok(converted) => Ok(Some(converted.into())),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

@@ -19,7 +19,9 @@ import type {
 	PlanData,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
+import type { SessionOpenFound, SessionTurnState } from "../../services/acp-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
+import { convertStoredEntryToSessionEntry } from "../converters/stored-entry-converter.js";
 import type { AppError } from "../errors/app-error.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
 import {
@@ -139,6 +141,23 @@ const PR_STATE_CACHE_TTL_MS = 60_000;
 interface CachedPrDetails {
 	details: PrDetails;
 	fetchedAt: number;
+}
+
+function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string {
+	return typeof agentId === "string" ? agentId : agentId.custom;
+}
+
+function toFrontendTurnState(turnState: SessionTurnState): SessionHotState["turnState"] {
+	switch (turnState) {
+		case "Idle":
+			return "idle";
+		case "Running":
+			return "streaming";
+		case "Completed":
+			return "completed";
+		case "Failed":
+			return "error";
+	}
 }
 
 /**
@@ -546,6 +565,66 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.messagingSvc.clearSessionState(sessionId);
 	}
 
+	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void {
+		const canonicalSessionId = snapshot.canonicalSessionId;
+		const requestedSessionId = snapshot.requestedSessionId;
+		const aliasSession =
+			snapshot.isAlias && requestedSessionId !== canonicalSessionId
+				? this.getSessionCold(requestedSessionId)
+				: undefined;
+		const canonicalSession = this.getSessionCold(canonicalSessionId);
+		const preservedSession = canonicalSession ?? aliasSession;
+		const convertedEntries = snapshot.threadEntries.map((entry) => {
+			const timestamp = entry.timestamp ? new Date(entry.timestamp) : new Date();
+			return convertStoredEntryToSessionEntry(entry, timestamp);
+		});
+		const now = new Date();
+		const nextSessionLifecycleState =
+			snapshot.sourcePath !== null
+				? "persisted"
+				: preservedSession?.sessionLifecycleState ?? "created";
+
+		if (aliasSession && requestedSessionId !== canonicalSessionId) {
+			this.removeSession(requestedSessionId);
+		}
+
+		if (canonicalSession) {
+			this.updateSession(
+				canonicalSessionId,
+				{
+					projectPath: snapshot.projectPath,
+					agentId: normalizeCanonicalAgentId(snapshot.agentId),
+					worktreePath: snapshot.worktreePath ?? undefined,
+					title: snapshot.sessionTitle,
+					sourcePath: snapshot.sourcePath ?? undefined,
+					sessionLifecycleState: nextSessionLifecycleState,
+				},
+				{ touchUpdatedAt: false }
+			);
+		} else {
+			this.addSession({
+				id: canonicalSessionId,
+				projectPath: snapshot.projectPath,
+				agentId: normalizeCanonicalAgentId(snapshot.agentId),
+				worktreePath: snapshot.worktreePath ?? undefined,
+				title: snapshot.sessionTitle,
+				updatedAt: preservedSession?.updatedAt ?? now,
+				createdAt: preservedSession?.createdAt ?? now,
+				sourcePath: snapshot.sourcePath ?? undefined,
+				sessionLifecycleState: nextSessionLifecycleState,
+				parentId: preservedSession?.parentId ?? null,
+			});
+		}
+
+		this.entryStore.storeEntriesAndBuildIndex(canonicalSessionId, convertedEntries);
+		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
+		this.hotStateStore.initializeHotState(canonicalSessionId);
+		this.hotStateStore.updateHotState(canonicalSessionId, {
+			turnState: toFrontendTurnState(snapshot.turnState),
+			connectionError: null,
+		});
+	}
+
 	/**
 	 * Register a callback to run when a session is removed.
 	 * Used by external stores (e.g., PlanStore) for cleanup.
@@ -723,8 +802,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Connect to a session (resume or create ACP connection).
 	 */
-	connectSession(sessionId: string): ResultAsync<SessionCold, AppError> {
-		return this.connectionMgr.connectSession(sessionId, this);
+	connectSession(
+		sessionId: string,
+		options?: { openToken?: string }
+	): ResultAsync<SessionCold, AppError> {
+		return this.connectionMgr.connectSession(sessionId, this, options);
 	}
 
 	/**
