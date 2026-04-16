@@ -5,7 +5,7 @@
  * Uses neverthrow ResultAsync for error handling.
  */
 
-import { ResultAsync } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
 import { settings as tauriSettings } from "$lib/utils/tauri-client/settings.js";
 
 /**

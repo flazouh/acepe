@@ -1,4 +1,4 @@
-import { ResultAsync } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 export interface ArchivedSessionRef {

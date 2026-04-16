@@ -79,10 +79,6 @@ function getAssistantAggregationKey(
 	return update.message_id ?? undefined;
 }
 
-function isPendingToolCallStatus(status: string | null | undefined): boolean {
-	return status === "pending" || status === "in_progress";
-}
-
 function hasToolCallEntry(
 	handler: SessionEventHandler,
 	sessionId: string,
