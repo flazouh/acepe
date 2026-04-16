@@ -1,5 +1,6 @@
 import * as m from "$lib/messages.js";
 import type { TurnState } from "../store/types.js";
+import { isSearchNormalizedResult } from "../types/normalized-tool-result.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import { extractSkillCallInput } from "../utils/extract-skill-call-input.js";
@@ -182,16 +183,21 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			const status = getToolStatus(toolCall, turnState);
 			if (status.isPending) return m.tool_grep_running();
 
-			// Count results from result
-			const result = toolCall.result as Record<string, unknown> | unknown[] | null;
-			// Only show "No matches" if we actually have result data
-			// Task children summaries don't have result data, so just show completed
-			if (!result) {
+			const normalizedResult = isSearchNormalizedResult(toolCall.normalizedResult)
+				? toolCall.normalizedResult
+				: null;
+			const hasAnyResult =
+				(toolCall.result !== null && toolCall.result !== undefined) ||
+				(toolCall.normalizedResult !== null && toolCall.normalizedResult !== undefined);
+			if (!hasAnyResult) {
 				return m.tool_grep_completed();
 			}
-			const numFiles =
-				(typeof result === "object" && "numFiles" in result ? (result.numFiles as number) : null) ??
-				(Array.isArray(result) ? result.length : 0);
+
+			if (normalizedResult === null) {
+				return m.tool_grep_completed();
+			}
+
+			const numFiles = normalizedResult.numFiles;
 			return numFiles > 0 ? m.tool_grep_results({ count: numFiles }) : m.tool_grep_no_matches();
 		},
 		subtitle: (toolCall) => {

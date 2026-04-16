@@ -94,7 +94,14 @@ describe("tool definition registry", () => {
 				},
 			},
 			result: {
+				content: "\"Wrong raw payload\"",
+			},
+			normalizedResult: {
+				kind: "browser",
 				content: "\"Acepe\"",
+				detailedContent: null,
+				screenshotUrl: null,
+				outcome: "success",
 			},
 		});
 

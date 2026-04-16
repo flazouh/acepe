@@ -5,7 +5,7 @@ import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
-import { parseWebSearchResult } from "./tool-call-web-search/logic/parse-web-search-result.js";
+import { resolveWebSearchDisplayResult } from "./tool-result-display.js";
 
 interface Props {
 	toolCall: ToolCall;
@@ -44,8 +44,7 @@ const query = $derived.by(() => {
 	return extractQueryFromTitle(toolCall.title);
 });
 
-// Parse structured search results
-const searchResult = $derived(parseWebSearchResult(toolCall.result));
+const searchResult = $derived(resolveWebSearchDisplayResult(toolCall));
 
 // Map tool status to AgentToolStatus
 const agentStatus = $derived.by(() => {

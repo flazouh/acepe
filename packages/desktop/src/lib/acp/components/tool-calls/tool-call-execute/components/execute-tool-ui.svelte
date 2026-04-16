@@ -1,19 +1,21 @@
 <script lang="ts">
-import { AgentToolCard } from "@acepe/ui/agent-panel";
-import { CodeBlock } from "$lib/components/ui/code-block";
-import * as m from "$lib/messages.js";
-import { safeJsonStringify } from "../../../../logic/json-utils.js";
-import { getSessionStore } from "../../../../store/index.js";
-import type { TurnState } from "../../../../store/types.js";
-import type { ToolCall } from "../../../../types/tool-call.js";
-import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
-import { getToolStatus } from "../../../../utils/tool-state-utils.js";
-import ToolContentModal from "../../tool-content-modal.svelte";
-import { parseToolResultOutput, parseToolResultWithExitCode } from "../logic/parse-tool-result.js";
-import { resolveExecuteCommand } from "../logic/resolve-execute-command.js";
-import { ExecuteToolUIState } from "../state/execute-tool-ui-state.svelte.js";
-import ExecuteToolContent from "./execute-tool-content.svelte";
-import ExecuteToolHeader from "./execute-tool-header.svelte";
+	import { AgentToolCard } from "@acepe/ui/agent-panel";
+	import { CodeBlock } from "$lib/components/ui/code-block";
+	import * as m from "$lib/messages.js";
+	import { getSessionStore } from "../../../../store/index.js";
+	import type { TurnState } from "../../../../store/types.js";
+	import type { ToolCall } from "../../../../types/tool-call.js";
+	import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
+	import { getToolStatus } from "../../../../utils/tool-state-utils.js";
+	import ToolContentModal from "../../tool-content-modal.svelte";
+	import { resolveExecuteCommand } from "../logic/resolve-execute-command.js";
+	import { ExecuteToolUIState } from "../state/execute-tool-ui-state.svelte.js";
+	import {
+		resolveExecuteDisplayResult,
+		resolveExecuteFallbackOutputText,
+	} from "../../tool-result-display.js";
+	import ExecuteToolContent from "./execute-tool-content.svelte";
+	import ExecuteToolHeader from "./execute-tool-header.svelte";
 
 interface ExecuteToolUIProps {
 	/**
@@ -50,13 +52,12 @@ const extractedCommand = $derived(
 );
 
 // Parse result with stdout, stderr, and exit code (like 1code)
-const parsedResult = $derived.by(() => {
-	return parseToolResultWithExitCode(toolCall.result);
-});
+const parsedResult = $derived(resolveExecuteDisplayResult(toolCall));
 
 const stdout = $derived(parsedResult.stdout);
 const stderr = $derived(parsedResult.stderr);
 const exitCode = $derived(parsedResult.exitCode);
+const fallbackOutput = $derived(resolveExecuteFallbackOutputText(toolCall));
 
 // Determine if we have any output
 const hasOutput = $derived(stdout !== null || stderr !== null);
@@ -90,17 +91,8 @@ const modalDisplayOutput = $derived.by(() => {
 	}
 	if (output) return output;
 
-	const parseResult = parseToolResultOutput(toolCall.result);
-	if (parseResult.isOk() && parseResult.value) {
-		return stripAnsiCodes(parseResult.value);
-	}
-
-	if (toolCall.result) {
-		const stringifyResult = safeJsonStringify(toolCall.result);
-		if (stringifyResult.isOk()) {
-			return stringifyResult.value;
-		}
-		return String(toolCall.result);
+	if (fallbackOutput) {
+		return stripAnsiCodes(fallbackOutput);
 	}
 
 	return null;
@@ -136,7 +128,7 @@ const modalDisplayOutput = $derived.by(() => {
 				{stdout}
 				{stderr}
 				{exitCode}
-				result={toolCall.result}
+				{fallbackOutput}
 				isExpanded={!uiState.isCollapsed}
 				onClickExpand={handleClickExpand}
 			/>
