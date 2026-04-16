@@ -93,17 +93,17 @@ export function resolveExecuteFallbackOutputText(toolCall: ToolCall): string | n
 	}
 
 	const parsedOutput = parseToolResultOutput(toolCall.result);
-	if (parsedOutput.isOk() && parsedOutput.value) {
+	if (parsedOutput.isOk() && parsedOutput.value !== null) {
 		return parsedOutput.value;
+	}
+
+	if (toolCall.result === null || toolCall.result === undefined) {
+		return null;
 	}
 
 	const stringifiedResult = safeJsonStringify(toolCall.result);
 	if (stringifiedResult.isOk()) {
 		return stringifiedResult.value;
-	}
-
-	if (toolCall.result === null || toolCall.result === undefined) {
-		return null;
 	}
 
 	return String(toolCall.result);

@@ -70,6 +70,32 @@ describe("tool result display helpers", () => {
 		expect(resolveExecuteFallbackOutputText(toolCall)).toBe("hello");
 	});
 
+	it("preserves empty execute output instead of JSON-stringifying it", () => {
+		const toolCall = createToolCall({
+			result: "",
+		});
+
+		expect(resolveExecuteDisplayResult(toolCall)).toEqual({
+			stdout: "",
+			stderr: null,
+			exitCode: undefined,
+		});
+		expect(resolveExecuteFallbackOutputText(toolCall)).toBe("");
+	});
+
+	it("preserves null execute output semantics without rendering literal null", () => {
+		const toolCall = createToolCall({
+			result: null,
+		});
+
+		expect(resolveExecuteDisplayResult(toolCall)).toEqual({
+			stdout: null,
+			stderr: null,
+			exitCode: undefined,
+		});
+		expect(resolveExecuteFallbackOutputText(toolCall)).toBeNull();
+	});
+
 	it("prefers normalized search results over conflicting raw payloads", () => {
 		const toolCall = createToolCall({
 			kind: "search",
