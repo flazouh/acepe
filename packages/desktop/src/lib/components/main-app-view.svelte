@@ -212,7 +212,7 @@ const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore
 const sessionOpenHydrator = new SessionOpenHydrator(
 	sessionStore,
 	panelStore,
-	sessionProjectionHydrator
+	interactionStore
 );
 
 // Create voice settings store (context for voice-section and agent-input-ui)
