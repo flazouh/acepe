@@ -1,19 +1,15 @@
 import type {
-	JsonValue,
 	StoredErrorMessage,
 	StoredAssistantMessage,
 	StoredEntry,
 	StoredUserMessage,
 	ToolCallData,
-	ToolArguments,
-	ToolKind,
 } from "$lib/services/converted-session-types.js";
 import type { SessionEntry } from "../application/dto/session.js";
 import type { AssistantMessage } from "../types/assistant-message.js";
 import type { ErrorMessage } from "../types/error-message.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { UserMessage } from "../types/user-message.js";
-import { reclassifyGenericToolCall } from "../utils/reclassify-generic-tool-call.js";
 
 const LEGACY_TOOL_NAME_LABELS: Record<string, string> = {
 	Bash: "Run",
@@ -46,16 +42,15 @@ function canonicalToolName(name: string): string {
  */
 function convertToolCallData(data: ToolCallData): ToolCall {
 	const taskChildren = data.taskChildren ? data.taskChildren.map(convertToolCallData) : undefined;
-	const reclassified = reclassifyGenericToolCall(data);
 
 	return {
 		id: data.id,
-		name: reclassified ? reclassified.name : canonicalToolName(data.name),
-		arguments: reclassified ? reclassified.arguments : data.arguments,
+		name: canonicalToolName(data.name),
+		arguments: data.arguments,
 		rawInput: data.rawInput,
 		status: data.status,
 		result: data.result,
-		kind: reclassified ? reclassified.kind : data.kind,
+		kind: data.kind,
 		title: data.title,
 		locations: data.locations,
 		skillMeta: data.skillMeta,

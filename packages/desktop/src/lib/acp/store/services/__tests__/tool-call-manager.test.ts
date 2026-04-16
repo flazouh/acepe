@@ -252,35 +252,6 @@ describe("ToolCallManager", () => {
 			);
 		});
 
-		it("reclassifies live generic Read tool calls with grep-shaped raw input", () => {
-			const { manager, entryStore } = createTrackedManager();
-
-			const data = createToolCallData("tc-search", {
-				name: "Read",
-				kind: "read",
-				arguments: { kind: "read" },
-				rawInput: {
-					pattern: "sentry",
-					path: "/Users/alex/Documents/sandbox",
-					"-i": true,
-					output_mode: "content",
-				},
-			});
-			const result = manager.createEntry("s1", data);
-
-			expect(result.isOk()).toBe(true);
-			const createdEntry = (entryStore.addEntry as ReturnType<typeof vi.fn>).mock.calls[0][1] as SessionEntry;
-			if (createdEntry.type === "tool_call") {
-				expect(createdEntry.message.name).toBe("Search");
-				expect(createdEntry.message.kind).toBe("search");
-				expect(createdEntry.message.arguments).toEqual({
-					kind: "search",
-					query: "sentry",
-					file_path: "/Users/alex/Documents/sandbox",
-				});
-			}
-		});
-
 		it("updates an existing tool call entry found in entries", () => {
 			const existingEntry = createToolCallEntry("tc-1");
 			const entryStore = createMockEntryStore({

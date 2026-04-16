@@ -197,7 +197,11 @@ fn resolve_identity_impl(
         .and_then(infer_kind_from_serialized_arguments)
         .filter(|kind| *kind != ToolKind::Other);
 
-    let promoted_argument_kind = match (detected_kind, argument_kind) {
+    let generic_read_source = detected_kind
+        .or(hint_kind)
+        .or(payload_kind)
+        .filter(|kind| *kind == ToolKind::Read);
+    let promoted_argument_kind = match (generic_read_source, argument_kind) {
         (Some(ToolKind::Read), Some(kind @ (ToolKind::Glob | ToolKind::Search | ToolKind::Edit))) => {
             Some(kind)
         }
@@ -537,6 +541,38 @@ mod tests {
         match classified.arguments {
             ToolArguments::Search { query, file_path } => {
                 assert_eq!(query.as_deref(), Some("ProjectHeader"));
+                assert!(file_path.is_none());
+            }
+            other => panic!("expected search arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn raw_unknown_name_with_generic_read_hint_and_ripgrep_shape_promotes_to_search() {
+        let parser = CopilotParser;
+        let classified = classify_raw_tool_call(
+            &parser,
+            "tool-read-grep-hint",
+            &serde_json::json!({
+                "pattern": "sentry",
+                "glob": "**/Cargo.toml",
+                "output_mode": "content",
+                "-i": true
+            }),
+            ToolClassificationHints {
+                name: Some("unknown"),
+                title: Some("Searching for 'sentry'"),
+                kind: Some(ToolKind::Read),
+                kind_hint: Some("read"),
+                locations: None,
+            },
+        );
+
+        assert_eq!(classified.kind, ToolKind::Search);
+        assert_eq!(classified.name, "Search");
+        match classified.arguments {
+            ToolArguments::Search { query, file_path } => {
+                assert_eq!(query.as_deref(), Some("sentry"));
                 assert!(file_path.is_none());
             }
             other => panic!("expected search arguments, got {other:?}"),

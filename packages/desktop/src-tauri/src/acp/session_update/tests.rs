@@ -2128,6 +2128,78 @@ fn replays_serialized_copilot_read_tool_call_data_from_event_hub() {
 }
 
 #[test]
+fn replays_serialized_copilot_generic_read_tool_call_from_raw_input_as_search() {
+    crate::acp::agent_context::with_agent(crate::acp::parsers::AgentType::Copilot, || {
+        let json = json!({
+            "id": "tooluse_search_live",
+            "name": "Read",
+            "arguments": {
+                "kind": "read"
+            },
+            "rawInput": {
+                "pattern": "sentry",
+                "path": "/Users/alex/Documents/sandbox",
+                "-i": true,
+                "output_mode": "content"
+            },
+            "status": "pending",
+            "kind": "read",
+            "title": "Read"
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = serde_json::from_value(json);
+
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.name, "Search");
+        assert_eq!(tool_call.kind, Some(ToolKind::Search));
+        match tool_call.arguments {
+            ToolArguments::Search { query, file_path } => {
+                assert_eq!(query.as_deref(), Some("sentry"));
+                assert_eq!(file_path.as_deref(), Some("/Users/alex/Documents/sandbox"));
+            }
+            other => panic!("Expected Search arguments, got {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn replays_serialized_copilot_search_tool_call_preferring_raw_input_details() {
+    crate::acp::agent_context::with_agent(crate::acp::parsers::AgentType::Copilot, || {
+        let json = json!({
+            "id": "tooluse_search_sparse",
+            "name": "Search",
+            "arguments": {
+                "kind": "search"
+            },
+            "rawInput": {
+                "pattern": "sentry",
+                "path": "/Users/alex/Documents/sandbox",
+                "-i": true,
+                "output_mode": "content"
+            },
+            "status": "pending",
+            "kind": "search",
+            "title": "Search"
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = serde_json::from_value(json);
+
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.name, "Search");
+        assert_eq!(tool_call.kind, Some(ToolKind::Search));
+        match tool_call.arguments {
+            ToolArguments::Search { query, file_path } => {
+                assert_eq!(query.as_deref(), Some("sentry"));
+                assert_eq!(file_path.as_deref(), Some("/Users/alex/Documents/sandbox"));
+            }
+            other => panic!("Expected Search arguments, got {:?}", other),
+        }
+    });
+}
+
+#[test]
 fn replays_serialized_tool_call_update_from_event_hub() {
     let json = json!({
         "type": "toolCallUpdate",
