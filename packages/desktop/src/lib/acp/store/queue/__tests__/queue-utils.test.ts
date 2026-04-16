@@ -161,6 +161,43 @@ describe("buildQueueItem", () => {
 		expect(item.connectionError).toBe("Resume failed");
 		expect(classifyItem(item)).toBe("error");
 	});
+
+	it("classifies recoverable turn failures from activeTurnFailure", () => {
+		const item = buildQueueItem(
+			createSession({
+				state: deriveSessionState({
+					connectionState: "ready",
+					modeId: "plan",
+					tool: null,
+					pendingQuestion: null,
+					pendingPlanApproval: null,
+					pendingPermission: null,
+					hasUnseenCompletion: false,
+				}),
+				status: "error",
+				activeTurnFailure: {
+					turnId: "turn-1",
+					message: "Usage limit reached",
+					code: "429",
+					kind: "recoverable",
+					source: "process",
+				},
+			}),
+			null,
+			DEFAULT_URGENCY,
+			false,
+			false,
+			false,
+			null,
+			null,
+			null,
+			null
+		);
+
+		expect(item.connectionError).toBeNull();
+		expect(item.activeTurnFailure?.message).toBe("Usage limit reached");
+		expect(classifyItem(item)).toBe("error");
+	});
 });
 
 describe("buildQueueSessionSnapshot", () => {

@@ -88,6 +88,7 @@ impl OpenCodeTaskHydrator {
     pub(super) fn apply_session_update(&mut self, update: &SessionUpdate) {
         if let SessionUpdate::TurnComplete {
             session_id: Some(session_id),
+            ..
         } = update
         {
             self.cleanup_child_session(session_id);

@@ -6,6 +6,7 @@ import { THREAD_BOARD_STATUS_ORDER, type ThreadBoardStatus } from "./thread-boar
 export interface ThreadBoardStatusInput {
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
+	readonly activeTurnFailure: ThreadBoardSource["activeTurnFailure"];
 	readonly state: ThreadBoardSource["state"];
 }
 
@@ -15,6 +16,7 @@ export function classifyThreadBoardState(input: ThreadBoardStatusInput): ThreadB
 			state: input.state,
 			currentModeId: input.currentModeId,
 			connectionError: input.connectionError,
+			activeTurnFailure: input.activeTurnFailure ?? null,
 		})
 	);
 }
@@ -23,6 +25,7 @@ export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoar
 	return classifyThreadBoardState({
 		currentModeId: source.currentModeId,
 		connectionError: source.connectionError,
+		activeTurnFailure: source.activeTurnFailure ?? null,
 		state: source.state,
 	});
 }
@@ -48,6 +51,7 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		deletions: source.deletions,
 		todoProgress: source.todoProgress,
 		connectionError: source.connectionError,
+		activeTurnFailure: source.activeTurnFailure ?? null,
 		state: source.state,
 		sequenceId: source.sequenceId ?? null,
 		worktreePath: source.worktreePath ?? null,

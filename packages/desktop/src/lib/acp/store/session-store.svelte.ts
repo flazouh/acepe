@@ -11,6 +11,7 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
+import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type {
 	ContentBlock,
@@ -32,7 +33,7 @@ import type { PermissionRequest } from "../types/permission";
 import type { QuestionRequest } from "../types/question";
 import type { SessionUpdate } from "../types/session-update";
 import type { ToolCallUpdate } from "../types/tool-call";
-import type { TurnErrorPayload } from "../types/turn-error.js";
+import type { ActiveTurnFailure, TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import {
 	SessionConnectionService,
@@ -71,6 +72,68 @@ import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
 const SESSION_STORE_KEY = Symbol("session-store");
+
+type ProjectionTurnFailure = {
+	readonly turn_id?: string | null;
+	readonly message: string;
+	readonly code?: string | null;
+	readonly kind: "recoverable" | "fatal";
+	readonly source?: "json_rpc" | "transport" | "process" | "unknown" | null;
+};
+
+type ProjectionSessionState = NonNullable<SessionProjectionSnapshot["session"]> & {
+	readonly active_turn_failure?: ProjectionTurnFailure | null;
+	readonly last_terminal_turn_id?: string | null;
+};
+
+function resolveProjectionSessionId(projection: SessionProjectionSnapshot): string | null {
+	if (projection.session?.session_id !== undefined) {
+		return projection.session.session_id;
+	}
+
+	if (projection.operations[0]?.session_id !== undefined) {
+		return projection.operations[0].session_id;
+	}
+
+	if (projection.interactions[0]?.session_id !== undefined) {
+		return projection.interactions[0].session_id;
+	}
+
+	return null;
+}
+
+function mapProjectionTurnState(turnState: ProjectionSessionState["turn_state"]):
+	| "idle"
+	| "streaming"
+	| "completed"
+	| "error" {
+	switch (turnState) {
+		case "Idle":
+			return "idle";
+		case "Running":
+			return "streaming";
+		case "Completed":
+			return "completed";
+		case "Failed":
+			return "error";
+	}
+}
+
+function mapProjectionTurnFailure(
+	failure: ProjectionTurnFailure | null | undefined
+): ActiveTurnFailure | null {
+	if (failure == null) {
+		return null;
+	}
+
+	return {
+		turnId: failure.turn_id ?? null,
+		message: failure.message,
+		code: failure.code ?? null,
+		kind: failure.kind,
+		source: failure.source ?? "unknown",
+	};
+}
 const PR_STATE_CACHE_TTL_MS = 60_000;
 
 interface CachedPrDetails {
@@ -387,6 +450,42 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const entries = this.entryStore.getEntries(sessionId);
 		const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
 		return deriveSessionRuntimeState(state, lastEntry);
+	}
+
+	applySessionProjection(projection: SessionProjectionSnapshot): void {
+		const sessionId = resolveProjectionSessionId(projection);
+		if (sessionId === null) {
+			return;
+		}
+
+		const projectionSession = projection.session as ProjectionSessionState | null;
+		if (projectionSession === null) {
+			this.hotStateStore.updateHotState(sessionId, {
+				activeTurnFailure: null,
+				lastTerminalTurnId: null,
+			});
+			return;
+		}
+
+		const activeTurnFailure = mapProjectionTurnFailure(projectionSession.active_turn_failure);
+		const updates: Partial<import("./types.js").SessionHotState> = {
+			turnState: mapProjectionTurnState(projectionSession.turn_state),
+			activeTurnFailure,
+			lastTerminalTurnId: projectionSession.last_terminal_turn_id ?? null,
+			connectionError: activeTurnFailure !== null ? null : undefined,
+		};
+
+		this.hotStateStore.updateHotState(sessionId, updates);
+	}
+
+	clearSessionProjection(sessionId: string): void {
+		if (!this.hotStateStore.hasHotState(sessionId)) {
+			return;
+		}
+		this.hotStateStore.updateHotState(sessionId, {
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+		});
 	}
 
 	// ============================================
@@ -752,8 +851,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Handle stream complete from Tauri events.
 	 */
-	handleStreamComplete(sessionId: string): void {
-		this.messagingSvc.handleStreamComplete(sessionId);
+	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
+		this.messagingSvc.handleStreamComplete(sessionId, turnId);
 	}
 
 	/**
@@ -766,8 +865,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Handle turn error from agent (e.g., usage limit reached).
 	 */
-	handleTurnError(sessionId: string, error: TurnErrorPayload): void {
-		this.messagingSvc.handleTurnError(sessionId, error);
+	handleTurnError(sessionId: string, update: TurnErrorUpdate): void {
+		this.messagingSvc.handleTurnError(sessionId, update);
 		this.callbacks.onTurnError?.(sessionId);
 	}
 

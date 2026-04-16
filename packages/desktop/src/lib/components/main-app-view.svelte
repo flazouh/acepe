@@ -32,6 +32,7 @@ import {
 	createPlanStore,
 	createQuestionStore,
 	createQueueStore,
+	createReviewPreferenceStore,
 	createSessionStore,
 	LiveInteractionProjectionSync,
 	SessionProjectionHydrator,
@@ -107,6 +108,7 @@ import {
 	installDownloadedUpdate,
 	predownloadUpdate,
 } from "./main-app-view/logic/updater-workflow.js";
+import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
@@ -146,7 +148,16 @@ const agentStore = createAgentStore();
 const agentPreferencesStore = createAgentPreferencesStore();
 const sessionStore = createSessionStore();
 const interactionStore = createInteractionStore();
-const sessionProjectionHydrator = new SessionProjectionHydrator(interactionStore);
+const sessionProjectionHydrator = new SessionProjectionHydrator({
+	replaceSessionProjection(projection) {
+		interactionStore.replaceSessionProjection(projection);
+		sessionStore.applySessionProjection(projection);
+	},
+	clearSession(sessionId) {
+		interactionStore.clearSession(sessionId);
+		sessionStore.clearSessionProjection(sessionId);
+	},
+});
 const sessionDomainEventSubscriber = new SessionDomainEventSubscriber();
 const liveInteractionProjectionSync = new LiveInteractionProjectionSync(
 	sessionDomainEventSubscriber,
@@ -170,6 +181,8 @@ sessionStore.onSessionRemoved((id) => {
 const unseenStore = createUnseenStore();
 // ConnectionStore is accessed via getConnectionStore() context, no direct reference needed
 createConnectionStore();
+// Review preference (panel vs fullscreen)
+const reviewPreferenceStore = createReviewPreferenceStore();
 // Plan preference (inline vs sidebar)
 const planPreferenceStore = createPlanPreferenceStore();
 // Chat preferences (thinking block collapsed by default, etc.)
@@ -937,7 +950,9 @@ onMount(async () => {
 	// Initialize the app state (handles all initialization logic including background scan)
 	const initResult = await viewState.initialize();
 
+	// Initialize review preference (load persisted setting)
 	await chatPreferencesStore.initialize();
+	reviewPreferenceStore.initialize();
 	planPreferenceStore.initialize();
 
 	// Initialize notification popup stores
@@ -980,6 +995,7 @@ $effect(() => {
 		"modalOpen",
 		viewState.settingsModalOpen ||
 			viewState.sqlStudioModalOpen ||
+			viewState.reviewFullscreenOpen ||
 			viewState.fileExplorerVisible
 	);
 });
@@ -1076,7 +1092,10 @@ const showSidebar = $derived(
 
 /** Tab bar above main/panel column (only shown in session fullscreen when there is something to switch) */
 const showTabBarStrip = $derived(
-	viewState.isFullscreen && tabBarStore.tabs.length > 1 && viewState.topBarVisible
+	!viewState.reviewFullscreenOpen &&
+		viewState.isFullscreen &&
+		tabBarStore.tabs.length > 1 &&
+		viewState.topBarVisible
 );
 
 // Cleanup on destroy
@@ -1143,71 +1162,73 @@ onDestroy(() => {
 				{/snippet}
 			</TopBar>
 		</div>
-		<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
-			{#if showSidebar}
-				<div class="shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width,opacity] duration-200 ease-out {viewState.sidebarOpen ? 'opacity-100' : 'w-0 opacity-0 pointer-events-none'}">
-					<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
-						<AppSidebar {projectManager} state={viewState} />
+		{#if !viewState.reviewFullscreenOpen}
+			<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
+				{#if showSidebar}
+					<div class="shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width,opacity] duration-200 ease-out {viewState.sidebarOpen ? 'opacity-100' : 'w-0 opacity-0 pointer-events-none'}">
+						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
+							<AppSidebar {projectManager} state={viewState} />
+							{#snippet failed(error, reset)}
+								<div class="flex flex-1 items-center justify-center p-4">
+									<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
+										<span>{m.error_boundary_sidebar_failed()}</span>
+										<button class="underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+									</div>
+								</div>
+							{/snippet}
+						</svelte:boundary>
+					</div>
+				{/if}
+				<main
+					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer
+						? ''
+						: 'justify-center items-center overflow-x-auto'}"
+				>
+					<!-- Tab bar (project cards + tabs): only above panel column, aligned with main -->
+					{#if showTabBarStrip}
+						<div class="shrink-0 overflow-hidden">
+							<TabBar
+								groupedTabs={tabBarStore.groupedTabs}
+								onSelectTab={(panelId) => {
+									panelStore.focusAndSwitchToPanel(panelId);
+									acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
+								}}
+								onCloseTab={(panelId) => viewState.handleClosePanel(panelId)}
+							/>
+						</div>
+					{/if}
+					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
+						{#if showPanelsContainer}
+							<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+								<PanelsContainer
+									{projectManager}
+									state={viewState}
+									onFocusPanel={(panelId) => {
+										viewState.handleFocusPanel(panelId);
+										acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
+									}}
+									onToggleFullscreenPanel={(panelId) => {
+										performExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId), () => {
+											viewState.handleToggleFullscreen(panelId);
+										});
+									}}
+								/>
+							</div>
+						{:else if viewState.initializationComplete}
+							<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />
+						{/if}
 						{#snippet failed(error, reset)}
 							<div class="flex flex-1 items-center justify-center p-4">
-								<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
-									<span>{m.error_boundary_sidebar_failed()}</span>
-									<button class="underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
+									<span>{m.error_boundary_panel_failed()}</span>
+									<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
 								</div>
 							</div>
 						{/snippet}
 					</svelte:boundary>
-				</div>
-			{/if}
-			<main
-				class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer
-					? ''
-					: 'justify-center items-center overflow-x-auto'}"
-			>
-				<!-- Tab bar (project cards + tabs): only above panel column, aligned with main -->
-				{#if showTabBarStrip}
-					<div class="shrink-0 overflow-hidden">
-						<TabBar
-							groupedTabs={tabBarStore.groupedTabs}
-							onSelectTab={(panelId) => {
-								panelStore.focusAndSwitchToPanel(panelId);
-								acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
-							}}
-							onCloseTab={(panelId) => viewState.handleClosePanel(panelId)}
-						/>
-					</div>
-				{/if}
-				<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
-					{#if showPanelsContainer}
-						<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-							<PanelsContainer
-								{projectManager}
-								state={viewState}
-								onFocusPanel={(panelId) => {
-									viewState.handleFocusPanel(panelId);
-									acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
-								}}
-								onToggleFullscreenPanel={(panelId) => {
-									performExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId), () => {
-										viewState.handleToggleFullscreen(panelId);
-									});
-								}}
-							/>
-						</div>
-					{:else if viewState.initializationComplete}
-						<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />
-					{/if}
-					{#snippet failed(error, reset)}
-						<div class="flex flex-1 items-center justify-center p-4">
-							<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-								<span>{m.error_boundary_panel_failed()}</span>
-								<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
-							</div>
-						</div>
-					{/snippet}
-				</svelte:boundary>
-			</main>
-		</div>
+				</main>
+			</div>
+		{/if}
 	</div>
 	<AppOverlays state={viewState} {commandPalette} />
 	<SourceControlDialog {projectManager} />
@@ -1262,6 +1283,34 @@ onDestroy(() => {
 				<SqlStudioPage onClose={() => viewState.closeSqlStudio()} />
 			</div>
 		</div>
+	{/if}
+
+	<!-- Full-screen Review Overlay (kept alive when hidden to preserve hunk decisions) -->
+	{#if viewState.reviewFullscreenSessionId}
+		{#key viewState.reviewFullscreenSessionId}
+			<div
+				class="fixed inset-0 z-[var(--app-modal-z)] bg-background"
+				role="dialog"
+				aria-modal={viewState.reviewFullscreenOpen ? "true" : undefined}
+				aria-label="Review changes"
+				tabindex="-1"
+				aria-hidden={!viewState.reviewFullscreenOpen}
+				style:display={viewState.reviewFullscreenOpen ? undefined : "none"}
+				onkeydown={(e) => {
+					if (e.key === "Escape") {
+						e.stopPropagation();
+						viewState.closeReviewFullscreen();
+					}
+				}}
+			>
+				<ReviewFullscreenPage
+					sessionId={viewState.reviewFullscreenSessionId}
+					fileIndex={viewState.reviewFullscreenFileIndex}
+					onClose={() => viewState.closeReviewFullscreen()}
+					onFileIndexChange={(index) => viewState.setReviewFullscreenFileIndex(index)}
+				/>
+			</div>
+		{/key}
 	{/if}
 
 	<!-- Settings Modal -->

@@ -99,6 +99,8 @@ pub enum SessionUpdate {
     TurnComplete {
         #[serde(skip_serializing_if = "Option::is_none")]
         session_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        turn_id: Option<String>,
     },
 
     /// Indicates that the current turn/prompt failed with an error.
@@ -108,6 +110,8 @@ pub enum SessionUpdate {
         error: TurnErrorData,
         #[serde(skip_serializing_if = "Option::is_none")]
         session_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        turn_id: Option<String>,
     },
 
     /// Usage/cost and token telemetry from the agent (adapter-agnostic).

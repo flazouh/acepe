@@ -173,6 +173,25 @@ describe("panelToTab", () => {
 			expect(tab.workBucket).toBe("error");
 		});
 
+		it("classifies activeTurnFailure-only sessions as error work buckets", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({
+						status: "ready",
+						activeTurnFailure: {
+							turnId: "turn-1",
+							message: "Usage limit reached",
+							code: "429",
+							kind: "recoverable",
+							source: "process",
+						},
+					}),
+				})
+			);
+			expect(tab.state.connection).toBe("connected");
+			expect(tab.workBucket).toBe("error");
+		});
+
 		it("derives disconnected state from status=idle (no session)", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "idle" }) }));
 			expect(tab.state.connection).toBe("disconnected");

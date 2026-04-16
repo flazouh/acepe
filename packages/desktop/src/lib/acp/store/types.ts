@@ -37,6 +37,7 @@ import type { ConfigOptionData } from "../../services/converted-session-types.js
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import type { AvailableCommand } from "../types/available-command";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
@@ -102,6 +103,8 @@ export interface SessionHotState {
 	readonly turnState: TurnState;
 	readonly acpSessionId: string | null;
 	readonly connectionError: string | null;
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
+	readonly lastTerminalTurnId?: string | null;
 	readonly autonomousEnabled: boolean;
 	readonly autonomousTransition: "idle" | "enabling" | "disabling";
 	readonly currentModel: Model | null;
@@ -125,6 +128,8 @@ export const DEFAULT_HOT_STATE: SessionHotState = {
 	turnState: "idle",
 	acpSessionId: null,
 	connectionError: null,
+	activeTurnFailure: null,
+	lastTerminalTurnId: null,
 	autonomousEnabled: false,
 	autonomousTransition: "idle",
 	currentModel: null,
@@ -500,6 +505,8 @@ export interface PersistedWorkspaceState {
 	readonly fullscreenPanelIndex?: number | null;
 	/** SQL Studio state (added in version 4) */
 	readonly sqlStudio?: PersistedSqlStudioState;
+	/** Full-screen review overlay state (added in version 5) */
+	readonly reviewFullscreen?: PersistedReviewFullscreenState;
 	/** Open terminal panels persisted across app restarts (added in version 7, legacy flat shape) */
 	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
 	/** Explicit top-level terminal groups persisted across app restarts (added in version 10). */
@@ -534,6 +541,15 @@ export interface PersistedSqlStudioState {
 	readonly selectedConnectionId: string | null;
 	readonly selectedSchemaName: string | null;
 	readonly selectedTableName: string | null;
+}
+
+/**
+ * Persisted full-screen review overlay state.
+ */
+export interface PersistedReviewFullscreenState {
+	readonly open: boolean;
+	readonly sessionId: string | null;
+	readonly fileIndex: number;
 }
 
 /**

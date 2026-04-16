@@ -1230,7 +1230,7 @@ impl ClaudeCcSdkClient {
         ));
 
         if let Some(model_id) = &self.pending_model_id {
-            builder = builder.model(resolve_claude_api_model_id(model_id));
+            builder = builder.model(model_id.clone());
         }
 
         if let Some(session_id) = resume {
@@ -1268,31 +1268,14 @@ impl ClaudeCcSdkClient {
         // Stop any existing bridge first.
         self.stop_bridge();
 
-        let mut raw_client = cc_sdk::ClaudeSDKClient::new(options.clone());
+        let mut raw_client = cc_sdk::ClaudeSDKClient::new(options);
 
         // Connect (starts the subprocess / transport).
         tracing::info!(session_id = %session_id, has_prompt = initial_prompt.is_some(), "cc-sdk: connecting to Claude CLI...");
-        if let Err(error) = raw_client.connect(initial_prompt.clone()).await {
-            let error_message = error.to_string();
-            let Some(fallback_options) =
-                fallback_claude_1m_launch_options(&options, &error_message)
-            else {
-                return Err(AcpError::ProtocolError(error_message));
-            };
-
-            tracing::warn!(
-                session_id = %session_id,
-                requested_model = ?options.model,
-                fallback_model = ?fallback_options.model,
-                "Claude 1M launch request was rejected; retrying with standard Sonnet"
-            );
-
-            raw_client = cc_sdk::ClaudeSDKClient::new(fallback_options);
-            raw_client
-                .connect(initial_prompt)
-                .await
-                .map_err(|fallback_error| AcpError::ProtocolError(fallback_error.to_string()))?;
-        }
+        raw_client
+            .connect(initial_prompt)
+            .await
+            .map_err(|e| AcpError::ProtocolError(e.to_string()))?;
         tracing::info!(session_id = %session_id, "cc-sdk: connected, obtaining message stream...");
 
         // Obtain the message stream while we still have exclusive access to raw_client.
@@ -1533,12 +1516,12 @@ impl ClaudeCcSdkClient {
             return Ok(());
         };
 
-        let mut sdk_client = sdk_client.lock().await;
-        set_claude_runtime_model_with_fallback(
-            &mut sdk_client,
-            &resolve_claude_api_model_id(model_id),
-        )
-        .await
+        sdk_client
+            .lock()
+            .await
+            .set_model(Some(model_id.to_string()))
+            .await
+            .map_err(|error| AcpError::ProtocolError(error.to_string()))
     }
 
     async fn send_user_message_text(&self, text: String) -> AcpResult<()> {
@@ -1579,78 +1562,6 @@ fn provider_models(provider: &dyn AgentProvider) -> Vec<AvailableModel> {
             description: candidate.description,
         })
         .collect()
-}
-
-fn is_claude_sonnet_model_id(model_id: &str) -> bool {
-    model_id.starts_with("claude-sonnet-")
-}
-
-fn resolve_claude_api_model_id(model_id: &str) -> String {
-    if is_claude_sonnet_model_id(model_id) && !model_id.ends_with("[1m]") {
-        return format!("{model_id}[1m]");
-    }
-
-    model_id.to_string()
-}
-
-fn claude_1m_fallback_model_id(model_id: &str) -> Option<String> {
-    if model_id.ends_with("[1m]") {
-        return Some(model_id.trim_end_matches("[1m]").to_string());
-    }
-
-    None
-}
-
-fn is_claude_1m_entitlement_error(message: &str) -> bool {
-    message.contains("Extra usage is required for 1M context")
-        && message.contains("use --model to switch to standard context")
-}
-
-fn fallback_claude_1m_model_for_error(model_id: &str, error_message: &str) -> Option<String> {
-    if !is_claude_1m_entitlement_error(error_message) {
-        return None;
-    }
-
-    claude_1m_fallback_model_id(model_id)
-}
-
-fn fallback_claude_1m_launch_options(
-    options: &cc_sdk::ClaudeCodeOptions,
-    error_message: &str,
-) -> Option<cc_sdk::ClaudeCodeOptions> {
-    let requested_model = options.model.as_deref()?;
-    let fallback_model = fallback_claude_1m_model_for_error(requested_model, error_message)?;
-    let mut fallback_options = options.clone();
-    fallback_options.model = Some(fallback_model);
-    Some(fallback_options)
-}
-
-async fn set_claude_runtime_model_with_fallback(
-    sdk_client: &mut cc_sdk::ClaudeSDKClient,
-    model_id: &str,
-) -> AcpResult<()> {
-    match sdk_client.set_model(Some(model_id.to_string())).await {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let error_message = error.to_string();
-            let Some(fallback_model_id) =
-                fallback_claude_1m_model_for_error(model_id, &error_message)
-            else {
-                return Err(AcpError::ProtocolError(error_message));
-            };
-
-            tracing::warn!(
-                requested_model = model_id,
-                fallback_model = %fallback_model_id,
-                "Claude 1M model request was rejected; falling back to standard Sonnet"
-            );
-
-            sdk_client
-                .set_model(Some(fallback_model_id))
-                .await
-                .map_err(|fallback_error| AcpError::ProtocolError(fallback_error.to_string()))
-        }
-    }
 }
 
 fn map_to_claude_permission_mode(mode_id: &str) -> cc_sdk::PermissionMode {
@@ -1916,6 +1827,7 @@ async fn run_streaming_bridge(
                 dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnError {
                     error,
                     session_id: Some(session_id.clone()),
+                    turn_id: None,
                 }));
                 break;
             }
@@ -2606,13 +2518,6 @@ impl AgentClient for ClaudeCcSdkClient {
 
     async fn set_session_model(&mut self, _session_id: String, _model_id: String) -> AcpResult<()> {
         self.pending_model_id = Some(_model_id.clone());
-        if self.sdk_client.is_none() && self.pending_options.is_some() {
-            if let Some(cwd_buf) = self.current_cwd.clone() {
-                let cwd_str = cwd_buf.to_string_lossy().into_owned();
-                self.pending_options = Some(self.build_options(&cwd_str, &_session_id, None, false));
-            }
-            return Ok(());
-        }
         self.apply_runtime_model(&_model_id).await?;
         Ok(())
     }
@@ -2788,6 +2693,7 @@ impl AgentClient for ClaudeCcSdkClient {
                 self.dispatcher
                     .enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
                         session_id: Some(stream_only_question.session_id),
+                        turn_id: None,
                     }));
                 return Ok(true);
             }
@@ -3257,16 +3163,6 @@ mod tests {
     }
 
     #[test]
-    fn build_options_maps_pending_sonnet_model_to_1m_api_model() {
-        let mut client = make_test_client();
-        client.pending_model_id = Some("claude-sonnet-4-6".to_string());
-
-        let options = client.build_options("/tmp", "session-1", None, false);
-
-        assert_eq!(options.model.as_deref(), Some("claude-sonnet-4-6[1m]"));
-    }
-
-    #[test]
     fn build_options_respects_bypass_permissions_from_claude_user_settings_when_mode_unset() {
         let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
         let previous_home = std::env::var_os("HOME");
@@ -3391,74 +3287,6 @@ mod tests {
                 .permission_mode,
             cc_sdk::PermissionMode::BypassPermissions
         );
-    }
-
-    #[tokio::test]
-    async fn set_session_model_rebuilds_pending_options_on_deferred_connection() {
-        let temp = tempfile::tempdir().expect("temp dir");
-        let mut client = make_test_client();
-
-        let new_response = client
-            .new_session(temp.path().to_string_lossy().into_owned())
-            .await
-            .expect("new_session should succeed");
-
-        client
-            .set_session_model(new_response.session_id, "claude-sonnet-4-5".to_string())
-            .await
-            .expect("set_session_model should succeed on deferred client");
-
-        assert_eq!(client.pending_model_id.as_deref(), Some("claude-sonnet-4-5"));
-        assert_eq!(
-            client
-                .pending_options
-                .as_ref()
-                .and_then(|options| options.model.as_deref()),
-            Some("claude-sonnet-4-5[1m]")
-        );
-    }
-
-    #[test]
-    fn resolve_claude_api_model_id_maps_sonnet_family_only() {
-        assert_eq!(
-            resolve_claude_api_model_id("claude-sonnet-4"),
-            "claude-sonnet-4[1m]"
-        );
-        assert_eq!(
-            resolve_claude_api_model_id("claude-sonnet-4-5"),
-            "claude-sonnet-4-5[1m]"
-        );
-        assert_eq!(
-            resolve_claude_api_model_id("claude-opus-4-6"),
-            "claude-opus-4-6"
-        );
-        assert_eq!(
-            resolve_claude_api_model_id("claude-haiku-4-5-20251001"),
-            "claude-haiku-4-5-20251001"
-        );
-    }
-
-    #[test]
-    fn detects_known_claude_1m_entitlement_error() {
-        assert!(is_claude_1m_entitlement_error(
-            "API Error: Extra usage is required for 1M context · enable extra usage at claude.ai/settings/usage, or use --model to switch to standard context"
-        ));
-    }
-
-    #[test]
-    fn fallback_claude_1m_launch_options_rewrites_launch_model_once() {
-        let options = cc_sdk::ClaudeCodeOptions::builder()
-            .model("claude-sonnet-4-6[1m]".to_string())
-            .build();
-
-        let fallback_options = fallback_claude_1m_launch_options(
-            &options,
-            "API Error: Extra usage is required for 1M context · enable extra usage at claude.ai/settings/usage, or use --model to switch to standard context",
-        )
-        .expect("fallback options");
-
-        assert_eq!(options.model.as_deref(), Some("claude-sonnet-4-6[1m]"));
-        assert_eq!(fallback_options.model.as_deref(), Some("claude-sonnet-4-6"));
     }
 
     #[tokio::test]

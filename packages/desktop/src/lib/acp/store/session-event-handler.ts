@@ -15,7 +15,7 @@ import type {
 import type { AppError } from "../errors/app-error.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
-import type { TurnErrorPayload } from "../types/turn-error.js";
+import type { TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionEntry, SessionHotState } from "./types.js";
 
 /**
@@ -92,13 +92,13 @@ export interface SessionEventHandler {
 	 * Handle stream completion for a session.
 	 * Called when the agent's turn is complete.
 	 */
-	handleStreamComplete(sessionId: string): void;
+	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void;
 
 	/**
 	 * Handle a turn error for a session.
 	 * Called when the agent's turn fails with an error (e.g., usage limit).
 	 */
-	handleTurnError(sessionId: string, error: TurnErrorPayload): void;
+	handleTurnError(sessionId: string, update: TurnErrorUpdate): void;
 
 	/**
 	 * Clear in-progress assistant streaming aggregation state.

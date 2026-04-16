@@ -83,25 +83,6 @@ function isPendingToolCallStatus(status: string | null | undefined): boolean {
 	return status === "pending" || status === "in_progress";
 }
 
-function isTerminalToolCallStatus(status: string | null | undefined): boolean {
-	return status === "completed" || status === "failed";
-}
-
-function isContentBearingToolCallUpdate(
-	update: ToolCallUpdateData
-): boolean {
-	return (
-		update.result !== null ||
-		update.result !== undefined ||
-		update.rawOutput !== null ||
-		update.rawOutput !== undefined ||
-		update.content !== null ||
-		update.content !== undefined ||
-		update.locations !== null ||
-		update.locations !== undefined
-	);
-}
-
 function hasToolCallEntry(
 	handler: SessionEventHandler,
 	sessionId: string,
@@ -525,47 +506,14 @@ export class SessionEventService {
 		// suppression armed so any later idle-time replay bursts are still blocked.
 		if (this.replaySuppressedSessionIds.has(sessionId)) {
 			const hasActiveTurn = hotState?.turnState !== undefined && hotState.turnState !== "idle";
-			const hasExistingToolEntryForReplay =
-				update.type === "toolCall"
-					? hasToolCallEntry(handler, sessionId, update.tool_call.id)
-					: update.type === "toolCallUpdate"
-						? hasToolCallEntry(handler, sessionId, update.update.toolCallId)
-						: false;
 			if (
 				!hasActiveTurn &&
 				update.type === "toolCall" &&
-				isPendingToolCallStatus(update.tool_call.status) &&
-				hasExistingToolEntryForReplay
+				hasToolCallEntry(handler, sessionId, update.tool_call.id)
 			) {
-				logger.debug("Dropping replayed pending tool call already present in session", {
+				logger.debug("Dropping replayed tool call already present in session", {
 					sessionId,
 					toolCallId: update.tool_call.id,
-				});
-				return;
-			}
-			if (
-				!hasActiveTurn &&
-				update.type === "toolCall" &&
-				!hasExistingToolEntryForReplay &&
-				isTerminalToolCallStatus(update.tool_call.status)
-			) {
-				logger.debug("Dropping replayed terminal tool call missing a canonical entry", {
-					sessionId,
-					toolCallId: update.tool_call.id,
-				});
-				return;
-			}
-			if (
-				!hasActiveTurn &&
-				update.type === "toolCallUpdate" &&
-				!hasExistingToolEntryForReplay &&
-				(isTerminalToolCallStatus(update.update.status) ||
-					isContentBearingToolCallUpdate(update.update))
-			) {
-				logger.debug("Dropping replayed orphan tool call update while session is idle", {
-					sessionId,
-					toolCallId: update.update.toolCallId,
-					status: update.update.status ?? "unknown",
 				});
 				return;
 			}
@@ -762,8 +710,9 @@ export class SessionEventService {
 				logger.info("Turn complete - calling handleStreamComplete", {
 					sessionId,
 					updateSessionId: update.session_id,
+					turnId: update.turn_id,
 				});
-				handler.handleStreamComplete(sessionId);
+				handler.handleStreamComplete(sessionId, update.turn_id);
 				this.callbacks.onTurnComplete?.(sessionId);
 				break;
 
@@ -771,8 +720,9 @@ export class SessionEventService {
 				logger.error("Turn error received", {
 					sessionId,
 					error: update.error,
+					turnId: update.turn_id,
 				});
-				handler.handleTurnError(sessionId, update.error);
+				handler.handleTurnError(sessionId, update);
 				break;
 
 			case "plan":
@@ -780,7 +730,7 @@ export class SessionEventService {
 				if (
 					this.shouldTreatPlanAsTurnComplete(update.plan, handler.getHotState(sessionId).turnState)
 				) {
-					handler.handleStreamComplete(sessionId);
+					handler.handleStreamComplete(sessionId, null);
 				}
 				break;
 

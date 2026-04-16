@@ -1,6 +1,7 @@
 import type { TodoProgressInfo } from "$lib/acp/components/session-list/session-list-types.js";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 import type { ToolKind } from "$lib/acp/types/tool-kind.js";
+import type { ActiveTurnFailure } from "$lib/acp/types/turn-error.js";
 
 import type { SessionState } from "../session-state.js";
 
@@ -26,6 +27,7 @@ export interface ThreadBoardSource {
 	readonly deletions: number;
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 	readonly state: SessionState;
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;
@@ -52,6 +54,7 @@ export interface ThreadBoardItem {
 	readonly deletions: number;
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 	readonly state: SessionState;
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;

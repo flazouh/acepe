@@ -163,7 +163,7 @@ pub(crate) fn adapt_codex_wrapper_plan_update(update: &SessionUpdate) -> Option<
                 session_id: Some(session_id.to_string()),
             })
         }
-        SessionUpdate::TurnComplete { session_id }
+        SessionUpdate::TurnComplete { session_id, .. }
         | SessionUpdate::TurnError { session_id, .. } => {
             let session_id = session_id.as_deref()?;
             let plan = crate::acp::streaming_accumulator::finalize_codex_plan_turn(session_id);

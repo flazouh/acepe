@@ -8,6 +8,7 @@ import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
+import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import type { SessionState } from "../session-state.js";
 import type { UrgencyInfo } from "../urgency.js";
 
@@ -61,6 +62,8 @@ export interface QueueItem {
 	readonly status: SessionStatus;
 	/** Connection/agent error message when present */
 	readonly connectionError: string | null;
+	/** Canonical failed-turn state when the latest turn ended in error. */
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 	/**
 	 * Unified session state model.
 	 * Use this for queue classification instead of individual boolean flags.

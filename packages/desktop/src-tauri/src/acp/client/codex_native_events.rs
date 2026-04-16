@@ -192,9 +192,11 @@ fn translate_turn_completed(
     session_id: &str,
     params: Option<&serde_json::Map<String, Value>>,
 ) -> Vec<SessionUpdate> {
+    let turn_id = extract_codex_turn_id(params);
     let Some(params) = params else {
         return vec![SessionUpdate::TurnComplete {
             session_id: Some(session_id.to_string()),
+            turn_id,
         }];
     };
 
@@ -220,12 +222,31 @@ fn translate_turn_completed(
                 source: Some(TurnErrorSource::Process),
             }),
             session_id: Some(session_id.to_string()),
+            turn_id,
         });
     }
 
     with_codex_plan_update(SessionUpdate::TurnComplete {
         session_id: Some(session_id.to_string()),
+        turn_id,
     })
+}
+
+fn extract_codex_turn_id(
+    params: Option<&serde_json::Map<String, Value>>,
+) -> Option<String> {
+    let Some(params) = params else {
+        return None;
+    };
+
+    get_non_empty_string(params.get("turnId"))
+        .or_else(|| {
+            params
+                .get("turn")
+                .and_then(Value::as_object)
+                .and_then(|turn| get_non_empty_string(turn.get("id")))
+        })
+        .map(ToOwned::to_owned)
 }
 
 fn translate_error_notification(
@@ -265,6 +286,7 @@ fn translate_error_notification(
             source: Some(TurnErrorSource::Transport),
         }),
         session_id: Some(session_id.to_string()),
+        turn_id: extract_codex_turn_id(Some(params)),
     })
 }
 
@@ -784,8 +806,9 @@ mod tests {
         assert!(matches!(
             updates[0],
             SessionUpdate::TurnComplete {
-                session_id: Some(ref session_id)
-            } if session_id == "session-1"
+                session_id: Some(ref session_id),
+                turn_id: Some(ref turn_id)
+            } if session_id == "session-1" && turn_id == "turn-1"
         ));
     }
 
@@ -808,12 +831,17 @@ mod tests {
 
         assert_eq!(updates.len(), 1);
         match &updates[0] {
-            SessionUpdate::TurnError { error, session_id } => {
+            SessionUpdate::TurnError {
+                error,
+                session_id,
+                turn_id,
+            } => {
                 match error {
                     TurnErrorData::Structured(info) => assert_eq!(info.message, "Boom"),
                     other => panic!("unexpected error payload: {other:?}"),
                 }
                 assert_eq!(session_id.as_deref(), Some("session-1"));
+                assert_eq!(turn_id.as_deref(), Some("turn-1"));
             }
             other => panic!("unexpected update: {other:?}"),
         }

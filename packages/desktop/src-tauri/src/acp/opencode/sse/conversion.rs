@@ -951,6 +951,7 @@ pub(super) fn convert_session_status_to_session_update(
     match status {
         "idle" => Some(SessionUpdate::TurnComplete {
             session_id: Some(session_id),
+            turn_id: None,
         }),
         _ => None,
     }
@@ -964,6 +965,7 @@ pub(super) fn convert_session_idle_to_session_update(properties: &Value) -> Opti
         .and_then(Value::as_str)?;
     Some(SessionUpdate::TurnComplete {
         session_id: Some(session_id.to_string()),
+        turn_id: None,
     })
 }
 
@@ -1000,6 +1002,7 @@ pub(super) fn convert_session_error_to_session_update(properties: &Value) -> Opt
             source: Some(TurnErrorSource::Process),
         }),
         session_id,
+        turn_id: None,
     })
 }
 

@@ -230,6 +230,7 @@ mod tests {
 
         let finalized = adapt_codex_wrapper_plan_update(&SessionUpdate::TurnComplete {
             session_id: Some(session_id.to_string()),
+            turn_id: None,
         })
         .expect("turn end should flush plan");
         let enriched = enrich_plan_update(finalized, AgentType::Codex, None);

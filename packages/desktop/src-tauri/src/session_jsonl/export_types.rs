@@ -13,7 +13,7 @@ use crate::acp::model_display::{
 use crate::acp::projections::{
     InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
     InteractionState, OperationSnapshot, PlanApprovalSource, SessionProjectionSnapshot,
-    SessionSnapshot, SessionTurnState,
+    SessionSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -375,6 +375,9 @@ pub fn export_all_types() {
     export_acp_type!(InteractionPayload);
     export_acp_type!(InteractionResponse);
     export_acp_type!(InteractionSnapshot);
+    export_acp_type!(TurnErrorKind);
+    export_acp_type!(TurnErrorSource);
+    export_acp_type!(TurnFailureSnapshot);
     export_acp_type!(SessionProjectionSnapshot);
 
     acp_types = acp_types.replace(

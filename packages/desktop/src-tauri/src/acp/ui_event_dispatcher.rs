@@ -898,6 +898,7 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
             session_id: Some("session-1".to_string()),
+            turn_id: None,
         }));
 
         let captured = captured_events.lock().expect("captured events lock");
@@ -939,6 +940,7 @@ mod tests {
         ));
         dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
             session_id: Some("session-1".to_string()),
+            turn_id: None,
         }));
 
         let snapshot = projection_registry

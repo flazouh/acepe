@@ -28,7 +28,7 @@ use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher};
 use sea_orm::DbConn;
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc as StdArc;
 use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -126,16 +126,21 @@ impl BatcherWithGuard {
         self.batcher.process(update)
     }
 
-    fn process_turn_complete(&mut self, session_id: &str) -> Vec<SessionUpdate> {
-        self.batcher.process_turn_complete(session_id)
+    fn process_turn_complete(
+        &mut self,
+        session_id: &str,
+        turn_id: Option<String>,
+    ) -> Vec<SessionUpdate> {
+        self.batcher.process_turn_complete(session_id, turn_id)
     }
 
     fn process_turn_error(
         &mut self,
         session_id: &str,
+        turn_id: Option<String>,
         error: crate::acp::session_update::TurnErrorData,
     ) -> Vec<SessionUpdate> {
-        self.batcher.process_turn_error(session_id, error)
+        self.batcher.process_turn_error(session_id, turn_id, error)
     }
 
     /// Flush all buffered updates (e.g. before circuit breaker break).
@@ -160,9 +165,6 @@ impl BatcherWithGuard {
 ///
 /// Uses the batcher to ensure buffered text chunks are flushed before TurnError
 /// (`process_turn_error` internally calls `flush_session` then appends TurnError).
-///
-/// Deduplicates by session_id to avoid sending multiple TurnErrors for the same
-/// session when multiple prompts are in-flight (e.g., rapid sends).
 ///
 /// Only called from the stdout reader task (which owns the batcher). The death
 /// monitor does NOT drain prompt_sessions because it has no batcher access — if it
@@ -195,24 +197,24 @@ async fn drain_prompt_sessions_as_turn_errors(
         return;
     }
 
-    let unique_sessions: HashSet<String> = drained
-        .into_values()
-        .map(|prompt| prompt.session_id)
-        .collect();
     tracing::warn!(
-        count = unique_sessions.len(),
+        count = drained.len(),
         reason,
         "Synthesizing TurnError for orphaned prompt sessions after subprocess death"
     );
 
-    for session_id in unique_sessions {
+    for (request_id, prompt) in drained {
         let error = TurnErrorData::Structured(TurnErrorInfo {
             message: reason.to_string(),
             kind: TurnErrorKind::Fatal,
             code: Some(-32001),
             source: Some(TurnErrorSource::Process),
         });
-        let updates = streaming_batcher.process_turn_error(&session_id, error);
+        let updates = streaming_batcher.process_turn_error(
+            &prompt.session_id,
+            Some(request_id.to_string()),
+            error,
+        );
         for update in updates {
             dispatcher.enqueue(AcpUiEvent::session_update(update));
         }
@@ -576,10 +578,17 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     let updates = if let Some(error) = json.get("error") {
                                         let turn_error = extract_turn_error(error);
                                         tracing::error!(id = id, session_id = %session_id, error = ?turn_error, "Prompt failed");
-                                        streaming_batcher.process_turn_error(&session_id, turn_error)
+                                        streaming_batcher.process_turn_error(
+                                            &session_id,
+                                            Some(id.to_string()),
+                                            turn_error,
+                                        )
                                     } else {
                                         tracing::info!(id = id, session_id = %session_id, "Prompt completed");
-                                        streaming_batcher.process_turn_complete(&session_id)
+                                        streaming_batcher.process_turn_complete(
+                                            &session_id,
+                                            Some(id.to_string()),
+                                        )
                                     };
 
                                     for update in updates {
@@ -1073,6 +1082,7 @@ mod tests {
             None,
             Some(SessionUpdate::TurnComplete {
                 session_id: Some("session-1".to_string()),
+                turn_id: None,
             }),
         )
         .await;

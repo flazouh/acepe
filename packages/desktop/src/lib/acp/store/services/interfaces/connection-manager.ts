@@ -11,6 +11,8 @@ import type { SessionMachineActor } from "../../session-connection-service.svelt
 /**
  * Interface for managing connection state machines.
  */
+import type { ActiveTurnFailure } from "../../../types/turn-error.js";
+
 export interface IConnectionManager {
 	// ============================================
 	// STATE MACHINE ACCESS
@@ -96,7 +98,7 @@ export interface IConnectionManager {
 	 */
 	sendTurnFailed(
 		sessionId: string,
-		failure: { kind: "recoverable" | "fatal"; message: string }
+		failure: ActiveTurnFailure
 	): void;
 
 	/**

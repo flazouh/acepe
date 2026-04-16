@@ -83,6 +83,7 @@ function convertStoredErrorMessage(stored: StoredErrorMessage): ErrorMessage {
 		content: stored.content,
 		code: stored.code ?? undefined,
 		kind: stored.kind,
+		source: stored.source ?? "unknown",
 	};
 }
 

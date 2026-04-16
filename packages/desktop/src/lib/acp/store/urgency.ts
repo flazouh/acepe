@@ -8,6 +8,7 @@
  */
 
 import type { SessionStatus } from "../application/dto/session.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 
 /**
  * Urgency level for tab ordering.
@@ -43,6 +44,8 @@ export interface UrgencyInput {
 	readonly statusChangedAt: number;
 	/** Connection error message (if any) */
 	readonly connectionError: string | null;
+	/** Canonical turn failure when the latest turn failed without a connection-level error. */
+	readonly activeTurnFailure?: ActiveTurnFailure | null;
 }
 
 /**
@@ -54,8 +57,14 @@ export interface UrgencyInput {
  * - LOW: Streaming/connecting/loading (in progress)
  */
 export function deriveUrgency(input: UrgencyInput): UrgencyInfo {
-	const { status, hasPendingQuestion, pendingQuestionText, statusChangedAt, connectionError } =
-		input;
+	const {
+		status,
+		hasPendingQuestion,
+		pendingQuestionText,
+		statusChangedAt,
+		connectionError,
+		activeTurnFailure,
+	} = input;
 
 	// HIGH: Question pending or error state
 	if (hasPendingQuestion) {
@@ -72,7 +81,7 @@ export function deriveUrgency(input: UrgencyInput): UrgencyInfo {
 			level: "high",
 			reason: "Error occurred",
 			timestamp: statusChangedAt,
-			detail: connectionError,
+			detail: connectionError ?? activeTurnFailure?.message ?? null,
 		};
 	}
 

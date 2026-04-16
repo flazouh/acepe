@@ -212,6 +212,25 @@ describe("stored-entry-converter", () => {
 				}
 			});
 
+			it("normalizes missing stored error source to unknown", () => {
+				const stored: StoredEntry = {
+					type: "error",
+					id: "error-1",
+					message: {
+						content: "Usage limit reached",
+						code: "429",
+						kind: "recoverable",
+					},
+					timestamp: "2026-04-15T00:00:00Z",
+				};
+
+				const result = convertStoredEntryToSessionEntry(stored, new Date("2026-04-15T00:00:00Z"));
+
+				expect(result.type).toBe("error");
+				if (result.type === "error") {
+					expect(result.message.source).toBe("unknown");
+				}
+			});
 		});
 
 		describe("user entries", () => {
@@ -310,6 +329,7 @@ describe("stored-entry-converter", () => {
 						content: "Rate limit reached",
 						code: "429",
 						kind: "recoverable",
+						source: "process",
 					},
 					timestamp: "2026-01-13T12:00:00Z",
 				};
@@ -324,6 +344,7 @@ describe("stored-entry-converter", () => {
 						content: "Rate limit reached",
 						code: "429",
 						kind: "recoverable",
+						source: "process",
 					},
 					timestamp,
 				});
