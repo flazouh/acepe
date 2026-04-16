@@ -6,6 +6,7 @@ import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { resolveFetchResultText } from "./tool-result-display.js";
 
 interface Props {
 	toolCall: ToolCall;
@@ -38,12 +39,7 @@ const domain = $derived.by(() => {
 		.unwrapOr(url);
 });
 
-const resultText = $derived.by(() => {
-	const result = toolCall.result;
-	if (typeof result === "string") return result;
-	if (result === null || result === undefined) return null;
-	return JSON.stringify(result, null, 2);
-});
+const resultText = $derived(resolveFetchResultText(toolCall));
 
 // Map tool status to AgentToolStatus
 const agentStatus = $derived.by(() => {

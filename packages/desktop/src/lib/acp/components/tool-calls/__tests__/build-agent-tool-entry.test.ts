@@ -79,16 +79,13 @@ describe("tool definition display builders", () => {
 				kind: "execute",
 				status: "completed",
 				arguments: { kind: "execute", command: "ls -la hello-go/" },
-				result: [
-					"Chunk ID: f8d993",
-					"Wall time: 0.0523 seconds",
-					"Process exited with code 0",
-					"Original token count: 3",
-					"Output:",
-					"total 8",
-					"main.go",
-					"go.mod",
-				].join("\n"),
+				result: "raw transport output should not drive the shared entry",
+				normalizedResult: {
+					kind: "execute",
+					stdout: "total 8\nmain.go\ngo.mod",
+					stderr: null,
+					exitCode: 0,
+				},
 			}),
 			turnState: "completed",
 		});
@@ -120,6 +117,12 @@ describe("tool definition display builders", () => {
 					{ type: "text", text: "3 tests passed" },
 					{ type: "text", text: "Done" },
 				],
+				normalizedResult: {
+					kind: "execute",
+					stdout: "3 tests passed\nDone",
+					stderr: null,
+					exitCode: undefined,
+				},
 			}),
 			turnState: "completed",
 		});
@@ -150,6 +153,12 @@ describe("tool definition display builders", () => {
 				result: {
 					content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
 					detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+				},
+				normalizedResult: {
+					kind: "execute",
+					stdout: "/Users/alex/Documents/acepe",
+					stderr: null,
+					exitCode: 0,
 				},
 			}),
 			turnState: "completed",

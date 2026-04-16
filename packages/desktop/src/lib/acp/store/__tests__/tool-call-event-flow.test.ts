@@ -1084,6 +1084,60 @@ describe("Tool Call Event Flow", () => {
 			}
 		});
 
+		it("rebuilds the same normalized execute result for live updates and preloaded history", () => {
+			const toolCallResult = {
+				content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+				detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+			};
+			const liveStore = new SessionEntryStore();
+			const preloadStore = new SessionEntryStore();
+
+			liveStore.updateToolCallEntry("live-session", {
+				toolCallId: "tool-execute-1",
+				status: "completed",
+				result: toolCallResult,
+				content: null,
+				rawOutput: null,
+				title: "pwd",
+				locations: null,
+				arguments: { kind: "execute", command: "pwd" },
+			});
+
+			preloadStore.storeEntriesAndBuildIndex("preload-session", [
+				{
+					id: "tool-execute-1",
+					type: "tool_call",
+					message: {
+						id: "tool-execute-1",
+						name: "Bash",
+						arguments: { kind: "execute", command: "pwd" },
+						status: "completed",
+						kind: "execute",
+						title: "pwd",
+						locations: null,
+						skillMeta: null,
+						result: toolCallResult,
+						awaitingPlanApproval: false,
+					},
+					timestamp: new Date(),
+				},
+			]);
+
+			const liveEntry = liveStore.getEntries("live-session")[0];
+			const preloadEntry = preloadStore.getEntries("preload-session")[0];
+			expect(liveEntry?.type).toBe("tool_call");
+			expect(preloadEntry?.type).toBe("tool_call");
+			if (liveEntry?.type === "tool_call" && preloadEntry?.type === "tool_call") {
+				expect(preloadEntry.message.normalizedResult).toEqual(liveEntry.message.normalizedResult);
+				expect(preloadEntry.message.normalizedResult).toEqual({
+					kind: "execute",
+					stdout: "/Users/alex/Documents/acepe",
+					stderr: null,
+					exitCode: 0,
+				});
+			}
+		});
+
 		it("replays bcf05737 log message/tool/message sequence without cross-message contamination", async () => {
 			const sessionId = "bcf05737-324d-44d8-a0c1-cd23a1c3fc4e";
 			const firstMessageId = "msg_01F9LtXBrEAoAXTbABKubhiL";

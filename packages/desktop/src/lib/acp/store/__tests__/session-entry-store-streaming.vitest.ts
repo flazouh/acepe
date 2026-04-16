@@ -514,6 +514,82 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 			expect(toolEntries).toHaveLength(1);
 		});
 
+		it("rebuilds normalized results when tool-call history is preloaded", () => {
+			store.storeEntriesAndBuildIndex("session1", [
+				{
+					id: "entry-tool-1",
+					type: "tool_call",
+					message: {
+						id: "tool-1",
+						name: "Run",
+						arguments: { kind: "execute", command: "pwd" },
+						status: "completed",
+						kind: "execute",
+						title: "pwd",
+						locations: null,
+						skillMeta: null,
+						result: {
+							content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+							detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+						},
+						awaitingPlanApproval: false,
+					},
+					timestamp: new Date(1),
+				},
+			]);
+
+			const entries = store.getEntries("session1");
+			expect(entries).toHaveLength(1);
+			const toolEntry = entries[0];
+			expect(toolEntry?.type).toBe("tool_call");
+			if (toolEntry?.type === "tool_call") {
+				expect(toolEntry.message.normalizedResult).toEqual({
+					kind: "execute",
+					stdout: "/Users/alex/Documents/acepe",
+					stderr: null,
+					exitCode: 0,
+				});
+			}
+		});
+
+		it("rebuilds normalized results for preloaded tools whose canonical kind must be inferred from arguments", () => {
+			store.storeEntriesAndBuildIndex("session1", [
+				{
+					id: "entry-tool-1",
+					type: "tool_call",
+					message: {
+						id: "tool-1",
+						name: "Run",
+						arguments: { kind: "execute", command: "pwd" },
+						status: "completed",
+						kind: "other",
+						title: "pwd",
+						locations: null,
+						skillMeta: null,
+						result: {
+							content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+							detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
+						},
+						awaitingPlanApproval: false,
+					},
+					timestamp: new Date(1),
+				},
+			]);
+
+			const entries = store.getEntries("session1");
+			expect(entries).toHaveLength(1);
+			const toolEntry = entries[0];
+			expect(toolEntry?.type).toBe("tool_call");
+			if (toolEntry?.type === "tool_call") {
+				expect(toolEntry.message.normalizedResult).toEqual({
+					kind: "execute",
+					stdout: "/Users/alex/Documents/acepe",
+					stderr: null,
+					exitCode: 0,
+				});
+			}
+		});
+
 		it("should see updates immediately", () => {
 			store.storeEntriesAndBuildIndex("session1", [
 				{

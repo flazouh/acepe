@@ -31,6 +31,7 @@ import { EntryIndexManager } from "./services/entry-index-manager";
 import type { IEntryStoreInternal } from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
 import { ToolCallManager } from "./services/tool-call-manager.svelte.js";
+import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import type { SessionEntry } from "./types.js";
 import { isToolCallEntry } from "./types.js";
 
@@ -159,28 +160,44 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			seenToolCallIds.add(entry.message.id);
 		}
 
-		if (!hasDuplicateToolCall) {
-			return entries;
+		let collapsedEntries = entries;
+		if (hasDuplicateToolCall) {
+			const normalizedStore = new SessionEntryStore(new OperationStore());
+			const normalizedToolCallIds = new Set<string>();
+			for (const entry of entries) {
+				if (!isToolCallEntry(entry)) {
+					normalizedStore.addEntry(sessionId, entry);
+					continue;
+				}
+
+				if (!normalizedToolCallIds.has(entry.message.id)) {
+					normalizedToolCallIds.add(entry.message.id);
+					normalizedStore.addEntry(sessionId, entry);
+					continue;
+				}
+
+				normalizedStore.createToolCallEntry(sessionId, entry.message);
+			}
+
+			collapsedEntries = normalizedStore.getEntries(sessionId);
 		}
 
-		const normalizedStore = new SessionEntryStore(new OperationStore());
-		const normalizedToolCallIds = new Set<string>();
-		for (const entry of entries) {
+		return collapsedEntries.map((entry) => {
 			if (!isToolCallEntry(entry)) {
-				normalizedStore.addEntry(sessionId, entry);
-				continue;
+				return entry;
 			}
 
-			if (!normalizedToolCallIds.has(entry.message.id)) {
-				normalizedToolCallIds.add(entry.message.id);
-				normalizedStore.addEntry(sessionId, entry);
-				continue;
-			}
-
-			normalizedStore.createToolCallEntry(sessionId, entry.message);
-		}
-
-		return normalizedStore.getEntries(sessionId);
+			return {
+				id: entry.id,
+				type: entry.type,
+				message: {
+					...entry.message,
+					normalizedResult: normalizeToolResult(entry.message),
+				},
+				timestamp: entry.timestamp,
+				isStreaming: entry.isStreaming,
+			};
+		});
 	}
 
 	/**

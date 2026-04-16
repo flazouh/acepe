@@ -5,7 +5,7 @@ import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
-import { parseSearchResult } from "./tool-call-search/logic/parse-grep-output.js";
+import { resolveSearchDisplayResult } from "./tool-result-display.js";
 
 interface ToolCallSearchProps {
 	toolCall: ToolCall;
@@ -69,24 +69,7 @@ const searchPath = $derived.by(() => {
 	return undefined;
 });
 
-// Extract toolResponse metadata from result
-const toolResponseMeta = $derived.by(() => {
-	const result = toolCall.result;
-	if (result && typeof result === "object" && !Array.isArray(result)) {
-		const obj = result as Record<string, unknown>;
-		return {
-			mode: obj.mode as string | undefined,
-			numFiles: (obj.numFiles as number | undefined) ?? (obj.totalFiles as number | undefined),
-			numLines: obj.numLines as number | undefined,
-			filenames: obj.filenames as string[] | undefined,
-			content: obj.content as string | undefined,
-		};
-	}
-	return undefined;
-});
-
-// Parse search results
-const searchResult = $derived(parseSearchResult(toolCall.result, toolResponseMeta, searchPath));
+const searchResult = $derived(resolveSearchDisplayResult(toolCall, searchPath));
 
 // Derive file list (for files mode) and result count
 const files = $derived(searchResult.files);

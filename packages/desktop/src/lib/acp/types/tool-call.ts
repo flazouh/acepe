@@ -13,6 +13,7 @@ import type {
 	ToolCallUpdateData as _ToolCallUpdateData,
 	ToolArguments,
 } from "../../services/converted-session-types.js";
+import type { NormalizedToolResult } from "./normalized-tool-result.js";
 
 interface ToolCallTiming {
 	startedAtMs?: number;
@@ -21,6 +22,7 @@ interface ToolCallTiming {
 
 export interface ToolCall extends _ToolCallData, ToolCallTiming {
 	progressiveArguments?: ToolArguments;
+	normalizedResult?: NormalizedToolResult | null;
 	taskChildren?: ToolCall[] | null;
 }
 
