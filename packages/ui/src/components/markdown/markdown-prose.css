@@ -285,19 +285,30 @@
 	background: color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* Streaming markdown re-renders at the section level, so per-section
-   fade-ins create a chunky block-by-block flash. Keep only a subtle
-   live-tail refresh for the actively streaming section. */
-@keyframes streaming-live-refresh {
+/* Word-fade animation for live streaming content.
+   Each word in newly streamed content fades from opacity 0→1 via CSS animation.
+   Cursor-style approach: compositor-threaded, no JS pacing, no jank. */
+@keyframes sd-fadeIn {
 	from {
-		opacity: 0.9;
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
 	}
 }
 
-.markdown-content > .streaming-section.streaming-live-refresh {
-	animation: streaming-live-refresh 120ms ease-out;
+.sd-word-fade {
+	animation: sd-fadeIn 150ms ease both;
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.sd-word-fade {
+		animation: none;
+	}
+}
+
+/* Suppress animation on code block copy buttons inside streaming sections
+   to prevent them from animating when the section updates. */
 .markdown-content > .streaming-section .code-block-wrapper,
 .markdown-content > .streaming-section .code-block-wrapper *,
 .markdown-content > .streaming-section pre *,

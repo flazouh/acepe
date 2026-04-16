@@ -1,152 +1,88 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { LIVE_REFRESH_CLASS, SMOOTH_FADE_CLASS, streamingTailRefresh } from "../streaming-tail-refresh.js";
+import { streamingTailRefresh } from "../streaming-tail-refresh.js";
 
-let rafCallbacks: FrameRequestCallback[] = [];
-
-function flushRaf(): void {
-	const cbs = rafCallbacks.splice(0);
-	for (const cb of cbs) {
-		cb(performance.now());
-	}
-}
-
-function createRefreshNode(): {
-	node: HTMLDivElement;
-} {
-	const node = document.createElement("div");
-
-	return { node };
+function createRefreshNode(): HTMLDivElement {
+	return document.createElement("div");
 }
 
 describe("streamingTailRefresh", () => {
 	beforeEach(() => {
 		document.body.innerHTML = "";
-		rafCallbacks = [];
-		vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((cb) => {
-			rafCallbacks.push(cb);
-			return rafCallbacks.length;
-		});
 	});
 
-	it("starts the refresh animation when mounted with active content", () => {
-		const { node } = createRefreshNode();
+	it("sets data-streaming-active when mounted with active content", () => {
+		const node = createRefreshNode();
 
 		streamingTailRefresh(node, { active: true, value: "Hello" });
 
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
+		expect(node.dataset.streamingActive).toBe("true");
 	});
 
-	it("does not restart the animation when the active value is unchanged", () => {
-		const { node } = createRefreshNode();
+	it("does not set data-streaming-active when mounted inactive", () => {
+		const node = createRefreshNode();
+
+		streamingTailRefresh(node, { active: false, value: "Hello" });
+
+		expect(node.dataset.streamingActive).toBeUndefined();
+	});
+
+	it("does not set data-streaming-active when value is empty", () => {
+		const node = createRefreshNode();
+
+		streamingTailRefresh(node, { active: true, value: "" });
+
+		expect(node.dataset.streamingActive).toBeUndefined();
+	});
+
+	it("removes data-streaming-active when updated to inactive", () => {
+		const node = createRefreshNode();
 		const action = streamingTailRefresh(node, { active: true, value: "Hello" });
 
-		action.update({ active: true, value: "Hello" });
+		expect(node.dataset.streamingActive).toBe("true");
 
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
+		action.update({ active: false, value: "Hello" });
+
+		expect(node.dataset.streamingActive).toBeUndefined();
 	});
 
-	it("keeps the refresh class active without forcing reflow when the live value changes", () => {
-		const { node } = createRefreshNode();
+	it("keeps data-streaming-active when active section value grows", () => {
+		const node = createRefreshNode();
 		const action = streamingTailRefresh(node, { active: true, value: "Hello" });
 
 		action.update({ active: true, value: "Hello world" });
 
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
+		expect(node.dataset.streamingActive).toBe("true");
 	});
 
-	it("restarts the animation when the section becomes active again", () => {
-		const { node } = createRefreshNode();
+	it("sets data-streaming-active when section becomes active again", () => {
+		const node = createRefreshNode();
 		const action = streamingTailRefresh(node, { active: false, value: "Hello" });
 
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
+		expect(node.dataset.streamingActive).toBeUndefined();
 
 		action.update({ active: true, value: "Hello" });
 
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
+		expect(node.dataset.streamingActive).toBe("true");
 	});
 
-	it("removes the refresh class when deactivated and destroyed", () => {
-		const { node } = createRefreshNode();
+	it("removes data-streaming-active on destroy", () => {
+		const node = createRefreshNode();
 		const action = streamingTailRefresh(node, { active: true, value: "Hello" });
 
-		action.update({ active: false, value: "Hello" });
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
-
 		action.destroy();
-		expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
+
+		expect(node.dataset.streamingActive).toBeUndefined();
 	});
 
-	describe("smooth mode", () => {
-		it("applies smooth fade class instead of live-refresh on mount", () => {
-			const { node } = createRefreshNode();
+	it("accepts deprecated mode param without error (compile-time compat)", () => {
+		const node = createRefreshNode();
+		const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
 
-			streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-			flushRaf();
+		// mode is ignored — only active/value matter
+		expect(node.dataset.streamingActive).toBe("true");
 
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(true);
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
-		});
-
-		it("does not restart smooth fade when the same live section grows", () => {
-			const { node } = createRefreshNode();
-			const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-			flushRaf();
-
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(true);
-			expect(rafCallbacks).toHaveLength(0);
-			action.update({ active: true, value: "Hello world", mode: "smooth" });
-
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(true);
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
-			expect(rafCallbacks).toHaveLength(0);
-		});
-
-		it("removes both classes when deactivated", () => {
-			const { node } = createRefreshNode();
-			const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-			flushRaf();
-
-			action.update({ active: false, value: "Hello", mode: "smooth" });
-
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(false);
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
-		});
-
-		it("transitions from smooth to classic: removes smooth fade, adds live-refresh", () => {
-			const { node } = createRefreshNode();
-			const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-			flushRaf();
-
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(true);
-
-			action.update({ active: true, value: "Hello world", mode: "classic" });
-
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(false);
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-		});
-
-		it("transitions from classic to smooth: removes live-refresh, adds smooth fade", () => {
-			const { node } = createRefreshNode();
-			const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "classic" });
-
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(true);
-
-			action.update({ active: true, value: "Hello world", mode: "smooth" });
-			flushRaf();
-
-			expect(node.classList.contains(LIVE_REFRESH_CLASS)).toBe(false);
-			expect(node.classList.contains(SMOOTH_FADE_CLASS)).toBe(true);
-		});
-
-		it("sets data-streaming-animation-mode attribute", () => {
-			const { node } = createRefreshNode();
-			const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-
-			expect(node.dataset.streamingAnimationMode).toBe("smooth");
-
-			action.update({ active: true, value: "Hello", mode: "classic" });
-			expect(node.dataset.streamingAnimationMode).toBe("classic");
-		});
+		action.update({ active: true, value: "Hello world", mode: "instant" });
+		expect(node.dataset.streamingActive).toBe("true");
 	});
 });

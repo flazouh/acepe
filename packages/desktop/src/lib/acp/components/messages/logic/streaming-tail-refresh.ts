@@ -1,81 +1,32 @@
 import type { StreamingAnimationMode } from "$lib/acp/types/streaming-animation-mode.js";
 
-export const LIVE_REFRESH_CLASS = "streaming-live-refresh";
-export const SMOOTH_FADE_CLASS = "streaming-smooth-fade";
-
 export interface StreamingTailRefreshParams {
 	active: boolean;
 	value: string;
+	/**
+	 * @deprecated No longer used. Retained for compile-time compatibility until
+	 * Unit 5b removes the call site in markdown-text.svelte.
+	 */
 	mode?: StreamingAnimationMode;
 }
 
-function setModeDataAttribute(node: HTMLElement, mode: StreamingAnimationMode) {
-	node.dataset.streamingAnimationMode = mode;
-}
-
-function restartRefreshAnimation(node: HTMLElement) {
-	node.classList.add(LIVE_REFRESH_CLASS);
-}
-
-function stopRefreshAnimation(node: HTMLElement) {
-	node.classList.remove(LIVE_REFRESH_CLASS);
-	node.classList.remove(SMOOTH_FADE_CLASS);
-}
-
-function applySmoothFade(node: HTMLElement) {
-	node.classList.remove(SMOOTH_FADE_CLASS);
-	requestAnimationFrame(() => {
-		node.classList.add(SMOOTH_FADE_CLASS);
-	});
-}
-
 export function streamingTailRefresh(node: HTMLElement, params: StreamingTailRefreshParams) {
-	let isActive = params.active;
-	let hasContent = params.value.length > 0;
-	let currentMode = params.mode ?? "classic";
-
-	setModeDataAttribute(node, currentMode);
-
-	if (isActive && hasContent) {
-		if (currentMode === "smooth") {
-			applySmoothFade(node);
+	function applyActive(active: boolean): void {
+		if (active) {
+			node.dataset.streamingActive = "true";
 		} else {
-			restartRefreshAnimation(node);
+			delete node.dataset.streamingActive;
 		}
 	}
 
+	applyActive(params.active && params.value.length > 0);
+
 	return {
 		update(next: StreamingTailRefreshParams) {
-			const nextMode = next.mode ?? "classic";
-			hasContent = next.value.length > 0;
-			setModeDataAttribute(node, nextMode);
-
-			if (!next.active || !hasContent) {
-				isActive = false;
-				currentMode = nextMode;
-				stopRefreshAnimation(node);
-				return;
-			}
-
-			if (nextMode === "smooth") {
-				if (!isActive || currentMode !== "smooth") {
-					node.classList.remove(LIVE_REFRESH_CLASS);
-					applySmoothFade(node);
-				}
-			} else {
-				if (currentMode === "smooth") {
-					node.classList.remove(SMOOTH_FADE_CLASS);
-					restartRefreshAnimation(node);
-				} else if (!isActive) {
-					restartRefreshAnimation(node);
-				}
-			}
-
-			isActive = true;
-			currentMode = nextMode;
+			applyActive(next.active && next.value.length > 0);
 		},
 		destroy() {
-			stopRefreshAnimation(node);
+			delete node.dataset.streamingActive;
 		},
 	};
 }
