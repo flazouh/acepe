@@ -1509,7 +1509,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("drops duplicate long assistant text chunks during streaming turns", () => {
+	it("does not drop duplicate long assistant text chunks during active streaming", () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "streaming",
@@ -1531,6 +1531,33 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, handler);
 		service.handleSessionUpdate(update, handler);
 
+		// During active streaming, never drop — the LLM may repeat phrases legitimately
+		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(2);
+	});
+
+	it("drops duplicate long assistant text chunks during replay (non-streaming turn)", () => {
+		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "idle",
+		});
+
+		const update: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "msg-dup-replay",
+			chunk: {
+				content: {
+					type: "text",
+					text: "Hi. How can I help you today? I see you are in the sample-go-project project.",
+				},
+			},
+		};
+
+		service.handleSessionUpdate(update, handler);
+		service.handleSessionUpdate(update, handler);
+
+		// During replay (non-streaming), drop duplicates within the window
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
 	});
 

@@ -298,7 +298,7 @@
 }
 
 .sd-word-fade {
-	animation: sd-fadeIn 150ms ease both;
+	animation: sd-fadeIn 500ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

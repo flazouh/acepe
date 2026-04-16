@@ -975,6 +975,11 @@ export class SessionEventService {
 				update.type === "userMessageChunk") &&
 			this.isLongTextChunk(update)
 		) {
+			// Never drop during active streaming — the batcher guarantees unique deltas.
+			// Dedup only applies during replay/reconnect (non-streaming turns).
+			if (turnState === "streaming") {
+				return false;
+			}
 			return isRapidDuplicate;
 		}
 		if (turnState !== undefined && turnState !== "idle") {
