@@ -1,195 +1,212 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import {
+	CSS_DRAIN_TIMEOUT_MS,
 	createStreamingRevealController,
 	type StreamingRevealController,
 } from "../create-streaming-reveal-controller.svelte.js";
 
-type QueuedFrame = {
-	id: number;
-	callback: FrameRequestCallback;
+type MotionChangeListener = NonNullable<MediaQueryList["onchange"]>;
+
+type MotionQueryStub = MediaQueryList & {
+	emitChange: (matches: boolean) => void;
 };
 
-let queuedFrames: QueuedFrame[] = [];
-let nextFrameId = 1;
-const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
-const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
-
-function flushNextFrame(timestamp: number): void {
-	const frame = queuedFrames.shift();
-	if (!frame) {
-		throw new Error("Expected a queued animation frame");
-	}
-	frame.callback(timestamp);
+function waitForDrain(): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, CSS_DRAIN_TIMEOUT_MS + 20);
+	});
 }
 
-function flushAllFrames(startTimestamp: number, stepMs: number): void {
-	let timestamp = startTimestamp;
-	while (queuedFrames.length > 0) {
-		flushNextFrame(timestamp);
-		timestamp += stepMs;
-	}
-}
-
-function createAndSeedController(mode: "classic" | "smooth" | "instant"): StreamingRevealController {
+function createAndSeedController(mode: "smooth" | "instant"): StreamingRevealController {
 	const controller = createStreamingRevealController(mode);
 	controller.setState("Already streamed text", true, { seedFromSource: true });
 	return controller;
 }
 
+function createMotionQueryStub(initialMatches: boolean): MotionQueryStub {
+	const listeners = new Set<MotionChangeListener>();
+	let currentMatches = initialMatches;
+
+	function addMotionListener(listener: MotionChangeListener | null): void {
+		if (listener !== null) {
+			listeners.add(listener);
+		}
+	}
+
+	function removeMotionListener(listener: MotionChangeListener | null): void {
+		if (listener !== null) {
+			listeners.delete(listener);
+		}
+	}
+
+	const stub: MotionQueryStub = {
+		get matches() {
+			return currentMatches;
+		},
+		media: "(prefers-reduced-motion: reduce)",
+		onchange: null,
+		addListener(listener: MotionChangeListener | null) {
+			addMotionListener(listener);
+		},
+		removeListener(listener: MotionChangeListener | null) {
+			removeMotionListener(listener);
+		},
+		addEventListener(_type: string, listener: EventListenerOrEventListenerObject | null) {
+			if (typeof listener === "function") {
+				addMotionListener(listener as MotionChangeListener);
+			}
+		},
+		removeEventListener(_type: string, listener: EventListenerOrEventListenerObject | null) {
+			if (typeof listener === "function") {
+				removeMotionListener(listener as MotionChangeListener);
+			}
+		},
+		dispatchEvent(_event) {
+			return true;
+		},
+		emitChange(matches) {
+			currentMatches = matches;
+			const event = { matches } as MediaQueryListEvent;
+			for (const listener of listeners) {
+				listener.call(stub, event);
+			}
+		},
+	};
+
+	return stub;
+}
+
+const originalMatchMedia = globalThis.matchMedia;
+let motionQueryStub = createMotionQueryStub(false);
+
 describe("createStreamingRevealController", () => {
 	beforeEach(() => {
-		queuedFrames = [];
-		nextFrameId = 1;
-		globalThis.requestAnimationFrame = (callback: FrameRequestCallback): number => {
-			const id = nextFrameId;
-			nextFrameId += 1;
-			queuedFrames.push({ id, callback });
-			return id;
-		};
-		globalThis.cancelAnimationFrame = (id: number): void => {
-			queuedFrames = queuedFrames.filter((frame) => frame.id !== id);
-		};
+		motionQueryStub = createMotionQueryStub(false);
+		globalThis.matchMedia = () => motionQueryStub;
 	});
 
 	afterEach(() => {
-		globalThis.requestAnimationFrame = originalRequestAnimationFrame;
-		globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+		globalThis.matchMedia = originalMatchMedia;
 	});
 
-	it("dispatches classic mode to the frame-by-frame reveal behavior", () => {
-		const controller = createStreamingRevealController("classic");
+	it("surfaces the full source text immediately while streaming", () => {
+		const controller = createStreamingRevealController("smooth");
 
 		controller.setState("Hello world", true);
-		expect(controller.mode).toBe("streaming");
-		expect(controller.displayedText).toBe("");
-		expect(queuedFrames.length).toBe(1);
 
-		flushNextFrame(16);
-		expect(controller.displayedText.length).toBeGreaterThan(0);
-		expect(controller.displayedText.length).toBeLessThan("Hello world".length);
+		expect(controller.displayedText).toBe("Hello world");
+		expect(controller.mode).toBe("streaming");
 		expect(controller.isRevealActive).toBe(true);
 	});
 
-	it("dispatches instant mode to surface the full source immediately", () => {
-		const controller = createStreamingRevealController("instant");
+	it("keeps displayedText in sync as streaming text grows rapidly", () => {
+		const controller = createStreamingRevealController("smooth");
+
+		controller.setState("Hello", true);
+		expect(controller.displayedText).toBe("Hello");
 
 		controller.setState("Hello world", true);
 		expect(controller.displayedText).toBe("Hello world");
+
+		controller.setState("Hello world again", true);
+		expect(controller.displayedText).toBe("Hello world again");
+	});
+
+	it("keeps reveal activity during streaming, then drains before going inactive", async () => {
+		const controller = createStreamingRevealController("smooth");
+
+		controller.setState("Hello world", true);
+		expect(controller.isRevealActive).toBe(true);
 		expect(controller.mode).toBe("streaming");
-		expect(controller.isRevealActive).toBe(false);
-		expect(queuedFrames.length).toBe(0);
 
 		controller.setState("Hello world", false);
 		expect(controller.displayedText).toBe("Hello world");
 		expect(controller.mode).toBe("complete");
+		expect(controller.isRevealActive).toBe(true);
+
+		await waitForDrain();
+
 		expect(controller.isRevealActive).toBe(false);
 	});
 
-	it("dispatches smooth mode to buffered batches that reveal more per flush than classic", () => {
-		const classic = createStreamingRevealController("classic");
-		const text = "x".repeat(320);
+	it("skips the drain window in instant mode", () => {
+		const controller = createStreamingRevealController("instant");
 
-		classic.setState(text, true);
-		flushNextFrame(16);
-		const classicLength = classic.displayedText.length;
-		expect(classicLength).toBeGreaterThan(0);
+		controller.setState("Hello world", true);
+		expect(controller.isRevealActive).toBe(true);
 
-		classic.destroy();
-		queuedFrames = [];
-		nextFrameId = 1;
+		controller.setState("Hello world", false);
 
-		const smooth = createStreamingRevealController("smooth");
-		smooth.setState(text, true);
+		expect(controller.mode).toBe("complete");
+		expect(controller.isRevealActive).toBe(false);
+	});
 
-		flushNextFrame(16);
-		flushNextFrame(32);
-		flushNextFrame(48);
-		flushNextFrame(64);
-		const smoothLength = smooth.displayedText.length;
-		expect(smoothLength).toBeGreaterThan(classicLength);
-		expect(smoothLength).toBeLessThan(text.length);
-		expect(smooth.isRevealActive).toBe(true);
+	it("skips the drain window when reduced motion is enabled", () => {
+		motionQueryStub = createMotionQueryStub(true);
+		globalThis.matchMedia = () => motionQueryStub;
+
+		const controller = createStreamingRevealController("smooth");
+		controller.setState("Hello world", true);
+		controller.setState("Hello world", false);
+
+		expect(controller.mode).toBe("complete");
+		expect(controller.isRevealActive).toBe(false);
+	});
+
+	it("cancels an active drain when mode switches to instant", () => {
+		const controller = createStreamingRevealController("smooth");
+
+		controller.setState("Hello world", true);
+		controller.setState("Hello world", false);
+		expect(controller.isRevealActive).toBe(true);
+
+		controller.setMode("instant");
+
+		expect(controller.mode).toBe("complete");
+		expect(controller.isRevealActive).toBe(false);
+	});
+
+	it("cancels an active drain when reduced motion turns on", () => {
+		const controller = createStreamingRevealController("smooth");
+
+		controller.setState("Hello world", true);
+		controller.setState("Hello world", false);
+		expect(controller.isRevealActive).toBe(true);
+
+		motionQueryStub.emitChange(true);
+
+		expect(controller.mode).toBe("complete");
+		expect(controller.isRevealActive).toBe(false);
 	});
 
 	it("supports seedFromSource and reset across all modes", () => {
-		const classic = createAndSeedController("classic");
 		const smooth = createAndSeedController("smooth");
 		const instant = createAndSeedController("instant");
 
-		expect(classic.displayedText).toBe("Already streamed text");
 		expect(smooth.displayedText).toBe("Already streamed text");
 		expect(instant.displayedText).toBe("Already streamed text");
 
-		classic.reset();
 		smooth.reset();
 		instant.reset();
 
-		expect(classic.displayedText).toBe("");
 		expect(smooth.displayedText).toBe("");
 		expect(instant.displayedText).toBe("");
-		expect(classic.mode).toBe("idle");
 		expect(smooth.mode).toBe("idle");
 		expect(instant.mode).toBe("idle");
 	});
 
-	it("converges on the full source and inactive state once streaming completes", () => {
-		const modes = ["classic", "smooth", "instant"] as const;
-		const text = "z".repeat(320);
+	it("returns to idle cleanly when streaming ends with empty text", () => {
+		const controller = createStreamingRevealController("smooth");
 
-		for (const mode of modes) {
-			queuedFrames = [];
-			nextFrameId = 1;
+		controller.setState("", true);
+		expect(controller.mode).toBe("streaming");
+		expect(controller.isRevealActive).toBe(true);
 
-			const controller = createStreamingRevealController(mode);
-			controller.setState(text, true);
+		controller.setState("", false);
 
-			if (mode !== "instant") {
-				flushNextFrame(16);
-				if (mode === "smooth") {
-					flushNextFrame(32);
-					flushNextFrame(48);
-					flushNextFrame(64);
-				}
-			}
-
-			controller.setState(text, false);
-			flushAllFrames(80, 16);
-
-			expect(controller.displayedText).toBe(text);
-			expect(controller.mode).toBe("complete");
-			expect(controller.isRevealActive).toBe(false);
-		}
-	});
-
-	it("uses reset semantics when the source is replaced instead of appended", () => {
-		const modes = ["classic", "smooth", "instant"] as const;
-
-		for (const mode of modes) {
-			queuedFrames = [];
-			nextFrameId = 1;
-
-			const controller = createStreamingRevealController(mode);
-			controller.setState("First message", true);
-			if (mode === "classic") {
-				flushNextFrame(16);
-			}
-			if (mode === "smooth") {
-				flushNextFrame(16);
-				flushNextFrame(32);
-				flushNextFrame(48);
-				flushNextFrame(64);
-			}
-
-			controller.setState("Second", true);
-			if (mode === "instant") {
-				expect(controller.displayedText).toBe("Second");
-				expect(controller.isRevealActive).toBe(false);
-			} else {
-				expect(controller.displayedText).toBe("");
-				expect(controller.mode).toBe("streaming");
-				expect(controller.isRevealActive).toBe(true);
-			}
-		}
+		expect(controller.displayedText).toBe("");
+		expect(controller.mode).toBe("idle");
+		expect(controller.isRevealActive).toBe(false);
 	});
 });

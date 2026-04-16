@@ -1,8 +1,6 @@
 import { promoteLiveMarkdownText, type LiveMarkdownPresentation } from "./live-markdown-promotion.js";
 import type { StreamingTailSection } from "./parse-streaming-tail.js";
-
-export const LIVE_MARKDOWN_RENDER_BUDGET_MS = 8;
-export const LIVE_MARKDOWN_RENDER_BREACH_LIMIT = 2;
+import { wrapWordsForAnimation } from "./wrap-words-for-animation.js";
 
 type RenderableStreamingSection = Extract<
 	StreamingTailSection,
@@ -11,11 +9,6 @@ type RenderableStreamingSection = Extract<
 
 export interface LiveMarkdownRenderResult {
 	html: string | null;
-	durationMs: number;
-}
-
-interface RenderLiveMarkdownOptions {
-	nowMs?: () => number;
 }
 
 const SAFE_LINK_PATTERN = /\[([^\]\n]+)\]\(([^)\n]+)\)/g;
@@ -28,10 +21,6 @@ const UNORDERED_LIST_PREFIX_PATTERN = /^\s*[-*+]\s+/;
 const ORDERED_LIST_PREFIX_PATTERN = /^\s*\d+\.\s+/;
 const FENCE_START_PATTERN = /^```([^\s`]+)?$/;
 const FENCE_END = "```";
-
-function getNowMs(): number {
-	return performance.now();
-}
 
 function escapeHtml(text: string): string {
 	return text
@@ -48,10 +37,17 @@ function createTokenHtml(htmlByToken: Map<string, string>, html: string): string
 	return token;
 }
 
-function restoreTokenHtml(text: string, htmlByToken: ReadonlyMap<string, string>): string {
+function restoreTokenHtml(
+	text: string,
+	htmlByToken: ReadonlyMap<string, string>,
+	animate: boolean
+): string {
 	let restored = text;
 	for (const [token, html] of htmlByToken.entries()) {
-		restored = restored.replaceAll(token, html);
+		// When animating, wrap each restored inline token in a fade span so the
+		// entire <strong>, <em>, <code>, or disabled link fades as a unit.
+		const replacement = animate ? `<span class="sd-word-fade">${html}</span>` : html;
+		restored = restored.replaceAll(token, replacement);
 	}
 	return restored;
 }
@@ -60,7 +56,7 @@ function isSafeExternalHref(href: string): boolean {
 	return href.startsWith("https://") || href.startsWith("http://");
 }
 
-function renderInlineMarkdown(text: string): string {
+function renderInlineMarkdown(text: string, animate: boolean): string {
 	const htmlByToken = new Map<string, string>();
 
 	let templated = text.replaceAll(CODE_SPAN_PATTERN, (_match: string, content: string) =>
@@ -91,7 +87,14 @@ function renderInlineMarkdown(text: string): string {
 			`${prefix}${createTokenHtml(htmlByToken, `<em>${escapeHtml(content)}</em>`)}`
 	);
 
-	return restoreTokenHtml(escapeHtml(templated), htmlByToken);
+	// Escape the plain text segments (placeholders are not escaped — they are
+	// literal ASCII and contain no HTML-special characters).
+	const escaped = escapeHtml(templated);
+
+	// Wrap plain-text words in fade spans when animation is enabled.
+	const wrapped = animate ? wrapWordsForAnimation(escaped) : escaped;
+
+	return restoreTokenHtml(wrapped, htmlByToken, animate);
 }
 
 function parseFencedCodeBlock(markdown: string): { language: string | null; code: string } | null {
@@ -120,28 +123,28 @@ function parseFencedCodeBlock(markdown: string): { language: string | null; code
 	};
 }
 
-function renderParagraph(markdown: string): string {
-	return `<p>${renderInlineMarkdown(markdown)}</p>`;
+function renderParagraph(markdown: string, animate: boolean): string {
+	return `<p>${renderInlineMarkdown(markdown, animate)}</p>`;
 }
 
-function renderHeading(markdown: string): string | null {
+function renderHeading(markdown: string, animate: boolean): string | null {
 	const match = HEADING_PATTERN.exec(markdown);
 	if (!match) {
 		return null;
 	}
 
 	const level = match[1].length;
-	return `<h${level}>${renderInlineMarkdown(match[2])}</h${level}>`;
+	return `<h${level}>${renderInlineMarkdown(match[2], animate)}</h${level}>`;
 }
 
-function renderBlockquote(markdown: string): string {
+function renderBlockquote(markdown: string, animate: boolean): string {
 	const lines = markdown
 		.split("\n")
 		.map((line) => line.replace(BLOCKQUOTE_PREFIX_PATTERN, ""));
-	return `<blockquote><p>${lines.map((line) => renderInlineMarkdown(line)).join("<br>")}</p></blockquote>`;
+	return `<blockquote><p>${lines.map((line) => renderInlineMarkdown(line, animate)).join("<br>")}</p></blockquote>`;
 }
 
-function renderList(markdown: string): string {
+function renderList(markdown: string, animate: boolean): string {
 	const lines = markdown.split("\n");
 	const isOrdered = ORDERED_LIST_PREFIX_PATTERN.test(lines[0]);
 	const tagName = isOrdered ? "ol" : "ul";
@@ -155,34 +158,37 @@ function renderList(markdown: string): string {
 			const itemText = isOrdered
 				? line.replace(ORDERED_LIST_PREFIX_PATTERN, "")
 				: line.replace(UNORDERED_LIST_PREFIX_PATTERN, "");
-			return `<li>${renderInlineMarkdown(itemText)}</li>`;
+			return `<li>${renderInlineMarkdown(itemText, animate)}</li>`;
 		})
 		.join("");
 	return `<${tagName}${startAttribute}>${itemsHtml}</${tagName}>`;
 }
 
-function renderPresentation(markdown: string, presentation: LiveMarkdownPresentation): string | null {
+function renderPresentation(
+	markdown: string,
+	presentation: LiveMarkdownPresentation,
+	animate: boolean
+): string | null {
 	if (presentation === "heading") {
-		return renderHeading(markdown);
+		return renderHeading(markdown, animate);
 	}
 
 	if (presentation === "blockquote") {
-		return renderBlockquote(markdown);
+		return renderBlockquote(markdown, animate);
 	}
 
 	if (presentation === "list") {
-		return renderList(markdown);
+		return renderList(markdown, animate);
 	}
 
-	return renderParagraph(markdown);
+	return renderParagraph(markdown, animate);
 }
 
 export function renderLiveMarkdownSection(
 	section: RenderableStreamingSection,
-	options: RenderLiveMarkdownOptions = {}
+	options: { animate?: boolean } = {}
 ): LiveMarkdownRenderResult {
-	const nowMs = options.nowMs ?? getNowMs;
-	const startedAt = nowMs();
+	const animate = options.animate ?? false;
 
 	const fencedCodeBlock =
 		section.kind === "settled" ? parseFencedCodeBlock(section.markdown) : null;
@@ -191,9 +197,10 @@ export function renderLiveMarkdownSection(
 			fencedCodeBlock.language === null
 				? ""
 				: ` data-language="${escapeHtml(fencedCodeBlock.language)}"`;
+		// Settled fenced code blocks get a block-level fade-in class (no per-word wrapping inside code).
+		const fadeClass = animate ? ' class="streaming-live-code sd-word-fade"' : ' class="streaming-live-code"';
 		return {
-			html: `<pre class="streaming-live-code"><code${languageAttribute}>${escapeHtml(fencedCodeBlock.code)}</code></pre>`,
-			durationMs: nowMs() - startedAt,
+			html: `<pre${fadeClass}><code${languageAttribute}>${escapeHtml(fencedCodeBlock.code)}</code></pre>`,
 		};
 	}
 
@@ -206,11 +213,10 @@ export function renderLiveMarkdownSection(
 			: promoteLiveMarkdownText(section.markdown);
 
 	if (promotion === null) {
-		return { html: null, durationMs: nowMs() - startedAt };
+		return { html: null };
 	}
 
 	return {
-		html: renderPresentation(promotion.markdown, promotion.presentation),
-		durationMs: nowMs() - startedAt,
+		html: renderPresentation(promotion.markdown, promotion.presentation, animate),
 	};
 }

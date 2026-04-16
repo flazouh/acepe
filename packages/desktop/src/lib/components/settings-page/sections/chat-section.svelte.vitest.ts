@@ -7,7 +7,7 @@ const setPreferInlineMock = vi.fn();
 
 const chatPrefs = {
 	thinkingBlockCollapsedByDefault: false,
-	streamingAnimationMode: "classic",
+	streamingAnimationMode: "smooth",
 	setThinkingBlockCollapsedByDefault: setThinkingBlockCollapsedByDefaultMock,
 	setStreamingAnimationMode: setStreamingAnimationModeMock,
 	isReady: true,
@@ -46,7 +46,7 @@ describe("ChatSection", () => {
 		setStreamingAnimationModeMock.mockReset();
 		setPreferInlineMock.mockReset();
 		chatPrefs.thinkingBlockCollapsedByDefault = false;
-		chatPrefs.streamingAnimationMode = "classic";
+		chatPrefs.streamingAnimationMode = "smooth";
 		planPrefs.preferInline = true;
 	});
 
@@ -57,7 +57,7 @@ describe("ChatSection", () => {
 		);
 
 		expect(trigger).not.toBeNull();
-		expect(trigger!.textContent).toContain("Classic");
+		expect(trigger!.textContent).toContain("Smooth");
 		expect(view.getByText("Choose how assistant text appears while it streams in.")).toBeTruthy();
 	});
 

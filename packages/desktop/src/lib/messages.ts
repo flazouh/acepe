@@ -387,17 +387,7 @@ export function settings_chat_streaming_animation_smooth(args: MessageArgs = {})
 export function settings_chat_streaming_animation_smooth_description(
 	args: MessageArgs = {}
 ): string {
-	return interpolate(`Buffered, calmer append with a subtle tail fade.`, args);
-}
-
-export function settings_chat_streaming_animation_classic(args: MessageArgs = {}): string {
-	return interpolate(`Classic`, args);
-}
-
-export function settings_chat_streaming_animation_classic_description(
-	args: MessageArgs = {}
-): string {
-	return interpolate(`Current typing-style incremental reveal.`, args);
+	return interpolate(`Fade in new streamed words as they arrive.`, args);
 }
 
 export function settings_chat_streaming_animation_instant(args: MessageArgs = {}): string {

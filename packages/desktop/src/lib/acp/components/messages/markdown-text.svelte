@@ -37,11 +37,7 @@ import {
 	parseStreamingTailIncremental,
 	type StreamingTailParseResult,
 } from "./logic/parse-streaming-tail.js";
-import {
-	LIVE_MARKDOWN_RENDER_BREACH_LIMIT,
-	LIVE_MARKDOWN_RENDER_BUDGET_MS,
-	renderLiveMarkdownSection,
-} from "./logic/render-live-markdown.js";
+import { renderLiveMarkdownSection } from "./logic/render-live-markdown.js";
 import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
 import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
@@ -56,8 +52,6 @@ const STREAMING_SYNC_RESULT = {
 } satisfies SyncRenderResult;
 
 const EMPTY_STREAMING_TAIL = { sections: [] } satisfies StreamingTailParseResult;
-const seededRevealKeys = new Set<string>();
-const latchedRevealModes = new Map<string, StreamingAnimationMode>();
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -89,7 +83,7 @@ interface Props {
 let {
 	text,
 	isStreaming = false,
-	revealKey,
+	revealKey: _revealKey,
 	projectPath: propProjectPath,
 	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
 	onRevealActivityChange,
@@ -107,26 +101,15 @@ let markdownContainerRef: HTMLDivElement | null = $state(null);
 
 let gitStatusByPath = $state<ReadonlyMap<string, FileGitStatus> | null>(null);
 let lastGitStatusRequestKey = "";
-function resolveRevealMode(): StreamingAnimationMode {
-	if (revealKey !== undefined) {
-		const latchedMode = latchedRevealModes.get(revealKey);
-		if (latchedMode !== undefined) {
-			return latchedMode;
-		}
-	}
-
-	return streamingAnimationMode;
-}
-
-// Controller is created once at component init using the current mode.
-// The latch (set in the streaming $effect) always matches the prop value at latch time,
-// so there's no divergence between controller type and latched mode.
-const reveal: StreamingRevealController = createStreamingRevealController(untrack(() => streamingAnimationMode));
+const reveal: StreamingRevealController = createStreamingRevealController(
+	untrack(() => streamingAnimationMode)
+);
 let hasStreamingSession = $state(false);
-let hasObservedRevealSource = $state(false);
+let wasStreaming = false;
 let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
 let lastStreamingTailText = "";
 let lastStreamingTailResult: StreamingTailParseResult = EMPTY_STREAMING_TAIL;
+const shouldAnimateStreaming = $derived(streamingAnimationMode !== "instant");
 
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
@@ -160,48 +143,42 @@ function htmlNeedsBadgeMount(html: string | null): boolean {
 }
 
 $effect(() => {
+	reveal.setMode(streamingAnimationMode);
+});
+
+$effect(() => {
 	if (isStreaming) {
-		const seedFromSource =
-			!hasObservedRevealSource &&
-			text.length > 0 &&
-			revealKey !== undefined &&
-			seededRevealKeys.has(revealKey);
 		hasStreamingSession = true;
-		if (revealKey !== undefined && !latchedRevealModes.has(revealKey)) {
-			latchedRevealModes.set(revealKey, streamingAnimationMode);
-		}
-		reveal.setState(text, true, { seedFromSource });
-		hasObservedRevealSource = true;
-		if (revealKey !== undefined) {
-			seededRevealKeys.add(revealKey);
-		}
+		wasStreaming = true;
+		reveal.setState(text, true);
 		return;
 	}
 
 	if (!hasStreamingSession) {
 		reveal.reset();
-		hasObservedRevealSource = text.length > 0;
-		if (revealKey !== undefined) {
-			seededRevealKeys.delete(revealKey);
-			latchedRevealModes.delete(revealKey);
+		return;
+	}
+
+	if (wasStreaming) {
+		wasStreaming = false;
+		reveal.setState(text, false);
+		return;
+	}
+
+	if (reveal.isRevealActive) {
+		if (reveal.displayedText !== text) {
+			reveal.setState(text, false);
 		}
 		return;
 	}
 
-	reveal.setState(text, false);
-	hasObservedRevealSource = true;
-	if (!reveal.isRevealActive) {
+	if (!isStreaming) {
 		hasStreamingSession = false;
+		reveal.reset();
 	}
 });
 
 const isRenderingReveal = $derived(isStreaming || reveal.isRevealActive);
-const showStreamingCursor = $derived(
-	resolveRevealMode() === "classic" &&
-		(reveal.mode === "streaming" ||
-			reveal.mode === "paused-awaiting-more" ||
-			reveal.mode === "completion-catchup")
-);
 
 $effect(() => {
 	onRevealActivityChange?.(isRenderingReveal);
@@ -211,10 +188,6 @@ $effect(() => {
 	return () => {
 		onRevealActivityChange?.(false);
 		reveal.destroy();
-		if (revealKey !== undefined) {
-			seededRevealKeys.delete(revealKey);
-			latchedRevealModes.delete(revealKey);
-		}
 	};
 });
 
@@ -343,19 +316,8 @@ const visibleHtml = $derived.by(() => {
 const error = $derived(asyncError);
 const isLoading = $derived(syncResult.needsAsync && asyncPending);
 
-interface StreamingLiveMarkdownState {
-	html: string;
-	renderedText: string;
-	overBudgetStreak: number;
-	isFrozen: boolean;
-	tailText: string;
-}
-
 let streamingSettledHtmlByKey = $state<ReadonlyMap<string, string>>(new Map());
-let streamingLiveMarkdownByKey = $state<ReadonlyMap<string, StreamingLiveMarkdownState>>(new Map());
-const hasLiveStreamingSection = $derived(
-	streamingTail.sections.some((section) => section.kind !== "settled")
-);
+let streamingLiveMarkdownByKey = $state<ReadonlyMap<string, string>>(new Map());
 
 // Parse content blocks from HTML (extracts mermaid, github badges, etc.)
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
@@ -419,9 +381,8 @@ $effect(() => {
 	}
 
 	const previousSettledHtmlByKey = untrack(() => streamingSettledHtmlByKey);
-	const previousLiveMarkdownByKey = untrack(() => streamingLiveMarkdownByKey);
 	const nextSettledHtmlByKey = new Map<string, string>();
-	const nextLiveMarkdownByKey = new Map<string, StreamingLiveMarkdownState>();
+	const nextLiveMarkdownByKey = new Map<string, string>();
 	for (const section of streamingTail.sections) {
 		if (section.kind === "settled") {
 			const cachedHtml = previousSettledHtmlByKey.get(section.key);
@@ -430,7 +391,7 @@ $effect(() => {
 				continue;
 			}
 
-			const result = renderLiveMarkdownSection(section);
+			const result = renderLiveMarkdownSection(section, { animate: false });
 			if (result.html !== null) {
 				nextSettledHtmlByKey.set(section.key, result.html);
 			}
@@ -441,49 +402,14 @@ $effect(() => {
 			continue;
 		}
 
-		const previousState = previousLiveMarkdownByKey.get(section.key);
-		if (previousState?.isFrozen) {
-			nextLiveMarkdownByKey.set(section.key, {
-				html: previousState.html,
-				renderedText: previousState.renderedText,
-				overBudgetStreak: previousState.overBudgetStreak,
-				isFrozen: true,
-				tailText: section.text.slice(previousState.renderedText.length),
-			});
-			continue;
-		}
-
-		const result = renderLiveMarkdownSection(section);
+		const result = renderLiveMarkdownSection(section, {
+			animate: shouldAnimateStreaming,
+		});
 		if (result.html === null) {
 			continue;
 		}
 
-		const overBudgetStreak =
-			result.durationMs > LIVE_MARKDOWN_RENDER_BUDGET_MS
-				? (previousState?.overBudgetStreak ?? 0) + 1
-				: 0;
-		const shouldFreeze =
-			previousState !== undefined &&
-			overBudgetStreak >= LIVE_MARKDOWN_RENDER_BREACH_LIMIT;
-
-		if (shouldFreeze) {
-			nextLiveMarkdownByKey.set(section.key, {
-				html: previousState.html,
-				renderedText: previousState.renderedText,
-				overBudgetStreak,
-				isFrozen: true,
-				tailText: section.text.slice(previousState.renderedText.length),
-			});
-			continue;
-		}
-
-		nextLiveMarkdownByKey.set(section.key, {
-			html: result.html,
-			renderedText: section.text,
-			overBudgetStreak,
-			isFrozen: false,
-			tailText: "",
-		});
+		nextLiveMarkdownByKey.set(section.key, result.html);
 	}
 
 	streamingSettledHtmlByKey = nextSettledHtmlByKey;
@@ -623,8 +549,7 @@ function handleKeydown(event: KeyboardEvent) {
 		onclick={handleClick}
 		onkeydown={handleKeydown}
 	>
-		{#each streamingTail.sections as section, index (section.key)}
-			{@const isLastSection = index === streamingTail.sections.length - 1}
+		{#each streamingTail.sections as section (section.key)}
 			<div
 				class="streaming-section"
 				data-streaming-section-key={section.key}
@@ -637,7 +562,6 @@ function handleKeydown(event: KeyboardEvent) {
 							: section.kind === "live-code"
 								? section.code
 								: section.text,
-					mode: resolveRevealMode(),
 				}}
 			>
 				{#if section.kind === "settled"}
@@ -648,33 +572,24 @@ function handleKeydown(event: KeyboardEvent) {
 						<div class="streaming-live-text whitespace-pre-wrap">{section.markdown}</div>
 					{/if}
 				{:else if section.kind === "live-code"}
-					<pre class="streaming-live-code"><code>{section.code}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</code></pre>
+					<div
+						class:sd-word-fade={shouldAnimateStreaming}
+						class="streaming-live-code-shell"
+					>
+						<pre class="streaming-live-code"><code>{section.code}</code></pre>
+					</div>
 				{:else if section.kind === "live-markdown"}
 					{@const liveMarkdown = streamingLiveMarkdownByKey.get(section.key)}
 					{#if liveMarkdown}
-						{@html liveMarkdown.html}
-						{#if liveMarkdown.tailText.length > 0}
-							<div class="streaming-live-fallback-tail whitespace-pre-wrap">
-								{liveMarkdown.tailText}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}
-							</div>
-						{:else if showStreamingCursor && isLastSection}
-							<div class="streaming-live-cursor-shell" aria-hidden="true">
-								<span class="streaming-live-cursor"></span>
-							</div>
-						{/if}
+						{@html liveMarkdown}
 					{:else}
-						<div class="streaming-live-text whitespace-pre-wrap">{section.text}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</div>
+						<div class="streaming-live-text whitespace-pre-wrap">{section.text}</div>
 					{/if}
 				{:else}
-					<div class="streaming-live-text whitespace-pre-wrap">{section.text}{#if showStreamingCursor && isLastSection}<span class="streaming-live-cursor" aria-hidden="true"></span>{/if}</div>
+					<div class="streaming-live-text whitespace-pre-wrap">{section.text}</div>
 				{/if}
 			</div>
 		{/each}
-		{#if showStreamingCursor && !hasLiveStreamingSection}
-			<div class="streaming-live-text whitespace-pre-wrap">
-				<span class="streaming-live-cursor" aria-hidden="true"></span>
-			</div>
-		{/if}
 	</div>
 {:else if isLoading}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
@@ -694,58 +609,11 @@ function handleKeydown(event: KeyboardEvent) {
 		opacity: 0.7;
 	}
 
-	.streaming-live-cursor {
-		display: inline-block;
-		width: 0.55ch;
-		height: 1em;
-		margin-left: 0.1ch;
-		vertical-align: -0.1em;
-		background: currentColor;
-		opacity: 0.45;
-		animation: streaming-live-cursor 1s steps(1, end) infinite;
-	}
-
-	@keyframes streaming-live-cursor {
-		0%,
-		49% {
-			opacity: 0.45;
-		}
-
-		50%,
-		100% {
-			opacity: 0;
-		}
-	}
-
-	:global(.streaming-section.streaming-smooth-fade) {
-		animation: smoothFadeIn 300ms ease-out;
-	}
-
 	:global(.streaming-live-link.is-disabled) {
 		color: var(--color-primary);
 		cursor: text;
 		opacity: 0.85;
 		pointer-events: none;
 		text-decoration: underline;
-	}
-
-	.streaming-live-fallback-tail,
-	.streaming-live-cursor-shell {
-		display: inline;
-	}
-
-	@keyframes smoothFadeIn {
-		from {
-			opacity: 0.4;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.streaming-live-cursor {
-			animation: none;
-		}
 	}
 </style>

@@ -1,10 +1,8 @@
 export const STREAMING_ANIMATION_MODE_SMOOTH = "smooth";
-export const STREAMING_ANIMATION_MODE_CLASSIC = "classic";
 export const STREAMING_ANIMATION_MODE_INSTANT = "instant";
 
 export const STREAMING_ANIMATION_MODES = [
 	STREAMING_ANIMATION_MODE_SMOOTH,
-	STREAMING_ANIMATION_MODE_CLASSIC,
 	STREAMING_ANIMATION_MODE_INSTANT,
 ] as const;
 
@@ -14,11 +12,7 @@ export const DEFAULT_STREAMING_ANIMATION_MODE: StreamingAnimationMode =
 	STREAMING_ANIMATION_MODE_SMOOTH;
 
 function isStreamingAnimationMode(value: string): value is StreamingAnimationMode {
-	return (
-		value === STREAMING_ANIMATION_MODE_SMOOTH ||
-		value === STREAMING_ANIMATION_MODE_CLASSIC ||
-		value === STREAMING_ANIMATION_MODE_INSTANT
-	);
+	return value === STREAMING_ANIMATION_MODE_SMOOTH || value === STREAMING_ANIMATION_MODE_INSTANT;
 }
 
 export function normalizeStreamingAnimationMode(
@@ -32,8 +26,8 @@ export function normalizeStreamingAnimationMode(
 		return value;
 	}
 
-	if (value === "typewriter") {
-		return STREAMING_ANIMATION_MODE_CLASSIC;
+	if (value === "classic" || value === "typewriter") {
+		return STREAMING_ANIMATION_MODE_SMOOTH;
 	}
 
 	if (value === "none") {

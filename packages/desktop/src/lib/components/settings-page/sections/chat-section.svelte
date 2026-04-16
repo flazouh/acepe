@@ -2,7 +2,6 @@
 import { getChatPreferencesStore } from "$lib/acp/store/chat-preferences-store.svelte.js";
 import { getPlanPreferenceStore } from "$lib/acp/store/plan-preference-store.svelte.js";
 import {
-	STREAMING_ANIMATION_MODE_CLASSIC,
 	STREAMING_ANIMATION_MODE_INSTANT,
 	STREAMING_ANIMATION_MODE_SMOOTH,
 	type StreamingAnimationMode,
@@ -26,11 +25,6 @@ const streamingAnimationOptions: ReadonlyArray<{
 		value: STREAMING_ANIMATION_MODE_SMOOTH,
 		label: m.settings_chat_streaming_animation_smooth(),
 		description: m.settings_chat_streaming_animation_smooth_description(),
-	},
-	{
-		value: STREAMING_ANIMATION_MODE_CLASSIC,
-		label: m.settings_chat_streaming_animation_classic(),
-		description: m.settings_chat_streaming_animation_classic_description(),
 	},
 	{
 		value: STREAMING_ANIMATION_MODE_INSTANT,
@@ -160,21 +154,6 @@ const selectedLabel = $derived(
 		0%, 8% { opacity: 0; }
 		22%, 58% { opacity: 0.35; }
 		76%, 100% { opacity: 0; }
-	}
-
-	/* Classic: staggered instant pop */
-	.preview-classic > :global(div) {
-		animation: classic-reveal 2.8s step-end infinite;
-	}
-	.preview-classic > :global(div:nth-child(1)) { animation-delay: 0ms; }
-	.preview-classic > :global(div:nth-child(2)) { animation-delay: 280ms; }
-	.preview-classic > :global(div:nth-child(3)) { animation-delay: 560ms; }
-	.preview-classic > :global(div:nth-child(4)) { animation-delay: 840ms; }
-
-	@keyframes classic-reveal {
-		0%, 12% { opacity: 0; }
-		13%, 58% { opacity: 0.35; }
-		59%, 100% { opacity: 0; }
 	}
 
 	/* Instant: all at once */

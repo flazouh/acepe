@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
-	STREAMING_ANIMATION_MODE_CLASSIC,
 	STREAMING_ANIMATION_MODE_INSTANT,
 	STREAMING_ANIMATION_MODE_SMOOTH,
 } from "../../types/streaming-animation-mode.js";
@@ -45,21 +44,21 @@ describe("ChatPreferencesStore", () => {
 	});
 
 	it("loads persisted thinking and streaming animation preferences", async () => {
-		getSettingMock.mockReturnValueOnce(okAsync(true)).mockReturnValueOnce(okAsync("classic"));
+		getSettingMock.mockReturnValueOnce(okAsync(true)).mockReturnValueOnce(okAsync("smooth"));
 
 		const store = new ChatPreferencesStore();
 		await store.initialize();
 
 		expect(store.thinkingBlockCollapsedByDefault).toBe(true);
-		expect(store.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_CLASSIC);
+		expect(store.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
 	});
 
-	it("maps legacy streaming animation values into the new three-mode model", async () => {
+	it("maps legacy streaming animation values into the smooth/instant model", async () => {
 		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("typewriter"));
 
 		const classicStore = new ChatPreferencesStore();
 		await classicStore.initialize();
-		expect(classicStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_CLASSIC);
+		expect(classicStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
 
 		vi.resetModules();
 		vi.doMock("$lib/utils/tauri-client.js", () => ({
