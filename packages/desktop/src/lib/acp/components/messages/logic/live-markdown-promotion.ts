@@ -12,9 +12,6 @@ const HEADING_PATTERN = /^#{1,6}\s+\S/;
 const BLOCKQUOTE_PATTERN = /^\s*>\s?.+/;
 const UNORDERED_LIST_PATTERN = /^\s*[-*+]\s+(?!\[[ xX]\])\S/;
 const ORDERED_LIST_PATTERN = /^\s*\d+\.\s+\S/;
-const CODE_SPAN_PATTERN = /`[^`\n]+`/g;
-const STRONG_ASTERISK_PATTERN = /\*\*[^*\n]+\*\*/g;
-const EMPHASIS_ASTERISK_PATTERN = /(^|[^*])\*[^*\n]+\*(?!\*)/g;
 
 function classifyPresentation(text: string): LiveMarkdownPresentation {
 	const lines = text.split("\n");
@@ -46,12 +43,6 @@ function removeSafeLinks(text: string): string {
 	});
 }
 
-function removeClosedInlineFormatting(text: string): string {
-	const withoutCode = text.replaceAll(CODE_SPAN_PATTERN, "");
-	const withoutStrong = withoutCode.replaceAll(STRONG_ASTERISK_PATTERN, "");
-	return withoutStrong.replaceAll(EMPHASIS_ASTERISK_PATTERN, (_match: string, prefix: string) => prefix);
-}
-
 function hasUnsafeLinkSyntax(text: string): boolean {
 	const withoutSafeLinks = removeSafeLinks(text);
 
@@ -60,11 +51,6 @@ function hasUnsafeLinkSyntax(text: string): boolean {
 	}
 
 	return withoutSafeLinks.includes("[") || withoutSafeLinks.includes("](");
-}
-
-function hasAmbiguousInlineFormatting(text: string): boolean {
-	const withoutClosedFormatting = removeClosedInlineFormatting(text);
-	return withoutClosedFormatting.includes("*") || withoutClosedFormatting.includes("`");
 }
 
 export function promoteLiveMarkdownText(text: string): LiveMarkdownPromotion | null {
@@ -87,7 +73,7 @@ export function promoteLiveMarkdownText(text: string): LiveMarkdownPromotion | n
 		return null;
 	}
 
-	if (hasUnsafeLinkSyntax(text) || hasAmbiguousInlineFormatting(text)) {
+	if (hasUnsafeLinkSyntax(text)) {
 		return null;
 	}
 
