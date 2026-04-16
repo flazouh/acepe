@@ -1,109 +1,135 @@
 <script lang="ts">
-import { X } from "phosphor-svelte";
-import { untrack } from "svelte";
-import { Kbd } from "$lib/components/ui/kbd/index.js";
-import * as m from "$lib/messages.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+	import { onMount } from "svelte";
+	import { X } from "phosphor-svelte";
+	import { Kbd } from "$lib/components/ui/kbd/index.js";
+	import { Spinner } from "$lib/components/ui/spinner/index.js";
+	import * as m from "$lib/messages.js";
+	import { tauriClient } from "$lib/utils/tauri-client.js";
 
-interface Props {
-	projectPath: string;
-}
+	interface Props {
+		projectPath: string;
+	}
 
-let { projectPath }: Props = $props();
+	let { projectPath }: Props = $props();
 
-let commands = $state<string[]>([]);
-let newCommand = $state("");
-let inputEl = $state<HTMLInputElement | null>(null);
+	type Status = "loading" | "ready" | "error";
 
-$effect(() => {
-	const path = projectPath;
-	let cancelled = false;
-	void tauriClient.git.loadWorktreeConfig(path).match(
-		(config) => {
-			if (cancelled) return;
-			untrack(() => {
+	let status = $state<Status>("loading");
+	let commands = $state<string[]>([]);
+	let newCommand = $state("");
+	let inputEl = $state<HTMLInputElement | null>(null);
+	let isSaving = $state(false);
+
+	async function load() {
+		status = "loading";
+		await tauriClient.git.loadWorktreeConfig(projectPath).match(
+			(config) => {
 				commands = [...(config?.setupCommands ?? [])];
-			});
-		},
-		() => {}
-	);
-	return () => {
-		cancelled = true;
-	};
-});
-
-function save() {
-	void tauriClient.git.saveWorktreeConfig(projectPath, $state.snapshot(commands));
-}
-
-function addCommand() {
-	const trimmed = newCommand.trim();
-	if (!trimmed) return;
-	if (commands.includes(trimmed)) {
-		newCommand = "";
-		return;
+				status = "ready";
+			},
+			() => {
+				status = "error";
+			}
+		);
 	}
-	commands.push(trimmed);
-	newCommand = "";
-	save();
-	inputEl?.focus();
-}
 
-function removeCommand(index: number) {
-	commands.splice(index, 1);
-	save();
-}
+	onMount(() => {
+		void load();
+	});
 
-function handleKeydown(event: KeyboardEvent) {
-	if (event.key === "Enter") {
-		event.preventDefault();
-		addCommand();
-	} else if (event.key === "Escape") {
-		newCommand = "";
-		inputEl?.blur();
+	async function persistCommands(nextCommands: string[]) {
+		isSaving = true;
+		await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
+			() => {
+				isSaving = false;
+			},
+			() => {
+				isSaving = false;
+			}
+		);
 	}
-}
+
+	async function addCommand() {
+		const trimmed = newCommand.trim();
+		if (!trimmed) return;
+		if (commands.includes(trimmed)) {
+			newCommand = "";
+			return;
+		}
+		const next = [...commands, trimmed];
+		commands = next;
+		newCommand = "";
+		await persistCommands(next);
+		inputEl?.focus();
+	}
+
+	async function removeCommand(index: number) {
+		const next = commands.filter((_, i) => i !== index);
+		commands = next;
+		await persistCommands(next);
+	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === "Enter") {
+			event.preventDefault();
+			void addCommand();
+		} else if (event.key === "Escape") {
+			newCommand = "";
+			inputEl?.blur();
+		}
+	}
+
+	let hasCommands = $derived(commands.length > 0);
 </script>
 
-<div class="overflow-hidden rounded-sm border border-border bg-muted/30">
-	{#if commands.length > 0}
-		<ul class="list-none m-0 p-0" role="list">
-			{#each commands as command, index (command + index)}
-				<li
-					class="group flex items-center px-3 py-1.5 border-b border-border/30 last:border-b-0"
-				>
-					<span class="mr-1.5 select-none font-mono text-[12px] text-muted-foreground/40"
-						>$</span
-					>
-					<span class="min-w-0 flex-1 truncate font-mono text-[12px]">{command}</span>
-					<button
-						type="button"
-						class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-0.5 rounded-sm text-muted-foreground/40 hover:text-foreground"
-						aria-label="Remove command: {command}"
-						onclick={() => removeCommand(index)}
-					>
-						<X class="h-3.5 w-3.5" />
-					</button>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	<div class="h-8 border-t border-border/50 flex items-center px-3 gap-1.5">
-		<input
-			bind:this={inputEl}
-			type="text"
-			bind:value={newCommand}
-			placeholder={m.settings_worktrees_add_placeholder()}
-			class="flex-1 bg-transparent font-mono text-[12px] outline-none placeholder:text-[12px] placeholder:text-muted-foreground/30"
-			onkeydown={handleKeydown}
-		/>
-		{#if newCommand.trim()}
-			<Kbd class="shrink-0">↵</Kbd>
-		{/if}
+{#if status === "loading"}
+	<div class="flex items-center justify-center py-3">
+		<Spinner class="h-3 w-3 text-muted-foreground/50" />
 	</div>
-</div>
+{:else if status === "error"}
+	<button
+		type="button"
+		class="w-full py-2 text-center text-[0.6875rem] text-muted-foreground hover:text-foreground transition-colors"
+		onclick={() => void load()}
+	>
+		{m.setup_scripts_load_failed_title()} · {m.setup_scripts_retry_label()}
+	</button>
+{:else}
+	<div class="overflow-hidden rounded-md bg-foreground/5">
+		{#each commands as command, index (command + index)}
+			<div
+				class="group flex items-center gap-1.5 px-2.5 py-1.5"
+				class:opacity-50={isSaving}
+			>
+				<span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-foreground/80">{command}</span>
+				<button
+					type="button"
+					class="shrink-0 rounded p-0.5 text-muted-foreground/30 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 disabled:pointer-events-none"
+					disabled={isSaving}
+					aria-label="Remove command: {command}"
+					onclick={() => void removeCommand(index)}
+				>
+					<X size={10} />
+				</button>
+			</div>
+		{/each}
 
-<p class="mt-1.5 text-[11px] text-muted-foreground/30">
-	{m.settings_worktrees_config_hint()}
-</p>
+		<div
+			class="flex items-center gap-1.5 px-2.5 py-1.5 {hasCommands ? 'border-t border-foreground/5' : ''}"
+			class:opacity-50={isSaving}
+		>
+			<input
+				bind:this={inputEl}
+				type="text"
+				bind:value={newCommand}
+				placeholder={hasCommands ? m.setup_scripts_add_placeholder() : m.settings_worktrees_setup_description()}
+				disabled={isSaving}
+				class="min-w-0 flex-1 bg-transparent font-mono text-[0.6875rem] text-foreground/80 outline-none placeholder:text-muted-foreground/30 disabled:cursor-not-allowed"
+				onkeydown={handleKeydown}
+			/>
+			{#if newCommand.trim()}
+				<Kbd class="shrink-0">enter</Kbd>
+			{/if}
+		</div>
+	</div>
+{/if}

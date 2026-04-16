@@ -87,6 +87,7 @@ zed
 .auto-claude/
 
 # Git worktrees (local development)
+.worktree-host/
 .worktrees/
 .claude/worktrees/
 .worktrees
@@ -101,6 +102,8 @@ packages/desktop/docs/plans/
 
 # Scratch / test debris
 file.txt
+staged.txt
+tracked.txt
 nested/
 
 # Local tool configs (machine-specific)

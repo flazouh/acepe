@@ -59,12 +59,32 @@ const commandHtmls = $derived(
 				.filter((h): h is string => h !== null)
 		: []
 );
+
+const strippedStdout = $derived(
+	parsedResult.stdout ? stripAnsiCodes(parsedResult.stdout) : null
+);
+const strippedStderr = $derived(
+	parsedResult.stderr ? stripAnsiCodes(parsedResult.stderr) : null
+);
+
+const stdoutHtml = $derived(
+	bashHighlighter.ready && strippedStdout
+		? (bashHighlighter.highlightOutput(strippedStdout) ?? undefined)
+		: undefined
+);
+const stderrHtml = $derived(
+	bashHighlighter.ready && strippedStderr
+		? (bashHighlighter.highlightOutput(strippedStderr) ?? undefined)
+		: undefined
+);
 </script>
 
 <AgentToolExecute
 	command={extractedCommand}
-	stdout={parsedResult.stdout ? stripAnsiCodes(parsedResult.stdout) : null}
-	stderr={parsedResult.stderr ? stripAnsiCodes(parsedResult.stderr) : null}
+	stdout={strippedStdout}
+	stderr={strippedStderr}
+	{stdoutHtml}
+	{stderrHtml}
 	exitCode={parsedResult.exitCode}
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}

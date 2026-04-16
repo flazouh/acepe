@@ -9,6 +9,12 @@ import {
 
 type ShikiHighlighter = Awaited<ReturnType<typeof createHighlighter>>;
 
+function stripPreCodeWrapper(html: string): string {
+	return html
+		.replace(/^<pre[^>]*><code>/, "")
+		.replace(/<\/code><\/pre>$/, "");
+}
+
 let ready = $state(false);
 let highlighter: ShikiHighlighter | null = null;
 let darkThemeName = "";
@@ -27,7 +33,7 @@ loadCursorTheme()
 		ResultAsync.fromPromise(
 			createHighlighter({
 				themes: [dark, light],
-				langs: ["bash"],
+				langs: ["bash", "log"],
 			}),
 			(e) => (e instanceof Error ? e : new Error(String(e)))
 		)
@@ -68,9 +74,25 @@ export const bashHighlighter = {
 			defaultColor: false,
 		});
 
-		// Strip <pre class="shiki ..."><code>...</code></pre> wrapper
-		return html
-			.replace(/^<pre[^>]*><code>/, "")
-			.replace(/<\/code><\/pre>$/, "");
+		return stripPreCodeWrapper(html);
+	},
+
+	/**
+	 * Highlight terminal tool output (stdout/stderr) with the log grammar.
+	 * Preserves content as-is (no trim). Same dual-theme CSS variables as commands.
+	 */
+	highlightOutput(code: string): string | null {
+		if (!highlighter) return null;
+
+		const html = highlighter.codeToHtml(code, {
+			lang: "log",
+			themes: {
+				dark: darkThemeName,
+				light: lightThemeName,
+			},
+			defaultColor: false,
+		});
+
+		return stripPreCodeWrapper(html);
 	},
 };

@@ -18,6 +18,10 @@
 		durationLabel?: string;
 		/** Pre-highlighted HTML per command segment (e.g. from Shiki). Overrides built-in tokenizer. */
 		commandHtmls?: string[];
+		/** Pre-highlighted HTML for stdout (e.g. Shiki log). When a string, replaces plain stdout. */
+		stdoutHtml?: string | null;
+		/** Pre-highlighted HTML for stderr (e.g. Shiki log). When a string, replaces plain stderr. */
+		stderrHtml?: string | null;
 		/** Label shown while command is running (shimmer) */
 		runningLabel?: string;
 		/** Label shown after command finishes */
@@ -36,6 +40,8 @@
 		status = "done",
 		durationLabel,
 		commandHtmls,
+		stdoutHtml,
+		stderrHtml,
 		runningLabel = "Executing…",
 		finishedLabel = "Executed",
 		ariaCollapseOutput = "Collapse output",
@@ -47,7 +53,9 @@
 	const isPending = $derived(status === "pending" || status === "running");
 	const isSuccess = $derived(exitCode === 0);
 	const isError = $derived(exitCode !== undefined && exitCode !== 0);
-	const hasOutput = $derived(Boolean(stdout || stderr));
+	const hasOutput = $derived(
+		Boolean(stdout || stderr || stdoutHtml || stderrHtml)
+	);
 
 	const segments = $derived(command ? splitCommandSegments(command) : []);
 	const fallbackHtmls = $derived(
@@ -59,11 +67,21 @@
 	);
 	const displayHtmls = $derived(useShiki ? commandHtmls! : fallbackHtmls);
 
+	const headerText = $derived.by(() => {
+		if (isPending) {
+			return durationLabel ? `Executing for ${durationLabel}` : runningLabel;
+		}
+		return durationLabel ? `Executed in ${durationLabel}` : finishedLabel;
+	});
+
 	const stderrColor = $derived(
 		exitCode === 0 || exitCode === undefined
 			? "execute-stderr-warn"
 			: "execute-stderr-err"
 	);
+
+	const useStdoutShiki = $derived(typeof stdoutHtml === "string");
+	const useStderrShiki = $derived(typeof stderrHtml === "string");
 
 	/** Svelte action: scroll element to bottom on mount and content changes */
 	function scrollToEnd(node: HTMLElement) {
@@ -87,20 +105,15 @@
 
 		{#if isPending}
 			<TextShimmer class="flex-1 text-xs leading-none">
-				{runningLabel}
+				{headerText}
 			</TextShimmer>
 		{:else}
 			<span class="flex-1 text-xs text-muted-foreground">
-				{finishedLabel}
+				{headerText}
 			</span>
 		{/if}
 
 		<div class="ml-auto flex shrink-0 items-center gap-1.5">
-			{#if durationLabel}
-				<span class="font-mono text-[10px] tabular-nums {isPending ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
-					{durationLabel}
-				</span>
-			{/if}
 
 			{#if isSuccess}
 				<CheckCircle weight="fill" size={12} class="text-success" />
@@ -153,11 +166,23 @@
 				{isExpanded ? 'execute-output-expanded' : 'execute-output-collapsed'}
 				{!isExpanded ? 'cursor-pointer' : ''}"
 		>
-			{#if stdout}
-				<pre class="execute-output">{stdout}</pre>
+			{#if stdout || stdoutHtml}
+				{#if useStdoutShiki}
+					<div class="execute-output-shiki">{@html stdoutHtml}</div>
+				{:else}
+					<pre class="execute-output">{stdout}</pre>
+				{/if}
 			{/if}
-			{#if stderr}
-				<pre class="execute-output {stderrColor}">{stderr}</pre>
+			{#if stderr || stderrHtml}
+				{#if useStderrShiki}
+					<div
+						class="execute-output-shiki execute-output-stderr {stderrColor}"
+					>
+						{@html stderrHtml}
+					</div>
+				{:else}
+					<pre class="execute-output {stderrColor}">{stderr}</pre>
+				{/if}
 			{/if}
 		</div>
 	{/if}
@@ -212,16 +237,15 @@
 		font-style: italic;
 	}
 
-	/* ── Output area — dark terminal zone ── */
+	/* ── Output area — matches card surface ── */
 	.execute-output-area {
-		background: var(--muted);
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		background: var(--card);
 		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 		padding: 6px 10px;
 		transition: max-height 0.15s ease-out;
-	}
-
-	:global(.dark) .execute-output-area {
-		background: color-mix(in srgb, var(--background) 80%, black);
 	}
 
 	.execute-output-collapsed {
@@ -248,15 +272,37 @@
 		color: color-mix(in srgb, var(--foreground) 50%, transparent);
 	}
 
-	.execute-output + .execute-output {
-		margin-top: 0.25rem;
-	}
-
-	.execute-stderr-warn {
+	pre.execute-output.execute-stderr-warn {
 		color: color-mix(in srgb, var(--primary) 80%, var(--foreground));
 	}
 
-	.execute-stderr-err {
+	pre.execute-output.execute-stderr-err {
 		color: var(--destructive);
+	}
+
+	/* Shiki-highlighted streams (log grammar, dual-theme spans) */
+	.execute-output-shiki {
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: 0.6875rem;
+		line-height: 1.5;
+		margin: 0;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.execute-output-shiki :global(.line) {
+		display: block;
+		min-height: 1.5em;
+	}
+
+	.execute-output-shiki.execute-output-stderr.execute-stderr-warn {
+		box-shadow: inset 2px 0 0
+			color-mix(in srgb, var(--primary) 45%, transparent);
+		padding-left: 0.5rem;
+	}
+
+	.execute-output-shiki.execute-output-stderr.execute-stderr-err {
+		box-shadow: inset 2px 0 0 var(--destructive);
+		padding-left: 0.5rem;
 	}
 </style>

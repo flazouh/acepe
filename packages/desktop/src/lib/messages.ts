@@ -3004,6 +3004,26 @@ export function setup_scripts_empty_state(args: MessageArgs = {}): string {
 	return interpolate(`No setup scripts yet. Commands run when a new worktree is created.`, args);
 }
 
+export function setup_scripts_load_failed_title(args: MessageArgs = {}): string {
+	return interpolate(`Could not load setup scripts`, args);
+}
+
+export function setup_scripts_retry_label(args: MessageArgs = {}): string {
+	return interpolate(`Retry`, args);
+}
+
+export function setup_scripts_add_section_title(args: MessageArgs = {}): string {
+	return interpolate(`Add command`, args);
+}
+
+export function setup_scripts_add_section_description(args: MessageArgs = {}): string {
+	return interpolate(`Each command runs in order after a new worktree is created.`, args);
+}
+
+export function setup_scripts_add_button(args: MessageArgs = {}): string {
+	return interpolate(`Add`, args);
+}
+
 export function git_generate(args: MessageArgs = {}): string {
 	return interpolate(`Generate`, args);
 }

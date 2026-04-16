@@ -12,6 +12,14 @@ import {
 } from "../../types/streaming-animation-mode.js";
 import ContentBlockRouter from "./content-block-router.svelte";
 import CopyButton from "./copy-button.svelte";
+import {
+	createRafDedupeScheduler,
+	scrollTailToVisibleEnd,
+} from "./logic/thinking-viewport-follow.js";
+import {
+	DEFAULT_THINKING_VIEWPORT_POLICY,
+	thinkingViewportCssText,
+} from "./logic/thinking-viewport-policy.js";
 
 interface Props {
 	message: AssistantMessage;
@@ -124,46 +132,20 @@ const thinkingHeaderLabel = $derived.by(() => {
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();
-let thinkingScrollRafId: number | null = null;
 
-function cancelThinkingFollowFrame(): void {
-	if (thinkingScrollRafId !== null) {
-		cancelAnimationFrame(thinkingScrollRafId);
-		thinkingScrollRafId = null;
-	}
-}
-
-function scrollThinkingToBottom(container: HTMLDivElement): void {
-	const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-	if (maxScrollTop <= 0) {
+const thinkingFollowScheduler = createRafDedupeScheduler(() => {
+	if (!showThinkingBlock || !isStreaming || isCollapsed) {
 		return;
 	}
-
-	if (container.scrollTop >= maxScrollTop - 1) {
+	const container = thinkingContainerRef;
+	if (!container) {
 		return;
 	}
+	scrollTailToVisibleEnd(container, thinkingContentRef);
+});
 
-	container.scrollTop = container.scrollHeight;
-}
-
-function scheduleThinkingFollow(container: HTMLDivElement): void {
-	if (thinkingScrollRafId !== null) {
-		return;
-	}
-
-	thinkingScrollRafId = requestAnimationFrame(() => {
-		thinkingScrollRafId = null;
-
-		if (!showThinkingBlock || !isStreaming || isCollapsed) {
-			return;
-		}
-
-		if (thinkingContainerRef !== container) {
-			return;
-		}
-
-		scrollThinkingToBottom(container);
-	});
+function scheduleThinkingFollow(): void {
+	thinkingFollowScheduler.schedule();
 }
 
 const chatPrefs = getChatPreferencesStore();
@@ -199,7 +181,7 @@ $effect(() => {
 
 $effect(() => {
 	if (showThinkingBlock && isStreaming && !isCollapsed && thinkingContainerRef) {
-		scheduleThinkingFollow(thinkingContainerRef);
+		scheduleThinkingFollow();
 	}
 });
 
@@ -208,29 +190,28 @@ $effect(() => {
 		return;
 	}
 
-	const container = thinkingContainerRef;
 	const content = thinkingContentRef;
-	scheduleThinkingFollow(container);
+	scheduleThinkingFollow();
 
 	if (!content || typeof ResizeObserver !== "function") {
 		return;
 	}
 
 	const observer = new ResizeObserver(() => {
-		scheduleThinkingFollow(container);
+		scheduleThinkingFollow();
 	});
 
 	observer.observe(content);
 
 	return () => {
 		observer.disconnect();
-		cancelThinkingFollowFrame();
+		thinkingFollowScheduler.cancel();
 	};
 });
 
 $effect(() => {
 	return () => {
-		cancelThinkingFollowFrame();
+		thinkingFollowScheduler.cancel();
 	};
 });
 </script>
@@ -251,6 +232,7 @@ $effect(() => {
 				>
 					<div
 						class="thinking-content scrollbar-none overflow-y-auto opacity-60"
+						style={thinkingViewportCssText(DEFAULT_THINKING_VIEWPORT_POLICY)}
 						bind:this={thinkingContainerRef}
 					>
 						<div bind:this={thinkingContentRef}>
@@ -315,6 +297,7 @@ $effect(() => {
 {/if}
 
 <style>
+	/* Line budget vars: packages/desktop/.../logic/thinking-viewport-policy.ts (DEFAULT_THINKING_VIEWPORT_POLICY) */
 	.thinking-content,
 	.thinking-content :global(.markdown-content),
 	.thinking-content :global(.markdown-content *) {
@@ -322,10 +305,16 @@ $effect(() => {
 	}
 
 	.thinking-content {
-		--thinking-visible-lines: 4;
-		--thinking-line-height: 1.4rem;
 		max-height: calc(var(--thinking-visible-lines) * var(--thinking-line-height));
 		line-height: var(--thinking-line-height);
+		/* Block-level snap: reduces mid-block clipping at the top when scrolling */
+		scroll-snap-type: y proximity;
+		scroll-padding-block: 0;
+	}
+
+	.thinking-content :global(.markdown-content > *) {
+		scroll-snap-align: start;
+		scroll-snap-stop: normal;
 	}
 
 	.thinking-content :global(.markdown-content),

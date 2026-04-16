@@ -1,7 +1,7 @@
 {
   "worktree": {
     "setupCommands": [
-      "bun install"
+      "bun i"
     ]
   }
 }

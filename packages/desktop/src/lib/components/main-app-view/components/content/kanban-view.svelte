@@ -1281,6 +1281,8 @@ function handleRejectPlanApproval(sessionId: string): void {
 							<PreSessionWorktreeCard
 								pendingWorktreeEnabled={effectiveWorktreePending}
 								alwaysEnabled={globalWorktreeDefault}
+								projectPath={selectedProject.path}
+								projectName={selectedProject.name}
 								onYes={() => {
 									const store = getWorktreeDefaultStore();
 								if (store.globalDefault) {

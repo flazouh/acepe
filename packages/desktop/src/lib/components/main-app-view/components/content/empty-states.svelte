@@ -232,6 +232,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					<PreSessionWorktreeCard
 						pendingWorktreeEnabled={effectiveWorktreePending}
 						alwaysEnabled={globalWorktreeDefault}
+						{projectPath}
 						onYes={() => {
 							const store = getWorktreeDefaultStore();
 							if (store.globalDefault) {

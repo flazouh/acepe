@@ -19,7 +19,8 @@ function esc(s: string): string {
 }
 
 /**
- * Split a compound command on `&&`, `||`, and `;`, respecting quoted strings.
+ * Split a compound command on `&&`, `||`, `;`, and single `|` (pipe), respecting
+ * quoted strings. `||` is split as logical OR, not as two pipes.
  * Returns the individual command segments (trimmed).
  */
 export function splitCommandSegments(command: string): string[] {
@@ -68,6 +69,15 @@ export function splitCommandSegments(command: string): string[] {
 				if (trimmed) segments.push(trimmed);
 				current = "";
 				i += 2;
+				continue;
+			}
+
+			// Split on single | (pipe), not ||
+			if (ch === "|") {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				i++;
 				continue;
 			}
 
