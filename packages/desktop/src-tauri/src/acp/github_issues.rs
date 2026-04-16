@@ -3,6 +3,7 @@
  * Provides CRUD operations for GitHub Issues as a projection layer.
  * Uses `gh` CLI for authenticated operations, `reqwest` for unauthenticated reads.
  */
+use crate::commands::observability::{CommandResult, unexpected_command_result};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -443,44 +444,46 @@ pub async fn list_github_issues(
     direction: Option<String>,
     page: Option<i32>,
     per_page: Option<i32>,
-) -> Result<IssueListResult, String> {
-    let state_param = state.as_deref().unwrap_or("open");
-    let sort_param = sort.as_deref().unwrap_or("created");
-    let direction_param = direction.as_deref().unwrap_or("desc");
-    let page_param = page.unwrap_or(1);
-    let per_page_param = per_page.unwrap_or(30);
+) -> CommandResult<IssueListResult> {
+    unexpected_command_result("list_github_issues", "Failed to list GitHub issues", async {
+        let state_param = state.as_deref().unwrap_or("open");
+        let sort_param = sort.as_deref().unwrap_or("created");
+        let direction_param = direction.as_deref().unwrap_or("desc");
+        let page_param = page.unwrap_or(1);
+        let per_page_param = per_page.unwrap_or(30);
 
-    let mut query = format!(
-        "repos/{}/{}/issues?state={}&sort={}&direction={}&page={}&per_page={}",
-        OWNER, REPO, state_param, sort_param, direction_param, page_param, per_page_param
-    );
+        let mut query = format!(
+            "repos/{}/{}/issues?state={}&sort={}&direction={}&page={}&per_page={}",
+            OWNER, REPO, state_param, sort_param, direction_param, page_param, per_page_param
+        );
 
-    if let Some(ref label_str) = labels {
-        if !label_str.is_empty() {
-            query.push_str(&format!("&labels={}", label_str));
+        if let Some(ref label_str) = labels {
+            if !label_str.is_empty() {
+                query.push_str(&format!("&labels={}", label_str));
+            }
         }
-    }
 
-    // Try gh CLI first (authenticated), fall back to reqwest (unauthenticated)
-    let (json, has_next) = if check_auth().authenticated {
-        gh_api_get_with_pagination(&query)?
-    } else {
-        let url = format!("https://api.github.com/{}", query);
-        http_get_with_pagination(&url).await?
-    };
+        // Try gh CLI first (authenticated), fall back to reqwest (unauthenticated)
+        let (json, has_next) = if check_auth().authenticated {
+            gh_api_get_with_pagination(&query)?
+        } else {
+            let url = format!("https://api.github.com/{}", query);
+            http_get_with_pagination(&url).await?
+        };
 
-    let items = json
-        .as_array()
-        .ok_or_else(|| make_error("unknown", "Expected array response from GitHub API"))?
-        .iter()
-        .filter_map(parse_issue)
-        .collect();
+        let items = json
+            .as_array()
+            .ok_or_else(|| make_error("unknown", "Expected array response from GitHub API"))?
+            .iter()
+            .filter_map(parse_issue)
+            .collect();
 
-    Ok(IssueListResult {
-        items,
-        total_count: None, // list endpoint doesn't provide total_count
-        has_next_page: has_next,
-    })
+        Ok(IssueListResult {
+            items,
+            total_count: None, // list endpoint doesn't provide total_count
+            has_next_page: has_next,
+        })
+    }.await)
 }
 
 #[tauri::command]
@@ -493,80 +496,84 @@ pub async fn search_github_issues(
     sort: Option<String>,
     page: Option<i32>,
     per_page: Option<i32>,
-) -> Result<IssueListResult, String> {
-    let page_param = page.unwrap_or(1);
-    let per_page_param = per_page.unwrap_or(30);
+) -> CommandResult<IssueListResult> {
+    unexpected_command_result("search_github_issues", "Failed to search GitHub issues", async {
+        let page_param = page.unwrap_or(1);
+        let per_page_param = per_page.unwrap_or(30);
 
-    // Build search query
-    let mut q = format!("repo:{}/{} is:issue", OWNER, REPO);
-    if let Some(ref state_str) = state {
-        if state_str == "open" || state_str == "closed" {
-            q.push_str(&format!(" is:{}", state_str));
+        // Build search query
+        let mut q = format!("repo:{}/{} is:issue", OWNER, REPO);
+        if let Some(ref state_str) = state {
+            if state_str == "open" || state_str == "closed" {
+                q.push_str(&format!(" is:{}", state_str));
+            }
+        } else {
+            q.push_str(" is:open");
         }
-    } else {
-        q.push_str(" is:open");
-    }
-    if let Some(ref label_str) = labels {
-        for label in label_str.split(',') {
-            let label = label.trim();
-            if !label.is_empty() {
-                q.push_str(&format!(" label:{}", label));
+        if let Some(ref label_str) = labels {
+            for label in label_str.split(',') {
+                let label = label.trim();
+                if !label.is_empty() {
+                    q.push_str(&format!(" label:{}", label));
+                }
             }
         }
-    }
-    q.push_str(&format!(" {}", query));
+        q.push_str(&format!(" {}", query));
 
-    let sort_param = sort.as_deref().unwrap_or("");
-    let mut endpoint = format!(
-        "search/issues?q={}&page={}&per_page={}",
-        urlencoding::encode(&q),
-        page_param,
-        per_page_param
-    );
-    if !sort_param.is_empty() {
-        endpoint.push_str(&format!("&sort={}", sort_param));
-    }
+        let sort_param = sort.as_deref().unwrap_or("");
+        let mut endpoint = format!(
+            "search/issues?q={}&page={}&per_page={}",
+            urlencoding::encode(&q),
+            page_param,
+            per_page_param
+        );
+        if !sort_param.is_empty() {
+            endpoint.push_str(&format!("&sort={}", sort_param));
+        }
 
-    // Try gh CLI first, fall back to reqwest
-    let json = if check_auth().authenticated {
-        gh_api_get(&endpoint)?
-    } else {
-        let url = format!("https://api.github.com/{}", endpoint);
-        http_get(&url).await?
-    };
+        // Try gh CLI first, fall back to reqwest
+        let json = if check_auth().authenticated {
+            gh_api_get(&endpoint)?
+        } else {
+            let url = format!("https://api.github.com/{}", endpoint);
+            http_get(&url).await?
+        };
 
-    let total_count = json["total_count"].as_i64().map(|n| n as i32);
-    let items = json["items"]
-        .as_array()
-        .ok_or_else(|| make_error("unknown", "Expected items array in search response"))?
-        .iter()
-        .filter_map(parse_issue)
-        .collect::<Vec<_>>();
+        let total_count = json["total_count"].as_i64().map(|n| n as i32);
+        let items = json["items"]
+            .as_array()
+            .ok_or_else(|| make_error("unknown", "Expected items array in search response"))?
+            .iter()
+            .filter_map(parse_issue)
+            .collect::<Vec<_>>();
 
-    let has_next = total_count
-        .map(|tc| (page_param * per_page_param) < tc)
-        .unwrap_or(false);
+        let has_next = total_count
+            .map(|tc| (page_param * per_page_param) < tc)
+            .unwrap_or(false);
 
-    Ok(IssueListResult {
-        items,
-        total_count,
-        has_next_page: has_next,
-    })
+        Ok(IssueListResult {
+            items,
+            total_count,
+            has_next_page: has_next,
+        })
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_github_issue(number: i32) -> Result<GitHubIssue, String> {
-    let endpoint = format!("repos/{}/{}/issues/{}", OWNER, REPO, number);
+pub async fn get_github_issue(number: i32) -> CommandResult<GitHubIssue> {
+    unexpected_command_result("get_github_issue", "Failed to get GitHub issue", async {
+        let endpoint = format!("repos/{}/{}/issues/{}", OWNER, REPO, number);
 
-    let json = if check_auth().authenticated {
-        gh_api_get(&endpoint)?
-    } else {
-        let url = format!("https://api.github.com/{}", endpoint);
-        http_get(&url).await?
-    };
+        let json = if check_auth().authenticated {
+            gh_api_get(&endpoint)?
+        } else {
+            let url = format!("https://api.github.com/{}", endpoint);
+            http_get(&url).await?
+        };
 
-    parse_issue(&json).ok_or_else(|| make_error("not_found", "Failed to parse issue"))
+        parse_issue(&json).ok_or_else(|| make_error("not_found", "Failed to parse issue"))
+    }.await)
 }
 
 #[tauri::command]
@@ -575,35 +582,37 @@ pub fn create_github_issue(
     title: String,
     body: String,
     labels: Option<Vec<String>>,
-) -> Result<GitHubIssue, String> {
-    if title.is_empty() || title.len() > MAX_TITLE_LENGTH {
-        return Err(make_error(
-            "unknown",
-            &format!(
-                "Title must be between 1 and {} characters",
-                MAX_TITLE_LENGTH
-            ),
-        ));
-    }
-    if body.len() > MAX_BODY_LENGTH {
-        return Err(make_error(
-            "unknown",
-            &format!("Body must not exceed {} characters", MAX_BODY_LENGTH),
-        ));
-    }
+) -> CommandResult<GitHubIssue> {
+    unexpected_command_result("create_github_issue", "Failed to create GitHub issue", (|| {
+        if title.is_empty() || title.len() > MAX_TITLE_LENGTH {
+            return Err(make_error(
+                "unknown",
+                &format!(
+                    "Title must be between 1 and {} characters",
+                    MAX_TITLE_LENGTH
+                ),
+            ));
+        }
+        if body.len() > MAX_BODY_LENGTH {
+            return Err(make_error(
+                "unknown",
+                &format!("Body must not exceed {} characters", MAX_BODY_LENGTH),
+            ));
+        }
 
-    let mut payload = serde_json::json!({
-        "title": title,
-        "body": body,
-    });
+        let mut payload = serde_json::json!({
+            "title": title,
+            "body": body,
+        });
 
-    if let Some(label_list) = labels {
-        payload["labels"] = serde_json::json!(label_list);
-    }
+        if let Some(label_list) = labels {
+            payload["labels"] = serde_json::json!(label_list);
+        }
 
-    let endpoint = format!("repos/{}/{}/issues", OWNER, REPO);
-    let json = gh_api_post(&endpoint, &payload)?;
-    parse_issue(&json).ok_or_else(|| make_error("unknown", "Failed to parse created issue"))
+        let endpoint = format!("repos/{}/{}/issues", OWNER, REPO);
+        let json = gh_api_post(&endpoint, &payload)?;
+        parse_issue(&json).ok_or_else(|| make_error("unknown", "Failed to parse created issue"))
+    })())
 }
 
 #[tauri::command]
@@ -612,151 +621,159 @@ pub async fn list_issue_comments(
     number: i32,
     page: Option<i32>,
     per_page: Option<i32>,
-) -> Result<Vec<GitHubComment>, String> {
-    let page_param = page.unwrap_or(1);
-    let per_page_param = per_page.unwrap_or(100);
+) -> CommandResult<Vec<GitHubComment>> {
+    unexpected_command_result("list_issue_comments", "Failed to list issue comments", async {
+        let page_param = page.unwrap_or(1);
+        let per_page_param = per_page.unwrap_or(100);
 
-    let endpoint = format!(
-        "repos/{}/{}/issues/{}/comments?page={}&per_page={}",
-        OWNER, REPO, number, page_param, per_page_param
-    );
-
-    let json = if check_auth().authenticated {
-        gh_api_get(&endpoint)?
-    } else {
-        let url = format!("https://api.github.com/{}", endpoint);
-        http_get(&url).await?
-    };
-
-    let comments = json
-        .as_array()
-        .ok_or_else(|| make_error("unknown", "Expected array response"))?
-        .iter()
-        .filter_map(parse_comment)
-        .collect();
-
-    Ok(comments)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn create_issue_comment(number: i32, body: String) -> Result<GitHubComment, String> {
-    if body.is_empty() || body.len() > MAX_COMMENT_LENGTH {
-        return Err(make_error(
-            "unknown",
-            &format!(
-                "Comment must be between 1 and {} characters",
-                MAX_COMMENT_LENGTH
-            ),
-        ));
-    }
-
-    let payload = serde_json::json!({ "body": body });
-    let endpoint = format!("repos/{}/{}/issues/{}/comments", OWNER, REPO, number);
-    let json = gh_api_post(&endpoint, &payload)?;
-    parse_comment(&json).ok_or_else(|| make_error("unknown", "Failed to parse created comment"))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn toggle_issue_reaction(number: i32, content: String) -> Result<bool, String> {
-    validate_reaction_content(&content)?;
-
-    let endpoint = format!("repos/{}/{}/issues/{}/reactions", OWNER, REPO, number);
-
-    // Get existing reactions to check if user already reacted
-    let reactions_json = gh_api_get(&endpoint)?;
-    let reactions = reactions_json
-        .as_array()
-        .ok_or_else(|| make_error("unknown", "Expected array of reactions"))?;
-
-    // Get current user login
-    let user_output = Command::new("gh")
-        .args(["api", "user", "--jq", ".login"])
-        .output()
-        .map_err(|e| {
-            make_error(
-                "auth_required",
-                &format!("Failed to get current user: {}", e),
-            )
-        })?;
-    let current_user = String::from_utf8(user_output.stdout)
-        .map_err(|_| make_error("unknown", "Invalid user response"))?
-        .trim()
-        .to_string();
-
-    // Find existing reaction from current user with matching content
-    let existing = reactions.iter().find(|r| {
-        r["user"]["login"].as_str() == Some(&current_user)
-            && r["content"].as_str() == Some(&content)
-    });
-
-    if let Some(reaction) = existing {
-        // Remove existing reaction
-        let reaction_id = reaction["id"]
-            .as_i64()
-            .ok_or_else(|| make_error("unknown", "Missing reaction ID"))?;
-        let delete_endpoint = format!(
-            "repos/{}/{}/issues/{}/reactions/{}",
-            OWNER, REPO, number, reaction_id
+        let endpoint = format!(
+            "repos/{}/{}/issues/{}/comments?page={}&per_page={}",
+            OWNER, REPO, number, page_param, per_page_param
         );
-        gh_api_delete(&delete_endpoint)?;
-        Ok(false) // reaction removed
-    } else {
-        // Add new reaction
-        let payload = serde_json::json!({ "content": content });
-        gh_api_post(&endpoint, &payload)?;
-        Ok(true) // reaction added
-    }
+
+        let json = if check_auth().authenticated {
+            gh_api_get(&endpoint)?
+        } else {
+            let url = format!("https://api.github.com/{}", endpoint);
+            http_get(&url).await?
+        };
+
+        let comments = json
+            .as_array()
+            .ok_or_else(|| make_error("unknown", "Expected array response"))?
+            .iter()
+            .filter_map(parse_comment)
+            .collect();
+
+        Ok(comments)
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn toggle_comment_reaction(comment_id: i64, content: String) -> Result<bool, String> {
-    validate_reaction_content(&content)?;
+pub fn create_issue_comment(number: i32, body: String) -> CommandResult<GitHubComment> {
+    unexpected_command_result("create_issue_comment", "Failed to create issue comment", (|| {
+        if body.is_empty() || body.len() > MAX_COMMENT_LENGTH {
+            return Err(make_error(
+                "unknown",
+                &format!(
+                    "Comment must be between 1 and {} characters",
+                    MAX_COMMENT_LENGTH
+                ),
+            ));
+        }
 
-    let endpoint = format!(
-        "repos/{}/{}/issues/comments/{}/reactions",
-        OWNER, REPO, comment_id
-    );
+        let payload = serde_json::json!({ "body": body });
+        let endpoint = format!("repos/{}/{}/issues/{}/comments", OWNER, REPO, number);
+        let json = gh_api_post(&endpoint, &payload)?;
+        parse_comment(&json).ok_or_else(|| make_error("unknown", "Failed to parse created comment"))
+    })())
+}
 
-    let reactions_json = gh_api_get(&endpoint)?;
-    let reactions = reactions_json
-        .as_array()
-        .ok_or_else(|| make_error("unknown", "Expected array of reactions"))?;
+#[tauri::command]
+#[specta::specta]
+pub fn toggle_issue_reaction(number: i32, content: String) -> CommandResult<bool> {
+    unexpected_command_result("toggle_issue_reaction", "Failed to toggle issue reaction", (|| {
+        validate_reaction_content(&content)?;
 
-    let user_output = Command::new("gh")
-        .args(["api", "user", "--jq", ".login"])
-        .output()
-        .map_err(|e| {
-            make_error(
-                "auth_required",
-                &format!("Failed to get current user: {}", e),
-            )
-        })?;
-    let current_user = String::from_utf8(user_output.stdout)
-        .map_err(|_| make_error("unknown", "Invalid user response"))?
-        .trim()
-        .to_string();
+        let endpoint = format!("repos/{}/{}/issues/{}/reactions", OWNER, REPO, number);
 
-    let existing = reactions.iter().find(|r| {
-        r["user"]["login"].as_str() == Some(&current_user)
-            && r["content"].as_str() == Some(&content)
-    });
+        // Get existing reactions to check if user already reacted
+        let reactions_json = gh_api_get(&endpoint)?;
+        let reactions = reactions_json
+            .as_array()
+            .ok_or_else(|| make_error("unknown", "Expected array of reactions"))?;
 
-    if let Some(reaction) = existing {
-        let reaction_id = reaction["id"]
-            .as_i64()
-            .ok_or_else(|| make_error("unknown", "Missing reaction ID"))?;
-        let delete_endpoint = format!(
-            "repos/{}/{}/issues/comments/{}/reactions/{}",
-            OWNER, REPO, comment_id, reaction_id
+        // Get current user login
+        let user_output = Command::new("gh")
+            .args(["api", "user", "--jq", ".login"])
+            .output()
+            .map_err(|e| {
+                make_error(
+                    "auth_required",
+                    &format!("Failed to get current user: {}", e),
+                )
+            })?;
+        let current_user = String::from_utf8(user_output.stdout)
+            .map_err(|_| make_error("unknown", "Invalid user response"))?
+            .trim()
+            .to_string();
+
+        // Find existing reaction from current user with matching content
+        let existing = reactions.iter().find(|r| {
+            r["user"]["login"].as_str() == Some(&current_user)
+                && r["content"].as_str() == Some(&content)
+        });
+
+        if let Some(reaction) = existing {
+            // Remove existing reaction
+            let reaction_id = reaction["id"]
+                .as_i64()
+                .ok_or_else(|| make_error("unknown", "Missing reaction ID"))?;
+            let delete_endpoint = format!(
+                "repos/{}/{}/issues/{}/reactions/{}",
+                OWNER, REPO, number, reaction_id
+            );
+            gh_api_delete(&delete_endpoint)?;
+            Ok(false) // reaction removed
+        } else {
+            // Add new reaction
+            let payload = serde_json::json!({ "content": content });
+            gh_api_post(&endpoint, &payload)?;
+            Ok(true) // reaction added
+        }
+    })())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn toggle_comment_reaction(comment_id: i64, content: String) -> CommandResult<bool> {
+    unexpected_command_result("toggle_comment_reaction", "Failed to toggle comment reaction", (|| {
+        validate_reaction_content(&content)?;
+
+        let endpoint = format!(
+            "repos/{}/{}/issues/comments/{}/reactions",
+            OWNER, REPO, comment_id
         );
-        gh_api_delete(&delete_endpoint)?;
-        Ok(false)
-    } else {
-        let payload = serde_json::json!({ "content": content });
-        gh_api_post(&endpoint, &payload)?;
-        Ok(true)
-    }
+
+        let reactions_json = gh_api_get(&endpoint)?;
+        let reactions = reactions_json
+            .as_array()
+            .ok_or_else(|| make_error("unknown", "Expected array of reactions"))?;
+
+        let user_output = Command::new("gh")
+            .args(["api", "user", "--jq", ".login"])
+            .output()
+            .map_err(|e| {
+                make_error(
+                    "auth_required",
+                    &format!("Failed to get current user: {}", e),
+                )
+            })?;
+        let current_user = String::from_utf8(user_output.stdout)
+            .map_err(|_| make_error("unknown", "Invalid user response"))?
+            .trim()
+            .to_string();
+
+        let existing = reactions.iter().find(|r| {
+            r["user"]["login"].as_str() == Some(&current_user)
+                && r["content"].as_str() == Some(&content)
+        });
+
+        if let Some(reaction) = existing {
+            let reaction_id = reaction["id"]
+                .as_i64()
+                .ok_or_else(|| make_error("unknown", "Missing reaction ID"))?;
+            let delete_endpoint = format!(
+                "repos/{}/{}/issues/comments/{}/reactions/{}",
+                OWNER, REPO, comment_id, reaction_id
+            );
+            gh_api_delete(&delete_endpoint)?;
+            Ok(false)
+        } else {
+            let payload = serde_json::json!({ "content": content });
+            gh_api_post(&endpoint, &payload)?;
+            Ok(true)
+        }
+    })())
 }

@@ -20,6 +20,15 @@ export interface TelemetryEventProperties {
 	[key: string]: string | number | boolean;
 }
 
+export interface CommandFailureTelemetryContext {
+	commandName: string;
+	invokeId: string;
+	elapsedMs: number;
+	classification?: "expected" | "unexpected";
+	backendCorrelationId?: string;
+	backendEventId?: string;
+}
+
 function posthogApiHost(): string {
 	const fromEnv: string | undefined = import.meta.env.VITE_POSTHOG_HOST;
 	if (fromEnv && fromEnv.length > 0) {
@@ -265,6 +274,35 @@ export function captureException(error: Error, context: TelemetryContext = { sou
 	} catch (sentryError) {
 		logger.warn("Sentry captureException failed", { sentryError });
 	}
+}
+
+export function captureCommandFailure(
+	error: Error,
+	context: CommandFailureTelemetryContext
+): void {
+	if (context.classification === "expected") {
+		return;
+	}
+
+	const telemetryContext: TelemetryContext = {
+		source: "tauri-invoke",
+		commandName: context.commandName,
+		invokeId: context.invokeId,
+		elapsedMs: context.elapsedMs,
+		commandClassification: context.classification ?? "unexpected",
+		hasBackendCorrelationId: Boolean(context.backendCorrelationId),
+		hasBackendEventId: Boolean(context.backendEventId),
+	};
+
+	if (context.backendCorrelationId !== undefined) {
+		telemetryContext.backendCorrelationId = context.backendCorrelationId;
+	}
+
+	if (context.backendEventId !== undefined) {
+		telemetryContext.backendEventId = context.backendEventId;
+	}
+
+	captureException(error, telemetryContext);
 }
 
 export async function setAnalyticsEnabled(enabled: boolean): Promise<void> {

@@ -7,6 +7,10 @@ use crate::acp::projections::InteractionKind;
 use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
 use crate::acp::session_update::{InteractionReplyHandler, InteractionReplyHandlerKind};
 use crate::acp::ui_event_dispatcher::AcpUiEventDispatcher;
+use crate::commands::observability::{
+    expected_acp_command_result, CommandResult, SerializableCommandError,
+    SerializableCommandErrorDomain,
+};
 use crate::db::repository::SessionJournalEventRepository;
 use sea_orm::DbConn;
 use specta::Type;
@@ -301,7 +305,8 @@ pub async fn acp_reply_permission(
     session_id: String,
     permission_id: String,
     reply: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_reply_permission", async {
     tracing::info!(
         session_id = %session_id,
         permission_id = %permission_id,
@@ -401,6 +406,8 @@ pub async fn acp_reply_permission(
             })
         }
     }
+    }
+    .await)
 }
 
 /// Frontend-format question reply entry.
@@ -426,7 +433,8 @@ pub async fn acp_reply_question(
     session_id: String,
     question_id: String,
     answers: Value,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_reply_question", async {
     tracing::info!(
         session_id = %session_id,
         question_id = %question_id,
@@ -468,6 +476,15 @@ pub async fn acp_reply_question(
             message: "Question reply was not accepted".to_string(),
         })
     }
+    }
+    .await)
+}
+
+fn cmd_error_to_acp_error(e: SerializableCommandError) -> SerializableAcpError {
+    match e.domain {
+        Some(SerializableCommandErrorDomain::Acp(acp)) => acp,
+        _ => SerializableAcpError::ProtocolError { message: e.message },
+    }
 }
 
 /// Reply to a canonical interaction through one backend-owned command path.
@@ -476,53 +493,63 @@ pub async fn acp_reply_question(
 pub async fn acp_reply_interaction(
     app: AppHandle,
     request: CanonicalInteractionReplyRequest,
-) -> Result<(), SerializableAcpError> {
-    match request.reply_handler.kind {
-        InteractionReplyHandlerKind::Http => match &request.payload {
-            CanonicalInteractionReplyPayload::Permission { reply, .. } => {
-                let interaction_id = request.interaction_id.clone().ok_or_else(|| {
-                    SerializableAcpError::InvalidState {
-                        message: "HTTP permission replies require interactionId".to_string(),
-                    }
-                })?;
-                acp_reply_permission(app, request.session_id, interaction_id, reply.clone()).await
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_reply_interaction", async {
+        match request.reply_handler.kind {
+            InteractionReplyHandlerKind::Http => match &request.payload {
+                CanonicalInteractionReplyPayload::Permission { reply, .. } => {
+                    let interaction_id = request.interaction_id.clone().ok_or_else(|| {
+                        SerializableAcpError::InvalidState {
+                            message: "HTTP permission replies require interactionId".to_string(),
+                        }
+                    })?;
+                    acp_reply_permission(app, request.session_id, interaction_id, reply.clone())
+                        .await
+                        .map_err(cmd_error_to_acp_error)
+                }
+                CanonicalInteractionReplyPayload::Question { answers, .. } => {
+                    let interaction_id = request.interaction_id.clone().ok_or_else(|| {
+                        SerializableAcpError::InvalidState {
+                            message: "HTTP question replies require interactionId".to_string(),
+                        }
+                    })?;
+                    acp_reply_question(app, request.session_id, interaction_id, answers.clone())
+                        .await
+                        .map_err(cmd_error_to_acp_error)
+                }
+                CanonicalInteractionReplyPayload::QuestionCancel => {
+                    let interaction_id = request.interaction_id.clone().ok_or_else(|| {
+                        SerializableAcpError::InvalidState {
+                            message: "HTTP question cancellation requires interactionId"
+                                .to_string(),
+                        }
+                    })?;
+                    acp_reply_question(app, request.session_id, interaction_id, json!([]))
+                        .await
+                        .map_err(cmd_error_to_acp_error)
+                }
+                CanonicalInteractionReplyPayload::PlanApproval { .. } => {
+                    Err(SerializableAcpError::InvalidState {
+                        message: "Plan approval replies do not support HTTP routing".to_string(),
+                    })
+                }
+            },
+            InteractionReplyHandlerKind::JsonRpc => {
+                let request_id = parse_json_rpc_request_id(&request.reply_handler)?;
+                let adapted_result = adapted_result_from_payload(&request.payload);
+                let session_registry = app.state::<SessionRegistry>();
+                respond_inbound_request_with_registry(
+                    &session_registry,
+                    &request.session_id,
+                    request_id,
+                    adapted_result.clone(),
+                )
+                .await?;
+                persist_canonical_interaction_reply(&app, &request, &adapted_result).await
             }
-            CanonicalInteractionReplyPayload::Question { answers, .. } => {
-                let interaction_id = request.interaction_id.clone().ok_or_else(|| {
-                    SerializableAcpError::InvalidState {
-                        message: "HTTP question replies require interactionId".to_string(),
-                    }
-                })?;
-                acp_reply_question(app, request.session_id, interaction_id, answers.clone()).await
-            }
-            CanonicalInteractionReplyPayload::QuestionCancel => {
-                let interaction_id = request.interaction_id.clone().ok_or_else(|| {
-                    SerializableAcpError::InvalidState {
-                        message: "HTTP question cancellation requires interactionId".to_string(),
-                    }
-                })?;
-                acp_reply_question(app, request.session_id, interaction_id, json!([])).await
-            }
-            CanonicalInteractionReplyPayload::PlanApproval { .. } => {
-                Err(SerializableAcpError::InvalidState {
-                    message: "Plan approval replies do not support HTTP routing".to_string(),
-                })
-            }
-        },
-        InteractionReplyHandlerKind::JsonRpc => {
-            let request_id = parse_json_rpc_request_id(&request.reply_handler)?;
-            let adapted_result = adapted_result_from_payload(&request.payload);
-            let session_registry = app.state::<SessionRegistry>();
-            respond_inbound_request_with_registry(
-                &session_registry,
-                &request.session_id,
-                request_id,
-                adapted_result.clone(),
-            )
-            .await?;
-            persist_canonical_interaction_reply(&app, &request, &adapted_result).await
         }
     }
+    .await)
 }
 
 /// Respond to an inbound JSON-RPC request from the ACP subprocess
@@ -537,7 +564,8 @@ pub async fn acp_respond_inbound_request(
     session_id: String,
     request_id: u64,
     result: Value,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_respond_inbound_request", async {
     tracing::info!(
         session_id = %session_id,
         request_id = request_id,
@@ -554,4 +582,6 @@ pub async fn acp_respond_inbound_request(
         "Inbound request response sent successfully"
     );
     Ok(())
+    }
+    .await)
 }

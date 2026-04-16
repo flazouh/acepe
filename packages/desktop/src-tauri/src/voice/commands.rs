@@ -1,3 +1,4 @@
+use crate::commands::observability::{CommandResult, unexpected_command_result};
 use super::events::{
     VOICE_AMPLITUDE_EVENT, VOICE_MODEL_DOWNLOAD_COMPLETE_EVENT, VOICE_MODEL_DOWNLOAD_ERROR_EVENT,
     VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT, VOICE_RECORDING_ERROR_EVENT,
@@ -72,32 +73,34 @@ fn title_case_language_name(name: &str) -> String {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn voice_list_models(state: State<'_, VoiceState>) -> Result<Vec<ModelInfo>, String> {
+pub async fn voice_list_models(state: State<'_, VoiceState>) -> CommandResult<Vec<ModelInfo>> {
     tracing::debug!("voice_list_models");
-    Ok(state.model_manager().list_models())
+    unexpected_command_result("voice_list_models", "Failed to list voice models", Ok(state.model_manager().list_models()))
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn voice_list_languages() -> Result<Vec<VoiceLanguageOption>, String> {
-    tracing::debug!("voice_list_languages");
-    let max_language_id = whisper_rs::get_lang_max_id();
-    let mut languages = Vec::new();
+pub async fn voice_list_languages() -> CommandResult<Vec<VoiceLanguageOption>> {
+    unexpected_command_result("voice_list_languages", "Failed to list voice languages", async {
+        tracing::debug!("voice_list_languages");
+        let max_language_id = whisper_rs::get_lang_max_id();
+        let mut languages = Vec::new();
 
-    for language_id in 0..=max_language_id {
-        let code = whisper_rs::get_lang_str(language_id);
-        let name = whisper_rs::get_lang_str_full(language_id);
-        if let (Some(code), Some(name)) = (code, name) {
-            languages.push(VoiceLanguageOption {
-                code: code.to_string(),
-                name: title_case_language_name(name),
-            });
+        for language_id in 0..=max_language_id {
+            let code = whisper_rs::get_lang_str(language_id);
+            let name = whisper_rs::get_lang_str_full(language_id);
+            if let (Some(code), Some(name)) = (code, name) {
+                languages.push(VoiceLanguageOption {
+                    code: code.to_string(),
+                    name: title_case_language_name(name),
+                });
+            }
         }
-    }
 
-    languages.sort_by(|left, right| left.name.cmp(&right.name));
-    tracing::debug!(count = languages.len(), "voice_list_languages done");
-    Ok(languages)
+        languages.sort_by(|left, right| left.name.cmp(&right.name));
+        tracing::debug!(count = languages.len(), "voice_list_languages done");
+        Ok(languages)
+    }.await)
 }
 
 #[tauri::command]
@@ -105,30 +108,32 @@ pub async fn voice_list_languages() -> Result<Vec<VoiceLanguageOption>, String> 
 pub async fn voice_get_model_status(
     state: State<'_, VoiceState>,
     model_id: String,
-) -> Result<ModelInfo, String> {
-    tracing::debug!(model_id, "voice_get_model_status");
-    let mut info = state
-        .model_manager()
-        .get_model_info(&model_id)
-        .map_err(|error| error.to_string())?;
-    if info.is_downloaded {
-        let path = state
+) -> CommandResult<ModelInfo> {
+    unexpected_command_result("voice_get_model_status", "Failed to get model status", async {
+        tracing::debug!(model_id, "voice_get_model_status");
+        let mut info = state
             .model_manager()
-            .model_path(&model_id)
-            .ok_or_else(|| format!("Unknown model: {}", model_id))?;
-        info.is_loaded = state
-            .runtime()
-            .is_model_loaded(path)
-            .await
+            .get_model_info(&model_id)
             .map_err(|error| error.to_string())?;
-    }
-    tracing::debug!(
-        model_id,
-        is_downloaded = info.is_downloaded,
-        is_loaded = info.is_loaded,
-        "model status resolved"
-    );
-    Ok(info)
+        if info.is_downloaded {
+            let path = state
+                .model_manager()
+                .model_path(&model_id)
+                .ok_or_else(|| format!("Unknown model: {}", model_id))?;
+            info.is_loaded = state
+                .runtime()
+                .is_model_loaded(path)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        tracing::debug!(
+            model_id,
+            is_downloaded = info.is_downloaded,
+            is_loaded = info.is_loaded,
+            "model status resolved"
+        );
+        Ok(info)
+    }.await)
 }
 
 #[tauri::command]
@@ -137,38 +142,40 @@ pub async fn voice_download_model(
     state: State<'_, VoiceState>,
     app: AppHandle,
     model_id: String,
-) -> Result<(), String> {
-    tracing::info!(model_id, "voice_download_model: starting download");
-    let model_id_for_error = model_id.clone();
-    let result = state
-        .model_manager()
-        .download_model(&model_id, |progress| {
-            let _ = app.emit(VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT, progress);
-        })
-        .await;
+) -> CommandResult<()> {
+    unexpected_command_result("voice_download_model", "Failed to download voice model", async {
+        tracing::info!(model_id, "voice_download_model: starting download");
+        let model_id_for_error = model_id.clone();
+        let result = state
+            .model_manager()
+            .download_model(&model_id, |progress| {
+                let _ = app.emit(VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT, progress);
+            })
+            .await;
 
-    match result {
-        Ok(path) => {
-            tracing::info!(model_id, path = %path.display(), "voice_download_model: download complete");
-            let _ = app.emit(
-                VOICE_MODEL_DOWNLOAD_COMPLETE_EVENT,
-                ModelDownloadComplete { model_id },
-            );
-            Ok(())
+        match result {
+            Ok(path) => {
+                tracing::info!(model_id, path = %path.display(), "voice_download_model: download complete");
+                let _ = app.emit(
+                    VOICE_MODEL_DOWNLOAD_COMPLETE_EVENT,
+                    ModelDownloadComplete { model_id },
+                );
+                Ok(())
+            }
+            Err(error) => {
+                let message = error.to_string();
+                tracing::error!(model_id = model_id_for_error, error = %message, "voice_download_model: download FAILED");
+                let _ = app.emit(
+                    VOICE_MODEL_DOWNLOAD_ERROR_EVENT,
+                    ModelDownloadError {
+                        model_id: model_id_for_error,
+                        message: message.clone(),
+                    },
+                );
+                Err(message)
+            }
         }
-        Err(error) => {
-            let message = error.to_string();
-            tracing::error!(model_id = model_id_for_error, error = %message, "voice_download_model: download FAILED");
-            let _ = app.emit(
-                VOICE_MODEL_DOWNLOAD_ERROR_EVENT,
-                ModelDownloadError {
-                    model_id: model_id_for_error,
-                    message: message.clone(),
-                },
-            );
-            Err(message)
-        }
-    }
+    }.await)
 }
 
 #[tauri::command]
@@ -176,12 +183,14 @@ pub async fn voice_download_model(
 pub async fn voice_delete_model(
     state: State<'_, VoiceState>,
     model_id: String,
-) -> Result<(), String> {
-    tracing::info!(model_id, "voice_delete_model");
-    state
-        .model_manager()
-        .delete_model(&model_id)
-        .map_err(|error| error.to_string())
+) -> CommandResult<()> {
+    unexpected_command_result("voice_delete_model", "Failed to delete voice model", async {
+        tracing::info!(model_id, "voice_delete_model");
+        state
+            .model_manager()
+            .delete_model(&model_id)
+            .map_err(|error| error.to_string())
+    }.await)
 }
 
 #[tauri::command]
@@ -189,29 +198,31 @@ pub async fn voice_delete_model(
 pub async fn voice_load_model(
     state: State<'_, VoiceState>,
     model_id: String,
-) -> Result<(), String> {
-    tracing::info!(model_id, "voice_load_model: resolving path");
-    let path = resolve_verified_model_path(&state, &model_id).await?;
+) -> CommandResult<()> {
+    unexpected_command_result("voice_load_model", "Failed to load voice model", async {
+        tracing::info!(model_id, "voice_load_model: resolving path");
+        let path = resolve_verified_model_path(&state, &model_id).await?;
 
-    tracing::info!(model_id, path = %path.display(), "voice_load_model: loading into engine");
-    let t0 = std::time::Instant::now();
-    let result = state
-        .runtime()
-        .load_model(path)
-        .await
-        .map_err(|e| e.to_string());
+        tracing::info!(model_id, path = %path.display(), "voice_load_model: loading into engine");
+        let t0 = std::time::Instant::now();
+        let result = state
+            .runtime()
+            .load_model(path)
+            .await
+            .map_err(|e| e.to_string());
 
-    match &result {
-        Ok(()) => tracing::info!(
-            model_id,
-            elapsed_ms = t0.elapsed().as_millis() as u64,
-            "voice_load_model: loaded OK"
-        ),
-        Err(e) => {
-            tracing::error!(model_id, error = %e, elapsed_ms = t0.elapsed().as_millis() as u64, "voice_load_model: load FAILED")
+        match &result {
+            Ok(()) => tracing::info!(
+                model_id,
+                elapsed_ms = t0.elapsed().as_millis() as u64,
+                "voice_load_model: loaded OK"
+            ),
+            Err(e) => {
+                tracing::error!(model_id, error = %e, elapsed_ms = t0.elapsed().as_millis() as u64, "voice_load_model: load FAILED")
+            }
         }
-    }
-    result
+        result
+    }.await)
 }
 
 // ── Recording commands ────────────────────────────────────────────────────
@@ -222,30 +233,32 @@ pub async fn voice_start_recording(
     state: State<'_, VoiceState>,
     app: AppHandle,
     session_id: String,
-) -> Result<(), String> {
-    tracing::info!(session_id, "voice_start_recording");
-    let app_for_amp = app.clone();
-    let app_for_err = app.clone();
+) -> CommandResult<()> {
+    unexpected_command_result("voice_start_recording", "Failed to start recording", async {
+        tracing::info!(session_id, "voice_start_recording");
+        let app_for_amp = app.clone();
+        let app_for_err = app.clone();
 
-    let result = state
-        .runtime()
-        .start_recording(
-            session_id.clone(),
-            move |payload| {
-                let _ = app_for_amp.emit(VOICE_AMPLITUDE_EVENT, payload);
-            },
-            move |payload| {
-                let _ = app_for_err.emit(VOICE_RECORDING_ERROR_EVENT, payload);
-            },
-        )
-        .await
-        .map_err(|e| e.to_string());
+        let result = state
+            .runtime()
+            .start_recording(
+                session_id.clone(),
+                move |payload| {
+                    let _ = app_for_amp.emit(VOICE_AMPLITUDE_EVENT, payload);
+                },
+                move |payload| {
+                    let _ = app_for_err.emit(VOICE_RECORDING_ERROR_EVENT, payload);
+                },
+            )
+            .await
+            .map_err(|e| e.to_string());
 
-    match &result {
-        Ok(()) => tracing::info!(session_id, "voice_start_recording: recording started"),
-        Err(e) => tracing::error!(session_id, error = %e, "voice_start_recording: FAILED"),
-    }
-    result
+        match &result {
+            Ok(()) => tracing::info!(session_id, "voice_start_recording: recording started"),
+            Err(e) => tracing::error!(session_id, error = %e, "voice_start_recording: FAILED"),
+        }
+        result
+    }.await)
 }
 
 #[tauri::command]
@@ -255,69 +268,71 @@ pub async fn voice_stop_recording(
     app: AppHandle,
     session_id: String,
     language: Option<String>,
-) -> Result<(), String> {
-    tracing::info!(session_id, ?language, "voice_stop_recording");
-    let t0 = std::time::Instant::now();
-    let result = state
-        .runtime()
-        .stop_recording(session_id.clone(), language)
-        .await;
+) -> CommandResult<()> {
+    unexpected_command_result("voice_stop_recording", "Failed to stop recording", async {
+        tracing::info!(session_id, ?language, "voice_stop_recording");
+        let t0 = std::time::Instant::now();
+        let result = state
+            .runtime()
+            .stop_recording(session_id.clone(), language)
+            .await;
 
-    match result {
-        Ok(r) => {
-            tracing::info!(
-                session_id,
-                text_len = r.text.len(),
-                trimmed_text_len = r.text.trim().len(),
-                text_preview = %preview_text(&r.text),
-                language = ?r.language,
-                duration_ms = r.duration_ms,
-                transcribe_ms = t0.elapsed().as_millis() as u64,
-                "voice_stop_recording: transcription complete"
-            );
-            let emit_result = app.emit(
-                VOICE_TRANSCRIPTION_COMPLETE_EVENT,
-                TranscriptionCompletePayload {
+        match result {
+            Ok(r) => {
+                tracing::info!(
                     session_id,
-                    text: r.text,
-                    language: r.language,
-                    duration_ms: r.duration_ms,
-                },
-            );
-            match emit_result {
-                Ok(()) => {
-                    tracing::info!("voice_stop_recording: emitted transcription_complete event")
+                    text_len = r.text.len(),
+                    trimmed_text_len = r.text.trim().len(),
+                    text_preview = %preview_text(&r.text),
+                    language = ?r.language,
+                    duration_ms = r.duration_ms,
+                    transcribe_ms = t0.elapsed().as_millis() as u64,
+                    "voice_stop_recording: transcription complete"
+                );
+                let emit_result = app.emit(
+                    VOICE_TRANSCRIPTION_COMPLETE_EVENT,
+                    TranscriptionCompletePayload {
+                        session_id,
+                        text: r.text,
+                        language: r.language,
+                        duration_ms: r.duration_ms,
+                    },
+                );
+                match emit_result {
+                    Ok(()) => {
+                        tracing::info!("voice_stop_recording: emitted transcription_complete event")
+                    }
+                    Err(error) => {
+                        tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_complete event")
+                    }
                 }
-                Err(error) => {
-                    tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_complete event")
-                }
+                Ok(())
             }
-            Ok(())
-        }
-        Err(e) => {
-            let message = e.to_string();
-            tracing::error!(
-                session_id,
-                error = %message,
-                elapsed_ms = t0.elapsed().as_millis() as u64,
-                "voice_stop_recording: transcription FAILED"
-            );
-            let emit_result = app.emit(
-                VOICE_TRANSCRIPTION_ERROR_EVENT,
-                TranscriptionErrorPayload {
+            Err(e) => {
+                let message = e.to_string();
+                tracing::error!(
                     session_id,
-                    message: message.clone(),
-                },
-            );
-            match emit_result {
-                Ok(()) => tracing::info!("voice_stop_recording: emitted transcription_error event"),
-                Err(error) => {
-                    tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_error event")
+                    error = %message,
+                    elapsed_ms = t0.elapsed().as_millis() as u64,
+                    "voice_stop_recording: transcription FAILED"
+                );
+                let emit_result = app.emit(
+                    VOICE_TRANSCRIPTION_ERROR_EVENT,
+                    TranscriptionErrorPayload {
+                        session_id,
+                        message: message.clone(),
+                    },
+                );
+                match emit_result {
+                    Ok(()) => tracing::info!("voice_stop_recording: emitted transcription_error event"),
+                    Err(error) => {
+                        tracing::error!(error = %error, "voice_stop_recording: failed to emit transcription_error event")
+                    }
                 }
+                Err(message)
             }
-            Err(message)
         }
-    }
+    }.await)
 }
 
 #[tauri::command]
@@ -325,11 +340,14 @@ pub async fn voice_stop_recording(
 pub async fn voice_cancel_recording(
     state: State<'_, VoiceState>,
     session_id: String,
-) -> Result<(), String> {
-    tracing::info!(session_id, "voice_cancel_recording");
-    state
-        .runtime()
-        .cancel_recording(session_id)
-        .await
-        .map_err(|e| e.to_string())
+) -> CommandResult<()> {
+    unexpected_command_result("voice_cancel_recording", "Failed to cancel recording", async {
+        tracing::info!(session_id, "voice_cancel_recording");
+        state
+            .runtime()
+            .cancel_recording(session_id)
+            .await
+            .map_err(|e| e.to_string())
+    }
+    .await)
 }

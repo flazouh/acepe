@@ -2,6 +2,7 @@
 //! Runs `gh` CLI with project_path as cwd; uses tokio for async and timeout.
 
 use serde::{Deserialize, Serialize};
+use crate::commands::observability::{CommandResult, unexpected_command_result};
 
 /// Markdown footer appended to PRs created from Acepe (badge + link). No LLM; static attribution.
 const ACEPE_PR_FOOTER: &str = "\n\n---\n\n[![Created with Acepe](https://img.shields.io/badge/Created_with-Acepe-6366f1)](https://acepe.dev)";
@@ -376,10 +377,14 @@ pub async fn git_merge_pr(
     project_path: String,
     pr_number: i32,
     strategy: MergeStrategy,
-) -> Result<(), String> {
-    let path = crate::path_safety::validate_project_directory_from_str(&project_path)
-        .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
-    merge_pull_request(&path, pr_number, strategy).await
+) -> CommandResult<()>  {
+    unexpected_command_result("git_merge_pr", "Git merge PR failed", async {
+
+        let path = crate::path_safety::validate_project_directory_from_str(&project_path)
+            .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+        merge_pull_request(&path, pr_number, strategy).await
+
+    }.await)
 }
 
 /// A single commit in a PR (from `gh pr view --json commits`).
@@ -492,22 +497,30 @@ pub async fn get_pr_details(project_path: &Path, pr_number: i32) -> Result<PrDet
 /// Tauri command: fetch PR details by number.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_pr_details(project_path: String, pr_number: i32) -> Result<PrDetails, String> {
-    let path = crate::path_safety::validate_project_directory_from_str(&project_path)
-        .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
-    get_pr_details(&path, pr_number).await
+pub async fn git_pr_details(project_path: String, pr_number: i32) -> CommandResult<PrDetails>  {
+    unexpected_command_result("git_pr_details", "Failed to fetch PR details", async {
+
+        let path = crate::path_safety::validate_project_directory_from_str(&project_path)
+            .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+        get_pr_details(&path, pr_number).await
+
+    }.await)
 }
 
 /// Tauri command: get open PR for the current branch (for "View PR" in Git panel).
 #[tauri::command]
 #[specta::specta]
-pub async fn get_open_pr_for_branch(project_path: String) -> Result<Option<OpenPrInfo>, String> {
-    let path = crate::path_safety::validate_project_directory_from_str(&project_path)
-        .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+pub async fn get_open_pr_for_branch(project_path: String) -> CommandResult<Option<OpenPrInfo>>  {
+    unexpected_command_result("get_open_pr_for_branch", "Failed to get open PR for branch", async {
 
-    let branch =
-        crate::git::worktree::git_current_branch(path.to_string_lossy().into_owned()).await?;
-    get_open_pr_for_branch_inner(&path, &branch).await
+        let path = crate::path_safety::validate_project_directory_from_str(&project_path)
+            .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+
+        let branch =
+            crate::git::worktree::git_current_branch(path.to_string_lossy().into_owned()).await.map_err(|e| e.message)?;
+        get_open_pr_for_branch_inner(&path, &branch).await
+
+    }.await)
 }
 
 #[cfg(test)]

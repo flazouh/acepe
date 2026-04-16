@@ -2,23 +2,28 @@ use crate::db::repository::DatabaseResetRepository;
 use tauri::AppHandle;
 
 use super::shared::get_db;
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 /// Reset all data in the database.
 /// WARNING: This operation cannot be undone. All data will be permanently deleted.
 #[tauri::command]
 #[specta::specta]
-pub async fn reset_database(app: AppHandle) -> Result<(), String> {
-    tracing::info!("Resetting database - all data will be deleted");
+pub async fn reset_database(app: AppHandle) -> CommandResult<()>  {
+    unexpected_command_result("reset_database", "Failed to reset database", async {
 
-    let db = get_db(&app);
+        tracing::info!("Resetting database - all data will be deleted");
 
-    DatabaseResetRepository::reset_all_data(&db)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to reset database");
-            format!("Failed to reset database: {}", e)
-        })?;
+        let db = get_db(&app);
 
-    tracing::info!("Database reset successful");
-    Ok(())
+        DatabaseResetRepository::reset_all_data(&db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to reset database");
+                format!("Failed to reset database: {}", e)
+            })?;
+
+        tracing::info!("Database reset successful");
+        Ok(())
+
+    }.await)
 }

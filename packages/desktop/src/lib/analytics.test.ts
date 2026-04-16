@@ -56,6 +56,7 @@ mock.module("posthog-js", () => ({
 
 import {
 	__resetAnalyticsForTests,
+	captureCommandFailure,
 	captureEvent,
 	captureException,
 	initAnalytics,
@@ -150,6 +151,21 @@ describe("analytics", () => {
 		captureException(new Error("boom"), { source: "test" });
 
 		expect(sentryCaptureExceptionMock).toHaveBeenCalled();
+	});
+
+	it("skips expected command failures", async () => {
+		import.meta.env.VITE_SENTRY_DSN = "https://example@sentry.io/123";
+
+		await initAnalytics();
+		sentryCaptureExceptionMock.mockReset();
+		captureCommandFailure(new Error("expected"), {
+			commandName: "save_user_setting",
+			invokeId: "invoke-1",
+			elapsedMs: 12,
+			classification: "expected",
+		});
+
+		expect(sentryCaptureExceptionMock).not.toHaveBeenCalled();
 	});
 
 	it("updates posthog capture state when toggled", async () => {

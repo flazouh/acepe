@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 
 /// Set the model for a session
 #[tauri::command]
@@ -7,7 +8,8 @@ pub async fn acp_set_model(
     app: AppHandle,
     session_id: String,
     model_id: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_set_model", async {
     tracing::debug!(session_id = %session_id, model_id = %model_id, "acp_set_model called");
     let session_registry = app.state::<SessionRegistry>();
 
@@ -32,6 +34,8 @@ pub async fn acp_set_model(
     .map_err(SerializableAcpError::from);
 
     result
+    }
+    .await)
 }
 
 /// Set the mode for a session
@@ -41,7 +45,8 @@ pub async fn acp_set_mode(
     app: AppHandle,
     session_id: String,
     mode_id: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_set_mode", async {
     tracing::debug!(session_id = %session_id, mode_id = %mode_id, "acp_set_mode called");
     let session_registry = app.state::<SessionRegistry>();
 
@@ -66,6 +71,8 @@ pub async fn acp_set_mode(
     .map_err(SerializableAcpError::from);
 
     result
+    }
+    .await)
 }
 
 /// Set a configuration option for a session
@@ -76,7 +83,8 @@ pub async fn acp_set_config_option(
     session_id: String,
     config_id: String,
     value: String,
-) -> Result<Value, SerializableAcpError> {
+) -> CommandResult<Value> {
+    expected_acp_command_result("acp_set_config_option", async {
     tracing::debug!(session_id = %session_id, config_id = %config_id, value = %value, "acp_set_config_option called");
     let session_registry = app.state::<SessionRegistry>();
 
@@ -103,6 +111,8 @@ pub async fn acp_set_config_option(
     .map_err(SerializableAcpError::from);
 
     result
+    }
+    .await)
 }
 
 /// Send a prompt to a session (fire-and-forget)
@@ -116,7 +126,8 @@ pub async fn acp_send_prompt(
     app: AppHandle,
     session_id: String,
     request: Value,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_send_prompt", async {
     tracing::debug!(session_id = %session_id, "acp_send_prompt called");
 
     // Deserialize the request Value to a typed PromptRequest
@@ -158,12 +169,15 @@ pub async fn acp_send_prompt(
     .map_err(SerializableAcpError::from);
 
     result
+    }
+    .await)
 }
 
 /// Cancel a session
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_cancel(app: AppHandle, session_id: String) -> Result<(), SerializableAcpError> {
+pub async fn acp_cancel(app: AppHandle, session_id: String) -> CommandResult<()> {
+    expected_acp_command_result("acp_cancel", async {
     tracing::debug!(session_id = %session_id, "acp_cancel called");
     let session_registry = app.state::<SessionRegistry>();
 
@@ -187,4 +201,6 @@ pub async fn acp_cancel(app: AppHandle, session_id: String) -> Result<(), Serial
     })?
     .map_err(SerializableAcpError::from);
     result
+    }
+    .await)
 }

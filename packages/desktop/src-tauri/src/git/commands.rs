@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::git::{operations, text_generation};
+use crate::commands::observability::{CommandResult, unexpected_command_result};
 
 /// Result of a successful git clone operation
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -19,101 +20,109 @@ pub async fn git_clone(
     url: String,
     destination: String,
     branch: Option<String>,
-) -> Result<CloneResult, String> {
-    tracing::info!(
-        url = %url,
-        destination = %destination,
-        branch = ?branch,
-        "Cloning git repository"
-    );
+) -> CommandResult<CloneResult>  {
+    unexpected_command_result("git_clone", "Git clone failed", async {
 
-    // Validate URL format
-    if !url.starts_with("https://") && !url.starts_with("git@") && !url.starts_with("http://") {
-        return Err(
-            "Invalid repository URL format. URL must start with https://, http://, or git@"
-                .to_string(),
+        tracing::info!(
+            url = %url,
+            destination = %destination,
+            branch = ?branch,
+            "Cloning git repository"
         );
-    }
 
-    // Validate destination path
-    let dest_path = Path::new(&destination);
-    if dest_path.exists() {
-        return Err(format!(
-            "Destination folder already exists: {}",
-            destination
-        ));
-    }
-
-    // Build git clone command
-    let mut cmd = Command::new("git");
-    cmd.arg("clone");
-
-    // Add branch argument if specified
-    if let Some(ref branch_name) = branch {
-        if !branch_name.is_empty() {
-            cmd.arg("--branch").arg(branch_name);
+        // Validate URL format
+        if !url.starts_with("https://") && !url.starts_with("git@") && !url.starts_with("http://") {
+            return Err(
+                "Invalid repository URL format. URL must start with https://, http://, or git@"
+                    .to_string(),
+            );
         }
-    }
 
-    cmd.arg(&url).arg(&destination);
+        // Validate destination path
+        let dest_path = Path::new(&destination);
+        if dest_path.exists() {
+            return Err(format!(
+                "Destination folder already exists: {}",
+                destination
+            ));
+        }
 
-    tracing::debug!(command = ?cmd, "Executing git clone");
+        // Build git clone command
+        let mut cmd = Command::new("git");
+        cmd.arg("clone");
 
-    // Execute git clone
-    let output = cmd.output().map_err(|e| {
-        tracing::error!(error = %e, "Failed to execute git command");
-        format!("Failed to execute git: {}. Is git installed?", e)
-    })?;
+        // Add branch argument if specified
+        if let Some(ref branch_name) = branch {
+            if !branch_name.is_empty() {
+                cmd.arg("--branch").arg(branch_name);
+            }
+        }
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!(stderr = %stderr, "Git clone failed");
-        return Err(format!("Git clone failed: {}", stderr.trim()));
-    }
+        cmd.arg(&url).arg(&destination);
 
-    // Extract repository name from destination path
-    let name = dest_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .map(capitalize_name)
-        .unwrap_or_else(|| "repository".to_string());
+        tracing::debug!(command = ?cmd, "Executing git clone");
 
-    tracing::info!(
-        path = %destination,
-        name = %name,
-        "Repository cloned successfully"
-    );
+        // Execute git clone
+        let output = cmd.output().map_err(|e| {
+            tracing::error!(error = %e, "Failed to execute git command");
+            format!("Failed to execute git: {}. Is git installed?", e)
+        })?;
 
-    Ok(CloneResult {
-        path: destination,
-        name,
-    })
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::error!(stderr = %stderr, "Git clone failed");
+            return Err(format!("Git clone failed: {}", stderr.trim()));
+        }
+
+        // Extract repository name from destination path
+        let name = dest_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(capitalize_name)
+            .unwrap_or_else(|| "repository".to_string());
+
+        tracing::info!(
+            path = %destination,
+            name = %name,
+            "Repository cloned successfully"
+        );
+
+        Ok(CloneResult {
+            path: destination,
+            name,
+        })
+
+    }.await)
 }
 
 /// Browse for a destination folder using native file dialog
 #[tauri::command]
 #[specta::specta]
-pub async fn browse_clone_destination() -> Result<Option<String>, String> {
-    use rfd::AsyncFileDialog;
+pub async fn browse_clone_destination() -> CommandResult<Option<String>>  {
+    unexpected_command_result("browse_clone_destination", "Failed to browse for clone destination", async {
 
-    tracing::debug!("Opening folder picker for clone destination");
+        use rfd::AsyncFileDialog;
 
-    let folder = AsyncFileDialog::new()
-        .set_title("Select Destination Folder")
-        .pick_folder()
-        .await;
+        tracing::debug!("Opening folder picker for clone destination");
 
-    match folder {
-        Some(folder_path) => {
-            let path_str = folder_path.path().to_string_lossy().to_string();
-            tracing::info!(path = %path_str, "Destination folder selected");
-            Ok(Some(path_str))
+        let folder = AsyncFileDialog::new()
+            .set_title("Select Destination Folder")
+            .pick_folder()
+            .await;
+
+        match folder {
+            Some(folder_path) => {
+                let path_str = folder_path.path().to_string_lossy().to_string();
+                tracing::info!(path = %path_str, "Destination folder selected");
+                Ok(Some(path_str))
+            }
+            None => {
+                tracing::debug!("Folder selection cancelled");
+                Ok(None)
+            }
         }
-        None => {
-            tracing::debug!("Folder selection cancelled");
-            Ok(None)
-        }
-    }
+
+    }.await)
 }
 
 /// Capitalize the first letter of each word in a string.
@@ -167,11 +176,15 @@ fn build_ship_context(
 pub async fn git_collect_ship_context(
     project_path: String,
     custom_instructions: Option<String>,
-) -> Result<Option<ShipContext>, String> {
-    let path = PathBuf::from(&project_path);
-    let branch = crate::git::worktree::git_current_branch(project_path).await?;
-    let staged = operations::collect_staged_context(&path).await?;
-    Ok(staged.map(|ctx| build_ship_context(&branch, &ctx, custom_instructions.as_deref())))
+) -> CommandResult<Option<ShipContext>>  {
+    unexpected_command_result("git_collect_ship_context", "Failed to collect ship context", async {
+
+        let path = PathBuf::from(&project_path);
+        let branch = crate::git::worktree::git_current_branch(project_path).await.map_err(|e| e.message)?;
+        let staged = operations::collect_staged_context(&path).await?;
+        Ok(staged.map(|ctx| build_ship_context(&branch, &ctx, custom_instructions.as_deref())))
+
+    }.await)
 }
 
 #[cfg(test)]

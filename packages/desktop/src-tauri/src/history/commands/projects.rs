@@ -3,6 +3,7 @@ use crate::acp::provider::{AgentProvider, ProjectDiscoveryCompleteness};
 use crate::acp::registry::AgentRegistry;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 fn is_worktree_project_path(project_path: &str) -> bool {
     let repo = match crate::file_index::git::open_repository(std::path::Path::new(project_path)) {
@@ -67,74 +68,78 @@ fn should_fallback_to_legacy_project_discovery(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_all_project_paths(app: AppHandle) -> Result<Vec<ProjectInfo>, String> {
-    let providers = visible_history_providers(&app);
-    let mut discoveries = Vec::new();
+pub async fn list_all_project_paths(app: AppHandle) -> CommandResult<Vec<ProjectInfo>>  {
+    unexpected_command_result("list_all_project_paths", "Failed to list project paths", async {
 
-    for provider in providers {
-        let agent_id = provider.id().to_string();
-        match provider.list_project_paths().await {
-            Ok(listing) => discoveries.push(ProviderProjectDiscovery {
-                agent_id,
-                paths: listing.paths,
-                completeness: listing.completeness,
-                failed: false,
-            }),
-            Err(error) => {
-                tracing::warn!(agent_id = %agent_id, error = %error, "Failed to list provider projects");
-                discoveries.push(ProviderProjectDiscovery {
+        let providers = visible_history_providers(&app);
+        let mut discoveries = Vec::new();
+
+        for provider in providers {
+            let agent_id = provider.id().to_string();
+            match provider.list_project_paths().await {
+                Ok(listing) => discoveries.push(ProviderProjectDiscovery {
                     agent_id,
-                    paths: Vec::new(),
-                    completeness: ProjectDiscoveryCompleteness::Partial,
-                    failed: true,
-                });
-            }
-        }
-    }
-
-    let projects = dedupe_project_infos(
-        discoveries
-            .iter()
-            .flat_map(|discovery| {
-                discovery.paths.iter().map(|path| ProjectInfo {
-                    is_worktree: is_worktree_project_path(path),
-                    path: path.clone(),
-                    agent_id: discovery.agent_id.clone(),
-                })
-            })
-            .collect(),
-    );
-
-    if should_fallback_to_legacy_project_discovery(&discoveries, &projects) {
-        tracing::warn!("Project discovery coverage was incomplete, falling back to legacy scan");
-
-        match discover_all_projects_with_sessions().await {
-            Ok(entries) => {
-                let mut fallback_projects = Vec::new();
-                let mut seen_paths = HashSet::new();
-
-                for entry in entries {
-                    if entry.project == "global" || !seen_paths.insert(entry.project.clone()) {
-                        continue;
-                    }
-
-                    fallback_projects.push(ProjectInfo {
-                        is_worktree: is_worktree_project_path(&entry.project),
-                        path: entry.project,
-                        agent_id: entry.agent_id.to_string(),
+                    paths: listing.paths,
+                    completeness: listing.completeness,
+                    failed: false,
+                }),
+                Err(error) => {
+                    tracing::warn!(agent_id = %agent_id, error = %error, "Failed to list provider projects");
+                    discoveries.push(ProviderProjectDiscovery {
+                        agent_id,
+                        paths: Vec::new(),
+                        completeness: ProjectDiscoveryCompleteness::Partial,
+                        failed: true,
                     });
                 }
-
-                tracing::info!("Fallback method found {} projects", fallback_projects.len());
-                return Ok(fallback_projects);
-            }
-            Err(error) => {
-                tracing::warn!(error = %error, "Legacy project discovery fallback failed");
             }
         }
-    }
 
-    Ok(projects)
+        let projects = dedupe_project_infos(
+            discoveries
+                .iter()
+                .flat_map(|discovery| {
+                    discovery.paths.iter().map(|path| ProjectInfo {
+                        is_worktree: is_worktree_project_path(path),
+                        path: path.clone(),
+                        agent_id: discovery.agent_id.clone(),
+                    })
+                })
+                .collect(),
+        );
+
+        if should_fallback_to_legacy_project_discovery(&discoveries, &projects) {
+            tracing::warn!("Project discovery coverage was incomplete, falling back to legacy scan");
+
+            match discover_all_projects_with_sessions().await {
+                Ok(entries) => {
+                    let mut fallback_projects = Vec::new();
+                    let mut seen_paths = HashSet::new();
+
+                    for entry in entries {
+                        if entry.project == "global" || !seen_paths.insert(entry.project.clone()) {
+                            continue;
+                        }
+
+                        fallback_projects.push(ProjectInfo {
+                            is_worktree: is_worktree_project_path(&entry.project),
+                            path: entry.project,
+                            agent_id: entry.agent_id.to_string(),
+                        });
+                    }
+
+                    tracing::info!("Fallback method found {} projects", fallback_projects.len());
+                    return Ok(fallback_projects);
+                }
+                Err(error) => {
+                    tracing::warn!(error = ?error, "Legacy project discovery fallback failed");
+                }
+            }
+        }
+
+        Ok(projects)
+
+    }.await)
 }
 
 #[tauri::command]
@@ -142,32 +147,36 @@ pub async fn list_all_project_paths(app: AppHandle) -> Result<Vec<ProjectInfo>, 
 pub async fn count_sessions_for_project(
     app: AppHandle,
     project_path: String,
-) -> Result<ProjectSessionCounts, String> {
-    let providers = visible_history_providers(&app);
-    let mut counts = HashMap::new();
+) -> CommandResult<ProjectSessionCounts>  {
+    unexpected_command_result("count_sessions_for_project", "Failed to count sessions for project", async {
 
-    for provider in providers {
-        let agent_id = provider.id().to_string();
-        match provider.count_sessions_for_project(&project_path).await {
-            Ok(count) if count > 0 => {
-                counts.insert(agent_id, count);
-            }
-            Ok(_) => {}
-            Err(error) => {
-                tracing::warn!(
-                    project = %project_path,
-                    agent_id = %agent_id,
-                    error = %error,
-                    "Failed to count provider sessions for project"
-                );
+        let providers = visible_history_providers(&app);
+        let mut counts = HashMap::new();
+
+        for provider in providers {
+            let agent_id = provider.id().to_string();
+            match provider.count_sessions_for_project(&project_path).await {
+                Ok(count) if count > 0 => {
+                    counts.insert(agent_id, count);
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(
+                        project = %project_path,
+                        agent_id = %agent_id,
+                        error = %error,
+                        "Failed to count provider sessions for project"
+                    );
+                }
             }
         }
-    }
 
-    Ok(ProjectSessionCounts {
-        path: project_path,
-        counts,
-    })
+        Ok(ProjectSessionCounts {
+            path: project_path,
+            counts,
+        })
+
+    }.await)
 }
 
 #[cfg(test)]

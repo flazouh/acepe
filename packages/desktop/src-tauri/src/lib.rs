@@ -426,6 +426,7 @@ fn init_logging() {
 
         tracing_subscriber::registry()
             .with(env_filter)
+            .with(analytics::sentry_tracing_layer())
             .with(console_layer)
             .with(file_layer)
             .init();
@@ -435,6 +436,7 @@ fn init_logging() {
     {
         tracing_subscriber::registry()
             .with(env_filter)
+            .with(analytics::sentry_tracing_layer())
             .with(file_layer)
             .init();
     }

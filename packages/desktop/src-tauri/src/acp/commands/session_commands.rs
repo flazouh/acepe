@@ -7,6 +7,7 @@ use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::redact_session_id;
 use crate::acp::types::CanonicalAgentId;
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{SessionMetadataRepository, SessionProjectionSnapshotRepository};
 use sea_orm::DbConn;
 
@@ -141,30 +142,36 @@ async fn resolve_fork_session_target(
 /// Actual initialization happens per-session in acp_new_session.
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_initialize(_app: AppHandle) -> Result<InitializeResponse, SerializableAcpError> {
-    tracing::info!("acp_initialize called (per-session architecture - no global client)");
+pub async fn acp_initialize(_app: AppHandle) -> CommandResult<InitializeResponse> {
+    expected_acp_command_result("acp_initialize", async {
+        tracing::info!("acp_initialize called (per-session architecture - no global client)");
 
-    // Return a mock response - real initialization happens per-session
-    Ok(InitializeResponse {
-        protocol_version: 1,
-        agent_capabilities: serde_json::json!({}),
-        agent_info: serde_json::json!({}),
-        auth_methods: vec![],
-    })
+        // Return a mock response - real initialization happens per-session
+        Ok(InitializeResponse {
+            protocol_version: 1,
+            agent_capabilities: serde_json::json!({}),
+            agent_info: serde_json::json!({}),
+            auth_methods: vec![],
+        })
+    }
+    .await)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_get_event_bridge_info(
     app: AppHandle,
-) -> Result<AcpEventBridgeInfo, SerializableAcpError> {
-    let hub = app.state::<Arc<AcpEventHubState>>();
-    hub.get_bridge_info().await.ok_or_else(|| {
-        tracing::error!("ACP event bridge server not initialized");
-        SerializableAcpError::InvalidState {
-            message: "ACP event bridge server not initialized".to_string(),
-        }
-    })
+) -> CommandResult<AcpEventBridgeInfo> {
+    expected_acp_command_result("acp_get_event_bridge_info", async {
+        let hub = app.state::<Arc<AcpEventHubState>>();
+        hub.get_bridge_info().await.ok_or_else(|| {
+            tracing::error!("ACP event bridge server not initialized");
+            SerializableAcpError::InvalidState {
+                message: "ACP event bridge server not initialized".to_string(),
+            }
+        })
+    }
+    .await)
 }
 
 #[tauri::command]
@@ -173,17 +180,20 @@ pub async fn acp_set_session_autonomous(
     app: AppHandle,
     session_id: String,
     enabled: bool,
-) -> Result<(), SerializableAcpError> {
-    tracing::debug!(
-        session_id = %session_id,
-        enabled,
-        "acp_set_session_autonomous called"
-    );
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_set_session_autonomous", async {
+        tracing::debug!(
+            session_id = %session_id,
+            enabled,
+            "acp_set_session_autonomous called"
+        );
 
-    let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
-    session_policy.set_autonomous(&session_id, enabled);
+        let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
+        session_policy.set_autonomous(&session_id, enabled);
 
-    Ok(())
+        Ok(())
+    }
+    .await)
 }
 
 #[tauri::command]
@@ -191,7 +201,8 @@ pub async fn acp_set_session_autonomous(
 pub async fn acp_get_session_projection(
     app: AppHandle,
     session_id: String,
-) -> Result<SessionProjectionSnapshot, SerializableAcpError> {
+) -> CommandResult<SessionProjectionSnapshot> {
+    expected_acp_command_result("acp_get_session_projection", async {
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let runtime_projection = projection_registry.session_projection(&session_id);
     if projection_has_runtime_state(&runtime_projection) {
@@ -300,6 +311,8 @@ pub async fn acp_get_session_projection(
     }
 
     Ok(imported_projection)
+    }
+    .await)
 }
 
 /// Create a new ACP session.
@@ -313,94 +326,97 @@ pub async fn acp_new_session(
     cwd: String,
     agent_id: Option<String>,
     launch_token: Option<String>,
-) -> Result<NewSessionResponse, SerializableAcpError> {
-    tracing::info!(cwd = %cwd, agent_id = ?agent_id, "acp_new_session called (creating dedicated client)");
-    let cwd = validate_session_cwd(&cwd, ProjectAccessReason::Other)?;
-    let registry = app.state::<Arc<AgentRegistry>>();
-    let active_agent = app.state::<ActiveAgent>();
-    let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
-    let session_registry = app.state::<SessionRegistry>();
-    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
-    let db = app.state::<DbConn>();
+) -> CommandResult<NewSessionResponse> {
+    expected_acp_command_result("acp_new_session", async {
+        tracing::info!(cwd = %cwd, agent_id = ?agent_id, "acp_new_session called (creating dedicated client)");
+        let cwd = validate_session_cwd(&cwd, ProjectAccessReason::Other)?;
+        let registry = app.state::<Arc<AgentRegistry>>();
+        let active_agent = app.state::<ActiveAgent>();
+        let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+        let session_registry = app.state::<SessionRegistry>();
+        let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+        let db = app.state::<DbConn>();
 
-    // Determine which agent to use
-    let agent_id_enum = resolve_requested_agent_id(agent_id.as_deref(), active_agent.get());
+        // Determine which agent to use
+        let agent_id_enum = resolve_requested_agent_id(agent_id.as_deref(), active_agent.get());
 
-    // Create and initialize client with cwd so subprocess spawns in correct directory
-    let mut client = create_and_initialize_client(
-        &registry,
-        &opencode_manager,
-        agent_id_enum.clone(),
-        app.clone(),
-        cwd.clone(),
-        "new session",
-    )
-    .await?;
-
-    // Create the session
-    tracing::debug!("Creating session");
-    let result = client
-        .new_session(cwd.to_string_lossy().to_string())
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "New session failed");
-            SerializableAcpError::from(e)
-        })?;
-
-    let sequence_id = if let Some(launch_token) = launch_token.as_deref() {
-        SessionMetadataRepository::consume_reserved_worktree_launch(
-            db.inner(),
-            launch_token,
-            &result.session_id,
-            agent_id_enum.as_str(),
+        // Create and initialize client with cwd so subprocess spawns in correct directory
+        let mut client = create_and_initialize_client(
+            &registry,
+            &opencode_manager,
+            agent_id_enum.clone(),
+            app.clone(),
+            cwd.clone(),
+            "new session",
         )
-        .await
-        .map_err(|error| {
-            tracing::error!(
-                error = %error,
+        .await?;
+
+        // Create the session
+        tracing::debug!("Creating session");
+        let result = client
+            .new_session(cwd.to_string_lossy().to_string())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "New session failed");
+                SerializableAcpError::from(e)
+            })?;
+
+        let sequence_id = if let Some(launch_token) = launch_token.as_deref() {
+            SessionMetadataRepository::consume_reserved_worktree_launch(
+                db.inner(),
                 launch_token,
-                session_id = %result.session_id,
-                "Prepared worktree launch consumption failed; stopping session client"
+                &result.session_id,
+                agent_id_enum.as_str(),
+            )
+            .await
+            .map_err(|error| {
+                tracing::error!(
+                    error = %error,
+                    launch_token,
+                    session_id = %result.session_id,
+                    "Prepared worktree launch consumption failed; stopping session client"
+                );
+                client.stop();
+                SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to consume prepared worktree launch {launch_token} for session {}: {error}",
+                        result.session_id
+                    ),
+                }
+            })?
+        } else {
+            persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
+                .await?
+        };
+
+        // Store the client keyed by session_id only after session metadata is durably attached.
+        if let Some(old_client) =
+            session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
+        {
+            // Stop the replaced client
+            tracing::warn!(
+                session_id = %redact_session_id(&result.session_id),
+                agent_id = %agent_id_enum.as_str(),
+                reason = "acp_new_session replaced existing registry entry",
+                "Stopping replaced session client"
             );
-            client.stop();
-            SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to consume prepared worktree launch {launch_token} for session {}: {error}",
-                    result.session_id
-                ),
-            }
-        })?
-    } else {
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-            .await?
-    };
+            let mut old = lock_session_client(&old_client, "acp_new_session: replace lock").await?;
+            old.stop();
+            tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+        }
 
-    // Store the client keyed by session_id only after session metadata is durably attached.
-    if let Some(old_client) =
-        session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
-    {
-        // Stop the replaced client
-        tracing::warn!(
-            session_id = %redact_session_id(&result.session_id),
-            agent_id = %agent_id_enum.as_str(),
-            reason = "acp_new_session replaced existing registry entry",
-            "Stopping replaced session client"
+        tracing::info!(
+            session_id = %result.session_id,
+            "New session created with dedicated client"
         );
-        let mut old = lock_session_client(&old_client, "acp_new_session: replace lock").await?;
-        old.stop();
-        tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+
+        Ok(NewSessionResponse {
+            sequence_id,
+            ..result
+        })
     }
-
-    tracing::info!(
-        session_id = %result.session_id,
-        "New session created with dedicated client"
-    );
-    projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
-
-    Ok(NewSessionResponse {
-        sequence_id,
-        ..result
-    })
+    .await)
 }
 
 /// Resume an existing ACP session.
@@ -418,128 +434,131 @@ pub async fn acp_resume_session(
     agent_id: Option<String>,
     launch_mode_id: Option<String>,
     attempt_id: u64,
-) -> Result<(), SerializableAcpError> {
-    tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, attempt_id, "acp_resume_session called");
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_resume_session", async {
+        tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, attempt_id, "acp_resume_session called");
 
-    // --- Synchronous validation (fast, fails the invoke if invalid) ---
-    let db = app.state::<DbConn>();
-    let resume_target =
-        resolve_resume_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
-    let cwd = validate_session_cwd(
-        &resume_target.launch_cwd,
-        ProjectAccessReason::SessionResume,
-    )?;
-    let registry = app.state::<Arc<AgentRegistry>>();
+        // --- Synchronous validation (fast, fails the invoke if invalid) ---
+        let db = app.state::<DbConn>();
+        let resume_target =
+            resolve_resume_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
+        let cwd = validate_session_cwd(
+            &resume_target.launch_cwd,
+            ProjectAccessReason::SessionResume,
+        )?;
+        let registry = app.state::<Arc<AgentRegistry>>();
 
-    let agent_id_enum = resume_target.descriptor.agent_id.clone();
-    let resolved_launch_mode_id =
-        resolve_resume_launch_mode_id(&registry, &agent_id_enum, launch_mode_id.as_deref())?;
+        let agent_id_enum = resume_target.descriptor.agent_id.clone();
+        let resolved_launch_mode_id =
+            resolve_resume_launch_mode_id(&registry, &agent_id_enum, launch_mode_id.as_deref())?;
 
-    // Clone values needed for the async task
-    let app_clone = app.clone();
-    let resume_descriptor = resume_target.descriptor.clone();
+        // Clone values needed for the async task
+        let app_clone = app.clone();
+        let resume_descriptor = resume_target.descriptor.clone();
 
-    // --- Spawn the async task for heavy work ---
-    // We capture the JoinHandle and spawn a follow-up task to catch panics,
-    // guaranteeing a lifecycle event is always emitted.
-    let session_id_panic = session_id.clone();
-    let app_panic = app.clone();
-    let handle = tokio::spawn(async move {
-        let result = timeout(
-            RESUME_SESSION_TIMEOUT,
-            async_resume_session_work(
-                &app_clone,
-                &session_id,
-                cwd,
-                agent_id_enum,
-                resolved_launch_mode_id,
-                &resume_descriptor,
-            ),
-        )
-        .await;
+        // --- Spawn the async task for heavy work ---
+        // We capture the JoinHandle and spawn a follow-up task to catch panics,
+        // guaranteeing a lifecycle event is always emitted.
+        let session_id_panic = session_id.clone();
+        let app_panic = app.clone();
+        let handle = tokio::spawn(async move {
+            let result = timeout(
+                RESUME_SESSION_TIMEOUT,
+                async_resume_session_work(
+                    &app_clone,
+                    &session_id,
+                    cwd,
+                    agent_id_enum,
+                    resolved_launch_mode_id,
+                    &resume_descriptor,
+                ),
+            )
+            .await;
 
-        // Resolve the outcome and emit the lifecycle event
-        let hub = app_clone
-            .try_state::<Arc<AcpEventHubState>>()
-            .map(|s| s.inner().clone());
-
-        match result {
-            Ok(Ok(response)) => {
-                let policy_registry = app_clone.state::<Arc<SessionPolicyRegistry>>();
-                let autonomous_enabled = policy_registry.is_autonomous(&session_id);
-                let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
-                    session_id: session_id.clone(),
-                    attempt_id,
-                    models: response.models,
-                    modes: response.modes,
-                    available_commands: response.available_commands,
-                    config_options: response.config_options,
-                    autonomous_enabled,
-                };
-                emit_lifecycle_event(&hub, update, &session_id);
-                tracing::info!(
-                    session_id = %session_id,
-                    attempt_id,
-                    "Async resume completed successfully"
-                );
-            }
-            Ok(Err(error)) => {
-                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                    session_id: session_id.clone(),
-                    attempt_id,
-                    error: error.to_string(),
-                };
-                emit_lifecycle_event(&hub, update, &session_id);
-                tracing::error!(
-                    session_id = %session_id,
-                    attempt_id,
-                    error = %error,
-                    "Async resume failed"
-                );
-            }
-            Err(_elapsed) => {
-                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                    session_id: session_id.clone(),
-                    attempt_id,
-                    error: format!(
-                        "Session resume timed out after {}s",
-                        RESUME_SESSION_TIMEOUT.as_secs()
-                    ),
-                };
-                emit_lifecycle_event(&hub, update, &session_id);
-                tracing::error!(
-                    session_id = %session_id,
-                    attempt_id,
-                    timeout_secs = RESUME_SESSION_TIMEOUT.as_secs(),
-                    "Async resume timed out"
-                );
-            }
-        }
-    });
-
-    // Panic guard: if the spawned task panics, emit ConnectionFailed so the
-    // frontend watchdog never fires.
-    tokio::spawn(async move {
-        if let Err(join_error) = handle.await {
-            tracing::error!(
-                session_id = %session_id_panic,
-                attempt_id,
-                error = %join_error,
-                "Resume session task panicked"
-            );
-            let hub = app_panic
+            // Resolve the outcome and emit the lifecycle event
+            let hub = app_clone
                 .try_state::<Arc<AcpEventHubState>>()
                 .map(|s| s.inner().clone());
-            let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                session_id: session_id_panic.clone(),
-                attempt_id,
-                error: format!("Internal error: resume task panicked: {join_error}"),
-            };
-            emit_lifecycle_event(&hub, update, &session_id_panic);
-        }
-    });
 
-    Ok(())
+            match result {
+                Ok(Ok(response)) => {
+                    let policy_registry = app_clone.state::<Arc<SessionPolicyRegistry>>();
+                    let autonomous_enabled = policy_registry.is_autonomous(&session_id);
+                    let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
+                        session_id: session_id.clone(),
+                        attempt_id,
+                        models: response.models,
+                        modes: response.modes,
+                        available_commands: response.available_commands,
+                        config_options: response.config_options,
+                        autonomous_enabled,
+                    };
+                    emit_lifecycle_event(&hub, update, &session_id);
+                    tracing::info!(
+                        session_id = %session_id,
+                        attempt_id,
+                        "Async resume completed successfully"
+                    );
+                }
+                Ok(Err(error)) => {
+                    let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                        session_id: session_id.clone(),
+                        attempt_id,
+                        error: error.to_string(),
+                    };
+                    emit_lifecycle_event(&hub, update, &session_id);
+                    tracing::error!(
+                        session_id = %session_id,
+                        attempt_id,
+                        error = %error,
+                        "Async resume failed"
+                    );
+                }
+                Err(_elapsed) => {
+                    let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                        session_id: session_id.clone(),
+                        attempt_id,
+                        error: format!(
+                            "Session resume timed out after {}s",
+                            RESUME_SESSION_TIMEOUT.as_secs()
+                        ),
+                    };
+                    emit_lifecycle_event(&hub, update, &session_id);
+                    tracing::error!(
+                        session_id = %session_id,
+                        attempt_id,
+                        timeout_secs = RESUME_SESSION_TIMEOUT.as_secs(),
+                        "Async resume timed out"
+                    );
+                }
+            }
+        });
+
+        // Panic guard: if the spawned task panics, emit ConnectionFailed so the
+        // frontend watchdog never fires.
+        tokio::spawn(async move {
+            if let Err(join_error) = handle.await {
+                tracing::error!(
+                    session_id = %session_id_panic,
+                    attempt_id,
+                    error = %join_error,
+                    "Resume session task panicked"
+                );
+                let hub = app_panic
+                    .try_state::<Arc<AcpEventHubState>>()
+                    .map(|s| s.inner().clone());
+                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                    session_id: session_id_panic.clone(),
+                    attempt_id,
+                    error: format!("Internal error: resume task panicked: {join_error}"),
+                };
+                emit_lifecycle_event(&hub, update, &session_id_panic);
+            }
+        });
+
+        Ok(())
+    }
+    .await)
 }
 
 /// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
@@ -636,71 +655,74 @@ pub async fn acp_fork_session(
     session_id: String,
     cwd: String,
     agent_id: Option<String>,
-) -> Result<NewSessionResponse, SerializableAcpError> {
-    tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_fork_session called");
-    let db = app.state::<DbConn>();
-    let fork_target =
-        resolve_fork_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
-    let cwd = validate_session_cwd(&fork_target.launch_cwd, ProjectAccessReason::Other)?;
-    let registry = app.state::<Arc<AgentRegistry>>();
-    let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
-    let session_registry = app.state::<SessionRegistry>();
-    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
-    let agent_id_enum = fork_target.launch_agent_id.clone();
+) -> CommandResult<NewSessionResponse> {
+    expected_acp_command_result("acp_fork_session", async {
+        tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_fork_session called");
+        let db = app.state::<DbConn>();
+        let fork_target =
+            resolve_fork_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
+        let cwd = validate_session_cwd(&fork_target.launch_cwd, ProjectAccessReason::Other)?;
+        let registry = app.state::<Arc<AgentRegistry>>();
+        let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+        let session_registry = app.state::<SessionRegistry>();
+        let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+        let agent_id_enum = fork_target.launch_agent_id.clone();
 
-    // Create and initialize client with cwd so subprocess spawns in correct directory
-    let mut client = create_and_initialize_client(
-        &registry,
-        &opencode_manager,
-        agent_id_enum.clone(),
-        app.clone(),
-        cwd.clone(),
-        "fork session",
-    )
-    .await?;
-
-    // Fork the session
-    tracing::debug!("Forking session");
-    let result = client
-        .fork_session(
-            fork_target.fork_parent_session_id.clone(),
-            cwd.to_string_lossy().to_string(),
+        // Create and initialize client with cwd so subprocess spawns in correct directory
+        let mut client = create_and_initialize_client(
+            &registry,
+            &opencode_manager,
+            agent_id_enum.clone(),
+            app.clone(),
+            cwd.clone(),
+            "fork session",
         )
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Fork session failed");
-            SerializableAcpError::from(e)
-        })?;
+        .await?;
 
-    // Store the client keyed by NEW session_id
-    if let Some(old_client) =
-        session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
-    {
-        // Stop the replaced client
-        tracing::warn!(
-            session_id = %redact_session_id(&result.session_id),
-            agent_id = %agent_id_enum.as_str(),
-            reason = "acp_fork_session replaced existing registry entry",
-            "Stopping replaced session client"
+        // Fork the session
+        tracing::debug!("Forking session");
+        let result = client
+            .fork_session(
+                fork_target.fork_parent_session_id.clone(),
+                cwd.to_string_lossy().to_string(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Fork session failed");
+                SerializableAcpError::from(e)
+            })?;
+
+        // Store the client keyed by NEW session_id
+        if let Some(old_client) =
+            session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
+        {
+            // Stop the replaced client
+            tracing::warn!(
+                session_id = %redact_session_id(&result.session_id),
+                agent_id = %agent_id_enum.as_str(),
+                reason = "acp_fork_session replaced existing registry entry",
+                "Stopping replaced session client"
+            );
+            let mut old = lock_session_client(&old_client, "acp_fork_session: replace lock").await?;
+            old.stop();
+            tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+        }
+
+        tracing::info!(
+            original_session_id = %session_id,
+            new_session_id = %result.session_id,
+            "Session forked with dedicated client"
         );
-        let mut old = lock_session_client(&old_client, "acp_fork_session: replace lock").await?;
-        old.stop();
-        tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+        let sequence_id =
+            persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
+                .await?;
+        Ok(NewSessionResponse {
+            sequence_id,
+            ..result
+        })
     }
-
-    tracing::info!(
-        original_session_id = %session_id,
-        new_session_id = %result.session_id,
-        "Session forked with dedicated client"
-    );
-    projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
-    let sequence_id =
-        persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-            .await?;
-    Ok(NewSessionResponse {
-        sequence_id,
-        ..result
-    })
+    .await)
 }
 
 /// Close a session and clean up its client
@@ -709,7 +731,8 @@ pub async fn acp_fork_session(
 pub async fn acp_close_session(
     app: AppHandle,
     session_id: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_close_session", async {
     tracing::info!(session_id = %session_id, "acp_close_session called");
     let session_registry = app.state::<SessionRegistry>();
     let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
@@ -753,6 +776,8 @@ pub async fn acp_close_session(
     projection_registry.remove_session(&session_id);
 
     Ok(())
+    }
+    .await)
 }
 
 fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {

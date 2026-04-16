@@ -1,6 +1,7 @@
 use super::*;
 use crate::acp::provider::PreconnectionSlashMode;
 use crate::acp::session_update::AvailableCommand;
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 
 fn resolve_preconnection_cwd(
     mode: PreconnectionSlashMode,
@@ -20,7 +21,8 @@ pub async fn acp_list_preconnection_commands(
     app: AppHandle,
     cwd: String,
     agent_id: String,
-) -> Result<Vec<AvailableCommand>, SerializableAcpError> {
+) -> CommandResult<Vec<AvailableCommand>> {
+    expected_acp_command_result("acp_list_preconnection_commands", async {
     tracing::info!(cwd = %cwd, agent_id = %agent_id, "acp_list_preconnection_commands called");
 
     let canonical_agent_id = CanonicalAgentId::parse(&agent_id);
@@ -46,6 +48,8 @@ pub async fn acp_list_preconnection_commands(
     );
 
     Ok(commands)
+    }
+    .await)
 }
 
 #[cfg(test)]
