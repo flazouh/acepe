@@ -1,9 +1,6 @@
 <script lang="ts">
 	import AgentPanelModifiedFileRow from "./agent-panel-modified-file-row.svelte";
-	import {
-		resolveReviewWorkspaceSelectedIndex,
-		type ReviewWorkspaceFileItem,
-	} from "./types.js";
+	import type { ReviewWorkspaceFileItem } from "./types.js";
 
 	interface Props {
 		files: readonly ReviewWorkspaceFileItem[];
@@ -13,10 +10,6 @@
 	}
 
 	let { files, selectedIndex = null, emptyStateLabel, onFileSelect }: Props = $props();
-
-	const effectiveSelectedIndex = $derived.by(() =>
-		resolveReviewWorkspaceSelectedIndex(files, selectedIndex)
-	);
 
 	function scrollSelectedIntoView(node: HTMLDivElement, isSelected: boolean) {
 		function runScroll(nextSelected: boolean): void {
@@ -63,7 +56,7 @@
 		<div class="flex-1 overflow-y-auto p-2">
 			<div class="flex flex-col gap-1">
 				{#each files as file, index (file.id)}
-					{@const isSelected = index === effectiveSelectedIndex}
+					{@const isSelected = index === selectedIndex}
 					<div
 						use:scrollSelectedIntoView={isSelected}
 						class="rounded-md"
