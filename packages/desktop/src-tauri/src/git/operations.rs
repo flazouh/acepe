@@ -168,7 +168,7 @@ fn run_git_command_sync(
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
 
-    if !output.status.success() && !(allow_diff_exit && output.status.code() == Some(1)) {
+    if !(output.status.success() || allow_diff_exit && output.status.code() == Some(1)) {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
             format!(

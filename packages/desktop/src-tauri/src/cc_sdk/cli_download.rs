@@ -121,6 +121,7 @@ pub async fn download_cli(
 
 /// Stub for download_cli when auto-download feature is disabled
 #[cfg(not(feature = "auto-download"))]
+#[allow(clippy::type_complexity)]
 pub async fn download_cli(
     _version: Option<&str>,
     _on_progress: Option<Box<dyn Fn(u64, Option<u64>) + Send + Sync>>,

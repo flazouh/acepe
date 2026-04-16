@@ -13,10 +13,11 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Permission mode for tool execution
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PermissionMode {
     /// Default mode - CLI prompts for dangerous tools
+    #[default]
     Default,
     /// Auto-accept file edits
     AcceptEdits,
@@ -291,28 +292,16 @@ pub enum SdkPluginConfig {
     },
 }
 
-impl Default for PermissionMode {
-    fn default() -> Self {
-        Self::Default
-    }
-}
-
 /// Control protocol format for sending messages
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ControlProtocolFormat {
     /// Legacy format: {"type":"sdk_control_request","request":{...}}
+    #[default]
     Legacy,
     /// New format: {"type":"control","control":{...}}
     Control,
     /// Auto-detect based on CLI capabilities (default to Legacy for compatibility)
     Auto,
-}
-
-impl Default for ControlProtocolFormat {
-    fn default() -> Self {
-        // Default to Legacy for maximum compatibility
-        Self::Legacy
-    }
 }
 
 // ============================================================================
@@ -1395,6 +1384,7 @@ pub struct ClaudeCodeOptions {
     pub user: Option<String>,
     /// Stderr callback (alternative to debug_stderr)
     /// Called with each line of stderr output from the CLI
+    #[allow(clippy::type_complexity)]
     pub stderr_callback: Option<Arc<dyn Fn(&str) + Send + Sync>>,
     /// Automatically download Claude Code CLI if not found
     ///

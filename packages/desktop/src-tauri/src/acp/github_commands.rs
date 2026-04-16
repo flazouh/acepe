@@ -1,3 +1,4 @@
+#![allow(clippy::result_large_err)]
 /**
  * GitHub integration commands for Tauri.
  * Handles fetching commit/PR diffs via git and gh CLI.
@@ -271,7 +272,7 @@ fn run_git_from_project(
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
 
-    if !output.status.success() && !(allow_diff_exit && output.status.code() == Some(1)) {
+    if !(output.status.success() || allow_diff_exit && output.status.code() == Some(1)) {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
             "Git command failed".to_string()

@@ -20,6 +20,7 @@ use super::types::{
 ///
 /// This provides defense-in-depth by ensuring IDs have the expected format
 /// before querying the database.
+#[allow(clippy::result_large_err)]
 fn validate_uuid(id: &str, field_name: &str, command_name: &'static str) -> CommandResult<()> {
     Uuid::parse_str(id).map_err(|_| {
         SerializableCommandError::expected(command_name, format!("Invalid {} format", field_name))

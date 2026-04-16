@@ -288,7 +288,7 @@ impl CursorParser {
             .is_some();
         let location_path = Self::extract_first_location_path(data);
         if let Some(location_path) = location_path.as_deref() {
-            inject_path_hint(&mut raw_arguments, kind, &location_path);
+            inject_path_hint(&mut raw_arguments, kind, location_path);
         }
 
         let name = raw_name.unwrap_or_else(|| "unknown".to_string());

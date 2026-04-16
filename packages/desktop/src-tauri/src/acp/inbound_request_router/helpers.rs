@@ -66,6 +66,7 @@ pub(super) fn build_permission_request_log_payload(
     payload
 }
 
+#[allow(clippy::result_large_err)]
 pub(super) fn terminal_app_handle(
     app_handle: Option<&AppHandle>,
 ) -> Result<AppHandle, InboundRoutingDecision> {
@@ -74,6 +75,7 @@ pub(super) fn terminal_app_handle(
         .ok_or_else(|| request_error("Terminal manager unavailable".to_string()))
 }
 
+#[allow(clippy::result_large_err)]
 pub(super) fn parse_terminal_request_params(
     params: &Value,
 ) -> Result<(String, String), InboundRoutingDecision> {

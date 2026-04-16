@@ -12,6 +12,7 @@ use crate::commands::observability::{unexpected_command_result, CommandResult};
 const ALLOWED_LABELS: &[&str] = &["main"];
 
 #[tauri::command]
+#[allow(clippy::result_large_err)]
 pub fn activate_window(app: tauri::AppHandle, label: String) -> CommandResult<()>  {
     unexpected_command_result("activate_window", "Failed to activate window", (|| {
 

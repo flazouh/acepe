@@ -61,6 +61,7 @@ pub(crate) fn read_stderr_buffer(buffer: &StderrBuffer) -> Option<String> {
     Some(guard.iter().cloned().collect::<Vec<_>>().join("\n"))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn send_auto_response_and_emit_updates(
     stdin_writer: &StdArc<Mutex<Option<ChildStdin>>>,
     dispatcher: &AcpUiEventDispatcher,

@@ -1064,7 +1064,7 @@ pub fn run() {
             if let tauri::WindowEvent::Destroyed = event {
                 let app = window.app_handle();
                 if app.webview_windows().is_empty() {
-                    cleanup_app_runtime(&app, "last window destroyed");
+                    cleanup_app_runtime(app, "last window destroyed");
                 }
             }
         })

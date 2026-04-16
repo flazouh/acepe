@@ -308,7 +308,7 @@ async fn scan_project_sessions_inner(
         "Session scan complete (from file scan)"
     );
 
-    entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
 
     Ok(entries)
 }

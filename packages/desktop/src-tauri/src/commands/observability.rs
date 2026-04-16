@@ -132,6 +132,7 @@ pub fn expected_acp_command_error(
     SerializableCommandError::expected(command_name, message).with_domain(error)
 }
 
+#[allow(clippy::result_large_err)]
 pub fn expected_acp_command_result<T>(
     command_name: &'static str,
     result: Result<T, SerializableAcpError>,
@@ -139,6 +140,7 @@ pub fn expected_acp_command_result<T>(
     result.map_err(|error| expected_acp_command_error(command_name, error))
 }
 
+#[allow(clippy::result_large_err)]
 pub fn expected_command_result<T>(
     command_name: &'static str,
     result: Result<T, String>,
@@ -146,6 +148,7 @@ pub fn expected_command_result<T>(
     result.map_err(|message| SerializableCommandError::expected(command_name, message))
 }
 
+#[allow(clippy::result_large_err)]
 pub fn unexpected_command_result<T>(
     command_name: &'static str,
     message: &'static str,

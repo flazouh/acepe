@@ -23,14 +23,14 @@ macro_rules! define_registered_tauri_handlers_macro {
 #[macro_export]
 macro_rules! all_command_entries {
     ($callback:ident $(, $args:tt)*) => {
-        crate::acp_command_entries!(__all_command_entries_after_acp, [$callback $(, $args)*], []);
+        $crate::acp_command_entries!(__all_command_entries_after_acp, [$callback $(, $args)*], []);
     };
 }
 
 #[macro_export]
 macro_rules! __all_command_entries_after_acp {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::fs_command_entries!(
+        $crate::fs_command_entries!(
             __all_command_entries_after_fs,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -41,7 +41,7 @@ macro_rules! __all_command_entries_after_acp {
 #[macro_export]
 macro_rules! __all_command_entries_after_fs {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::history_command_entries!(
+        $crate::history_command_entries!(
             __all_command_entries_after_history,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -52,7 +52,7 @@ macro_rules! __all_command_entries_after_fs {
 #[macro_export]
 macro_rules! __all_command_entries_after_history {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::cursor_history_command_entries!(
+        $crate::cursor_history_command_entries!(
             __all_command_entries_after_cursor_history,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -63,7 +63,7 @@ macro_rules! __all_command_entries_after_history {
 #[macro_export]
 macro_rules! __all_command_entries_after_cursor_history {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::opencode_history_command_entries!(
+        $crate::opencode_history_command_entries!(
             __all_command_entries_after_opencode_history,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -74,7 +74,7 @@ macro_rules! __all_command_entries_after_cursor_history {
 #[macro_export]
 macro_rules! __all_command_entries_after_opencode_history {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::storage_command_entries!(
+        $crate::storage_command_entries!(
             __all_command_entries_after_storage,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -85,7 +85,7 @@ macro_rules! __all_command_entries_after_opencode_history {
 #[macro_export]
 macro_rules! __all_command_entries_after_storage {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::file_index_command_entries!(
+        $crate::file_index_command_entries!(
             __all_command_entries_after_file_index,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -96,7 +96,7 @@ macro_rules! __all_command_entries_after_storage {
 #[macro_export]
 macro_rules! __all_command_entries_after_file_index {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::terminal_command_entries!(
+        $crate::terminal_command_entries!(
             __all_command_entries_after_terminal,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -107,7 +107,7 @@ macro_rules! __all_command_entries_after_file_index {
 #[macro_export]
 macro_rules! __all_command_entries_after_terminal {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::git_command_entries!(
+        $crate::git_command_entries!(
             __all_command_entries_after_git,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -118,7 +118,7 @@ macro_rules! __all_command_entries_after_terminal {
 #[macro_export]
 macro_rules! __all_command_entries_after_git {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::checkpoint_command_entries!(
+        $crate::checkpoint_command_entries!(
             __all_command_entries_after_checkpoint,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -129,7 +129,7 @@ macro_rules! __all_command_entries_after_git {
 #[macro_export]
 macro_rules! __all_command_entries_after_checkpoint {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::skills_command_entries!(
+        $crate::skills_command_entries!(
             __all_command_entries_after_skills,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -140,7 +140,7 @@ macro_rules! __all_command_entries_after_checkpoint {
 #[macro_export]
 macro_rules! __all_command_entries_after_skills {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::sql_studio_command_entries!(
+        $crate::sql_studio_command_entries!(
             __all_command_entries_after_sql_studio,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -151,7 +151,7 @@ macro_rules! __all_command_entries_after_skills {
 #[macro_export]
 macro_rules! __all_command_entries_after_sql_studio {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::github_command_entries!(
+        $crate::github_command_entries!(
             __all_command_entries_after_github,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -162,7 +162,7 @@ macro_rules! __all_command_entries_after_sql_studio {
 #[macro_export]
 macro_rules! __all_command_entries_after_github {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::browser_webview_command_entries!(
+        $crate::browser_webview_command_entries!(
             __all_command_entries_after_browser_webview,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -173,7 +173,7 @@ macro_rules! __all_command_entries_after_github {
 #[macro_export]
 macro_rules! __all_command_entries_after_browser_webview {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::voice_command_entries!(
+        $crate::voice_command_entries!(
             __all_command_entries_after_voice,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]
@@ -184,7 +184,7 @@ macro_rules! __all_command_entries_after_browser_webview {
 #[macro_export]
 macro_rules! __all_command_entries_after_voice {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
-        crate::window_command_entries!(
+        $crate::window_command_entries!(
             __all_command_entries_finish,
             [$callback $(, $args)*],
             [$($acc)* $($entries)*,]

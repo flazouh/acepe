@@ -1,3 +1,4 @@
+#![allow(clippy::result_large_err)]
 /**
  * GitHub Issues integration commands for Tauri.
  * Provides CRUD operations for GitHub Issues as a projection layer.
