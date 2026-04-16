@@ -1,6 +1,6 @@
 import { promoteLiveMarkdownText, type LiveMarkdownPresentation } from "./live-markdown-promotion.js";
 import type { StreamingTailSection } from "./parse-streaming-tail.js";
-import { wrapWordsForAnimation } from "./wrap-words-for-animation.js";
+import { wrapWordsForAnimation, type WordAnimationState } from "./wrap-words-for-animation.js";
 
 type RenderableStreamingSection = Extract<
 	StreamingTailSection,
@@ -9,6 +9,7 @@ type RenderableStreamingSection = Extract<
 
 export interface LiveMarkdownRenderResult {
 	html: string | null;
+	wordCount: number;
 }
 
 const SAFE_LINK_PATTERN = /\[([^\]\n]+)\]\(([^)\n]+)\)/g;
@@ -52,7 +53,10 @@ function isSafeExternalHref(href: string): boolean {
 	return href.startsWith("https://") || href.startsWith("http://");
 }
 
-function renderInlineMarkdown(text: string, animate: boolean): string {
+function renderInlineMarkdown(
+	text: string,
+	state: WordAnimationState | null
+): string {
 	const htmlByToken = new Map<string, string>();
 
 	let templated = text.replaceAll(CODE_SPAN_PATTERN, (_match: string, content: string) =>
@@ -87,8 +91,8 @@ function renderInlineMarkdown(text: string, animate: boolean): string {
 	// literal ASCII and contain no HTML-special characters).
 	const escaped = escapeHtml(templated);
 
-	// Wrap plain-text words in fade spans when animation is enabled.
-	const wrapped = animate ? wrapWordsForAnimation(escaped) : escaped;
+	// Wrap plain-text words in fade spans when animation state is provided.
+	const wrapped = state !== null ? wrapWordsForAnimation(escaped, state) : escaped;
 
 	return restoreTokenHtml(wrapped, htmlByToken);
 }
@@ -119,28 +123,28 @@ function parseFencedCodeBlock(markdown: string): { language: string | null; code
 	};
 }
 
-function renderParagraph(markdown: string, animate: boolean): string {
-	return `<p>${renderInlineMarkdown(markdown, animate)}</p>`;
+function renderParagraph(markdown: string, state: WordAnimationState | null): string {
+	return `<p>${renderInlineMarkdown(markdown, state)}</p>`;
 }
 
-function renderHeading(markdown: string, animate: boolean): string | null {
+function renderHeading(markdown: string, state: WordAnimationState | null): string | null {
 	const match = HEADING_PATTERN.exec(markdown);
 	if (!match) {
 		return null;
 	}
 
 	const level = match[1].length;
-	return `<h${level}>${renderInlineMarkdown(match[2], animate)}</h${level}>`;
+	return `<h${level}>${renderInlineMarkdown(match[2], state)}</h${level}>`;
 }
 
-function renderBlockquote(markdown: string, animate: boolean): string {
+function renderBlockquote(markdown: string, state: WordAnimationState | null): string {
 	const lines = markdown
 		.split("\n")
 		.map((line) => line.replace(BLOCKQUOTE_PREFIX_PATTERN, ""));
-	return `<blockquote><p>${lines.map((line) => renderInlineMarkdown(line, animate)).join("<br>")}</p></blockquote>`;
+	return `<blockquote><p>${lines.map((line) => renderInlineMarkdown(line, state)).join("<br>")}</p></blockquote>`;
 }
 
-function renderList(markdown: string, animate: boolean): string {
+function renderList(markdown: string, state: WordAnimationState | null): string {
 	const lines = markdown.split("\n");
 	const isOrdered = ORDERED_LIST_PREFIX_PATTERN.test(lines[0]);
 	const tagName = isOrdered ? "ol" : "ul";
@@ -154,7 +158,7 @@ function renderList(markdown: string, animate: boolean): string {
 			const itemText = isOrdered
 				? line.replace(ORDERED_LIST_PREFIX_PATTERN, "")
 				: line.replace(UNORDERED_LIST_PREFIX_PATTERN, "");
-			return `<li>${renderInlineMarkdown(itemText, animate)}</li>`;
+			return `<li>${renderInlineMarkdown(itemText, state)}</li>`;
 		})
 		.join("");
 	return `<${tagName}${startAttribute}>${itemsHtml}</${tagName}>`;
@@ -163,28 +167,29 @@ function renderList(markdown: string, animate: boolean): string {
 function renderPresentation(
 	markdown: string,
 	presentation: LiveMarkdownPresentation,
-	animate: boolean
+	state: WordAnimationState | null
 ): string | null {
 	if (presentation === "heading") {
-		return renderHeading(markdown, animate);
+		return renderHeading(markdown, state);
 	}
 
 	if (presentation === "blockquote") {
-		return renderBlockquote(markdown, animate);
+		return renderBlockquote(markdown, state);
 	}
 
 	if (presentation === "list") {
-		return renderList(markdown, animate);
+		return renderList(markdown, state);
 	}
 
-	return renderParagraph(markdown, animate);
+	return renderParagraph(markdown, state);
 }
 
 export function renderLiveMarkdownSection(
 	section: RenderableStreamingSection,
-	options: { animate?: boolean } = {}
+	options: { animate?: boolean; animateFromWordIndex?: number } = {}
 ): LiveMarkdownRenderResult {
 	const animate = options.animate ?? false;
+	const animateFromWordIndex = options.animateFromWordIndex ?? 0;
 
 	const fencedCodeBlock =
 		section.kind === "settled" ? parseFencedCodeBlock(section.markdown) : null;
@@ -197,6 +202,7 @@ export function renderLiveMarkdownSection(
 		const fadeClass = animate ? ' class="streaming-live-code sd-word-fade"' : ' class="streaming-live-code"';
 		return {
 			html: `<pre${fadeClass}><code${languageAttribute}>${escapeHtml(fencedCodeBlock.code)}</code></pre>`,
+			wordCount: 0,
 		};
 	}
 
@@ -209,10 +215,15 @@ export function renderLiveMarkdownSection(
 			: promoteLiveMarkdownText(section.markdown);
 
 	if (promotion === null) {
-		return { html: null };
+		return { html: null, wordCount: 0 };
 	}
 
+	const state: WordAnimationState | null = animate
+		? { wordIndex: 0, animateFrom: animateFromWordIndex }
+		: null;
+
 	return {
-		html: renderPresentation(promotion.markdown, promotion.presentation, animate),
+		html: renderPresentation(promotion.markdown, promotion.presentation, state),
+		wordCount: state !== null ? state.wordIndex : 0,
 	};
 }

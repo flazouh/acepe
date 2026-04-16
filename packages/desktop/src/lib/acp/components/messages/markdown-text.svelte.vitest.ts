@@ -758,6 +758,47 @@ describe("MarkdownText", () => {
 	});
 
 	describe("streaming animation modes", () => {
+		it("does not re-animate existing words when streaming text grows", async () => {
+			renderMarkdownSyncMock.mockImplementation((text) => ({
+				html: `<p>${text}</p>`,
+				fromCache: false,
+				needsAsync: false,
+			}));
+
+			const view = render(MarkdownText, {
+				text: "hello world",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const fades = view.container.querySelectorAll(".sd-word-fade");
+				expect(fades.length).toBeGreaterThan(0);
+			});
+
+			// Rerender with appended text (simulates streaming growth)
+			await view.rerender({
+				text: "hello world foo",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const section = view.container.querySelector('[data-streaming-live="true"]');
+				expect(section).not.toBeNull();
+				const html = section!.innerHTML;
+				// "hello" and "world" should NOT have sd-word-fade class (they were in previous render)
+				expect(html).not.toContain('<span class="sd-word-fade">hello</span>');
+				expect(html).not.toContain('<span class="sd-word-fade">world</span>');
+				// "foo" should have sd-word-fade class (it's new)
+				expect(html).toContain('<span class="sd-word-fade">foo</span>');
+				// All text should still be present
+				expect(section!.textContent).toContain("hello");
+				expect(section!.textContent).toContain("world");
+				expect(section!.textContent).toContain("foo");
+			});
+		});
+
 		it("renders word-fade spans while smooth streaming is active", async () => {
 			renderMarkdownSyncMock.mockImplementation((text) => ({
 				html: `<p>${text.replace("**bold**", "<strong>bold</strong>")}</p>`,

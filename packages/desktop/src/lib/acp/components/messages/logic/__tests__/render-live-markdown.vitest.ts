@@ -74,6 +74,96 @@ describe("renderLiveMarkdownSection", () => {
 	});
 
 	describe("animate: true", () => {
+		it("returns wordCount in result", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "hello world",
+					markdown: "hello world",
+					presentation: "paragraph",
+					source: "hello world",
+				},
+				{ animate: true }
+			);
+
+			expect(result.wordCount).toBe(2);
+		});
+
+		it("returns wordCount 0 when animate is false", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "hello world",
+					markdown: "hello world",
+					presentation: "paragraph",
+					source: "hello world",
+				},
+				{ animate: false }
+			);
+
+			expect(result.wordCount).toBe(0);
+		});
+
+		it("only animates words from animateFromWordIndex onward", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "hello world foo",
+					markdown: "hello world foo",
+					presentation: "paragraph",
+					source: "hello world foo",
+				},
+				{ animate: true, animateFromWordIndex: 2 }
+			);
+
+			// "hello" and "world" (indices 0,1) should NOT be wrapped
+			expect(result.html).not.toContain('<span class="sd-word-fade">hello</span>');
+			expect(result.html).not.toContain('<span class="sd-word-fade">world</span>');
+			// "foo" (index 2) should be wrapped
+			expect(result.html).toContain('<span class="sd-word-fade">foo</span>');
+			expect(result.wordCount).toBe(3);
+		});
+
+		it("counts words across list items", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "- item one\n- item two",
+					markdown: "- item one\n- item two",
+					presentation: "list",
+					source: "- item one\n- item two",
+				},
+				{ animate: true }
+			);
+
+			// 4 words total: "item", "one", "item", "two"
+			expect(result.wordCount).toBe(4);
+		});
+
+		it("only animates new words in a list with animateFromWordIndex", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "- item one\n- item two",
+					markdown: "- item one\n- item two",
+					presentation: "list",
+					source: "- item one\n- item two",
+				},
+				{ animate: true, animateFromWordIndex: 2 }
+			);
+
+			// First 2 words ("item", "one") should not have animation
+			// Words from index 2 onwards ("item", "two" in second list item) should animate
+			expect(result.html).toContain("<ul>");
+			expect(countWordFadeSpans(result.html)).toBe(2);
+			expect(result.wordCount).toBe(4);
+		});
+
 		it("wraps words in sd-word-fade spans for a paragraph", () => {
 			const result = renderLiveMarkdownSection(
 				{

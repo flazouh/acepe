@@ -318,6 +318,7 @@ const isLoading = $derived(syncResult.needsAsync && asyncPending);
 
 let streamingSettledHtmlByKey = $state<ReadonlyMap<string, string>>(new Map());
 let streamingLiveMarkdownByKey = $state<ReadonlyMap<string, string>>(new Map());
+let previousWordCountByKey = new Map<string, number>();
 
 // Parse content blocks from HTML (extracts mermaid, github badges, etc.)
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
@@ -377,12 +378,14 @@ $effect(() => {
 	if (!isRenderingReveal) {
 		streamingSettledHtmlByKey = new Map();
 		streamingLiveMarkdownByKey = new Map();
+		previousWordCountByKey = new Map();
 		return;
 	}
 
 	const previousSettledHtmlByKey = untrack(() => streamingSettledHtmlByKey);
 	const nextSettledHtmlByKey = new Map<string, string>();
 	const nextLiveMarkdownByKey = new Map<string, string>();
+	const nextWordCountByKey = new Map<string, number>();
 	for (const section of streamingTail.sections) {
 		if (section.kind === "settled") {
 			const cachedHtml = previousSettledHtmlByKey.get(section.key);
@@ -402,18 +405,22 @@ $effect(() => {
 			continue;
 		}
 
+		const animateFromWordIndex = previousWordCountByKey.get(section.key) ?? 0;
 		const result = renderLiveMarkdownSection(section, {
 			animate: shouldAnimateStreaming,
+			animateFromWordIndex,
 		});
 		if (result.html === null) {
 			continue;
 		}
 
 		nextLiveMarkdownByKey.set(section.key, result.html);
+		nextWordCountByKey.set(section.key, result.wordCount);
 	}
 
 	streamingSettledHtmlByKey = nextSettledHtmlByKey;
 	streamingLiveMarkdownByKey = nextLiveMarkdownByKey;
+	previousWordCountByKey = nextWordCountByKey;
 });
 
 /**
