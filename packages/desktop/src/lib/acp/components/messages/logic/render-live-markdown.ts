@@ -39,15 +39,11 @@ function createTokenHtml(htmlByToken: Map<string, string>, html: string): string
 
 function restoreTokenHtml(
 	text: string,
-	htmlByToken: ReadonlyMap<string, string>,
-	animate: boolean
+	htmlByToken: ReadonlyMap<string, string>
 ): string {
 	let restored = text;
 	for (const [token, html] of htmlByToken.entries()) {
-		// When animating, wrap each restored inline token in a fade span so the
-		// entire <strong>, <em>, <code>, or disabled link fades as a unit.
-		const replacement = animate ? `<span class="sd-word-fade">${html}</span>` : html;
-		restored = restored.replaceAll(token, replacement);
+		restored = restored.replaceAll(token, html);
 	}
 	return restored;
 }
@@ -94,7 +90,7 @@ function renderInlineMarkdown(text: string, animate: boolean): string {
 	// Wrap plain-text words in fade spans when animation is enabled.
 	const wrapped = animate ? wrapWordsForAnimation(escaped) : escaped;
 
-	return restoreTokenHtml(wrapped, htmlByToken, animate);
+	return restoreTokenHtml(wrapped, htmlByToken);
 }
 
 function parseFencedCodeBlock(markdown: string): { language: string | null; code: string } | null {

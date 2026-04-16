@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { renderLiveMarkdownSection } from "../render-live-markdown.js";
 
+function countWordFadeSpans(html: string | null): number {
+	return html === null ? 0 : Array.from(html.matchAll(/class="sd-word-fade"/g)).length;
+}
+
 describe("renderLiveMarkdownSection", () => {
 	it("renders a live paragraph with inline formatting", () => {
 		const result = renderLiveMarkdownSection({
@@ -121,6 +125,8 @@ describe("renderLiveMarkdownSection", () => {
 			expect(result.html).toContain('class="sd-word-fade"><code>console.log</code>');
 			// The text inside <code> should not itself be wrapped in sd-word-fade spans
 			expect(result.html).not.toContain("<code><span");
+			expect(result.html).not.toContain('class="sd-word-fade"><span class="sd-word-fade"');
+			expect(countWordFadeSpans(result.html)).toBe(3);
 		});
 
 		it("wraps bold text as a whole unit", () => {
@@ -137,6 +143,28 @@ describe("renderLiveMarkdownSection", () => {
 			);
 
 			expect(result.html).toContain('class="sd-word-fade"><strong>bold text</strong>');
+			expect(result.html).not.toContain('class="sd-word-fade"><span class="sd-word-fade"');
+			expect(countWordFadeSpans(result.html)).toBe(1);
+		});
+
+		it("wraps disabled links as a whole unit without nesting fade spans", () => {
+			const result = renderLiveMarkdownSection(
+				{
+					key: "LIVE:0",
+					kind: "live-markdown",
+					text: "[Acepe](https://acepe.dev)",
+					markdown: "[Acepe](https://acepe.dev)",
+					presentation: "paragraph",
+					source: "[Acepe](https://acepe.dev)",
+				},
+				{ animate: true }
+			);
+
+			expect(result.html).toContain(
+				'class="sd-word-fade"><span class="streaming-live-link is-disabled" data-streaming-link-state="disabled">Acepe</span>'
+			);
+			expect(result.html).not.toContain('class="sd-word-fade"><span class="sd-word-fade"');
+			expect(countWordFadeSpans(result.html)).toBe(1);
 		});
 
 		it("wraps heading words in fade spans", () => {
