@@ -1,14 +1,16 @@
+use std::cmp::Reverse;
+
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
 use crate::history::indexer::{IndexStatus, IndexerHandle};
 use crate::session_jsonl::cache;
 use crate::session_jsonl::parser;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry, SessionMessage};
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 fn get_logger_id() -> String {
     Uuid::new_v4().to_string()[..8].to_string()
@@ -79,7 +81,7 @@ pub async fn get_session_history(app: AppHandle) -> CommandResult<Vec<HistoryEnt
             let mut all_entries = parser::scan_projects(&project_paths)
                 .await
                 .map_err(|e| e.to_string())?;
-            all_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            all_entries.sort_by_key(|entry| Reverse(entry.timestamp));
 
             let duration_ms = start.elapsed().as_millis();
             tracing::info!(

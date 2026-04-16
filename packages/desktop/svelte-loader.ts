@@ -1,18 +1,23 @@
 // @ts-expect-error - Bun types may not be available in all environments
-
-// @ts-expect-error - Bun types may not be available in all environments
-import { afterEach, beforeEach } from "bun:test";
+import { beforeEach } from "bun:test";
 import { readFileSync } from "node:fs";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { plugin } from "bun";
 import { compile, compileModule } from "svelte/compiler";
 
-beforeEach(async () => {
-	await GlobalRegistrator.register();
-});
+type HappyDomGlobalState = typeof globalThis & {
+	__acepeHappyDomRegistered__?: boolean;
+};
 
-afterEach(async () => {
-	await GlobalRegistrator.unregister();
+const happyDomGlobalState = globalThis as HappyDomGlobalState;
+
+beforeEach(async () => {
+	if (happyDomGlobalState.__acepeHappyDomRegistered__) {
+		await GlobalRegistrator.unregister();
+	}
+
+	await GlobalRegistrator.register({ url: "http://localhost/" });
+	happyDomGlobalState.__acepeHappyDomRegistered__ = true;
 });
 
 plugin({
