@@ -184,6 +184,27 @@ impl AcpEventHubState {
         }
     }
 
+    #[must_use]
+    pub fn claim_reservation_for_session(
+        &self,
+        token: Uuid,
+        canonical_session_id: &str,
+    ) -> Option<Vec<AcpEventEnvelope>> {
+        if let Ok(mut map) = self.reservations.write() {
+            let matches_session = map
+                .get(&token)
+                .map(|reservation| reservation.canonical_session_id == canonical_session_id)
+                .unwrap_or(false);
+            if !matches_session {
+                return None;
+            }
+            map.remove(&token)
+                .map(|reservation| reservation.delta_buffer.into_iter().collect())
+        } else {
+            None
+        }
+    }
+
     /// Returns `true` if `token` has an active, unclaimed reservation.
     #[must_use]
     pub fn has_reservation(&self, token: Uuid) -> bool {

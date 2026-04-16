@@ -1,7 +1,12 @@
 use super::*;
+use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
+use crate::acp::session_open_snapshot::{
+    assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
+};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::db::repository::SessionJournalEventRepository;
 use std::sync::Arc;
 
 fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
@@ -101,7 +106,7 @@ pub async fn load_unified_session_from_replay_context(
     .await
 }
 
-async fn load_unified_session_with_context(
+async fn load_unified_session_content_with_context(
     app: AppHandle,
     context: crate::history::session_context::SessionContext,
 ) -> Result<Option<ConvertedSession>, String> {
@@ -142,17 +147,24 @@ async fn load_unified_session_with_context(
         None => None,
     };
 
-    let result = result
-        .or_else(|| Some(ConvertedSession::empty(&context.local_session_id)))
+    Ok(result
         .map(apply_derived_current_mode_metadata)
-        .map(|session| apply_session_title_metadata(session, session_metadata.as_ref()));
+        .map(|session| apply_session_title_metadata(session, session_metadata.as_ref())))
+}
 
+async fn load_unified_session_with_context(
+    app: AppHandle,
+    context: crate::history::session_context::SessionContext,
+) -> Result<Option<ConvertedSession>, String> {
+    let fallback_session_id = context.local_session_id.clone();
+    let result = load_unified_session_content_with_context(app, context).await?;
+    let normalized = result.or_else(|| Some(ConvertedSession::empty(&fallback_session_id)));
     tracing::info!(
-        session_id = %context.local_session_id,
-        found = result.is_some(),
+        session_id = %fallback_session_id,
+        found = normalized.is_some(),
         "Unified session loaded"
     );
-    Ok(result)
+    Ok(normalized)
 }
 
 #[tauri::command]
@@ -174,6 +186,69 @@ pub async fn get_unified_session(
     )
     .await;
     load_unified_session_with_context(app, context).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_session_open_result(
+    app: AppHandle,
+    session_id: String,
+    project_path: String,
+    agent_id: String,
+    source_path: Option<String>,
+) -> Result<SessionOpenResult, String> {
+    let db = app.state::<DbConn>();
+    let hub = app.state::<Arc<AcpEventHubState>>().inner().clone();
+    let app_clone = app.clone();
+
+    let context = crate::history::session_context::resolve_session_context(
+        Some(db.inner()),
+        &session_id,
+        &project_path,
+        &agent_id,
+        source_path.as_deref(),
+    )
+    .await;
+    let replay_context = context.replay_context();
+    let thread_content = load_unified_session_content_with_context(app_clone, context).await?;
+
+    let metadata_exists = SessionMetadataRepository::get_by_id(db.inner(), &replay_context.local_session_id)
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to load session metadata for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?
+        .is_some();
+    let journal_cutoff = SessionJournalEventRepository::max_event_seq(
+        db.inner(),
+        &replay_context.local_session_id,
+    )
+    .await
+    .map_err(|error| {
+        format!(
+            "Failed to determine journal cutoff for {}: {error}",
+            replay_context.local_session_id
+        )
+    })?;
+
+    if !metadata_exists && journal_cutoff.is_none() && thread_content.is_none() {
+        return Ok(SessionOpenResult::Missing(SessionOpenMissing {
+            requested_session_id: session_id,
+        }));
+    }
+
+    Ok(
+        assemble_session_open_result(
+            db.inner(),
+            &hub,
+            &replay_context,
+            &session_id,
+            thread_content,
+        )
+        .await,
+    )
 }
 
 #[cfg(test)]

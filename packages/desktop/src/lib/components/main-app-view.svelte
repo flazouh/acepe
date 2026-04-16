@@ -35,6 +35,7 @@ import {
 	createReviewPreferenceStore,
 	createSessionStore,
 	LiveInteractionProjectionSync,
+	SessionOpenHydrator,
 	SessionProjectionHydrator,
 	createTabBarStore,
 	createUnseenStore,
@@ -208,6 +209,11 @@ const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, intera
 
 // Create tab bar store for flat, panel-ordered tabs with mode/state/tool indicators
 const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore, unseenStore);
+const sessionOpenHydrator = new SessionOpenHydrator(
+	sessionStore,
+	panelStore,
+	sessionProjectionHydrator
+);
 
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
@@ -572,6 +578,7 @@ const viewState = new MainAppViewState(
 	selectorRegistry,
 	worktreeDefaultStore,
 	preconnectionAgentSkillsStore,
+	sessionOpenHydrator,
 	sessionProjectionHydrator
 );
 

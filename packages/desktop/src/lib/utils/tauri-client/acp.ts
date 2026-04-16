@@ -42,7 +42,8 @@ export const acp = {
 		cwd: string,
 		attemptId: number,
 		agentId?: string,
-		launchModeId?: string
+		launchModeId?: string,
+		openToken?: string
 	): ResultAsync<void, AppError> => {
 		return acpCommands.resume_session.invoke<void>({
 			sessionId,
@@ -50,6 +51,7 @@ export const acp = {
 			attemptId,
 			agentId,
 			launchModeId,
+			openToken,
 		});
 	},
 

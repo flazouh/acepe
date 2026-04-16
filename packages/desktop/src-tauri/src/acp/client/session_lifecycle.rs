@@ -156,10 +156,6 @@ impl AcpClient {
             .await
         {
             Ok(result) => result,
-            Err(err) if is_method_not_found_error(&err) => {
-                tracing::warn!("session/resume not supported, falling back to session/load");
-                return self.load_session(session_id, cwd).await;
-            }
             Err(err) if is_session_not_found_error(&err) => {
                 return Err(AcpError::SessionNotFound(session_id.clone()));
             }

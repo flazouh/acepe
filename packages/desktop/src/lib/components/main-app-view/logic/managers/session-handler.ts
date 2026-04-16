@@ -9,7 +9,7 @@ import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
+import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import {
@@ -19,9 +19,9 @@ import {
 } from "../../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../../types/create-session-options.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
-import { preloadAndConnectSession } from "../session-preload-connect.js";
+import { openPersistedSession } from "../open-persisted-session.js";
 
-const PRELOAD_TIMEOUT_MS = 30_000;
+const SESSION_OPEN_TIMEOUT_MS = 30_000;
 
 /**
  * Handles session operations.
@@ -38,9 +38,9 @@ export class SessionHandler {
 		private readonly state: MainAppViewState,
 		private readonly sessionStore: SessionStore,
 		private readonly panelStore: PanelStore,
-		private readonly projectionHydrator: Pick<
-			SessionProjectionHydrator,
-			"hydrateSession" | "clearSession"
+		private readonly sessionOpenHydrator: Pick<
+			SessionOpenHydrator,
+			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 		>
 	) {}
 
@@ -103,42 +103,19 @@ export class SessionHandler {
 	 * @returns ResultAsync indicating success or error
 	 */
 	private preloadAndOpenSession(sessionId: string): ResultAsync<void, MainAppViewError> {
-		const session = this.sessionStore.sessions.find((s) => s.id === sessionId);
-
-		// Check if session details are already cached
-		const cachedDetails = this.sessionStore.getSessionDetail(sessionId);
-
 		// Open panel IMMEDIATELY for zero-latency response
-		this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
+		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
+		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
-		if (!cachedDetails) {
-			preloadAndConnectSession({
+		if (panelId) {
+			openPersistedSession({
+				panelId,
 				sessionId,
 				sessionStore: this.sessionStore,
-				projectionHydrator: this.projectionHydrator,
-				panelStore: this.panelStore,
-				timeoutMs: PRELOAD_TIMEOUT_MS,
+				sessionOpenHydrator: this.sessionOpenHydrator,
+				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
 				source: "session-handler",
 			});
-
-			// Return immediately - don't wait for preload
-			return okAsync(undefined);
-		}
-
-		// Already cached - connect immediately.
-		if (session) {
-			void this.projectionHydrator
-				.hydrateSession(sessionId, {
-					includePendingTurnInputs: false,
-				})
-				.andThen(() => this.sessionStore.connectSession(sessionId))
-				.andThen(() => this.projectionHydrator.hydrateSession(sessionId))
-				.match(
-					() => undefined,
-					() => {
-						// Error state will be shown via status indicator.
-					}
-				);
 		}
 
 		return okAsync(undefined);

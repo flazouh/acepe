@@ -636,6 +636,39 @@ mod tests {
         assert!(second.is_none(), "second claim of same token must fail");
     }
 
+    #[tokio::test]
+    async fn open_token_claim_rejects_wrong_session() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "claim-session";
+
+        let result = session_open_result_for_new_session(
+            &db,
+            &hub,
+            session_id,
+            CanonicalAgentId::Copilot,
+            "/test/project".to_string(),
+            None,
+            None,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let token = Uuid::parse_str(&found.open_token).expect("valid uuid");
+
+        let claimed = hub.claim_reservation_for_session(token, "other-session");
+        assert!(
+            claimed.is_none(),
+            "claim must fail when the token is presented for a different session"
+        );
+        assert!(
+            hub.has_reservation(token),
+            "failed claim must leave the reservation intact"
+        );
+    }
+
     // -----------------------------------------------------------------------
     // Happy path: worktree session preserves source_path and worktree_path
     // -----------------------------------------------------------------------

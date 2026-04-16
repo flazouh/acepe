@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
+import type { OperationSnapshot } from "../../services/acp-types.js";
 import type { ToolArguments } from "../../services/converted-session-types.js";
 import type { Operation } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -138,6 +139,48 @@ export class OperationStore {
 		}
 
 		this.sessionOperationIds.delete(sessionId);
+	}
+
+	replaceSessionOperations(sessionId: string, snapshots: ReadonlyArray<OperationSnapshot>): void {
+		this.clearSession(sessionId);
+		for (const snapshot of snapshots) {
+			const operation: Operation = {
+				id: snapshot.id,
+				sessionId: snapshot.session_id,
+				toolCallId: snapshot.tool_call_id,
+				sourceEntryId: null,
+				name: snapshot.name,
+				kind: snapshot.kind,
+				status: snapshot.status,
+				title: snapshot.title,
+				arguments: snapshot.arguments,
+				progressiveArguments: snapshot.progressive_arguments ?? undefined,
+				result: snapshot.result,
+				locations: undefined,
+				skillMeta: undefined,
+				normalizedQuestions: undefined,
+				normalizedTodos: undefined,
+				questionAnswer: undefined,
+				awaitingPlanApproval: false,
+				planApprovalRequestId: undefined,
+				startedAtMs: undefined,
+				completedAtMs: undefined,
+				command: snapshot.command,
+				parentToolCallId: snapshot.parent_tool_call_id,
+				parentOperationId: snapshot.parent_operation_id,
+				childToolCallIds: snapshot.child_tool_call_ids,
+				childOperationIds: snapshot.child_operation_ids,
+			};
+			this.operationsById.set(operation.id, operation);
+			this.operationIdByToolCallKey.set(
+				createSessionToolKey(sessionId, operation.toolCallId),
+				operation.id
+			);
+			const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
+			const nextSessionOperationIds = sessionOperationIds.slice();
+			nextSessionOperationIds.push(operation.id);
+			this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
+		}
 	}
 
 	private upsertToolCall(

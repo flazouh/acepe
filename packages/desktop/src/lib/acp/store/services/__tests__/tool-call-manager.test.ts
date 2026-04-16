@@ -654,6 +654,19 @@ describe("ToolCallManager", () => {
 	// ============================================
 
 	describe("updateEntry", () => {
+		it("does not synthesize a placeholder entry when a canonical tool row is missing", () => {
+			const entryStore = createMockEntryStore();
+			const entryIndex = createMockEntryIndex();
+			const manager = new ToolCallManager(entryStore, entryIndex);
+
+			const update = createToolCallUpdate("tc-new", { status: "pending" });
+			const result = manager.updateEntry("s1", update);
+
+			expect(result.isOk()).toBe(true);
+			expect(entryStore.addEntry).not.toHaveBeenCalled();
+			expect(entryStore.updateEntry).not.toHaveBeenCalled();
+		});
+
 		it("ignores streaming-only updates when the tool call does not exist yet", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
@@ -682,153 +695,6 @@ describe("ToolCallManager", () => {
 			expect(result.isOk()).toBe(true);
 			expect(entryStore.addEntry).not.toHaveBeenCalled();
 			expect(entryStore.updateEntry).not.toHaveBeenCalled();
-		});
-
-		it("creates a placeholder entry when tool call does not exist", () => {
-			const entryStore = createMockEntryStore();
-			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
-
-			const update = createToolCallUpdate("tc-new", { status: "pending" });
-			const result = manager.updateEntry("s1", update);
-
-			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).toHaveBeenCalledWith(
-				"s1",
-				expect.objectContaining({
-					id: "tc-new",
-					type: "tool_call",
-				})
-			);
-			// Placeholder should have name "Tool"
-			const addedEntry = (entryStore.addEntry as ReturnType<typeof vi.fn>).mock
-				.calls[0][1] as SessionEntry;
-			expect(addedEntry.type).toBe("tool_call");
-			if (addedEntry.type === "tool_call") {
-				expect(addedEntry.message.name).toBe("Tool");
-			}
-		});
-
-		it("populates normalized result data for update-only execute flows and preserves it when later updates omit result", () => {
-			const { manager, entryStore } = createTrackedManager();
-
-			const completedResult = manager.updateEntry(
-				"s1",
-				createToolCallUpdate("tc-1", {
-					status: "completed",
-					arguments: { kind: "execute", command: "pwd" },
-					result: {
-						content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
-						detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
-					},
-				})
-			);
-
-			expect(completedResult.isOk()).toBe(true);
-			const afterCompleted = entryStore.getEntries("s1");
-			expect(afterCompleted).toHaveLength(1);
-			const completedEntry = afterCompleted[0];
-			expect(completedEntry?.type).toBe("tool_call");
-			if (completedEntry?.type === "tool_call") {
-				expect(completedEntry.message.normalizedResult).toEqual({
-					kind: "execute",
-					stdout: "/Users/alex/Documents/acepe",
-					stderr: null,
-					exitCode: 0,
-				});
-			}
-
-			const partialUpdate = manager.updateEntry(
-				"s1",
-				createToolCallUpdate("tc-1", {
-					status: "completed",
-					title: "pwd complete",
-				})
-			);
-
-			expect(partialUpdate.isOk()).toBe(true);
-			const afterPartialUpdate = entryStore.getEntries("s1");
-			const updatedEntry = afterPartialUpdate[0];
-			expect(updatedEntry?.type).toBe("tool_call");
-			if (updatedEntry?.type === "tool_call") {
-				expect(updatedEntry.message.normalizedResult).toEqual({
-					kind: "execute",
-					stdout: "/Users/alex/Documents/acepe",
-					stderr: null,
-					exitCode: 0,
-				});
-				expect(updatedEntry.message.result).toEqual({
-					content: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
-					detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
-				});
-			}
-		});
-
-		it("recomputes normalized search results when later argument updates change the search path", () => {
-			const { manager, entryStore } = createTrackedManager();
-
-			const completedResult = manager.updateEntry(
-				"s1",
-				createToolCallUpdate("tc-search-1", {
-					status: "completed",
-					arguments: { kind: "search", query: "jwt", file_path: null },
-					result: {
-						content: "12:jwt sign",
-					},
-				})
-			);
-
-			expect(completedResult.isOk()).toBe(true);
-			const initialEntry = entryStore.getEntries("s1")[0];
-			expect(initialEntry?.type).toBe("tool_call");
-			if (initialEntry?.type === "tool_call") {
-				expect(initialEntry.message.normalizedResult).toEqual({
-					kind: "search",
-					mode: "content",
-					numFiles: 1,
-					numMatches: 1,
-					matches: [
-						{
-							filePath: "",
-							fileName: "",
-							lineNumber: 12,
-							content: "jwt sign",
-							isMatch: true,
-						},
-					],
-					files: [],
-				});
-			}
-
-			const pathUpdate = manager.updateEntry(
-				"s1",
-				createToolCallUpdate("tc-search-1", {
-					status: "completed",
-					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-				})
-			);
-
-			expect(pathUpdate.isOk()).toBe(true);
-			const updatedEntry = entryStore.getEntries("s1")[0];
-			expect(updatedEntry?.type).toBe("tool_call");
-			if (updatedEntry?.type === "tool_call") {
-				expect(updatedEntry.message.normalizedResult).toEqual({
-					kind: "search",
-					mode: "content",
-					numFiles: 1,
-					numMatches: 1,
-					matches: [
-						{
-							filePath: "src/lib/auth.ts",
-							fileName: "auth.ts",
-							lineNumber: 12,
-							content: "jwt sign",
-							isMatch: true,
-						},
-					],
-					files: [],
-				});
-			}
 		});
 
 		it("updates an existing tool call entry", () => {
@@ -995,11 +861,8 @@ describe("ToolCallManager", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const addedEntry = (entryStore.addEntry as ReturnType<typeof vi.fn>).mock
-				.calls[0][1] as SessionEntry;
-			if (addedEntry.type === "tool_call") {
-				expect(addedEntry.message.result).toBe("raw output text");
-			}
+			expect(entryStore.addEntry).not.toHaveBeenCalled();
+			expect(entryStore.updateEntry).not.toHaveBeenCalled();
 		});
 
 		it("persists streaming arguments when typed arguments are absent", () => {

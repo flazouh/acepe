@@ -10,6 +10,7 @@
  */
 
 import { ok, type Result } from "neverthrow";
+import { captureContractViolation } from "../../../analytics.js";
 
 import type {
 	ContentBlock,
@@ -257,6 +258,25 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
 }
 
+function reportMissingCanonicalToolCallUpdate(
+	sessionId: string,
+	update: ToolCallUpdate
+): void {
+	captureContractViolation("tool_call_update_without_canonical_entry", {
+		source: "tool-call-manager.updateEntry",
+		sessionId,
+		toolCallId: update.toolCallId,
+		status: update.status ?? "none",
+		hasResult: update.result != null,
+		hasContent: update.content != null,
+		hasRawOutput: update.rawOutput != null,
+		hasArguments: update.arguments != null,
+		hasStreamingArguments: update.streamingArguments != null,
+		hasStreamingInputDelta: update.streamingInputDelta != null,
+		hasFailureReason: update.failureReason != null,
+	});
+}
+
 export class ToolCallManager implements IToolCallManager {
 	// Track which tool call IDs belong to which session (for cleanup on clearSession)
 	private sessionToolCallIds = new Map<string, Set<string>>();
@@ -494,44 +514,11 @@ export class ToolCallManager implements IToolCallManager {
 				return ok(undefined);
 			}
 
-			// Entry doesn't exist yet - create it
-			logger.debug("Creating tool call entry from update", {
+			logger.warn("Discarding tool update without canonical entry", {
 				sessionId,
 				toolCallId: update.toolCallId,
 			});
-
-			const createdAtMs = nowMs();
-			const newToolCall: ToolCall = {
-				id: update.toolCallId,
-				name: "Tool",
-				arguments: update.arguments ?? { kind: "other", raw: {} },
-				status: update.status ?? "pending",
-				result: extractedResult,
-				title: update.title,
-				locations: update.locations,
-				normalizedTodos: update.normalizedTodos,
-				normalizedQuestions: update.normalizedQuestions,
-				normalizedResult: normalizeToolResult({
-					kind: null,
-					arguments: update.arguments ?? { kind: "other", raw: {} },
-					result: extractedResult,
-				}),
-				awaitingPlanApproval: false,
-				progressiveArguments: update.streamingArguments ?? undefined,
-				startedAtMs: createdAtMs,
-				completedAtMs: isTerminalStatus(update.status) ? createdAtMs : undefined,
-			};
-
-			const newEntry: SessionEntry = {
-				id: update.toolCallId,
-				type: "tool_call",
-				message: newToolCall,
-				timestamp: new Date(createdAtMs),
-				isStreaming: isToolCallStreaming(update.status),
-			};
-
-			this.entryStore.addEntry(sessionId, newEntry);
-			this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
+			reportMissingCanonicalToolCallUpdate(sessionId, update);
 			return ok(undefined);
 		}
 

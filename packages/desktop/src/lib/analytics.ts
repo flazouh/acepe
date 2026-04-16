@@ -8,6 +8,7 @@ import { settings } from "$lib/utils/tauri-client/settings.js";
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";
 const DEVICE_ID_STORAGE_KEY = "analytics_device_id";
 const APP_OPENED_EVENT = "app_opened";
+const CONTRACT_VIOLATION_EVENT = "contract_violation";
 
 /** Telemetry context attached to captured exceptions. */
 export interface TelemetryContext {
@@ -248,6 +249,16 @@ export function captureEvent(event: string, properties: TelemetryEventProperties
 	} catch (error) {
 		logger.warn("Analytics event capture failed", { event, error });
 	}
+}
+
+export function captureContractViolation(
+	contract: string,
+	properties: TelemetryEventProperties = {}
+): void {
+	captureEvent(
+		CONTRACT_VIOLATION_EVENT,
+		Object.assign({ contract }, properties)
+	);
 }
 
 export function captureException(error: Error, context: TelemetryContext = { source: "unknown" }): void {
