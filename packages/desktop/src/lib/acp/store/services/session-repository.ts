@@ -325,9 +325,6 @@ export class SessionRepository {
 		}
 
 		return api.getStartupSessions(sessionIdsToFetch).map((response) => {
-			const mergedSessions = this.mergeHistoryWithExisting(response.entries, existingSessions);
-			this.stateWriter.setSessions(mergedSessions);
-
 			// Build alias remaps from the response, filtering out null values from Partial<>.
 			const aliasRemaps: Record<string, string> = {};
 			for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
@@ -335,6 +332,13 @@ export class SessionRepository {
 					aliasRemaps[aliasId] = canonicalId;
 				}
 			}
+
+			const mergedSessions = this.reconcileAliasedStartupSessions(
+				this.mergeHistoryWithExisting(response.entries, existingSessions),
+				existingSessions,
+				aliasRemaps
+			);
+			this.stateWriter.setSessions(mergedSessions);
 
 			const foundIds = new Set(mergedSessions.map((session) => session.id));
 			// A session matched by alias will have its canonical ID in foundIds.
@@ -665,6 +669,77 @@ export class SessionRepository {
 		mergedSessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
 		return mergedSessions;
+	}
+
+	private reconcileAliasedStartupSessions(
+		mergedSessions: SessionCold[],
+		existingSessions: SessionCold[],
+		aliasRemaps: Record<string, string>
+	): SessionCold[] {
+		const canonicalIds = new Set<string>();
+		for (const canonicalId of Object.values(aliasRemaps)) {
+			canonicalIds.add(canonicalId);
+		}
+		if (canonicalIds.size === 0) {
+			return mergedSessions;
+		}
+
+		const canonicalSessionIds = new Set<string>();
+		for (const session of mergedSessions) {
+			canonicalSessionIds.add(session.id);
+		}
+
+		const aliasMetadataByCanonicalId = new Map<string, SessionCold>();
+		const aliasIdsToDrop = new Set<string>();
+		for (const [aliasId, canonicalId] of Object.entries(aliasRemaps)) {
+			if (!canonicalSessionIds.has(canonicalId)) {
+				continue;
+			}
+
+			const aliasSession = existingSessions.find((session) => session.id === aliasId);
+			if (aliasSession !== undefined) {
+				aliasMetadataByCanonicalId.set(canonicalId, aliasSession);
+			}
+			aliasIdsToDrop.add(aliasId);
+		}
+
+		const reconciledSessions: SessionCold[] = [];
+		for (const session of mergedSessions) {
+			const canonicalAliasSession = aliasMetadataByCanonicalId.get(session.id);
+			if (canonicalAliasSession !== undefined) {
+				reconciledSessions.push({
+					id: session.id,
+					projectPath: session.projectPath,
+					agentId: session.agentId,
+					worktreePath: session.worktreePath ?? canonicalAliasSession.worktreePath,
+					title: session.title,
+					createdAt: session.createdAt,
+					updatedAt: session.updatedAt,
+					sourcePath: session.sourcePath ?? canonicalAliasSession.sourcePath,
+					sessionLifecycleState:
+						session.sessionLifecycleState ?? canonicalAliasSession.sessionLifecycleState,
+					parentId: session.parentId ?? canonicalAliasSession.parentId,
+					prNumber: session.prNumber ?? canonicalAliasSession.prNumber,
+					prState: session.prState ?? canonicalAliasSession.prState,
+					worktreeDeleted: session.worktreeDeleted ?? canonicalAliasSession.worktreeDeleted,
+					sequenceId: session.sequenceId ?? canonicalAliasSession.sequenceId,
+				});
+				continue;
+			}
+
+			if (canonicalIds.has(session.id)) {
+				reconciledSessions.push(session);
+				continue;
+			}
+
+			if (aliasIdsToDrop.has(session.id)) {
+				continue;
+			}
+
+			reconciledSessions.push(session);
+		}
+
+		return reconciledSessions;
 	}
 
 	/**

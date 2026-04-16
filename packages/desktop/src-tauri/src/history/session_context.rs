@@ -1,6 +1,5 @@
 use crate::acp::session_descriptor::{
-    SessionCompatibilityInput, SessionDescriptor, SessionDescriptorCompatibility,
-    SessionReplayContext,
+    SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -16,21 +15,7 @@ pub struct SessionContext {
     pub source_path: Option<String>,
     pub agent_id: CanonicalAgentId,
     pub compatibility: SessionDescriptorCompatibility,
-}
-
-impl From<SessionDescriptor> for SessionContext {
-    fn from(descriptor: SessionDescriptor) -> Self {
-        Self {
-            local_session_id: descriptor.local_session_id,
-            history_session_id: descriptor.history_session_id,
-            project_path: descriptor.project_path,
-            worktree_path: descriptor.worktree_path,
-            effective_project_path: descriptor.effective_cwd,
-            source_path: descriptor.source_path,
-            agent_id: descriptor.agent_id,
-            compatibility: descriptor.compatibility,
-        }
-    }
+    pub session_metadata: Option<crate::db::repository::SessionMetadataRow>,
 }
 
 impl SessionContext {
@@ -91,7 +76,17 @@ pub async fn resolve_session_context(
         .expect("compatibility inputs should resolve session context")
     });
 
-    SessionContext::from(descriptor)
+    SessionContext {
+        local_session_id: descriptor.local_session_id,
+        history_session_id: descriptor.history_session_id,
+        project_path: descriptor.project_path,
+        worktree_path: descriptor.worktree_path,
+        effective_project_path: descriptor.effective_cwd,
+        source_path: descriptor.source_path,
+        agent_id: descriptor.agent_id,
+        compatibility: descriptor.compatibility,
+        session_metadata: metadata,
+    }
 }
 
 #[cfg(test)]

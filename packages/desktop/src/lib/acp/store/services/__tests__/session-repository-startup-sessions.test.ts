@@ -239,6 +239,62 @@ describe("SessionRepository.loadStartupSessions", () => {
 		expect(state.sessions[0]?.id).toBe("acepe-uuid");
 	});
 
+	it("preserves optional metadata when alias reconciliation remaps to a canonical id", () => {
+		const aliasSession = createSession({
+			id: "claude-session",
+			title: "Loading...",
+			sourcePath: "/tmp/alias.jsonl",
+			worktreePath: "/repo/.worktrees/feature-a",
+			worktreeDeleted: true,
+			prNumber: 129,
+			prState: "OPEN",
+			sequenceId: 42,
+		});
+		const repository = new SessionRepository(
+			createStateReader({ sessions: [] }),
+			createStateWriter({ sessions: [] }),
+			entryManager,
+			connectionManager
+		);
+		const reconcileAliasedStartupSessions = (
+			repository as unknown as {
+				reconcileAliasedStartupSessions: (
+					mergedSessions: SessionCold[],
+					existingSessions: SessionCold[],
+					aliasRemaps: Record<string, string>
+				) => SessionCold[];
+			}
+		).reconcileAliasedStartupSessions.bind(repository);
+
+		const reconciled = reconcileAliasedStartupSessions(
+			[
+				createSession({
+					id: "acepe-uuid",
+					title: "Canonical Session",
+					sourcePath: undefined,
+					worktreePath: undefined,
+					worktreeDeleted: undefined,
+					prNumber: undefined,
+					prState: undefined,
+					sequenceId: undefined,
+				}),
+				aliasSession,
+			],
+			[aliasSession],
+			{ "claude-session": "acepe-uuid" }
+		);
+
+		expect(reconciled).toHaveLength(1);
+		expect(reconciled[0]?.id).toBe("acepe-uuid");
+		expect(reconciled[0]?.title).toBe("Canonical Session");
+		expect(reconciled[0]?.sourcePath).toBe("/tmp/alias.jsonl");
+		expect(reconciled[0]?.worktreePath).toBe("/repo/.worktrees/feature-a");
+		expect(reconciled[0]?.worktreeDeleted).toBe(true);
+		expect(reconciled[0]?.prNumber).toBe(129);
+		expect(reconciled[0]?.prState).toBe("OPEN");
+		expect(reconciled[0]?.sequenceId).toBe(42);
+	});
+
 	it("returns empty alias remaps when all sessions match by canonical id", async () => {
 		const state: SessionStoreState = { sessions: [] };
 		const repository = new SessionRepository(

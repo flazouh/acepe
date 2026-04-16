@@ -969,7 +969,7 @@ impl AcepeSessionRelationship {
 }
 
 /// Row returned from session metadata queries.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionMetadataRow {
     pub id: String,
     pub display: String,

@@ -150,17 +150,9 @@ async fn load_unified_session_content_with_context(
         HistoryReplayFamily::SharedCanonical => None,
     };
 
-    let session_metadata = match db.as_ref() {
-        Some(db) => SessionMetadataRepository::get_by_id(db, &context.local_session_id)
-            .await
-            .ok()
-            .flatten(),
-        None => None,
-    };
-
     Ok(result
         .map(apply_derived_current_mode_metadata)
-        .map(|session| apply_session_title_metadata(session, session_metadata.as_ref())))
+        .map(|session| apply_session_title_metadata(session, context.session_metadata.as_ref())))
 }
 
 async fn load_unified_session_with_context(
@@ -168,14 +160,7 @@ async fn load_unified_session_with_context(
     context: crate::history::session_context::SessionContext,
 ) -> Result<Option<ConvertedSession>, String> {
     let fallback_session_id = context.local_session_id.clone();
-    let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-    let session_metadata = match db.as_ref() {
-        Some(db) => SessionMetadataRepository::get_by_id(db, &fallback_session_id)
-            .await
-            .ok()
-            .flatten(),
-        None => None,
-    };
+    let session_metadata = context.session_metadata.clone();
     let result = load_unified_session_content_with_context(app, context).await?;
     let normalized = result.or_else(|| {
         Some(build_empty_session_with_metadata(
@@ -221,6 +206,7 @@ pub async fn ensure_canonical_session_materialized(
         source_path: replay_context.source_path.clone(),
         agent_id: replay_context.agent_id.clone(),
         compatibility: replay_context.compatibility.clone(),
+        session_metadata: None,
     };
     let snapshot = load_unified_session_content_with_context(app, context).await?;
     let Some(snapshot) = snapshot else {
