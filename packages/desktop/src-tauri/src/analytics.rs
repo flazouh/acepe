@@ -36,7 +36,7 @@ pub fn set_analytics_opted_out(opted_out: bool) {
 }
 
 pub fn is_analytics_enabled() -> bool {
-    !ANALYTICS_OPTED_OUT.load(Ordering::Relaxed) && sentry::Hub::current().client().is_some()
+    !ANALYTICS_OPTED_OUT.load(Ordering::Relaxed) && SENTRY_GUARD.get().is_some()
 }
 
 pub fn sentry_tracing_layer<S>() -> impl Layer<S>

@@ -109,7 +109,7 @@ let wasStreaming = false;
 let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
 let lastStreamingTailText = "";
 let lastStreamingTailResult: StreamingTailParseResult = EMPTY_STREAMING_TAIL;
-const shouldAnimateStreaming = $derived(streamingAnimationMode !== "instant");
+const shouldAnimateStreaming = true;
 
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
@@ -141,10 +141,6 @@ function htmlNeedsBadgeMount(html: string | null): boolean {
 		html.includes("file-path-badge-placeholder") || html.includes("github-badge-placeholder")
 	);
 }
-
-$effect(() => {
-	reveal.setMode(streamingAnimationMode);
-});
 
 $effect(() => {
 	if (isStreaming) {

@@ -8,11 +8,18 @@
 		details: string;
 		detailsLabel?: string;
 		dismissLabel?: string;
-		createIssueLabel?: string;
+		referenceId?: string;
+		referenceSearchable?: boolean;
+		referenceLabel?: string;
+		searchableReferenceLabel?: string;
+		localOnlyReferenceLabel?: string;
+		copyReferenceIdLabel?: string;
+		issueActionLabel?: string;
 		retryLabel?: string;
 		onRetry?: (() => void) | undefined;
 		onDismiss?: (() => void) | undefined;
-		onCreateIssue?: (() => void) | undefined;
+		onCopyReferenceId?: (() => void) | undefined;
+		onIssueAction?: (() => void) | undefined;
 	}
 
 	let {
@@ -21,11 +28,18 @@
 		details,
 		detailsLabel = "Details",
 		dismissLabel = "Dismiss",
-		createIssueLabel = "Create issue",
+		referenceId = undefined,
+		referenceSearchable = false,
+		referenceLabel = "Reference ID",
+		searchableReferenceLabel = "Searchable",
+		localOnlyReferenceLabel = "Local only",
+		copyReferenceIdLabel = "Copy ID",
+		issueActionLabel = "Create issue",
 		retryLabel = "Retry",
 		onRetry,
 		onDismiss,
-		onCreateIssue,
+		onCopyReferenceId,
+		onIssueAction,
 	}: Props = $props();
 
 	let isExpanded = $state(false);
@@ -74,9 +88,36 @@
 				class="size-3.5 text-muted-foreground shrink-0 transition-transform duration-200 {isExpanded
 					? 'rotate-180'
 					: ''}"
-			/>
-		</button>
-		{#if onDismiss || onCreateIssue || onRetry}
+				/>
+			</button>
+			{#if referenceId}
+				<div class="flex items-center justify-between gap-2 border-t border-border/40 px-3 py-2">
+					<div class="flex min-w-0 items-center gap-2 text-[0.625rem]">
+						<span class="shrink-0 uppercase tracking-[0.12em] text-muted-foreground/80">
+							{referenceLabel}
+						</span>
+						<code class="truncate rounded bg-background/60 px-1.5 py-0.5 font-mono text-foreground">
+							{referenceId}
+						</code>
+						<span class="shrink-0 text-muted-foreground/70">
+							{referenceSearchable ? searchableReferenceLabel : localOnlyReferenceLabel}
+						</span>
+					</div>
+					{#if onCopyReferenceId}
+						<button
+							type="button"
+							class="h-6 shrink-0 rounded px-2 text-[10px] font-mono text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+							onclick={(event) => {
+								event.stopPropagation();
+								onCopyReferenceId();
+							}}
+						>
+							{copyReferenceIdLabel}
+						</button>
+					{/if}
+				</div>
+			{/if}
+		{#if onDismiss || onRetry || onIssueAction}
 			<div class="flex items-center justify-end gap-1 px-2 pb-2">
 				{#if onDismiss}
 					<button
@@ -87,13 +128,13 @@
 						{dismissLabel}
 					</button>
 				{/if}
-				{#if onCreateIssue}
+				{#if onIssueAction}
 					<button
 						type="button"
 						class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer"
-						onclick={onCreateIssue}
+						onclick={onIssueAction}
 					>
-						{createIssueLabel}
+						{issueActionLabel}
 					</button>
 				{/if}
 				{#if onRetry}

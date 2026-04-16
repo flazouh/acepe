@@ -175,6 +175,7 @@ function handleDialogOpenAutoFocus(): void {
 					panelStore.enterReviewMode(panelSnapshot.panelId, modifiedFilesState, initialFileIndex)}
 				onExitReviewMode={() => panelStore.exitReviewMode(panelSnapshot.panelId)}
 				onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panelSnapshot.panelId, index)}
+				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 				attachedFilePanels={panelStore.getAttachedFilePanels(panelSnapshot.panelId)}
 				activeAttachedFilePanelId={panelStore.getActiveFilePanelId(panelSnapshot.panelId)}
 				onSelectAttachedFilePanel={(ownerPanelId, filePanelId) =>
@@ -182,7 +183,6 @@ function handleDialogOpenAutoFocus(): void {
 				onCloseAttachedFilePanel={(filePanelId) => panelStore.closeFilePanel(filePanelId)}
 				onResizeAttachedFilePanel={(filePanelId, delta) =>
 					panelStore.resizeFilePanel(filePanelId, delta)}
-				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 			/>
 		{/if}
 	</Dialog.Content>

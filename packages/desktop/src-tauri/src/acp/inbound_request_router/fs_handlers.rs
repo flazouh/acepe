@@ -25,7 +25,7 @@ pub(super) async fn handle_fs_read_text_file(params: &Value) -> InboundRoutingDe
 
     match acp_read_text_file(path, parsed.line, parsed.limit).await {
         Ok(content) => InboundRoutingDecision::Handle(json!({ "content": content })),
-        Err(error) => request_error(error.to_string()),
+        Err(error) => request_error(error.message),
     }
 }
 
@@ -63,6 +63,6 @@ pub(super) async fn handle_fs_write_text_file(
 
     match acp_write_text_file(app_handle, path, content, session_id).await {
         Ok(()) => InboundRoutingDecision::Handle(json!({})),
-        Err(error) => request_error(error.to_string()),
+        Err(error) => request_error(error.message),
     }
 }

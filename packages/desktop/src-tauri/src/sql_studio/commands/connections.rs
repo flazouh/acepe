@@ -1,7 +1,9 @@
 use sea_orm::DbConn;
 use tauri::State;
 
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 use crate::db::repository::SqlStudioRepository;
 
 use super::super::types::{
@@ -31,30 +33,38 @@ pub async fn sql_studio_get_connection(
     db: State<'_, DbConn>,
     id: String,
 ) -> CommandResult<SqlConnectionConfig> {
-    unexpected_command_result("sql_studio_get_connection", "Failed to get SQL connection", async {
+    let row = unexpected_command_result(
+        "sql_studio_get_connection",
+        "Failed to get SQL connection",
         SqlStudioRepository::get_connection(&db, &id)
             .await
-            .map_err(|e| format!("Failed to load SQL connection: {}", e))?
-            .ok_or_else(|| format!("Connection not found: {}", id))
-            .and_then(|row| {
-                let engine = DbEngine::from_db_value(&row.engine)
-                    .ok_or_else(|| format!("Unsupported engine stored in database: {}", row.engine))?;
-                let sql_config = parse_sql_stored_config(&row)?;
-                Ok(SqlConnectionConfig {
-                    kind: ConnectionKind::Sql,
-                    id: Some(row.id),
-                    name: row.name,
-                    engine,
-                    host: sql_config.host,
-                    port: sql_config.port,
-                    database_name: sql_config.database_name,
-                    username: sql_config.username,
-                    password: None,
-                    file_path: sql_config.file_path,
-                    ssl_mode: sql_config.ssl_mode,
-                })
-            })
-    }.await)
+            .map_err(|e| format!("Failed to load SQL connection: {}", e)),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            "sql_studio_get_connection",
+            format!("Connection not found: {}", id),
+        )
+    })?;
+
+    unexpected_command_result("sql_studio_get_connection", "Failed to get SQL connection", (|| {
+        let engine = DbEngine::from_db_value(&row.engine)
+            .ok_or_else(|| format!("Unsupported engine stored in database: {}", row.engine))?;
+        let sql_config = parse_sql_stored_config(&row)?;
+        Ok(SqlConnectionConfig {
+            kind: ConnectionKind::Sql,
+            id: Some(row.id),
+            name: row.name,
+            engine,
+            host: sql_config.host,
+            port: sql_config.port,
+            database_name: sql_config.database_name,
+            username: sql_config.username,
+            password: None,
+            file_path: sql_config.file_path,
+            ssl_mode: sql_config.ssl_mode,
+        })
+    })())
 }
 
 #[tauri::command]
@@ -153,14 +163,21 @@ pub async fn sql_studio_test_connection(
     db: State<'_, DbConn>,
     id: String,
 ) -> CommandResult<TestConnectionResponse> {
-    unexpected_command_result("sql_studio_test_connection", "Failed to test SQL connection", async {
-        let connection = SqlStudioRepository::get_connection(&db, &id)
+    let connection = unexpected_command_result(
+        "sql_studio_test_connection",
+        "Failed to load SQL connection",
+        SqlStudioRepository::get_connection(&db, &id)
             .await
-            .map_err(|e| format!("Failed to load SQL connection: {}", e))?
-            .ok_or_else(|| format!("Connection not found: {}", id))?;
+            .map_err(|e| format!("Failed to load SQL connection: {}", e)),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            "sql_studio_test_connection",
+            format!("Connection not found: {}", id),
+        )
+    })?;
 
-        test_connection_row(&connection).await
-    }.await)
+    expected_command_result("sql_studio_test_connection", test_connection_row(&connection).await)
 }
 
 #[tauri::command]

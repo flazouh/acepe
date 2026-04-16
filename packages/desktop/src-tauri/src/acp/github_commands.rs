@@ -5,9 +5,12 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, capture_unexpected_command_error,
+    unexpected_command_result,
+};
 use crate::path_safety::validate_project_directory_from_str;
 
 /// Repository context extracted from .git/config
@@ -79,6 +82,20 @@ pub struct PrDiff {
     pub pr: PrMetadata,
     pub files: Vec<FileDiff>,
     pub repo_context: RepoContext,
+}
+
+fn gh_api_output_is_not_found(output: &Output) -> bool {
+    String::from_utf8_lossy(&output.stderr).contains("HTTP 404")
+}
+
+fn gh_api_output_summary(action: &str, output: &Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let trimmed = stderr.trim();
+    if trimmed.is_empty() {
+        format!("{action} failed with status {}", output.status)
+    } else {
+        format!("{action} failed: {trimmed}")
+    }
 }
 
 /// Extracts the GitHub repository context from .git/config
@@ -533,7 +550,8 @@ pub fn git_working_file_diff(
 #[tauri::command]
 #[specta::specta]
 pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResult<PrDiff> {
-    unexpected_command_result("fetch_pr_diff", "Failed to fetch PR diff", (|| {
+    let (pr_output, files_output) =
+        unexpected_command_result("fetch_pr_diff", "Failed to fetch PR diff", (|| {
         // Spawn both gh API calls in parallel
         let meta_owner = owner.clone();
         let meta_repo = repo.clone();
@@ -560,16 +578,34 @@ pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResu
                 .output()
         });
 
-        // Join metadata thread
         let pr_output = meta_handle
             .join()
             .map_err(|_| "PR metadata thread panicked".to_string())?
             .map_err(|e| format!("Failed to fetch PR: {}", e))?;
+        let files_output = files_handle
+            .join()
+            .map_err(|_| "PR files thread panicked".to_string())?
+            .map_err(|e| format!("Failed to fetch PR files: {}", e))?;
 
-        if !pr_output.status.success() {
-            return Err("PR not found".to_string());
+        Ok((pr_output, files_output))
+    })())?;
+
+    if !pr_output.status.success() {
+        if !gh_api_output_is_not_found(&pr_output) {
+            return Err(capture_unexpected_command_error(
+                "fetch_pr_diff",
+                "Failed to fetch PR diff",
+                gh_api_output_summary("Failed to fetch PR metadata", &pr_output),
+            ));
         }
 
+        return Err(SerializableCommandError::expected(
+            "fetch_pr_diff",
+            "PR not found",
+        ));
+    }
+
+    unexpected_command_result("fetch_pr_diff", "Failed to fetch PR diff", (|| {
         let pr_json: serde_json::Value = serde_json::from_slice(&pr_output.stdout)
             .map_err(|e| format!("Failed to parse PR response: {}", e))?;
 
@@ -601,12 +637,6 @@ pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResu
             state,
             description,
         };
-
-        // Join files thread
-        let files_output = files_handle
-            .join()
-            .map_err(|_| "PR files thread panicked".to_string())?
-            .map_err(|e| format!("Failed to fetch PR files: {}", e))?;
 
         let files = if files_output.status.success() {
             if let Ok(files_json) = serde_json::from_slice::<serde_json::Value>(&files_output.stdout) {

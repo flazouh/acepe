@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Runtime, Webview, WebviewUrl, Window};
-use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
 
 /// State that tracks active browser child webviews by label.
 pub struct BrowserWebviewState<R: Runtime> {
@@ -159,29 +159,40 @@ pub async fn navigate_browser_webview<R: Runtime>(
     label: String,
     url: String,
 ) -> CommandResult<()>  {
-    unexpected_command_result("navigate_browser_webview", "Failed to navigate browser webview", async {
+    let parsed_url: tauri::Url = url.parse().map_err(|e| {
+        SerializableCommandError::expected("navigate_browser_webview", format!("Invalid URL: {e}"))
+    })?;
 
-        let parsed_url: tauri::Url = url.parse().map_err(|e| format!("Invalid URL: {e}"))?;
+    let scheme = parsed_url.scheme();
+    if !matches!(scheme, "http" | "https" | "about") {
+        return Err(SerializableCommandError::expected(
+            "navigate_browser_webview",
+            format!("Blocked URL scheme: {scheme}"),
+        ));
+    }
 
-        let scheme = parsed_url.scheme();
-        if !matches!(scheme, "http" | "https" | "about") {
-            return Err(format!("Blocked URL scheme: {scheme}"));
-        }
-
-        let webviews = state
+    let webviews = unexpected_command_result(
+        "navigate_browser_webview",
+        "Failed to navigate browser webview",
+        state
             .webviews
             .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
+            .map_err(|e| format!("Lock error: {e}")),
+    )?;
+    let webview = webviews.get(&label).ok_or_else(|| {
+        SerializableCommandError::expected(
+            "navigate_browser_webview",
+            format!("Webview not found: {label}"),
+        )
+    })?;
 
+    unexpected_command_result(
+        "navigate_browser_webview",
+        "Failed to navigate browser webview",
         webview
             .navigate(parsed_url)
-            .map_err(|e| format!("Failed to navigate: {e}"))?;
-        Ok(())
-
-    }.await)
+            .map_err(|e| format!("Failed to navigate: {e}")),
+    )
 }
 
 /// Reload the current page in a browser webview.

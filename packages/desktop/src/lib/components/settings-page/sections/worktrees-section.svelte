@@ -1,5 +1,5 @@
 <script lang="ts">
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
+import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as m from "$lib/messages.js";
 import SettingsControlCard from "../settings-control-card.svelte";

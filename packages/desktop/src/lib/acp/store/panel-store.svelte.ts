@@ -12,7 +12,7 @@ import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state.js";
-import { clearWorktreeEnabled } from "../components/worktree-toggle/worktree-storage.js";
+import { clearWorktreeEnabled } from "../components/worktree/worktree-storage.js";
 import { areReviewFileSnapshotsEqual } from "../review/review-file-revision.js";
 import { createLogger } from "../utils/logger.js";
 import type { AgentStore } from "./agent-store.svelte.js";

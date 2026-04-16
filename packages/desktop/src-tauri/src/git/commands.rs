@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::git::{operations, text_generation};
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 
 /// Result of a successful git clone operation
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -21,6 +23,20 @@ pub async fn git_clone(
     destination: String,
     branch: Option<String>,
 ) -> CommandResult<CloneResult>  {
+    if !url.starts_with("https://") && !url.starts_with("git@") && !url.starts_with("http://") {
+        return Err(SerializableCommandError::expected(
+            "git_clone",
+            "Invalid repository URL format. URL must start with https://, http://, or git@",
+        ));
+    }
+
+    if Path::new(&destination).exists() {
+        return Err(SerializableCommandError::expected(
+            "git_clone",
+            format!("Destination folder already exists: {}", destination),
+        ));
+    }
+
     unexpected_command_result("git_clone", "Git clone failed", async {
 
         tracing::info!(
@@ -29,23 +45,6 @@ pub async fn git_clone(
             branch = ?branch,
             "Cloning git repository"
         );
-
-        // Validate URL format
-        if !url.starts_with("https://") && !url.starts_with("git@") && !url.starts_with("http://") {
-            return Err(
-                "Invalid repository URL format. URL must start with https://, http://, or git@"
-                    .to_string(),
-            );
-        }
-
-        // Validate destination path
-        let dest_path = Path::new(&destination);
-        if dest_path.exists() {
-            return Err(format!(
-                "Destination folder already exists: {}",
-                destination
-            ));
-        }
 
         // Build git clone command
         let mut cmd = Command::new("git");
@@ -75,7 +74,7 @@ pub async fn git_clone(
         }
 
         // Extract repository name from destination path
-        let name = dest_path
+        let name = Path::new(&destination)
             .file_name()
             .and_then(|n| n.to_str())
             .map(capitalize_name)
@@ -177,10 +176,22 @@ pub async fn git_collect_ship_context(
     project_path: String,
     custom_instructions: Option<String>,
 ) -> CommandResult<Option<ShipContext>>  {
-    unexpected_command_result("git_collect_ship_context", "Failed to collect ship context", async {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(SerializableCommandError::expected(
+            "git_collect_ship_context",
+            format!("Path does not exist: {}", project_path),
+        ));
+    }
 
-        let path = PathBuf::from(&project_path);
-        let branch = crate::git::worktree::git_current_branch(project_path).await.map_err(|e| e.message)?;
+    unexpected_command_result("git_collect_ship_context", "Failed to collect ship context", async {
+        let branch = crate::git::worktree::get_current_branch(&path).map_err(|error| {
+            if error.contains("Failed to get current branch") {
+                format!("Path is not a git repository: {}", project_path)
+            } else {
+                error
+            }
+        })?;
         let staged = operations::collect_staged_context(&path).await?;
         Ok(staged.map(|ctx| build_ship_context(&branch, &ctx, custom_instructions.as_deref())))
 

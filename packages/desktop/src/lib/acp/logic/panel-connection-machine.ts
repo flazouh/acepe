@@ -26,7 +26,10 @@ export const panelConnectionMachine = createMachine({
 					title?: string;
 			  }
 			| { type: PanelConnectionEvent.CONNECTION_SUCCESS; sessionId: string }
-			| { type: PanelConnectionEvent.CONNECTION_ERROR; error: string }
+			| {
+					type: PanelConnectionEvent.CONNECTION_ERROR;
+					error: import("../types/panel-connection-state.js").PanelConnectionErrorDetails;
+			  }
 			| { type: PanelConnectionEvent.RETRY }
 			| { type: PanelConnectionEvent.CANCEL },
 	},

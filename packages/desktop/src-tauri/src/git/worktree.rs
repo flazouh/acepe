@@ -16,7 +16,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command as AsyncCommand;
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 
 // Word lists for generating fun branch names (from opencode pattern)
 const ADJECTIVES: &[&str] = &[
@@ -294,17 +296,17 @@ fn branch_exists(repo_path: &Path, branch: &str) -> Result<bool, String> {
     Ok(output.status.success())
 }
 
-/// Check if the path is a git repository (sync version for internal use)
-fn is_git_repo(path: &Path) -> bool {
-    path.join(".git").exists() || {
-        // Check if it's inside a git repo (worktree or submodule case)
-        Command::new("git")
-            .args(["rev-parse", "--is-inside-work-tree"])
-            .current_dir(path)
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+fn check_git_repo_state(path: &Path) -> Result<bool, String> {
+    if path.join(".git").exists() {
+        return Ok(true);
     }
+
+    Command::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .current_dir(path)
+        .output()
+        .map(|output| output.status.success())
+        .map_err(|error| format!("Failed to check git repository state: {}", error))
 }
 
 /// Check if the path is a git repository (async version for Tauri commands)
@@ -340,7 +342,7 @@ fn has_uncommitted_changes(repo_path: &Path) -> Result<bool, String> {
 }
 
 /// Get the current branch name
-fn get_current_branch(repo_path: &Path) -> Result<String, String> {
+pub(crate) fn get_current_branch(repo_path: &Path) -> Result<String, String> {
     let repo = crate::file_index::git::open_repository(repo_path)
         .map_err(|e| format!("Failed to get current branch: {}", e))?;
     crate::file_index::git::get_branch_name(&repo)
@@ -572,6 +574,35 @@ pub async fn git_worktree_create(
     project_path: String,
     name: Option<String>,
 ) -> CommandResult<WorktreeInfo>  {
+    let project_path_buf = PathBuf::from(&project_path);
+
+    if !project_path_buf.exists() {
+        return Err(SerializableCommandError::expected(
+            "git_worktree_create",
+            format!("Path does not exist: {}", project_path),
+        ));
+    }
+
+    if !unexpected_command_result(
+        "git_worktree_create",
+        "Failed to inspect git repository",
+        check_git_repo_state(&project_path_buf),
+    )? {
+        return Err(SerializableCommandError::expected(
+            "git_worktree_create",
+            "This project is not a git repository",
+        ));
+    }
+
+    if let Some(ref n) = name {
+        path_safety::validate_path_segment(n, "worktree name").map_err(|e| {
+            SerializableCommandError::expected(
+                "git_worktree_create",
+                format!("Invalid worktree name: {}", e),
+            )
+        })?;
+    }
+
     unexpected_command_result("git_worktree_create", "Failed to create git worktree", async {
 
         tracing::info!(
@@ -579,19 +610,6 @@ pub async fn git_worktree_create(
             name = ?name,
             "Creating git worktree"
         );
-
-        let project_path_buf = PathBuf::from(&project_path);
-
-        // Validate that this is a git repository
-        if !is_git_repo(&project_path_buf) {
-            return Err("This project is not a git repository".to_string());
-        }
-
-        // Validate optional user-provided name to prevent path traversal (e.g. ".." or "/")
-        if let Some(ref n) = name {
-            path_safety::validate_path_segment(n, "worktree name")
-                .map_err(|e| format!("Invalid worktree name: {}", e))?;
-        }
 
         // Get the worktrees directory for this project
         let worktrees_dir = get_project_worktrees_dir(&project_path)?;
@@ -633,7 +651,7 @@ pub async fn git_prepare_worktree_session_launch(
     unexpected_command_result("git_prepare_worktree_session_launch", "Failed to prepare worktree session launch", async {
 
         let project_path_buf = PathBuf::from(&project_path);
-        if !is_git_repo(&project_path_buf) {
+        if !check_git_repo_state(&project_path_buf)? {
             return Err("This project is not a git repository".to_string());
         }
 
@@ -1149,7 +1167,7 @@ pub async fn git_worktree_list(project_path: String) -> CommandResult<Vec<Worktr
         if !project_path_buf.exists() {
             return Err(format!("Path does not exist: {}", project_path));
         }
-        if !is_git_repo(&project_path_buf) {
+        if !check_git_repo_state(&project_path_buf)? {
             return Ok(vec![]);
         }
 

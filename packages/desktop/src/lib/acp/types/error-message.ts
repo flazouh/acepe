@@ -13,4 +13,6 @@ export interface ErrorMessage {
 	readonly code?: string;
 	readonly kind?: TurnErrorKind;
 	readonly source?: TurnErrorSource;
+	readonly referenceId?: string;
+	readonly referenceSearchable?: boolean;
 }

@@ -516,8 +516,13 @@ pub async fn get_open_pr_for_branch(project_path: String) -> CommandResult<Optio
         let path = crate::path_safety::validate_project_directory_from_str(&project_path)
             .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
 
-        let branch =
-            crate::git::worktree::git_current_branch(path.to_string_lossy().into_owned()).await.map_err(|e| e.message)?;
+        let branch = crate::git::worktree::get_current_branch(&path).map_err(|error| {
+            if error.contains("Failed to get current branch") {
+                format!("Path is not a git repository: {}", project_path)
+            } else {
+                error
+            }
+        })?;
         get_open_pr_for_branch_inner(&path, &branch).await
 
     }.await)

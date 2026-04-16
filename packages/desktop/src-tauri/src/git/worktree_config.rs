@@ -18,7 +18,9 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::sync::mpsc;
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 
 /// Timeout for individual setup commands (5 minutes).
 const COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
@@ -835,21 +837,22 @@ pub async fn save_worktree_config(
     project_path: String,
     setup_commands: Vec<String>,
 ) -> CommandResult<()>  {
+    let canonical = expected_command_result(
+        "save_worktree_config",
+        validate_project_path(&project_path),
+    )?;
+
+    if setup_commands.len() > MAX_SETUP_COMMANDS {
+        return Err(SerializableCommandError::expected(
+            "save_worktree_config",
+            format!("Too many setup commands (max {})", MAX_SETUP_COMMANDS),
+        ));
+    }
+    for cmd in &setup_commands {
+        expected_command_result("save_worktree_config", validate_command(cmd))?;
+    }
+
     unexpected_command_result("save_worktree_config", "Failed to save worktree config", async {
-
-        let canonical = validate_project_path(&project_path)?;
-
-        // Validate input
-        if setup_commands.len() > MAX_SETUP_COMMANDS {
-            return Err(format!(
-                "Too many setup commands (max {})",
-                MAX_SETUP_COMMANDS
-            ));
-        }
-        for cmd in &setup_commands {
-            validate_command(cmd)?;
-        }
-
         let config_path = resolve_config_write_path(&canonical);
 
         // Read existing config to preserve non-worktree fields

@@ -1,4 +1,6 @@
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 use rusqlite::{params_from_iter, types::Value, Connection};
 use sea_orm::DbConn;
 use tauri::State;
@@ -17,20 +19,35 @@ pub async fn sql_studio_update_table_cell(
     db: State<'_, DbConn>,
     request: UpdateTableCellRequest,
 ) -> CommandResult<UpdateTableCellResponse> {
-    unexpected_command_result("sql_studio_update_table_cell", "Failed to update table cell", async {
-        if request.primary_key_columns.is_empty() {
-            return Err("Cannot edit rows for tables without a primary key".to_string());
-        }
+    if request.primary_key_columns.is_empty() {
+        return Err(SerializableCommandError::expected(
+            "sql_studio_update_table_cell",
+            "Cannot edit rows for tables without a primary key",
+        ));
+    }
 
-        if request.primary_key_columns.len() != request.primary_key_values.len() {
-            return Err("Primary key columns and values length mismatch".to_string());
-        }
+    if request.primary_key_columns.len() != request.primary_key_values.len() {
+        return Err(SerializableCommandError::expected(
+            "sql_studio_update_table_cell",
+            "Primary key columns and values length mismatch",
+        ));
+    }
 
-        let connection = SqlStudioRepository::get_connection(&db, &request.connection_id)
+    let connection = unexpected_command_result(
+        "sql_studio_update_table_cell",
+        "Failed to load SQL connection",
+        SqlStudioRepository::get_connection(&db, &request.connection_id)
             .await
-            .map_err(|e| format!("Failed to load SQL connection: {}", e))?
-            .ok_or_else(|| format!("Connection not found: {}", request.connection_id))?;
+            .map_err(|e| format!("Failed to load SQL connection: {}", e)),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            "sql_studio_update_table_cell",
+            format!("Connection not found: {}", request.connection_id),
+        )
+    })?;
 
+    let response: Result<UpdateTableCellResponse, String> = async {
         match connection.engine.as_str() {
             "sqlite" => {
                 let file_path = get_sqlite_file_path(&connection)?;
@@ -160,5 +177,8 @@ pub async fn sql_studio_update_table_cell(
             }
             engine => Err(format!("Unsupported database engine: {}", engine)),
         }
-    }.await)
+    }
+    .await;
+
+    expected_command_result("sql_studio_update_table_cell", response)
 }

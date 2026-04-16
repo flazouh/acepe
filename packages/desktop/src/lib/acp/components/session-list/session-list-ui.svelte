@@ -588,13 +588,20 @@ const gitLoadedProjects = new SvelteSet<string>();
 const nonGitProjects = new SvelteSet<string>();
 const fetchingProjects = new SvelteSet<string>();
 const pullingProjects = new SvelteSet<string>();
+const gitOverviewRequestVersionByProject = new Map<string, number>();
 let initializingGitProject = $state<string | null>(null);
 
 function loadGitOverview(projectPath: string) {
 	if (gitLoadedProjects.has(projectPath)) return;
+	const requestVersion = (gitOverviewRequestVersionByProject.get(projectPath) ?? 0) + 1;
+	gitOverviewRequestVersionByProject.set(projectPath, requestVersion);
 
 	void tauriClient.git.isRepo(projectPath).match(
 		(isRepo) => {
+			if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
+				return;
+			}
+
 			if (!isRepo) {
 				gitLoadedProjects.delete(projectPath);
 				gitDataByProject.delete(projectPath);
@@ -605,6 +612,10 @@ function loadGitOverview(projectPath: string) {
 			gitLoadedProjects.add(projectPath);
 			void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
 				(overview) => {
+					if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
+						return;
+					}
+
 					nonGitProjects.delete(projectPath);
 					gitDataByProject.set(projectPath, {
 						branch: overview.branch,
@@ -614,6 +625,10 @@ function loadGitOverview(projectPath: string) {
 					// Also load remote status
 					void tauriClient.git.remoteStatus(projectPath).match(
 						(status) => {
+							if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
+								return;
+							}
+
 							const current = gitDataByProject.get(projectPath);
 							if (current) {
 								gitDataByProject.set(projectPath, {
@@ -627,6 +642,10 @@ function loadGitOverview(projectPath: string) {
 					);
 				},
 				() => {
+					if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
+						return;
+					}
+
 					gitLoadedProjects.delete(projectPath);
 					gitDataByProject.delete(projectPath);
 					nonGitProjects.add(projectPath);
@@ -634,6 +653,10 @@ function loadGitOverview(projectPath: string) {
 			);
 		},
 		() => {
+			if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
+				return;
+			}
+
 			gitLoadedProjects.delete(projectPath);
 			gitDataByProject.delete(projectPath);
 			nonGitProjects.add(projectPath);
@@ -654,10 +677,26 @@ function handleInitGitRepo(event: MouseEvent, projectPath: string): void {
 			toast.success("Git repository initialized");
 		},
 		(error) => {
-			initializingGitProject = null;
 			const message =
 				error.cause?.message ?? error.message ?? "Failed to initialize git repository";
-			toast.error(message);
+			void tauriClient.git.isRepo(projectPath).match(
+				(isRepo) => {
+					initializingGitProject = null;
+					if (isRepo) {
+						nonGitProjects.delete(projectPath);
+						gitLoadedProjects.delete(projectPath);
+						loadGitOverview(projectPath);
+						toast.success("Git repository initialized");
+						return;
+					}
+
+					toast.error(message);
+				},
+				() => {
+					initializingGitProject = null;
+					toast.error(message);
+				}
+			);
 		}
 	);
 }
@@ -1475,11 +1514,11 @@ function openCreateBranchDialog(projectPath: string): void {
 									{/snippet}
 								</DropdownMenu.Trigger>
 								<DropdownMenu.Portal>
-									<DropdownMenu.Content
-										align="start"
-										sideOffset={4}
-										class="w-[260px] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
-									>
+								<DropdownMenu.Content
+									align="start"
+									sideOffset={4}
+									class="z-[var(--app-blocking-z)] isolate w-[260px] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
+								>
 										<div class="space-y-2">
 											<!-- Search input -->
 											<div class="relative">

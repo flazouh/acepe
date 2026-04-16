@@ -9,7 +9,9 @@ use std::path::Path;
 
 use super::manager::{convert_to_relative_path_with_cached_bases, CheckpointManager};
 use super::repository::CheckpointRepository;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 use super::types::{
     Checkpoint, CreateCheckpointInput, FileDiffContent, FileSnapshot, RevertResult,
 };
@@ -18,8 +20,10 @@ use super::types::{
 ///
 /// This provides defense-in-depth by ensuring IDs have the expected format
 /// before querying the database.
-fn validate_uuid(id: &str, field_name: &str) -> Result<(), String> {
-    Uuid::parse_str(id).map_err(|_| format!("Invalid {} format", field_name))?;
+fn validate_uuid(id: &str, field_name: &str, command_name: &'static str) -> CommandResult<()> {
+    Uuid::parse_str(id).map_err(|_| {
+        SerializableCommandError::expected(command_name, format!("Invalid {} format", field_name))
+    })?;
     Ok(())
 }
 
@@ -31,18 +35,31 @@ async fn verify_checkpoint_ownership(
     db: &DbConn,
     checkpoint_id: &str,
     session_id: &str,
-) -> Result<Checkpoint, String> {
+    command_name: &'static str,
+) -> CommandResult<Checkpoint> {
     // Validate UUID formats before querying
-    validate_uuid(checkpoint_id, "checkpoint_id")?;
-    validate_uuid(session_id, "session_id")?;
+    validate_uuid(checkpoint_id, "checkpoint_id", command_name)?;
+    validate_uuid(session_id, "session_id", command_name)?;
 
-    let checkpoint = CheckpointRepository::get_by_id(db, checkpoint_id)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Checkpoint not found: {}", checkpoint_id))?;
+    let checkpoint = unexpected_command_result(
+        command_name,
+        "Failed to load checkpoint",
+        CheckpointRepository::get_by_id(db, checkpoint_id)
+            .await
+            .map_err(|e| e.to_string()),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            command_name,
+            format!("Checkpoint not found: {}", checkpoint_id),
+        )
+    })?;
 
     if checkpoint.session_id != session_id {
-        return Err("Access denied: checkpoint belongs to a different session".to_string());
+        return Err(SerializableCommandError::expected(
+            command_name,
+            "Access denied: checkpoint belongs to a different session",
+        ));
     }
 
     Ok(checkpoint)
@@ -66,10 +83,9 @@ pub async fn checkpoint_create(
     name: Option<String>,
     is_auto: bool,
 ) -> CommandResult<Checkpoint> {
-    unexpected_command_result("checkpoint_create", "Failed to create checkpoint", async {
-        // Validate session_id format
-        validate_uuid(&session_id, "session_id")?;
+    validate_uuid(&session_id, "session_id", "checkpoint_create")?;
 
+    unexpected_command_result("checkpoint_create", "Failed to create checkpoint", async {
         tracing::debug!(
             session_id = %session_id,
             project_path = %project_path,
@@ -158,10 +174,9 @@ pub async fn checkpoint_list(
     db: State<'_, DbConn>,
     session_id: String,
 ) -> CommandResult<Vec<Checkpoint>>  {
+    validate_uuid(&session_id, "session_id", "checkpoint_list")?;
+
     unexpected_command_result("checkpoint_list", "Failed to list checkpoints", async {
-
-        validate_uuid(&session_id, "session_id")?;
-
         tracing::debug!(session_id = %session_id, "checkpoint_list command");
 
         CheckpointManager::list_checkpoints(&db, &session_id)
@@ -180,6 +195,14 @@ pub async fn checkpoint_get_file_content(
     checkpoint_id: String,
     file_path: String,
 ) -> CommandResult<String>  {
+    verify_checkpoint_ownership(
+        &db,
+        &checkpoint_id,
+        &session_id,
+        "checkpoint_get_file_content",
+    )
+    .await?;
+
     unexpected_command_result("checkpoint_get_file_content", "Failed to get checkpoint file content", async {
 
         tracing::debug!(
@@ -188,9 +211,6 @@ pub async fn checkpoint_get_file_content(
             file_path = %file_path,
             "checkpoint_get_file_content command"
         );
-
-        // Verify the checkpoint belongs to the specified session
-        verify_checkpoint_ownership(&db, &checkpoint_id, &session_id).await?;
 
         CheckpointManager::get_file_content_at_checkpoint(&db, &checkpoint_id, &file_path)
             .await
@@ -208,42 +228,51 @@ pub async fn checkpoint_get_file_diff_content(
     checkpoint_id: String,
     file_path: String,
 ) -> CommandResult<FileDiffContent>  {
-    unexpected_command_result("checkpoint_get_file_diff_content", "Failed to get checkpoint file diff content", async {
+    let checkpoint = verify_checkpoint_ownership(
+        &db,
+        &checkpoint_id,
+        &session_id,
+        "checkpoint_get_file_diff_content",
+    )
+    .await?;
+    tracing::debug!(
+        checkpoint_id = %checkpoint_id,
+        session_id = %session_id,
+        file_path = %file_path,
+        "checkpoint_get_file_diff_content command"
+    );
 
-        tracing::debug!(
-            checkpoint_id = %checkpoint_id,
-            session_id = %session_id,
-            file_path = %file_path,
-            "checkpoint_get_file_diff_content command"
-        );
-
-        let checkpoint = verify_checkpoint_ownership(&db, &checkpoint_id, &session_id).await?;
-
-        let old_content = CheckpointRepository::get_previous_file_content(
+    let old_content = unexpected_command_result(
+        "checkpoint_get_file_diff_content",
+        "Failed to get checkpoint file diff content",
+        CheckpointRepository::get_previous_file_content(
             &db,
             &session_id,
             &file_path,
             checkpoint.checkpoint_number,
         )
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string()),
+    )?;
 
-        let new_content = CheckpointRepository::get_file_content(&db, &checkpoint_id, &file_path)
+    let new_content = unexpected_command_result(
+        "checkpoint_get_file_diff_content",
+        "Failed to get checkpoint file diff content",
+        CheckpointRepository::get_file_content(&db, &checkpoint_id, &file_path)
             .await
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| {
-                format!(
-                    "File '{}' not found in checkpoint '{}'",
-                    file_path, checkpoint_id
-                )
-            })?;
+            .map_err(|e| e.to_string()),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            "checkpoint_get_file_diff_content",
+            format!("File '{}' not found in checkpoint '{}'", file_path, checkpoint_id),
+        )
+    })?;
 
-        Ok(FileDiffContent {
-            old_content,
-            new_content,
-        })
-
-    }.await)
+    Ok(FileDiffContent {
+        old_content,
+        new_content,
+    })
 }
 
 /// Revert all files to a specific checkpoint.
@@ -260,6 +289,8 @@ pub async fn checkpoint_revert(
     project_path: String,
     worktree_path: Option<String>,
 ) -> CommandResult<RevertResult>  {
+    verify_checkpoint_ownership(&db, &checkpoint_id, &session_id, "checkpoint_revert").await?;
+
     unexpected_command_result("checkpoint_revert", "Failed to revert to checkpoint", async {
 
         // Use worktree path if provided, otherwise use project path
@@ -273,9 +304,6 @@ pub async fn checkpoint_revert(
             effective_path = %effective_path,
             "checkpoint_revert command"
         );
-
-        // Verify the checkpoint belongs to the specified session
-        verify_checkpoint_ownership(&db, &checkpoint_id, &session_id).await?;
 
         let result = CheckpointManager::revert_to_checkpoint(&db, &checkpoint_id, effective_path)
             .await
@@ -300,6 +328,9 @@ pub async fn checkpoint_revert_file(
     project_path: String,
     worktree_path: Option<String>,
 ) -> CommandResult<()>  {
+    verify_checkpoint_ownership(&db, &checkpoint_id, &session_id, "checkpoint_revert_file")
+        .await?;
+
     unexpected_command_result("checkpoint_revert_file", "Failed to revert file to checkpoint", async {
 
         // Use worktree path if provided, otherwise use project path
@@ -314,9 +345,6 @@ pub async fn checkpoint_revert_file(
             effective_path = %effective_path,
             "checkpoint_revert_file command"
         );
-
-        // Verify the checkpoint belongs to the specified session
-        verify_checkpoint_ownership(&db, &checkpoint_id, &session_id).await?;
 
         CheckpointManager::revert_file(&db, &checkpoint_id, &file_path, effective_path)
             .await
@@ -333,6 +361,14 @@ pub async fn checkpoint_get_file_snapshots(
     session_id: String,
     checkpoint_id: String,
 ) -> CommandResult<Vec<FileSnapshot>>  {
+    verify_checkpoint_ownership(
+        &db,
+        &checkpoint_id,
+        &session_id,
+        "checkpoint_get_file_snapshots",
+    )
+    .await?;
+
     unexpected_command_result("checkpoint_get_file_snapshots", "Failed to get checkpoint file snapshots", async {
 
         tracing::debug!(
@@ -340,9 +376,6 @@ pub async fn checkpoint_get_file_snapshots(
             session_id = %session_id,
             "checkpoint_get_file_snapshots command"
         );
-
-        // Verify the checkpoint belongs to the specified session
-        verify_checkpoint_ownership(&db, &checkpoint_id, &session_id).await?;
 
         CheckpointRepository::get_file_snapshots(&db, &checkpoint_id)
             .await

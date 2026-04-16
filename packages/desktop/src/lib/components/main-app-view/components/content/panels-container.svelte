@@ -303,6 +303,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							onExitReviewMode={() => panelStore.exitReviewMode(fullscreenPanelSnapshot.panelId)}
 							onReviewFileIndexChange={(index) =>
 								panelStore.setReviewFileIndex(fullscreenPanelSnapshot.panelId, index)}
+							onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 							attachedFilePanels={panelStore.getAttachedFilePanels(fullscreenPanelSnapshot.panelId)}
 							activeAttachedFilePanelId={panelStore.getActiveFilePanelId(
 								fullscreenPanelSnapshot.panelId
@@ -312,7 +313,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 							onResizeAttachedFilePanel={(panelId, delta) =>
 								panelStore.resizeFilePanel(panelId, delta)}
-							onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 						/>
 						{#snippet failed(error, reset)}
 							<div class="flex flex-1 items-center justify-center p-4">
@@ -500,6 +500,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 										panelStore.enterReviewMode(panel.id, modifiedFilesState, initialFileIndex)}
 									onExitReviewMode={() => panelStore.exitReviewMode(panel.id)}
 									onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panel.id, index)}
+									onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 									attachedFilePanels={panelStore.getAttachedFilePanels(panel.id)}
 									activeAttachedFilePanelId={panelStore.getActiveFilePanelId(panel.id)}
 									onSelectAttachedFilePanel={(ownerPanelId, panelId) =>
@@ -507,7 +508,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 									onCloseAttachedFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 									onResizeAttachedFilePanel={(panelId, delta) =>
 										panelStore.resizeFilePanel(panelId, delta)}
-									onCreateIssueReport={(draft) => state.openUserReportsWithDraft(draft)}
 								/>
 								{#snippet failed(error, reset)}
 									<div class="flex flex-1 items-center justify-center p-4">

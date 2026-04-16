@@ -142,6 +142,18 @@ impl BatcherWithGuard {
     pub(crate) fn flush_all(&mut self) -> Vec<SessionUpdate> {
         self.batcher.flush_all()
     }
+
+    fn flush_ready(&mut self) -> Vec<SessionUpdate> {
+        self.batcher.flush_ready()
+    }
+
+    fn time_until_flush(&self) -> Option<Duration> {
+        self.batcher.time_until_flush()
+    }
+
+    fn has_pending(&self) -> bool {
+        self.batcher.has_pending()
+    }
 }
 
 /// Drain all fire-and-forget prompt sessions and synthesize TurnError events.
@@ -303,7 +315,10 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
         let mut consecutive_parse_failures: u32 = 0;
 
         loop {
-            let flush_timeout = non_streaming_batcher
+            let non_streaming_flush_timeout = non_streaming_batcher
+                .time_until_flush()
+                .unwrap_or(Duration::from_secs(3600));
+            let streaming_flush_timeout = streaming_batcher
                 .time_until_flush()
                 .unwrap_or(Duration::from_secs(3600));
 
@@ -683,15 +698,29 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                         }
                     }
                 }
-                _ = tokio::time::sleep(flush_timeout), if non_streaming_batcher.has_pending() => {
+                _ = tokio::time::sleep(non_streaming_flush_timeout), if non_streaming_batcher.has_pending() => {
                     tracing::debug!(count = non_streaming_batcher.pending_count(), "Flushing non-streaming updates on timer");
                     for update in non_streaming_batcher.flush_all() {
                         ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
                     }
                 }
+                _ = tokio::time::sleep(streaming_flush_timeout), if streaming_batcher.has_pending() => {
+                    let updates = streaming_batcher.flush_ready();
+                    if !updates.is_empty() {
+                        tracing::debug!(count = updates.len(), "Flushing streaming updates on timer");
+                        for update in updates {
+                            ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
+                        }
+                    }
+                }
             }
         }
 
+        if streaming_batcher.has_pending() {
+            for update in streaming_batcher.flush_all() {
+                ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
+            }
+        }
         if non_streaming_batcher.has_pending() {
             for update in non_streaming_batcher.flush_all() {
                 ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));

@@ -11,7 +11,9 @@ use crate::path_safety::validate_project_directory_from_str;
 
 use super::git::get_file_content_from_head;
 use super::service::FileIndexService;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 use super::types::{
     FileDiffResult, FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus,
     ProjectGitOverview, ProjectIndex,
@@ -693,26 +695,30 @@ pub async fn copy_file(project_path: String, relative_path: String) -> CommandRe
 #[tauri::command]
 #[specta::specta]
 pub async fn create_file(project_path: String, relative_path: String) -> CommandResult<()>  {
+    let full = expected_command_result("create_file", validate_target_under_project(&project_path, &relative_path))?;
+
+    if full.exists() {
+        return Err(SerializableCommandError::expected(
+            "create_file",
+            "File already exists",
+        ));
+    }
+
+    if let Some(parent) = full.parent() {
+        if !parent.exists() {
+            return Err(SerializableCommandError::expected(
+                "create_file",
+                "Parent directory does not exist",
+            ));
+        }
+    }
+
     unexpected_command_result("create_file", "Failed to create file", async {
-
-        let full = validate_target_under_project(&project_path, &relative_path)?;
-
-        if full.exists() {
-            return Err("File already exists".to_string());
-        }
-
-        if let Some(parent) = full.parent() {
-            if !parent.exists() {
-                return Err("Parent directory does not exist".to_string());
-            }
-        }
-
         fs::File::create(&full)
             .await
             .map_err(|e| format!("Failed to create file: {}", e))?;
 
         Ok(())
-
     }.await)
 }
 
@@ -720,26 +726,31 @@ pub async fn create_file(project_path: String, relative_path: String) -> Command
 #[tauri::command]
 #[specta::specta]
 pub async fn create_directory(project_path: String, relative_path: String) -> CommandResult<()>  {
+    let full =
+        expected_command_result("create_directory", validate_target_under_project(&project_path, &relative_path))?;
+
+    if full.exists() {
+        return Err(SerializableCommandError::expected(
+            "create_directory",
+            "Directory already exists",
+        ));
+    }
+
+    if let Some(parent) = full.parent() {
+        if !parent.exists() {
+            return Err(SerializableCommandError::expected(
+                "create_directory",
+                "Parent directory does not exist",
+            ));
+        }
+    }
+
     unexpected_command_result("create_directory", "Failed to create directory", async {
-
-        let full = validate_target_under_project(&project_path, &relative_path)?;
-
-        if full.exists() {
-            return Err("Directory already exists".to_string());
-        }
-
-        if let Some(parent) = full.parent() {
-            if !parent.exists() {
-                return Err("Parent directory does not exist".to_string());
-            }
-        }
-
         fs::create_dir(&full)
             .await
             .map_err(|e| format!("Failed to create directory: {}", e))?;
 
         Ok(())
-
     }.await)
 }
 

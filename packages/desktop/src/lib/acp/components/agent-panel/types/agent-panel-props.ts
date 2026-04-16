@@ -1,6 +1,7 @@
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte";
 import type { FilePanel } from "../../../store/file-panel-type.js";
+import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { ModifiedFilesState } from "../../modified-files/types/modified-files-state.js";
 
 /**
@@ -168,6 +169,11 @@ export interface AgentPanelProps {
 	readonly onReviewFileIndexChange?: (fileIndex: number) => void;
 
 	/**
+	 * Callback when the user wants to create or open an issue from an error surface.
+	 */
+	readonly onCreateIssueReport?: (draft: IssueReportDraft) => void;
+
+	/**
 	 * Attached file panels owned by this agent panel.
 	 */
 	readonly attachedFilePanels?: readonly FilePanel[];
@@ -192,9 +198,4 @@ export interface AgentPanelProps {
 	 */
 	readonly onResizeAttachedFilePanel?: (filePanelId: string, delta: number) => void;
 
-	/**
-	 * Callback when the user wants to create a GitHub issue from an agent error.
-	 * The draft contains a prefilled title, body, and category for the issue dialog.
-	 */
-	readonly onCreateIssueReport?: (draft: { title: string; body: string; category: string }) => void;
 }

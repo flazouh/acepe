@@ -1,66 +1,46 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 
 import { buildAgentErrorIssueDraft } from "./issue-report-draft.js";
 
 describe("buildAgentErrorIssueDraft", () => {
-	it("formats a bug report with required fields as a markdown table", () => {
+	it("includes incident metadata in the draft body", () => {
 		const draft = buildAgentErrorIssueDraft({
 			agentId: "claude-code",
 			sessionId: "session-123",
-			projectPath: "/Users/example/Documents/acepe",
-			worktreePath: "/Users/example/.acepe/worktrees/feature-a",
-			errorSummary: "Resume session timed out",
-			errorDetails: "ERROR stack line 1\nstack line 2",
+			projectPath: "/repo",
+			worktreePath: "/repo/.worktrees/feature",
+			errorSummary: "Resume failed",
+			errorDetails: "stack line 1\nstack line 2",
+			referenceId: "ref-123",
+			referenceSearchable: true,
+			currentModelId: "sonnet",
+			entryCount: 12,
+			panelConnectionState: "error",
 		});
 
-		expect(draft.category).toBe("bug");
-		expect(draft.title).toContain("Resume session timed out");
-		expect(draft.body).toContain("`claude-code`");
-		expect(draft.body).toContain("`session-123`");
-		expect(draft.body).toContain("`/Users/example/Documents/acepe`");
-		expect(draft.body).toContain("`/Users/example/.acepe/worktrees/feature-a`");
-		expect(draft.body).toContain("```text\nERROR stack line 1\nstack line 2\n```");
+		expect(draft.title).toBe("[claude-code] Resume failed");
+		expect(draft.body).toContain("| Surface | agent-panel |");
+		expect(draft.body).toContain("| Reference ID | ref-123 |");
+		expect(draft.body).toContain("| Reference visibility | searchable in Sentry |");
+		expect(draft.body).toContain("| Agent | claude-code |");
+		expect(draft.body).toContain("| Model | sonnet |");
+		expect(draft.body).toContain("| Message Count | 12 |");
+		expect(draft.body).toContain("stack line 1");
 	});
 
-	it("includes optional fields when provided", () => {
-		const createdAt = new Date("2026-01-15T10:00:00Z");
+	it("omits optional issue metadata when not present", () => {
 		const draft = buildAgentErrorIssueDraft({
-			agentId: "claude-code",
-			sessionId: "session-123",
-			projectPath: "/project",
+			agentId: "copilot",
+			sessionId: null,
+			projectPath: null,
 			worktreePath: null,
 			errorSummary: "Connection failed",
-			errorDetails: "error details",
-			sessionTitle: "My debug session",
-			currentModelId: "claude-sonnet-4-6",
-			entryCount: 42,
-			panelConnectionState: "ERROR",
-			sessionCreatedAt: createdAt,
+			errorDetails: "timed out",
 		});
 
-		expect(draft.body).toContain("My debug session");
-		expect(draft.body).toContain("`claude-sonnet-4-6`");
-		expect(draft.body).toContain("42");
-		expect(draft.body).toContain("`ERROR`");
-		expect(draft.body).toContain("2026-01-15T10:00:00.000Z");
-	});
-
-	it("preserves multiline backend diagnostics in the error details block", () => {
-		const draft = buildAgentErrorIssueDraft({
-			agentId: "codex",
-			sessionId: null,
-			projectPath: "/project",
-			worktreePath: null,
-			errorSummary: "Failed to connect session",
-			errorDetails:
-				'thread/start failed: {"code":-32600,"message":"Invalid request"}\nCodex request method: thread/start\nCodex request params: {"cwd":"/project","experimentalRawEvents":false,"persistExtendedHistory":true}\nCodex command: codex\nCodex binary path: /opt/homebrew/bin/codex\nCodex binary version: codex-cli 0.116.0',
-		});
-
-		expect(draft.body).toContain("Codex request method: thread/start");
-		expect(draft.body).toContain(
-			'Codex request params: {"cwd":"/project","experimentalRawEvents":false,"persistExtendedHistory":true}'
-		);
-		expect(draft.body).toContain("Codex binary path: /opt/homebrew/bin/codex");
-		expect(draft.body).toContain("Codex binary version: codex-cli 0.116.0");
+		expect(draft.referenceId).toBeNull();
+		expect(draft.issueNumber).toBeNull();
+		expect(draft.issueUrl).toBeNull();
+		expect(draft.body).not.toContain("Existing issue");
 	});
 });

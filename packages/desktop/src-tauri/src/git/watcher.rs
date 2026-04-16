@@ -16,7 +16,7 @@ use std::time::Duration;
 use notify_debouncer_mini::{new_debouncer, Debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
 
 const GIT_HEAD_CHANGED_EVENT: &str = "git:head-changed";
 const DEBOUNCE_DURATION: Duration = Duration::from_millis(300);
@@ -203,12 +203,15 @@ pub async fn git_watch_head(
     app: AppHandle,
     project_path: String,
 ) -> CommandResult<()>  {
-    unexpected_command_result("git_watch_head", "Failed to watch git HEAD", async {
+    let path = PathBuf::from(&project_path);
+    if !path.exists() {
+        return Err(SerializableCommandError::expected(
+            "git_watch_head",
+            format!("Path does not exist: {}", project_path),
+        ));
+    }
 
-        let path = PathBuf::from(&project_path);
-        if !path.exists() {
-            return Err(format!("Path does not exist: {}", project_path));
-        }
+    unexpected_command_result("git_watch_head", "Failed to watch git HEAD", async {
         watcher.watch(app, path)
 
     }.await)

@@ -1,4 +1,5 @@
 import type { ErrorMessage } from "../../../types/error-message.js";
+import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state";
 import type { TurnState } from "../../../store/types.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state";
 
@@ -7,11 +8,13 @@ export interface PanelErrorInfo {
 	readonly title: string;
 	readonly summary: string | null;
 	readonly details: string | null;
+	readonly referenceId: string | null;
+	readonly referenceSearchable: boolean;
 }
 
 interface PanelErrorInputs {
 	readonly panelConnectionState: PanelConnectionState | null;
-	readonly panelConnectionError: string | null;
+	readonly panelConnectionError: PanelConnectionErrorDetails | null;
 	readonly sessionConnectionError: string | null;
 	readonly sessionTurnState?: TurnState;
 	readonly activeTurnError: ErrorMessage | null;
@@ -44,8 +47,10 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		return {
 			showError: true,
 			title: "Connection error",
-			summary: summarize(inputs.panelConnectionError),
-			details: inputs.panelConnectionError,
+			summary: summarize(inputs.panelConnectionError?.message ?? null),
+			details: inputs.panelConnectionError?.message ?? null,
+			referenceId: inputs.panelConnectionError?.referenceId ?? null,
+			referenceSearchable: inputs.panelConnectionError?.referenceSearchable === true,
 		};
 	}
 
@@ -55,6 +60,8 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			title: "Connection error",
 			summary: summarize(inputs.sessionConnectionError),
 			details: inputs.sessionConnectionError,
+			referenceId: null,
+			referenceSearchable: false,
 		};
 	}
 
@@ -65,6 +72,8 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			title: inputs.activeTurnError.kind === "fatal" ? "Agent error" : "Request error",
 			summary: summarize(inputs.activeTurnError.content),
 			details,
+			referenceId: inputs.activeTurnError.referenceId ?? null,
+			referenceSearchable: inputs.activeTurnError.referenceSearchable === true,
 		};
 	}
 
@@ -73,5 +82,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		title: "Connection error",
 		summary: null,
 		details: null,
+		referenceId: null,
+		referenceSearchable: false,
 	};
 }

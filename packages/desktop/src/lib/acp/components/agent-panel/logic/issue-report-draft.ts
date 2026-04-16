@@ -1,3 +1,9 @@
+import {
+	buildIssueReportDraft,
+	type IssueReportDraft,
+	type IssueReportMetadataEntry,
+} from "$lib/errors/issue-report.js";
+
 export interface AgentErrorIssueDraftInput {
 	agentId: string;
 	sessionId: string | null;
@@ -5,7 +11,11 @@ export interface AgentErrorIssueDraftInput {
 	worktreePath: string | null;
 	errorSummary: string;
 	errorDetails: string;
-	// Optional enriched context
+	referenceId?: string | null;
+	referenceSearchable?: boolean;
+	issueNumber?: number | null;
+	issueUrl?: string | null;
+	diagnosticsSummary?: string | null;
 	sessionTitle?: string | null;
 	sessionCreatedAt?: Date | null;
 	sessionUpdatedAt?: Date | null;
@@ -14,55 +24,44 @@ export interface AgentErrorIssueDraftInput {
 	panelConnectionState?: string | null;
 }
 
-export interface AgentErrorIssueDraft {
-	title: string;
-	body: string;
-	category: "bug";
+function pushMetadataEntry(
+	entries: IssueReportMetadataEntry[],
+	label: string,
+	value: string | number | null | undefined
+): void {
+	if (value === null || value === undefined) {
+		return;
+	}
+
+	entries.push({
+		label,
+		value: String(value),
+	});
 }
 
-export function buildAgentErrorIssueDraft(input: AgentErrorIssueDraftInput): AgentErrorIssueDraft {
-	const title = `[${input.agentId}] ${input.errorSummary}`;
+export function buildAgentErrorIssueDraft(input: AgentErrorIssueDraftInput): IssueReportDraft {
+	const metadata: IssueReportMetadataEntry[] = [];
+	pushMetadataEntry(metadata, "Agent", input.agentId);
+	pushMetadataEntry(metadata, "Session ID", input.sessionId ?? "unknown");
+	pushMetadataEntry(metadata, "Project Path", input.projectPath ?? "unknown");
+	pushMetadataEntry(metadata, "Worktree Path", input.worktreePath ?? "none");
+	pushMetadataEntry(metadata, "Session Title", input.sessionTitle);
+	pushMetadataEntry(metadata, "Model", input.currentModelId);
+	pushMetadataEntry(metadata, "Message Count", input.entryCount);
+	pushMetadataEntry(metadata, "Connection State", input.panelConnectionState);
+	pushMetadataEntry(metadata, "Session Created", input.sessionCreatedAt?.toISOString() ?? null);
+	pushMetadataEntry(metadata, "Session Updated", input.sessionUpdatedAt?.toISOString() ?? null);
 
-	const contextLines: string[] = [
-		`| Field | Value |`,
-		`| --- | --- |`,
-		`| Agent | \`${input.agentId}\` |`,
-		`| Session ID | \`${input.sessionId ?? "unknown"}\` |`,
-		`| Project Path | \`${input.projectPath ?? "unknown"}\` |`,
-		`| Worktree Path | \`${input.worktreePath ?? "none"}\` |`,
-	];
-
-	if (input.sessionTitle) {
-		contextLines.push(`| Session Title | ${input.sessionTitle} |`);
-	}
-	if (input.currentModelId) {
-		contextLines.push(`| Model | \`${input.currentModelId}\` |`);
-	}
-	if (input.entryCount != null) {
-		contextLines.push(`| Message Count | ${input.entryCount} |`);
-	}
-	if (input.panelConnectionState) {
-		contextLines.push(`| Connection State | \`${input.panelConnectionState}\` |`);
-	}
-	if (input.sessionCreatedAt) {
-		contextLines.push(`| Session Created | ${input.sessionCreatedAt.toISOString()} |`);
-	}
-	if (input.sessionUpdatedAt) {
-		contextLines.push(`| Session Updated | ${input.sessionUpdatedAt.toISOString()} |`);
-	}
-
-	const body = [
-		"## Summary",
-		input.errorSummary,
-		"",
-		"## Context",
-		...contextLines,
-		"",
-		"## Error Details",
-		"```text",
-		input.errorDetails,
-		"```",
-	].join("\n");
-
-	return { title, body, category: "bug" };
+	return buildIssueReportDraft({
+		title: `[${input.agentId}] ${input.errorSummary}`,
+		summary: input.errorSummary,
+		details: input.errorDetails,
+		referenceId: input.referenceId ?? null,
+		referenceSearchable: input.referenceSearchable === true,
+		issueNumber: input.issueNumber ?? null,
+		issueUrl: input.issueUrl ?? null,
+		surface: "agent-panel",
+		diagnosticsSummary: input.diagnosticsSummary ?? null,
+		metadata,
+	});
 }

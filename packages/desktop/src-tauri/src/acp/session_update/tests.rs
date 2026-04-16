@@ -544,6 +544,38 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
+    fn copilot_promotes_generic_read_hint_to_search_when_raw_input_is_ripgrep_shaped() {
+        with_agent(AgentType::Copilot, || {
+            let data = json!({
+                "toolCallId": "tool-read-search",
+                "kind": "read",
+                "status": "pending",
+                "title": "Searching for 'sentry'",
+                "rawInput": {
+                    "pattern": "sentry",
+                    "glob": "**/Cargo.toml",
+                    "output_mode": "content",
+                    "-i": true
+                }
+            });
+
+            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+            assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+            let tool_call = result.unwrap();
+            assert_eq!(tool_call.kind, Some(ToolKind::Search));
+            assert_eq!(tool_call.name, "Search");
+            match tool_call.arguments {
+                ToolArguments::Search { query, file_path } => {
+                    assert_eq!(query.as_deref(), Some("sentry"));
+                    assert!(file_path.is_none());
+                }
+                other => panic!("Expected Search arguments, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
     fn infers_task_from_copilot_subagent_payload_without_tool_name() {
         with_agent(AgentType::Copilot, || {
             let data = json!({

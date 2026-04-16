@@ -71,6 +71,27 @@ fn resolve_project_root_for_history(project_path: &str) -> Result<std::path::Pat
 /// 2. Ensures OpenCode server is running (auto-start)
 /// 3. Fetches session messages via HTTP API
 /// 4. Converts to unified format
+pub(crate) async fn fetch_opencode_session(
+    app: &AppHandle,
+    session_id: &str,
+    directory: &str,
+) -> Result<ConvertedSession, String> {
+    let mut client = get_or_create_opencode_client(app, directory).await?;
+
+    client
+        .start()
+        .await
+        .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
+
+    let messages = client
+        .get_session_messages(session_id, directory)
+        .await
+        .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
+
+    session_converter::convert_opencode_messages_to_session(messages)
+        .map_err(|e| format!("Failed to convert session: {}", e))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_opencode_session(
@@ -78,30 +99,11 @@ pub async fn get_opencode_session(
     session_id: String,
     directory: String,
 ) -> CommandResult<ConvertedSession>  {
-    unexpected_command_result("get_opencode_session", "Failed to get OpenCode session", async {
-
-        // Get or create OpenCode HTTP client
-        let mut client = get_or_create_opencode_client(&app, &directory).await?;
-
-        // Ensure OpenCode server is running (auto-start)
-        client
-            .start()
-            .await
-            .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
-
-        // Fetch session messages via HTTP API
-        let messages = client
-            .get_session_messages(&session_id, &directory)
-            .await
-            .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
-
-        // Convert to unified format
-        let converted = session_converter::convert_opencode_messages_to_session(messages)
-            .map_err(|e| format!("Failed to convert session: {}", e))?;
-
-        Ok(converted)
-
-    }.await)
+    unexpected_command_result(
+        "get_opencode_session",
+        "Failed to get OpenCode session",
+        fetch_opencode_session(&app, &session_id, &directory).await,
+    )
 }
 
 /// Get converted OpenCode session (alias for get_opencode_session).
@@ -114,10 +116,11 @@ pub async fn get_opencode_converted_session(
     session_id: String,
     directory: String,
 ) -> CommandResult<ConvertedSession>  {
-    unexpected_command_result("get_opencode_converted_session", "Failed to get converted OpenCode session", async {
-        get_opencode_session(app, session_id, directory).await
-            .map_err(|e| e.message)
-    }.await)
+    unexpected_command_result(
+        "get_opencode_converted_session",
+        "Failed to get converted OpenCode session",
+        fetch_opencode_session(&app, &session_id, &directory).await,
+    )
 }
 
 /// Get OpenCode sessions for a specific project via HTTP API.

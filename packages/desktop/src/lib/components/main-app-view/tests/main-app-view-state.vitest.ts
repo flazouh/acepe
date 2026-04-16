@@ -17,7 +17,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
 }));
 
-import type { WorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
+import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -278,6 +278,12 @@ describe("MainAppViewState file explorer", () => {
 			title: "Bug report",
 			body: "Line 1\nLine 2",
 			category: "bug",
+			referenceId: null,
+			referenceSearchable: false,
+			issueNumber: null,
+			issueUrl: null,
+			surface: null,
+			diagnosticsSummary: null,
 		});
 
 		expect(openUrlMock).toHaveBeenCalledWith(

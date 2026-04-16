@@ -13,7 +13,9 @@ use tokio::time::{timeout, Duration};
 use crate::file_index::git::open_repository;
 use crate::git::gh_pr;
 use crate::path_safety::validate_project_directory_from_str;
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -185,6 +187,57 @@ fn run_git_command_sync(
 fn validate_project_path(project_path: &str) -> Result<PathBuf, String> {
     validate_project_directory_from_str(project_path)
         .map_err(|e| e.message_for(Path::new(project_path.trim())))
+}
+
+async fn get_git_remote_status_impl(path: PathBuf) -> Result<GitRemoteStatus, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repository(&path).map_err(|e| e.to_string())?;
+
+        let head = repo
+            .head()
+            .map_err(|e| format!("Failed to get HEAD: {}", e))?;
+        let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
+
+        let local_branch = repo
+            .find_branch(&branch_name, git2::BranchType::Local)
+            .map_err(|e| format!("Failed to find branch: {}", e))?;
+
+        let upstream = match local_branch.upstream() {
+            Ok(upstream) => upstream,
+            Err(_) => {
+                return Ok(GitRemoteStatus {
+                    ahead: 0,
+                    behind: 0,
+                    remote: String::new(),
+                    tracking_branch: String::new(),
+                });
+            }
+        };
+
+        let upstream_name = upstream
+            .name()
+            .map_err(|e| format!("Failed to get upstream name: {}", e))?
+            .unwrap_or("")
+            .to_string();
+
+        let local_oid = head.target().ok_or("HEAD has no target")?;
+        let upstream_oid = upstream.get().target().ok_or("Upstream has no target")?;
+
+        let (ahead, behind) = repo
+            .graph_ahead_behind(local_oid, upstream_oid)
+            .map_err(|e| format!("Failed to compute ahead/behind: {}", e))?;
+
+        let remote = upstream_name.split('/').next().unwrap_or("").to_string();
+
+        Ok(GitRemoteStatus {
+            ahead: ahead as u32,
+            behind: behind as u32,
+            remote,
+            tracking_branch: upstream_name,
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 fn index_status_string(status: git2::Status) -> Option<String> {
@@ -778,64 +831,12 @@ pub async fn git_fetch(project_path: String) -> CommandResult<()>  {
 #[tauri::command]
 #[specta::specta]
 pub async fn git_remote_status(project_path: String) -> CommandResult<GitRemoteStatus>  {
-    unexpected_command_result("git_remote_status", "Failed to get git remote status", async {
-
-        let path = validate_project_path(&project_path)?;
-
-        tokio::task::spawn_blocking(move || {
-            let repo = open_repository(&path).map_err(|e| e.to_string())?;
-
-            let head = repo
-                .head()
-                .map_err(|e| format!("Failed to get HEAD: {}", e))?;
-            let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
-
-            // Try to find upstream tracking branch
-            let local_branch = repo
-                .find_branch(&branch_name, git2::BranchType::Local)
-                .map_err(|e| format!("Failed to find branch: {}", e))?;
-
-            let upstream = match local_branch.upstream() {
-                Ok(upstream) => upstream,
-                Err(_) => {
-                    // No upstream set
-                    return Ok(GitRemoteStatus {
-                        ahead: 0,
-                        behind: 0,
-                        remote: String::new(),
-                        tracking_branch: String::new(),
-                    });
-                }
-            };
-
-            let upstream_name = upstream
-                .name()
-                .map_err(|e| format!("Failed to get upstream name: {}", e))?
-                .unwrap_or("")
-                .to_string();
-
-            let local_oid = head.target().ok_or("HEAD has no target")?;
-
-            let upstream_oid = upstream.get().target().ok_or("Upstream has no target")?;
-
-            let (ahead, behind) = repo
-                .graph_ahead_behind(local_oid, upstream_oid)
-                .map_err(|e| format!("Failed to compute ahead/behind: {}", e))?;
-
-            // Extract remote name from tracking branch (e.g. "origin/main" → "origin")
-            let remote = upstream_name.split('/').next().unwrap_or("").to_string();
-
-            Ok(GitRemoteStatus {
-                ahead: ahead as u32,
-                behind: behind as u32,
-                remote,
-                tracking_branch: upstream_name,
-            })
-        })
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
-
-    }.await)
+    let path = expected_command_result("git_remote_status", validate_project_path(&project_path))?;
+    unexpected_command_result(
+        "git_remote_status",
+        "Failed to get git remote status",
+        get_git_remote_status_impl(path).await,
+    )
 }
 
 // ─── Stash ──────────────────────────────────────────────────────────────────
@@ -1163,17 +1164,50 @@ pub async fn git_run_stacked_action(
     pr_title: Option<String>,
     pr_body: Option<String>,
 ) -> CommandResult<GitStackedActionResult>  {
+    let path = expected_command_result("git_run_stacked_action", validate_project_path(&project_path))?;
+    let action = match action.as_str() {
+        "commit" | "commit_push" | "commit_push_pr" => action,
+        _ => {
+            return Err(SerializableCommandError::expected(
+                "git_run_stacked_action",
+                "Invalid action: use commit, commit_push, or commit_push_pr",
+            ));
+        }
+    };
+    let branch = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        crate::git::worktree::get_current_branch(&path),
+    )?;
+    let remote_status = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        get_git_remote_status_impl(path.clone()).await,
+    )?;
+    let has_staged = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let repo = open_repository(&path).map_err(|e| e.to_string())?;
+                has_staged_changes(&repo)
+            }
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))
+        .and_then(|result| result),
+    )?;
+    if has_staged && commit_message.trim().is_empty() {
+        return Err(SerializableCommandError::expected(
+            "git_run_stacked_action",
+            "Commit message required when there are staged changes",
+        ));
+    }
+
     unexpected_command_result("git_run_stacked_action", "Git stacked action failed", async {
-
-        let path = validate_project_path(&project_path)?;
-
-        let action = match action.as_str() {
-            "commit" | "commit_push" | "commit_push_pr" => action,
-            _ => return Err("Invalid action: use commit, commit_push, or commit_push_pr".to_string()),
-        };
-
-        let mut branch = crate::git::worktree::git_current_branch(project_path.clone()).await.map_err(|e| e.message)?;
-        let remote_status = git_remote_status(project_path.clone()).await.map_err(|e| e.message)?;
+        let mut branch = branch;
+        let remote_status = remote_status;
 
         let do_push = action == "commit_push" || action == "commit_push_pr";
 

@@ -18,6 +18,8 @@ import { Tree } from "phosphor-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
 import * as Popover from "$lib/components/ui/popover/index.js";
+import { createLocalReferenceDetails } from "$lib/errors/error-reference.js";
+import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import * as m from "$lib/messages.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -85,7 +87,7 @@ import {
 	shouldConfirmWorktreeClose,
 } from "../logic";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
-import { getWorktreeDefaultStore } from "../../worktree-toggle/worktree-default-store.svelte.js";
+import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target";
@@ -114,6 +116,7 @@ import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import type { FileReviewStatus } from "../../review-panel/review-session-state.js";
+import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -243,8 +246,10 @@ let contentIsAtBottom = $state(true);
 let contentIsAtTop = $state(true);
 let contentIsStreaming = $state(false);
 let panelConnectionState = $state<PanelConnectionState | null>(null);
-let panelConnectionError = $state<string | null>(null);
+let panelConnectionError = $state<PanelConnectionErrorDetails | null>(null);
 let errorDismissed = $state(false);
+let fallbackInlineErrorReferenceId = $state<string | null>(null);
+let fallbackInlineErrorFingerprint = $state<string | null>(null);
 
 // Checkpoint timeline state
 let showCheckpointTimeline = $state(false);
@@ -394,6 +399,10 @@ const errorInfo = $derived.by(() =>
 		activeTurnError,
 	})
 );
+const inlineErrorReferenceId = $derived(errorInfo.referenceId ?? fallbackInlineErrorReferenceId);
+const inlineErrorReferenceSearchable = $derived(
+	errorInfo.referenceId !== null ? errorInfo.referenceSearchable : false
+);
 
 // Reset dismiss state when error content changes so a new error is always visible
 $effect(() => {
@@ -401,6 +410,32 @@ $effect(() => {
 	if (!errorInfo.showError) {
 		errorDismissed = false;
 	}
+});
+
+$effect(() => {
+	const details = errorInfo.details;
+	if (!errorInfo.showError || details === null) {
+		fallbackInlineErrorReferenceId = null;
+		fallbackInlineErrorFingerprint = null;
+		return;
+	}
+
+	if (errorInfo.referenceId !== null) {
+		fallbackInlineErrorReferenceId = null;
+		fallbackInlineErrorFingerprint = null;
+		return;
+	}
+
+	const nextFingerprint = `${errorInfo.title}|${details}`;
+	if (
+		fallbackInlineErrorFingerprint === nextFingerprint &&
+		fallbackInlineErrorReferenceId !== null
+	) {
+		return;
+	}
+
+	fallbackInlineErrorFingerprint = nextFingerprint;
+	fallbackInlineErrorReferenceId = createLocalReferenceDetails().referenceId;
 });
 
 const showInlineErrorCard = $derived(errorInfo.showError && !errorDismissed);
@@ -1624,25 +1659,55 @@ function handleDismissError() {
 	errorDismissed = true;
 }
 
-function handleCreateIssueFromError() {
-	const errorDetails =
-		errorInfo.details ?? panelConnectionError ?? sessionConnectionError ?? "Unknown error";
-	const errorSummary = errorDetails.split("\n")[0]?.slice(0, 120) ?? "Agent connection error";
-	const cold = sessionId ? sessionStore.getSessionCold(sessionId) : null;
-	const draft = buildAgentErrorIssueDraft({
+function handleCopyInlineErrorReference() {
+	const referenceId = inlineErrorReferenceId;
+	if (referenceId === null) {
+		return;
+	}
+
+	void copyTextToClipboard(referenceId).match(
+		() => {
+			toast.success("Reference ID copied");
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
+
+function createInlineErrorIssueDraft() {
+	const details =
+		errorInfo.details ?? panelConnectionError?.message ?? sessionConnectionError ?? "Unknown error";
+	const summary = errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
+	return buildAgentErrorIssueDraft({
 		agentId: sessionAgentId ?? selectedAgentId ?? "unknown",
 		sessionId,
 		projectPath: sessionProjectPath,
 		worktreePath: sessionWorktreePath,
-		errorSummary,
-		errorDetails,
-		sessionTitle: cold?.title ?? null,
-		sessionCreatedAt: cold?.createdAt ?? null,
-		sessionUpdatedAt: cold?.updatedAt ?? null,
+		errorSummary: summary,
+		errorDetails: details,
+		referenceId: inlineErrorReferenceId,
+		referenceSearchable: inlineErrorReferenceSearchable,
+		diagnosticsSummary: errorInfo.summary,
+		sessionTitle,
+		sessionCreatedAt,
+		sessionUpdatedAt,
 		currentModelId: sessionCurrentModelId,
 		entryCount: sessionEntries.length,
 		panelConnectionState: panelConnectionState?.toString() ?? null,
 	});
+}
+
+const inlineErrorIssueDraft = $derived.by(() =>
+	onCreateIssueReport ? createInlineErrorIssueDraft() : null
+);
+
+function handleIssueFromInlineError() {
+	const draft = inlineErrorIssueDraft;
+	if (draft === null) {
+		return;
+	}
+
 	onCreateIssueReport?.(draft);
 }
 
@@ -1920,9 +1985,15 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									title={errorInfo.title}
 									summary={errorInfo.summary ?? "Failed to connect to agent"}
 									details={errorInfo.details ?? "Unknown error"}
+									referenceId={inlineErrorReferenceId}
+									referenceSearchable={inlineErrorReferenceSearchable}
 									onRetry={handleRetryConnection}
 									onDismiss={handleDismissError}
-									onCreateIssue={handleCreateIssueFromError}
+									onCopyReferenceId={handleCopyInlineErrorReference}
+									issueActionLabel={inlineErrorIssueDraft
+										? resolveIssueActionLabel(inlineErrorIssueDraft)
+										: "Create issue"}
+									onIssueAction={inlineErrorIssueDraft ? handleIssueFromInlineError : undefined}
 								/>
 							{/if}
 							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}

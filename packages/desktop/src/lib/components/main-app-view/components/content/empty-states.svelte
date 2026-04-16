@@ -1,15 +1,30 @@
 <script lang="ts">
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
+import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
+import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
-import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
-import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
+import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
+import {
+	type Project,
+	type ProjectManager,
+	isUnexpectedProjectError,
+} from "$lib/acp/logic/project-manager.svelte.js";
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
+import { ensureErrorReference } from "$lib/errors/error-reference.js";
+import {
+	buildIssueReportDraft,
+	openIssueReportDraft,
+	resolveIssueActionLabel,
+} from "$lib/errors/issue-report.js";
 import * as m from "$lib/messages.js";
 import { toast } from "svelte-sonner";
 
@@ -34,6 +49,14 @@ interface Props {
 	onSessionCreated: (id: string) => void;
 }
 
+interface ProjectImportErrorState {
+	readonly title: string;
+	readonly summary: string;
+	readonly details: string;
+	readonly referenceId: string;
+	readonly referenceSearchable: boolean;
+}
+
 const { projectManager, onSessionCreated }: Props = $props();
 
 const agentStore = getAgentStore();
@@ -51,6 +74,11 @@ let selectedProject: Project | null = $state(null);
 let activeWorktreePath: string | null = $state(null);
 let worktreePending = $state(false);
 let preparedWorktreeLaunch: PreparedWorktreeLaunch | null = $state(null);
+let currentBranch = $state<string | null>(null);
+let diffStats = $state<{ insertions: number; deletions: number } | null>(null);
+let isGitRepo = $state<boolean | null>(null);
+let projectImportError = $state<ProjectImportErrorState | null>(null);
+let branchMetadataRequestVersion = 0;
 
 // Derived
 const availableAgents = $derived(
@@ -85,6 +113,62 @@ const canSendFromEmptyState = $derived(
 	})
 );
 
+function resetBranchPickerMetadata() {
+	currentBranch = null;
+	diffStats = null;
+	isGitRepo = null;
+}
+
+function refreshBranchPickerMetadata(targetProjectPath: string) {
+	branchMetadataRequestVersion += 1;
+	const currentRequestVersion = branchMetadataRequestVersion;
+	resetBranchPickerMetadata();
+
+	void tauriClient.git.isRepo(targetProjectPath).match(
+		(repo) => {
+			if (currentRequestVersion !== branchMetadataRequestVersion) {
+				return;
+			}
+
+			isGitRepo = repo;
+			if (!repo) {
+				return;
+			}
+
+			void tauriClient.git.currentBranch(targetProjectPath).match(
+				(branch) => {
+					if (currentRequestVersion === branchMetadataRequestVersion) {
+						currentBranch = branch;
+					}
+				},
+				() => {
+					if (currentRequestVersion === branchMetadataRequestVersion) {
+						currentBranch = null;
+					}
+				}
+			);
+
+			void tauriClient.git.diffStats(targetProjectPath).match(
+				(stats) => {
+					if (currentRequestVersion === branchMetadataRequestVersion) {
+						diffStats = stats;
+					}
+				},
+				() => {
+					if (currentRequestVersion === branchMetadataRequestVersion) {
+						diffStats = null;
+					}
+				}
+			);
+		},
+		() => {
+			if (currentRequestVersion === branchMetadataRequestVersion) {
+				isGitRepo = false;
+			}
+		}
+	);
+}
+
 $effect(() => {
 	const currentProjectPath = projectPath;
 	if (currentProjectPath === null) {
@@ -100,6 +184,17 @@ $effect(() => {
 		globalWorktreeDefault,
 		loadEnabled: loadWorktreeEnabled,
 	});
+});
+
+$effect(() => {
+	const currentProjectPath = projectPath;
+	if (currentProjectPath === null) {
+		branchMetadataRequestVersion += 1;
+		resetBranchPickerMetadata();
+		return;
+	}
+
+	refreshBranchPickerMetadata(currentProjectPath);
 });
 
 function handleAgentChange(agentId: string) {
@@ -129,7 +224,111 @@ function handleProjectChange(project: Project) {
 }
 
 function handleBrowseProject() {
-	projectManager.importProject();
+	void projectManager.importProject().match(
+		(project) => {
+			if (project !== null) {
+				projectImportError = null;
+			}
+		},
+		(error) => {
+			if (!isUnexpectedProjectError(error)) {
+				projectImportError = null;
+				toast.error(error.message);
+				return;
+			}
+
+			const errorReference = ensureErrorReference(error);
+			const errorDetails = getErrorCauseDetails(error);
+			projectImportError = {
+				title: "Project import failed",
+				summary: errorDetails.rootCause ?? error.message,
+				details: errorDetails.formatted,
+				referenceId: errorReference.referenceId,
+				referenceSearchable: errorReference.searchable,
+			};
+		}
+	);
+}
+
+async function copyProjectImportReferenceId() {
+	const referenceId = projectImportError?.referenceId;
+	if (!referenceId) {
+		return;
+	}
+
+	await copyTextToClipboard(referenceId).match(
+		() => {
+			toast.success("Reference ID copied");
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
+
+function createProjectImportIssueDraft() {
+	if (projectImportError === null) {
+		return null;
+	}
+
+	return buildIssueReportDraft({
+		title: `Project import failed: ${projectImportError.summary}`,
+		summary: projectImportError.summary,
+		details: projectImportError.details,
+		referenceId: projectImportError.referenceId,
+		referenceSearchable: projectImportError.referenceSearchable,
+		surface: "empty-state-project-import",
+		diagnosticsSummary: projectImportError.summary,
+		metadata: [
+			{
+				label: "Project Path",
+				value: projectPath ?? "unknown",
+			},
+			{
+				label: "Project Name",
+				value: projectName ?? "unknown",
+			},
+		],
+	});
+}
+
+const projectImportIssueDraft = $derived.by(() => createProjectImportIssueDraft());
+
+function handleProjectImportIssueAction() {
+	const draft = projectImportIssueDraft;
+	if (draft === null) {
+		return;
+	}
+
+	openIssueReportDraft(draft);
+}
+
+function handleBranchSelected(branch: string) {
+	currentBranch = branch;
+	if (!projectPath) {
+		return;
+	}
+	refreshBranchPickerMetadata(projectPath);
+}
+
+function handleInitGitRepo() {
+	if (!projectPath) {
+		return;
+	}
+
+	void tauriClient.git.init(projectPath).match(
+		() => {
+			refreshBranchPickerMetadata(projectPath);
+		},
+		(error) => {
+			const message = error.cause?.message ?? error.message ?? "Failed to initialize git";
+			toast.error(message);
+			logger.error("[EmptyStateBranchPicker] Failed to initialize git", {
+				projectPath,
+				error,
+			});
+		}
+	);
 }
 
 function persistSelectedAgent(agentId: string) {
@@ -228,6 +427,25 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 	{#if canShowInput}
 		<!-- Agent Input -->
 		<div class="w-full">
+			{#if projectImportError}
+				<div class="mb-3">
+					<AgentErrorCard
+						title={projectImportError.title}
+						summary={projectImportError.summary}
+						details={projectImportError.details}
+						referenceId={projectImportError.referenceId}
+						referenceSearchable={projectImportError.referenceSearchable}
+						onDismiss={() => {
+							projectImportError = null;
+						}}
+						onCopyReferenceId={copyProjectImportReferenceId}
+						issueActionLabel={projectImportIssueDraft
+							? resolveIssueActionLabel(projectImportIssueDraft)
+							: "Create issue"}
+						onIssueAction={projectImportIssueDraft ? handleProjectImportIssueAction : undefined}
+					/>
+				</div>
+			{/if}
 			{#if projectPath}
 				<div class="mb-2">
 					<PreSessionWorktreeCard
@@ -305,6 +523,21 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					{/if}
 				{/snippet}
 			</AgentInput>
+			{#if projectPath}
+				<div class="mt-2 flex h-7 items-center">
+					<div class="ml-auto h-full min-w-0 w-fit max-w-[12rem]">
+						<BranchPicker
+							{projectPath}
+							{currentBranch}
+							{diffStats}
+							{isGitRepo}
+							variant="minimal"
+							onBranchSelected={handleBranchSelected}
+							onInitGitRepo={handleInitGitRepo}
+						/>
+					</div>
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<p class="text-muted-foreground text-sm">

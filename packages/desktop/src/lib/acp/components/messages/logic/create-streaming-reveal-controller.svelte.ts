@@ -8,6 +8,13 @@ export type RevealMode =
 	| "complete";
 
 export const CSS_DRAIN_TIMEOUT_MS = 200;
+export const REVEAL_TICK_MS = 50;
+const MIN_STREAMING_ADVANCE_CHARS = 4;
+const MAX_STREAMING_ADVANCE_CHARS = 18;
+const MIN_COMPLETION_ADVANCE_CHARS = 48;
+const MAX_COMPLETION_ADVANCE_CHARS = 512;
+const STREAMING_BACKLOG_DIVISOR = 10;
+const COMPLETION_BACKLOG_DIVISOR = 2;
 
 type MotionMediaQuery = Pick<MediaQueryList, "matches" | "addEventListener" | "removeEventListener">;
 
@@ -19,10 +26,6 @@ export interface StreamingRevealController {
 	readonly displayedText: string;
 	readonly mode: RevealMode;
 	readonly isRevealActive: boolean;
-}
-
-function isAnimatedMode(mode: StreamingAnimationMode): boolean {
-	return mode !== "instant";
 }
 
 function getMotionMediaQuery(): MotionMediaQuery | null {
@@ -38,15 +41,16 @@ function getMotionMediaQuery(): MotionMediaQuery | null {
 }
 
 export function createStreamingRevealController(
-	initialMode: StreamingAnimationMode
+	_initialMode: StreamingAnimationMode
 ): StreamingRevealController {
 	let displayedText = $state("");
+	let targetText = "";
 	let mode = $state<RevealMode>("idle");
 	let isRevealActive = $state(false);
-	let animationMode = initialMode;
 	let isStreamingSource = false;
 	let prefersReducedMotion = false;
 	let drainTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	let revealTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	const motionMediaQuery = getMotionMediaQuery();
 
 	function clearDrainTimeout(): void {
@@ -56,80 +60,175 @@ export function createStreamingRevealController(
 		}
 	}
 
+	function clearRevealTimeout(): void {
+		if (revealTimeoutId !== null) {
+			clearTimeout(revealTimeoutId);
+			revealTimeoutId = null;
+		}
+	}
+
+	function syncRevealActivity(): void {
+		isRevealActive = isStreamingSource || revealTimeoutId !== null || drainTimeoutId !== null;
+	}
+
 	function syncMode(): void {
-		if (displayedText.length === 0 && !isStreamingSource) {
+		if (displayedText.length === 0 && targetText.length === 0 && !isStreamingSource) {
 			mode = "idle";
 			return;
 		}
 
-		mode = isStreamingSource ? "streaming" : "complete";
+		if (isStreamingSource) {
+			mode =
+				targetText.length > displayedText.length || targetText.length === 0
+					? "streaming"
+					: "paused-awaiting-more";
+			return;
+		}
+
+		mode = displayedText.length < targetText.length ? "completion-catchup" : "complete";
 	}
 
 	function canDrain(): boolean {
-		return displayedText.length > 0 && isAnimatedMode(animationMode) && !prefersReducedMotion;
+		return displayedText.length > 0 && !prefersReducedMotion;
 	}
 
 	function cancelDrain(): void {
 		clearDrainTimeout();
-		if (!isStreamingSource) {
-			isRevealActive = false;
-		}
+		syncRevealActivity();
 	}
 
 	function scheduleDrain(): void {
 		clearDrainTimeout();
-		isRevealActive = true;
+		syncRevealActivity();
 		drainTimeoutId = setTimeout(() => {
 			drainTimeoutId = null;
-			if (!isStreamingSource) {
-				isRevealActive = false;
-			}
+			syncMode();
+			syncRevealActivity();
 		}, CSS_DRAIN_TIMEOUT_MS);
+		syncRevealActivity();
+	}
+
+	function canPaceReveal(): boolean {
+		return targetText.length > displayedText.length && !prefersReducedMotion;
+	}
+
+	function computeAdvanceLength(backlog: number): number {
+		if (isStreamingSource) {
+			return Math.min(
+				MAX_STREAMING_ADVANCE_CHARS,
+				Math.max(
+					MIN_STREAMING_ADVANCE_CHARS,
+					Math.ceil(backlog / STREAMING_BACKLOG_DIVISOR)
+				)
+			);
+		}
+
+		return Math.min(
+			MAX_COMPLETION_ADVANCE_CHARS,
+			Math.max(
+				MIN_COMPLETION_ADVANCE_CHARS,
+				Math.ceil(backlog / COMPLETION_BACKLOG_DIVISOR)
+			)
+		);
+	}
+
+	function scheduleRevealTick(): void {
+		if (revealTimeoutId !== null || !canPaceReveal()) {
+			syncRevealActivity();
+			return;
+		}
+
+		revealTimeoutId = setTimeout(() => {
+			revealTimeoutId = null;
+
+			if (!canPaceReveal()) {
+				syncMode();
+				if (!isStreamingSource && displayedText === targetText && canDrain()) {
+					scheduleDrain();
+				} else {
+					syncRevealActivity();
+				}
+				return;
+			}
+
+			const backlog = targetText.length - displayedText.length;
+			const nextLength = Math.min(
+				targetText.length,
+				displayedText.length + computeAdvanceLength(backlog)
+			);
+			displayedText = targetText.slice(0, nextLength);
+			syncMode();
+
+			if (canPaceReveal()) {
+				scheduleRevealTick();
+				return;
+			}
+
+			if (!isStreamingSource && displayedText === targetText && canDrain()) {
+				scheduleDrain();
+				return;
+			}
+
+			syncRevealActivity();
+		}, REVEAL_TICK_MS);
+		syncRevealActivity();
 	}
 
 	function setState(
 		sourceText: string,
 		isStreaming: boolean,
-		_options?: { seedFromSource?: boolean }
+		options?: { seedFromSource?: boolean }
 	): void {
-		displayedText = sourceText;
+		targetText = sourceText;
 		isStreamingSource = isStreaming;
+		clearDrainTimeout();
+
+		const shouldSeedFromSource = options?.seedFromSource === true;
+		const hasNonPrefixRewrite = displayedText.length > 0 && !sourceText.startsWith(displayedText);
+		const shouldSnapToSource =
+			shouldSeedFromSource ||
+			prefersReducedMotion ||
+			sourceText.length < displayedText.length ||
+			hasNonPrefixRewrite;
+
+		if (shouldSnapToSource) {
+			clearRevealTimeout();
+			displayedText = sourceText;
+		}
+
 		syncMode();
 
-		if (isStreaming) {
-			clearDrainTimeout();
-			isRevealActive = true;
+		if (sourceText.length === 0 && !isStreaming) {
+			clearRevealTimeout();
+			displayedText = "";
+			targetText = "";
+			syncMode();
+			syncRevealActivity();
 			return;
 		}
 
-		if (sourceText.length === 0) {
-			cancelDrain();
+		if (canPaceReveal()) {
+			scheduleRevealTick();
 			return;
 		}
 
-		if (canDrain()) {
+		clearRevealTimeout();
+
+		if (!isStreaming && displayedText === targetText && canDrain()) {
 			scheduleDrain();
 			return;
 		}
 
-		cancelDrain();
+		syncRevealActivity();
 	}
 
-	function setMode(nextMode: StreamingAnimationMode): void {
-		animationMode = nextMode;
-		if (isStreamingSource) {
-			isRevealActive = true;
-			return;
-		}
-
-		if (drainTimeoutId !== null && !canDrain()) {
-			cancelDrain();
-		}
-	}
+	function setMode(_nextMode: StreamingAnimationMode): void {}
 
 	function reset(): void {
 		clearDrainTimeout();
+		clearRevealTimeout();
 		displayedText = "";
+		targetText = "";
 		isStreamingSource = false;
 		mode = "idle";
 		isRevealActive = false;
@@ -137,6 +236,20 @@ export function createStreamingRevealController(
 
 	function handleReducedMotionChange(event: MediaQueryListEvent): void {
 		prefersReducedMotion = event.matches;
+		if (prefersReducedMotion) {
+			clearRevealTimeout();
+			clearDrainTimeout();
+			displayedText = targetText;
+			syncMode();
+			syncRevealActivity();
+			return;
+		}
+
+		if (targetText.length > displayedText.length) {
+			scheduleRevealTick();
+			return;
+		}
+
 		if (drainTimeoutId !== null && !canDrain()) {
 			cancelDrain();
 		}
@@ -149,6 +262,7 @@ export function createStreamingRevealController(
 
 	function destroy(): void {
 		clearDrainTimeout();
+		clearRevealTimeout();
 		if (motionMediaQuery !== null) {
 			motionMediaQuery.removeEventListener("change", handleReducedMotionChange);
 		}

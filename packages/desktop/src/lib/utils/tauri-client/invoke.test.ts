@@ -70,9 +70,12 @@ describe("invokeAsync", () => {
 				commandName: "save_user_setting",
 				invokeId: "invoke-2",
 				elapsedMs: expect.any(Number),
+				referenceId: "corr-123",
+				referenceSearchable: true,
 				classification: "unexpected",
 				backendCorrelationId: "corr-123",
 				backendEventId: "event-456",
+				diagnosticsSummary: "database is locked",
 			})
 		);
 	});

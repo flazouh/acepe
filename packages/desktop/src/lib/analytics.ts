@@ -24,9 +24,12 @@ export interface CommandFailureTelemetryContext {
 	commandName: string;
 	invokeId: string;
 	elapsedMs: number;
+	referenceId: string;
+	referenceSearchable: boolean;
 	classification?: "expected" | "unexpected";
 	backendCorrelationId?: string;
 	backendEventId?: string;
+	diagnosticsSummary?: string;
 }
 
 function posthogApiHost(): string {
@@ -48,6 +51,8 @@ let sentryInitialized = false;
 let posthogInitialized = false;
 let distinctId: string | null = null;
 let appVersion: string | null = null;
+const SUPPRESSED_FAILURE_WINDOW_MS = 30_000;
+const recentUnexpectedFailureFingerprints = new Map<string, number>();
 
 function isBrowser(): boolean {
 	return typeof window !== "undefined";
@@ -60,6 +65,27 @@ function normalizeError(error: Error | string | undefined, fallback: string): Er
 
 	const detail = error === undefined ? "" : `: ${String(error)}`;
 	return new Error(`${fallback}${detail}`);
+}
+
+function clearExpiredUnexpectedFailureFingerprints(now: number): void {
+	for (const [fingerprint, capturedAt] of recentUnexpectedFailureFingerprints.entries()) {
+		if (now - capturedAt > SUPPRESSED_FAILURE_WINDOW_MS) {
+			recentUnexpectedFailureFingerprints.delete(fingerprint);
+		}
+	}
+}
+
+function shouldSuppressUnexpectedFailure(fingerprint: string): boolean {
+	const now = Date.now();
+	clearExpiredUnexpectedFailureFingerprints(now);
+
+	const previousCaptureAt = recentUnexpectedFailureFingerprints.get(fingerprint);
+	if (previousCaptureAt !== undefined && now - previousCaptureAt < SUPPRESSED_FAILURE_WINDOW_MS) {
+		return true;
+	}
+
+	recentUnexpectedFailureFingerprints.set(fingerprint, now);
+	return false;
 }
 
 function shouldEnableAnalyticsInThisBuild(): boolean {
@@ -259,20 +285,26 @@ export function captureEvent(event: string, properties: TelemetryEventProperties
 	}
 }
 
-export function captureException(error: Error, context: TelemetryContext = { source: "unknown" }): void {
+export function captureException(
+	error: Error,
+	context: TelemetryContext = { source: "unknown" }
+): string | null {
 	if (!analyticsEnabled || !sentryInitialized) {
-		return;
+		return null;
 	}
 
 	try {
+		let eventId: string | null = null;
 		Sentry.withScope((scope) => {
 			for (const [key, value] of Object.entries(context)) {
 				scope.setExtra(key, value);
 			}
-			Sentry.captureException(error);
+			eventId = Sentry.captureException(error);
 		});
+		return eventId;
 	} catch (sentryError) {
 		logger.warn("Sentry captureException failed", { sentryError });
+		return null;
 	}
 }
 
@@ -284,11 +316,25 @@ export function captureCommandFailure(
 		return;
 	}
 
+	const fingerprint = [
+		"tauri-invoke",
+		context.commandName,
+		context.classification ?? "unexpected",
+		error.name,
+		error.message,
+		context.diagnosticsSummary ?? "",
+	].join("|");
+	if (shouldSuppressUnexpectedFailure(fingerprint)) {
+		return;
+	}
+
 	const telemetryContext: TelemetryContext = {
 		source: "tauri-invoke",
 		commandName: context.commandName,
 		invokeId: context.invokeId,
 		elapsedMs: context.elapsedMs,
+		referenceId: context.referenceId,
+		referenceSearchable: context.referenceSearchable,
 		commandClassification: context.classification ?? "unexpected",
 		hasBackendCorrelationId: Boolean(context.backendCorrelationId),
 		hasBackendEventId: Boolean(context.backendEventId),
@@ -300,6 +346,10 @@ export function captureCommandFailure(
 
 	if (context.backendEventId !== undefined) {
 		telemetryContext.backendEventId = context.backendEventId;
+	}
+
+	if (context.diagnosticsSummary !== undefined) {
+		telemetryContext.diagnosticsSummary = context.diagnosticsSummary;
 	}
 
 	captureException(error, telemetryContext);
@@ -352,6 +402,10 @@ export function isAnalyticsEnabled(): boolean {
 	return analyticsEnabled;
 }
 
+export function isSentryCaptureAvailable(): boolean {
+	return analyticsEnabled && sentryInitialized;
+}
+
 export function __resetAnalyticsForTests(): void {
 	analyticsEnabled = true;
 	initPromise = null;
@@ -359,4 +413,5 @@ export function __resetAnalyticsForTests(): void {
 	posthogInitialized = false;
 	distinctId = null;
 	appVersion = null;
+	recentUnexpectedFailureFingerprints.clear();
 }

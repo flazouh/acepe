@@ -3,7 +3,10 @@
  * Provides CRUD operations for GitHub Issues as a projection layer.
  * Uses `gh` CLI for authenticated operations, `reqwest` for unauthenticated reads.
  */
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, capture_unexpected_command_error,
+    unexpected_command_result,
+};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -184,6 +187,17 @@ fn parse_comment(json: &serde_json::Value) -> Option<GitHubComment> {
 /// Format: "ERROR_CODE: human-readable message"
 fn make_error(code: &str, message: &str) -> String {
     format!("{}: {}", code, message)
+}
+
+fn github_error_code(message: &str) -> Option<&str> {
+    message.split_once(':').map(|(code, _)| code.trim())
+}
+
+fn is_expected_github_api_error(message: &str) -> bool {
+    matches!(
+        github_error_code(message),
+        Some("auth_required" | "rate_limited" | "not_found")
+    )
 }
 
 fn parse_gh_error(stderr: &str, exit_code: Option<i32>) -> String {
@@ -445,32 +459,48 @@ pub async fn list_github_issues(
     page: Option<i32>,
     per_page: Option<i32>,
 ) -> CommandResult<IssueListResult> {
-    unexpected_command_result("list_github_issues", "Failed to list GitHub issues", async {
-        let state_param = state.as_deref().unwrap_or("open");
-        let sort_param = sort.as_deref().unwrap_or("created");
-        let direction_param = direction.as_deref().unwrap_or("desc");
-        let page_param = page.unwrap_or(1);
-        let per_page_param = per_page.unwrap_or(30);
+    let state_param = state.as_deref().unwrap_or("open");
+    let sort_param = sort.as_deref().unwrap_or("created");
+    let direction_param = direction.as_deref().unwrap_or("desc");
+    let page_param = page.unwrap_or(1);
+    let per_page_param = per_page.unwrap_or(30);
 
-        let mut query = format!(
-            "repos/{}/{}/issues?state={}&sort={}&direction={}&page={}&per_page={}",
-            OWNER, REPO, state_param, sort_param, direction_param, page_param, per_page_param
-        );
+    let mut query = format!(
+        "repos/{}/{}/issues?state={}&sort={}&direction={}&page={}&per_page={}",
+        OWNER, REPO, state_param, sort_param, direction_param, page_param, per_page_param
+    );
 
-        if let Some(ref label_str) = labels {
-            if !label_str.is_empty() {
-                query.push_str(&format!("&labels={}", label_str));
-            }
+    if let Some(ref label_str) = labels {
+        if !label_str.is_empty() {
+            query.push_str(&format!("&labels={}", label_str));
         }
+    }
 
-        // Try gh CLI first (authenticated), fall back to reqwest (unauthenticated)
-        let (json, has_next) = if check_auth().authenticated {
-            gh_api_get_with_pagination(&query)?
-        } else {
-            let url = format!("https://api.github.com/{}", query);
-            http_get_with_pagination(&url).await?
-        };
+    let fetch_result = if check_auth().authenticated {
+        gh_api_get_with_pagination(&query)
+    } else {
+        let url = format!("https://api.github.com/{}", query);
+        http_get_with_pagination(&url).await
+    };
 
+    let (json, has_next) = match fetch_result {
+        Ok(result) => result,
+        Err(error) if is_expected_github_api_error(&error) => {
+            return Err(SerializableCommandError::expected(
+                "list_github_issues",
+                error,
+            ));
+        }
+        Err(error) => {
+            return Err(capture_unexpected_command_error(
+                "list_github_issues",
+                "Failed to list GitHub issues",
+                error,
+            ));
+        }
+    };
+
+    unexpected_command_result("list_github_issues", "Failed to list GitHub issues", async {
         let items = json
             .as_array()
             .ok_or_else(|| make_error("unknown", "Expected array response from GitHub API"))?
@@ -480,7 +510,7 @@ pub async fn list_github_issues(
 
         Ok(IssueListResult {
             items,
-            total_count: None, // list endpoint doesn't provide total_count
+            total_count: None,
             has_next_page: has_next,
         })
     }.await)

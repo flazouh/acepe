@@ -199,7 +199,7 @@ function openCreateBranchDialog(): void {
 		bind:open={branchPopoverOpen}
 		disabled={!projectPath}
 		align="end"
-		contentClass="w-[272px]"
+		contentClass="z-[var(--app-blocking-z)] isolate w-[272px]"
 		variant="ghost"
 		class="w-full h-full"
 		buttonClass={cn(variant === "minimal" && minimalTriggerClass)}

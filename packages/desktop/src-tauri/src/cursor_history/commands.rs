@@ -6,7 +6,9 @@
 use crate::cursor_history::parser;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry};
 use uuid::Uuid;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 
 fn get_logger_id() -> String {
     Uuid::new_v4().to_string()[..8].to_string()
@@ -197,17 +199,18 @@ pub async fn has_cursor_history(project_path: String) -> CommandResult<bool>  {
 pub async fn get_cursor_converted_session_by_id(
     session_id: String,
 ) -> CommandResult<ConvertedSession>  {
-    unexpected_command_result("get_cursor_converted_session_by_id", "Failed to get Cursor session by ID", async {
+    let logger_id = get_logger_id();
 
-        let logger_id = get_logger_id();
+    tracing::info!(
+        logger_id = %logger_id,
+        session_id = %session_id,
+        "Searching for Cursor session across all projects"
+    );
 
-        tracing::info!(
-            logger_id = %logger_id,
-            session_id = %session_id,
-            "Searching for Cursor session across all projects"
-        );
-
-        let full_session = parser::find_transcript_by_id(&session_id)
+    let full_session = unexpected_command_result(
+        "get_cursor_converted_session_by_id",
+        "Failed to get Cursor session by ID",
+        parser::find_transcript_by_id(&session_id)
             .await
             .map_err(|e| {
                 let error_msg = format!("Failed to search for Cursor session {}: {}", session_id, e);
@@ -218,31 +221,30 @@ pub async fn get_cursor_converted_session_by_id(
                     "Failed to find Cursor session"
                 );
                 error_msg
-            })?
-            .ok_or_else(|| {
-                let error_msg = format!("Cursor session {} not found in any project", session_id);
-                tracing::warn!(
-                    logger_id = %logger_id,
-                    session_id = %session_id,
-                    "Session not found in any project"
-                );
-                error_msg
-            })?;
-
-        let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
-
-        tracing::info!(
+            }),
+    )?
+    .ok_or_else(|| {
+        let error_msg = format!("Cursor session {} not found in any project", session_id);
+        tracing::warn!(
             logger_id = %logger_id,
             session_id = %session_id,
-            found_in_project = %full_session.project_path,
-            entries_count = converted.entries.len(),
-            total_messages = converted.stats.total_messages,
-            "Found and converted Cursor session"
+            "Session not found in any project"
         );
+        SerializableCommandError::expected("get_cursor_converted_session_by_id", error_msg)
+    })?;
 
-        Ok(converted)
+    let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
 
-    }.await)
+    tracing::info!(
+        logger_id = %logger_id,
+        session_id = %session_id,
+        found_in_project = %full_session.project_path,
+        entries_count = converted.entries.len(),
+        total_messages = converted.stats.total_messages,
+        "Found and converted Cursor session"
+    );
+
+    Ok(converted)
 }
 
 /// Check if Cursor is installed on the system.

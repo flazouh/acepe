@@ -57,8 +57,9 @@ export class ChatPreferencesStore {
 	}
 
 	async setStreamingAnimationMode(value: StreamingAnimationMode): Promise<void> {
-		this.streamingAnimationMode = value;
-		tauriClient.settings.set(STREAMING_ANIMATION_KEY, value).mapErr((err) => {
+		const normalizedValue = normalizeStreamingAnimationMode(value);
+		this.streamingAnimationMode = normalizedValue;
+		tauriClient.settings.set(STREAMING_ANIMATION_KEY, normalizedValue).mapErr((err) => {
 			logger.warn("Failed to persist streaming animation preference", { error: err });
 		});
 	}

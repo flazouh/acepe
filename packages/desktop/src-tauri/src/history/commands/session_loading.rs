@@ -2,8 +2,11 @@ use super::*;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
+use crate::opencode_history::commands::fetch_opencode_session;
 use std::sync::Arc;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
     let canonical = std::path::Path::new(worktree_path)
@@ -572,20 +575,14 @@ pub async fn audit_session_load_timing(
                     (Some(converted), "opencode".to_string())
                 } else {
                     let t1 = Instant::now();
-                    match crate::opencode_history::commands::get_opencode_session(
-                        app,
-                        session_id.clone(),
-                        project_path.clone(),
-                    )
-                    .await
-                    {
+                    match fetch_opencode_session(&app, &session_id, &project_path).await {
                         Ok(converted) => {
                             add_stage(&mut stages, "http_fetch", t1);
                             (Some(converted), "opencode".to_string())
                         }
                         Err(e) => {
                             add_stage(&mut stages, "http_failed", t1);
-                            return Err(e.message);
+                            return Err(e);
                         }
                     }
                 }
@@ -735,13 +732,15 @@ pub async fn set_session_title(
     session_id: String,
     title: String,
 ) -> CommandResult<()>  {
+    let trimmed_title = title.trim().to_string();
+    if trimmed_title.is_empty() {
+        return Err(SerializableCommandError::expected(
+            "set_session_title",
+            "Session title cannot be empty",
+        ));
+    }
+
     unexpected_command_result("set_session_title", "Failed to set session title", async {
-
-        let trimmed_title = title.trim().to_string();
-        if trimmed_title.is_empty() {
-            return Err("Session title cannot be empty".to_string());
-        }
-
         tracing::info!(
             session_id = %session_id,
             "Persisting title override for session"

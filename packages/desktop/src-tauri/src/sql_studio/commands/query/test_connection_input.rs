@@ -1,4 +1,6 @@
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, expected_command_result, unexpected_command_result,
+};
 use crate::db::repository::SqlConnectionRow;
 
 use super::super::super::types::{ConnectionKind, SqlConnectionConfig, TestConnectionResponse};
@@ -11,7 +13,7 @@ use super::super::helpers::{
 pub async fn sql_studio_test_connection_input(
     config: SqlConnectionConfig,
 ) -> CommandResult<TestConnectionResponse> {
-    unexpected_command_result("sql_studio_test_connection_input", "Failed to test SQL connection", async {
+    let row = unexpected_command_result("sql_studio_test_connection_input", "Failed to test SQL connection", async {
         let (
             connection_kind,
             host,
@@ -80,6 +82,10 @@ pub async fn sql_studio_test_connection_input(
             updated_at: 0,
         };
 
-        test_connection_row(&row).await
+        Ok(row)
     }.await)
+
+    ?;
+
+    expected_command_result("sql_studio_test_connection_input", test_connection_row(&row).await)
 }

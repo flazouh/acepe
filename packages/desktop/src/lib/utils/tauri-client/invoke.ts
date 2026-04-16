@@ -5,6 +5,11 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import { AgentError } from "../../acp/errors/app-error.js";
 import { tryDeserializeAcpError } from "../../acp/errors/index.js";
 import {
+	attachErrorReference,
+	createLocalReferenceDetails,
+	findErrorReference,
+} from "../../errors/error-reference.js";
+import {
 	parseSerializableCommandError,
 	type CommandErrorClassification,
 	type SerializableCommandError,
@@ -31,6 +36,8 @@ export class TauriCommandError extends AgentError {
 	readonly backendEventId: string | undefined;
 	readonly diagnosticsSummary: string | undefined;
 	readonly domain: SerializableCommandError["domain"];
+	readonly referenceId: string;
+	readonly referenceSearchable: boolean;
 
 	constructor(commandError: SerializableCommandError) {
 		super(commandError.commandName, resolveCommandErrorCause(commandError));
@@ -41,6 +48,8 @@ export class TauriCommandError extends AgentError {
 		this.backendEventId = commandError.backendEventId;
 		this.diagnosticsSummary = commandError.diagnostics?.summary;
 		this.domain = commandError.domain;
+		this.referenceId = commandError.backendCorrelationId;
+		this.referenceSearchable = commandError.backendEventId !== undefined;
 	}
 }
 
@@ -81,16 +90,19 @@ function createInvokeError(cmd: string, error: InvokeErrorValue): AgentError {
 		return new TauriCommandError(commandError);
 	}
 
-	return new AgentError(cmd, normalizeInvokeError(error));
+	return attachErrorReference(new AgentError(cmd, normalizeInvokeError(error)), createLocalReferenceDetails());
 }
 
 function reportCommandFailure(error: AgentError, context: {
 	commandName: string;
 	invokeId: string;
 	elapsedMs: number;
+	referenceId: string;
+	referenceSearchable: boolean;
 	classification?: CommandErrorClassification;
 	backendCorrelationId?: string;
 	backendEventId?: string;
+	diagnosticsSummary?: string;
 }): void {
 	void import("../../analytics.js")
 		.then(({ captureCommandFailure }) => {
@@ -146,6 +158,14 @@ function invokeAsyncWithRuntime<T>(
 				commandName: invokeError.operation,
 				invokeId,
 				elapsedMs: elapsed,
+				referenceId:
+					invokeError instanceof TauriCommandError
+						? invokeError.referenceId
+						: (findErrorReference(invokeError)?.referenceId ?? invokeId),
+				referenceSearchable:
+					invokeError instanceof TauriCommandError
+						? invokeError.referenceSearchable
+						: (findErrorReference(invokeError)?.searchable ?? false),
 				classification:
 					invokeError instanceof TauriCommandError ? invokeError.classification : "unexpected",
 				backendCorrelationId:
@@ -154,6 +174,8 @@ function invokeAsyncWithRuntime<T>(
 						: undefined,
 				backendEventId:
 					invokeError instanceof TauriCommandError ? invokeError.backendEventId : undefined,
+				diagnosticsSummary:
+					invokeError instanceof TauriCommandError ? invokeError.diagnosticsSummary : undefined,
 			});
 
 			return invokeError;

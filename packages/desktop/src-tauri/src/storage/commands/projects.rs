@@ -6,7 +6,7 @@ use tauri::{AppHandle, State};
 
 use super::icon_detection::detect_project_icon;
 use super::shared::{get_db, project_name_from_path, validate_project_path_for_storage, Project};
-use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
 
 const PROJECT_ICON_BACKFILL_KEY: &str = "project_icon_backfill_v2";
 
@@ -287,25 +287,30 @@ pub async fn update_project_icon(
     path: String,
     icon_path: Option<String>,
 ) -> CommandResult<Project>  {
+    if let Some(ref ip) = icon_path {
+        let icon = std::path::Path::new(ip);
+        if !icon.is_file() {
+            return Err(SerializableCommandError::expected(
+                "update_project_icon",
+                format!("Icon path is not a file: {}", ip),
+            ));
+        }
+        let valid_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
+        let ext_ok = icon
+            .extension()
+            .map(|ext| valid_extensions.contains(&ext.to_string_lossy().to_lowercase().as_str()))
+            .unwrap_or(false);
+        if !ext_ok {
+            return Err(SerializableCommandError::expected(
+                "update_project_icon",
+                format!("Icon path is not a supported image format: {}", ip),
+            ));
+        }
+    }
+
     unexpected_command_result("update_project_icon", "Failed to update project icon", async {
 
         tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
-
-        // Validate icon_path is a real image file when set
-        if let Some(ref ip) = icon_path {
-            let icon = std::path::Path::new(ip);
-            if !icon.is_file() {
-                return Err(format!("Icon path is not a file: {}", ip));
-            }
-            let valid_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
-            let ext_ok = icon
-                .extension()
-                .map(|ext| valid_extensions.contains(&ext.to_string_lossy().to_lowercase().as_str()))
-                .unwrap_or(false);
-            if !ext_ok {
-                return Err(format!("Icon path is not a supported image format: {}", ip));
-            }
-        }
 
         let db = get_db(&app);
         let row = ProjectRepository::update_icon_path(&db, &path, icon_path)

@@ -1,6 +1,8 @@
 use std::time::Instant;
 
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 use rusqlite::Connection;
 use sea_orm::DbConn;
 use sqlx::mysql::MySqlRow;
@@ -25,19 +27,28 @@ pub async fn sql_studio_execute_query(
     db: State<'_, DbConn>,
     request: ExecuteQueryRequest,
 ) -> CommandResult<ExecuteQueryResponse> {
-    unexpected_command_result("sql_studio_execute_query", "Failed to execute SQL query", async {
-        let connection = SqlStudioRepository::get_connection(&db, &request.connection_id)
+    let connection = unexpected_command_result(
+        "sql_studio_execute_query",
+        "Failed to load SQL connection",
+        SqlStudioRepository::get_connection(&db, &request.connection_id)
             .await
-            .map_err(|e| format!("Failed to load SQL connection: {}", e))?
-            .ok_or_else(|| format!("Connection not found: {}", request.connection_id))?;
+            .map_err(|e| format!("Failed to load SQL connection: {}", e)),
+    )?
+    .ok_or_else(|| {
+        SerializableCommandError::expected(
+            "sql_studio_execute_query",
+            format!("Connection not found: {}", request.connection_id),
+        )
+    })?;
 
-        let is_mutating = classify_mutating_sql(&request.sql);
+    let is_mutating = classify_mutating_sql(&request.sql);
 
-        let start = Instant::now();
-        let connection_id_for_history = request.connection_id.clone();
-        let sql_for_history = request.sql.clone();
+    let start = Instant::now();
+    let connection_id_for_history = request.connection_id.clone();
+    let sql_for_history = request.sql.clone();
 
-        let execution_result = match connection.engine.as_str() {
+    let execution_result: Result<ExecuteQueryResponse, String> = async {
+        match connection.engine.as_str() {
             "sqlite" => {
                 // Security: SQL Studio runs user-provided SQL and uses the user-configured DB path.
                 // This is an intentional power-user feature; only expose to trusted users.
@@ -223,47 +234,51 @@ pub async fn sql_studio_execute_query(
                 pool.close().await;
                 response
             }
-            engine => return Err(format!("Unsupported database engine: {}", engine)),
-        };
-
-        match execution_result {
-            Ok(execution) => {
-                let history_insert = SqlStudioRepository::insert_query_history(
-                    &db,
-                    connection_id_for_history,
-                    sql_for_history,
-                    execution.duration_ms,
-                    execution.row_count,
-                    "ok".to_string(),
-                    None,
-                )
-                .await;
-
-                if let Err(e) = history_insert {
-                    tracing::warn!(error = %e, "Failed to write SQL query history");
-                }
-
-                Ok(execution)
-            }
-            Err(error_message) => {
-                let summary = error_message.chars().take(500).collect::<String>();
-                let history_insert = SqlStudioRepository::insert_query_history(
-                    &db,
-                    connection_id_for_history,
-                    sql_for_history,
-                    start.elapsed().as_millis() as i64,
-                    0,
-                    "error".to_string(),
-                    Some(summary),
-                )
-                .await;
-
-                if let Err(e) = history_insert {
-                    tracing::warn!(error = %e, "Failed to write failed SQL query history");
-                }
-
-                Err(error_message)
-            }
+            engine => Err(format!("Unsupported database engine: {}", engine)),
         }
-    }.await)
+    }
+    .await;
+
+    match execution_result {
+        Ok(execution) => {
+            let history_insert = SqlStudioRepository::insert_query_history(
+                &db,
+                connection_id_for_history,
+                sql_for_history,
+                execution.duration_ms,
+                execution.row_count,
+                "ok".to_string(),
+                None,
+            )
+            .await;
+
+            if let Err(e) = history_insert {
+                tracing::warn!(error = %e, "Failed to write SQL query history");
+            }
+
+            Ok(execution)
+        }
+        Err(error_message) => {
+            let summary = error_message.chars().take(500).collect::<String>();
+            let history_insert = SqlStudioRepository::insert_query_history(
+                &db,
+                connection_id_for_history,
+                sql_for_history,
+                start.elapsed().as_millis() as i64,
+                0,
+                "error".to_string(),
+                Some(summary),
+            )
+            .await;
+
+            if let Err(e) = history_insert {
+                tracing::warn!(error = %e, "Failed to write failed SQL query history");
+            }
+
+            Err(SerializableCommandError::expected(
+                "sql_studio_execute_query",
+                error_message,
+            ))
+        }
+    }
 }

@@ -1,6 +1,7 @@
 use crate::acp::error::{AcpError, SerializableAcpError};
 use crate::analytics;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +118,12 @@ impl SerializableCommandError {
     }
 }
 
+impl fmt::Display for SerializableCommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
 pub fn expected_acp_command_error(
     command_name: impl Into<String>,
     error: SerializableAcpError,
@@ -130,6 +137,13 @@ pub fn expected_acp_command_result<T>(
     result: Result<T, SerializableAcpError>,
 ) -> CommandResult<T> {
     result.map_err(|error| expected_acp_command_error(command_name, error))
+}
+
+pub fn expected_command_result<T>(
+    command_name: &'static str,
+    result: Result<T, String>,
+) -> CommandResult<T> {
+    result.map_err(|message| SerializableCommandError::expected(command_name, message))
 }
 
 pub fn unexpected_command_result<T>(
