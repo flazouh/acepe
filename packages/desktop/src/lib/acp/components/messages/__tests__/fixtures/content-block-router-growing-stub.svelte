@@ -20,8 +20,12 @@ let lineCount = $state(1);
 let revealActive = $state(false);
 let hasInitializedReveal = $state(false);
 
+function isTextBlock(b: TextBlock | OtherBlock): b is TextBlock {
+	return b.type === "text";
+}
+
 $effect(() => {
-	const isRevealBlock = block.type === "text" && block.text.includes("[reveal-active]");
+	const isRevealBlock = isTextBlock(block) && block.text.includes("[reveal-active]");
 	if (isRevealBlock && !hasInitializedReveal) {
 		revealActive = true;
 		hasInitializedReveal = true;
@@ -36,7 +40,7 @@ $effect(() => {
 
 $effect(() => {
 	const nextActive =
-		block.type === "text" &&
+		isTextBlock(block) &&
 		(block.text.includes("[reveal-active]") ? revealActive : isStreaming);
 	onRevealActivityChange?.(nextActive);
 });
@@ -48,7 +52,7 @@ $effect(() => {
 });
 </script>
 
-{#if block.type === "text" && block.text === "thinking"}
+{#if isTextBlock(block) && block.text === "thinking"}
 	<button type="button" data-testid="grow-line" onclick={() => {
 		lineCount += 1;
 	}}>
@@ -59,7 +63,7 @@ $effect(() => {
 			<div class="stub-line">line {index + 1}</div>
 		{/each}
 	</div>
-{:else if block.type === "text" && block.text.includes("[reveal-active]")}
+{:else if isTextBlock(block) && block.text.includes("[reveal-active]")}
 	<button
 		type="button"
 		data-testid="finish-reveal"
@@ -71,7 +75,7 @@ $effect(() => {
 	</button>
 	<div data-testid="text-block">{block.text.replace(" [reveal-active]", "")}</div>
 {:else}
-	{#if block.type === "text"}
+	{#if isTextBlock(block)}
 		<div data-testid="text-block">{block.text}</div>
 	{:else}
 		<div data-testid="other-block">{block.type}</div>

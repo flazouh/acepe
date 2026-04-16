@@ -158,3 +158,10 @@ export {
 	getReviewWorkspaceDefaultIndex,
 	resolveReviewWorkspaceSelectedIndex,
 } from "./types.js";
+export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
+export type {
+	AgentInputModelSelectorGroup,
+	AgentInputModelSelectorItem,
+	AgentInputModelSelectorReasoningGroup,
+	AgentInputModelSelectorVariant,
+} from "./agent-input-model-selector-types.js";

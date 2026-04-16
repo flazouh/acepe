@@ -11,36 +11,19 @@
 	import AgentInputModelModeBar from "./agent-input-model-mode-bar.svelte";
 	import AgentInputModelRow from "./agent-input-model-row.svelte";
 
-	export interface AgentInputModelSelectorItem {
-		id: string;
-		name: string;
-		providerSource: string;
-		description?: string;
-		searchText?: string;
-		isFavorite?: boolean;
-		isPlanDefault?: boolean;
-		isBuildDefault?: boolean;
-	}
+	import type {
+		AgentInputModelSelectorGroup,
+		AgentInputModelSelectorItem,
+		AgentInputModelSelectorReasoningGroup,
+		AgentInputModelSelectorVariant,
+	} from "./agent-input-model-selector-types.js";
 
-	export interface AgentInputModelSelectorGroup {
-		label: string;
-		items: readonly AgentInputModelSelectorItem[];
-	}
-
-	export interface AgentInputModelSelectorVariant {
-		id: string;
-		name: string;
-	}
-
-	export interface AgentInputModelSelectorReasoningGroup {
-		baseModelId: string;
-		baseModelName: string;
-		providerSource: string;
-		preferredVariantId?: string | null;
-		isPlanDefault?: boolean;
-		isBuildDefault?: boolean;
-		variants: readonly AgentInputModelSelectorVariant[];
-	}
+	export type {
+		AgentInputModelSelectorGroup,
+		AgentInputModelSelectorItem,
+		AgentInputModelSelectorReasoningGroup,
+		AgentInputModelSelectorVariant,
+	};
 
 	interface Props {
 		triggerLabel: string;

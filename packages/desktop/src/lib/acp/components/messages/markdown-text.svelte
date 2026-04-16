@@ -593,7 +593,7 @@ function handleKeydown(event: KeyboardEvent) {
 		<!-- Content with mermaid diagrams - render blocks separately -->
 		<div
 			bind:this={markdownContainerRef}
-			class="markdown-content text-sm text-foreground leading-relaxed"
+			class="markdown-content text-sm text-foreground"
 			role="button"
 			tabindex="0"
 			onclick={handleClick}
@@ -605,7 +605,7 @@ function handleKeydown(event: KeyboardEvent) {
 		<!-- No mermaid - render as single HTML block for performance -->
 		<div
 			bind:this={markdownContainerRef}
-			class="markdown-content text-sm text-foreground leading-relaxed"
+			class="markdown-content text-sm text-foreground"
 			role="button"
 			tabindex="0"
 			onclick={handleClick}
@@ -617,7 +617,7 @@ function handleKeydown(event: KeyboardEvent) {
 {:else if isRenderingReveal}
 	<!-- Streaming markdown: keep settled blocks stable and only update the live tail in place -->
 	<div
-		class="markdown-content text-sm text-foreground leading-relaxed"
+		class="markdown-content text-sm text-foreground"
 		role="button"
 		tabindex="0"
 		onclick={handleClick}
@@ -678,12 +678,12 @@ function handleKeydown(event: KeyboardEvent) {
 	</div>
 {:else if isLoading}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
-	<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+	<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap">
 		{text}
 	</div>
 {:else}
 	<!-- Fallback: show plain text -->
-	<p class="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+	<p class="text-sm text-foreground whitespace-pre-wrap">
 		{text}
 	</p>
 {/if}

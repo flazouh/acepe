@@ -7,7 +7,7 @@ import {
 	type SessionListHighlightContext,
 	setSessionListHighlightContext,
 } from "./session-list-highlight-context.js";
-import { buildSessionRows } from "./session-list-logic.js";
+import { buildSessionRows, type SessionRow } from "./session-list-logic.js";
 import type { SessionListItem as BaseSessionListItem } from "./session-list-types.js";
 
 type SessionListItem = BaseSessionListItem & {

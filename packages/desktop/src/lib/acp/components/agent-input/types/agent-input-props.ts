@@ -159,4 +159,10 @@ export interface AgentInputProps {
 	 * that prevents toolbar content from overflowing.
 	 */
 	readonly onToolbarWidthChange?: (width: number) => void;
+
+	/**
+	 * Initial mode ID to apply when a new session is created.
+	 * Sets the provisional mode before the session connects.
+	 */
+	readonly initialModeId?: string | null;
 }

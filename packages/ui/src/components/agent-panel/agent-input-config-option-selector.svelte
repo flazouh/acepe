@@ -10,15 +10,9 @@
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Colors } from "../../lib/colors.js";
+	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
-	export interface AgentInputConfigOption {
-		id: string;
-		name: string;
-		category: string;
-		type: string;
-		currentValue: string | number | boolean | null;
-		options?: readonly { value: string | number | boolean; name: string }[];
-	}
+	export type { AgentInputConfigOption };
 
 	interface Props {
 		configOption: AgentInputConfigOption;

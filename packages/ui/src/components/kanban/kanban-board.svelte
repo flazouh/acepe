@@ -3,6 +3,7 @@
 	import type { Snippet } from "svelte";
 
 	import type { KanbanSceneCardData, KanbanScenePlacement } from "./kanban-scene-types.js";
+	import type { SectionedFeedSectionId } from "../attention-queue/types.js";
 	import type { KanbanBoardColumnLayout } from "./kanban-board-layout.js";
 	import {
 		buildKanbanBoardMotionPlan,
@@ -374,7 +375,7 @@ onMount(() => {
 				? previousPosition.placement
 				: {
 						cardId,
-						columnId: mutation.oldValue,
+						columnId: mutation.oldValue as SectionedFeedSectionId,
 						index: lookup.placement.index,
 						orderKey: lookup.placement.orderKey,
 						source: lookup.placement.source,

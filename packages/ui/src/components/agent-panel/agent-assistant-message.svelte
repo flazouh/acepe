@@ -19,6 +19,18 @@
 			<TextShimmer>Planning next moves…</TextShimmer>
 		</div>
 	{:else}
-		<MarkdownDisplay content={markdown} textSize="text-sm" {iconBasePath} />
+		<MarkdownDisplay
+			content={markdown}
+			textSize="text-sm"
+			class="agent-assistant-markdown"
+			{iconBasePath}
+		/>
 	{/if}
 </div>
+
+<style>
+	:global(.agent-assistant-markdown .markdown-content),
+	:global(.agent-assistant-markdown .markdown-loading) {
+		line-height: 1.5;
+	}
+</style>

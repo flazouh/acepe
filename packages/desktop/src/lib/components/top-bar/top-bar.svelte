@@ -11,6 +11,7 @@ import { Columns } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
+import { Palette } from "phosphor-svelte";
 import { SlidersHorizontal } from "phosphor-svelte";
 import { Square } from "phosphor-svelte";
 import { SquaresFour } from "phosphor-svelte";

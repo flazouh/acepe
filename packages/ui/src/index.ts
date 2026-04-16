@@ -44,6 +44,13 @@ export type {
 	AnyAgentEntry,
 	LintDiagnostic,
 } from "./components/agent-panel/index.js";
+export type {
+	AgentInputConfigOption,
+	AgentInputModelSelectorGroup,
+	AgentInputModelSelectorItem,
+	AgentInputModelSelectorReasoningGroup,
+	AgentInputModelSelectorVariant,
+} from "./components/agent-panel/index.js";
 // Agent panel components
 export {
 	AgentInputArtefactBadge,

@@ -25,6 +25,7 @@ import {
 	AgentInputVoiceModelMenu,
 	AgentInputVoiceRecordingOverlay,
 	AgentPanelComposer as SharedAgentPanelComposer,
+	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getConnectionStore } from "../../store/connection-store.svelte.js";
@@ -319,12 +320,39 @@ const effectiveCurrentModelId = $derived.by(() =>
 	})
 );
 
-const toolbarConfigOptions = $derived.by(() => {
+const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 	if (!sessionHotState || !sessionHotState.configOptions) {
 		return [];
 	}
 
-	return getToolbarConfigOptions(sessionHotState.configOptions, effectiveAvailableModels);
+	return getToolbarConfigOptions(sessionHotState.configOptions, effectiveAvailableModels).map(
+		(option): AgentInputConfigOption => {
+			const raw = option.currentValue;
+			const currentValue: string | number | boolean | null =
+				raw === null || raw === undefined
+					? null
+					: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
+						? raw
+						: null;
+			const options = option.options?.flatMap(
+				(opt): { value: string | number | boolean; name: string }[] => {
+					const v = opt.value;
+					if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+						return [{ value: v, name: opt.name }];
+					}
+					return [];
+				}
+			);
+			return {
+				id: option.id,
+				name: option.name,
+				category: option.category,
+				type: option.type,
+				currentValue,
+				options,
+			};
+		}
+	);
 });
 
 const liveAvailableCommands = $derived.by(() => {
@@ -486,7 +514,7 @@ let editorJustSynced = false;
 let isSending = $state(false);
 let isShiftPressed = $state(false);
 let isApplyingProvisionalToolbarSelections = $state(false);
-let provisionalModeId = $state<string | null>(null);
+let provisionalModeId = $state<string | null>(props.initialModeId ?? null);
 let provisionalModelId = $state<string | null>(null);
 let pendingSessionConfigOperation: Promise<boolean> | null = null;
 let editorRef: HTMLDivElement | null = $state(null);
@@ -1173,11 +1201,17 @@ async function handleSend() {
 				panelStore.clearPendingWorktreeSetup(effectivePanelId);
 				panelStore.clearPendingUserEntry(effectivePanelId);
 			}
-			handleAsyncSendFailure(
-				new SessionCreationError("Select an agent before preparing a worktree session"),
-				restoreSnapshot,
-				shouldClearDraft
-			);
+			if (effectivePanelId && props.onSendError) {
+				panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
+				panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
+			}
+			lastDraftValue = restoreSnapshot.draft;
+			if (props.onSendError) {
+				props.onSendError(effectivePanelId ?? null);
+			} else {
+				applyComposerRestoreSnapshot(restoreSnapshot);
+			}
+			isSending = false;
 			return;
 		}
 		if (preparedWorktreeLaunch) {

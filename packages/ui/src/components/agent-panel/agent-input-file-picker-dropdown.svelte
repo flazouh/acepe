@@ -6,7 +6,7 @@
 	export interface AgentInputFilePickerEntry {
 		path: string;
 		extension: string;
-		lineCount?: number;
+		lineCount: number;
 		gitStatus: {
 			path: string;
 			status: string;

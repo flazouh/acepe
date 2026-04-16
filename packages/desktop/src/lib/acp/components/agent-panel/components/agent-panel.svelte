@@ -433,6 +433,8 @@ const worktreePending = $derived(
 		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
 	})
 );
+let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived(
 	sessionId === null && !pendingProjectSelection && worktreeToggleProjectPath !== null &&
 	pendingWorktreeSetup === null && !worktreeSetupState?.isVisible
@@ -650,14 +652,12 @@ let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").Shi
 	null
 );
 let prCardRenderKey = $state(0);
-let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 let preSessionWorktreeFailure = $state<string | null>(null);
 let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
 let headerRef: HTMLElement | undefined = $state();
-const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const worktreeSetupMatchContext = $derived.by(() => {
 	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
 
@@ -1822,24 +1822,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			{#if showCheckpointTimeline && sessionProjectPath && sessionId}
 				<CheckpointTimeline
 					{sessionId}
-					sessionEntries={visibleSessionEntries}
-					sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
-					{allProjects}
-					bind:scrollContainer
-					bind:scrollViewport={contentScrollViewport}
-					bind:isAtBottom={contentIsAtBottom}
-					bind:isAtTop={contentIsAtTop}
-					bind:isStreaming={contentIsStreaming}
-					onProjectAgentSelected={handleProjectAgentSelected}
-					onRetryConnection={handleRetryConnection}
-					onCancelConnection={handleCancelConnection}
-					{agentIconSrc}
-					isFullscreen={centeredFullscreenContent}
-					{availableAgents}
-					{effectiveTheme}
-					{modifiedFilesState}
-					turnState={sessionHotState?.turnState ?? "idle"}
-					isWaitingForResponse={runtimeState?.showThinking ?? false}
+					projectPath={effectiveProjectPath ?? sessionProjectPath}
+					onClose={handleCloseCheckpointTimeline}
 				/>
 			{:else}
 				<div class="flex-1 min-h-0 mb-2">
