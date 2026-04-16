@@ -1798,9 +1798,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					onResizeAttachedFilePanel?.(filePanelId, delta)}
 			/>
 		{/if}
-	{/snippet}
 
-	{#snippet reviewPane()}
 		{#if reviewFilesState}
 			<div
 				class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
@@ -1861,8 +1859,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					panelId={effectivePanelId}
 					{viewState}
 					{sessionId}
-					projectPath={effectiveProjectPath ?? sessionProjectPath}
-					onClose={handleCloseCheckpointTimeline}
+					sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
 				/>
 			</div>
 			{#if viewState.kind === "conversation" && !contentIsAtTop}
