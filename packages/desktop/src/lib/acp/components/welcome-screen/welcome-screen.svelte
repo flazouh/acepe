@@ -7,8 +7,8 @@ import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import type { AppError } from "$lib/acp/errors/app-error.js";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
-import { isUnexpectedProjectError } from "$lib/acp/logic/project-manager.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
@@ -63,6 +63,10 @@ const agentPreferencesStore = getAgentPreferencesStore();
 const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
+
+function isUnexpectedOnboardingImportError(error: AppError): boolean {
+	return error.code !== "VALIDATION_ERROR";
+}
 
 // Handle Cmd+Enter keyboard shortcut (advances from splash to agents)
 function handleKeydown(event: KeyboardEvent) {
@@ -126,7 +130,7 @@ async function handleOnboardingImport(path: string, name: string) {
 			toast.success(m.open_project_added_toast({ name }));
 		},
 		(error) => {
-			if (!isUnexpectedProjectError(error)) {
+			if (!isUnexpectedOnboardingImportError(error)) {
 				onboardingImportError = null;
 				onboardingImportProjectPath = null;
 				onboardingImportProjectName = null;

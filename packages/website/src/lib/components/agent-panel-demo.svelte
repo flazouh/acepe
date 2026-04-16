@@ -454,7 +454,12 @@ const demoTodoItems: readonly AgentTodoItem[] = [
 const demoCurrentTask: AgentTodoItem = demoTodoItems[2];
 
 const demoQueueMessages: readonly AgentPanelQueuedMessage[] = [
-	{ id: "q1", content: "Also update the README with the new API docs", attachmentCount: 0, attachments: [] },
+	{
+		id: "q1",
+		content: "Also update the README with the new API docs",
+		attachmentCount: 0,
+		attachments: [],
+	},
 	{
 		id: "q2",
 		content: "Run the test suite after those changes",
@@ -772,7 +777,7 @@ function getTerminalTranscript(panelId: string): readonly string[] {
 
 	if (panelId === "composer-verify") {
 		return [
-			"$ rg \"AgentPanelScene\" packages",
+			'$ rg "AgentPanelScene" packages',
 			"packages/ui/src/components/agent-panel-scene/agent-panel-scene.svelte",
 			"packages/website/src/lib/components/agent-panel-demo.svelte",
 			"$ bun run test -- panel-parity",

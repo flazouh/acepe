@@ -7,8 +7,8 @@ interface Props {
 	details: string;
 	referenceId?: string | null;
 	referenceSearchable?: boolean;
-	onRetry: () => void;
-	onDismiss: () => void;
+	onRetry?: (() => void) | undefined;
+	onDismiss?: (() => void) | undefined;
 	onCopyReferenceId?: (() => void) | undefined;
 	issueActionLabel?: string;
 	onIssueAction?: (() => void) | undefined;
