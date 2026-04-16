@@ -257,7 +257,7 @@ export function captureContractViolation(
 ): void {
 	captureEvent(
 		CONTRACT_VIOLATION_EVENT,
-		Object.assign({ contract }, properties)
+		Object.assign({}, properties, { contract })
 	);
 }
 

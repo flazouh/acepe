@@ -143,6 +143,7 @@ export class OperationStore {
 
 	replaceSessionOperations(sessionId: string, snapshots: ReadonlyArray<OperationSnapshot>): void {
 		this.clearSession(sessionId);
+		const nextSessionOperationIds: Array<string> = [];
 		for (const snapshot of snapshots) {
 			const operation: Operation = {
 				id: snapshot.id,
@@ -176,11 +177,9 @@ export class OperationStore {
 				createSessionToolKey(sessionId, operation.toolCallId),
 				operation.id
 			);
-			const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
-			const nextSessionOperationIds = sessionOperationIds.slice();
 			nextSessionOperationIds.push(operation.id);
-			this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
 		}
+		this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
 	}
 
 	private upsertToolCall(

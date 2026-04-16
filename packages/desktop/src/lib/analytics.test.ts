@@ -221,6 +221,7 @@ describe("analytics", () => {
 
 		await initAnalytics();
 		captureContractViolation("tool_call_update_without_canonical_entry", {
+			contract: "wrong_contract",
 			source: "test",
 			hasRawOutput: true,
 		});

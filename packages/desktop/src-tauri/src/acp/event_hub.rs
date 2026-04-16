@@ -146,7 +146,7 @@ impl AcpEventHubState {
     ) {
         let now = Instant::now();
         let reservation = OpenTokenReservation {
-            canonical_session_id,
+            canonical_session_id: canonical_session_id.clone(),
             last_event_seq,
             epoch_ms,
             delta_buffer: VecDeque::new(),
@@ -154,6 +154,10 @@ impl AcpEventHubState {
             last_activity: now,
         };
         if let Ok(mut map) = self.reservations.write() {
+            map.retain(|existing_token, existing_reservation| {
+                existing_token == &token
+                    || existing_reservation.canonical_session_id != canonical_session_id.as_str()
+            });
             map.insert(token, reservation);
         }
     }
@@ -205,6 +209,18 @@ impl AcpEventHubState {
         }
     }
 
+    #[must_use]
+    pub fn has_reservation_for_session(&self, token: Uuid, canonical_session_id: &str) -> bool {
+        self.reservations
+            .read()
+            .map(|map| {
+                map.get(&token)
+                    .map(|reservation| reservation.canonical_session_id == canonical_session_id)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
+    }
+
     /// Returns `true` if `token` has an active, unclaimed reservation.
     #[must_use]
     pub fn has_reservation(&self, token: Uuid) -> bool {
@@ -219,11 +235,11 @@ impl AcpEventHubState {
     /// Call this periodically (or with `max_age = Duration::ZERO` in tests) to
     /// reclaim memory from abandoned open tokens.
     pub fn gc_reservations_older_than(&self, max_age: Duration) {
-        let deadline = Instant::now()
-            .checked_sub(max_age)
-            .unwrap_or(Instant::now());
+        let Some(deadline) = Instant::now().checked_sub(max_age) else {
+            return;
+        };
         if let Ok(mut map) = self.reservations.write() {
-            map.retain(|_, r| r.created_at > deadline);
+            map.retain(|_, r| r.last_activity > deadline);
         }
     }
 
@@ -239,5 +255,64 @@ impl AcpEventHubState {
 
     pub async fn get_bridge_info(&self) -> Option<AcpEventBridgeInfo> {
         self.bridge_info.read().await.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gc_reservations_uses_last_activity() {
+        let hub = AcpEventHubState::new();
+        let token = Uuid::new_v4();
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
+
+        {
+            let mut reservations = hub.reservations.write().expect("reservation lock");
+            let reservation = reservations.get_mut(&token).expect("reservation exists");
+            reservation.created_at = Instant::now() - Duration::from_secs(60);
+            reservation.last_activity = Instant::now();
+        }
+
+        hub.gc_reservations_older_than(Duration::from_secs(30));
+
+        assert!(
+            hub.has_reservation(token),
+            "recently active reservations must survive GC"
+        );
+    }
+
+    #[test]
+    fn gc_reservations_returns_without_eviction_on_instant_overflow() {
+        let hub = AcpEventHubState::new();
+        let token = Uuid::new_v4();
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
+
+        hub.gc_reservations_older_than(Duration::MAX);
+
+        assert!(
+            hub.has_reservation(token),
+            "overflow fallback must not evict active reservations"
+        );
+    }
+
+    #[test]
+    fn arm_reservation_supersedes_older_tokens_for_same_session() {
+        let hub = AcpEventHubState::new();
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+
+        hub.arm_reservation(first, "session-1".to_string(), 0, 0);
+        hub.arm_reservation(second, "session-1".to_string(), 0, 0);
+
+        assert!(
+            !hub.has_reservation(first),
+            "older token for the same session must be superseded"
+        );
+        assert!(
+            hub.has_reservation(second),
+            "newest token must remain active"
+        );
     }
 }

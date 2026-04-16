@@ -575,6 +575,23 @@ async fn async_resume_session_work(
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let parsed_open_token = if let Some(raw_open_token) = open_token.as_deref() {
+        let token = uuid::Uuid::parse_str(raw_open_token).map_err(|error| {
+            SerializableAcpError::InvalidState {
+                message: format!("Failed to parse open token for session {session_id}: {error}"),
+            }
+        })?;
+        let hub = app.state::<Arc<AcpEventHubState>>();
+        hub.gc_expired_reservations();
+        if !hub.has_reservation_for_session(token, session_id) {
+            return Err(SerializableAcpError::InvalidState {
+                message: format!("Session open token is no longer valid for session {session_id}"),
+            });
+        }
+        Some(token)
+    } else {
+        None
+    };
 
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
@@ -611,15 +628,10 @@ async fn async_resume_session_work(
             .map_err(SerializableAcpError::from)?;
     }
 
-    if let Some(raw_open_token) = open_token.as_deref() {
-        let parsed_open_token =
-            uuid::Uuid::parse_str(raw_open_token).map_err(|error| SerializableAcpError::InvalidState {
-                message: format!("Failed to parse open token for session {session_id}: {error}"),
-            })?;
+    if let Some(open_token) = parsed_open_token {
         let hub = app.state::<Arc<AcpEventHubState>>();
-        hub.gc_expired_reservations();
         if hub
-            .claim_reservation_for_session(parsed_open_token, session_id)
+            .claim_reservation_for_session(open_token, session_id)
             .is_none()
         {
             return Err(SerializableAcpError::InvalidState {

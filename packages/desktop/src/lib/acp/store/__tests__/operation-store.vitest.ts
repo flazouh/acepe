@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { OperationSnapshot } from "../../../services/acp-types.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -135,5 +136,52 @@ describe("OperationStore", () => {
 		expect(operation).toBeDefined();
 		expect(operation?.sourceEntryId).toBe("entry-tool-1");
 		expect(operation?.command).toBe("git status");
+	});
+
+	it("replaces snapshot operations in insertion order", () => {
+		const operationStore = new OperationStore();
+		const snapshots: ReadonlyArray<OperationSnapshot> = [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "pending",
+				title: "First",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: null,
+				command: "pwd",
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+			{
+				id: "op-2",
+				session_id: "session-1",
+				tool_call_id: "tool-2",
+				name: "bash",
+				kind: "execute",
+				status: "completed",
+				title: "Second",
+				arguments: { kind: "execute", command: "ls" },
+				progressive_arguments: null,
+				result: "done",
+				command: "ls",
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		];
+
+		operationStore.replaceSessionOperations("session-1", snapshots);
+
+		expect(operationStore.getSessionOperations("session-1").map((operation) => operation.id)).toEqual([
+			"op-1",
+			"op-2",
+		]);
 	});
 });

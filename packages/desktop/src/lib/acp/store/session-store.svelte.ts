@@ -567,7 +567,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void {
 		const canonicalSessionId = snapshot.canonicalSessionId;
-		const existingSession = this.getSessionCold(canonicalSessionId);
+		const requestedSessionId = snapshot.requestedSessionId;
+		const aliasSession =
+			snapshot.isAlias && requestedSessionId !== canonicalSessionId
+				? this.getSessionCold(requestedSessionId)
+				: undefined;
+		const canonicalSession = this.getSessionCold(canonicalSessionId);
+		const preservedSession = canonicalSession ?? aliasSession;
 		const convertedEntries = snapshot.threadEntries.map((entry) => {
 			const timestamp = entry.timestamp ? new Date(entry.timestamp) : new Date();
 			return convertStoredEntryToSessionEntry(entry, timestamp);
@@ -576,9 +582,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const nextSessionLifecycleState =
 			snapshot.sourcePath !== null
 				? "persisted"
-				: existingSession?.sessionLifecycleState ?? "created";
+				: preservedSession?.sessionLifecycleState ?? "created";
 
-		if (existingSession) {
+		if (aliasSession && requestedSessionId !== canonicalSessionId) {
+			this.removeSession(requestedSessionId);
+		}
+
+		if (canonicalSession) {
 			this.updateSession(
 				canonicalSessionId,
 				{
@@ -598,11 +608,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				agentId: normalizeCanonicalAgentId(snapshot.agentId),
 				worktreePath: snapshot.worktreePath ?? undefined,
 				title: snapshot.sessionTitle,
-				updatedAt: now,
-				createdAt: now,
+				updatedAt: preservedSession?.updatedAt ?? now,
+				createdAt: preservedSession?.createdAt ?? now,
 				sourcePath: snapshot.sourcePath ?? undefined,
 				sessionLifecycleState: nextSessionLifecycleState,
-				parentId: null,
+				parentId: preservedSession?.parentId ?? null,
 			});
 		}
 

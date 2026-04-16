@@ -2,10 +2,10 @@ use super::*;
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
+use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::{
     assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
 };
-use crate::acp::session_descriptor::SessionReplayContext;
 use crate::db::repository::SessionJournalEventRepository;
 use std::sync::Arc;
 
@@ -36,6 +36,13 @@ fn apply_session_title_metadata(
     }
 
     session
+}
+
+fn build_empty_session_with_metadata(
+    session_id: &str,
+    metadata: Option<&crate::db::repository::SessionMetadataRow>,
+) -> ConvertedSession {
+    apply_session_title_metadata(ConvertedSession::empty(session_id), metadata)
 }
 
 fn derive_current_mode_id_from_entries(
@@ -157,8 +164,21 @@ async fn load_unified_session_with_context(
     context: crate::history::session_context::SessionContext,
 ) -> Result<Option<ConvertedSession>, String> {
     let fallback_session_id = context.local_session_id.clone();
+    let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+    let session_metadata = match db.as_ref() {
+        Some(db) => SessionMetadataRepository::get_by_id(db, &fallback_session_id)
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
     let result = load_unified_session_content_with_context(app, context).await?;
-    let normalized = result.or_else(|| Some(ConvertedSession::empty(&fallback_session_id)));
+    let normalized = result.or_else(|| {
+        Some(build_empty_session_with_metadata(
+            &fallback_session_id,
+            session_metadata.as_ref(),
+        ))
+    });
     tracing::info!(
         session_id = %fallback_session_id,
         found = normalized.is_some(),
@@ -211,49 +231,54 @@ pub async fn get_session_open_result(
     .await;
     let replay_context = context.replay_context();
     let thread_content = load_unified_session_content_with_context(app_clone, context).await?;
+    let has_thread_content = thread_content.is_some();
 
-    let metadata_exists = SessionMetadataRepository::get_by_id(db.inner(), &replay_context.local_session_id)
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to load session metadata for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?
-        .is_some();
-    let journal_cutoff = SessionJournalEventRepository::max_event_seq(
-        db.inner(),
-        &replay_context.local_session_id,
-    )
-    .await
-    .map_err(|error| {
-        format!(
-            "Failed to determine journal cutoff for {}: {error}",
-            replay_context.local_session_id
-        )
-    })?;
+    let session_metadata =
+        SessionMetadataRepository::get_by_id(db.inner(), &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load session metadata for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
+    let metadata_exists = session_metadata.is_some();
+    let normalized_thread_content = thread_content.or_else(|| {
+        session_metadata.as_ref().map(|row| {
+            build_empty_session_with_metadata(&replay_context.local_session_id, Some(row))
+        })
+    });
+    let journal_cutoff =
+        SessionJournalEventRepository::max_event_seq(db.inner(), &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to determine journal cutoff for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
 
-    if !metadata_exists && journal_cutoff.is_none() && thread_content.is_none() {
+    if !metadata_exists && journal_cutoff.is_none() && !has_thread_content {
         return Ok(SessionOpenResult::Missing(SessionOpenMissing {
             requested_session_id: session_id,
         }));
     }
 
-    Ok(
-        assemble_session_open_result(
-            db.inner(),
-            &hub,
-            &replay_context,
-            &session_id,
-            thread_content,
-        )
-        .await,
+    Ok(assemble_session_open_result(
+        db.inner(),
+        &hub,
+        &replay_context,
+        &session_id,
+        normalized_thread_content,
     )
+    .await)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_session_title_metadata, history_replay_family};
+    use super::{
+        apply_session_title_metadata, build_empty_session_with_metadata, history_replay_family,
+    };
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
@@ -335,6 +360,30 @@ mod tests {
 
         let converted =
             apply_session_title_metadata(make_session("Original Transcript Title"), Some(&row));
+
+        assert_eq!(converted.title, "Autonomous Mode");
+    }
+
+    #[test]
+    fn empty_session_fallback_applies_title_override_metadata() {
+        let row = SessionMetadataRow {
+            id: "session-1".to_string(),
+            display: "Autonomous Mode".to_string(),
+            title_overridden: true,
+            timestamp: 0,
+            project_path: "/repo".to_string(),
+            agent_id: "claude-code".to_string(),
+            file_path: "file.jsonl".to_string(),
+            file_mtime: 0,
+            file_size: 0,
+            provider_session_id: None,
+            worktree_path: None,
+            pr_number: None,
+            is_acepe_managed: false,
+            sequence_id: Some(1),
+        };
+
+        let converted = build_empty_session_with_metadata("session-1", Some(&row));
 
         assert_eq!(converted.title, "Autonomous Mode");
     }
