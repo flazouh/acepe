@@ -842,6 +842,21 @@ impl SessionJournalEventRepository {
 
         Ok(event)
     }
+
+    /// Return the maximum `event_seq` persisted for `session_id`, or `None`
+    /// when no events exist yet (i.e. `last_event_seq = 0` for a fresh
+    /// session).
+    pub async fn max_event_seq(db: &DbConn, session_id: &str) -> Result<Option<i64>> {
+        let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
+            .select_only()
+            .column_as(session_journal_event::Column::EventSeq.max(), "max_seq")
+            .filter(session_journal_event::Column::SessionId.eq(session_id))
+            .into_tuple::<Option<i64>>()
+            .one(db)
+            .await?
+            .flatten();
+        Ok(max_seq)
+    }
 }
 
 // ============================================================================

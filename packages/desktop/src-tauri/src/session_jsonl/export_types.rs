@@ -15,6 +15,9 @@ use crate::acp::projections::{
     InteractionState, OperationSnapshot, PlanApprovalSource, SessionProjectionSnapshot,
     SessionSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
+use crate::acp::session_open_snapshot::{
+    SessionOpenError, SessionOpenFound, SessionOpenMissing, SessionOpenResult,
+};
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
@@ -379,6 +382,8 @@ pub fn export_all_types() {
     export_acp_type!(TurnErrorSource);
     export_acp_type!(TurnFailureSnapshot);
     export_acp_type!(SessionProjectionSnapshot);
+    export_acp_type!(SessionOpenFound);
+    export_acp_type!(SessionOpenResult);
 
     acp_types = acp_types.replace(
         "export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }",
