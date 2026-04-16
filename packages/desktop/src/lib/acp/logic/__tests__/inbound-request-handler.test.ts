@@ -6,12 +6,6 @@ import { ACP_INBOUND_METHODS } from "../../constants/acp-methods.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
-import {
-	cancelQuestion,
-	InboundRequestHandler,
-	respondToPermission,
-	respondToQuestion,
-} from "../inbound-request-handler.js";
 
 const mockOpenAcpEventSource = vi.fn();
 
@@ -36,8 +30,15 @@ vi.mock("../../store/api.js", () => ({
 	},
 }));
 
+const {
+	cancelQuestion,
+	InboundRequestHandler,
+	respondToPermission,
+	respondToQuestion,
+} = await import("../inbound-request-handler.js");
+
 describe("InboundRequestHandler", () => {
-	let handler: InboundRequestHandler;
+	let handler: InstanceType<typeof InboundRequestHandler>;
 	let permissionCallback: Mock;
 	let questionCallback: Mock;
 

@@ -12,6 +12,7 @@ use crate::session_jsonl::types::ConvertedSession;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -487,7 +488,7 @@ pub(crate) async fn scan_copilot_sessions_at_root(
         });
     }
 
-    sessions.sort_by(|left, right| right.updated_at_ms.cmp(&left.updated_at_ms));
+    sessions.sort_by_key(|session| Reverse(session.updated_at_ms));
     Ok(limit_sessions_per_project(sessions))
 }
 

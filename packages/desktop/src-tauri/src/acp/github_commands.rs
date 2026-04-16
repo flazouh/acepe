@@ -721,13 +721,8 @@ pub fn list_pull_requests(
             .filter_map(|pr| {
                 let state_str = match pr["state"].as_str()? {
                     "open" => "open",
-                    "closed" => {
-                        if pr["merged_at"].is_string() {
-                            "merged"
-                        } else {
-                            "closed"
-                        }
-                    }
+                    "closed" if pr["merged_at"].is_string() => "merged",
+                    "closed" => "closed",
                     _ => "closed",
                 };
 

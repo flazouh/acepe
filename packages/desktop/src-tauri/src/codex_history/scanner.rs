@@ -8,6 +8,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use ignore::WalkBuilder;
 use serde_json::Value;
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -151,7 +152,7 @@ fn scan_sessions_from_root(
         }
     }
 
-    metadata_entries.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    metadata_entries.sort_by_key(|entry| Reverse(entry.updated_at));
 
     let discovery_mode = project_paths.is_empty();
     let requested_projects: HashSet<&str> = project_paths.iter().map(String::as_str).collect();
@@ -470,7 +471,7 @@ fn scan_sessions_metadata_only_from_root(
         }
     }
 
-    metadata_entries.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    metadata_entries.sort_by_key(|entry| Reverse(entry.updated_at));
 
     let discovery_mode = project_paths.is_empty();
     let requested_projects: HashSet<&str> = project_paths.iter().map(String::as_str).collect();

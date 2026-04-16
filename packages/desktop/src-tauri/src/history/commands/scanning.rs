@@ -1,6 +1,8 @@
-use super::*;
-use std::path::Path;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
+use std::cmp::Reverse;
+use std::path::Path;
+
+use super::*;
 
 fn indexed_source_path(file_path: String) -> Option<String> {
     SessionMetadataRepository::normalized_source_path(&file_path)
@@ -469,7 +471,7 @@ async fn discover_all_projects_with_sessions_inner() -> Result<Vec<HistoryEntry>
     }
 
     // Sort by timestamp descending (most recent first)
-    entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    entries.sort_by_key(|entry| Reverse(entry.timestamp));
 
     Ok(entries)
 }

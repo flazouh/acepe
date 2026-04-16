@@ -41,11 +41,18 @@ describe("virtualized-entry-display", () => {
 
 		const initial = buildVirtualizedDisplayEntries([first]);
 		const afterAppend = buildVirtualizedDisplayEntries([first, second]);
+		const initialEntry = initial.at(0);
+		const appendedEntry = afterAppend.at(0);
 
 		expect(initial).toHaveLength(1);
 		expect(afterAppend).toHaveLength(1);
-		expect(getVirtualizedDisplayEntryKey(initial[0]!)).toBe("a1");
-		expect(getVirtualizedDisplayEntryKey(afterAppend[0]!)).toBe("a1");
+		expect(initialEntry).toBeDefined();
+		expect(appendedEntry).toBeDefined();
+		if (!initialEntry || !appendedEntry) {
+			throw new Error("expected merged entries to exist");
+		}
+		expect(getVirtualizedDisplayEntryKey(initialEntry)).toBe("a1");
+		expect(getVirtualizedDisplayEntryKey(appendedEntry)).toBe("a1");
 	});
 
 	it("tracks memberIds so streaming can match later merged entries", () => {
@@ -55,8 +62,11 @@ describe("virtualized-entry-display", () => {
 		])[0];
 
 		expect(merged).toBeDefined();
-		expect(isMergedThoughtAssistantDisplayEntry(merged!)).toBe(true);
-		if (!isMergedThoughtAssistantDisplayEntry(merged!)) {
+		if (!merged) {
+			throw new Error("expected merged thought display entry");
+		}
+		expect(isMergedThoughtAssistantDisplayEntry(merged)).toBe(true);
+		if (!isMergedThoughtAssistantDisplayEntry(merged)) {
 			throw new Error("expected merged thought display entry");
 		}
 		expect(merged.memberIds).toEqual(["a1", "a2"]);
@@ -68,11 +78,18 @@ describe("virtualized-entry-display", () => {
 			createThoughtAssistantEntry("a2", "thinking two"),
 			createMessageAssistantEntry("a3", "final answer"),
 		]);
+		const firstDisplayEntry = display.at(0);
+		const secondDisplayEntry = display.at(1);
 
 		expect(display).toHaveLength(2);
-		expect(getVirtualizedDisplayEntryKey(display[0]!)).toBe("a1");
-		expect(getVirtualizedDisplayEntryKey(display[1]!)).toBe("a3");
-		expect(isMergedThoughtAssistantDisplayEntry(display[1]!)).toBe(false);
+		expect(firstDisplayEntry).toBeDefined();
+		expect(secondDisplayEntry).toBeDefined();
+		if (!firstDisplayEntry || !secondDisplayEntry) {
+			throw new Error("expected display entries to exist");
+		}
+		expect(getVirtualizedDisplayEntryKey(firstDisplayEntry)).toBe("a1");
+		expect(getVirtualizedDisplayEntryKey(secondDisplayEntry)).toBe("a3");
+		expect(isMergedThoughtAssistantDisplayEntry(secondDisplayEntry)).toBe(false);
 	});
 
 	it("uses the thinking indicator as the reveal target when waiting trails the thread", () => {
@@ -88,10 +105,15 @@ describe("virtualized-entry-display", () => {
 		const display = buildVirtualizedDisplayEntries([
 			createMessageAssistantEntry("assistant-1", "latest reply"),
 		]);
+		const latestEntry = display.at(0);
 		display.push(THINKING_DISPLAY_ENTRY);
 
-		expect(shouldObserveRevealResize(display, display[0]!, true)).toBe(true);
-		expect(shouldObserveRevealResize(display, display[0]!, false)).toBe(true);
+		expect(latestEntry).toBeDefined();
+		if (!latestEntry) {
+			throw new Error("expected latest display entry");
+		}
+		expect(shouldObserveRevealResize(display, latestEntry, true)).toBe(true);
+		expect(shouldObserveRevealResize(display, latestEntry, false)).toBe(true);
 		expect(shouldObserveRevealResize(display, THINKING_DISPLAY_ENTRY, true)).toBe(false);
 	});
 

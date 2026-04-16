@@ -312,11 +312,10 @@ impl ProjectionRegistry {
                     start_running_turn(&mut snapshot);
                 }
             }
-            SessionUpdate::AgentThoughtChunk { .. } => {
-                if !preserves_failed_turn(&snapshot) {
-                    start_running_turn(&mut snapshot);
-                }
+            SessionUpdate::AgentThoughtChunk { .. } if !preserves_failed_turn(&snapshot) => {
+                start_running_turn(&mut snapshot);
             }
+            SessionUpdate::AgentThoughtChunk { .. } => {}
             SessionUpdate::ToolCall { tool_call, .. } => {
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &tool_call.id);
                 if is_terminal_tool_call_status(&tool_call.status) {
