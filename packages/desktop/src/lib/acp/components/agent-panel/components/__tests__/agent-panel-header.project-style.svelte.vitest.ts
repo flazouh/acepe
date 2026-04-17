@@ -27,6 +27,8 @@ describe("AgentPanelHeader project-header style", () => {
 			sessionId: null,
 			sessionTitle: "Thread",
 			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
 			agentIconSrc: "",
 			agentName: null,
 			isFullscreen: false,
@@ -49,6 +51,7 @@ describe("AgentPanelHeader project-header style", () => {
 			onOpenInAcepe: undefined,
 			onExportMarkdown: undefined,
 			onExportJson: undefined,
+			onAgentChange: undefined,
 			onScrollToTop: undefined,
 			debugPanelState: null,
 		});
@@ -60,7 +63,6 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(fullscreen).not.toBeNull();
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
-		expect(header?.className).toContain("border-r");
 		expect(fullscreen?.className).toContain("h-7");
 		expect(close?.className).toContain("h-7");
 
@@ -82,6 +84,8 @@ describe("AgentPanelHeader project-header style", () => {
 			sessionId: null,
 			sessionTitle: "Thread",
 			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
 			agentIconSrc: "",
 			agentName: null,
 			isFullscreen: true,
@@ -104,6 +108,7 @@ describe("AgentPanelHeader project-header style", () => {
 			onOpenInAcepe: undefined,
 			onExportMarkdown: undefined,
 			onExportJson: undefined,
+			onAgentChange: undefined,
 			onScrollToTop: undefined,
 			debugPanelState: null,
 		});
@@ -118,6 +123,8 @@ describe("AgentPanelHeader project-header style", () => {
 			sessionId: "session-1",
 			sessionTitle: null,
 			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
 			agentIconSrc: "",
 			agentName: null,
 			isFullscreen: false,
@@ -140,6 +147,7 @@ describe("AgentPanelHeader project-header style", () => {
 			onOpenInAcepe: undefined,
 			onExportMarkdown: undefined,
 			onExportJson: undefined,
+			onAgentChange: undefined,
 			onScrollToTop: undefined,
 			debugPanelState: null,
 		});
@@ -155,6 +163,8 @@ describe("AgentPanelHeader project-header style", () => {
 			sessionId: "session-1",
 			sessionTitle: "Thread",
 			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
 			agentIconSrc: "",
 			agentName: null,
 			isFullscreen: false,
@@ -177,6 +187,7 @@ describe("AgentPanelHeader project-header style", () => {
 			onOpenInAcepe: undefined,
 			onExportMarkdown: undefined,
 			onExportJson: undefined,
+			onAgentChange: undefined,
 			onScrollToTop: undefined,
 			debugPanelState: null,
 		});

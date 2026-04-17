@@ -116,6 +116,47 @@ async fn resume_client_session(
     })
 }
 
+async fn load_client_session(
+    client: &mut (dyn AgentClient + Send + Sync + 'static),
+    session_id: &str,
+    cwd: &str,
+    operation: &str,
+) -> Result<ResumeSessionResponse, SerializableAcpError> {
+    timeout(
+        SESSION_CLIENT_OPERATION_TIMEOUT,
+        client.load_session(session_id.to_string(), cwd.to_string()),
+    )
+    .await
+    .map_err(|_| {
+        tracing::error!(operation = %operation, "Load session timed out");
+        SerializableAcpError::Timeout {
+            operation: operation.to_string(),
+        }
+    })?
+    .map_err(|e| {
+        tracing::error!(operation = %operation, error = %e, "Load session failed");
+        SerializableAcpError::from(e)
+    })
+}
+
+fn should_load_session(agent_id: &CanonicalAgentId) -> bool {
+    matches!(agent_id, CanonicalAgentId::Copilot)
+}
+
+async fn reconnect_client_session(
+    client: &mut (dyn AgentClient + Send + Sync + 'static),
+    session_id: &str,
+    cwd: &str,
+    agent_id: &CanonicalAgentId,
+    operation: &str,
+) -> Result<ResumeSessionResponse, SerializableAcpError> {
+    if should_load_session(agent_id) {
+        return load_client_session(client, session_id, cwd, operation).await;
+    }
+
+    resume_client_session(client, session_id, cwd, operation).await
+}
+
 async fn seed_client_launch_mode(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
     session_id: &str,
@@ -151,9 +192,10 @@ pub(super) async fn resume_or_create_session_client<F, Fut>(
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<
-        Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
-    >,
+            Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
+        >,
 {
+    let use_load_session = should_load_session(&agent_id);
     if !force_new_client {
         if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
             let existing_resume_result = {
@@ -162,10 +204,11 @@ where
                     "acp_resume_session: existing client lock",
                 )
                 .await?;
-                resume_client_session(
+                reconnect_client_session(
                     existing_client.as_mut(),
                     &session_id,
                     &cwd,
+                    &agent_id,
                     "resume existing session client",
                 )
                 .await
@@ -201,15 +244,21 @@ where
         )
         .await?;
     }
-    let result = resume_client_session(
+    let result = reconnect_client_session(
         client.as_mut(),
         &session_id,
         &cwd,
+        &agent_id,
         "resume newly created session client",
     )
     .await
     .map_err(|error| {
-        tracing::error!(session_id = %session_id, error = %error, "Resume session failed");
+        tracing::error!(
+            session_id = %session_id,
+            error = %error,
+            use_load_session,
+            "Session reconnect failed"
+        );
         error
     })?;
 

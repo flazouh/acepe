@@ -626,6 +626,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			turnState: toFrontendTurnState(snapshot.turnState),
 			connectionError: null,
 		});
+		this.connectionService.sendContentLoad(canonicalSessionId);
+		this.connectionService.sendContentLoaded(canonicalSessionId);
 	}
 
 	/**
@@ -892,6 +894,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			entryCountBeforeSend: this.entryStore.getEntries(sessionId).length,
 			preview: content.trim().slice(0, 120),
 		});
+		const hotState = this.hotStateStore.getHotState(sessionId);
 
 		const send = () =>
 			this.messagingSvc.sendMessage(sessionId, content, attachments).map(() => {
@@ -919,7 +922,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		return send();
+		if (hotState.isConnected) {
+			return send();
+		}
+
+		return this.connectSession(sessionId).andThen(() => send());
 	}
 
 	// ============================================

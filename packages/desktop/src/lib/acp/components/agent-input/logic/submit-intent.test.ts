@@ -124,4 +124,30 @@ describe("submit intent", () => {
 			})
 		).toBe(false);
 	});
+
+	it("does not expose a send action while a pending config gate can still veto submit", () => {
+		expect(
+			resolveDefaultSubmitAction({
+				hasDraftInput: true,
+				hasSessionId: true,
+				isAgentBusy: false,
+				isStreaming: false,
+				isSubmitDisabled: false,
+				hasBlockingPendingSessionConfigOperation: true,
+			})
+		).toBe("none");
+	});
+
+	it("disables the primary send button while submit is blocked by pending session config", () => {
+		expect(
+			isPrimaryButtonDisabled({
+				hasDraftInput: true,
+				isSending: false,
+				isAgentBusy: false,
+				isSubmitDisabled: false,
+				primaryButtonIntent: "send",
+				hasBlockingPendingSessionConfigOperation: true,
+			})
+		).toBe(true);
+	});
 });

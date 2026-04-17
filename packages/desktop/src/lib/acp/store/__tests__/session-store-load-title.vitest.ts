@@ -538,6 +538,60 @@ describe("SessionStore title updates", () => {
 		expect(store.getSessionCold("session-123")?.title).toBe("Implement authentication flow");
 	});
 
+	it("connects a settled disconnected session before sending", async () => {
+		store.addSession({
+			id: "session-789",
+			projectPath: "/test/path",
+			agentId: "copilot",
+			title: "Historical Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		});
+		(
+			store as unknown as {
+				hotStateStore: {
+					initializeHotState: (id: string, state: { isConnected: boolean; status: string }) => void;
+					updateHotState: (
+						id: string,
+						state: { isConnected?: boolean; status?: string; connectionError?: string | null }
+					) => void;
+				};
+			}
+		).hotStateStore.initializeHotState("session-789", {
+			isConnected: false,
+			status: "idle",
+		});
+
+		const hotStateStore = (store as unknown as {
+			hotStateStore: {
+				updateHotState: (
+					id: string,
+					state: { isConnected?: boolean; status?: string; connectionError?: string | null }
+				) => void;
+			};
+		}).hotStateStore;
+		const connectSpy = vi.spyOn(store, "connectSession").mockImplementation((sessionId) => {
+			hotStateStore.updateHotState(sessionId, {
+				isConnected: true,
+				status: "ready",
+				connectionError: null,
+			});
+			return okAsync(undefined);
+		});
+		vi.mocked(api.sendPrompt).mockReturnValue(okAsync(undefined));
+
+		await store.sendMessage("session-789", "Resume from history").match(
+			() => undefined,
+			(error) => {
+				throw error;
+			}
+		);
+
+		expect(connectSpy).toHaveBeenCalledWith("session-789");
+		expect(api.sendPrompt).toHaveBeenCalled();
+	});
+
 	it("updates session prNumber from streamed entries on turn completion", () => {
 		store.addSession({
 			id: "session-456",

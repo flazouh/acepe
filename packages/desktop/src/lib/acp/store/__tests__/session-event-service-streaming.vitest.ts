@@ -1343,6 +1343,31 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not force streaming state while replaying assistant chunks", () => {
+		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "idle",
+		});
+
+		const update: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "msg-replay-static",
+			chunk: {
+				content: {
+					type: "text",
+					text: "Historical replay content should render as settled transcript, not live streaming.",
+				},
+			},
+		};
+
+		service.handleSessionUpdate(update, handler);
+
+		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
+		expect(handler.ensureStreamingState).not.toHaveBeenCalled();
+	});
+
 	it("does not drop assistant chunks repeated outside the replay duplicate window", async () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,

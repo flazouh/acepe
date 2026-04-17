@@ -22,6 +22,7 @@ interface DefaultSubmitActionInput {
 	isAgentBusy: boolean;
 	isStreaming: boolean;
 	isSubmitDisabled: boolean;
+	hasBlockingPendingSessionConfigOperation?: boolean;
 }
 
 interface PrimaryButtonDisabledInput {
@@ -30,6 +31,7 @@ interface PrimaryButtonDisabledInput {
 	isAgentBusy: boolean;
 	isSubmitDisabled: boolean;
 	primaryButtonIntent: SubmitIntent;
+	hasBlockingPendingSessionConfigOperation?: boolean;
 }
 
 export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent {

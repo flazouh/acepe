@@ -4,32 +4,22 @@ import { ArrowDown } from "phosphor-svelte";
 import { ArrowUp } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
-import type { AgentInfo } from "../logic/agent-manager.js";
 import type { ProjectCardData } from "./project-card-data.js";
 
 interface Props {
 	data: ProjectCardData;
 	index: number;
-	availableAgents: AgentInfo[];
-	effectiveTheme: "light" | "dark";
 	modifierSymbol?: string;
 	isMissing?: boolean;
-	isFocused: boolean;
-	onFocus: () => void;
-	onAgentSelect: (agentId: string) => void;
+	onSelect: () => void;
 }
 
 let {
 	data,
 	index,
-	availableAgents,
-	effectiveTheme,
 	modifierSymbol = "⌘",
 	isMissing = false,
-	isFocused,
-	onFocus,
-	onAgentSelect,
+	onSelect,
 }: Props = $props();
 
 const color = $derived(data.project.color ?? "#6B7280");
@@ -45,13 +35,7 @@ const changedFileCount = $derived(data.gitStatus?.length ?? 0);
 
 function handleCardClick() {
 	if (isMissing) return;
-	onFocus();
-}
-
-function handleAgentClick(e: MouseEvent, agentId: string) {
-	e.stopPropagation();
-	if (isMissing) return;
-	onAgentSelect(agentId);
+	onSelect();
 }
 </script>
 
@@ -72,16 +56,10 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 	</div>
 {:else}
 	<div
-		class="flex flex-col overflow-hidden rounded-lg border transition-all cursor-pointer
-			{isFocused
-			? 'border-border bg-card shadow-sm'
-			: 'border-border/60 bg-card/80 hover:border-border hover:bg-card hover:shadow-sm'}"
-		style="border-color: {isFocused ? `color-mix(in srgb, ${color} 40%, var(--border))` : ''}"
+		class="flex flex-col overflow-hidden rounded-lg border border-border/60 bg-card/80 transition-all cursor-pointer hover:border-border hover:bg-card hover:shadow-sm"
 		onclick={handleCardClick}
 	>
-		<!-- Header row: badge + name + keybind -->
 		<div class="flex items-center h-8 shrink-0">
-			<!-- Project letter badge -->
 			<div class="inline-flex items-center justify-center h-8 w-8 shrink-0">
 				<ProjectLetterBadge
 					name={data.project.name}
@@ -91,12 +69,10 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 				/>
 			</div>
 
-			<!-- Project name -->
 			<span class="text-[11px] font-semibold font-mono text-foreground truncate flex-1 min-w-0">
 				{data.project.name}
 			</span>
 
-			<!-- Keyboard shortcut hint -->
 			{#if shortcutKey <= 9}
 				<div class="shrink-0 pr-2">
 					<KbdGroup class="inline-flex">
@@ -107,7 +83,6 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 			{/if}
 		</div>
 
-		<!-- Git info row: branch + ahead/behind + diff stats + file count -->
 		{#if data.branch || changedFileCount > 0}
 			<div class="flex items-center h-6 px-2.5 gap-2 border-t border-border/30">
 				{#if data.branch}
@@ -119,7 +94,6 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 					</div>
 				{/if}
 
-				<!-- Ahead / behind -->
 				{#if data.ahead && data.ahead > 0}
 					<div class="flex items-center gap-0.5 shrink-0" title="{data.ahead} ahead of remote">
 						<ArrowUp class="size-2 text-success" weight="bold" />
@@ -133,10 +107,8 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 					</div>
 				{/if}
 
-				<!-- Spacer -->
 				<div class="flex-1"></div>
 
-				<!-- Diff stats + file count -->
 				{#if totalInsertions > 0 || totalDeletions > 0}
 					<DiffPill insertions={totalInsertions} deletions={totalDeletions} variant="plain" class="text-[10px]" />
 				{/if}
@@ -145,24 +117,6 @@ function handleAgentClick(e: MouseEvent, agentId: string) {
 						{changedFileCount} file{changedFileCount === 1 ? "" : "s"}
 					</span>
 				{/if}
-			</div>
-		{/if}
-
-		<!-- Agent selection strip (visible on focus) -->
-		{#if isFocused}
-			<div class="flex items-center h-7 border-t border-border/30">
-				{#each availableAgents as agent, agentIndex (agent.id)}
-					{@const iconSrc = getAgentIcon(agent.id, effectiveTheme)}
-					{@const agentKey = agentIndex + 1}
-					<button
-						class="inline-flex items-center justify-center h-7 w-7 border-r border-border/30 last:border-r-0
-							text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer"
-						title="{agent.name}{agentKey <= 9 ? ` (${modifierSymbol}${agentKey})` : ''}"
-						onclick={(e) => handleAgentClick(e, agent.id)}
-					>
-						<img src={iconSrc} alt={agent.name} class="h-4 w-4 shrink-0" />
-					</button>
-				{/each}
 			</div>
 		{/if}
 	</div>

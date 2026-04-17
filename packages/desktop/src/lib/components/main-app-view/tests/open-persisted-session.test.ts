@@ -11,7 +11,7 @@ let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-se
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "connectSession" | "getSessionCold"
+	"setSessionLoading" | "setSessionLoaded" | "getSessionCold"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -35,7 +35,6 @@ describe("openPersistedSession", () => {
 		sessionStore = {
 			setSessionLoading: mock(() => {}),
 			setSessionLoaded: mock(() => {}),
-			connectSession: mock(() => okAsync(undefined)),
 			getSessionCold: mock(() => ({
 				id: "session-1",
 				title: "Session 1",
@@ -93,10 +92,10 @@ describe("openPersistedSession", () => {
 
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		await new Promise((resolve) => setTimeout(resolve, 5));
-		expect(sessionStore.connectSession).toHaveBeenCalledTimes(1);
+		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
 	});
 
-	it("hydrates before connecting after a found result", async () => {
+	it("hydrates and settles snapshot-only after a found result", async () => {
 		openPersistedSession({
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -117,9 +116,7 @@ describe("openPersistedSession", () => {
 			})
 		);
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
-			openToken: "open-token-1",
-		});
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 	});
 
 	it("marks the session loaded without connecting when the result is missing", async () => {
@@ -144,7 +141,6 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
 	});
 });
 

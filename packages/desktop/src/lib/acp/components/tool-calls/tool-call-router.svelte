@@ -6,7 +6,7 @@ import type { TurnState } from "../../store/types.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
-import { resolveToolOperation } from "./resolve-tool-operation.js";
+import { createRenderableToolCall, resolveToolOperation } from "./resolve-tool-operation.js";
 import { getToolDefinition } from "./tool-definition-registry.js";
 
 interface Props {
@@ -39,17 +39,18 @@ const pendingPermission = $derived.by(() => {
 
 	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
 });
-const resolvedOperation = $derived(resolveToolOperation(toolCall, pendingPermission));
+const renderableToolCall = $derived(createRenderableToolCall(toolCall, operation, operationStore));
+const resolvedOperation = $derived(resolveToolOperation(renderableToolCall, pendingPermission));
 const toolDefinition = $derived(
 	getToolDefinition(resolvedOperation.toolCall, resolvedOperation.resolvedKind)
 );
 const ToolComponent = $derived(toolDefinition.component);
 
-const toolStatus = $derived(getToolStatus(toolCall, turnState));
+const toolStatus = $derived(getToolStatus(resolvedOperation.toolCall, turnState));
 const elapsedLabel = $derived(
 	formatToolElapsedLabel({
-		startedAtMs: toolCall.startedAtMs,
-		completedAtMs: toolCall.completedAtMs,
+		startedAtMs: resolvedOperation.toolCall.startedAtMs,
+		completedAtMs: resolvedOperation.toolCall.completedAtMs,
 		isRunning: toolStatus.isPending,
 		nowMs,
 	})

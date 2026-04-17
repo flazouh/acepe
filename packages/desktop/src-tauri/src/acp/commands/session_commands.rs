@@ -10,12 +10,13 @@ use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptProjectionRegistry, TranscriptSnapshot,
 };
 use crate::acp::types::CanonicalAgentId;
-use crate::commands::observability::{expected_acp_command_result, CommandResult};
+use crate::commands::observability::{CommandResult, expected_acp_command_result};
 use crate::db::repository::{
     SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
-    SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
+    SessionTranscriptSnapshotRepository,
 };
 use sea_orm::DbConn;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
     // Use the runtime root resolver to walk up from cwd and find the
@@ -149,35 +150,39 @@ async fn resolve_fork_session_target(
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_initialize(_app: AppHandle) -> CommandResult<InitializeResponse> {
-    expected_acp_command_result("acp_initialize", async {
-        tracing::info!("acp_initialize called (per-session architecture - no global client)");
+    expected_acp_command_result(
+        "acp_initialize",
+        async {
+            tracing::info!("acp_initialize called (per-session architecture - no global client)");
 
-        // Return a mock response - real initialization happens per-session
-        Ok(InitializeResponse {
-            protocol_version: 1,
-            agent_capabilities: serde_json::json!({}),
-            agent_info: serde_json::json!({}),
-            auth_methods: vec![],
-        })
-    }
-    .await)
+            // Return a mock response - real initialization happens per-session
+            Ok(InitializeResponse {
+                protocol_version: 1,
+                agent_capabilities: serde_json::json!({}),
+                agent_info: serde_json::json!({}),
+                auth_methods: vec![],
+            })
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_get_event_bridge_info(
-    app: AppHandle,
-) -> CommandResult<AcpEventBridgeInfo> {
-    expected_acp_command_result("acp_get_event_bridge_info", async {
-        let hub = app.state::<Arc<AcpEventHubState>>();
-        hub.get_bridge_info().await.ok_or_else(|| {
-            tracing::error!("ACP event bridge server not initialized");
-            SerializableAcpError::InvalidState {
-                message: "ACP event bridge server not initialized".to_string(),
-            }
-        })
-    }
-    .await)
+pub async fn acp_get_event_bridge_info(app: AppHandle) -> CommandResult<AcpEventBridgeInfo> {
+    expected_acp_command_result(
+        "acp_get_event_bridge_info",
+        async {
+            let hub = app.state::<Arc<AcpEventHubState>>();
+            hub.get_bridge_info().await.ok_or_else(|| {
+                tracing::error!("ACP event bridge server not initialized");
+                SerializableAcpError::InvalidState {
+                    message: "ACP event bridge server not initialized".to_string(),
+                }
+            })
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -187,19 +192,22 @@ pub async fn acp_set_session_autonomous(
     session_id: String,
     enabled: bool,
 ) -> CommandResult<()> {
-    expected_acp_command_result("acp_set_session_autonomous", async {
-        tracing::debug!(
-            session_id = %session_id,
-            enabled,
-            "acp_set_session_autonomous called"
-        );
+    expected_acp_command_result(
+        "acp_set_session_autonomous",
+        async {
+            tracing::debug!(
+                session_id = %session_id,
+                enabled,
+                "acp_set_session_autonomous called"
+            );
 
-        let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
-        session_policy.set_autonomous(&session_id, enabled);
+            let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
+            session_policy.set_autonomous(&session_id, enabled);
 
-        Ok(())
-    }
-    .await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -622,29 +630,49 @@ async fn load_transcript_snapshot_for_resume(
         return Ok(snapshot);
     }
 
-    let thread_snapshot = SessionThreadSnapshotRepository::get(db, session_id)
+    let journal_max = SessionJournalEventRepository::max_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
-                "Failed to load thread snapshot for resumed session {session_id}: {error}"
+                "Failed to determine journal cutoff for resumed session {session_id}: {error}"
             ),
         })?;
-    if let Some(thread_snapshot) = thread_snapshot {
-        let revision = SessionJournalEventRepository::max_event_seq(db, session_id)
+    let has_metadata = SessionMetadataRepository::get_by_id(db, session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load session metadata for resumed session {session_id}: {error}"
+            ),
+        })?
+        .is_some();
+    if has_metadata && journal_max == Some(1) {
+        let first_event = crate::db::entities::session_journal_event::Entity::find()
+            .filter(crate::db::entities::session_journal_event::Column::SessionId.eq(session_id))
+            .filter(crate::db::entities::session_journal_event::Column::EventSeq.eq(1))
+            .one(db)
             .await
             .map_err(|error| SerializableAcpError::InvalidState {
                 message: format!(
-                    "Failed to determine journal cutoff for resumed session {session_id}: {error}"
+                    "Failed to inspect journal events for resumed session {session_id}: {error}"
                 ),
-            })?
-            .unwrap_or(0);
+            })?;
+        if first_event
+            .as_ref()
+            .is_some_and(|event| event.event_kind == "materialization_barrier")
+        {
+            return Ok(TranscriptSnapshot::from_stored_entries(1, &[]));
+        }
+    }
+    if has_metadata {
         return Ok(TranscriptSnapshot::from_stored_entries(
-            revision,
-            &thread_snapshot.entries,
+            journal_max.unwrap_or(0),
+            &[],
         ));
     }
 
-    Ok(TranscriptSnapshot::from_stored_entries(0, &[]))
+    Err(SerializableAcpError::InvalidState {
+        message: format!("Missing canonical transcript snapshot for resumed session {session_id}"),
+    })
 }
 
 /// The heavy async work extracted from `acp_resume_session`.
@@ -717,6 +745,18 @@ async fn async_resume_session_work(
             .map_err(SerializableAcpError::from)?;
     }
 
+    let replay_context: crate::acp::session_descriptor::SessionReplayContext =
+        resume_descriptor.clone().into();
+    crate::history::commands::session_loading::ensure_canonical_session_materialized(
+        app.clone(),
+        &replay_context,
+    )
+    .await
+    .map_err(|error| SerializableAcpError::InvalidState {
+        message: format!(
+            "Failed to materialize canonical session state for resumed session {session_id}: {error}"
+        ),
+    })?;
     let transcript_snapshot = load_transcript_snapshot_for_resume(db.inner(), session_id).await?;
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
@@ -741,7 +781,6 @@ async fn async_resume_session_work(
     }
 
     let db = app.state::<DbConn>();
-    let replay_context = resume_descriptor.clone().into();
     let stored_projection = load_stored_projection(db.inner(), &replay_context)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
@@ -922,69 +961,78 @@ pub async fn acp_fork_session(
 /// Close a session and clean up its client
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_close_session(
-    app: AppHandle,
-    session_id: String,
-) -> CommandResult<()> {
-    expected_acp_command_result("acp_close_session", async {
-    tracing::info!(session_id = %session_id, "acp_close_session called");
-    let session_registry = app.state::<SessionRegistry>();
-    let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
-    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
-    let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
-    let db = app.state::<DbConn>();
+pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandResult<()> {
+    expected_acp_command_result(
+        "acp_close_session",
+        async {
+            tracing::info!(session_id = %session_id, "acp_close_session called");
+            let session_registry = app.state::<SessionRegistry>();
+            let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
+            let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+            let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+            let db = app.state::<DbConn>();
 
-    let agent_id_str = session_registry
-        .get_agent_id(&session_id)
-        .map(|a| a.as_str().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+            let agent_id_str = session_registry
+                .get_agent_id(&session_id)
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_else(|| "unknown".to_string());
 
-    if let Some(client_arc) = session_registry.remove(&session_id, "acp_close_session") {
-        // Get exclusive access and stop the client
-        tracing::warn!(
-            session_id = %redact_session_id(&session_id),
-            agent_id = %agent_id_str,
-            reason = "acp_close_session",
-            "Stopping session client from explicit close request"
-        );
-        let mut client = lock_session_client(&client_arc, "acp_close_session: lock").await?;
-        client.stop();
-        tracing::info!(session_id = %session_id, "Session client stopped and removed");
-    } else {
-        tracing::warn!(session_id = %session_id, "Session not found for cleanup");
-    }
+            if let Some(client_arc) = session_registry.remove(&session_id, "acp_close_session") {
+                // Get exclusive access and stop the client
+                tracing::warn!(
+                    session_id = %redact_session_id(&session_id),
+                    agent_id = %agent_id_str,
+                    reason = "acp_close_session",
+                    "Stopping session client from explicit close request"
+                );
+                let mut client =
+                    lock_session_client(&client_arc, "acp_close_session: lock").await?;
+                client.stop();
+                tracing::info!(session_id = %session_id, "Session client stopped and removed");
+            } else {
+                tracing::warn!(session_id = %session_id, "Session not found for cleanup");
+            }
 
-    session_policy.remove(&session_id);
+            session_policy.remove(&session_id);
 
-    // Clean up streaming accumulator state for this session
-    crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
-    let runtime_projection = projection_registry.session_projection(&session_id);
-    if projection_has_runtime_state(&runtime_projection) {
-        SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &runtime_projection)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to persist projection snapshot for session {session_id}: {error}"
-                ),
-            })?;
-    }
-    projection_registry.remove_session(&session_id);
-    if let Some(transcript_snapshot) =
-        transcript_projection_registry.snapshot_for_session(&session_id)
-    {
-        SessionTranscriptSnapshotRepository::set(db.inner(), &session_id, &transcript_snapshot)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to persist transcript snapshot for session {session_id}: {error}"
-                ),
-            })?;
-    }
-    transcript_projection_registry.remove_session(&session_id);
+            // Clean up streaming accumulator state for this session
+            crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
+            let runtime_projection = projection_registry.session_projection(&session_id);
+            if projection_has_runtime_state(&runtime_projection) {
+                SessionProjectionSnapshotRepository::set(
+                    db.inner(),
+                    &session_id,
+                    &runtime_projection,
+                )
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to persist projection snapshot for session {session_id}: {error}"
+                    ),
+                })?;
+            }
+            projection_registry.remove_session(&session_id);
+            if let Some(transcript_snapshot) =
+                transcript_projection_registry.snapshot_for_session(&session_id)
+            {
+                SessionTranscriptSnapshotRepository::set(
+                    db.inner(),
+                    &session_id,
+                    &transcript_snapshot,
+                )
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to persist transcript snapshot for session {session_id}: {error}"
+                    ),
+                })?;
+            }
+            transcript_projection_registry.remove_session(&session_id);
 
-    Ok(())
-    }
-    .await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
@@ -996,8 +1044,9 @@ fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        persist_session_metadata_for_cwd, resolve_fork_session_target, resolve_requested_agent_id,
-        resolve_resume_launch_mode_id, resolve_resume_session_target,
+        load_transcript_snapshot_for_resume, persist_session_metadata_for_cwd,
+        resolve_fork_session_target, resolve_requested_agent_id, resolve_resume_launch_mode_id,
+        resolve_resume_session_target,
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::projections::{
@@ -1010,11 +1059,12 @@ mod tests {
     };
     use crate::acp::session_journal::load_stored_projection;
     use crate::acp::session_update::{PermissionData, SessionUpdate};
+    use crate::acp::transcript_projection::TranscriptSnapshot;
     use crate::acp::types::CanonicalAgentId;
     use crate::db::migrations::Migrator;
     use crate::db::repository::{
         SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
     };
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
@@ -1164,6 +1214,119 @@ mod tests {
                 .last_event_seq,
             2
         );
+    }
+
+    #[tokio::test]
+    async fn resume_requires_canonical_transcript_snapshot() {
+        let db = setup_test_db().await;
+
+        let error = load_transcript_snapshot_for_resume(&db, "missing-session")
+            .await
+            .expect_err("missing canonical transcript should error");
+
+        let SerializableAcpError::InvalidState { message } = error else {
+            panic!("expected invalid state error");
+        };
+        assert!(message.contains("Missing canonical transcript snapshot"));
+    }
+
+    #[tokio::test]
+    async fn resume_uses_persisted_canonical_transcript_snapshot() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "resume-session",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+        SessionTranscriptSnapshotRepository::set(
+            &db,
+            "resume-session",
+            &TranscriptSnapshot::from_stored_entries(3, &[]),
+        )
+        .await
+        .expect("persist transcript snapshot");
+
+        let transcript = load_transcript_snapshot_for_resume(&db, "resume-session")
+            .await
+            .expect("load transcript snapshot");
+
+        assert_eq!(transcript.revision, 3);
+    }
+
+    #[tokio::test]
+    async fn resume_returns_empty_transcript_for_existing_empty_session() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "empty-session",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+
+        let transcript = load_transcript_snapshot_for_resume(&db, "empty-session")
+            .await
+            .expect("empty persisted session should resume");
+
+        assert_eq!(transcript.revision, 0);
+        assert!(transcript.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resume_returns_empty_transcript_for_barrier_only_session() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "barrier-only-session",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+        SessionJournalEventRepository::append_materialization_barrier(&db, "barrier-only-session")
+            .await
+            .expect("append barrier");
+
+        let transcript = load_transcript_snapshot_for_resume(&db, "barrier-only-session")
+            .await
+            .expect("barrier-only session should resume");
+
+        assert_eq!(transcript.revision, 1);
+        assert!(transcript.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resume_returns_empty_transcript_for_known_session_without_snapshot() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "journal-only-session",
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+        SessionJournalEventRepository::append_materialization_barrier(&db, "journal-only-session")
+            .await
+            .expect("append barrier");
+        SessionJournalEventRepository::append_materialization_barrier(&db, "journal-only-session")
+            .await
+            .expect("append second barrier");
+
+        let transcript = load_transcript_snapshot_for_resume(&db, "journal-only-session")
+            .await
+            .expect("known session without snapshot should resume");
+
+        assert_eq!(transcript.revision, 2);
+        assert!(transcript.entries.is_empty());
     }
 
     #[tokio::test]

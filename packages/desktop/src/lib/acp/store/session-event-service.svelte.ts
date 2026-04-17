@@ -1090,7 +1090,6 @@ export class SessionEventService {
 				.mapErr((error) =>
 					logger.error("Failed to aggregate replay assistant chunk", { error })
 				);
-			handler.ensureStreamingState(sessionId);
 			return;
 		}
 

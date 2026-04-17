@@ -364,12 +364,18 @@ describe("Session Machine", () => {
 			expect(runtime.showConnectingOverlay).toBe(false);
 		});
 
-		it("should only allow submit from ready state", () => {
+		it("should allow submit from ready state and settled disconnected history", () => {
 			const ready = deriveSessionRuntimeState({
 				content: ContentState.LOADED,
 				connection: ConnectionState.READY,
 			});
 			expect(ready.canSubmit).toBe(true);
+
+			const historical = deriveSessionRuntimeState({
+				content: ContentState.LOADED,
+				connection: ConnectionState.DISCONNECTED,
+			});
+			expect(historical.canSubmit).toBe(true);
 
 			const connecting = deriveSessionRuntimeState({
 				content: ContentState.LOADED,

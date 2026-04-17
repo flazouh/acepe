@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { Colors } from "@acepe/ui/colors";
-	import { Selector } from "@acepe/ui";
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { Colors } from "@acepe/ui/colors";
+import { Selector } from "@acepe/ui";
+import type { ButtonVariant } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import * as m from "$lib/messages.js";
@@ -19,6 +20,11 @@ interface AgentSelectorProps {
 	onAgentChange: (agentId: string) => void;
 	isLoading?: boolean;
 	ontoggle?: (isOpen: boolean) => void;
+	class?: string;
+	buttonClass?: string;
+	contentClass?: string;
+	showChevron?: boolean;
+	variant?: ButtonVariant;
 }
 
 let {
@@ -27,6 +33,11 @@ let {
 	onAgentChange,
 	isLoading = false,
 	ontoggle,
+	class: className = "",
+	buttonClass = "",
+	contentClass = "",
+	showChevron = true,
+	variant = "outline",
 }: AgentSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
@@ -67,6 +78,7 @@ function handleOpenChange(open: boolean) {
 const currentAgent = $derived(
 	currentAgentId ? (availableAgents.find((a) => a.id === currentAgentId) ?? null) : null
 );
+const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 </script>
 
 <Selector
@@ -74,17 +86,22 @@ const currentAgent = $derived(
 	bind:open={isDropdownOpen}
 	disabled={isLoading || availableAgents.length === 0}
 	onOpenChange={handleOpenChange}
+	class={className}
+	buttonClass={buttonClass}
+	contentClass={contentClass}
+	{showChevron}
+	{variant}
 >
 	{#snippet renderButton()}
 		{#if isLoading}
 			<Skeleton class="h-4 w-4 shrink-0 rounded" />
 			<Skeleton class="h-3 w-20" />
-		{:else if currentAgent}
-			{@const icon = getAgentIcon(currentAgent.id, themeState.effectiveTheme)}
+		{:else if displayAgent}
+			{@const icon = getAgentIcon(displayAgent.id, themeState.effectiveTheme)}
 			{#if icon}
 				<img
 					src={icon}
-					alt={currentAgent.name}
+					alt={displayAgent.name}
 					class="h-4 w-4 shrink-0"
 				/>
 			{/if}

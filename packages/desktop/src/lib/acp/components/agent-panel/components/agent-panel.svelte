@@ -94,20 +94,21 @@ import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
-import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
+import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import {
 	resolveAgentContentColumnStyle,
+	resolveAgentPanelEffectiveWidth,
 	resolveAgentPanelWidthStyle,
 	shouldUseCenteredFullscreenContent,
 } from "./agent-panel-layout.js";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
-import type { FileReviewStatus } from "../../review-panel/review-session-state.js";
 import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
+import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -139,7 +140,6 @@ let {
 	onEnterReviewMode,
 	onExitReviewMode,
 	onReviewFileIndexChange,
-	onOpenFullscreenReview,
 	attachedFilePanels = [],
 	activeAttachedFilePanelId = null,
 	onSelectAttachedFilePanel,
@@ -177,10 +177,10 @@ const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(ses
 const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null);
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
 const panelPendingWorktreeEnabled = $derived(
-	panelSnapshot?.kind === "agent" ? panelSnapshot.pendingWorktreeEnabled ?? null : null
+	panelSnapshot?.kind === "agent" ? (panelSnapshot.pendingWorktreeEnabled ?? null) : null
 );
 const panelPreparedWorktreeLaunch = $derived(
-	panelSnapshot?.kind === "agent" ? panelSnapshot.preparedWorktreeLaunch ?? null : null
+	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
 const sessionEntries = $derived.by(() => {
 	const pending = panelHotState?.pendingUserEntry ?? null;
@@ -348,7 +348,8 @@ const effectiveProjectName = $derived(
 );
 
 // ✅ Derived values from granular session data
-const agentName = $derived(sessionAgentId ?? selectedAgentId);
+const effectivePanelAgentId = $derived(selectedAgentId ?? sessionAgentId);
+const agentName = $derived(effectivePanelAgentId);
 const sessionStatus = $derived.by(() => {
 	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
 		return "connecting";
@@ -450,8 +451,6 @@ const viewStateInput = $derived({
 	hasSession,
 	showProjectSelection,
 	hasEffectiveProjectPath: !!effectiveProjectPath,
-	hasSelectedAgentId: !!selectedAgentId,
-	hasAvailableAgents: availableAgents.length > 0,
 	errorInfo,
 });
 const viewState = $derived(derivePanelViewState(viewStateInput));
@@ -467,8 +466,11 @@ const worktreePending = $derived(
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived(
-	sessionId === null && !pendingProjectSelection && worktreeToggleProjectPath !== null &&
-	pendingWorktreeSetup === null && !worktreeSetupState?.isVisible
+	sessionId === null &&
+		!pendingProjectSelection &&
+		worktreeToggleProjectPath !== null &&
+		pendingWorktreeSetup === null &&
+		!worktreeSetupState?.isVisible
 );
 
 $effect(() => {
@@ -631,7 +633,7 @@ const sessionDiffStats = $derived.by(() => {
 const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
 
-const agentIconSrc = $derived(getAgentIcon(agentName, effectiveTheme));
+const agentIconSrc = $derived(getAgentIcon(effectivePanelAgentId, effectiveTheme));
 const isConnecting = $derived(
 	panelConnectionState === PanelConnectionState.CONNECTING ||
 		(!sessionId && panelId ? panelHotState?.pendingUserEntry !== null : false)
@@ -667,9 +669,7 @@ const footerWorktreeStatus = $derived.by(() => {
 const hasPlan = $derived(planState.plan !== null);
 const ATTACHED_COLUMN_WIDTH = 450;
 const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
-const REVIEW_COLUMN_WIDTH = 450;
 const BROWSER_SIDEBAR_COLUMN_WIDTH = 500;
-const REVIEW_EXTRA_COLUMN_WIDTH = 520;
 const ATTACHED_COLUMN_GAP_WIDTH = 2;
 
 // Dynamic minimum width reported by the toolbar's intrinsic content measurement.
@@ -702,13 +702,13 @@ const worktreeSetupMatchContext = $derived.by(() => {
 });
 /** Derived: is the selected agent currently being installed? */
 const agentInstallState = $derived.by(() => {
-	if (!selectedAgentId) return null;
-	const progress = agentStore.installing[selectedAgentId];
+	if (!effectivePanelAgentId) return null;
+	const progress = agentStore.installing[effectivePanelAgentId];
 	if (!progress) return null;
-	const agent = availableAgents.find((a) => a.id === selectedAgentId);
+	const agent = availableAgents.find((a) => a.id === effectivePanelAgentId);
 	return {
-		agentId: selectedAgentId,
-		agentName: agent?.name ?? selectedAgentId,
+		agentId: effectivePanelAgentId,
+		agentName: agent?.name ?? effectivePanelAgentId,
 		stage: progress.stage,
 		progress: progress.progress,
 	};
@@ -805,7 +805,7 @@ const agentContentColumnStyle = $derived.by(() =>
 // Ensure panel is never narrower than the toolbar's natural content width
 const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding));
 
-// Clamp reviewFileIndex to valid bounds so a stale index never leaves the review pane empty.
+// Clamp reviewFileIndex to valid bounds so a stale index never leaves review mode empty.
 const clampedReviewFileIndex = $derived.by(() => {
 	const fileCount = reviewFilesState?.fileCount ?? 0;
 	if (fileCount === 0) return 0;
@@ -813,14 +813,17 @@ const clampedReviewFileIndex = $derived.by(() => {
 });
 
 // Add embedded pane widths (plan sidebar, review) when expanded
-const effectiveWidth = $derived.by(() => {
-	let w = baseWidth;
-	if (showPlanSidebar && hasPlan) w += PLAN_SIDEBAR_COLUMN_WIDTH;
-	if (reviewMode && reviewFilesState) w += REVIEW_COLUMN_WIDTH;
-	if (showBrowserSidebar) w += BROWSER_SIDEBAR_COLUMN_WIDTH;
-	if (reviewMode) w += REVIEW_EXTRA_COLUMN_WIDTH;
-	return w;
-});
+const effectiveWidth = $derived.by(() =>
+	resolveAgentPanelEffectiveWidth({
+		baseWidth,
+		reviewMode,
+		showPlanSidebar,
+		hasPlan,
+		planSidebarColumnWidth: PLAN_SIDEBAR_COLUMN_WIDTH,
+		showBrowserSidebar,
+		browserSidebarColumnWidth: BROWSER_SIDEBAR_COLUMN_WIDTH,
+	})
+);
 
 // In fullscreen mode, always use 100% width (sidebar shares space within the panel)
 // In non-fullscreen mode, double the width when sidebar is open so both halves fit
@@ -896,6 +899,10 @@ const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	const state = aggregateFileEdits(sessionEntries);
 	return state.fileCount > 0 ? state : null;
 });
+
+function handleEnterReviewMode(filesState: ModifiedFilesState): void {
+	onEnterReviewMode?.(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
+}
 
 // Track panelId changes for tab switching detection
 let lastPanelId = $state<string | undefined>(undefined);
@@ -1113,6 +1120,10 @@ function handleProjectAgentSelected(project: Project, agentId: string) {
 	onCreateSessionForProject?.(project);
 }
 
+function handleProjectSelected(project: Project) {
+	onCreateSessionForProject?.(project);
+}
+
 function installAgentThenCreateSession(project: Project, agentId: string) {
 	handleProjectAgentSelected(project, agentId);
 }
@@ -1153,7 +1164,9 @@ function handleWorktreeCreated(info: WorktreeInfo | string) {
 	}
 }
 
-function handlePreparedWorktreeLaunch(launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch): void {
+function handlePreparedWorktreeLaunch(
+	launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch
+): void {
 	preSessionWorktreeFailure = null;
 	if (panelId) {
 		panelStore.setPreparedWorktreeLaunch(panelId, launch);
@@ -1287,13 +1300,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 				}
 				streamingShipData = data;
 			},
-			config?.agentId
-				? config.agentId
-				: sessionAgentId
-					? sessionAgentId
-					: selectedAgentId
-						? selectedAgentId
-						: undefined,
+			config?.agentId ? config.agentId : effectivePanelAgentId ? effectivePanelAgentId : undefined,
 			config?.modelId ? config.modelId : undefined
 		);
 		if (genResult.isOk()) {
@@ -1587,13 +1594,13 @@ function handleRetryConnection() {
 	}
 
 	// Retry session creation using panel's current project and agent
-	if (project && selectedAgentId) {
-		void installAgentThenCreateSession(project, selectedAgentId);
+	if (project && effectivePanelAgentId) {
+		void installAgentThenCreateSession(project, effectivePanelAgentId);
 	} else {
 		console.warn(`Retry connection failed: Missing project or agent`, {
 			panelId: effectivePanelId,
 			projectPath: project?.path,
-			agentId: selectedAgentId,
+			agentId: effectivePanelAgentId,
 		});
 		toast.error("Cannot retry connection: Project or agent not available.");
 	}
@@ -1630,7 +1637,7 @@ function createInlineErrorIssueDraft() {
 		errorInfo.details ?? panelConnectionError?.message ?? sessionConnectionError ?? "Unknown error";
 	const summary = errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
 	return buildAgentErrorIssueDraft({
-		agentId: sessionAgentId ?? selectedAgentId ?? "unknown",
+		agentId: effectivePanelAgentId ?? "unknown",
 		sessionId,
 		projectPath: sessionProjectPath,
 		worktreePath: sessionWorktreePath,
@@ -1705,10 +1712,13 @@ function getTodoMarkdown(): string {
 	const rows = todoState.items.map((todo, index) => {
 		const num = index + 1;
 		const statusLabel =
-			todo.status === "completed" ? "Done"
-				: todo.status === "in_progress" ? "Running"
-				: todo.status === "cancelled" ? "Cancelled"
-				: "Pending";
+			todo.status === "completed"
+				? "Done"
+				: todo.status === "in_progress"
+					? "Running"
+					: todo.status === "cancelled"
+						? "Cancelled"
+						: "Pending";
 		const durationMs = todo.duration;
 		let duration = "";
 		if (durationMs !== null && durationMs !== undefined) {
@@ -1761,6 +1771,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			{sessionId}
 			{sessionTitle}
 			{sessionAgentId}
+			currentAgentId={effectivePanelAgentId}
+			{availableAgents}
 			{agentIconSrc}
 			{agentName}
 			{isFullscreen}
@@ -1788,6 +1800,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 			onOpenInAcepe={sessionId && sessionProjectPath ? handleOpenInAcepe : undefined}
 			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
 			onExportJson={sessionId ? handleExportJson : undefined}
+			{onAgentChange}
 		/>
 		</div>
 	{/snippet}
@@ -1808,124 +1821,119 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					onResizeAttachedFilePanel?.(filePanelId, delta)}
 			/>
 		{/if}
-
-		{#if reviewFilesState}
-			<div
-				class="flex h-full min-h-0 shrink-0 flex-col border-r border-border"
-				style="min-width: {REVIEW_COLUMN_WIDTH}px; width: {REVIEW_COLUMN_WIDTH}px; max-width: {REVIEW_COLUMN_WIDTH}px; flex-basis: {REVIEW_COLUMN_WIDTH}px;"
-				style:display={reviewMode ? undefined : "none"}
-			>
-				<AgentPanelReviewContent
-					modifiedFilesState={reviewFilesState}
-					selectedFileIndex={clampedReviewFileIndex}
-					{sessionId}
-					projectPath={sessionProjectPath}
-					isActive={reviewMode}
-					onClose={() => onExitReviewMode?.()}
-					onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
-					onExpandToFullscreen={sessionId && onOpenFullscreenReview
-						? () => onOpenFullscreenReview(sessionId, clampedReviewFileIndex)
-						: undefined}
-				/>
-			</div>
-		{/if}
 	{/snippet}
 
 	{#snippet topBar()}
-		{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
-			<SharedPlanHeader
-				title={planState.plan.title}
-				isExpanded={showPlanSidebar}
-				expandLabel={m.plan_sidebar_expand()}
-				collapseLabel={m.plan_sidebar_collapse()}
-				onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
-			/>
-		{/if}
+		<div style:display={reviewMode ? "none" : undefined}>
+			{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
+				<SharedPlanHeader
+					title={planState.plan.title}
+					isExpanded={showPlanSidebar}
+					expandLabel={m.plan_sidebar_expand()}
+					collapseLabel={m.plan_sidebar_collapse()}
+					onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
+				/>
+			{/if}
 
-		{#if planState.plan}
-			<PlanDialog
-				plan={planState.plan}
-				open={panelState.showPlanDialog}
-				onOpenChange={(open) => (panelState.showPlanDialog = open)}
-				projectPath={sessionProjectPath ?? undefined}
-			/>
-		{/if}
+			{#if planState.plan}
+				<PlanDialog
+					plan={planState.plan}
+					open={panelState.showPlanDialog}
+					onOpenChange={(open) => (panelState.showPlanDialog = open)}
+					projectPath={sessionProjectPath ?? undefined}
+				/>
+			{/if}
+		</div>
 	{/snippet}
 
 	{#snippet body()}
-		{#if showCheckpointTimeline && sessionProjectPath && sessionId}
-			<CheckpointTimeline
-				{sessionId}
-				projectPath={sessionProjectPath}
-				{checkpoints}
-				isLoading={isLoadingCheckpoints}
-				onClose={handleCloseCheckpointTimeline}
-				onRevertComplete={handleCheckpointRevertComplete}
-			/>
-		{:else}
-			<div class="flex-1 min-h-0 mb-2">
-				<AgentPanelContent
-					bind:this={contentRef}
-					bind:scrollContainer
-					bind:scrollViewport={contentScrollViewport}
-					bind:isAtBottom={contentIsAtBottom}
-					bind:isAtTop={contentIsAtTop}
-					bind:isStreaming={contentIsStreaming}
-					panelId={effectivePanelId}
-					{viewState}
+		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
+			{#if showCheckpointTimeline && sessionProjectPath && sessionId}
+				<CheckpointTimeline
 					{sessionId}
-					sessionEntries={visibleSessionEntries}
-					sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
-					{allProjects}
-					onProjectAgentSelected={handleProjectAgentSelected}
-					onRetryConnection={handleRetryConnection}
-					onCancelConnection={handleCancelConnection}
-					{agentIconSrc}
-					{isFullscreen}
-					{availableAgents}
-					{effectiveTheme}
-					{modifiedFilesState}
-					turnState={sessionHotState?.turnState ?? "idle"}
-					isWaitingForResponse={runtimeState?.showThinking ?? false}
+					projectPath={sessionProjectPath}
+					{checkpoints}
+					isLoading={isLoadingCheckpoints}
+					onClose={handleCloseCheckpointTimeline}
+					onRevertComplete={handleCheckpointRevertComplete}
 				/>
-			</div>
-			{#if viewState.kind === "conversation" && !contentIsAtTop}
-				<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-					<button
-						class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
-						onclick={scrollToTop}
-						aria-label={m.agent_panel_scroll_top()}
-					>
-						<ArrowUp class="h-4 w-4" />
-					</button>
+			{:else}
+				<div class="flex-1 min-h-0 mb-2">
+					<AgentPanelContent
+						bind:this={contentRef}
+						bind:scrollContainer
+						bind:scrollViewport={contentScrollViewport}
+						bind:isAtBottom={contentIsAtBottom}
+						bind:isAtTop={contentIsAtTop}
+						bind:isStreaming={contentIsStreaming}
+						panelId={effectivePanelId}
+						{viewState}
+						{sessionId}
+						sessionEntries={visibleSessionEntries}
+						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
+						{allProjects}
+						onProjectSelected={handleProjectSelected}
+						onRetryConnection={handleRetryConnection}
+						onCancelConnection={handleCancelConnection}
+						{agentIconSrc}
+						{isFullscreen}
+						{availableAgents}
+						{effectiveTheme}
+						{modifiedFilesState}
+						turnState={sessionHotState?.turnState ?? "idle"}
+						isWaitingForResponse={runtimeState?.showThinking ?? false}
+					/>
 				</div>
+				{#if viewState.kind === "conversation" && !contentIsAtTop}
+					<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+						<button
+							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
+							onclick={scrollToTop}
+							aria-label={m.agent_panel_scroll_top()}
+						>
+							<ArrowUp class="h-4 w-4" />
+						</button>
+					</div>
+				{/if}
+				{#if viewState.kind === "conversation" && !contentIsAtBottom}
+					<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+						<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
+					</div>
+				{/if}
 			{/if}
-			{#if viewState.kind === "conversation" && !contentIsAtBottom}
-				<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-					<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
-				</div>
-			{/if}
+		</div>
+		{#if reviewMode && reviewFilesState}
+			<AgentPanelReviewWorkspace
+				{sessionId}
+				reviewFilesState={reviewFilesState}
+				selectedFileIndex={clampedReviewFileIndex}
+				projectPath={sessionProjectPath}
+				isActive={reviewMode}
+				onClose={() => onExitReviewMode?.()}
+				onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
+			/>
 		{/if}
 	{/snippet}
 
 	{#snippet preComposer()}
-		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-			{#if worktreeDeleted}
-				<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
-					<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
-						<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-							<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
-							<span class="text-[0.6875rem] text-muted-foreground">
-								{m.worktree_deleted_banner()}
-							</span>
+		<div style:display={reviewMode ? "none" : undefined}>
+			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+				{#if worktreeDeleted}
+					<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
+						<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
+							<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
+								<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+								<span class="text-[0.6875rem] text-muted-foreground">
+									{m.worktree_deleted_banner()}
+								</span>
+							</div>
 						</div>
 					</div>
-				</div>
-			{/if}
-			<div class="flex shrink-0 flex-col gap-0.5 pb-1">
-				<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
-					<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-						<div class="flex flex-col gap-0.5 px-5">
+				{/if}
+				<div class="flex shrink-0 flex-col gap-0.5 pb-1">
+					<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
+						<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
+							<div class="flex flex-col gap-0.5 px-5">
 							{#if showInlineErrorCard}
 								<AgentErrorCard
 									title={errorInfo.title}
@@ -2056,10 +2064,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 								<ModifiedFilesHeader
 									{modifiedFilesState}
 									{sessionId}
-									{onEnterReviewMode}
-									onOpenFullscreenReview={onOpenFullscreenReview && sessionId
-										? (_, fileIndex) => onOpenFullscreenReview(sessionId, fileIndex)
-										: undefined}
+									onEnterReviewMode={handleEnterReviewMode}
 									onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
 									createPrLoading={createPrRunning}
 									{createPrLabel}
@@ -2069,7 +2074,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									merging={mergePrRunning}
 									prState={prDetails ? prDetails.state : null}
 									{availableAgents}
-									currentAgentId={sessionAgentId ? sessionAgentId : selectedAgentId}
+									currentAgentId={effectivePanelAgentId}
 									currentModelId={sessionCurrentModelId}
 									{effectiveTheme}
 								/>
@@ -2133,134 +2138,141 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 									}}
 								/>
 							{/if}
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	{/snippet}
 
 	{#snippet composer()}
-		{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-			<SharedAgentPanelComposerFrame
-				centered={centeredFullscreenContent}
-				widthClass="max-w-[60%]"
-			>
-				{#key inputRenderKey}
-					<AgentInput
-						bind:this={agentInputRef}
-						sessionId={sessionId ?? undefined}
-						{sessionStatus}
-						sessionIsConnected={sessionHotState?.isConnected ?? false}
-						{sessionIsStreaming}
-						{sessionCanSubmit}
-						{sessionShowStop}
-						disableSend={disableSendForFailedFirstSend}
-						{panelId}
-						voiceSessionId={panelId}
-						projectPath={worktreeToggleProjectPath ?? undefined}
-						projectName={effectiveProjectName ?? undefined}
-						worktreePath={effectiveActiveWorktreePath ?? undefined}
-						{worktreePending}
-						preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
-						onWorktreeCreating={() => {
-							preSessionWorktreeFailure = null;
-							worktreeSetupState = createWorktreeCreationState({
-								projectPath:
-									worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
-							});
-						}}
-						onWorktreeCreated={(path) => handleWorktreeCreated(path)}
-						onPreparedWorktreeLaunch={handlePreparedWorktreeLaunch}
-						onPreparedWorktreeLaunchCleared={() => {
-							if (panelId) {
-								panelStore.clearPreparedWorktreeLaunch(panelId);
-							}
-						}}
-						onWorktreeCreateFailed={handlePreSessionWorktreeFailure}
-						{selectedAgentId}
-						{availableAgents}
-						{onAgentChange}
-						pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
-						onSessionCreated={handleSessionCreated}
-						onWillSend={prepareForNextUserReveal}
-						onToolbarWidthChange={(w) => {
-							toolbarMinWidth = w;
-						}}
-					>
-						{#snippet checkpointButton()}
-							{#if sessionProjectPath && checkpoints.length > 0}
-								<EmbeddedIconButton
-									active={showCheckpointTimeline}
-									title={m.checkpoint_toggle_tooltip()}
-									ariaLabel={m.checkpoint_toggle_tooltip()}
-									onclick={handleToggleCheckpointTimeline}
-								>
-									<Clock class="h-3.5 w-3.5" weight="fill" />
-								</EmbeddedIconButton>
-							{/if}
-						{/snippet}
-					</AgentInput>
-				{/key}
-			</SharedAgentPanelComposerFrame>
-		{/if}
+		<div style:display={reviewMode ? "none" : undefined}>
+			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+				<SharedAgentPanelComposerFrame
+					centered={centeredFullscreenContent}
+					widthClass="max-w-[60%]"
+				>
+					{#key inputRenderKey}
+						<AgentInput
+							bind:this={agentInputRef}
+							sessionId={sessionId ?? undefined}
+							{sessionStatus}
+							sessionIsConnected={sessionHotState?.isConnected ?? false}
+							{sessionIsStreaming}
+							{sessionCanSubmit}
+							{sessionShowStop}
+							disableSend={disableSendForFailedFirstSend}
+							{panelId}
+							voiceSessionId={panelId}
+							projectPath={worktreeToggleProjectPath ?? undefined}
+							projectName={effectiveProjectName ?? undefined}
+							worktreePath={effectiveActiveWorktreePath ?? undefined}
+							{worktreePending}
+							preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
+							onWorktreeCreating={() => {
+								preSessionWorktreeFailure = null;
+								worktreeSetupState = createWorktreeCreationState({
+									projectPath:
+										worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
+								});
+							}}
+							onWorktreeCreated={(path) => handleWorktreeCreated(path)}
+							onPreparedWorktreeLaunch={handlePreparedWorktreeLaunch}
+							onPreparedWorktreeLaunchCleared={() => {
+								if (panelId) {
+									panelStore.clearPreparedWorktreeLaunch(panelId);
+								}
+							}}
+							onWorktreeCreateFailed={handlePreSessionWorktreeFailure}
+							{selectedAgentId}
+							{availableAgents}
+							{onAgentChange}
+							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
+							onSessionCreated={handleSessionCreated}
+							onWillSend={prepareForNextUserReveal}
+							onToolbarWidthChange={(w) => {
+								toolbarMinWidth = w;
+							}}
+						>
+							{#snippet checkpointButton()}
+								{#if sessionProjectPath && checkpoints.length > 0}
+									<EmbeddedIconButton
+										active={showCheckpointTimeline}
+										title={m.checkpoint_toggle_tooltip()}
+										ariaLabel={m.checkpoint_toggle_tooltip()}
+										onclick={handleToggleCheckpointTimeline}
+									>
+										<Clock class="h-3.5 w-3.5" weight="fill" />
+									</EmbeddedIconButton>
+								{/if}
+							{/snippet}
+						</AgentInput>
+					{/key}
+				</SharedAgentPanelComposerFrame>
+			{/if}
+		</div>
 	{/snippet}
 
 	{#snippet footer()}
-		{#if
-			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-			worktreeToggleProjectPath &&
-			panelId
-		}
-			<SharedFooter
-				showTrailingBorder={!isFullscreen}
-				browserActive={showBrowserSidebar}
-				browserTitle="Toggle browser"
-				browserAriaLabel="Toggle browser"
-				onToggleBrowser={() => {
-					if (panelId) {
-						panelStore.toggleBrowserSidebar(panelId);
-					}
-				}}
-				terminalActive={isTerminalDrawerOpen}
-				terminalDisabled={effectivePathForGit === null}
-				terminalTitle={effectivePathForGit !== null
-					? m.embedded_terminal_toggle_tooltip()
-					: m.embedded_terminal_no_cwd_tooltip()}
-				terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
-				onToggleTerminal={() => {
-					if (panelId && effectivePathForGit) {
-						panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-					}
-				}}
-			>
-				{#snippet left()}
-					{#if footerWorktreeStatus}
-						<SharedWorktreeStatusDisplay
-							mode={footerWorktreeStatus.mode}
-							primaryLabel={footerWorktreeStatus.primaryLabel}
-							secondaryLabel={footerWorktreeStatus.secondaryLabel}
-						/>
-					{/if}
-				{/snippet}
-			</SharedFooter>
-		{/if}
+		<div style:display={reviewMode ? "none" : undefined}>
+			{#if
+				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+				worktreeToggleProjectPath &&
+				panelId
+			}
+				<SharedFooter
+					showTrailingBorder={!isFullscreen}
+					browserActive={showBrowserSidebar}
+					browserTitle="Toggle browser"
+					browserAriaLabel="Toggle browser"
+					onToggleBrowser={() => {
+						if (panelId) {
+							panelStore.toggleBrowserSidebar(panelId);
+						}
+					}}
+					terminalActive={isTerminalDrawerOpen}
+					terminalDisabled={effectivePathForGit === null}
+					terminalTitle={effectivePathForGit !== null
+						? m.embedded_terminal_toggle_tooltip()
+						: m.embedded_terminal_no_cwd_tooltip()}
+					terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
+					onToggleTerminal={() => {
+						if (panelId && effectivePathForGit) {
+							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+						}
+					}}
+				>
+					{#snippet left()}
+						{#if footerWorktreeStatus}
+							<SharedWorktreeStatusDisplay
+								mode={footerWorktreeStatus.mode}
+								primaryLabel={footerWorktreeStatus.primaryLabel}
+								secondaryLabel={footerWorktreeStatus.secondaryLabel}
+							/>
+						{/if}
+					{/snippet}
+				</SharedFooter>
+			{/if}
+		</div>
 	{/snippet}
 
 	{#snippet bottomDrawer()}
-		{#if
-			(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-			isTerminalDrawerOpen &&
-			panelId &&
-			effectivePathForGit
-		}
-			<AgentPanelTerminalDrawer
-				{panelId}
-				effectiveCwd={effectivePathForGit}
-				embeddedTerminals={panelStore.embeddedTerminals}
-				onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
-			/>
-		{/if}
+		<div style:display={reviewMode ? "none" : undefined}>
+			{#if
+				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
+				isTerminalDrawerOpen &&
+				panelId &&
+				effectivePathForGit
+			}
+				<AgentPanelTerminalDrawer
+					{panelId}
+					effectiveCwd={effectivePathForGit}
+					embeddedTerminals={panelStore.embeddedTerminals}
+					onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
+				/>
+			{/if}
+		</div>
 	{/snippet}
 
 	{#snippet trailingPane()}

@@ -23,7 +23,7 @@ let {
 	isAtBottom = $bindable(true),
 	isAtTop = $bindable(true),
 	isStreaming: isStreamingBindable = $bindable(false),
-	onProjectAgentSelected = () => {},
+	onProjectSelected = () => {},
 	onRetryConnection,
 	onCancelConnection,
 	agentIconSrc = "",
@@ -112,9 +112,7 @@ export function scrollToTop() {
 			<ProjectSelectionPanel
 				projects={[...allProjects]}
 				preSelectedProjectPath={sessionProjectPath}
-				{availableAgents}
-				{effectiveTheme}
-				{onProjectAgentSelected}
+				{onProjectSelected}
 			/>
 		{/snippet}
 	</AgentPanelStatePanel>

@@ -35,6 +35,8 @@ export interface AgentPanelHeaderProps {
 	readonly sessionId: string | null;
 	readonly sessionTitle: string | null;
 	readonly sessionAgentId: string | null;
+	readonly currentAgentId: string | null;
+	readonly availableAgents: readonly { id: string; name: string }[];
 	readonly agentIconSrc: string;
 	readonly agentName: string | null;
 	readonly isFullscreen: boolean;
@@ -62,5 +64,6 @@ export interface AgentPanelHeaderProps {
 	readonly onOpenInAcepe?: () => Promise<void>;
 	readonly onExportMarkdown?: () => Promise<void>;
 	readonly onExportJson?: () => Promise<void>;
+	readonly onAgentChange?: (agentId: string) => void;
 	readonly onScrollToTop?: () => void;
 }

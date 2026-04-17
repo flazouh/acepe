@@ -16,8 +16,8 @@ use sea_orm_migration::MigratorTrait;
 use serde_json::json;
 use std::collections::HashMap;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -365,6 +365,42 @@ async fn resume_or_create_builds_client_when_missing() {
     assert!(result.is_ok(), "resume should succeed");
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
     assert_eq!(created_state.resume_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(created_state.load_calls.load(Ordering::SeqCst), 0);
+    assert!(session_registry.contains(&session_id));
+}
+
+#[tokio::test]
+async fn resume_or_create_uses_load_for_copilot_sessions() {
+    let session_registry = SessionRegistry::new();
+    let session_id = "copilot-session".to_string();
+    let cwd = "/workspace/a".to_string();
+    let agent_id = CanonicalAgentId::Copilot;
+
+    let created_state = MockClientState::new(false);
+
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        false,
+        None,
+        {
+            let created_state = created_state.clone();
+            move || {
+                let created_state = created_state.clone();
+                async move {
+                    Ok(Box::new(MockAgentClient::new(created_state))
+                        as Box<dyn AgentClient + Send + Sync + 'static>)
+                }
+            }
+        },
+    )
+    .await;
+
+    assert!(result.is_ok(), "copilot reconnect should succeed");
+    assert_eq!(created_state.resume_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(created_state.load_calls.load(Ordering::SeqCst), 1);
     assert!(session_registry.contains(&session_id));
 }
 
@@ -715,8 +751,10 @@ async fn respond_inbound_request_uses_pending_responder_during_bootstrap() {
 #[derive(Clone)]
 struct MockClientState {
     resume_calls: Arc<AtomicUsize>,
+    load_calls: Arc<AtomicUsize>,
     stop_calls: Arc<AtomicUsize>,
     fail_resume: Arc<AtomicBool>,
+    fail_load: Arc<AtomicBool>,
     launch_mode_ids: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
@@ -724,8 +762,10 @@ impl MockClientState {
     fn new(fail_resume: bool) -> Self {
         Self {
             resume_calls: Arc::new(AtomicUsize::new(0)),
+            load_calls: Arc::new(AtomicUsize::new(0)),
             stop_calls: Arc::new(AtomicUsize::new(0)),
             fail_resume: Arc::new(AtomicBool::new(fail_resume)),
+            fail_load: Arc::new(AtomicBool::new(false)),
             launch_mode_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
@@ -773,6 +813,36 @@ impl AgentClient for MockAgentClient {
         self.state.resume_calls.fetch_add(1, Ordering::SeqCst);
         if self.state.fail_resume.load(Ordering::SeqCst) {
             return Err(AcpError::InvalidState("resume failed".to_string()));
+        }
+
+        Ok(ResumeSessionResponse {
+            models: SessionModelState {
+                available_models: vec![AvailableModel {
+                    model_id: "gpt-5".to_string(),
+                    name: "GPT-5".to_string(),
+                    description: None,
+                }],
+                current_model_id: "gpt-5".to_string(),
+                models_display: Default::default(),
+                provider_metadata: None,
+            },
+            modes: SessionModes {
+                current_mode_id: "build".to_string(),
+                available_modes: vec![],
+            },
+            available_commands: vec![],
+            config_options: vec![],
+        })
+    }
+
+    async fn load_session(
+        &mut self,
+        _session_id: String,
+        _cwd: String,
+    ) -> AcpResult<ResumeSessionResponse> {
+        self.state.load_calls.fetch_add(1, Ordering::SeqCst);
+        if self.state.fail_load.load(Ordering::SeqCst) {
+            return Err(AcpError::InvalidState("load failed".to_string()));
         }
 
         Ok(ResumeSessionResponse {

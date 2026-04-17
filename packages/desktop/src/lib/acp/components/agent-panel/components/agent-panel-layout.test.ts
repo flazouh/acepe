@@ -2,11 +2,40 @@ import { describe, expect, it } from "vitest";
 
 import {
 	resolveAgentContentColumnStyle,
+	resolveAgentPanelEffectiveWidth,
 	resolveAgentPanelWidthStyle,
 	shouldUseCenteredFullscreenContent,
 } from "./agent-panel-layout.js";
 
 describe("agent panel layout", () => {
+	it("doubles the base width when review mode opens", () => {
+		expect(
+			resolveAgentPanelEffectiveWidth({
+				baseWidth: 900,
+				reviewMode: true,
+				showPlanSidebar: false,
+				hasPlan: false,
+				planSidebarColumnWidth: 450,
+				showBrowserSidebar: false,
+				browserSidebarColumnWidth: 500,
+			})
+		).toBe(1800);
+	});
+
+	it("adds sidebar widths on top of the review-mode expansion", () => {
+		expect(
+			resolveAgentPanelEffectiveWidth({
+				baseWidth: 900,
+				reviewMode: true,
+				showPlanSidebar: true,
+				hasPlan: true,
+				planSidebarColumnWidth: 450,
+				showBrowserSidebar: true,
+				browserSidebarColumnWidth: 500,
+			})
+		).toBe(2750);
+	});
+
 	it("allows fullscreen panels to shrink inside split layouts", () => {
 		expect(
 			resolveAgentPanelWidthStyle({

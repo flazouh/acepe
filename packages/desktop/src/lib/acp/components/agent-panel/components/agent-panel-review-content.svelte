@@ -2,6 +2,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import * as m from "$lib/messages.js";
+import { fileContentCache } from "$lib/acp/services/file-content-cache.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../../review/review-file-revision.js";
 import {
@@ -168,8 +169,8 @@ function handleHunkAccept(hunkIndex: number): void {
 
 function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 	if (!selectedFile) return;
-	if (!sessionId) {
-		toast.error(m.hunk_revert_failed({ error: "Missing session id" }));
+	if (!sessionId && !projectPath) {
+		toast.error(m.hunk_revert_failed({ error: "Missing session id and project path" }));
 		return;
 	}
 
@@ -178,7 +179,11 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 	const capturedFileIndex = selectedFileIndex;
 	const capturedDiffState = diffViewStateRef;
 
-	tauriClient.fs.writeTextFile(capturedFile.filePath, revertedContent, sessionId).match(
+	const writeResult = projectPath
+		? fileContentCache.revertFileContent(capturedFile.filePath, projectPath, revertedContent)
+		: tauriClient.fs.writeTextFile(capturedFile.filePath, revertedContent, sessionId ?? "");
+
+	writeResult.match(
 		() => {
 			toast.success(m.hunk_revert_success({ filePath: capturedFile.fileName }));
 			recordResolvedAction(capturedFile, hunkIndex, "reject");

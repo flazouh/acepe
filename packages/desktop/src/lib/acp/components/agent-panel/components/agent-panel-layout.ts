@@ -3,6 +3,16 @@ interface AgentPanelWidthStyleInput {
 	isFullscreen: boolean;
 }
 
+interface AgentPanelEffectiveWidthInput {
+	baseWidth: number;
+	reviewMode: boolean;
+	showPlanSidebar: boolean;
+	hasPlan: boolean;
+	planSidebarColumnWidth: number;
+	showBrowserSidebar: boolean;
+	browserSidebarColumnWidth: number;
+}
+
 interface AttachedPaneLayoutInput {
 	hasAttachedPane: boolean;
 	isFullscreen: boolean;
@@ -12,6 +22,20 @@ interface AttachedPaneLayoutInput {
 interface CenteredFullscreenContentInput {
 	hasAttachedPane: boolean;
 	isFullscreen: boolean;
+}
+
+export function resolveAgentPanelEffectiveWidth(input: AgentPanelEffectiveWidthInput): number {
+	let width = input.reviewMode ? input.baseWidth * 2 : input.baseWidth;
+
+	if (input.showPlanSidebar && input.hasPlan) {
+		width += input.planSidebarColumnWidth;
+	}
+
+	if (input.showBrowserSidebar) {
+		width += input.browserSidebarColumnWidth;
+	}
+
+	return width;
 }
 
 export function resolveAgentPanelWidthStyle(input: AgentPanelWidthStyleInput): string {

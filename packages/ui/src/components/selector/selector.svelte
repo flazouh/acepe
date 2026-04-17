@@ -56,6 +56,11 @@
 		 * Optional extra class for the trigger button (e.g. empty-state styling).
 		 */
 		buttonClass?: string;
+
+		/**
+		 * Whether to render the trigger chevron.
+		 */
+		showChevron?: boolean;
 	}
 
 	let {
@@ -69,6 +74,7 @@
 		variant = "outline",
 		onOpenChange,
 		buttonClass,
+		showChevron = true,
 	}: Props = $props();
 
 	export function toggle() {
@@ -92,11 +98,13 @@
 					{disabled}
 				>
 					{@render renderButton()}
-					<ChevronDown
-						class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
-							? 'rotate-180'
-							: ''}"
-					/>
+					{#if showChevron}
+						<ChevronDown
+							class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
+								? 'rotate-180'
+								: ''}"
+						/>
+					{/if}
 				</Button>
 			</div>
 		{/snippet}

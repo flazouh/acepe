@@ -13,6 +13,7 @@ import { ArrowDown } from "phosphor-svelte";
 import { ArrowCounterClockwise } from "phosphor-svelte";
 import { ArrowUp } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
+import { Browser } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
@@ -20,6 +21,7 @@ import { ImageSquare } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
 import { Recycle } from "phosphor-svelte";
 import { Sparkle } from "phosphor-svelte";
+import { Terminal } from "phosphor-svelte";
 import { TestTube } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
 import type { Component } from "svelte";
@@ -48,7 +50,6 @@ import { createFileTree, flattenFileTree } from "../file-list/file-list-logic.js
 import type { FileTreeNode } from "../file-list/file-list-types.js";
 import FileTreeItem from "../file-list/file-tree-item.svelte";
 import ProjectHeader from "../project-header.svelte";
-import ProjectHeaderAgentStrip from "../project-header-agent-strip.svelte";
 import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import {
 	getSidebarSessions,
@@ -90,8 +91,6 @@ interface Props {
 	availableAgents?: AgentInfo[];
 	/**
 	 * Default agent id to spawn on a plain left-click of the `+` button.
-	 * When null/undefined or not present in `availableAgents`, the click falls
-	 * back to showing the agent picker strip.
 	 */
 	defaultAgentId?: string | null;
 	/** Current theme for agent icons */
@@ -185,15 +184,12 @@ const projectViewModes = new SvelteMap<string, ProjectViewMode>();
 const visibleSessionCounts = new SvelteMap<string, number>();
 const sessionListContainers = new Map<string, HTMLDivElement>();
 
-// Which project (if any) is showing the agent strip (opened via plus icon)
-let projectPathShowingAgentStrip = $state<string | null>(null);
-
-function shouldShowProjectQuickActions(): boolean {
-	return availableAgents.length > 0 || Boolean(onOpenTerminal) || Boolean(onOpenBrowser);
+function shouldShowProjectUtilityActions(): boolean {
+	return Boolean(onOpenTerminal) || Boolean(onOpenBrowser);
 }
 
 function shouldShowProjectCreateButton(): boolean {
-	return shouldShowProjectQuickActions() || Boolean(onCreateSessionForProject);
+	return Boolean(onCreateSessionForProject);
 }
 
 let initialStateHydrated = false;
@@ -821,23 +817,8 @@ function resolveDefaultAgentIdForCreateLocal(): string | undefined {
 
 function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
-	if (!shouldShowProjectQuickActions()) {
-		handleCreateClick(event, projectPath);
-		return;
-	}
 	const resolvedDefault = resolveDefaultAgentIdForCreateLocal();
-	if (resolvedDefault !== undefined) {
-		handleCreateClick(event, projectPath, resolvedDefault);
-		return;
-	}
-	projectPathShowingAgentStrip = projectPath;
-}
-
-function handleProjectCreateButtonContextMenu(event: MouseEvent, projectPath: string) {
-	if (!shouldShowProjectQuickActions()) return;
-	event.preventDefault();
-	event.stopPropagation();
-	projectPathShowingAgentStrip = projectPath;
+	handleCreateClick(event, projectPath, resolvedDefault);
 }
 
 /**
@@ -859,19 +840,13 @@ function getProjectCreateButtonTooltipLabel(projectName: string): string {
 	return m.thread_list_new_session_in_project({ projectName });
 }
 
-/**
- * Secondary tooltip hint. Only shown when the right-click actually does something
- * (i.e. there are quick actions to reveal: agents, terminal, or browser).
- */
-function getProjectCreateButtonTooltipHint(): string | null {
-	if (!shouldShowProjectQuickActions()) return null;
-	return m.thread_list_new_session_right_click_hint();
-}
-
 function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
 	onOpenGitPanel?.(projectPath);
 }
+
+const projectHeaderHoverActionButtonClass =
+	"flex items-center justify-center size-5 rounded text-muted-foreground transition-all hover:bg-accent hover:text-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100";
 
 function handleProjectHeaderClick(projectPath: string) {
 	toggleProject(projectPath);
@@ -1113,89 +1088,93 @@ function openCreateBranchDialog(projectPath: string): void {
 						<div
 							use:projectHeaderFocusTarget={group.projectPath}
 							class="shrink-0 flex items-center"
-							role={projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
-							tabindex={projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
-							onclick={projectPathShowingAgentStrip === group.projectPath
-								? undefined
-								: () => handleProjectHeaderClick(group.projectPath)}
-							onkeydown={projectPathShowingAgentStrip === group.projectPath
-								? undefined
-								: (e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault();
-											handleProjectHeaderClick(group.projectPath);
-										}
-									}}
+							role="button"
+							tabindex={0}
+							onclick={() => handleProjectHeaderClick(group.projectPath)}
+							onkeydown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									handleProjectHeaderClick(group.projectPath);
+								}
+							}}
 						>
-							{#if projectPathShowingAgentStrip === group.projectPath}
-								<!-- Empty header: only agent strip visible (agents left, cancel right) -->
-								<div
-									class="flex w-full min-w-0 flex-1 rounded-md bg-background/30"
-									role="presentation"
-									onclick={(e) => e.stopPropagation()}
-									onkeydown={(e) => e.stopPropagation()}
-								>
-									<ProjectHeaderAgentStrip
-										projectPath={group.projectPath}
+							<ContextMenu.Root>
+								<ContextMenu.Trigger class="flex-1 min-w-0">
+									<ProjectHeader
+										projectColor={group.projectColor}
 										projectName={group.projectName}
-										{availableAgents}
-										{effectiveTheme}
-										onOpenTerminal={onOpenTerminal
-											? (projectPath) => onOpenTerminal(projectPath)
-											: undefined}
-										onOpenBrowser={onOpenBrowser
-											? (projectPath) => onOpenBrowser(projectPath)
-											: undefined}
-										onCancel={() => {
-											projectPathShowingAgentStrip = null;
-										}}
-										onCreateSession={(path, agentId) => {
-											handleCreateClick(new MouseEvent("click"), path, agentId);
-											projectPathShowingAgentStrip = null;
-										}}
-									/>
-								</div>
-							{:else}
-								<!-- Normal header: badge, name, settings, plus icon -->
-								<ContextMenu.Root>
-									<ContextMenu.Trigger class="flex-1 min-w-0">
-										<ProjectHeader
-											projectColor={group.projectColor}
-											projectName={group.projectName}
-											projectIconSrc={group.projectIconSrc}
-											expanded={true}
-											class="group min-w-0 flex-1 cursor-pointer transition-colors"
-										>
-											{#snippet actions()}
-												<div
-													class="flex items-center gap-0.5"
-													role="presentation"
-													onclick={(e) => e.stopPropagation()}
-													onkeydown={(e) => e.stopPropagation()}
-												>
-													<ProjectHeaderOverflowMenu
-														projectName={group.projectName}
-														currentColor={group.projectColor}
-														currentViewMode={viewMode}
-														onColorChange={onProjectColorChange
-															? (color) => onProjectColorChange(group.projectPath, color)
-															: undefined}
-														onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-														projectIconSrc={group.projectIconSrc}
-														onResetProjectIcon={onResetProjectIcon
-															? () => onResetProjectIcon(group.projectPath)
-															: undefined}
-														onRemoveProject={onRemoveProject
-															? () => onRemoveProject(group.projectPath)
-															: undefined}
-													/>
+										projectIconSrc={group.projectIconSrc}
+										expanded={true}
+										class="group min-w-0 flex-1 cursor-pointer transition-colors"
+									>
+										{#snippet actions()}
+											<div
+												class="flex items-center gap-0.5"
+												role="presentation"
+												onclick={(e) => e.stopPropagation()}
+												onkeydown={(e) => e.stopPropagation()}
+											>
+												<ProjectHeaderOverflowMenu
+													projectName={group.projectName}
+													currentColor={group.projectColor}
+													currentViewMode={viewMode}
+													onColorChange={onProjectColorChange
+														? (color) => onProjectColorChange(group.projectPath, color)
+														: undefined}
+													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+													projectIconSrc={group.projectIconSrc}
+													onResetProjectIcon={onResetProjectIcon
+														? () => onResetProjectIcon(group.projectPath)
+														: undefined}
+													onRemoveProject={onRemoveProject
+														? () => onRemoveProject(group.projectPath)
+														: undefined}
+												/>
+												{#if shouldShowProjectUtilityActions() && onOpenTerminal}
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															<button
+																type="button"
+																class={projectHeaderHoverActionButtonClass}
+																onclick={(event) => {
+																	event.stopPropagation();
+																	onOpenTerminal(group.projectPath);
+																}}
+																aria-label={m.sidebar_open_terminal({ projectName: group.projectName })}
+															>
+																<Terminal class="h-3 w-3" weight="fill" />
+															</button>
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															{m.sidebar_open_terminal({ projectName: group.projectName })}
+														</Tooltip.Content>
+													</Tooltip.Root>
+												{/if}
+												{#if shouldShowProjectUtilityActions() && onOpenBrowser}
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															<button
+																type="button"
+																class={projectHeaderHoverActionButtonClass}
+																onclick={(event) => {
+																	event.stopPropagation();
+																	onOpenBrowser(group.projectPath);
+																}}
+																aria-label={m.sidebar_open_browser({ projectName: group.projectName })}
+															>
+																<Browser class="h-3 w-3" weight="fill" />
+															</button>
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															{m.sidebar_open_browser({ projectName: group.projectName })}
+														</Tooltip.Content>
+													</Tooltip.Root>
+												{/if}
 												{#if shouldShowProjectCreateButton()}
 													<div
 														class="flex items-center"
 														role="presentation"
 														onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-														oncontextmenu={(e) =>
-															handleProjectCreateButtonContextMenu(e, group.projectPath)}
 														onkeydown={(e) => e.stopPropagation()}
 													>
 														<Tooltip.Root>
@@ -1209,22 +1188,15 @@ function openCreateBranchDialog(projectPath: string): void {
 																</button>
 															</Tooltip.Trigger>
 															<Tooltip.Content>
-																<div class="flex flex-col gap-0.5">
-																	<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
-																	{#if getProjectCreateButtonTooltipHint()}
-																		<span class="text-[10px] text-muted-foreground">
-																			{getProjectCreateButtonTooltipHint()}
-																		</span>
-																	{/if}
-																</div>
+																{getProjectCreateButtonTooltipLabel(group.projectName)}
 															</Tooltip.Content>
 														</Tooltip.Root>
 													</div>
 												{/if}
 											</div>
-											{/snippet}
-										</ProjectHeader>
-									</ContextMenu.Trigger>
+										{/snippet}
+									</ProjectHeader>
+								</ContextMenu.Trigger>
 									<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
 										<ContextMenu.Item
 											disabled={onReorderProjects === undefined || projectIndex === 0}
@@ -1262,8 +1234,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											</ContextMenu.Item>
 										{/if}
 									</ContextMenu.Content>
-								</ContextMenu.Root>
-							{/if}
+							</ContextMenu.Root>
 						</div>
 						<!-- Session list skeleton (sessions are what we're loading) -->
 						<div class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5">
@@ -1302,118 +1273,115 @@ function openCreateBranchDialog(projectPath: string): void {
 				<div
 					use:projectHeaderFocusTarget={group.projectPath}
 					class="shrink-0 flex items-center"
-					role={projectPathShowingAgentStrip === group.projectPath ? undefined : "button"}
-					tabindex={projectPathShowingAgentStrip === group.projectPath ? undefined : 0}
-					onclick={projectPathShowingAgentStrip === group.projectPath
-						? undefined
-						: () => handleProjectHeaderClick(group.projectPath)}
-					onkeydown={projectPathShowingAgentStrip === group.projectPath
-						? undefined
-						: (e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									handleProjectHeaderClick(group.projectPath);
-								}
-							}}
+					role="button"
+					tabindex={0}
+					onclick={() => handleProjectHeaderClick(group.projectPath)}
+					onkeydown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							handleProjectHeaderClick(group.projectPath);
+						}
+					}}
 				>
-					{#if projectPathShowingAgentStrip === group.projectPath}
-						<!-- Empty header: only agent strip visible (agents left, cancel right) -->
-						<div
-							class="flex w-full min-w-0 flex-1 rounded-md bg-background/30"
-							role="presentation"
-							onclick={(e) => e.stopPropagation()}
-							onkeydown={(e) => e.stopPropagation()}
-						>
-							<ProjectHeaderAgentStrip
-								projectPath={group.projectPath}
+					<ContextMenu.Root>
+						<ContextMenu.Trigger class="flex-1 min-w-0">
+							<ProjectHeader
+								projectColor={group.projectColor}
 								projectName={group.projectName}
-								{availableAgents}
-								{effectiveTheme}
-								onOpenTerminal={onOpenTerminal
-									? (projectPath) => onOpenTerminal(projectPath)
-									: undefined}
-								onOpenBrowser={onOpenBrowser
-									? (projectPath) => onOpenBrowser(projectPath)
-									: undefined}
-								onCancel={() => {
-									projectPathShowingAgentStrip = null;
-								}}
-								onCreateSession={(path, agentId) => {
-									handleCreateClick(new MouseEvent("click"), path, agentId);
-									projectPathShowingAgentStrip = null;
-								}}
-							/>
-						</div>
-					{:else}
-						<!-- Normal header: badge, name, settings, plus icon -->
-						<ContextMenu.Root>
-							<ContextMenu.Trigger class="flex-1 min-w-0">
-								<ProjectHeader
-									projectColor={group.projectColor}
-									projectName={group.projectName}
-									projectIconSrc={group.projectIconSrc}
-									expanded={isExpanded}
-									class="group min-w-0 flex-1 cursor-pointer transition-colors"
-								>
-									{#snippet actions()}
-										<div
-											class="flex shrink-0 items-center gap-0.5"
-											role="presentation"
-											onclick={(e) => e.stopPropagation()}
-											onkeydown={(e) => e.stopPropagation()}
-										>
-											<ProjectHeaderOverflowMenu
-												projectName={group.projectName}
-												currentColor={group.projectColor}
-												currentViewMode={viewMode}
-												onColorChange={onProjectColorChange
-													? (color) => onProjectColorChange(group.projectPath, color)
-													: undefined}
-												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-												projectIconSrc={group.projectIconSrc}
-												onResetProjectIcon={onResetProjectIcon
-													? () => onResetProjectIcon(group.projectPath)
-													: undefined}
-												onRemoveProject={onRemoveProject
-													? () => onRemoveProject(group.projectPath)
-													: undefined}
-											/>
-											{#if shouldShowProjectCreateButton()}
-												<div
-													class="flex shrink-0 items-center"
-													role="presentation"
-													onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-													oncontextmenu={(e) =>
-														handleProjectCreateButtonContextMenu(e, group.projectPath)}
-													onkeydown={(e) => e.stopPropagation()}
-												>
-													<Tooltip.Root>
-														<Tooltip.Trigger>
-															<button
-																type="button"
-																class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-															>
-																<IconPlus class="h-3 w-3" />
-															</button>
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															<div class="flex flex-col gap-0.5">
-																<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
-																{#if getProjectCreateButtonTooltipHint()}
-																	<span class="text-[10px] text-muted-foreground">
-																		{getProjectCreateButtonTooltipHint()}
-																	</span>
-																{/if}
-															</div>
-														</Tooltip.Content>
-													</Tooltip.Root>
-												</div>
-											{/if}
-										</div>
-									{/snippet}
-								</ProjectHeader>
-							</ContextMenu.Trigger>
+								projectIconSrc={group.projectIconSrc}
+								expanded={isExpanded}
+								class="group min-w-0 flex-1 cursor-pointer transition-colors"
+							>
+								{#snippet actions()}
+									<div
+										class="flex shrink-0 items-center gap-0.5"
+										role="presentation"
+										onclick={(e) => e.stopPropagation()}
+										onkeydown={(e) => e.stopPropagation()}
+									>
+										<ProjectHeaderOverflowMenu
+											projectName={group.projectName}
+											currentColor={group.projectColor}
+											currentViewMode={viewMode}
+											onColorChange={onProjectColorChange
+												? (color) => onProjectColorChange(group.projectPath, color)
+												: undefined}
+											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+											projectIconSrc={group.projectIconSrc}
+											onResetProjectIcon={onResetProjectIcon
+												? () => onResetProjectIcon(group.projectPath)
+												: undefined}
+											onRemoveProject={onRemoveProject
+												? () => onRemoveProject(group.projectPath)
+												: undefined}
+										/>
+										{#if shouldShowProjectUtilityActions() && onOpenTerminal}
+											<Tooltip.Root>
+												<Tooltip.Trigger>
+													<button
+														type="button"
+														class={projectHeaderHoverActionButtonClass}
+														onclick={(event) => {
+															event.stopPropagation();
+															onOpenTerminal(group.projectPath);
+														}}
+														aria-label={m.sidebar_open_terminal({ projectName: group.projectName })}
+													>
+														<Terminal class="h-3 w-3" weight="fill" />
+													</button>
+												</Tooltip.Trigger>
+												<Tooltip.Content>
+													{m.sidebar_open_terminal({ projectName: group.projectName })}
+												</Tooltip.Content>
+											</Tooltip.Root>
+										{/if}
+										{#if shouldShowProjectUtilityActions() && onOpenBrowser}
+											<Tooltip.Root>
+												<Tooltip.Trigger>
+													<button
+														type="button"
+														class={projectHeaderHoverActionButtonClass}
+														onclick={(event) => {
+															event.stopPropagation();
+															onOpenBrowser(group.projectPath);
+														}}
+														aria-label={m.sidebar_open_browser({ projectName: group.projectName })}
+													>
+														<Browser class="h-3 w-3" weight="fill" />
+													</button>
+												</Tooltip.Trigger>
+												<Tooltip.Content>
+													{m.sidebar_open_browser({ projectName: group.projectName })}
+												</Tooltip.Content>
+											</Tooltip.Root>
+										{/if}
+										{#if shouldShowProjectCreateButton()}
+											<div
+												class="flex shrink-0 items-center"
+												role="presentation"
+												onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+												onkeydown={(e) => e.stopPropagation()}
+											>
+												<Tooltip.Root>
+													<Tooltip.Trigger>
+														<button
+															type="button"
+															class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+															aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
+														>
+															<IconPlus class="h-3 w-3" />
+														</button>
+													</Tooltip.Trigger>
+													<Tooltip.Content>
+														{getProjectCreateButtonTooltipLabel(group.projectName)}
+													</Tooltip.Content>
+												</Tooltip.Root>
+											</div>
+										{/if}
+									</div>
+								{/snippet}
+							</ProjectHeader>
+						</ContextMenu.Trigger>
 							<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
 								<ContextMenu.Item
 									disabled={onReorderProjects === undefined || projectIndex === 0}
@@ -1449,8 +1417,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									</ContextMenu.Item>
 								{/if}
 							</ContextMenu.Content>
-						</ContextMenu.Root>
-					{/if}
+					</ContextMenu.Root>
 				</div>
 
 					<!-- Content area: Sessions OR Files (switched, not both) -->

@@ -52,6 +52,7 @@ const STREAMING_SYNC_RESULT = {
 } satisfies SyncRenderResult;
 
 const EMPTY_STREAMING_TAIL = { sections: [] } satisfies StreamingTailParseResult;
+const revealedMessageTexts = new Map<string, string>();
 
 // Get session context (set by VirtualizedEntryList)
 const sessionContext = useSessionContext();
@@ -106,6 +107,8 @@ const reveal: StreamingRevealController = createStreamingRevealController(
 );
 let hasStreamingSession = $state(false);
 let wasStreaming = false;
+let seedRevealFromSource = $state(false);
+let lastRevealKey = "";
 let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
 let lastStreamingTailText = "";
 let lastStreamingTailResult: StreamingTailParseResult = EMPTY_STREAMING_TAIL;
@@ -143,10 +146,30 @@ function htmlNeedsBadgeMount(html: string | null): boolean {
 }
 
 $effect(() => {
+	const revealKey = _revealKey?.trim() ?? "";
+	if (revealKey === lastRevealKey) {
+		return;
+	}
+
+	lastRevealKey = revealKey;
+	if (!revealKey) {
+		seedRevealFromSource = false;
+		return;
+	}
+
+	const priorText = revealedMessageTexts.get(revealKey);
+	seedRevealFromSource =
+		priorText !== undefined &&
+		(text === priorText || text.startsWith(priorText) || priorText.startsWith(text));
+	revealedMessageTexts.set(revealKey, text);
+});
+
+$effect(() => {
 	if (isStreaming) {
 		hasStreamingSession = true;
 		wasStreaming = true;
-		reveal.setState(text, true);
+		reveal.setState(text, true, { seedFromSource: seedRevealFromSource });
+		seedRevealFromSource = false;
 		return;
 	}
 

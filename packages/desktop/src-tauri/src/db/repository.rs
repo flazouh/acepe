@@ -1,18 +1,21 @@
 use crate::db::entities::prelude::*;
 use crate::{
+    acp::agent_context::with_agent,
+    acp::parsers::AgentType,
     acp::parsers::provider_capabilities::{
         all_provider_capabilities, find_provider_capabilities_by_id,
     },
     acp::session_descriptor::{
-        resolve_existing_session_descriptor, resolve_existing_session_resume,
         ResolvedResumeSession, SessionCompatibilityInput, SessionDescriptor,
         SessionDescriptorFacts, SessionDescriptorResolutionError, SessionReplayContext,
+        resolve_existing_session_descriptor, resolve_existing_session_resume,
     },
     acp::session_journal::{
         ProjectionJournalUpdate, SessionJournalEvent as SessionJournalRecord,
         SessionJournalEventPayload,
     },
     acp::session_thread_snapshot::SessionThreadSnapshot,
+    acp::types::CanonicalAgentId,
     db::entities::session_journal_event,
 };
 use anyhow::Result;
@@ -727,6 +730,15 @@ impl SessionProjectionSnapshotRepository {
 
         Ok(())
     }
+
+    pub async fn delete(db: &DbConn, session_id: &str) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Deleting session projection snapshot");
+
+        crate::db::entities::session_projection_snapshot::Entity::delete_by_id(session_id)
+            .exec(db)
+            .await?;
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -807,7 +819,11 @@ impl SessionTranscriptSnapshotRepository {
 pub struct SessionThreadSnapshotRepository;
 
 impl SessionThreadSnapshotRepository {
-    pub async fn get(db: &DbConn, session_id: &str) -> Result<Option<SessionThreadSnapshot>> {
+    pub async fn get(
+        db: &DbConn,
+        session_id: &str,
+        agent_id: &CanonicalAgentId,
+    ) -> Result<Option<SessionThreadSnapshot>> {
         tracing::debug!(session_id = %session_id, "Loading session thread snapshot");
 
         let model = crate::db::entities::session_thread_snapshot::Entity::find_by_id(session_id)
@@ -815,8 +831,11 @@ impl SessionThreadSnapshotRepository {
             .await?;
         model
             .map(|row| {
-                serde_json::from_str::<SessionThreadSnapshot>(&row.snapshot_json)
-                    .map_err(anyhow::Error::from)
+                let agent = AgentType::from_canonical(agent_id);
+                with_agent(agent, || {
+                    serde_json::from_str::<SessionThreadSnapshot>(&row.snapshot_json)
+                })
+                .map_err(anyhow::Error::from)
             })
             .transpose()
     }

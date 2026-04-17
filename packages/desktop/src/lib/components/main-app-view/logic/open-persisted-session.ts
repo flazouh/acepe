@@ -10,7 +10,7 @@ const inflightPanelIds = new Set<string>();
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "connectSession" | "getSessionCold"
+	"setSessionLoading" | "setSessionLoaded" | "getSessionCold"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -104,11 +104,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					}
 
 					sessionStore.setSessionLoaded(hydration.canonicalSessionId);
-					return sessionStore
-						.connectSession(hydration.canonicalSessionId, {
-							openToken: hydration.openToken,
-						})
-						.map(() => undefined);
+					sessionOpenHydrator.clearAttempt(panelId);
+					return okAsync(undefined);
 				});
 		})
 		.match(

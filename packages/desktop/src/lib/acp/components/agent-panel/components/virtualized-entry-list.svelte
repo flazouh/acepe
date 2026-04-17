@@ -12,7 +12,6 @@ import AssistantMessage from "../../messages/assistant-message.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import UserMessage from "../../messages/user-message.svelte";
 import { ToolCallRouter } from "../../tool-calls/index.js";
-import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
 import {
 	createAutoScroll,
 	type ScrollPositionProvider,
@@ -31,6 +30,7 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
+import { shouldUseDesktopToolRenderer } from "../logic/tool-renderer-routing.js";
 import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-agent-panel-scene.js";
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
@@ -566,15 +566,6 @@ export function scrollToTop() {
 	vlistRef?.scrollToIndex(0);
 }
 
-function shouldUseDesktopToolRenderer(entry: Extract<SessionEntry, { type: "tool_call" }>): boolean {
-	const routeKey = resolveToolRouteKey(entry.message, entry.message.kind ?? "other");
-	return (
-		routeKey === "edit" ||
-		routeKey === "read" ||
-		routeKey === "question" ||
-		routeKey === "skill"
-	);
-}
 </script>
 
 <!--

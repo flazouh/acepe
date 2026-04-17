@@ -22,8 +22,7 @@ use crate::acp::session_journal::load_stored_projection;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionThreadSnapshotRepository,
-    SessionTranscriptSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptSnapshotRepository,
 };
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
@@ -108,8 +107,19 @@ pub struct SessionOpenFound {
 // ============================================================================
 
 /// Build a short display title from a session ID (first 8 chars).
-fn default_session_title(session_id: &str) -> String {
+pub(crate) fn default_session_title(session_id: &str) -> String {
     format!("Session {}", &session_id[..8.min(session_id.len())])
+}
+
+pub(crate) fn resolve_canonical_session_title(
+    metadata: Option<&crate::db::repository::SessionMetadataRow>,
+    session_id: &str,
+) -> String {
+    metadata
+        .map(|row| row.display.trim())
+        .filter(|display| !display.is_empty())
+        .map(std::borrow::ToOwned::to_owned)
+        .unwrap_or_else(|| default_session_title(session_id))
 }
 
 /// Assemble a `SessionOpenResult` for an existing session from persisted state.
@@ -131,18 +141,22 @@ pub async fn assemble_session_open_result(
     let is_alias = requested_session_id != canonical_session_id;
 
     // --- 1. Determine the proven journal cutoff ---
-    let last_event_seq =
-        match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError {
-                    requested_session_id: requested_session_id.to_string(),
-                    message: format!(
+    let last_event_seq = match SessionJournalEventRepository::max_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(0),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError {
+                requested_session_id: requested_session_id.to_string(),
+                message: format!(
                     "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
                 ),
-                });
-            }
-        };
+            });
+        }
+    };
 
     // --- 2. Arm the reservation BEFORE assembling snapshot content ---
     //
@@ -188,21 +202,11 @@ pub async fn assemble_session_open_result(
     };
 
     // --- 4. Resolve thread content ---
-    let transcript_snapshot =
-        match SessionTranscriptSnapshotRepository::get(db, canonical_session_id).await {
-            Ok(snapshot) => snapshot,
-            Err(err) => {
-                hub.supersede_reservation(open_token);
-                return SessionOpenResult::Error(SessionOpenError {
-                    requested_session_id: requested_session_id.to_string(),
-                    message: format!(
-                    "Failed to load transcript snapshot for session {canonical_session_id}: {err}"
-                ),
-                });
-            }
-        };
-
-    let thread_snapshot = match SessionThreadSnapshotRepository::get(db, canonical_session_id).await
+    let transcript_snapshot = match SessionTranscriptSnapshotRepository::get(
+        db,
+        canonical_session_id,
+    )
+    .await
     {
         Ok(snapshot) => snapshot,
         Err(err) => {
@@ -210,26 +214,28 @@ pub async fn assemble_session_open_result(
             return SessionOpenResult::Error(SessionOpenError {
                 requested_session_id: requested_session_id.to_string(),
                 message: format!(
-                    "Failed to load thread snapshot for session {canonical_session_id}: {err}"
+                    "Failed to load transcript snapshot for session {canonical_session_id}: {err}"
                 ),
             });
         }
     };
-    let (session_title, transcript_snapshot) = match (thread_snapshot, transcript_snapshot) {
-        (Some(snapshot), Some(transcript_snapshot)) => (snapshot.title, transcript_snapshot),
-        (Some(snapshot), None) => (
-            snapshot.title,
-            TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries),
-        ),
-        (None, Some(transcript_snapshot)) => (
-            default_session_title(canonical_session_id),
-            transcript_snapshot,
-        ),
-        (None, None) => (
-            default_session_title(canonical_session_id),
-            TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
-        ),
-    };
+    let session_metadata =
+        match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                        "Failed to load session metadata for session {canonical_session_id}: {err}"
+                    ),
+                });
+            }
+        };
+    let session_title =
+        resolve_canonical_session_title(session_metadata.as_ref(), canonical_session_id);
+    let transcript_snapshot = transcript_snapshot
+        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: requested_session_id.to_string(),
@@ -309,13 +315,13 @@ mod tests {
     use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository, SessionThreadSnapshotRepository,
+        SessionJournalEventRepository, SessionMetadataRepository,
+        SessionTranscriptSnapshotRepository,
     };
     use crate::session_jsonl::types::{
         StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
@@ -390,49 +396,48 @@ mod tests {
             .expect("append journal event");
     }
 
-    async fn seed_thread_snapshot_with_messages(db: &DbConn, session_id: &str) {
-        SessionThreadSnapshotRepository::set(
+    fn sample_transcript_entries() -> Vec<StoredEntry> {
+        vec![
+            StoredEntry::User {
+                id: "user-1".to_string(),
+                message: StoredUserMessage {
+                    id: Some("user-1".to_string()),
+                    content: StoredContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some("hello world".to_string()),
+                    },
+                    chunks: vec![],
+                    sent_at: None,
+                },
+                timestamp: None,
+            },
+            StoredEntry::Assistant {
+                id: "assistant-1".to_string(),
+                message: StoredAssistantMessage {
+                    chunks: vec![StoredAssistantChunk {
+                        chunk_type: "message".to_string(),
+                        block: StoredContentBlock {
+                            block_type: "text".to_string(),
+                            text: Some("hi back".to_string()),
+                        },
+                    }],
+                    model: Some("gpt-5.4".to_string()),
+                    display_model: Some("GPT-5.4".to_string()),
+                    received_at: None,
+                },
+                timestamp: None,
+            },
+        ]
+    }
+
+    async fn seed_transcript_snapshot_with_messages(db: &DbConn, session_id: &str, revision: i64) {
+        SessionTranscriptSnapshotRepository::set(
             db,
             session_id,
-            &SessionThreadSnapshot {
-                entries: vec![
-                    StoredEntry::User {
-                        id: "user-1".to_string(),
-                        message: StoredUserMessage {
-                            id: Some("user-1".to_string()),
-                            content: StoredContentBlock {
-                                block_type: "text".to_string(),
-                                text: Some("hello world".to_string()),
-                            },
-                            chunks: vec![],
-                            sent_at: None,
-                        },
-                        timestamp: None,
-                    },
-                    StoredEntry::Assistant {
-                        id: "assistant-1".to_string(),
-                        message: StoredAssistantMessage {
-                            chunks: vec![StoredAssistantChunk {
-                                chunk_type: "message".to_string(),
-                                block: StoredContentBlock {
-                                    block_type: "text".to_string(),
-                                    text: Some("hi back".to_string()),
-                                },
-                            }],
-                            model: Some("gpt-5.4".to_string()),
-                            display_model: Some("GPT-5.4".to_string()),
-                            received_at: None,
-                        },
-                        timestamp: None,
-                    },
-                ],
-                title: "Persisted transcript".to_string(),
-                created_at: "2026-04-16T00:00:00Z".to_string(),
-                current_mode_id: None,
-            },
+            &TranscriptSnapshot::from_stored_entries(revision, &sample_transcript_entries()),
         )
         .await
-        .expect("seed thread snapshot");
+        .expect("seed transcript snapshot");
     }
 
     // -----------------------------------------------------------------------
@@ -549,14 +554,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn existing_session_with_thread_snapshot_exposes_transcript_snapshot_shape() {
+    async fn existing_session_with_canonical_transcript_exposes_transcript_snapshot_shape() {
         let db = setup_db().await;
         let hub = make_hub();
         let session_id = "transcript-shape-session";
         seed_session_metadata(&db, session_id, "copilot").await;
         append_tool_call_event(&db, session_id).await;
         append_tool_call_event(&db, session_id).await;
-        seed_thread_snapshot_with_messages(&db, session_id).await;
+        seed_transcript_snapshot_with_messages(&db, session_id, 2).await;
 
         let replay_context = make_copilot_replay_context(session_id);
         let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
@@ -576,7 +581,56 @@ mod tests {
             }
         );
         assert_eq!(found.transcript_snapshot.entries[1].entry_id, "assistant-1");
-        assert_eq!(found.session_title, "Persisted transcript");
+        assert_eq!(found.session_title, default_session_title(session_id));
+    }
+
+    #[tokio::test]
+    async fn existing_session_prefers_title_override_over_metadata_display() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "override-session";
+        seed_session_metadata(&db, session_id, "copilot").await;
+        SessionMetadataRepository::set_title_override(&db, session_id, Some("Pinned title"))
+            .await
+            .expect("set title override");
+        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
+
+        let replay_context = make_copilot_replay_context(session_id);
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.session_title, "Pinned title");
+    }
+
+    #[tokio::test]
+    async fn existing_session_uses_metadata_display_when_no_override_exists() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "display-session";
+        SessionMetadataRepository::upsert(
+            &db,
+            session_id.to_string(),
+            "Display title".to_string(),
+            1704067200000,
+            "/test/project".to_string(),
+            "copilot".to_string(),
+            "-test-project/display-session.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .expect("seed metadata");
+        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
+
+        let replay_context = make_copilot_replay_context(session_id);
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.session_title, "Display title");
     }
 
     // -----------------------------------------------------------------------
