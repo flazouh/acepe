@@ -64,9 +64,9 @@ const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 			size={16}
 		/>
 	</div>
-	<div class="flex items-center flex-1 min-w-0 h-7 pl-2 pr-2 cursor-pointer rounded-md hover:bg-background/70 transition-colors">
+	<div class="flex items-center flex-1 min-w-0 h-7 pl-2 pr-2 cursor-pointer rounded-md transition-colors">
 		<span
-			class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70 transition-colors group-hover:text-foreground/85"
+			class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70 transition-colors"
 		>
 			{displayName}
 		</span>

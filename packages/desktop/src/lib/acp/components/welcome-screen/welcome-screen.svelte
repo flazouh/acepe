@@ -1,12 +1,22 @@
 <script lang="ts">
 import { BrandLockup, BrandShaderBackground, Button, PillButton } from "@acepe/ui";
-	import { ResultAsync } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
+import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import type { AppError } from "$lib/acp/errors/app-error.js";
+import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { ensureErrorReference } from "$lib/errors/error-reference.js";
+import {
+	buildIssueReportDraft,
+	openIssueReportDraft,
+	resolveIssueActionLabel,
+} from "$lib/errors/issue-report.js";
 import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
@@ -28,6 +38,14 @@ const SPLASH_AGENTS: { id: string; alt: string }[] = [
 
 type OnboardingStep = "splash" | "agents" | "projects" | "scanning";
 
+interface OnboardingImportErrorState {
+	readonly title: string;
+	readonly summary: string;
+	readonly details: string;
+	readonly referenceId: string;
+	readonly referenceSearchable: boolean;
+}
+
 let { onProjectImported, onDismiss }: WelcomeScreenProps = $props();
 
 let onboardingStep = $state<OnboardingStep>("splash");
@@ -36,12 +54,19 @@ let onboardingProjects = $state<ProjectWithSessions[]>([]);
 let onboardingAddedPaths = $state<Set<string>>(new Set());
 let onboardingSelectedAgents = $state<string[]>([]);
 let onboardingBusyMessage = $state("");
+let onboardingImportError = $state<OnboardingImportErrorState | null>(null);
+let onboardingImportProjectPath = $state<string | null>(null);
+let onboardingImportProjectName = $state<string | null>(null);
 
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
 const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
+
+function isUnexpectedOnboardingImportError(error: AppError): boolean {
+	return error.code !== "VALIDATION_ERROR";
+}
 
 // Handle Cmd+Enter keyboard shortcut (advances from splash to agents)
 function handleKeydown(event: KeyboardEvent) {
@@ -94,20 +119,98 @@ async function handleOnboardingImport(path: string, name: string) {
 		return;
 	}
 
-	const result = await tauriClient.projects
-		.importProject(path, name)
-		.mapErr((error) => new Error(`Failed to import project: ${error}`))
-		.map(() => {
+	const result = await tauriClient.projects.importProject(path, name);
+
+	result.match(
+		() => {
+			onboardingImportError = null;
+			onboardingImportProjectPath = null;
+			onboardingImportProjectName = null;
 			onboardingAddedPaths = new Set([...onboardingAddedPaths, path]);
 			toast.success(m.open_project_added_toast({ name }));
-		})
-		.mapErr((error) => {
-			toast.error(error.message);
-		});
+		},
+		(error) => {
+			if (!isUnexpectedOnboardingImportError(error)) {
+				onboardingImportError = null;
+				onboardingImportProjectPath = null;
+				onboardingImportProjectName = null;
+				toast.error(error.message);
+				return;
+			}
+
+			const errorReference = ensureErrorReference(error);
+			const errorDetails = getErrorCauseDetails(error);
+			onboardingImportProjectPath = path;
+			onboardingImportProjectName = name;
+			onboardingImportError = {
+				title: "Project import failed",
+				summary: errorDetails.rootCause ?? error.message,
+				details: errorDetails.formatted,
+				referenceId: errorReference.referenceId,
+				referenceSearchable: errorReference.searchable,
+			};
+		}
+	);
 
 	if (result.isOk()) {
 		onProjectImported(path, name);
 	}
+}
+
+async function copyOnboardingImportReferenceId() {
+	const referenceId = onboardingImportError?.referenceId;
+	if (!referenceId) {
+		return;
+	}
+
+	await copyTextToClipboard(referenceId).match(
+		() => {
+			toast.success("Reference ID copied");
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
+
+function createOnboardingIssueDraft() {
+	if (
+		onboardingImportError === null ||
+		onboardingImportProjectPath === null ||
+		onboardingImportProjectName === null
+	) {
+		return null;
+	}
+
+	return buildIssueReportDraft({
+		title: `Project import failed: ${onboardingImportError.summary}`,
+		summary: onboardingImportError.summary,
+		details: onboardingImportError.details,
+		referenceId: onboardingImportError.referenceId,
+		referenceSearchable: onboardingImportError.referenceSearchable,
+		surface: "welcome-screen-project-import",
+		diagnosticsSummary: onboardingImportError.summary,
+		metadata: [
+			{
+				label: "Project Path",
+				value: onboardingImportProjectPath,
+			},
+			{
+				label: "Project Name",
+				value: onboardingImportProjectName,
+			},
+		],
+	});
+}
+
+const onboardingIssueDraft = $derived.by(() => createOnboardingIssueDraft());
+
+function handleOnboardingIssueAction() {
+	if (onboardingIssueDraft === null) {
+		return;
+	}
+
+	openIssueReportDraft(onboardingIssueDraft);
 }
 
 function extractNameFromPath(path: string): string {
@@ -341,6 +444,25 @@ async function finishOnboarding(): Promise<void> {
 				</div>
 			{:else if onboardingStep === "projects"}
 				<div class="flex min-h-0 flex-col space-y-4">
+					{#if onboardingImportError}
+						<AgentErrorCard
+							title={onboardingImportError.title}
+							summary={onboardingImportError.summary}
+							details={onboardingImportError.details}
+							referenceId={onboardingImportError.referenceId}
+							referenceSearchable={onboardingImportError.referenceSearchable}
+							onDismiss={() => {
+								onboardingImportError = null;
+								onboardingImportProjectPath = null;
+								onboardingImportProjectName = null;
+							}}
+							onCopyReferenceId={copyOnboardingImportReferenceId}
+							issueActionLabel={onboardingIssueDraft
+								? resolveIssueActionLabel(onboardingIssueDraft)
+								: "Create issue"}
+							onIssueAction={onboardingIssueDraft ? handleOnboardingIssueAction : undefined}
+						/>
+					{/if}
 					{#if filteredProjects.length === 0 && !onboardingProjectsLoading}
 						<div class="flex flex-col items-center justify-center py-12 text-center space-y-3">
 							<p class="text-sm text-muted-foreground">{m.onboarding_projects_no_match()}</p>

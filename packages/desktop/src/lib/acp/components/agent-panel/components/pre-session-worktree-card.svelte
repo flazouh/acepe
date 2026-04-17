@@ -2,7 +2,7 @@
 	import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
 	import * as m from "$lib/messages.js";
 	import { extractProjectName } from "$lib/acp/utils/path-utils.js";
-	import SetupScriptsDialog from "./setup-scripts-dialog.svelte";
+	import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
 
 	interface Props {
 		pendingWorktreeEnabled: boolean;
@@ -30,8 +30,6 @@
 		onRetry,
 	}: Props = $props();
 
-	let setupScriptsOpen = $state(false);
-
 	const resolvedProjectName = $derived(
 		projectPath ? (projectName ?? extractProjectName(projectPath)) : null
 	);
@@ -53,18 +51,12 @@
 	{onAlways}
 	{onDismiss}
 	{onRetry}
-	onSetupScripts={() => {
-		if (projectPath) {
-			setupScriptsOpen = true;
-		}
-	}}
-/>
-
-{#if projectPath && resolvedProjectName}
-	<SetupScriptsDialog
-		open={setupScriptsOpen}
-		onOpenChange={(value) => (setupScriptsOpen = value)}
-		{projectPath}
-		projectName={resolvedProjectName}
-	/>
-{/if}
+>
+	{#snippet expandedContent()}
+		{#if projectPath}
+			{#key projectPath}
+				<SetupCommandsEditor {projectPath} />
+			{/key}
+		{/if}
+	{/snippet}
+</SharedPreSessionWorktreeCard>

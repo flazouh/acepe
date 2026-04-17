@@ -266,7 +266,7 @@ pub async fn benchmark_all_sessions() -> anyhow::Result<BenchmarkStats> {
     println!("{:-<40} {:-<12} {:-<8} {:-<12}", "", "", "", "");
 
     let mut sorted_results = results.clone();
-    sorted_results.sort_by(|a, b| b.duration.cmp(&a.duration));
+    sorted_results.sort_by_key(|result| std::cmp::Reverse(result.duration));
 
     for result in sorted_results.iter().take(10) {
         let file_size_kb = result.file_size_bytes as f64 / 1024.0;

@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 
 /// Install an agent by downloading from the ACP registry.
 ///
@@ -8,7 +9,8 @@ use super::*;
 pub async fn acp_install_agent(
     app: AppHandle,
     agent_id: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_install_agent", async {
     tracing::info!(agent_id = %agent_id, "acp_install_agent called");
 
     let canonical = CanonicalAgentId::parse(&agent_id);
@@ -26,6 +28,8 @@ pub async fn acp_install_agent(
             tracing::error!(agent_id = %agent_id, error = %e, "Agent installation failed");
             SerializableAcpError::from(e)
         })
+    }
+    .await)
 }
 
 /// Uninstall a previously downloaded agent.
@@ -33,7 +37,8 @@ pub async fn acp_install_agent(
 /// Async for consistency with Tauri command convention (all commands are async).
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_uninstall_agent(agent_id: String) -> Result<(), SerializableAcpError> {
+pub async fn acp_uninstall_agent(agent_id: String) -> CommandResult<()> {
+    expected_acp_command_result("acp_uninstall_agent", async {
     tracing::info!(agent_id = %agent_id, "acp_uninstall_agent called");
 
     let canonical = CanonicalAgentId::parse(&agent_id);
@@ -48,4 +53,6 @@ pub async fn acp_uninstall_agent(agent_id: String) -> Result<(), SerializableAcp
         tracing::error!(agent_id = %agent_id, error = %e, "Agent uninstall failed");
         SerializableAcpError::from(e)
     })
+    }
+    .await)
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	wrapWordsForAnimation,
 	wrapWordsForAnimationWithSegmenter,
+	type WordAnimationState,
 } from "../wrap-words-for-animation.js";
 
 // Helper: count occurrences of a substring
@@ -137,6 +138,71 @@ describe("wrapWordsForAnimation", () => {
 		it("handles numeric entity names as atomic tokens", () => {
 			const result = wrapWordsForAnimation("&#39;");
 			expect(result).toBe('<span class="sd-word-fade">&#39;</span>');
+		});
+	});
+
+	describe("incremental animation (WordAnimationState)", () => {
+		it("animates all words when animateFrom is 0", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 0 };
+			const result = wrapWordsForAnimation("hello world", state);
+			expect(result).toContain('<span class="sd-word-fade">hello</span>');
+			expect(result).toContain('<span class="sd-word-fade">world</span>');
+			expect(state.wordIndex).toBe(2);
+		});
+
+		it("skips wrapping for words before animateFrom", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 1 };
+			const result = wrapWordsForAnimation("hello world", state);
+			// "hello" is at index 0, below animateFrom — should NOT be wrapped
+			expect(result).not.toContain('<span class="sd-word-fade">hello</span>');
+			expect(result).toContain("hello");
+			// "world" is at index 1, at animateFrom — should be wrapped
+			expect(result).toContain('<span class="sd-word-fade">world</span>');
+			expect(state.wordIndex).toBe(2);
+		});
+
+		it("does not wrap any words when animateFrom exceeds word count", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 10 };
+			const result = wrapWordsForAnimation("hello world", state);
+			expect(result).not.toContain('class="sd-word-fade"');
+			expect(result).toContain("hello");
+			expect(result).toContain("world");
+			expect(state.wordIndex).toBe(2);
+		});
+
+		it("tracks word index across multiple calls", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 3 };
+			// First call: 2 words (indices 0, 1)
+			wrapWordsForAnimation("hello world", state);
+			expect(state.wordIndex).toBe(2);
+			// Second call: 2 more words (indices 2, 3)
+			const result = wrapWordsForAnimation("foo bar", state);
+			// "foo" at index 2 < animateFrom(3) — not wrapped
+			expect(result).not.toContain('<span class="sd-word-fade">foo</span>');
+			expect(result).toContain("foo");
+			// "bar" at index 3 >= animateFrom(3) — wrapped
+			expect(result).toContain('<span class="sd-word-fade">bar</span>');
+			expect(state.wordIndex).toBe(4);
+		});
+
+		it("handles placeholder tokens in word index tracking", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 2 };
+			const result = wrapWordsForAnimation("hello @@LIVE_MD_0@@ world", state);
+			// "hello" index 0 — not wrapped
+			expect(result).not.toContain('<span class="sd-word-fade">hello</span>');
+			// @@LIVE_MD_0@@ index 1 — not wrapped
+			expect(result).not.toContain('<span class="sd-word-fade">@@LIVE_MD_0@@</span>');
+			// "world" index 2 — wrapped
+			expect(result).toContain('<span class="sd-word-fade">world</span>');
+			expect(state.wordIndex).toBe(3);
+		});
+
+		it("preserves whitespace when skipping old words", () => {
+			const state: WordAnimationState = { wordIndex: 0, animateFrom: 1 };
+			const result = wrapWordsForAnimation("foo  bar", state);
+			// Double space must be preserved
+			expect(result).toContain("foo  ");
+			expect(result).toContain('<span class="sd-word-fade">bar</span>');
 		});
 	});
 

@@ -32,6 +32,7 @@ interface Props {
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
 	isActive?: boolean;
+	onExpandToFullscreen?: () => void;
 }
 
 let {
@@ -42,6 +43,7 @@ let {
 	onClose,
 	onFileIndexChange,
 	isActive = true,
+	onExpandToFullscreen: _onExpandToFullscreen = undefined,
 }: Props = $props();
 
 let diffViewStateRef = $state<ReviewDiffViewState | null>(null);

@@ -45,7 +45,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 anyhow = "1"
 pin-project-lite = "0.2"
-sentry = { version = "0.34", default-features = false, features = ["anyhow", "backtrace", "contexts", "debug-images", "panic", "reqwest", "rustls"] }
+sentry = { version = "0.34", default-features = false, features = ["anyhow", "backtrace", "contexts", "debug-images", "panic", "reqwest", "rustls", "tracing"] }
 # TypeScript type generation (specta v2 for Tauri v2)
 specta = { version = "=2.0.0-rc.22", features = ["derive", "export", "function", "serde", "serde_json"] }
 specta-typescript = "0.0.9"

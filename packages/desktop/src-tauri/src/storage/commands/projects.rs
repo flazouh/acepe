@@ -6,6 +6,7 @@ use tauri::{AppHandle, State};
 
 use super::icon_detection::detect_project_icon;
 use super::shared::{get_db, project_name_from_path, validate_project_path_for_storage, Project};
+use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
 
 const PROJECT_ICON_BACKFILL_KEY: &str = "project_icon_backfill_v2";
 
@@ -61,20 +62,24 @@ fn classify_missing_project_paths(paths: &[String]) -> Vec<String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
-    tracing::debug!("Getting all projects");
+pub async fn get_projects(app: AppHandle) -> CommandResult<Vec<Project>>  {
+    unexpected_command_result("get_projects", "Failed to get projects", async {
 
-    let db = get_db(&app);
+        tracing::debug!("Getting all projects");
 
-    let rows = ProjectRepository::get_all(&db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to get projects");
-        e.to_string()
-    })?;
+        let db = get_db(&app);
 
-    let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
+        let rows = ProjectRepository::get_all(&db).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to get projects");
+            e.to_string()
+        })?;
 
-    tracing::debug!(count = %projects.len(), "Returning projects");
-    Ok(projects)
+        let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
+
+        tracing::debug!(count = %projects.len(), "Returning projects");
+        Ok(projects)
+
+    }.await)
 }
 
 #[tauri::command]
@@ -82,45 +87,57 @@ pub async fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
 pub async fn get_recent_projects(
     app: AppHandle,
     limit: Option<u64>,
-) -> Result<Vec<Project>, String> {
-    let limit = limit.unwrap_or(100);
-    tracing::debug!(limit = %limit, "Getting recent projects");
+) -> CommandResult<Vec<Project>>  {
+    unexpected_command_result("get_recent_projects", "Failed to get recent projects", async {
 
-    let db = get_db(&app);
+        let limit = limit.unwrap_or(100);
+        tracing::debug!(limit = %limit, "Getting recent projects");
 
-    let rows = ProjectRepository::get_recent(&db, limit)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to get recent projects");
+        let db = get_db(&app);
+
+        let rows = ProjectRepository::get_recent(&db, limit)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to get recent projects");
+                e.to_string()
+            })?;
+
+        let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
+
+        tracing::debug!(count = %projects.len(), "Returning recent projects");
+        Ok(projects)
+
+    }.await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_project_count(app: AppHandle) -> CommandResult<u64>  {
+    unexpected_command_result("get_project_count", "Failed to get project count", async {
+
+        tracing::debug!("Getting project count");
+
+        let db = get_db(&app);
+
+        let count = ProjectRepository::count(&db).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to get project count");
             e.to_string()
         })?;
 
-    let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
+        tracing::debug!(count = %count, "Returning project count");
+        Ok(count)
 
-    tracing::debug!(count = %projects.len(), "Returning recent projects");
-    Ok(projects)
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_project_count(app: AppHandle) -> Result<u64, String> {
-    tracing::debug!("Getting project count");
+pub async fn get_missing_project_paths(paths: Vec<String>) -> CommandResult<Vec<String>>  {
+    unexpected_command_result("get_missing_project_paths", "Failed to get missing project paths", async {
 
-    let db = get_db(&app);
+        Ok(classify_missing_project_paths(&paths))
 
-    let count = ProjectRepository::count(&db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to get project count");
-        e.to_string()
-    })?;
-
-    tracing::debug!(count = %count, "Returning project count");
-    Ok(count)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_missing_project_paths(paths: Vec<String>) -> Result<Vec<String>, String> {
-    Ok(classify_missing_project_paths(&paths))
+    }.await)
 }
 
 #[tauri::command]
@@ -130,95 +147,101 @@ pub async fn import_project(
     db: State<'_, DatabaseConnection>,
     path: String,
     name: Option<String>,
-) -> Result<Project, String> {
-    tracing::info!(path = %path, name = ?name, "Importing project");
+) -> CommandResult<Project>  {
+    unexpected_command_result("import_project", "Failed to import project", async {
 
-    // Validate path is absolute
-    let is_absolute = path.starts_with('/')
-        || (path.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
-            && path.contains(':')
-            && (path.contains('\\') || path.contains('/')));
+        tracing::info!(path = %path, name = ?name, "Importing project");
 
-    if !is_absolute {
-        return Err(format!("Path must be absolute: {}", path));
-    }
+        // Validate path is absolute
+        let is_absolute = path.starts_with('/')
+            || (path.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && path.contains(':')
+                && (path.contains('\\') || path.contains('/')));
 
-    let canonical_path = validate_project_path_for_storage(&path)?;
-    let canonical_path_str = canonical_path.to_string_lossy().to_string();
-
-    // Extract name from path if not provided, preserving the path's original casing.
-    let project_name =
-        name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
-
-    // Create or update project (color will be randomly assigned if new)
-    let project_row =
-        ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to create/update project");
-                e.to_string()
-            })?;
-
-    // Auto-detect icon if not already set
-    let project_row = detect_and_persist_icon(&db, project_row).await?;
-
-    tracing::info!(path = %canonical_path_str, "Project imported successfully");
-
-    // Pre-warm the session cache by scanning ALL project paths in the background.
-    // The SCAN_CACHE key is "scan:{sorted_paths.join('|')}" so we must scan with the
-    // same set of paths that loadSessions() will use — otherwise it's a cache miss.
-    let project_path_for_spawn = project_row.path.clone();
-    let db_clone = db.inner().clone();
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        let all_paths: Vec<String> = match ProjectRepository::get_all(&db_clone).await {
-            Ok(rows) => rows.into_iter().map(|r| r.path).collect(),
-            Err(e) => {
-                tracing::error!(error = %e, "Failed to fetch projects for pre-scan, using imported path only");
-                vec![project_path_for_spawn]
-            }
-        };
-        match crate::history::commands::scan_project_sessions(app_clone, all_paths).await {
-            Ok(_) => {
-                tracing::debug!("Pre-scanned sessions for all projects after import (cached)");
-            }
-            Err(e) => {
-                tracing::error!(error = %e, "Failed to pre-scan sessions after import");
-            }
+        if !is_absolute {
+            return Err(format!("Path must be absolute: {}", path));
         }
-    });
 
-    Ok(project_from_row(project_row))
+        let canonical_path = validate_project_path_for_storage(&path)?;
+        let canonical_path_str = canonical_path.to_string_lossy().to_string();
+
+        // Extract name from path if not provided, preserving the path's original casing.
+        let project_name =
+            name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
+
+        // Create or update project (color will be randomly assigned if new)
+        let project_row =
+            ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to create/update project");
+                    e.to_string()
+                })?;
+
+        // Auto-detect icon if not already set
+        let project_row = detect_and_persist_icon(&db, project_row).await?;
+
+        tracing::info!(path = %canonical_path_str, "Project imported successfully");
+
+        // Pre-warm the session cache by scanning ALL project paths in the background.
+        // The SCAN_CACHE key is "scan:{sorted_paths.join('|')}" so we must scan with the
+        // same set of paths that loadSessions() will use — otherwise it's a cache miss.
+        let project_path_for_spawn = project_row.path.clone();
+        let db_clone = db.inner().clone();
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            let all_paths: Vec<String> = match ProjectRepository::get_all(&db_clone).await {
+                Ok(rows) => rows.into_iter().map(|r| r.path).collect(),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to fetch projects for pre-scan, using imported path only");
+                    vec![project_path_for_spawn]
+                }
+            };
+            match crate::history::commands::scan_project_sessions(app_clone, all_paths).await {
+                Ok(_) => {
+                    tracing::debug!("Pre-scanned sessions for all projects after import (cached)");
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e, "Failed to pre-scan sessions after import");
+                }
+            }
+        });
+
+        Ok(project_from_row(project_row))
+
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_project(app: AppHandle, path: String, name: Option<String>) -> Result<(), String> {
-    tracing::info!(path = %path, name = ?name, "Adding project");
+pub async fn add_project(app: AppHandle, path: String, name: Option<String>) -> CommandResult<()> {
+    unexpected_command_result("add_project", "Failed to add project", async {
+        tracing::info!(path = %path, name = ?name, "Adding project");
 
-    let db = get_db(&app);
-    let canonical_path = validate_project_path_for_storage(&path)?;
-    let canonical_path_str = canonical_path.to_string_lossy().to_string();
+        let db = get_db(&app);
+        let canonical_path = validate_project_path_for_storage(&path)?;
+        let canonical_path_str = canonical_path.to_string_lossy().to_string();
 
-    // Extract name from path if not provided, preserving the path's original casing.
-    let project_name =
-        name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
+        // Extract name from path if not provided, preserving the path's original casing.
+        let project_name =
+            name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
 
-    // Create or update project (color will be randomly assigned if new)
-    let project_row =
-        ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to add project");
-                e.to_string()
-            })?;
+        // Create or update project (color will be randomly assigned if new)
+        let project_row =
+            ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to add project");
+                    e.to_string()
+                })?;
 
-    // Auto-detect icon if not already set
-    detect_and_persist_icon(&db, project_row).await?;
+        // Auto-detect icon if not already set
+        detect_and_persist_icon(&db, project_row).await?;
 
-    tracing::info!("Project added successfully");
+        tracing::info!("Project added successfully");
 
-    Ok(())
+        Ok(())
+    }.await)
 }
 
 #[tauri::command]
@@ -227,30 +250,34 @@ pub async fn update_project_color(
     app: AppHandle,
     path: String,
     color: String,
-) -> Result<Project, String> {
-    tracing::info!(path = %path, color = %color, "Updating project color");
+) -> CommandResult<Project>  {
+    unexpected_command_result("update_project_color", "Failed to update project color", async {
 
-    let db = get_db(&app);
+        tracing::info!(path = %path, color = %color, "Updating project color");
 
-    // Get existing project first
-    let existing = ProjectRepository::get_by_path(&db, &path)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to get project");
-            e.to_string()
-        })?
-        .ok_or_else(|| format!("Project not found: {}", path))?;
+        let db = get_db(&app);
 
-    // Update project with new color
-    let row = ProjectRepository::create_or_update(&db, path, existing.name, Some(color))
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update project color");
-            e.to_string()
-        })?;
+        // Get existing project first
+        let existing = ProjectRepository::get_by_path(&db, &path)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to get project");
+                e.to_string()
+            })?
+            .ok_or_else(|| format!("Project not found: {}", path))?;
 
-    tracing::info!("Project color updated successfully");
-    Ok(project_from_row(row))
+        // Update project with new color
+        let row = ProjectRepository::create_or_update(&db, path, existing.name, Some(color))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update project color");
+                e.to_string()
+            })?;
+
+        tracing::info!("Project color updated successfully");
+        Ok(project_from_row(row))
+
+    }.await)
 }
 
 #[tauri::command]
@@ -259,14 +286,14 @@ pub async fn update_project_icon(
     app: AppHandle,
     path: String,
     icon_path: Option<String>,
-) -> Result<Project, String> {
-    tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
-
-    // Validate icon_path is a real image file when set
+) -> CommandResult<Project>  {
     if let Some(ref ip) = icon_path {
         let icon = std::path::Path::new(ip);
         if !icon.is_file() {
-            return Err(format!("Icon path is not a file: {}", ip));
+            return Err(SerializableCommandError::expected(
+                "update_project_icon",
+                format!("Icon path is not a file: {}", ip),
+            ));
         }
         let valid_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
         let ext_ok = icon
@@ -274,19 +301,28 @@ pub async fn update_project_icon(
             .map(|ext| valid_extensions.contains(&ext.to_string_lossy().to_lowercase().as_str()))
             .unwrap_or(false);
         if !ext_ok {
-            return Err(format!("Icon path is not a supported image format: {}", ip));
+            return Err(SerializableCommandError::expected(
+                "update_project_icon",
+                format!("Icon path is not a supported image format: {}", ip),
+            ));
         }
     }
 
-    let db = get_db(&app);
-    let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update project icon");
-            e.to_string()
-        })?;
+    unexpected_command_result("update_project_icon", "Failed to update project icon", async {
 
-    Ok(project_from_row(row))
+        tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
+
+        let db = get_db(&app);
+        let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update project icon");
+                e.to_string()
+            })?;
+
+        Ok(project_from_row(row))
+
+    }.await)
 }
 
 #[tauri::command]
@@ -294,254 +330,278 @@ pub async fn update_project_icon(
 pub async fn update_project_order(
     app: AppHandle,
     ordered_paths: Vec<String>,
-) -> Result<Vec<Project>, String> {
-    tracing::info!(count = ordered_paths.len(), "Updating project order");
+) -> CommandResult<Vec<Project>>  {
+    unexpected_command_result("update_project_order", "Failed to update project order", async {
 
-    let db = get_db(&app);
-    let rows = ProjectRepository::reorder(&db, &ordered_paths)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update project order");
+        tracing::info!(count = ordered_paths.len(), "Updating project order");
+
+        let db = get_db(&app);
+        let rows = ProjectRepository::reorder(&db, &ordered_paths)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update project order");
+                e.to_string()
+            })?;
+
+        Ok(rows.into_iter().map(project_from_row).collect())
+
+    }.await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_project(app: AppHandle, path: String) -> CommandResult<()>  {
+    unexpected_command_result("remove_project", "Failed to remove project", async {
+
+        tracing::info!(path = %path, "Removing project");
+
+        let db = get_db(&app);
+
+        ProjectRepository::delete(&db, &path).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to remove project");
             e.to_string()
         })?;
 
-    Ok(rows.into_iter().map(project_from_row).collect())
+        tracing::info!(path = %path, "Project removed successfully");
+        Ok(())
+
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remove_project(app: AppHandle, path: String) -> Result<(), String> {
-    tracing::info!(path = %path, "Removing project");
+pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>>  {
+    unexpected_command_result("browse_project", "Failed to browse for project", async {
 
-    let db = get_db(&app);
+        use rfd::AsyncFileDialog;
 
-    ProjectRepository::delete(&db, &path).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to remove project");
-        e.to_string()
-    })?;
+        tracing::debug!("Browsing for project folder");
 
-    tracing::info!(path = %path, "Project removed successfully");
-    Ok(())
+        // Open folder picker dialog using rfd
+        let folder = AsyncFileDialog::new()
+            .set_title("Select Project Folder")
+            .pick_folder()
+            .await;
+
+        match folder {
+            Some(folder_path) => {
+                let path_str = folder_path.path().to_string_lossy().to_string();
+                let project_name = folder_path.path().to_path_buf();
+                let project_name = project_name_from_path(&project_name, &path_str);
+
+                tracing::info!(path = %path_str, name = %project_name, "Project selected");
+
+                // Assign a random color for the project
+                let colors = ["red", "orange", "yellow", "green", "cyan", "purple", "pink"];
+                let mut rng = rand::thread_rng();
+                let assigned_color = colors[rng.gen_range(0..colors.len())].to_string();
+
+                Ok(Some(Project {
+                    path: path_str,
+                    name: project_name,
+                    last_opened: Some(chrono::Utc::now().to_rfc3339()),
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    color: assigned_color,
+                    sort_order: 0,
+                    icon_path: None,
+                }))
+            }
+            None => {
+                tracing::debug!("Folder selection cancelled");
+                Ok(None)
+            }
+        }
+
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn browse_project(_app: AppHandle) -> Result<Option<Project>, String> {
-    use rfd::AsyncFileDialog;
+pub async fn browse_project_icon() -> CommandResult<Option<String>>  {
+    unexpected_command_result("browse_project_icon", "Failed to browse for project icon", async {
 
-    tracing::debug!("Browsing for project folder");
+        use rfd::AsyncFileDialog;
 
-    // Open folder picker dialog using rfd
-    let folder = AsyncFileDialog::new()
-        .set_title("Select Project Folder")
-        .pick_folder()
-        .await;
+        tracing::debug!("Browsing for project icon image");
 
-    match folder {
-        Some(folder_path) => {
-            let path_str = folder_path.path().to_string_lossy().to_string();
-            let project_name = folder_path.path().to_path_buf();
-            let project_name = project_name_from_path(&project_name, &path_str);
+        let file = AsyncFileDialog::new()
+            .set_title("Select Project Icon")
+            .add_filter("Images", &["png", "svg", "ico", "jpg", "jpeg", "webp"])
+            .pick_file()
+            .await;
 
-            tracing::info!(path = %path_str, name = %project_name, "Project selected");
-
-            // Assign a random color for the project
-            let colors = ["red", "orange", "yellow", "green", "cyan", "purple", "pink"];
-            let mut rng = rand::thread_rng();
-            let assigned_color = colors[rng.gen_range(0..colors.len())].to_string();
-
-            Ok(Some(Project {
-                path: path_str,
-                name: project_name,
-                last_opened: Some(chrono::Utc::now().to_rfc3339()),
-                created_at: chrono::Utc::now().to_rfc3339(),
-                color: assigned_color,
-                sort_order: 0,
-                icon_path: None,
-            }))
+        match file {
+            Some(file_handle) => {
+                let path_str = file_handle.path().to_string_lossy().to_string();
+                tracing::info!(path = %path_str, "Project icon selected");
+                Ok(Some(path_str))
+            }
+            None => {
+                tracing::debug!("Icon selection cancelled");
+                Ok(None)
+            }
         }
-        None => {
-            tracing::debug!("Folder selection cancelled");
-            Ok(None)
-        }
-    }
+
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn browse_project_icon() -> Result<Option<String>, String> {
-    use rfd::AsyncFileDialog;
+pub async fn list_project_images(project_path: String) -> CommandResult<Vec<String>>  {
+    unexpected_command_result("list_project_images", "Failed to list project images", async {
 
-    tracing::debug!("Browsing for project icon image");
+        use std::path::Path;
 
-    let file = AsyncFileDialog::new()
-        .set_title("Select Project Icon")
-        .add_filter("Images", &["png", "svg", "ico", "jpg", "jpeg", "webp"])
-        .pick_file()
-        .await;
-
-    match file {
-        Some(file_handle) => {
-            let path_str = file_handle.path().to_string_lossy().to_string();
-            tracing::info!(path = %path_str, "Project icon selected");
-            Ok(Some(path_str))
+        let dir = Path::new(&project_path);
+        if !dir.is_dir() {
+            return Err(format!("Not a directory: {}", project_path));
         }
-        None => {
-            tracing::debug!("Icon selection cancelled");
-            Ok(None)
+
+        let image_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
+        let skip_dirs = [
+            "node_modules",
+            ".git",
+            "target",
+            "dist",
+            "build",
+            ".next",
+            "__pycache__",
+            ".venv",
+            "vendor",
+        ];
+        let mut results = Vec::new();
+
+        fn walk(
+            dir: &Path,
+            extensions: &[&str],
+            skip: &[&str],
+            results: &mut Vec<String>,
+            depth: usize,
+        ) {
+            if depth > 4 {
+                return;
+            }
+
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let file_name = entry.file_name();
+                let name_str = file_name.to_string_lossy();
+
+                // Skip symlinks to prevent traversal outside the project root
+                let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                    continue;
+                };
+                if metadata.file_type().is_symlink() {
+                    continue;
+                }
+
+                if path.is_dir() {
+                    if (!name_str.starts_with('.') || name_str == ".github")
+                        && !skip.contains(&name_str.as_ref())
+                    {
+                        walk(&path, extensions, skip, results, depth + 1);
+                    }
+                    continue;
+                }
+
+                if let Some(ext) = path.extension() {
+                    let ext_lower = ext.to_string_lossy().to_lowercase();
+                    if extensions.contains(&ext_lower.as_str()) {
+                        results.push(path.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
-    }
+
+        walk(dir, &image_extensions, &skip_dirs, &mut results, 0);
+        results.sort();
+        Ok(results)
+
+    }.await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_project_images(project_path: String) -> Result<Vec<String>, String> {
-    use std::path::Path;
+pub async fn backfill_project_icons(app: AppHandle) -> CommandResult<u64>  {
+    unexpected_command_result("backfill_project_icons", "Failed to backfill project icons", async {
 
-    let dir = Path::new(&project_path);
-    if !dir.is_dir() {
-        return Err(format!("Not a directory: {}", project_path));
-    }
+        tracing::info!("Running one-time project icon backfill");
 
-    let image_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
-    let skip_dirs = [
-        "node_modules",
-        ".git",
-        "target",
-        "dist",
-        "build",
-        ".next",
-        "__pycache__",
-        ".venv",
-        "vendor",
-    ];
-    let mut results = Vec::new();
+        let db = get_db(&app);
 
-    fn walk(
-        dir: &Path,
-        extensions: &[&str],
-        skip: &[&str],
-        results: &mut Vec<String>,
-        depth: usize,
-    ) {
-        if depth > 4 {
-            return;
+        let already_ran = AppSettingsRepository::get(&db, PROJECT_ICON_BACKFILL_KEY)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = e.root_cause(),
+                    "Failed to load project icon backfill flag"
+                );
+                e.to_string()
+            })?;
+
+        if already_ran.is_some() {
+            tracing::debug!("Project icon backfill already completed");
+            return Ok(0);
         }
 
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
+        let projects = ProjectRepository::get_all(&db).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to load projects for icon backfill");
+            e.to_string()
+        })?;
 
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let file_name = entry.file_name();
-            let name_str = file_name.to_string_lossy();
+        let mut updated_count = 0_u64;
 
-            // Skip symlinks to prevent traversal outside the project root
-            let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+        for project in projects {
+            if project.icon_path.is_some() {
+                continue;
+            }
+
+            let Some(detected_icon) = detect_project_icon(std::path::Path::new(&project.path)) else {
                 continue;
             };
-            if metadata.file_type().is_symlink() {
+
+            let current_project = ProjectRepository::get_by_path(&db, &project.path)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, path = %project.path, "Failed to reload project during icon backfill");
+                    e.to_string()
+                })?;
+
+            let Some(current_project) = current_project else {
+                continue;
+            };
+
+            if current_project.icon_path.is_some() {
                 continue;
             }
 
-            if path.is_dir() {
-                if (!name_str.starts_with('.') || name_str == ".github")
-                    && !skip.contains(&name_str.as_ref())
-                {
-                    walk(&path, extensions, skip, results, depth + 1);
-                }
-                continue;
-            }
-
-            if let Some(ext) = path.extension() {
-                let ext_lower = ext.to_string_lossy().to_lowercase();
-                if extensions.contains(&ext_lower.as_str()) {
-                    results.push(path.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    walk(dir, &image_extensions, &skip_dirs, &mut results, 0);
-    results.sort();
-    Ok(results)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn backfill_project_icons(app: AppHandle) -> Result<u64, String> {
-    tracing::info!("Running one-time project icon backfill");
-
-    let db = get_db(&app);
-
-    let already_ran = AppSettingsRepository::get(&db, PROJECT_ICON_BACKFILL_KEY)
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                error = e.root_cause(),
-                "Failed to load project icon backfill flag"
-            );
-            e.to_string()
-        })?;
-
-    if already_ran.is_some() {
-        tracing::debug!("Project icon backfill already completed");
-        return Ok(0);
-    }
-
-    let projects = ProjectRepository::get_all(&db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to load projects for icon backfill");
-        e.to_string()
-    })?;
-
-    let mut updated_count = 0_u64;
-
-    for project in projects {
-        if project.icon_path.is_some() {
-            continue;
+            ProjectRepository::update_icon_path(&db, &project.path, Some(detected_icon))
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, path = %project.path, "Failed to persist backfilled project icon");
+                    e.to_string()
+                })?;
+            updated_count += 1;
         }
 
-        let Some(detected_icon) = detect_project_icon(std::path::Path::new(&project.path)) else {
-            continue;
-        };
-
-        let current_project = ProjectRepository::get_by_path(&db, &project.path)
+        AppSettingsRepository::set(&db, PROJECT_ICON_BACKFILL_KEY, "true")
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, path = %project.path, "Failed to reload project during icon backfill");
+                tracing::error!(
+                    error = e.root_cause(),
+                    "Failed to persist project icon backfill flag"
+                );
                 e.to_string()
             })?;
 
-        let Some(current_project) = current_project else {
-            continue;
-        };
+        tracing::info!(updated_count, "Project icon backfill completed");
+        Ok(updated_count)
 
-        if current_project.icon_path.is_some() {
-            continue;
-        }
-
-        ProjectRepository::update_icon_path(&db, &project.path, Some(detected_icon))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, path = %project.path, "Failed to persist backfilled project icon");
-                e.to_string()
-            })?;
-        updated_count += 1;
-    }
-
-    AppSettingsRepository::set(&db, PROJECT_ICON_BACKFILL_KEY, "true")
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                error = e.root_cause(),
-                "Failed to persist project icon backfill flag"
-            );
-            e.to_string()
-        })?;
-
-    tracing::info!(updated_count, "Project icon backfill completed");
-    Ok(updated_count)
+    }.await)
 }
 
 #[cfg(test)]

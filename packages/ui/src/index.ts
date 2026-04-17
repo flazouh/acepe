@@ -372,6 +372,12 @@ export { SegmentedProgress } from "./components/segmented-progress/index.js";
 // Selector
 export { Selector } from "./components/selector/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
+export {
+	Tooltip,
+	TooltipContent,
+	TooltipPortal,
+	TooltipTrigger,
+} from "./components/tooltip/index.js";
 export { UserMessageContainer } from "./components/user-message-container/index.js";
 export {
 	BRAND_SHADER_DARK_PALETTE,

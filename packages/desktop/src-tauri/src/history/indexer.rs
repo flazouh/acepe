@@ -29,6 +29,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -836,7 +837,7 @@ impl IndexerActor {
             }
 
             // Sort by modification time (most recent first) and limit
-            files_with_mtime.sort_by(|a, b| b.1.cmp(&a.1));
+            files_with_mtime.sort_by_key(|entry| Reverse(entry.1));
 
             for (path, _) in files_with_mtime.into_iter().take(MAX_SESSIONS_PER_PROJECT) {
                 all_files.push((path, project_path.clone()));
@@ -1375,6 +1376,7 @@ mod tests {
         )
     }
 
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn copilot_source_fetch_emits_title_refresh_when_only_summary_changed() {
         let _lock = home_test_lock().lock().expect("home lock");

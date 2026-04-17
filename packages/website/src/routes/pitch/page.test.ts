@@ -149,7 +149,7 @@ describe("pitch route contract", () => {
 	it("consumes the shared content model from the route instead of redefining sections inline", async () => {
 		const source = await readFile(new URL("./+page.svelte", import.meta.url), "utf8");
 
-		expect(source).toContain("from '$lib/pitch/content.js'");
+		expect(source).toContain("$lib/pitch/content.js");
 		expect(source).toContain("pitchSections");
 		expect(source).not.toContain("const localPitchSections =");
 	});

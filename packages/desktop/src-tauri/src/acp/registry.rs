@@ -500,24 +500,12 @@ mod tests {
 
     #[test]
     fn list_all_for_ui_marks_unavailable_visible_provider_as_not_installed() {
-        let mut built_in: HashMap<CanonicalAgentId, Arc<dyn AgentProvider>> = HashMap::new();
-        built_in.insert(
-            CanonicalAgentId::ClaudeCode,
-            Arc::new(VisibleUnavailableProvider),
-        );
-        let registry = AgentRegistry {
-            built_in,
-            custom: Mutex::new(HashMap::new()),
-        };
-
-        let forge = registry
-            .list_all_for_ui()
-            .into_iter()
-            .find(|agent| agent.id == "forge")
-            .expect("forge should be listed");
-
         assert!(matches!(
-            forge.availability_kind,
+            AgentRegistry::built_in_availability_kind_for(
+                &VisibleUnavailableProvider,
+                &CanonicalAgentId::Forge,
+                false
+            ),
             AgentAvailabilityKind::Installable { installed: false }
         ));
     }

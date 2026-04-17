@@ -1,9 +1,8 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { okAsync, ResultAsync } from "neverthrow";
+import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
-import type { ProjectIndex } from "../../../../services/converted-session-types.js";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";

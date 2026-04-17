@@ -4,6 +4,10 @@ use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
+use crate::opencode_history::commands::fetch_opencode_session;
 use crate::acp::session_open_snapshot::{
     assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
 };
@@ -272,17 +276,21 @@ pub async fn get_unified_session(
     project_path: String,
     agent_id: String,
     source_path: Option<String>,
-) -> Result<Option<ConvertedSession>, String> {
-    let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-    let context = crate::history::session_context::resolve_session_context(
-        db.as_ref(),
-        &session_id,
-        &project_path,
-        &agent_id,
-        source_path.as_deref(),
-    )
-    .await;
-    load_unified_session_with_context(app, context).await
+) -> CommandResult<Option<ConvertedSession>>  {
+    unexpected_command_result("get_unified_session", "Failed to get unified session", async {
+
+        let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+        let context = crate::history::session_context::resolve_session_context(
+            db.as_ref(),
+            &session_id,
+            &project_path,
+            &agent_id,
+            source_path.as_deref(),
+        )
+        .await;
+        load_unified_session_with_context(app, context).await
+
+    }.await)
 }
 
 #[tauri::command]
@@ -660,149 +668,147 @@ pub async fn audit_session_load_timing(
     project_path: String,
     agent_id: String,
     source_path: Option<String>,
-) -> Result<SessionLoadTiming, String> {
-    let mut stages = Vec::new();
-    let total_start = Instant::now();
-    let canonical_agent = CanonicalAgentId::parse(&agent_id);
+) -> CommandResult<SessionLoadTiming>  {
+    unexpected_command_result("audit_session_load_timing", "Failed to audit session load timing", async {
 
-    if matches!(canonical_agent, CanonicalAgentId::Copilot) {
-        return Err("Copilot audit is not implemented yet".to_string());
-    }
-    if matches!(canonical_agent, CanonicalAgentId::Forge) {
-        return Err("Forge audit is not implemented yet".to_string());
-    }
+        let mut stages = Vec::new();
+        let total_start = Instant::now();
+        let canonical_agent = CanonicalAgentId::parse(&agent_id);
 
-    let (result, agent_name) = match canonical_agent {
-        CanonicalAgentId::ClaudeCode => {
-            let t0 = Instant::now();
-            let session_path = session_jsonl_parser::find_session_file(&session_id, &project_path)
-                .await
-                .map_err(|e| format!("Failed to find Claude session file: {}", e))?;
-            add_stage(&mut stages, "find_session_file", t0);
-
-            let t1 = Instant::now();
-            let full_session = session_jsonl_parser::parse_full_session_from_path(
-                &session_id,
-                &project_path,
-                &session_path,
-            )
-            .await
-            .map_err(|e| format!("Failed to parse Claude session: {}", e))?;
-            add_stage(&mut stages, "read_and_parse", t1);
-
-            let t2 = Instant::now();
-            let converted =
-                crate::session_converter::convert_claude_full_session_to_entries(&full_session);
-            add_stage(&mut stages, "convert", t2);
-
-            (Some(converted), "claude-code".to_string())
+        if matches!(canonical_agent, CanonicalAgentId::Copilot) {
+            return Err("Copilot audit is not implemented yet".to_string());
         }
-        CanonicalAgentId::Cursor => {
-            if let Some(ref sp) = source_path {
+        if matches!(canonical_agent, CanonicalAgentId::Forge) {
+            return Err("Forge audit is not implemented yet".to_string());
+        }
+
+        let (result, agent_name) = match canonical_agent {
+            CanonicalAgentId::ClaudeCode => {
                 let t0 = Instant::now();
-                match cursor_parser::load_session_from_source(&session_id, sp).await {
-                    Ok(Some(fs)) => {
-                        add_stage(&mut stages, "load_from_source", t0);
-                        let t1 = Instant::now();
-                        let converted =
-                            crate::session_converter::convert_cursor_full_session_to_entries(&fs);
-                        add_stage(&mut stages, "convert", t1);
-                        (Some(converted), "cursor".to_string())
-                    }
-                    Ok(None) | Err(_) => {
-                        add_stage(&mut stages, "load_from_source_failed", t0);
-                        // Fall through to find_session_by_id
-                        let t_find = Instant::now();
-                        let full_session = cursor_parser::find_session_by_id(&session_id)
-                            .await
-                            .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
-                        add_stage(&mut stages, "find_transcript", t_find);
-                        let converted = match full_session {
-                            Some(fs) => {
-                                let t2 = Instant::now();
-                                let c = crate::session_converter::convert_cursor_full_session_to_entries(
-                                    &fs,
-                                );
-                                add_stage(&mut stages, "convert", t2);
-                                Some(c)
-                            }
-                            None => None,
-                        };
-                        (converted, "cursor".to_string())
-                    }
-                }
-            } else {
-                let t0 = Instant::now();
-                let full_session = cursor_parser::find_session_by_id(&session_id)
+                let session_path = session_jsonl_parser::find_session_file(&session_id, &project_path)
                     .await
-                    .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
-                add_stage(&mut stages, "find_transcript", t0);
-                let converted = match full_session {
-                    Some(fs) => {
-                        let t1 = Instant::now();
-                        let c =
-                            crate::session_converter::convert_cursor_full_session_to_entries(&fs);
-                        add_stage(&mut stages, "convert", t1);
-                        Some(c)
-                    }
-                    None => None,
-                };
-                (converted, "cursor".to_string())
-            }
-        }
-        CanonicalAgentId::OpenCode => {
-            let t0 = Instant::now();
-            let disk_result =
-                opencode_parser::load_session_from_disk(&session_id, source_path.as_deref()).await;
-            add_stage(&mut stages, "load_from_disk", t0);
+                    .map_err(|e| format!("Failed to find Claude session file: {}", e))?;
+                add_stage(&mut stages, "find_session_file", t0);
 
-            if let Ok(Some(converted)) = disk_result {
-                (Some(converted), "opencode".to_string())
-            } else {
                 let t1 = Instant::now();
-                match crate::opencode_history::commands::get_opencode_session(
-                    app,
-                    session_id.clone(),
-                    project_path.clone(),
+                let full_session = session_jsonl_parser::parse_full_session_from_path(
+                    &session_id,
+                    &project_path,
+                    &session_path,
                 )
                 .await
-                {
-                    Ok(converted) => {
-                        add_stage(&mut stages, "http_fetch", t1);
-                        (Some(converted), "opencode".to_string())
+                .map_err(|e| format!("Failed to parse Claude session: {}", e))?;
+                add_stage(&mut stages, "read_and_parse", t1);
+
+                let t2 = Instant::now();
+                let converted =
+                    crate::session_converter::convert_claude_full_session_to_entries(&full_session);
+                add_stage(&mut stages, "convert", t2);
+
+                (Some(converted), "claude-code".to_string())
+            }
+            CanonicalAgentId::Cursor => {
+                if let Some(ref sp) = source_path {
+                    let t0 = Instant::now();
+                    match cursor_parser::load_session_from_source(&session_id, sp).await {
+                        Ok(Some(fs)) => {
+                            add_stage(&mut stages, "load_from_source", t0);
+                            let t1 = Instant::now();
+                            let converted =
+                                crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                            add_stage(&mut stages, "convert", t1);
+                            (Some(converted), "cursor".to_string())
+                        }
+                        Ok(None) | Err(_) => {
+                            add_stage(&mut stages, "load_from_source_failed", t0);
+                            // Fall through to find_session_by_id
+                            let t_find = Instant::now();
+                            let full_session = cursor_parser::find_session_by_id(&session_id)
+                                .await
+                                .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
+                            add_stage(&mut stages, "find_transcript", t_find);
+                            let converted = match full_session {
+                                Some(fs) => {
+                                    let t2 = Instant::now();
+                                    let c = crate::session_converter::convert_cursor_full_session_to_entries(
+                                        &fs,
+                                    );
+                                    add_stage(&mut stages, "convert", t2);
+                                    Some(c)
+                                }
+                                None => None,
+                            };
+                            (converted, "cursor".to_string())
+                        }
                     }
-                    Err(e) => {
-                        add_stage(&mut stages, "http_failed", t1);
-                        return Err(e);
+                } else {
+                    let t0 = Instant::now();
+                    let full_session = cursor_parser::find_session_by_id(&session_id)
+                        .await
+                        .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
+                    add_stage(&mut stages, "find_transcript", t0);
+                    let converted = match full_session {
+                        Some(fs) => {
+                            let t1 = Instant::now();
+                            let c =
+                                crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                            add_stage(&mut stages, "convert", t1);
+                            Some(c)
+                        }
+                        None => None,
+                    };
+                    (converted, "cursor".to_string())
+                }
+            }
+            CanonicalAgentId::OpenCode => {
+                let t0 = Instant::now();
+                let disk_result =
+                    opencode_parser::load_session_from_disk(&session_id, source_path.as_deref()).await;
+                add_stage(&mut stages, "load_from_disk", t0);
+
+                if let Ok(Some(converted)) = disk_result {
+                    (Some(converted), "opencode".to_string())
+                } else {
+                    let t1 = Instant::now();
+                    match fetch_opencode_session(&app, &session_id, &project_path).await {
+                        Ok(converted) => {
+                            add_stage(&mut stages, "http_fetch", t1);
+                            (Some(converted), "opencode".to_string())
+                        }
+                        Err(e) => {
+                            add_stage(&mut stages, "http_failed", t1);
+                            return Err(e);
+                        }
                     }
                 }
             }
-        }
-        CanonicalAgentId::Codex => {
-            let t0 = Instant::now();
-            let codex_result =
-                codex_parser::load_session(&session_id, &project_path, source_path.as_deref())
-                    .await
-                    .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
-            add_stage(&mut stages, "load_session", t0);
-            (codex_result, "codex".to_string())
-        }
-        CanonicalAgentId::Custom(_) => {
-            return Err("Custom agents do not support session load audit".to_string());
-        }
-        CanonicalAgentId::Copilot | CanonicalAgentId::Forge => unreachable!("handled above"),
-    };
+            CanonicalAgentId::Codex => {
+                let t0 = Instant::now();
+                let codex_result =
+                    codex_parser::load_session(&session_id, &project_path, source_path.as_deref())
+                        .await
+                        .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
+                add_stage(&mut stages, "load_session", t0);
+                (codex_result, "codex".to_string())
+            }
+            CanonicalAgentId::Custom(_) => {
+                return Err("Custom agents do not support session load audit".to_string());
+            }
+            CanonicalAgentId::Copilot | CanonicalAgentId::Forge => unreachable!("handled above"),
+        };
 
-    let total_ms = total_start.elapsed().as_millis();
-    let entry_count = result.as_ref().map(|c| c.entries.len()).unwrap_or(0);
+        let total_ms = total_start.elapsed().as_millis();
+        let entry_count = result.as_ref().map(|c| c.entries.len()).unwrap_or(0);
 
-    Ok(SessionLoadTiming {
-        agent: agent_name,
-        total_ms,
-        stages,
-        entry_count,
-        ok: result.is_some(),
-    })
+        Ok(SessionLoadTiming {
+            agent: agent_name,
+            total_ms,
+            stages,
+            entry_count,
+            ok: result.is_some(),
+        })
+
+    }.await)
 }
 
 /// Set the worktree path for a session in the metadata index.
@@ -816,60 +822,64 @@ pub async fn set_session_worktree_path(
     worktree_path: String,
     project_path: Option<String>,
     agent_id: Option<String>,
-) -> Result<(), String> {
-    tracing::info!(
-        session_id = %session_id,
-        worktree_path = %worktree_path,
-        "Persisting worktree path for session"
-    );
+) -> CommandResult<()>  {
+    unexpected_command_result("set_session_worktree_path", "Failed to set session worktree path", async {
 
-    let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
-        tracing::error!(
+        tracing::info!(
             session_id = %session_id,
             worktree_path = %worktree_path,
-            error = %e,
-            "Worktree path validation failed"
+            "Persisting worktree path for session"
         );
-        format!("Invalid worktree path: {}", e)
-    })?;
 
-    let db = app
-        .try_state::<DbConn>()
-        .ok_or("Database not available")?
-        .inner()
-        .clone();
+        let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
+            tracing::error!(
+                session_id = %session_id,
+                worktree_path = %worktree_path,
+                error = %e,
+                "Worktree path validation failed"
+            );
+            format!("Invalid worktree path: {}", e)
+        })?;
 
-    SessionMetadataRepository::set_worktree_path(
-        &db,
-        &session_id,
-        &canonical.to_string_lossy(),
-        project_path.as_deref(),
-        agent_id.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!(
-            session_id = %session_id,
-            error = %e,
-            "Failed to persist worktree path to DB"
-        );
-        format!("Failed to set worktree path: {}", e)
-    })?;
+        let db = app
+            .try_state::<DbConn>()
+            .ok_or("Database not available")?
+            .inner()
+            .clone();
 
-    if let (Some(_project_path), Some(_agent_id)) = (project_path.as_deref(), agent_id.as_deref()) {
-        SessionMetadataRepository::mark_as_acepe_managed(&db, &session_id)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    session_id = %session_id,
-                    error = %e,
-                    "Failed to promote session to Acepe-managed state"
-                );
-                format!("Failed to set worktree path: {}", e)
-            })?;
-    }
+        SessionMetadataRepository::set_worktree_path(
+            &db,
+            &session_id,
+            &canonical.to_string_lossy(),
+            project_path.as_deref(),
+            agent_id.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                session_id = %session_id,
+                error = %e,
+                "Failed to persist worktree path to DB"
+            );
+            format!("Failed to set worktree path: {}", e)
+        })?;
 
-    Ok(())
+        if let (Some(_project_path), Some(_agent_id)) = (project_path.as_deref(), agent_id.as_deref()) {
+            SessionMetadataRepository::mark_as_acepe_managed(&db, &session_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Failed to promote session to Acepe-managed state"
+                    );
+                    format!("Failed to set worktree path: {}", e)
+                })?;
+        }
+
+        Ok(())
+
+    }.await)
 }
 
 /// Persist the PR number associated with a session.
@@ -880,29 +890,33 @@ pub async fn set_session_pr_number(
     app: AppHandle,
     session_id: String,
     pr_number: Option<i32>,
-) -> Result<(), String> {
-    tracing::info!(
-        session_id = %session_id,
-        pr_number = ?pr_number,
-        "Persisting PR number for session"
-    );
+) -> CommandResult<()>  {
+    unexpected_command_result("set_session_pr_number", "Failed to set session PR number", async {
 
-    let db = app
-        .try_state::<DbConn>()
-        .ok_or("Database not available")?
-        .inner()
-        .clone();
+        tracing::info!(
+            session_id = %session_id,
+            pr_number = ?pr_number,
+            "Persisting PR number for session"
+        );
 
-    SessionMetadataRepository::set_pr_number(&db, &session_id, pr_number)
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                session_id = %session_id,
-                error = %e,
-                "Failed to persist PR number to DB"
-            );
-            format!("Failed to set PR number: {}", e)
-        })
+        let db = app
+            .try_state::<DbConn>()
+            .ok_or("Database not available")?
+            .inner()
+            .clone();
+
+        SessionMetadataRepository::set_pr_number(&db, &session_id, pr_number)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to persist PR number to DB"
+                );
+                format!("Failed to set PR number: {}", e)
+            })
+
+    }.await)
 }
 
 /// Persist a user-provided title override for a session.
@@ -912,31 +926,37 @@ pub async fn set_session_title(
     app: AppHandle,
     session_id: String,
     title: String,
-) -> Result<(), String> {
+) -> CommandResult<()>  {
     let trimmed_title = title.trim().to_string();
     if trimmed_title.is_empty() {
-        return Err("Session title cannot be empty".to_string());
+        return Err(SerializableCommandError::expected(
+            "set_session_title",
+            "Session title cannot be empty",
+        ));
     }
 
-    tracing::info!(
-        session_id = %session_id,
-        "Persisting title override for session"
-    );
+    unexpected_command_result("set_session_title", "Failed to set session title", async {
+        tracing::info!(
+            session_id = %session_id,
+            "Persisting title override for session"
+        );
 
-    let db = app
-        .try_state::<DbConn>()
-        .ok_or("Database not available")?
-        .inner()
-        .clone();
+        let db = app
+            .try_state::<DbConn>()
+            .ok_or("Database not available")?
+            .inner()
+            .clone();
 
-    SessionMetadataRepository::set_title_override(&db, &session_id, Some(trimmed_title.as_str()))
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                session_id = %session_id,
-                error = %e,
-                "Failed to persist title override to DB"
-            );
-            format!("Failed to set session title: {}", e)
-        })
+        SessionMetadataRepository::set_title_override(&db, &session_id, Some(trimmed_title.as_str()))
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to persist title override to DB"
+                );
+                format!("Failed to set session title: {}", e)
+            })
+
+    }.await)
 }

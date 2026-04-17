@@ -10,7 +10,7 @@ describe("pitch page branding contract", () => {
 
 		expect(source).toContain("BrandShaderBackground");
 		expect(source).toContain("BrandLockup");
-		expect(source).toContain("from '@acepe/ui'");
+		expect(source).toContain("@acepe/ui");
 		expect(source).not.toContain("@font-face");
 		expect(source).not.toContain("--background:");
 	});

@@ -50,36 +50,9 @@ describe("ChatSection", () => {
 		planPrefs.preferInline = true;
 	});
 
-	it("renders streaming animation trigger with current mode label and description", () => {
+	it("renders chat settings without a streaming animation selector", () => {
 		const view = render(ChatSection);
-		const trigger = view.container.querySelector(
-			'[aria-label="Streaming animation"]'
-		);
-
-		expect(trigger).not.toBeNull();
-		expect(trigger!.textContent).toContain("Smooth");
-		expect(view.getByText("Choose how assistant text appears while it streams in.")).toBeTruthy();
-	});
-
-	it("renders trigger with smooth label when mode is smooth", () => {
-		chatPrefs.streamingAnimationMode = "smooth";
-		const view = render(ChatSection);
-		const trigger = view.container.querySelector(
-			'[aria-label="Streaming animation"]'
-		);
-
-		expect(trigger).not.toBeNull();
-		expect(trigger!.textContent).toContain("Smooth");
-	});
-
-	it("renders trigger with instant label when mode is instant", () => {
-		chatPrefs.streamingAnimationMode = "instant";
-		const view = render(ChatSection);
-		const trigger = view.container.querySelector(
-			'[aria-label="Streaming animation"]'
-		);
-
-		expect(trigger).not.toBeNull();
-		expect(trigger!.textContent).toContain("Instant");
+		expect(view.container.querySelector('[aria-label="Streaming animation"]')).toBeNull();
+		expect(view.getByText("Pick the default behavior for chat and plan output.")).toBeTruthy();
 	});
 });

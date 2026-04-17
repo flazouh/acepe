@@ -20,6 +20,12 @@ export enum PanelConnectionEvent {
 	CANCEL = "CANCEL",
 }
 
+export interface PanelConnectionErrorDetails {
+	readonly message: string;
+	readonly referenceId?: string;
+	readonly referenceSearchable?: boolean;
+}
+
 /**
  * Context data for panel connection state machine.
  */
@@ -29,6 +35,6 @@ export interface PanelConnectionContext {
 	agentId: string;
 	title?: string;
 	sessionId: string | null;
-	error?: string;
+	error?: PanelConnectionErrorDetails;
 	startedAt?: Date;
 }

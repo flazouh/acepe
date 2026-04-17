@@ -235,7 +235,11 @@ const thinkingIndicatorStartedAtMs = $derived.by(() => {
 	}
 
 	for (let index = mergedEntries.length - 1; index >= 0; index -= 1) {
-		const timestampMs = getVirtualizedDisplayEntryTimestampMs(mergedEntries[index]!);
+		const entry = mergedEntries[index];
+		if (!entry) {
+			continue;
+		}
+		const timestampMs = getVirtualizedDisplayEntryTimestampMs(entry);
 		if (timestampMs !== null) {
 			return timestampMs;
 		}
@@ -248,11 +252,14 @@ const thinkingIndicatorStartedAtMs = $derived.by(() => {
 // the result array to the known size rather than using concat/spread.
 const displayEntriesRaw = $derived.by((): readonly VirtualizedDisplayEntry[] => {
 	if (!isWaitingForResponse) return mergedEntries;
-	const result = new Array<VirtualizedDisplayEntry>(mergedEntries.length + 1);
-	for (let i = 0; i < mergedEntries.length; i++) {
-		result[i] = mergedEntries[i]!;
+	const result: VirtualizedDisplayEntry[] = [];
+	result.length = mergedEntries.length + 1;
+	let writeIndex = 0;
+	for (const entry of mergedEntries) {
+		result[writeIndex] = entry;
+		writeIndex += 1;
 	}
-	result[mergedEntries.length] = {
+	result[writeIndex] = {
 		type: THINKING_DISPLAY_ENTRY.type,
 		id: THINKING_DISPLAY_ENTRY.id,
 		startedAtMs: thinkingIndicatorStartedAtMs,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import {
 	CSS_DRAIN_TIMEOUT_MS,
+	REVEAL_TICK_MS,
 	createStreamingRevealController,
 	type StreamingRevealController,
 } from "../create-streaming-reveal-controller.svelte.js";
@@ -15,6 +16,12 @@ type MotionQueryStub = MediaQueryList & {
 function waitForDrain(): Promise<void> {
 	return new Promise((resolve) => {
 		setTimeout(resolve, CSS_DRAIN_TIMEOUT_MS + 20);
+	});
+}
+
+function waitForRevealTick(): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, REVEAL_TICK_MS + 20);
 	});
 }
 
@@ -90,38 +97,53 @@ describe("createStreamingRevealController", () => {
 		globalThis.matchMedia = originalMatchMedia;
 	});
 
-	it("surfaces the full source text immediately while streaming", () => {
+	it("paces displayedText instead of surfacing the full source immediately while streaming", async () => {
 		const controller = createStreamingRevealController("smooth");
 
 		controller.setState("Hello world", true);
 
-		expect(controller.displayedText).toBe("Hello world");
+		expect(controller.displayedText).toBe("");
 		expect(controller.mode).toBe("streaming");
 		expect(controller.isRevealActive).toBe(true);
+
+		await waitForRevealTick();
+
+		expect(controller.displayedText.length).toBeGreaterThan(0);
+		expect(controller.displayedText.length).toBeLessThan("Hello world".length);
+		expect("Hello world".startsWith(controller.displayedText)).toBe(true);
 	});
 
-	it("keeps displayedText in sync as streaming text grows rapidly", () => {
+	it("continues revealing more text across ticks as streaming text grows", async () => {
 		const controller = createStreamingRevealController("smooth");
-
-		controller.setState("Hello", true);
-		expect(controller.displayedText).toBe("Hello");
-
-		controller.setState("Hello world", true);
-		expect(controller.displayedText).toBe("Hello world");
 
 		controller.setState("Hello world again", true);
-		expect(controller.displayedText).toBe("Hello world again");
+		await waitForRevealTick();
+		const firstTickText = controller.displayedText;
+
+		controller.setState("Hello world again and again", true);
+		await waitForRevealTick();
+
+		expect(controller.displayedText.length).toBeGreaterThan(firstTickText.length);
+		expect("Hello world again and again".startsWith(controller.displayedText)).toBe(true);
 	});
 
-	it("keeps reveal activity during streaming, then drains before going inactive", async () => {
+	it("catches up after streaming stops, then drains before going inactive", async () => {
 		const controller = createStreamingRevealController("smooth");
+		const text = "Hello world from Acepe";
 
-		controller.setState("Hello world", true);
+		controller.setState(text, true);
+		await waitForRevealTick();
+		expect(controller.displayedText.length).toBeLessThan(text.length);
+
+		controller.setState(text, false);
+		expect(controller.mode).toBe("completion-catchup");
 		expect(controller.isRevealActive).toBe(true);
-		expect(controller.mode).toBe("streaming");
 
-		controller.setState("Hello world", false);
-		expect(controller.displayedText).toBe("Hello world");
+		for (let index = 0; index < 8 && controller.displayedText !== text; index += 1) {
+			await waitForRevealTick();
+		}
+
+		expect(controller.displayedText).toBe(text);
 		expect(controller.mode).toBe("complete");
 		expect(controller.isRevealActive).toBe(true);
 
@@ -130,57 +152,19 @@ describe("createStreamingRevealController", () => {
 		expect(controller.isRevealActive).toBe(false);
 	});
 
-	it("skips the drain window in instant mode", () => {
-		const controller = createStreamingRevealController("instant");
-
-		controller.setState("Hello world", true);
-		expect(controller.isRevealActive).toBe(true);
-
-		controller.setState("Hello world", false);
-
-		expect(controller.mode).toBe("complete");
-		expect(controller.isRevealActive).toBe(false);
-	});
-
-	it("skips the drain window when reduced motion is enabled", () => {
+	it("snaps to full text immediately when reduced motion is enabled", () => {
 		motionQueryStub = createMotionQueryStub(true);
 		globalThis.matchMedia = () => motionQueryStub;
 
 		const controller = createStreamingRevealController("smooth");
 		controller.setState("Hello world", true);
-		controller.setState("Hello world", false);
 
-		expect(controller.mode).toBe("complete");
-		expect(controller.isRevealActive).toBe(false);
-	});
-
-	it("cancels an active drain when mode switches to instant", () => {
-		const controller = createStreamingRevealController("smooth");
-
-		controller.setState("Hello world", true);
-		controller.setState("Hello world", false);
+		expect(controller.displayedText).toBe("Hello world");
+		expect(controller.mode).toBe("paused-awaiting-more");
 		expect(controller.isRevealActive).toBe(true);
-
-		controller.setMode("instant");
-
-		expect(controller.mode).toBe("complete");
-		expect(controller.isRevealActive).toBe(false);
 	});
 
-	it("cancels an active drain when reduced motion turns on", () => {
-		const controller = createStreamingRevealController("smooth");
-
-		controller.setState("Hello world", true);
-		controller.setState("Hello world", false);
-		expect(controller.isRevealActive).toBe(true);
-
-		motionQueryStub.emitChange(true);
-
-		expect(controller.mode).toBe("complete");
-		expect(controller.isRevealActive).toBe(false);
-	});
-
-	it("supports seedFromSource and reset across all modes", () => {
+	it("supports seedFromSource and reset across compatibility values", () => {
 		const smooth = createAndSeedController("smooth");
 		const instant = createAndSeedController("instant");
 

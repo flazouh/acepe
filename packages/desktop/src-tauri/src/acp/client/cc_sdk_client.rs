@@ -1905,6 +1905,7 @@ fn parse_permission_suggestions(suggestions: &Option<Vec<Value>>) -> Vec<cc_sdk:
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_permission_request_update(
     session_id: &str,
     tool_call_id: &str,

@@ -12,10 +12,17 @@ import { getSingletonHighlighter, type Highlighter } from "shiki";
 import type { Snippet } from "svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import { TIMING } from "$lib/acp/constants/timing.js";
 import { loadCursorTheme } from "$lib/acp/utils/shiki-theme.js";
-import { captureException } from "$lib/analytics.js";
+import { captureException, isSentryCaptureAvailable } from "$lib/analytics.js";
+import { ensureErrorReference, findErrorReference } from "$lib/errors/error-reference.js";
+import {
+	buildIssueReportDraft,
+	openIssueReportDraft,
+	resolveIssueActionLabel,
+} from "$lib/errors/issue-report.js";
 import * as m from "$lib/messages.js";
 
 interface Props {
@@ -32,10 +39,38 @@ let error = $state<Error | null>(propError);
 let highlighter = $state<Highlighter | null>(null);
 let copiedMessage = $state(false);
 let copiedFixPrompt = $state(false);
+let copiedReferenceId = $state(false);
+
+const errorReference = $derived(error ? findErrorReference(error) : null);
+const referenceStatusLabel = $derived(
+	errorReference?.searchable === true ? "Searchable in Sentry" : "Local only"
+);
+const issueDraft = $derived.by(() => {
+	if (error === null) {
+		return null;
+	}
+
+	return buildIssueReportDraft({
+		title: `Application error: ${error.message}`,
+		summary: error.message,
+		details: formatErrorForDisplay(error),
+		referenceId: errorReference?.referenceId ?? null,
+		referenceSearchable: errorReference?.searchable === true,
+		surface: "global-error-boundary",
+		diagnosticsSummary: error.message,
+		metadata: [
+			{
+				label: "Error name",
+				value: error.name,
+			},
+		],
+	});
+});
 
 // Sync error from prop when it changes - use $effect
 $effect(() => {
 	if (propError !== null) {
+		ensureErrorReference(propError);
 		error = propError;
 	}
 });
@@ -75,6 +110,21 @@ const highlightedError = $derived.by(() => {
 	});
 });
 
+function reportBoundaryError(nextError: Error, source: "window.error" | "window.unhandledrejection"): void {
+	const sentryAvailable = isSentryCaptureAvailable();
+	const eventId = captureException(nextError, { source });
+	ensureErrorReference(
+		nextError,
+		sentryAvailable && eventId !== null
+			? {
+					searchable: true,
+					backendEventId: eventId,
+				}
+			: undefined
+	);
+	error = nextError;
+}
+
 // Global error handler
 onMount(() => {
 	const handleError = (event: ErrorEvent) => {
@@ -106,8 +156,7 @@ onMount(() => {
 			}
 		}
 
-		error = err;
-		try { captureException(err, { source: "window.error" }); } catch { /* telemetry must not recurse */ }
+		reportBoundaryError(err, "window.error");
 	};
 
 	const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -137,8 +186,7 @@ onMount(() => {
 			}
 		}
 
-		error = err;
-		try { captureException(err, { source: "window.unhandledrejection" }); } catch { /* telemetry must not recurse */ }
+		reportBoundaryError(err, "window.unhandledrejection");
 	};
 
 	window.addEventListener("error", handleError);
@@ -210,10 +258,7 @@ async function copyError() {
 	if (!error) return;
 
 	const errorText = formatErrorForDisplay(error);
-	await ResultAsync.fromPromise(
-		navigator.clipboard.writeText(errorText),
-		(e) => new Error(`Failed to copy error: ${String(e)}`)
-	)
+	await copyTextToClipboard(errorText)
 		.map(() => {
 			copiedMessage = true;
 			toast.success(m.toast_error_copied());
@@ -233,10 +278,7 @@ async function copyFixPrompt() {
 	const errorText = formatErrorForDisplay(error);
 	const fixPrompt = `I encountered this error in my application. Please help me fix it:\n\n\`\`\`\n${errorText}\n\`\`\`\n\nWhat's causing this error and how can I fix it?`;
 
-	await ResultAsync.fromPromise(
-		navigator.clipboard.writeText(fixPrompt),
-		(e) => new Error(`Failed to copy fix prompt: ${String(e)}`)
-	)
+	await copyTextToClipboard(fixPrompt)
 		.map(() => {
 			copiedFixPrompt = true;
 			toast.success(m.toast_fix_prompt_copied());
@@ -248,6 +290,32 @@ async function copyFixPrompt() {
 			toast.error(m.toast_fix_prompt_copy_failed());
 			console.error("Failed to copy fix prompt:", e);
 		});
+}
+
+async function copyReferenceId() {
+	const referenceId = errorReference?.referenceId;
+	if (!referenceId) return;
+
+	await copyTextToClipboard(referenceId)
+		.map(() => {
+			copiedReferenceId = true;
+			toast.success("Reference ID copied");
+			setTimeout(() => {
+				copiedReferenceId = false;
+			}, TIMING.TOAST_DURATION_MS);
+		})
+		.mapErr((e) => {
+			toast.error("Failed to copy reference ID");
+			console.error("Failed to copy reference ID:", e);
+		});
+}
+
+function handleIssueAction() {
+	if (issueDraft === null) {
+		return;
+	}
+
+	openIssueReportDraft(issueDraft);
 }
 
 function handleReload() {
@@ -294,6 +362,25 @@ function handleDismiss() {
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>
 
+			{#if errorReference}
+				<div class="flex items-center justify-between gap-3 border-b border-border/30 bg-muted/5 px-4 py-2">
+					<div class="flex min-w-0 items-center gap-2 text-[11px] font-mono">
+						<span class="shrink-0 uppercase tracking-[0.12em] text-muted-foreground">
+							Reference ID
+						</span>
+						<code class="truncate rounded bg-background/70 px-1.5 py-0.5 text-foreground">
+							{errorReference.referenceId}
+						</code>
+						<span class="shrink-0 text-muted-foreground">{referenceStatusLabel}</span>
+					</div>
+					<CopyButton
+						onClick={copyReferenceId}
+						copied={copiedReferenceId}
+						class="h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors rounded-sm"
+					/>
+				</div>
+			{/if}
+
 			<!-- Error Display -->
 			<div class="flex-1 min-h-0 overflow-auto error-boundary bg-muted/10">
 				{#if highlightedError}
@@ -309,6 +396,15 @@ function handleDismiss() {
 
 			<!-- Footer -->
 			<div class="shrink-0 flex items-center h-7 border-t border-border/50 px-2 gap-1 justify-end">
+				{#if issueDraft}
+					<button
+						type="button"
+						onclick={handleIssueAction}
+						class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+					>
+						{resolveIssueActionLabel(issueDraft)}
+					</button>
+				{/if}
 				<button
 					type="button"
 					onclick={handleDismiss}

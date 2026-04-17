@@ -35,8 +35,8 @@ import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
-import { loadWorktreeEnabled } from "$lib/acp/components/worktree-toggle/worktree-storage.js";
+import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
 import {
 	deriveSessionTitleFromUserInput,
 	formatRichSessionTitle,
@@ -1282,6 +1282,8 @@ function handleRejectPlanApproval(sessionId: string): void {
 							<PreSessionWorktreeCard
 								pendingWorktreeEnabled={effectiveWorktreePending}
 								alwaysEnabled={globalWorktreeDefault}
+								projectPath={selectedProject.path}
+								projectName={selectedProject.name}
 								onYes={() => {
 									const store = getWorktreeDefaultStore();
 								if (store.globalDefault) {

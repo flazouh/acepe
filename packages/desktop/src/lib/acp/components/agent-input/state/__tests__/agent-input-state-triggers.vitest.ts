@@ -18,6 +18,15 @@ describe("AgentInputState - Trigger Detection", () => {
 	let mockStore: SessionStore;
 	let state: AgentInputState;
 
+	const getTextarea = (): HTMLTextAreaElement => {
+		const textarea = state.textareaRef;
+		expect(textarea).not.toBeNull();
+		if (!textarea) {
+			throw new Error("Expected textarea ref");
+		}
+		return textarea;
+	};
+
 	beforeEach(() => {
 		// Create a mock textarea element
 		const textarea = document.createElement("textarea");
@@ -44,7 +53,7 @@ describe("AgentInputState - Trigger Detection", () => {
 
 	describe("File picker trigger (@)", () => {
 		it("should show file dropdown when @ is typed at start of message", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "@";
 			textarea.setSelectionRange(1, 1);
 			state.message = "@";
@@ -59,7 +68,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should show file dropdown when @ is typed after space", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "Hello @";
 			textarea.setSelectionRange(7, 7);
 			state.message = "Hello @";
@@ -74,7 +83,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should show file dropdown with query when @file is typed", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "@file";
 			textarea.setSelectionRange(5, 5);
 			state.message = "@file";
@@ -89,7 +98,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should hide file dropdown when @ is followed by space", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "Hello @ file";
 			textarea.setSelectionRange(12, 12);
 			state.message = "Hello @ file";
@@ -105,7 +114,7 @@ describe("AgentInputState - Trigger Detection", () => {
 
 	describe("Slash command trigger (/)", () => {
 		it("should show slash dropdown when / is typed at start of message", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "/";
 			textarea.setSelectionRange(1, 1);
 			state.message = "/";
@@ -120,7 +129,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should show slash dropdown when / is typed after space", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "Hello /";
 			textarea.setSelectionRange(7, 7);
 			state.message = "Hello /";
@@ -135,7 +144,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should show slash dropdown with query when /cmd is typed", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "/cmd";
 			textarea.setSelectionRange(4, 4);
 			state.message = "/cmd";
@@ -150,7 +159,7 @@ describe("AgentInputState - Trigger Detection", () => {
 		});
 
 		it("should hide slash dropdown when / is followed by space", () => {
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "Hello / cmd";
 			textarea.setSelectionRange(11, 11);
 			state.message = "Hello / cmd";
@@ -169,7 +178,7 @@ describe("AgentInputState - Trigger Detection", () => {
 			// This test simulates the bug: panel click handler shouldn't prevent
 			// the textarea from receiving input events and triggering dropdowns
 
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			textarea.value = "@";
 			textarea.setSelectionRange(1, 1);
 			state.message = "@";
@@ -203,7 +212,7 @@ describe("AgentInputState - Trigger Detection", () => {
 			// This test demonstrates the fix: clicking on textarea should not
 			// trigger panel focus, allowing the textarea to receive focus and input
 
-			const textarea = state.textareaRef!;
+			const textarea = getTextarea();
 			const panelDiv = document.createElement("div");
 			panelDiv.appendChild(textarea);
 			document.body.appendChild(panelDiv);

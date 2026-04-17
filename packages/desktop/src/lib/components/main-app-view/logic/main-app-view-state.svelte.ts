@@ -14,10 +14,10 @@
  * ```
  */
 
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openIssueReportDraft, type IssueReportDraft } from "$lib/errors/issue-report.js";
 import { okAsync, type ResultAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
-import type { WorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
+import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -111,13 +111,8 @@ export class MainAppViewState {
 	/**
 	 * Open a GitHub issue with a prefilled draft.
 	 */
-	openUserReportsWithDraft(draft: { title: string; body: string; category: string }): void {
-		const params = new URLSearchParams();
-		if (draft.title) params.set("title", draft.title);
-		if (draft.body) params.set("body", draft.body);
-		if (draft.category) params.set("labels", draft.category);
-		const url = `https://github.com/flazouh/acepe/issues/new?${params.toString()}`;
-		void openUrl(url).catch(() => {});
+	openUserReportsWithDraft(draft: IssueReportDraft): void {
+		openIssueReportDraft(draft);
 	}
 
 	/**

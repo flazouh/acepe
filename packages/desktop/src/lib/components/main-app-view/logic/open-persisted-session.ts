@@ -23,12 +23,21 @@ interface OpenPersistedSessionOptions {
 	readonly sessionId: string;
 	readonly sessionStore: SessionOpenStore;
 	readonly sessionOpenHydrator: SessionOpenHydratorLike;
+	readonly getSessionOpenResult?: typeof api.getSessionOpenResult;
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
-	const { panelId, sessionId, sessionStore, sessionOpenHydrator, timeoutMs, source } = options;
+	const {
+		panelId,
+		sessionId,
+		sessionStore,
+		sessionOpenHydrator,
+		timeoutMs,
+		source,
+		getSessionOpenResult = api.getSessionOpenResult,
+	} = options;
 	if (inflightPanelIds.has(panelId)) {
 		logger.debug("Skipping duplicate session-open request", {
 			source,
@@ -57,8 +66,12 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		timeoutId = setTimeout(() => reject(new Error("Session open timed out")), timeoutMs);
 	});
 
-	const openPromise = api
-		.getSessionOpenResult(sessionId, session.projectPath, session.agentId, session.sourcePath)
+	const openPromise = getSessionOpenResult(
+		sessionId,
+		session.projectPath,
+		session.agentId,
+		session.sourcePath
+	)
 		.andThen((result) => {
 			if (result.outcome === "missing") {
 				sessionOpenHydrator.clearAttempt(panelId);
@@ -128,4 +141,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			}
 			inflightPanelIds.delete(panelId);
 		});
+}
+
+export function __resetOpenPersistedSessionForTests(): void {
+	inflightPanelIds.clear();
 }

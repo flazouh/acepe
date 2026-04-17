@@ -46,7 +46,7 @@ import { filterVisibleModes } from "../../utils/mode-filter.js";
 import FilePreview from "../file-picker/file-preview.svelte";
 import { ModelSelector } from "../index.js";
 import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
-import { runWorktreeSetup } from "../worktree-toggle/worktree-setup-orchestrator.js";
+import { runWorktreeSetup } from "../worktree/worktree-setup-orchestrator.js";
 import { getMicButtonVisualState } from "./components/mic-button-state.js";
 import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
@@ -112,6 +112,7 @@ import {
 	restoreComposerStateAfterFailedSend,
 	type ComposerRestoreSnapshot,
 } from "./logic/first-send-recovery.js";
+import { findErrorReference } from "$lib/errors/error-reference.js";
 import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 import {
 	shouldRouteWindowVoiceHold,
@@ -1357,12 +1358,18 @@ async function handleSend() {
 				panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
 				panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
 				lastDraftValue = restoreSnapshot.draft;
+				const failureMessage = formatPreSessionSendFailure(error);
+				const errorReference = findErrorReference(error);
 				connectionStore.send(effectivePanelId, {
 					type: PanelConnectionEvent.CONNECTION_ERROR,
-					error: formatPreSessionSendFailure(error),
+					error: {
+						message: failureMessage,
+						referenceId: errorReference?.referenceId,
+						referenceSearchable: errorReference?.searchable,
+					},
 				});
 				if (props.worktreePending && preparedWorktreeLaunch) {
-					props.onWorktreeCreateFailed?.(formatPreSessionSendFailure(error));
+					props.onWorktreeCreateFailed?.(failureMessage);
 				}
 				props.onSendError?.(effectivePanelId);
 			} else if (shouldClearDraftEarly && props.panelId) {

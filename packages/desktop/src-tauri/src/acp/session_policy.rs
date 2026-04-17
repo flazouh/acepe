@@ -21,11 +21,17 @@ pub struct SessionPolicyRegistry {
     policies: DashMap<String, Arc<SessionPolicy>>,
 }
 
-impl SessionPolicyRegistry {
-    pub fn new() -> Self {
+impl Default for SessionPolicyRegistry {
+    fn default() -> Self {
         Self {
             policies: DashMap::new(),
         }
+    }
+}
+
+impl SessionPolicyRegistry {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn set_autonomous(&self, session_id: &str, enabled: bool) {

@@ -124,13 +124,9 @@
 				<img src={agentIconSrc} alt="" class="w-3.5 h-3.5" role="presentation" />
 			</HeaderCell>
 		{/if}
-		<HeaderTitleCell hoverable={Boolean(onScrollToTop)}>
+		<HeaderTitleCell>
 			{#snippet children()}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<span class="text-[11px] font-medium truncate"
-						>{displayTitle ? displayTitle : sessionTitle ? sessionTitle : "New thread"}</span
-					>
-
 					{#if statusIndicator}
 						{@render statusIndicator()}
 					{:else if isConnecting || sessionStatus === "warming"}
@@ -185,25 +181,46 @@
 	{/if}
 </EmbeddedPanelHeader>
 
-{#if showMetaRow}
+{#if !pendingProjectSelection}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="flex flex-wrap items-center gap-1.5 border-b border-border/50 px-3 pb-2 text-[11px] text-muted-foreground {showTrailingBorder
+		class="border-b border-border/50 px-3 py-1.5 {showTrailingBorder
 			? 'border-r border-border/50'
-			: ''}"
+			: ''} {onScrollToTop ? 'cursor-pointer' : ''}"
+		onclick={onScrollToTop}
 	>
-		{#if subtitle}
-			<span class="font-medium text-foreground/80">{subtitle}</span>
+		<p class="text-[13px] font-medium leading-snug line-clamp-2 text-foreground">
+			{displayTitle ? displayTitle : sessionTitle ? sessionTitle : "New thread"}
+		</p>
+		{#if showMetaRow}
+			<div class="flex flex-wrap items-center gap-1 mt-1">
+				{#if subtitle}
+					<span
+						class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-default"
+						>{subtitle}</span
+					>
+				{/if}
+				{#if agentLabel}
+					<span
+						class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-default"
+						>{agentLabel}</span
+					>
+				{/if}
+				{#if branchLabel}
+					<span
+						class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-default"
+						>{branchLabel}</span
+					>
+				{/if}
+				{#each badges ?? [] as badge (badge.id)}
+					<span
+						class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-default"
+					>
+						{badge.label}
+					</span>
+				{/each}
+			</div>
 		{/if}
-		{#if agentLabel}
-			<span>Agent: {agentLabel}</span>
-		{/if}
-		{#if branchLabel}
-			<span>Branch: {branchLabel}</span>
-		{/if}
-		{#each badges ?? [] as badge (badge.id)}
-			<span class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px]">
-				{badge.label}
-			</span>
-		{/each}
 	</div>
 {/if}

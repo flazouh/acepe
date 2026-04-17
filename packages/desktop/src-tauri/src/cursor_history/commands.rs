@@ -6,6 +6,9 @@
 use crate::cursor_history::parser;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry};
 use uuid::Uuid;
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, unexpected_command_result,
+};
 
 fn get_logger_id() -> String {
     Uuid::new_v4().to_string()[..8].to_string()
@@ -19,38 +22,42 @@ fn get_logger_id() -> String {
 #[specta::specta]
 pub async fn get_cursor_history(
     project_paths: Option<Vec<String>>,
-) -> Result<Vec<HistoryEntry>, String> {
-    let logger_id = get_logger_id();
-    let paths = project_paths.unwrap_or_default();
+) -> CommandResult<Vec<HistoryEntry>>  {
+    unexpected_command_result("get_cursor_history", "Failed to get Cursor history", async {
 
-    tracing::info!(
-        logger_id = %logger_id,
-        project_count = paths.len(),
-        "Loading Cursor history"
-    );
+        let logger_id = get_logger_id();
+        let paths = project_paths.unwrap_or_default();
 
-    // Check if Cursor is installed
-    if !parser::is_cursor_installed() {
-        tracing::info!(logger_id = %logger_id, "Cursor not installed, returning empty history");
-        return Ok(Vec::new());
-    }
+        tracing::info!(
+            logger_id = %logger_id,
+            project_count = paths.len(),
+            "Loading Cursor history"
+        );
 
-    // Discover all chat entries
-    let chat_entries = parser::discover_all_chats(&paths).await.map_err(|e| {
-        tracing::error!(logger_id = %logger_id, error = %e, "Failed to discover Cursor chats");
-        e.to_string()
-    })?;
+        // Check if Cursor is installed
+        if !parser::is_cursor_installed() {
+            tracing::info!(logger_id = %logger_id, "Cursor not installed, returning empty history");
+            return Ok(Vec::new());
+        }
 
-    // Convert to HistoryEntry format
-    let entries: Vec<HistoryEntry> = chat_entries.iter().map(parser::to_history_entry).collect();
+        // Discover all chat entries
+        let chat_entries = parser::discover_all_chats(&paths).await.map_err(|e| {
+            tracing::error!(logger_id = %logger_id, error = %e, "Failed to discover Cursor chats");
+            e.to_string()
+        })?;
 
-    tracing::info!(
-        logger_id = %logger_id,
-        conversations_count = entries.len(),
-        "Loaded Cursor history"
-    );
+        // Convert to HistoryEntry format
+        let entries: Vec<HistoryEntry> = chat_entries.iter().map(parser::to_history_entry).collect();
 
-    Ok(entries)
+        tracing::info!(
+            logger_id = %logger_id,
+            conversations_count = entries.len(),
+            "Loaded Cursor history"
+        );
+
+        Ok(entries)
+
+    }.await)
 }
 
 /// Get a full Cursor session with all messages.
@@ -61,38 +68,42 @@ pub async fn get_cursor_history(
 pub async fn get_cursor_session(
     session_id: String,
     project_path: String,
-) -> Result<FullSession, String> {
-    let logger_id = get_logger_id();
+) -> CommandResult<FullSession>  {
+    unexpected_command_result("get_cursor_session", "Failed to get Cursor session", async {
 
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        project_path = %project_path,
-        "Loading Cursor session"
-    );
+        let logger_id = get_logger_id();
 
-    let session = parser::load_full_conversation(&session_id, &project_path)
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                error = %e,
-                "Failed to load Cursor session"
-            );
-            e.to_string()
-        })?;
+        tracing::info!(
+            logger_id = %logger_id,
+            session_id = %session_id,
+            project_path = %project_path,
+            "Loading Cursor session"
+        );
 
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        total_messages = session.stats.total_messages,
-        user_messages = session.stats.user_messages,
-        assistant_messages = session.stats.assistant_messages,
-        "Loaded Cursor session"
-    );
+        let session = parser::load_full_conversation(&session_id, &project_path)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    logger_id = %logger_id,
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to load Cursor session"
+                );
+                e.to_string()
+            })?;
 
-    Ok(session)
+        tracing::info!(
+            logger_id = %logger_id,
+            session_id = %session_id,
+            total_messages = session.stats.total_messages,
+            user_messages = session.stats.user_messages,
+            assistant_messages = session.stats.assistant_messages,
+            "Loaded Cursor session"
+        );
+
+        Ok(session)
+
+    }.await)
 }
 
 /// Get a converted Cursor session with entries ready for display.
@@ -104,44 +115,48 @@ pub async fn get_cursor_session(
 pub async fn get_cursor_converted_session(
     session_id: String,
     project_path: String,
-) -> Result<ConvertedSession, String> {
-    let logger_id = get_logger_id();
+) -> CommandResult<ConvertedSession>  {
+    unexpected_command_result("get_cursor_converted_session", "Failed to get converted Cursor session", async {
 
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        project_path = %project_path,
-        "Loading and converting Cursor session"
-    );
+        let logger_id = get_logger_id();
 
-    let full_session = parser::load_full_conversation(&session_id, &project_path)
-        .await
-        .map_err(|e| {
-            let error_msg = format!(
-                "Failed to load Cursor session {} from project {}: {}",
-                session_id, project_path, e
-            );
-            tracing::error!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                project_path = %project_path,
-                error = %e,
-                "Failed to load Cursor session"
-            );
-            error_msg
-        })?;
+        tracing::info!(
+            logger_id = %logger_id,
+            session_id = %session_id,
+            project_path = %project_path,
+            "Loading and converting Cursor session"
+        );
 
-    let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
+        let full_session = parser::load_full_conversation(&session_id, &project_path)
+            .await
+            .map_err(|e| {
+                let error_msg = format!(
+                    "Failed to load Cursor session {} from project {}: {}",
+                    session_id, project_path, e
+                );
+                tracing::error!(
+                    logger_id = %logger_id,
+                    session_id = %session_id,
+                    project_path = %project_path,
+                    error = %e,
+                    "Failed to load Cursor session"
+                );
+                error_msg
+            })?;
 
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        entries_count = converted.entries.len(),
-        total_messages = converted.stats.total_messages,
-        "Converted Cursor session"
-    );
+        let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
 
-    Ok(converted)
+        tracing::info!(
+            logger_id = %logger_id,
+            session_id = %session_id,
+            entries_count = converted.entries.len(),
+            total_messages = converted.stats.total_messages,
+            "Converted Cursor session"
+        );
+
+        Ok(converted)
+
+    }.await)
 }
 
 /// Check if a project has Cursor history available.
@@ -149,25 +164,29 @@ pub async fn get_cursor_converted_session(
 /// Returns true if Cursor history exists for the given project path.
 #[tauri::command]
 #[specta::specta]
-pub async fn has_cursor_history(project_path: String) -> Result<bool, String> {
-    let logger_id = get_logger_id();
+pub async fn has_cursor_history(project_path: String) -> CommandResult<bool>  {
+    unexpected_command_result("has_cursor_history", "Failed to check Cursor history", async {
 
-    tracing::debug!(
-        logger_id = %logger_id,
-        project_path = %project_path,
-        "Checking for Cursor history"
-    );
+        let logger_id = get_logger_id();
 
-    let has_history = parser::has_cursor_history(&project_path).await;
+        tracing::debug!(
+            logger_id = %logger_id,
+            project_path = %project_path,
+            "Checking for Cursor history"
+        );
 
-    tracing::debug!(
-        logger_id = %logger_id,
-        project_path = %project_path,
-        has_history = has_history,
-        "Checked Cursor history"
-    );
+        let has_history = parser::has_cursor_history(&project_path).await;
 
-    Ok(has_history)
+        tracing::debug!(
+            logger_id = %logger_id,
+            project_path = %project_path,
+            has_history = has_history,
+            "Checked Cursor history"
+        );
+
+        Ok(has_history)
+
+    }.await)
 }
 
 /// Get a converted Cursor session by searching across all projects.
@@ -179,7 +198,7 @@ pub async fn has_cursor_history(project_path: String) -> Result<bool, String> {
 #[specta::specta]
 pub async fn get_cursor_converted_session_by_id(
     session_id: String,
-) -> Result<ConvertedSession, String> {
+) -> CommandResult<ConvertedSession>  {
     let logger_id = get_logger_id();
 
     tracing::info!(
@@ -188,27 +207,31 @@ pub async fn get_cursor_converted_session_by_id(
         "Searching for Cursor session across all projects"
     );
 
-    let full_session = parser::find_transcript_by_id(&session_id)
-        .await
-        .map_err(|e| {
-            let error_msg = format!("Failed to search for Cursor session {}: {}", session_id, e);
-            tracing::error!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                error = %e,
-                "Failed to find Cursor session"
-            );
-            error_msg
-        })?
-        .ok_or_else(|| {
-            let error_msg = format!("Cursor session {} not found in any project", session_id);
-            tracing::warn!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                "Session not found in any project"
-            );
-            error_msg
-        })?;
+    let full_session = unexpected_command_result(
+        "get_cursor_converted_session_by_id",
+        "Failed to get Cursor session by ID",
+        parser::find_transcript_by_id(&session_id)
+            .await
+            .map_err(|e| {
+                let error_msg = format!("Failed to search for Cursor session {}: {}", session_id, e);
+                tracing::error!(
+                    logger_id = %logger_id,
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to find Cursor session"
+                );
+                error_msg
+            }),
+    )?
+    .ok_or_else(|| {
+        let error_msg = format!("Cursor session {} not found in any project", session_id);
+        tracing::warn!(
+            logger_id = %logger_id,
+            session_id = %session_id,
+            "Session not found in any project"
+        );
+        SerializableCommandError::expected("get_cursor_converted_session_by_id", error_msg)
+    })?;
 
     let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
 
@@ -227,6 +250,10 @@ pub async fn get_cursor_converted_session_by_id(
 /// Check if Cursor is installed on the system.
 #[tauri::command]
 #[specta::specta]
-pub async fn is_cursor_installed() -> Result<bool, String> {
-    Ok(parser::is_cursor_installed())
+pub async fn is_cursor_installed() -> CommandResult<bool>  {
+    unexpected_command_result("is_cursor_installed", "Failed to check if Cursor is installed", async {
+
+        Ok(parser::is_cursor_installed())
+
+    }.await)
 }

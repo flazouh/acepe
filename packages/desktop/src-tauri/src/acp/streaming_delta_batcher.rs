@@ -469,6 +469,114 @@ impl StreamingDeltaBatcher {
         }
     }
 
+    fn build_tool_delta_update(
+        tool_call_id: String,
+        buffer: DeltaBuffer,
+    ) -> Option<SessionUpdate> {
+        if buffer.accumulated.is_empty()
+            && buffer.normalized_todos.is_none()
+            && buffer.normalized_questions.is_none()
+            && buffer.streaming_plan.is_none()
+            && buffer.streaming_arguments.is_none()
+        {
+            return None;
+        }
+
+        Some(SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id,
+                status: None,
+                result: None,
+                content: None,
+                raw_output: None,
+                title: None,
+                locations: None,
+                streaming_input_delta: if buffer.accumulated.is_empty() {
+                    None
+                } else {
+                    Some(buffer.accumulated)
+                },
+                normalized_todos: buffer.normalized_todos,
+                normalized_questions: buffer.normalized_questions,
+                streaming_arguments: buffer.streaming_arguments,
+                streaming_plan: buffer.streaming_plan,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: Some(buffer.session_id),
+        })
+    }
+
+    fn build_message_chunk_update(buffer: MessageChunkBuffer) -> Option<SessionUpdate> {
+        if buffer.accumulated_text.is_empty() {
+            return None;
+        }
+
+        let chunk = crate::acp::session_update::ContentChunk {
+            content: ContentBlock::Text {
+                text: buffer.accumulated_text,
+            },
+            aggregation_hint: None,
+        };
+
+        Some(if buffer.is_thought {
+            SessionUpdate::AgentThoughtChunk {
+                chunk,
+                part_id: buffer.part_id,
+                message_id: buffer.message_id,
+                session_id: Some(buffer.session_id),
+            }
+        } else {
+            SessionUpdate::AgentMessageChunk {
+                chunk,
+                part_id: buffer.part_id,
+                message_id: buffer.message_id,
+                session_id: Some(buffer.session_id),
+            }
+        })
+    }
+
+    fn take_sorted_delta_buffers<F>(&mut self, mut predicate: F) -> Vec<(String, DeltaBuffer)>
+    where
+        F: FnMut(&DeltaBuffer) -> bool,
+    {
+        let delta_keys: Vec<_> = self
+            .delta_buffers
+            .iter()
+            .filter(|(_, buf)| predicate(buf))
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        let mut delta_buffers: Vec<_> = delta_keys
+            .into_iter()
+            .filter_map(|key| self.delta_buffers.remove(&key).map(|buf| (key, buf)))
+            .collect();
+        delta_buffers.sort_by_key(|(_, buf)| buf.first_received);
+        delta_buffers
+    }
+
+    fn take_sorted_message_buffers<F>(
+        &mut self,
+        mut predicate: F,
+    ) -> Vec<(MessageChunkKey, MessageChunkBuffer)>
+    where
+        F: FnMut(&MessageChunkBuffer) -> bool,
+    {
+        let message_keys: Vec<_> = self
+            .message_buffers
+            .iter()
+            .filter(|(_, buf)| predicate(buf))
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        let mut message_buffers: Vec<_> = message_keys
+            .into_iter()
+            .filter_map(|key| self.message_buffers.remove(&key).map(|buf| (key, buf)))
+            .collect();
+        message_buffers.sort_by_key(|(_, buf)| buf.first_received);
+        message_buffers
+    }
+
     /// Flush all buffered updates. Call this when you need to ensure all
     /// buffered data is emitted (e.g., before a turn_complete).
     ///
@@ -477,71 +585,43 @@ impl StreamingDeltaBatcher {
     pub fn flush_all(&mut self) -> Vec<SessionUpdate> {
         let mut results = Vec::new();
 
-        // Flush all delta buffers, sorted by first_received for consistent ordering
-        let mut delta_buffers: Vec<_> = self.delta_buffers.drain().collect();
-        delta_buffers.sort_by_key(|(_, buf)| buf.first_received);
-
-        for (tool_call_id, buffer) in delta_buffers {
-            if !buffer.accumulated.is_empty()
-                || buffer.normalized_todos.is_some()
-                || buffer.normalized_questions.is_some()
-                || buffer.streaming_plan.is_some()
-                || buffer.streaming_arguments.is_some()
-            {
-                results.push(SessionUpdate::ToolCallUpdate {
-                    update: ToolCallUpdateData {
-                        tool_call_id,
-                        status: None,
-                        result: None,
-                        content: None,
-                        raw_output: None,
-                        title: None,
-                        locations: None,
-                        streaming_input_delta: if buffer.accumulated.is_empty() {
-                            None
-                        } else {
-                            Some(buffer.accumulated)
-                        },
-                        normalized_todos: buffer.normalized_todos,
-                        normalized_questions: buffer.normalized_questions,
-                        streaming_arguments: buffer.streaming_arguments,
-                        streaming_plan: buffer.streaming_plan,
-                        arguments: None,
-                        failure_reason: None,
-                    },
-                    session_id: Some(buffer.session_id),
-                });
+        for (tool_call_id, buffer) in self.take_sorted_delta_buffers(|_| true) {
+            if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
+                results.push(update);
             }
         }
 
-        // Flush all message buffers, sorted by first_received for consistent ordering
-        let mut message_buffers: Vec<_> = self.message_buffers.drain().collect();
-        message_buffers.sort_by_key(|(_, buf)| buf.first_received);
+        for (_, buffer) in self.take_sorted_message_buffers(|_| true) {
+            if let Some(update) = Self::build_message_chunk_update(buffer) {
+                results.push(update);
+            }
+        }
 
-        for (_, buffer) in message_buffers {
-            if !buffer.accumulated_text.is_empty() {
-                let chunk = crate::acp::session_update::ContentChunk {
-                    content: ContentBlock::Text {
-                        text: buffer.accumulated_text,
-                    },
-                    aggregation_hint: None,
-                };
+        results
+    }
 
-                if buffer.is_thought {
-                    results.push(SessionUpdate::AgentThoughtChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                } else {
-                    results.push(SessionUpdate::AgentMessageChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                }
+    /// Flush only buffers that have aged past the streaming batch interval.
+    ///
+    /// Used by the stdout reader's idle timer so partially buffered text does
+    /// not wait for the next incoming event to become visible.
+    #[must_use = "flushed updates must be emitted to the frontend"]
+    pub fn flush_ready(&mut self) -> Vec<SessionUpdate> {
+        let now = Instant::now();
+        let mut results = Vec::new();
+
+        for (tool_call_id, buffer) in
+            self.take_sorted_delta_buffers(|buf| now.duration_since(buf.first_received) >= BATCH_INTERVAL)
+        {
+            if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
+                results.push(update);
+            }
+        }
+
+        for (_, buffer) in
+            self.take_sorted_message_buffers(|buf| now.duration_since(buf.first_received) >= BATCH_INTERVAL)
+        {
+            if let Some(update) = Self::build_message_chunk_update(buffer) {
+                results.push(update);
             }
         }
 
@@ -551,6 +631,26 @@ impl StreamingDeltaBatcher {
     /// Check if there are any buffered updates.
     pub fn has_pending(&self) -> bool {
         !self.delta_buffers.is_empty() || !self.message_buffers.is_empty()
+    }
+
+    /// Get the time until the next pending streaming buffer should flush.
+    #[must_use = "check the time to coordinate with tokio::select! timer"]
+    pub fn time_until_flush(&self) -> Option<Duration> {
+        let oldest_delta = self.delta_buffers.values().map(|buf| buf.first_received).min();
+        let oldest_message = self.message_buffers.values().map(|buf| buf.first_received).min();
+        let oldest = match (oldest_delta, oldest_message) {
+            (Some(delta), Some(message)) => Some(std::cmp::min(delta, message)),
+            (Some(delta), None) => Some(delta),
+            (None, Some(message)) => Some(message),
+            (None, None) => None,
+        }?;
+
+        let elapsed = oldest.elapsed();
+        if elapsed >= BATCH_INTERVAL {
+            Some(Duration::ZERO)
+        } else {
+            Some(BATCH_INTERVAL - elapsed)
+        }
     }
 
     /// Get the number of currently buffered items.
@@ -565,91 +665,16 @@ impl StreamingDeltaBatcher {
     fn flush_session(&mut self, session_id: &str) -> Vec<SessionUpdate> {
         let mut results = Vec::new();
 
-        // Collect and remove delta buffers for this session
-        let delta_keys: Vec<_> = self
-            .delta_buffers
-            .iter()
-            .filter(|(_, buf)| buf.session_id == session_id)
-            .map(|(k, _)| k.clone())
-            .collect();
-
-        let mut delta_buffers: Vec<_> = delta_keys
-            .into_iter()
-            .filter_map(|k| self.delta_buffers.remove(&k).map(|buf| (k, buf)))
-            .collect();
-        delta_buffers.sort_by_key(|(_, buf)| buf.first_received);
-
-        for (tool_call_id, buffer) in delta_buffers {
-            if !buffer.accumulated.is_empty()
-                || buffer.normalized_todos.is_some()
-                || buffer.normalized_questions.is_some()
-                || buffer.streaming_plan.is_some()
-                || buffer.streaming_arguments.is_some()
-            {
-                results.push(SessionUpdate::ToolCallUpdate {
-                    update: ToolCallUpdateData {
-                        tool_call_id,
-                        status: None,
-                        result: None,
-                        content: None,
-                        raw_output: None,
-                        title: None,
-                        locations: None,
-                        streaming_input_delta: if buffer.accumulated.is_empty() {
-                            None
-                        } else {
-                            Some(buffer.accumulated)
-                        },
-                        normalized_todos: buffer.normalized_todos,
-                        normalized_questions: buffer.normalized_questions,
-                        streaming_arguments: buffer.streaming_arguments,
-                        streaming_plan: buffer.streaming_plan,
-                        arguments: None,
-                        failure_reason: None,
-                    },
-                    session_id: Some(buffer.session_id),
-                });
+        for (tool_call_id, buffer) in self.take_sorted_delta_buffers(|buf| buf.session_id == session_id)
+        {
+            if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
+                results.push(update);
             }
         }
 
-        // Collect and remove message buffers for this session
-        let message_keys: Vec<_> = self
-            .message_buffers
-            .iter()
-            .filter(|(_, buf)| buf.session_id == session_id)
-            .map(|(k, _)| k.clone())
-            .collect();
-
-        let mut message_buffers: Vec<_> = message_keys
-            .into_iter()
-            .filter_map(|k| self.message_buffers.remove(&k).map(|buf| (k, buf)))
-            .collect();
-        message_buffers.sort_by_key(|(_, buf)| buf.first_received);
-
-        for (_, buffer) in message_buffers {
-            if !buffer.accumulated_text.is_empty() {
-                let chunk = crate::acp::session_update::ContentChunk {
-                    content: ContentBlock::Text {
-                        text: buffer.accumulated_text,
-                    },
-                    aggregation_hint: None,
-                };
-
-                if buffer.is_thought {
-                    results.push(SessionUpdate::AgentThoughtChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                } else {
-                    results.push(SessionUpdate::AgentMessageChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                }
+        for (_, buffer) in self.take_sorted_message_buffers(|buf| buf.session_id == session_id) {
+            if let Some(update) = Self::build_message_chunk_update(buffer) {
+                results.push(update);
             }
         }
 
@@ -662,43 +687,9 @@ impl StreamingDeltaBatcher {
     fn flush_message_buffers_for_session(&mut self, session_id: &str) -> Vec<SessionUpdate> {
         let mut results = Vec::new();
 
-        let message_keys: Vec<_> = self
-            .message_buffers
-            .iter()
-            .filter(|(_, buf)| buf.session_id == session_id)
-            .map(|(k, _)| k.clone())
-            .collect();
-
-        let mut message_buffers: Vec<_> = message_keys
-            .into_iter()
-            .filter_map(|k| self.message_buffers.remove(&k).map(|buf| (k, buf)))
-            .collect();
-        message_buffers.sort_by_key(|(_, buf)| buf.first_received);
-
-        for (_, buffer) in message_buffers {
-            if !buffer.accumulated_text.is_empty() {
-                let chunk = crate::acp::session_update::ContentChunk {
-                    content: ContentBlock::Text {
-                        text: buffer.accumulated_text,
-                    },
-                    aggregation_hint: None,
-                };
-
-                if buffer.is_thought {
-                    results.push(SessionUpdate::AgentThoughtChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                } else {
-                    results.push(SessionUpdate::AgentMessageChunk {
-                        chunk,
-                        part_id: buffer.part_id,
-                        message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
-                    });
-                }
+        for (_, buffer) in self.take_sorted_message_buffers(|buf| buf.session_id == session_id) {
+            if let Some(update) = Self::build_message_chunk_update(buffer) {
+                results.push(update);
             }
         }
 
@@ -1245,6 +1236,31 @@ mod tests {
         if let SessionUpdate::AgentMessageChunk { chunk, .. } = &result[0] {
             if let ContentBlock::Text { text } = &chunk.content {
                 assert_eq!(text, "Hello world");
+            } else {
+                panic!("Expected text content");
+            }
+        } else {
+            panic!("Expected AgentMessageChunk");
+        }
+    }
+
+    #[test]
+    fn flush_ready_emits_message_chunks_without_waiting_for_next_chunk() {
+        let mut batcher = StreamingDeltaBatcher::new();
+
+        let result = batcher.process(make_message_chunk("The core truth stands: "));
+        assert!(result.is_empty());
+        assert!(batcher.has_pending());
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
+        let result = batcher.flush_ready();
+        assert_eq!(result.len(), 1);
+        assert!(!batcher.has_pending());
+
+        if let SessionUpdate::AgentMessageChunk { chunk, .. } = &result[0] {
+            if let ContentBlock::Text { text } = &chunk.content {
+                assert_eq!(text, "The core truth stands: ");
             } else {
                 panic!("Expected text content");
             }

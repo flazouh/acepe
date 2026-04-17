@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{SessionMetadataRepository, SessionMetadataRow};
 use crate::path_safety::{resolve_write_path_within_project, validate_project_directory_from_str};
 use sea_orm::DbConn;
@@ -51,7 +52,8 @@ pub async fn acp_read_text_file(
     path: String,
     line: Option<u32>,
     limit: Option<u32>,
-) -> Result<String, SerializableAcpError> {
+) -> CommandResult<String> {
+    expected_acp_command_result("acp_read_text_file", async {
     tracing::debug!(path = %path, line = ?line, limit = ?limit, "acp_read_text_file called");
 
     // Normalize path to fix potential duplicate cwd issues from ACP subprocess
@@ -123,6 +125,8 @@ pub async fn acp_read_text_file(
     );
 
     Ok(result)
+    }
+    .await)
 }
 
 /// Write text content to a file (for ACP fs/write_text_file protocol)
@@ -136,7 +140,8 @@ pub async fn acp_write_text_file(
     path: String,
     content: String,
     session_id: String,
-) -> Result<(), SerializableAcpError> {
+) -> CommandResult<()> {
+    expected_acp_command_result("acp_write_text_file", async {
     tracing::debug!(
         path = %path,
         content_len = content.len(),
@@ -179,4 +184,6 @@ pub async fn acp_write_text_file(
 
     tracing::info!(path = %path, "File written successfully");
     Ok(())
+    }
+    .await)
 }

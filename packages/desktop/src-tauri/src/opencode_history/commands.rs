@@ -11,6 +11,7 @@ use crate::opencode_history::parser;
 use crate::path_safety::validate_project_directory_from_str;
 use crate::session_converter;
 use crate::session_jsonl::types::{ConvertedSession, HistoryEntry};
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 /// Get OpenCode history entries.
 ///
@@ -20,13 +21,17 @@ use crate::session_jsonl::types::{ConvertedSession, HistoryEntry};
 pub async fn get_opencode_history(
     _db: State<'_, DatabaseConnection>,
     project_paths: Option<Vec<String>>,
-) -> Result<Vec<HistoryEntry>, String> {
-    let paths = project_paths.unwrap_or_default();
-    let entries = parser::scan_sessions(&paths)
-        .await
-        .map_err(|e| format!("Failed to scan OpenCode sessions: {}", e))?;
+) -> CommandResult<Vec<HistoryEntry>>  {
+    unexpected_command_result("get_opencode_history", "Failed to get OpenCode history", async {
 
-    Ok(entries)
+        let paths = project_paths.unwrap_or_default();
+        let entries = parser::scan_sessions(&paths)
+            .await
+            .map_err(|e| format!("Failed to scan OpenCode sessions: {}", e))?;
+
+        Ok(entries)
+
+    }.await)
 }
 
 /// Get or create OpenCode HTTP client.
@@ -66,33 +71,39 @@ fn resolve_project_root_for_history(project_path: &str) -> Result<std::path::Pat
 /// 2. Ensures OpenCode server is running (auto-start)
 /// 3. Fetches session messages via HTTP API
 /// 4. Converts to unified format
+pub(crate) async fn fetch_opencode_session(
+    app: &AppHandle,
+    session_id: &str,
+    directory: &str,
+) -> Result<ConvertedSession, String> {
+    let mut client = get_or_create_opencode_client(app, directory).await?;
+
+    client
+        .start()
+        .await
+        .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
+
+    let messages = client
+        .get_session_messages(session_id, directory)
+        .await
+        .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
+
+    session_converter::convert_opencode_messages_to_session(messages)
+        .map_err(|e| format!("Failed to convert session: {}", e))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_opencode_session(
     app: AppHandle,
     session_id: String,
     directory: String,
-) -> Result<ConvertedSession, String> {
-    // Get or create OpenCode HTTP client
-    let mut client = get_or_create_opencode_client(&app, &directory).await?;
-
-    // Ensure OpenCode server is running (auto-start)
-    client
-        .start()
-        .await
-        .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
-
-    // Fetch session messages via HTTP API
-    let messages = client
-        .get_session_messages(&session_id, &directory)
-        .await
-        .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
-
-    // Convert to unified format
-    let converted = session_converter::convert_opencode_messages_to_session(messages)
-        .map_err(|e| format!("Failed to convert session: {}", e))?;
-
-    Ok(converted)
+) -> CommandResult<ConvertedSession>  {
+    unexpected_command_result(
+        "get_opencode_session",
+        "Failed to get OpenCode session",
+        fetch_opencode_session(&app, &session_id, &directory).await,
+    )
 }
 
 /// Get converted OpenCode session (alias for get_opencode_session).
@@ -104,8 +115,12 @@ pub async fn get_opencode_converted_session(
     app: AppHandle,
     session_id: String,
     directory: String,
-) -> Result<ConvertedSession, String> {
-    get_opencode_session(app, session_id, directory).await
+) -> CommandResult<ConvertedSession>  {
+    unexpected_command_result(
+        "get_opencode_converted_session",
+        "Failed to get converted OpenCode session",
+        fetch_opencode_session(&app, &session_id, &directory).await,
+    )
 }
 
 /// Get OpenCode sessions for a specific project via HTTP API.
@@ -121,55 +136,59 @@ pub async fn get_opencode_converted_session(
 pub async fn get_opencode_sessions_for_project(
     app: AppHandle,
     project_path: String,
-) -> Result<Vec<HistoryEntry>, String> {
-    use crate::acp::types::CanonicalAgentId;
-    use uuid::Uuid;
+) -> CommandResult<Vec<HistoryEntry>>  {
+    unexpected_command_result("get_opencode_sessions_for_project", "Failed to get OpenCode sessions for project", async {
 
-    // Get or create OpenCode HTTP client
-    let mut client = get_or_create_opencode_client(&app, &project_path).await?;
+        use crate::acp::types::CanonicalAgentId;
+        use uuid::Uuid;
 
-    // Ensure OpenCode server is running (auto-start)
-    client
-        .start()
-        .await
-        .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
+        // Get or create OpenCode HTTP client
+        let mut client = get_or_create_opencode_client(&app, &project_path).await?;
 
-    // Fetch sessions for the project via HTTP API
-    let sessions = client
-        .list_sessions(Some(project_path.clone()))
-        .await
-        .map_err(|e| format!("Failed to fetch sessions for project: {}", e))?;
+        // Ensure OpenCode server is running (auto-start)
+        client
+            .start()
+            .await
+            .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
 
-    // Convert sessions to HistoryEntry format
-    let entries: Vec<HistoryEntry> = sessions
-        .iter()
-        .map(|session| {
-            let display = session.title.clone().unwrap_or_else(|| {
-                let id_preview = session.id.chars().take(8).collect::<String>();
-                format!("Session {}", id_preview)
-            });
+        // Fetch sessions for the project via HTTP API
+        let sessions = client
+            .list_sessions(Some(project_path.clone()))
+            .await
+            .map_err(|e| format!("Failed to fetch sessions for project: {}", e))?;
 
-            HistoryEntry {
-                id: Uuid::new_v5(&Uuid::NAMESPACE_URL, session.id.as_bytes()).to_string(),
-                display,
-                timestamp: session.time.created,
-                project: project_path.clone(),
-                session_id: session.id.clone(),
-                pasted_contents: serde_json::json!({}),
-                agent_id: CanonicalAgentId::OpenCode,
-                updated_at: session.time.updated,
-                source_path: None,
-                parent_id: session.parent_id.clone(),
-                worktree_path: None,
-                pr_number: None,
-                worktree_deleted: None,
-                session_lifecycle_state: Some(
-                    crate::db::repository::SessionLifecycleState::Persisted,
-                ),
-                sequence_id: None,
-            }
-        })
-        .collect();
+        // Convert sessions to HistoryEntry format
+        let entries: Vec<HistoryEntry> = sessions
+            .iter()
+            .map(|session| {
+                let display = session.title.clone().unwrap_or_else(|| {
+                    let id_preview = session.id.chars().take(8).collect::<String>();
+                    format!("Session {}", id_preview)
+                });
 
-    Ok(entries)
+                HistoryEntry {
+                    id: Uuid::new_v5(&Uuid::NAMESPACE_URL, session.id.as_bytes()).to_string(),
+                    display,
+                    timestamp: session.time.created,
+                    project: project_path.clone(),
+                    session_id: session.id.clone(),
+                    pasted_contents: serde_json::json!({}),
+                    agent_id: CanonicalAgentId::OpenCode,
+                    updated_at: session.time.updated,
+                    source_path: None,
+                    parent_id: session.parent_id.clone(),
+                    worktree_path: None,
+                    pr_number: None,
+                    worktree_deleted: None,
+                    session_lifecycle_state: Some(
+                        crate::db::repository::SessionLifecycleState::Persisted,
+                    ),
+                    sequence_id: None,
+                }
+            })
+            .collect();
+
+        Ok(entries)
+
+    }.await)
 }

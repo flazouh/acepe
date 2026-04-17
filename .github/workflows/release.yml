@@ -67,6 +67,24 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify required secrets are present
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
+        run: |
+          missing=()
+          [ -z "$SENTRY_DSN" ]        && missing+=("SENTRY_DSN")
+          [ -z "$VITE_SENTRY_DSN" ]   && missing+=("VITE_SENTRY_DSN")
+          [ -z "$VITE_POSTHOG_KEY" ]  && missing+=("VITE_POSTHOG_KEY")
+          [ -z "$VITE_POSTHOG_HOST" ] && missing+=("VITE_POSTHOG_HOST")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "❌ Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+          echo "✅ All analytics secrets are present"
+
       - name: Build release notes from changelog
         id: release_notes
         run: |

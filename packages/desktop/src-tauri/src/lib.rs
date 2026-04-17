@@ -427,6 +427,7 @@ fn init_logging() {
 
         tracing_subscriber::registry()
             .with(env_filter)
+            .with(analytics::sentry_tracing_layer())
             .with(console_layer)
             .with(file_layer)
             .init();
@@ -436,6 +437,7 @@ fn init_logging() {
     {
         tracing_subscriber::registry()
             .with(env_filter)
+            .with(analytics::sentry_tracing_layer())
             .with(file_layer)
             .init();
     }
@@ -1063,7 +1065,7 @@ pub fn run() {
             if let tauri::WindowEvent::Destroyed = event {
                 let app = window.app_handle();
                 if app.webview_windows().is_empty() {
-                    cleanup_app_runtime(&app, "last window destroyed");
+                    cleanup_app_runtime(app, "last window destroyed");
                 }
             }
         })

@@ -10,7 +10,7 @@ import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-d
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
 import { TabBar } from "$lib/acp/components/tab-bar/index.js";
 import { WelcomeScreen } from "$lib/acp/components/welcome-screen/index.js";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree-toggle/worktree-default-store.svelte.js";
+import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import { useAdvancedCommandPalette } from "$lib/acp/hooks/use-advanced-command-palette.svelte.js";
 import { InboundRequestHandler } from "$lib/acp/logic/inbound-request-handler.js";

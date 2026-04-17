@@ -208,7 +208,7 @@ mod tests {
 
         #[cfg(not(windows))]
         {
-            return "codex";
+            "codex"
         }
     }
 
@@ -220,7 +220,7 @@ mod tests {
 
         #[cfg(not(windows))]
         {
-            return "./codex";
+            "./codex"
         }
     }
 

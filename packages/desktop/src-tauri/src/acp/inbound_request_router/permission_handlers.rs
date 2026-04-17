@@ -200,6 +200,7 @@ fn build_permission_id(session_id: &str, tool_call_id: &str, request_id: u64) ->
     format!("{session_id}\u{0}{tool_call_id}\u{0}{request_id}")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_canonical_interaction(
     session_id: &str,
     request_id: u64,

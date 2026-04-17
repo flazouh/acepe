@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde_json::Value;
+use std::cmp::Reverse;
 use std::io::BufRead;
 use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -236,7 +237,7 @@ pub async fn scan_all_threads() -> Result<Vec<HistoryEntry>> {
     // Fast path: if cache is fresh, return all cached entries
     if let Some(cached_entries) = cache.get_all_if_fresh().await {
         let mut entries = cached_entries;
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries.sort_by_key(|entry| Reverse(entry.timestamp));
         return Ok(entries);
     }
 
@@ -314,7 +315,7 @@ pub async fn scan_all_threads() -> Result<Vec<HistoryEntry>> {
         }
 
         // Sort by modification time (most recent first)
-        files_with_mtime.sort_by(|a, b| b.1.cmp(&a.1));
+        files_with_mtime.sort_by_key(|entry| Reverse(entry.1));
 
         // Only process the most recent sessions per project
         let mut sessions_in_project = 0usize;
@@ -365,7 +366,7 @@ pub async fn scan_all_threads() -> Result<Vec<HistoryEntry>> {
     cache.mark_scan_complete().await;
 
     // Sort by timestamp descending (most recent first)
-    all_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    all_entries.sort_by_key(|entry| Reverse(entry.timestamp));
 
     Ok(all_entries)
 }
@@ -419,7 +420,7 @@ where
     // Still emit events for each cached entry for UI consistency
     if let Some(cached_entries) = cache.get_for_projects_if_fresh(project_paths).await {
         let mut entries = cached_entries;
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries.sort_by_key(|entry| Reverse(entry.timestamp));
         // Emit all cached entries
         for entry in &entries {
             on_entry(entry);
@@ -485,7 +486,7 @@ where
         }
 
         // Sort by modification time (most recent first) — needed for take() to pick most recent
-        files_with_mtime.sort_by(|a, b| b.1.cmp(&a.1));
+        files_with_mtime.sort_by_key(|entry| Reverse(entry.1));
 
         // Process files in parallel within this project (8 concurrent — leaves cores for UI thread)
         use futures::stream::{self, StreamExt};
@@ -560,7 +561,7 @@ where
     cache.mark_scan_complete().await;
 
     // Sort by timestamp descending (most recent first)
-    all_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    all_entries.sort_by_key(|entry| Reverse(entry.timestamp));
 
     tracing::info!(
         project_count = project_paths.len(),

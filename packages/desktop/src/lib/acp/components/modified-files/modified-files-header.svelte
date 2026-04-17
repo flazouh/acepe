@@ -252,32 +252,6 @@ const canKeepAll = $derived.by(() => {
 
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	reviewLabel: m.modified_files_review_button(),
-	reviewOptions: [
-		{
-			id: "panel",
-			label: m.modified_files_review_panel(),
-			kind: "panel",
-			onSelect: () => {
-				void reviewPreferenceStore.setPreferFullscreen(false);
-				if (modifiedFilesState) onEnterReviewMode?.(modifiedFilesState, 0);
-			},
-		},
-		{
-			id: "fullscreen",
-			label: m.modified_files_review_fullscreen(),
-			kind: "fullscreen",
-			onSelect: () => {
-				void reviewPreferenceStore.setPreferFullscreen(true);
-				if (modifiedFilesState) {
-					if (onOpenFullscreenReview) {
-						onOpenFullscreenReview(modifiedFilesState, 0);
-					} else {
-						onEnterReviewMode?.(modifiedFilesState, 0);
-					}
-				}
-			},
-		},
-	],
 	onReview: () => {
 		handleReviewButtonClick(0);
 	},

@@ -1,4 +1,5 @@
 pub mod names;
+pub mod observability;
 pub mod registry;
 pub mod window;
 

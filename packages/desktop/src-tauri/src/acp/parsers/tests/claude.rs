@@ -193,8 +193,7 @@ mod claude_code_parse_tool_call {
         let data = json!({
             "toolCallId": "tool-1",
             "rawInput": {
-                "file_path": "/test.rs",
-                "questions": [{ "text": "What?" }]
+                "file_path": "/test.rs"
             }
         });
 

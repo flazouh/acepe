@@ -800,7 +800,7 @@ mod tests {
     fn test_without_cache_falls_back_to_other() {
         let state = SessionStreamingState::new();
 
-        // No cache_tool_name call -- no cached name available
+        // No seed_tool_name call -- infer the best tool kind directly from payload.
         std::thread::sleep(std::time::Duration::from_millis(160));
 
         let result = state.accumulate_delta(
@@ -813,10 +813,12 @@ mod tests {
         assert!(result.is_some());
         let normalized = result.unwrap();
         assert!(normalized.streaming_arguments.is_some());
-        // Without caching, it defaults to "other" tool kind
+        // Without caching, file-path payloads still normalize as Read.
         match normalized.streaming_arguments.unwrap() {
-            ToolArguments::Other { .. } => {} // Expected
-            other => panic!("Expected Other variant, got {:?}", other),
+            ToolArguments::Read { file_path } => {
+                assert_eq!(file_path.as_deref(), Some("/test.rs"));
+            }
+            other => panic!("Expected Read variant, got {:?}", other),
         }
     }
 
@@ -836,8 +838,10 @@ mod tests {
             .expect("first delta should parse");
 
         match first.streaming_arguments.expect("streaming args expected") {
-            ToolArguments::Other { .. } => {} // Initial unknown classification
-            other => panic!("Expected Other before seed, got {:?}", other),
+            ToolArguments::Read { file_path } => {
+                assert_eq!(file_path.as_deref(), Some("/tmp/test.rs"));
+            }
+            other => panic!("Expected Read before seed, got {:?}", other),
         }
 
         // Later, initial tool_call arrives and seeds the real name.

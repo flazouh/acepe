@@ -75,14 +75,4 @@ describe("streamingTailRefresh", () => {
 		expect(node.dataset.streamingActive).toBeUndefined();
 	});
 
-	it("accepts deprecated mode param without error (compile-time compat)", () => {
-		const node = createRefreshNode();
-		const action = streamingTailRefresh(node, { active: true, value: "Hello", mode: "smooth" });
-
-		// mode is ignored — only active/value matter
-		expect(node.dataset.streamingActive).toBe("true");
-
-		action.update({ active: true, value: "Hello world", mode: "instant" });
-		expect(node.dataset.streamingActive).toBe("true");
-	});
 });

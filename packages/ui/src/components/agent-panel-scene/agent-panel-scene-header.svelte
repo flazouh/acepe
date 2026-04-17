@@ -35,7 +35,7 @@
 	}
 </script>
 
-<div class="shrink-0 border-b border-border/50">
+<div class="shrink-0">
 	<AgentPanelHeader
 		displayTitle={header.title}
 		agentIconSrc={header.agentIconSrc ?? undefined}
@@ -44,6 +44,10 @@
 		projectName={header.projectLabel ?? undefined}
 		projectColor={header.projectColor ?? undefined}
 		sequenceId={header.sequenceId ?? undefined}
+		subtitle={header.subtitle ?? undefined}
+		agentLabel={header.agentLabel ?? undefined}
+		branchLabel={header.branchLabel ?? undefined}
+		badges={header.badges}
 		{controls}
 	>
 		{#snippet statusIndicator()}
@@ -66,23 +70,4 @@
 			</div>
 		{/snippet}
 	</AgentPanelHeader>
-
-	{#if header.subtitle || header.agentLabel || header.branchLabel || (header.badges?.length ?? 0) > 0}
-		<div class="flex flex-wrap items-center gap-1.5 px-3 pb-2 text-[11px] text-muted-foreground">
-			{#if header.subtitle}
-				<span class="font-medium text-foreground/80">{header.subtitle}</span>
-			{/if}
-			{#if header.agentLabel}
-				<span>Agent: {header.agentLabel}</span>
-			{/if}
-			{#if header.branchLabel}
-				<span>Branch: {header.branchLabel}</span>
-			{/if}
-			{#each header.badges ?? [] as badge (badge.id)}
-				<span class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px]">
-					{badge.label}
-				</span>
-			{/each}
-		</div>
-	{/if}
 </div>

@@ -13,6 +13,9 @@ use tokio::time::{timeout, Duration};
 use crate::file_index::git::open_repository;
 use crate::git::gh_pr;
 use crate::path_safety::validate_project_directory_from_str;
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -165,7 +168,7 @@ fn run_git_command_sync(
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
 
-    if !output.status.success() && !(allow_diff_exit && output.status.code() == Some(1)) {
+    if !(output.status.success() || allow_diff_exit && output.status.code() == Some(1)) {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
             format!(
@@ -184,6 +187,57 @@ fn run_git_command_sync(
 fn validate_project_path(project_path: &str) -> Result<PathBuf, String> {
     validate_project_directory_from_str(project_path)
         .map_err(|e| e.message_for(Path::new(project_path.trim())))
+}
+
+async fn get_git_remote_status_impl(path: PathBuf) -> Result<GitRemoteStatus, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repository(&path).map_err(|e| e.to_string())?;
+
+        let head = repo
+            .head()
+            .map_err(|e| format!("Failed to get HEAD: {}", e))?;
+        let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
+
+        let local_branch = repo
+            .find_branch(&branch_name, git2::BranchType::Local)
+            .map_err(|e| format!("Failed to find branch: {}", e))?;
+
+        let upstream = match local_branch.upstream() {
+            Ok(upstream) => upstream,
+            Err(_) => {
+                return Ok(GitRemoteStatus {
+                    ahead: 0,
+                    behind: 0,
+                    remote: String::new(),
+                    tracking_branch: String::new(),
+                });
+            }
+        };
+
+        let upstream_name = upstream
+            .name()
+            .map_err(|e| format!("Failed to get upstream name: {}", e))?
+            .unwrap_or("")
+            .to_string();
+
+        let local_oid = head.target().ok_or("HEAD has no target")?;
+        let upstream_oid = upstream.get().target().ok_or("Upstream has no target")?;
+
+        let (ahead, behind) = repo
+            .graph_ahead_behind(local_oid, upstream_oid)
+            .map_err(|e| format!("Failed to compute ahead/behind: {}", e))?;
+
+        let remote = upstream_name.split('/').next().unwrap_or("").to_string();
+
+        Ok(GitRemoteStatus {
+            ahead: ahead as u32,
+            behind: behind as u32,
+            remote,
+            tracking_branch: upstream_name,
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 fn index_status_string(status: git2::Status) -> Option<String> {
@@ -379,64 +433,68 @@ fn do_commit(path: &Path, message: &str) -> Result<CommitResult, String> {
 /// Get git status with split index/worktree status for the git panel.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_panel_status(project_path: String) -> Result<Vec<GitPanelFileStatus>, String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_panel_status(project_path: String) -> CommandResult<Vec<GitPanelFileStatus>>  {
+    unexpected_command_result("git_panel_status", "Failed to get git panel status", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
-        let staged_stats = read_numstat_map(&path, &["diff", "--cached", "--numstat"])?;
-        let unstaged_stats = read_numstat_map(&path, &["diff", "--numstat"])?;
+        let path = validate_project_path(&project_path)?;
 
-        let mut opts = StatusOptions::new();
-        opts.include_untracked(true)
-            .recurse_untracked_dirs(true)
-            .include_ignored(false)
-            .exclude_submodules(true);
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
+            let staged_stats = read_numstat_map(&path, &["diff", "--cached", "--numstat"])?;
+            let unstaged_stats = read_numstat_map(&path, &["diff", "--numstat"])?;
 
-        let statuses = repo
-            .statuses(Some(&mut opts))
-            .map_err(|e| format!("Failed to get status: {}", e))?;
+            let mut opts = StatusOptions::new();
+            opts.include_untracked(true)
+                .recurse_untracked_dirs(true)
+                .include_ignored(false)
+                .exclude_submodules(true);
 
-        let mut results = Vec::new();
+            let statuses = repo
+                .statuses(Some(&mut opts))
+                .map_err(|e| format!("Failed to get status: {}", e))?;
 
-        for entry in statuses.iter() {
-            let status = entry.status();
-            let file_path = entry.path().unwrap_or("").to_string();
-            if file_path.is_empty() {
-                continue;
+            let mut results = Vec::new();
+
+            for entry in statuses.iter() {
+                let status = entry.status();
+                let file_path = entry.path().unwrap_or("").to_string();
+                if file_path.is_empty() {
+                    continue;
+                }
+
+                let idx = index_status_string(status);
+                let wt = worktree_status_string(status);
+
+                // Skip files with no relevant status
+                if idx.is_none() && wt.is_none() {
+                    continue;
+                }
+
+                let (index_insertions, index_deletions) =
+                    staged_stats.get(&file_path).copied().unwrap_or((0, 0));
+                let (worktree_insertions, worktree_deletions) = if wt.as_deref() == Some("untracked") {
+                    read_untracked_numstat(&path, &file_path)?
+                } else {
+                    unstaged_stats.get(&file_path).copied().unwrap_or((0, 0))
+                };
+
+                results.push(GitPanelFileStatus {
+                    path: file_path,
+                    index_status: idx,
+                    worktree_status: wt,
+                    index_insertions,
+                    index_deletions,
+                    worktree_insertions,
+                    worktree_deletions,
+                });
             }
 
-            let idx = index_status_string(status);
-            let wt = worktree_status_string(status);
+            Ok(results)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 
-            // Skip files with no relevant status
-            if idx.is_none() && wt.is_none() {
-                continue;
-            }
-
-            let (index_insertions, index_deletions) =
-                staged_stats.get(&file_path).copied().unwrap_or((0, 0));
-            let (worktree_insertions, worktree_deletions) = if wt.as_deref() == Some("untracked") {
-                read_untracked_numstat(&path, &file_path)?
-            } else {
-                unstaged_stats.get(&file_path).copied().unwrap_or((0, 0))
-            };
-
-            results.push(GitPanelFileStatus {
-                path: file_path,
-                index_status: idx,
-                worktree_status: wt,
-                index_insertions,
-                index_deletions,
-                worktree_insertions,
-                worktree_deletions,
-            });
-        }
-
-        Ok(results)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+    }.await)
 }
 
 // ─── Diff Stats ─────────────────────────────────────────────────────────────
@@ -445,26 +503,30 @@ pub async fn git_panel_status(project_path: String) -> Result<Vec<GitPanelFileSt
 /// Combines both staged and unstaged diffs.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_diff_stats(project_path: String) -> Result<GitDiffStats, String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_diff_stats(project_path: String) -> CommandResult<GitDiffStats>  {
+    unexpected_command_result("git_diff_stats", "Failed to get git diff stats", async {
 
-    // Get unstaged diff stats
-    let unstaged = run_git_command(&path, &["diff", "--shortstat"])
-        .await
-        .unwrap_or_default();
-    // Get staged diff stats
-    let staged = run_git_command(&path, &["diff", "--cached", "--shortstat"])
-        .await
-        .unwrap_or_default();
+        let path = validate_project_path(&project_path)?;
 
-    let (u_files, u_ins, u_del) = parse_shortstat(&unstaged);
-    let (s_files, s_ins, s_del) = parse_shortstat(&staged);
+        // Get unstaged diff stats
+        let unstaged = run_git_command(&path, &["diff", "--shortstat"])
+            .await
+            .unwrap_or_default();
+        // Get staged diff stats
+        let staged = run_git_command(&path, &["diff", "--cached", "--shortstat"])
+            .await
+            .unwrap_or_default();
 
-    Ok(GitDiffStats {
-        insertions: u_ins + s_ins,
-        deletions: u_del + s_del,
-        files_changed: u_files + s_files,
-    })
+        let (u_files, u_ins, u_del) = parse_shortstat(&unstaged);
+        let (s_files, s_ins, s_del) = parse_shortstat(&staged);
+
+        Ok(GitDiffStats {
+            insertions: u_ins + s_ins,
+            deletions: u_del + s_del,
+            files_changed: u_files + s_files,
+        })
+
+    }.await)
 }
 
 /// Parse `git diff --shortstat` output like "3 files changed, 10 insertions(+), 5 deletions(-)"
@@ -533,158 +595,174 @@ fn normalize_absolute_repo_path(workdir: &Path, raw_path: &Path) -> Option<PathB
 /// Stage specific files (add to index).
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stage_files(project_path: String, files: Vec<String>) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_stage_files(project_path: String, files: Vec<String>) -> CommandResult<()>  {
+    unexpected_command_result("git_stage_files", "Failed to stage files", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
-        let mut index = repo
-            .index()
-            .map_err(|e| format!("Failed to get index: {}", e))?;
+        let path = validate_project_path(&project_path)?;
 
-        let workdir = repo
-            .workdir()
-            .ok_or("Repository has no working directory")?;
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
+            let mut index = repo
+                .index()
+                .map_err(|e| format!("Failed to get index: {}", e))?;
 
-        for file in &files {
-            let raw_path = Path::new(file);
+            let workdir = repo
+                .workdir()
+                .ok_or("Repository has no working directory")?;
 
-            let Some(file_path) = normalize_absolute_repo_path(workdir, raw_path) else {
-                continue;
-            };
+            for file in &files {
+                let raw_path = Path::new(file);
 
-            // Check if the file exists on disk
-            let full_path = workdir.join(&file_path);
+                let Some(file_path) = normalize_absolute_repo_path(workdir, raw_path) else {
+                    continue;
+                };
 
-            if full_path.exists() {
-                // File exists: add to index (handles both new and modified)
-                index
-                    .add_path(&file_path)
-                    .map_err(|e| format!("Failed to stage {}: {}", file, e))?;
-            } else {
-                // File doesn't exist: remove from index (deleted file)
-                index
-                    .remove_path(&file_path)
-                    .map_err(|e| format!("Failed to stage deletion of {}: {}", file, e))?;
+                // Check if the file exists on disk
+                let full_path = workdir.join(&file_path);
+
+                if full_path.exists() {
+                    // File exists: add to index (handles both new and modified)
+                    index
+                        .add_path(&file_path)
+                        .map_err(|e| format!("Failed to stage {}: {}", file, e))?;
+                } else {
+                    // File doesn't exist: remove from index (deleted file)
+                    index
+                        .remove_path(&file_path)
+                        .map_err(|e| format!("Failed to stage deletion of {}: {}", file, e))?;
+                }
             }
-        }
 
-        index
-            .write()
-            .map_err(|e| format!("Failed to write index: {}", e))?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+            index
+                .write()
+                .map_err(|e| format!("Failed to write index: {}", e))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 /// Unstage specific files (reset to HEAD).
 #[tauri::command]
 #[specta::specta]
-pub async fn git_unstage_files(project_path: String, files: Vec<String>) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_unstage_files(project_path: String, files: Vec<String>) -> CommandResult<()>  {
+    unexpected_command_result("git_unstage_files", "Failed to unstage files", async {
 
-    // Use git CLI for unstaging — simpler and more reliable than git2 index manipulation.
-    let mut args = vec!["reset", "HEAD", "--"];
-    let file_refs: Vec<&str> = files.iter().map(|s| s.as_str()).collect();
-    args.extend(file_refs);
+        let path = validate_project_path(&project_path)?;
 
-    run_git_command(&path, &args).await?;
-    Ok(())
+        // Use git CLI for unstaging — simpler and more reliable than git2 index manipulation.
+        let mut args = vec!["reset", "HEAD", "--"];
+        let file_refs: Vec<&str> = files.iter().map(|s| s.as_str()).collect();
+        args.extend(file_refs);
+
+        run_git_command(&path, &args).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Stage all changes (add all modified + new + deleted files).
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stage_all(project_path: String) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_stage_all(project_path: String) -> CommandResult<()>  {
+    unexpected_command_result("git_stage_all", "Failed to stage all files", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
-        let mut index = repo
-            .index()
-            .map_err(|e| format!("Failed to get index: {}", e))?;
+        let path = validate_project_path(&project_path)?;
 
-        index
-            .add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
-            .map_err(|e| format!("Failed to stage all: {}", e))?;
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
+            let mut index = repo
+                .index()
+                .map_err(|e| format!("Failed to get index: {}", e))?;
 
-        // Also handle deleted files: update index to match working directory
-        index
-            .update_all(["*"].iter(), None)
-            .map_err(|e| format!("Failed to update index: {}", e))?;
+            index
+                .add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
+                .map_err(|e| format!("Failed to stage all: {}", e))?;
 
-        index
-            .write()
-            .map_err(|e| format!("Failed to write index: {}", e))?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+            // Also handle deleted files: update index to match working directory
+            index
+                .update_all(["*"].iter(), None)
+                .map_err(|e| format!("Failed to update index: {}", e))?;
+
+            index
+                .write()
+                .map_err(|e| format!("Failed to write index: {}", e))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 /// Discard unstaged changes for specific files.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_discard_changes(project_path: String, files: Vec<String>) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_discard_changes(project_path: String, files: Vec<String>) -> CommandResult<()>  {
+    unexpected_command_result("git_discard_changes", "Failed to discard changes", async {
 
-    // Separate tracked (checkout) from untracked (remove) files
-    let repo = tokio::task::spawn_blocking({
-        let path = path.clone();
-        move || -> Result<(Vec<String>, Vec<String>), String> {
-            let repo = open_repository(&path).map_err(|e| e.to_string())?;
-            let mut opts = StatusOptions::new();
-            opts.include_untracked(true)
-                .include_ignored(false)
-                .exclude_submodules(true);
+        let path = validate_project_path(&project_path)?;
 
-            let statuses = repo
-                .statuses(Some(&mut opts))
-                .map_err(|e| format!("Failed to get status: {}", e))?;
+        // Separate tracked (checkout) from untracked (remove) files
+        let repo = tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || -> Result<(Vec<String>, Vec<String>), String> {
+                let repo = open_repository(&path).map_err(|e| e.to_string())?;
+                let mut opts = StatusOptions::new();
+                opts.include_untracked(true)
+                    .include_ignored(false)
+                    .exclude_submodules(true);
 
-            let mut tracked = Vec::new();
-            let mut untracked = Vec::new();
+                let statuses = repo
+                    .statuses(Some(&mut opts))
+                    .map_err(|e| format!("Failed to get status: {}", e))?;
 
-            for file in &files {
-                let is_untracked = statuses
-                    .iter()
-                    .any(|entry| entry.path() == Some(file.as_str()) && entry.status().is_wt_new());
+                let mut tracked = Vec::new();
+                let mut untracked = Vec::new();
 
-                if is_untracked {
-                    untracked.push(file.clone());
-                } else {
-                    tracked.push(file.clone());
+                for file in &files {
+                    let is_untracked = statuses
+                        .iter()
+                        .any(|entry| entry.path() == Some(file.as_str()) && entry.status().is_wt_new());
+
+                    if is_untracked {
+                        untracked.push(file.clone());
+                    } else {
+                        tracked.push(file.clone());
+                    }
                 }
+
+                Ok((tracked, untracked))
             }
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))??;
 
-            Ok((tracked, untracked))
+        let (tracked, untracked) = repo;
+
+        // Restore tracked files from index
+        if !tracked.is_empty() {
+            let mut args = vec!["checkout", "--"];
+            let file_refs: Vec<&str> = tracked.iter().map(|s| s.as_str()).collect();
+            args.extend(file_refs);
+            run_git_command(&path, &args).await?;
         }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))??;
 
-    let (tracked, untracked) = repo;
-
-    // Restore tracked files from index
-    if !tracked.is_empty() {
-        let mut args = vec!["checkout", "--"];
-        let file_refs: Vec<&str> = tracked.iter().map(|s| s.as_str()).collect();
-        args.extend(file_refs);
-        run_git_command(&path, &args).await?;
-    }
-
-    // Remove untracked files
-    for file in &untracked {
-        let full_path = path.join(file);
-        if full_path.exists() {
-            tokio::fs::remove_file(&full_path)
-                .await
-                .map_err(|e| format!("Failed to remove {}: {}", file, e))?;
+        // Remove untracked files
+        for file in &untracked {
+            let full_path = path.join(file);
+            if full_path.exists() {
+                tokio::fs::remove_file(&full_path)
+                    .await
+                    .map_err(|e| format!("Failed to remove {}: {}", file, e))?;
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+
+    }.await)
 }
 
 // ─── Commit ─────────────────────────────────────────────────────────────────
@@ -692,16 +770,20 @@ pub async fn git_discard_changes(project_path: String, files: Vec<String>) -> Re
 /// Commit staged changes.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_commit(project_path: String, message: String) -> Result<CommitResult, String> {
-    if message.trim().is_empty() {
-        return Err("Commit message cannot be empty".to_string());
-    }
+pub async fn git_commit(project_path: String, message: String) -> CommandResult<CommitResult>  {
+    unexpected_command_result("git_commit", "Git commit failed", async {
 
-    let path = validate_project_path(&project_path)?;
+        if message.trim().is_empty() {
+            return Err("Commit message cannot be empty".to_string());
+        }
 
-    tokio::task::spawn_blocking(move || do_commit(&path, &message))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+        let path = validate_project_path(&project_path)?;
+
+        tokio::task::spawn_blocking(move || do_commit(&path, &message))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 // ─── Remote Operations ──────────────────────────────────────────────────────
@@ -709,88 +791,52 @@ pub async fn git_commit(project_path: String, message: String) -> Result<CommitR
 /// Push to remote.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_push(project_path: String) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
-    run_git_command(&path, &["push"]).await?;
-    Ok(())
+pub async fn git_push(project_path: String) -> CommandResult<()>  {
+    unexpected_command_result("git_push", "Git push failed", async {
+
+        let path = validate_project_path(&project_path)?;
+        run_git_command(&path, &["push"]).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Pull from remote.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_pull(project_path: String) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
-    run_git_command(&path, &["pull"]).await?;
-    Ok(())
+pub async fn git_pull(project_path: String) -> CommandResult<()>  {
+    unexpected_command_result("git_pull", "Git pull failed", async {
+
+        let path = validate_project_path(&project_path)?;
+        run_git_command(&path, &["pull"]).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Fetch from remote.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_fetch(project_path: String) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
-    run_git_command(&path, &["fetch"]).await?;
-    Ok(())
+pub async fn git_fetch(project_path: String) -> CommandResult<()>  {
+    unexpected_command_result("git_fetch", "Git fetch failed", async {
+
+        let path = validate_project_path(&project_path)?;
+        run_git_command(&path, &["fetch"]).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Get ahead/behind status relative to upstream.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_remote_status(project_path: String) -> Result<GitRemoteStatus, String> {
-    let path = validate_project_path(&project_path)?;
-
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
-
-        let head = repo
-            .head()
-            .map_err(|e| format!("Failed to get HEAD: {}", e))?;
-        let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
-
-        // Try to find upstream tracking branch
-        let local_branch = repo
-            .find_branch(&branch_name, git2::BranchType::Local)
-            .map_err(|e| format!("Failed to find branch: {}", e))?;
-
-        let upstream = match local_branch.upstream() {
-            Ok(upstream) => upstream,
-            Err(_) => {
-                // No upstream set
-                return Ok(GitRemoteStatus {
-                    ahead: 0,
-                    behind: 0,
-                    remote: String::new(),
-                    tracking_branch: String::new(),
-                });
-            }
-        };
-
-        let upstream_name = upstream
-            .name()
-            .map_err(|e| format!("Failed to get upstream name: {}", e))?
-            .unwrap_or("")
-            .to_string();
-
-        let local_oid = head.target().ok_or("HEAD has no target")?;
-
-        let upstream_oid = upstream.get().target().ok_or("Upstream has no target")?;
-
-        let (ahead, behind) = repo
-            .graph_ahead_behind(local_oid, upstream_oid)
-            .map_err(|e| format!("Failed to compute ahead/behind: {}", e))?;
-
-        // Extract remote name from tracking branch (e.g. "origin/main" → "origin")
-        let remote = upstream_name.split('/').next().unwrap_or("").to_string();
-
-        Ok(GitRemoteStatus {
-            ahead: ahead as u32,
-            behind: behind as u32,
-            remote,
-            tracking_branch: upstream_name,
-        })
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+pub async fn git_remote_status(project_path: String) -> CommandResult<GitRemoteStatus>  {
+    let path = expected_command_result("git_remote_status", validate_project_path(&project_path))?;
+    unexpected_command_result(
+        "git_remote_status",
+        "Failed to get git remote status",
+        get_git_remote_status_impl(path).await,
+    )
 }
 
 // ─── Stash ──────────────────────────────────────────────────────────────────
@@ -798,72 +844,88 @@ pub async fn git_remote_status(project_path: String) -> Result<GitRemoteStatus, 
 /// List stash entries.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stash_list(project_path: String) -> Result<Vec<GitStashEntry>, String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_stash_list(project_path: String) -> CommandResult<Vec<GitStashEntry>>  {
+    unexpected_command_result("git_stash_list", "Failed to list git stash", async {
 
-    let output = run_git_command(&path, &["stash", "list", "--format=%gd\t%gs\t%cr"]).await?;
+        let path = validate_project_path(&project_path)?;
 
-    if output.is_empty() {
-        return Ok(Vec::new());
-    }
+        let output = run_git_command(&path, &["stash", "list", "--format=%gd\t%gs\t%cr"]).await?;
 
-    let entries: Vec<GitStashEntry> = output
-        .lines()
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(3, '\t').collect();
-            if parts.len() < 3 {
-                return None;
-            }
+        if output.is_empty() {
+            return Ok(Vec::new());
+        }
 
-            // Parse index from "stash@{N}"
-            let index_str = parts[0].trim_start_matches("stash@{").trim_end_matches('}');
-            let index = index_str.parse::<usize>().ok()?;
+        let entries: Vec<GitStashEntry> = output
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.splitn(3, '\t').collect();
+                if parts.len() < 3 {
+                    return None;
+                }
 
-            Some(GitStashEntry {
-                index,
-                message: parts[1].to_string(),
-                date: parts[2].to_string(),
+                // Parse index from "stash@{N}"
+                let index_str = parts[0].trim_start_matches("stash@{").trim_end_matches('}');
+                let index = index_str.parse::<usize>().ok()?;
+
+                Some(GitStashEntry {
+                    index,
+                    message: parts[1].to_string(),
+                    date: parts[2].to_string(),
+                })
             })
-        })
-        .collect();
+            .collect();
 
-    Ok(entries)
+        Ok(entries)
+
+    }.await)
 }
 
 /// Pop a stash entry.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stash_pop(project_path: String, index: usize) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
-    let stash_ref = format!("stash@{{{}}}", index);
-    run_git_command(&path, &["stash", "pop", &stash_ref]).await?;
-    Ok(())
+pub async fn git_stash_pop(project_path: String, index: usize) -> CommandResult<()>  {
+    unexpected_command_result("git_stash_pop", "Failed to pop git stash", async {
+
+        let path = validate_project_path(&project_path)?;
+        let stash_ref = format!("stash@{{{}}}", index);
+        run_git_command(&path, &["stash", "pop", &stash_ref]).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Drop a stash entry.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stash_drop(project_path: String, index: usize) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
-    let stash_ref = format!("stash@{{{}}}", index);
-    run_git_command(&path, &["stash", "drop", &stash_ref]).await?;
-    Ok(())
+pub async fn git_stash_drop(project_path: String, index: usize) -> CommandResult<()>  {
+    unexpected_command_result("git_stash_drop", "Failed to drop git stash", async {
+
+        let path = validate_project_path(&project_path)?;
+        let stash_ref = format!("stash@{{{}}}", index);
+        run_git_command(&path, &["stash", "drop", &stash_ref]).await?;
+        Ok(())
+
+    }.await)
 }
 
 /// Save current changes to stash.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_stash_save(project_path: String, message: Option<String>) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+pub async fn git_stash_save(project_path: String, message: Option<String>) -> CommandResult<()>  {
+    unexpected_command_result("git_stash_save", "Failed to save git stash", async {
 
-    let mut args = vec!["stash", "push"];
-    if let Some(ref msg) = message {
-        args.push("-m");
-        args.push(msg);
-    }
+        let path = validate_project_path(&project_path)?;
 
-    run_git_command(&path, &args).await?;
-    Ok(())
+        let mut args = vec!["stash", "push"];
+        if let Some(ref msg) = message {
+            args.push("-m");
+            args.push(msg);
+        }
+
+        run_git_command(&path, &args).await?;
+        Ok(())
+
+    }.await)
 }
 
 // ─── Log ────────────────────────────────────────────────────────────────────
@@ -871,50 +933,54 @@ pub async fn git_stash_save(project_path: String, message: Option<String>) -> Re
 /// Get commit history.
 #[tauri::command]
 #[specta::specta]
-pub async fn git_log(project_path: String, limit: u32) -> Result<Vec<GitLogEntry>, String> {
-    let path = validate_project_path(&project_path)?;
-    let limit = if limit == 0 { 50 } else { limit };
+pub async fn git_log(project_path: String, limit: u32) -> CommandResult<Vec<GitLogEntry>>  {
+    unexpected_command_result("git_log", "Failed to get git log", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
+        let path = validate_project_path(&project_path)?;
+        let limit = if limit == 0 { 50 } else { limit };
 
-        let mut revwalk = repo
-            .revwalk()
-            .map_err(|e| format!("Failed to create revwalk: {}", e))?;
-        revwalk
-            .push_head()
-            .map_err(|e| format!("Failed to push HEAD: {}", e))?;
-        revwalk
-            .set_sorting(git2::Sort::TIME)
-            .map_err(|e| format!("Failed to set sorting: {}", e))?;
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
 
-        let mut entries = Vec::new();
+            let mut revwalk = repo
+                .revwalk()
+                .map_err(|e| format!("Failed to create revwalk: {}", e))?;
+            revwalk
+                .push_head()
+                .map_err(|e| format!("Failed to push HEAD: {}", e))?;
+            revwalk
+                .set_sorting(git2::Sort::TIME)
+                .map_err(|e| format!("Failed to set sorting: {}", e))?;
 
-        for oid_result in revwalk.take(limit as usize) {
-            let oid = oid_result.map_err(|e| format!("Revwalk error: {}", e))?;
-            let commit = repo
-                .find_commit(oid)
-                .map_err(|e| format!("Failed to find commit: {}", e))?;
+            let mut entries = Vec::new();
 
-            let sha = oid.to_string();
-            let short_sha = sha[..7.min(sha.len())].to_string();
-            let message = commit.summary().unwrap_or("").to_string();
-            let author = commit.author().name().unwrap_or("").to_string();
-            let date = format_relative_time(&commit.time());
+            for oid_result in revwalk.take(limit as usize) {
+                let oid = oid_result.map_err(|e| format!("Revwalk error: {}", e))?;
+                let commit = repo
+                    .find_commit(oid)
+                    .map_err(|e| format!("Failed to find commit: {}", e))?;
 
-            entries.push(GitLogEntry {
-                sha,
-                short_sha,
-                message,
-                author,
-                date,
-            });
-        }
+                let sha = oid.to_string();
+                let short_sha = sha[..7.min(sha.len())].to_string();
+                let message = commit.summary().unwrap_or("").to_string();
+                let author = commit.author().name().unwrap_or("").to_string();
+                let date = format_relative_time(&commit.time());
 
-        Ok(entries)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+                entries.push(GitLogEntry {
+                    sha,
+                    short_sha,
+                    message,
+                    author,
+                    date,
+                });
+            }
+
+            Ok(entries)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 // ─── Branch Operations ──────────────────────────────────────────────────────
@@ -926,37 +992,41 @@ pub async fn git_create_branch(
     project_path: String,
     name: String,
     start_point: Option<String>,
-) -> Result<String, String> {
-    let path = validate_project_path(&project_path)?;
+) -> CommandResult<String>  {
+    unexpected_command_result("git_create_branch", "Failed to create git branch", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
+        let path = validate_project_path(&project_path)?;
 
-        let commit = if let Some(ref sp) = start_point {
-            let obj = repo
-                .revparse_single(sp)
-                .map_err(|e| format!("Failed to resolve '{}': {}", sp, e))?;
-            obj.peel_to_commit()
-                .map_err(|e| format!("Failed to peel to commit: {}", e))?
-        } else {
-            repo.head()
-                .map_err(|e| format!("Failed to get HEAD: {}", e))?
-                .peel_to_commit()
-                .map_err(|e| format!("Failed to peel HEAD to commit: {}", e))?
-        };
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
 
-        let branch = repo
-            .branch(&name, &commit, false)
-            .map_err(|e| format!("Failed to create branch '{}': {}", name, e))?;
+            let commit = if let Some(ref sp) = start_point {
+                let obj = repo
+                    .revparse_single(sp)
+                    .map_err(|e| format!("Failed to resolve '{}': {}", sp, e))?;
+                obj.peel_to_commit()
+                    .map_err(|e| format!("Failed to peel to commit: {}", e))?
+            } else {
+                repo.head()
+                    .map_err(|e| format!("Failed to get HEAD: {}", e))?
+                    .peel_to_commit()
+                    .map_err(|e| format!("Failed to peel HEAD to commit: {}", e))?
+            };
 
-        Ok(branch
-            .name()
-            .map_err(|e| format!("Failed to get branch name: {}", e))?
-            .unwrap_or(&name)
-            .to_string())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+            let branch = repo
+                .branch(&name, &commit, false)
+                .map_err(|e| format!("Failed to create branch '{}': {}", name, e))?;
+
+            Ok(branch
+                .name()
+                .map_err(|e| format!("Failed to get branch name: {}", e))?
+                .unwrap_or(&name)
+                .to_string())
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 /// Delete a branch.
@@ -966,46 +1036,50 @@ pub async fn git_delete_branch(
     project_path: String,
     name: String,
     force: bool,
-) -> Result<(), String> {
-    let path = validate_project_path(&project_path)?;
+) -> CommandResult<()>  {
+    unexpected_command_result("git_delete_branch", "Failed to delete git branch", async {
 
-    tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path).map_err(|e| e.to_string())?;
+        let path = validate_project_path(&project_path)?;
 
-        let mut branch = repo
-            .find_branch(&name, git2::BranchType::Local)
-            .map_err(|e| format!("Failed to find branch '{}': {}", name, e))?;
+        tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path).map_err(|e| e.to_string())?;
 
-        if !force && !branch.is_head() {
-            // Check if branch is merged into HEAD
-            let head_oid = repo
-                .head()
-                .map_err(|e| format!("Failed to get HEAD: {}", e))?
-                .target()
-                .ok_or("HEAD has no target")?;
+            let mut branch = repo
+                .find_branch(&name, git2::BranchType::Local)
+                .map_err(|e| format!("Failed to find branch '{}': {}", name, e))?;
 
-            let branch_oid = branch.get().target().ok_or("Branch has no target")?;
+            if !force && !branch.is_head() {
+                // Check if branch is merged into HEAD
+                let head_oid = repo
+                    .head()
+                    .map_err(|e| format!("Failed to get HEAD: {}", e))?
+                    .target()
+                    .ok_or("HEAD has no target")?;
 
-            let merge_base = repo
-                .merge_base(head_oid, branch_oid)
-                .map_err(|e| format!("Failed to find merge base: {}", e))?;
+                let branch_oid = branch.get().target().ok_or("Branch has no target")?;
 
-            if merge_base != branch_oid {
-                return Err(format!(
-                    "Branch '{}' is not fully merged. Use force=true to delete anyway.",
-                    name
-                ));
+                let merge_base = repo
+                    .merge_base(head_oid, branch_oid)
+                    .map_err(|e| format!("Failed to find merge base: {}", e))?;
+
+                if merge_base != branch_oid {
+                    return Err(format!(
+                        "Branch '{}' is not fully merged. Use force=true to delete anyway.",
+                        name
+                    ));
+                }
             }
-        }
 
-        branch
-            .delete()
-            .map_err(|e| format!("Failed to delete branch '{}': {}", name, e))?;
+            branch
+                .delete()
+                .map_err(|e| format!("Failed to delete branch '{}': {}", name, e))?;
 
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+            Ok(())
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+
+    }.await)
 }
 
 // ─── AI Generation Context ──────────────────────────────────────────────────
@@ -1089,208 +1163,245 @@ pub async fn git_run_stacked_action(
     commit_message: String,
     pr_title: Option<String>,
     pr_body: Option<String>,
-) -> Result<GitStackedActionResult, String> {
-    let path = validate_project_path(&project_path)?;
-
+) -> CommandResult<GitStackedActionResult>  {
+    let path = expected_command_result("git_run_stacked_action", validate_project_path(&project_path))?;
     let action = match action.as_str() {
         "commit" | "commit_push" | "commit_push_pr" => action,
-        _ => return Err("Invalid action: use commit, commit_push, or commit_push_pr".to_string()),
-    };
-
-    let mut branch = crate::git::worktree::git_current_branch(project_path.clone()).await?;
-    let remote_status = git_remote_status(project_path.clone()).await?;
-
-    let do_push = action == "commit_push" || action == "commit_push_pr";
-
-    // Auto-create a feature branch when on the default branch and creating a PR
-    let mut created_branch = false;
-    if action == "commit_push_pr" {
-        let default_branch = gh_pr::get_default_branch(&path)
-            .await?
-            .unwrap_or_else(|| "main".to_string());
-        if branch == default_branch {
-            let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
-            let new_branch = format!("acepe/{}", timestamp);
-            run_git_command(&path, &["checkout", "-b", &new_branch]).await?;
-            branch = new_branch;
-            created_branch = true;
+        _ => {
+            return Err(SerializableCommandError::expected(
+                "git_run_stacked_action",
+                "Invalid action: use commit, commit_push, or commit_push_pr",
+            ));
         }
+    };
+    let branch = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        crate::git::worktree::get_current_branch(&path),
+    )?;
+    let remote_status = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        get_git_remote_status_impl(path.clone()).await,
+    )?;
+    let has_staged = unexpected_command_result(
+        "git_run_stacked_action",
+        "Git stacked action failed",
+        tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let repo = open_repository(&path).map_err(|e| e.to_string())?;
+                has_staged_changes(&repo)
+            }
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))
+        .and_then(|result| result),
+    )?;
+    if has_staged && commit_message.trim().is_empty() {
+        return Err(SerializableCommandError::expected(
+            "git_run_stacked_action",
+            "Commit message required when there are staged changes",
+        ));
     }
 
-    let push_remote = if remote_status.remote.is_empty() {
-        "origin".to_string()
-    } else {
-        remote_status.remote.clone()
-    };
-    let expected_tracking_branch = format!("{}/{}", push_remote, branch);
+    unexpected_command_result("git_run_stacked_action", "Git stacked action failed", async {
+        let mut branch = branch;
+        let remote_status = remote_status;
 
-    // New branches need -u, and existing branches need it when tracking is missing or points at a
-    // different remote ref than the current branch.
-    let needs_upstream = do_push
-        && (created_branch
-            || remote_status.tracking_branch.is_empty()
-            || remote_status.tracking_branch != expected_tracking_branch);
+        let do_push = action == "commit_push" || action == "commit_push_pr";
 
-    let path_clone = path.clone();
-    let msg = commit_message.clone();
-    let created_branch_for_log = created_branch;
-    let (commit_step, head_subject, head_body) = tokio::task::spawn_blocking(move || {
-        let repo = open_repository(&path_clone).map_err(|e| e.to_string())?;
-        let has_staged = has_staged_changes(&repo)?;
-
-        tracing::info!(
-            has_staged = has_staged,
-            created_branch = created_branch_for_log,
-            "Stacked action commit step"
-        );
-
-        if has_staged && msg.trim().is_empty() {
-            return Err("Commit message required when there are staged changes".to_string());
+        // Auto-create a feature branch when on the default branch and creating a PR
+        let mut created_branch = false;
+        if action == "commit_push_pr" {
+            let default_branch = gh_pr::get_default_branch(&path)
+                .await?
+                .unwrap_or_else(|| "main".to_string());
+            if branch == default_branch {
+                let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+                let new_branch = format!("acepe/{}", timestamp);
+                run_git_command(&path, &["checkout", "-b", &new_branch]).await?;
+                branch = new_branch;
+                created_branch = true;
+            }
         }
 
-        let (status, commit_sha, subject) = if has_staged {
-            let res = do_commit(&path_clone, msg.trim())?;
-            let subject = repo
-                .head()
-                .map_err(|e| e.to_string())?
-                .peel_to_commit()
-                .map_err(|e| e.to_string())?
-                .message()
-                .unwrap_or("")
-                .lines()
-                .next()
-                .unwrap_or("")
-                .to_string();
-            ("created".to_string(), Some(res.sha), Some(subject))
+        let push_remote = if remote_status.remote.is_empty() {
+            "origin".to_string()
         } else {
-            let subject = repo
+            remote_status.remote.clone()
+        };
+        let expected_tracking_branch = format!("{}/{}", push_remote, branch);
+
+        // New branches need -u, and existing branches need it when tracking is missing or points at a
+        // different remote ref than the current branch.
+        let needs_upstream = do_push
+            && (created_branch
+                || remote_status.tracking_branch.is_empty()
+                || remote_status.tracking_branch != expected_tracking_branch);
+
+        let path_clone = path.clone();
+        let msg = commit_message.clone();
+        let created_branch_for_log = created_branch;
+        let (commit_step, head_subject, head_body) = tokio::task::spawn_blocking(move || {
+            let repo = open_repository(&path_clone).map_err(|e| e.to_string())?;
+            let has_staged = has_staged_changes(&repo)?;
+
+            tracing::info!(
+                has_staged = has_staged,
+                created_branch = created_branch_for_log,
+                "Stacked action commit step"
+            );
+
+            if has_staged && msg.trim().is_empty() {
+                return Err("Commit message required when there are staged changes".to_string());
+            }
+
+            let (status, commit_sha, subject) = if has_staged {
+                let res = do_commit(&path_clone, msg.trim())?;
+                let subject = repo
+                    .head()
+                    .map_err(|e| e.to_string())?
+                    .peel_to_commit()
+                    .map_err(|e| e.to_string())?
+                    .message()
+                    .unwrap_or("")
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                ("created".to_string(), Some(res.sha), Some(subject))
+            } else {
+                let subject = repo
+                    .head()
+                    .ok()
+                    .and_then(|h| h.peel_to_commit().ok())
+                    .and_then(|c| {
+                        c.message()
+                            .map(|s| s.lines().next().unwrap_or("").to_string())
+                    });
+                ("skipped_no_changes".to_string(), None, subject)
+            };
+
+            let body = repo
                 .head()
                 .ok()
                 .and_then(|h| h.peel_to_commit().ok())
                 .and_then(|c| {
-                    c.message()
-                        .map(|s| s.lines().next().unwrap_or("").to_string())
-                });
-            ("skipped_no_changes".to_string(), None, subject)
-        };
-
-        let body = repo
-            .head()
-            .ok()
-            .and_then(|h| h.peel_to_commit().ok())
-            .and_then(|c| {
-                c.message().map(|s| {
-                    let lines: Vec<&str> = s.lines().collect();
-                    if lines.len() > 1 {
-                        Some(lines[1..].join("\n"))
-                    } else {
-                        None
-                    }
+                    c.message().map(|s| {
+                        let lines: Vec<&str> = s.lines().collect();
+                        if lines.len() > 1 {
+                            Some(lines[1..].join("\n"))
+                        } else {
+                            None
+                        }
+                    })
                 })
-            })
-            .flatten();
+                .flatten();
 
-        let head_subject = subject.as_deref().unwrap_or("Update").to_string();
+            let head_subject = subject.as_deref().unwrap_or("Update").to_string();
 
-        Ok::<_, String>((
-            GitStackedCommitStep {
-                status,
-                commit_sha,
-                subject,
-            },
-            head_subject,
-            body,
-        ))
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))??;
+            Ok::<_, String>((
+                GitStackedCommitStep {
+                    status,
+                    commit_sha,
+                    subject,
+                },
+                head_subject,
+                body,
+            ))
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))??;
 
-    // If we auto-created a branch but there's nothing to commit, switch back and abort
-    if created_branch && commit_step.status == "skipped_no_changes" {
-        // Switch back to the original default branch
-        let default_branch = gh_pr::get_default_branch(&path)
-            .await?
-            .unwrap_or_else(|| "main".to_string());
-        let _ = run_git_command(&path, &["checkout", &default_branch]).await;
-        let _ = run_git_command(&path, &["branch", "-d", &branch]).await;
-        return Err(
-            "No changes to commit. The modified files match what's already committed.".to_string(),
-        );
-    }
-
-    let push_step = if do_push {
-        let push_args: Vec<&str> = if needs_upstream {
-            vec!["push", "--no-verify", "-u", push_remote.as_str(), &branch]
-        } else {
-            vec!["push", "--no-verify"]
-        };
-        timeout(Duration::from_secs(90), run_git_command(&path, &push_args))
-            .await
-            .map_err(|_| "Push timed out".to_string())??;
-        let upstream = if needs_upstream {
-            expected_tracking_branch.clone()
-        } else {
-            remote_status.tracking_branch
-        };
-        GitStackedPushStep {
-            status: "pushed".to_string(),
-            branch: Some(branch.clone()),
-            upstream_branch: Some(upstream),
-        }
-    } else {
-        GitStackedPushStep {
-            status: "skipped_not_requested".to_string(),
-            branch: None,
-            upstream_branch: None,
-        }
-    };
-
-    let pr_step = if action == "commit_push_pr" {
-        let (base_result, open_pr_result) = tokio::join!(
-            gh_pr::get_default_branch(&path),
-            gh_pr::get_open_pr_for_branch_inner(&path, &branch),
-        );
-        let base_branch = base_result?.unwrap_or_else(|| "main".to_string());
-        let open_pr = open_pr_result?;
-
-        if let Some(ref open_pr) = open_pr {
-            pr_step_from_open_pr("opened_existing", open_pr, &base_branch, &branch)
-        } else {
-            let title = pr_title.as_deref().unwrap_or(&head_subject);
-            let body_content = pr_body.as_deref().or(head_body.as_deref());
-            let pr_body_with_footer = gh_pr::pr_body_with_acepe_footer(body_content);
-            gh_pr::create_pull_request(
-                &path,
-                &base_branch,
-                &branch,
-                title,
-                Some(pr_body_with_footer.as_str()),
-            )
-            .await?;
-
-            let open_pr = gh_pr::get_open_pr_for_branch_inner(&path, &branch)
+        // If we auto-created a branch but there's nothing to commit, switch back and abort
+        if created_branch && commit_step.status == "skipped_no_changes" {
+            // Switch back to the original default branch
+            let default_branch = gh_pr::get_default_branch(&path)
                 .await?
-                .ok_or("PR created but could not retrieve URL")?;
-
-            pr_step_from_open_pr("created", &open_pr, &base_branch, &branch)
+                .unwrap_or_else(|| "main".to_string());
+            let _ = run_git_command(&path, &["checkout", &default_branch]).await;
+            let _ = run_git_command(&path, &["branch", "-d", &branch]).await;
+            return Err(
+                "No changes to commit. The modified files match what's already committed.".to_string(),
+            );
         }
-    } else {
-        GitStackedPrStep {
-            status: "skipped_not_requested".to_string(),
-            url: None,
-            number: None,
-            title: None,
-            base_branch: None,
-            head_branch: None,
-        }
-    };
 
-    Ok(GitStackedActionResult {
-        action,
-        commit: commit_step,
-        push: push_step,
-        pr: pr_step,
-    })
+        let push_step = if do_push {
+            let push_args: Vec<&str> = if needs_upstream {
+                vec!["push", "--no-verify", "-u", push_remote.as_str(), &branch]
+            } else {
+                vec!["push", "--no-verify"]
+            };
+            timeout(Duration::from_secs(90), run_git_command(&path, &push_args))
+                .await
+                .map_err(|_| "Push timed out".to_string())??;
+            let upstream = if needs_upstream {
+                expected_tracking_branch.clone()
+            } else {
+                remote_status.tracking_branch
+            };
+            GitStackedPushStep {
+                status: "pushed".to_string(),
+                branch: Some(branch.clone()),
+                upstream_branch: Some(upstream),
+            }
+        } else {
+            GitStackedPushStep {
+                status: "skipped_not_requested".to_string(),
+                branch: None,
+                upstream_branch: None,
+            }
+        };
+
+        let pr_step = if action == "commit_push_pr" {
+            let (base_result, open_pr_result) = tokio::join!(
+                gh_pr::get_default_branch(&path),
+                gh_pr::get_open_pr_for_branch_inner(&path, &branch),
+            );
+            let base_branch = base_result?.unwrap_or_else(|| "main".to_string());
+            let open_pr = open_pr_result?;
+
+            if let Some(ref open_pr) = open_pr {
+                pr_step_from_open_pr("opened_existing", open_pr, &base_branch, &branch)
+            } else {
+                let title = pr_title.as_deref().unwrap_or(&head_subject);
+                let body_content = pr_body.as_deref().or(head_body.as_deref());
+                let pr_body_with_footer = gh_pr::pr_body_with_acepe_footer(body_content);
+                gh_pr::create_pull_request(
+                    &path,
+                    &base_branch,
+                    &branch,
+                    title,
+                    Some(pr_body_with_footer.as_str()),
+                )
+                .await?;
+
+                let open_pr = gh_pr::get_open_pr_for_branch_inner(&path, &branch)
+                    .await?
+                    .ok_or("PR created but could not retrieve URL")?;
+
+                pr_step_from_open_pr("created", &open_pr, &base_branch, &branch)
+            }
+        } else {
+            GitStackedPrStep {
+                status: "skipped_not_requested".to_string(),
+                url: None,
+                number: None,
+                title: None,
+                base_branch: None,
+                head_branch: None,
+            }
+        };
+
+        Ok(GitStackedActionResult {
+            action,
+            commit: commit_step,
+            push: push_step,
+            pr: pr_step,
+        })
+
+    }.await)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

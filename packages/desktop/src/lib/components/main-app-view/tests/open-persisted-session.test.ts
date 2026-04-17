@@ -6,13 +6,8 @@ import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
 const getSessionOpenResultMock = mock(() => okAsync(createFoundResult("session-1")));
 
-mock.module("$lib/acp/store/api.js", () => ({
-	api: {
-		getSessionOpenResult: getSessionOpenResultMock,
-	},
-}));
-
-import { openPersistedSession } from "../logic/open-persisted-session.js";
+let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
+let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-session.js").__resetOpenPersistedSessionForTests;
 
 type SessionOpenStore = Pick<
 	SessionStore,
@@ -28,7 +23,12 @@ describe("openPersistedSession", () => {
 	let sessionStore: SessionOpenStore;
 	let sessionOpenHydrator: SessionOpenHydratorLike;
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		({
+			openPersistedSession,
+			__resetOpenPersistedSessionForTests: resetOpenPersistedSessionForTests,
+		} = await import(`../logic/open-persisted-session.js?test=${Date.now()}`));
+		resetOpenPersistedSessionForTests();
 		getSessionOpenResultMock.mockReset();
 		getSessionOpenResultMock.mockImplementation(() => okAsync(createFoundResult("session-1")));
 
@@ -77,6 +77,7 @@ describe("openPersistedSession", () => {
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});
@@ -85,6 +86,7 @@ describe("openPersistedSession", () => {
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});
@@ -100,6 +102,7 @@ describe("openPersistedSession", () => {
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});
@@ -133,6 +136,7 @@ describe("openPersistedSession", () => {
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});

@@ -56,7 +56,7 @@ pub(super) async fn handle_terminal_create(
                 "Failed to serialize terminal/create result: {error}"
             )),
         },
-        Err(error) => request_error(error),
+        Err(error) => request_error(error.message),
     }
 }
 
@@ -81,7 +81,7 @@ pub(super) async fn handle_terminal_output(
                 "Failed to serialize terminal/output result: {error}"
             )),
         },
-        Err(error) => request_error(error),
+        Err(error) => request_error(error.message),
     }
 }
 
@@ -106,7 +106,7 @@ pub(super) async fn handle_terminal_wait_for_exit(
                 "Failed to serialize terminal/wait_for_exit result: {error}"
             )),
         },
-        Err(error) => request_error(error),
+        Err(error) => request_error(error.message),
     }
 }
 
@@ -126,7 +126,7 @@ pub(super) async fn handle_terminal_kill(
 
     match terminal_kill(app, session_id, terminal_id).await {
         Ok(()) => InboundRoutingDecision::Handle(json!({})),
-        Err(error) => request_error(error),
+        Err(error) => request_error(error.message),
     }
 }
 
@@ -146,6 +146,6 @@ pub(super) async fn handle_terminal_release(
 
     match terminal_release(app, session_id, terminal_id).await {
         Ok(()) => InboundRoutingDecision::Handle(json!({})),
-        Err(error) => request_error(error),
+        Err(error) => request_error(error.message),
     }
 }

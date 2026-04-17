@@ -57,6 +57,7 @@ mock.module("posthog-js", () => ({
 
 import {
 	__resetAnalyticsForTests,
+	captureCommandFailure,
 	captureContractViolation,
 	captureEvent,
 	captureException,
@@ -152,6 +153,45 @@ describe("analytics", () => {
 		captureException(new Error("boom"), { source: "test" });
 
 		expect(sentryCaptureExceptionMock).toHaveBeenCalled();
+	});
+
+	it("skips expected command failures", async () => {
+		import.meta.env.VITE_SENTRY_DSN = "https://example@sentry.io/123";
+
+		await initAnalytics();
+		sentryCaptureExceptionMock.mockReset();
+		captureCommandFailure(new Error("expected"), {
+			commandName: "save_user_setting",
+			invokeId: "invoke-1",
+			elapsedMs: 12,
+			referenceId: "ref-1",
+			referenceSearchable: false,
+			classification: "expected",
+		});
+
+		expect(sentryCaptureExceptionMock).not.toHaveBeenCalled();
+	});
+
+	it("suppresses repeated identical unexpected command failures within one session window", async () => {
+		import.meta.env.VITE_SENTRY_DSN = "https://example@sentry.io/123";
+
+		await initAnalytics();
+		sentryCaptureExceptionMock.mockReset();
+
+		const context = {
+			commandName: "save_user_setting",
+			invokeId: "invoke-3",
+			elapsedMs: 12,
+			referenceId: "ref-1",
+			referenceSearchable: true,
+			classification: "unexpected" as const,
+			diagnosticsSummary: "database is locked",
+		};
+
+		captureCommandFailure(new Error("boom"), context);
+		captureCommandFailure(new Error("boom"), context);
+
+		expect(sentryCaptureExceptionMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("updates posthog capture state when toggled", async () => {

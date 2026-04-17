@@ -61,15 +61,14 @@ pub async fn load_session(
         let payload = record.get("payload").unwrap_or(&Value::Null);
 
         match record_type {
-            "session_meta" => {
-                if created_at.is_none() {
-                    created_at = payload
-                        .get("timestamp")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                        .or(timestamp.clone());
-                }
+            "session_meta" if created_at.is_none() => {
+                created_at = payload
+                    .get("timestamp")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or(timestamp.clone());
             }
+            "session_meta" => {}
             "event_msg" => {
                 let event_type = payload
                     .get("type")

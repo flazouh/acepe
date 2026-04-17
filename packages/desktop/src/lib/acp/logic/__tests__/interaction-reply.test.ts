@@ -33,29 +33,6 @@ vi.mock("../../store/api.js", () => ({
 	},
 }));
 
-vi.mock("../inbound-request-handler.js", () => {
-	class MockInboundRequestHandler {}
-
-	return {
-		InboundRequestHandler: MockInboundRequestHandler,
-		respondToPermission: (
-			sessionId: string,
-			requestId: number,
-			allowed: boolean,
-			optionId: string
-		) => mockRespondToPermission(sessionId, requestId, allowed, optionId),
-		respondToQuestion: (
-			sessionId: string,
-			requestId: number,
-			answers: Record<string, string | string[]>
-		) => mockRespondToQuestion(sessionId, requestId, answers),
-		cancelQuestion: (sessionId: string, requestId: number) =>
-			mockCancelQuestion(sessionId, requestId),
-		respondToPlanApproval: (sessionId: string, requestId: number, approved: boolean) =>
-			mockRespondToPlanApproval(sessionId, requestId, approved),
-	};
-});
-
 describe("interaction reply", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();

@@ -24,7 +24,8 @@ export interface Project {
 export class ProjectError extends Error {
 	constructor(
 		message: string,
-		public readonly code: ProjectErrorCode
+		public readonly code: ProjectErrorCode,
+		public readonly cause?: Error
 	) {
 		super(message);
 		this.name = "ProjectError";
@@ -32,6 +33,10 @@ export class ProjectError extends Error {
 }
 
 export type ProjectErrorCode = "STORAGE_ERROR" | "INVALID_PATH" | "PROJECT_NOT_FOUND";
+
+export function isUnexpectedProjectError(error: ProjectError): boolean {
+	return error.code === "STORAGE_ERROR";
+}
 
 /**
  * Manages project state and storage.

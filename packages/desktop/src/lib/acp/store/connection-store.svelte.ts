@@ -11,6 +11,7 @@ import { createActor } from "xstate";
 import { panelConnectionMachine } from "../logic/panel-connection-machine.js";
 import {
 	type PanelConnectionContext,
+	type PanelConnectionErrorDetails,
 	PanelConnectionEvent,
 	PanelConnectionState,
 } from "../types/panel-connection-state.js";
@@ -103,7 +104,7 @@ export class ConnectionStore {
 					title?: string;
 			  }
 			| { type: PanelConnectionEvent.CONNECTION_SUCCESS; sessionId: string }
-			| { type: PanelConnectionEvent.CONNECTION_ERROR; error: string }
+			| { type: PanelConnectionEvent.CONNECTION_ERROR; error: PanelConnectionErrorDetails }
 			| { type: PanelConnectionEvent.RETRY }
 			| { type: PanelConnectionEvent.CANCEL }
 	): void {

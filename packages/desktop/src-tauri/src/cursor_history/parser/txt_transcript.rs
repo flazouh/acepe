@@ -419,15 +419,14 @@ pub(crate) fn parse_txt_transcript_content(content: &str) -> Vec<CursorTranscrip
                 });
             }
         }
-        State::InAssistant => {
-            if !current_text.trim().is_empty() {
-                messages.push(CursorTranscriptMessage {
-                    role: current_role,
-                    text: Some(current_text.trim().to_string()),
-                    attachments: None,
-                });
-            }
+        State::InAssistant if !current_text.trim().is_empty() => {
+            messages.push(CursorTranscriptMessage {
+                role: current_role,
+                text: Some(current_text.trim().to_string()),
+                attachments: None,
+            });
         }
+        State::InAssistant => {}
         _ => {}
     }
 
@@ -545,33 +544,31 @@ pub(crate) fn analyze_transcript_parsing(content: &str) -> ParsingAnalysis {
                 AnalysisState::InToolCall | AnalysisState::InToolResult => {
                     line_contributed = true;
                 }
-                AnalysisState::Initial => {
-                    // Lines in initial state that look like they might be markers
-                    if !trimmed.is_empty() {
-                        // Check for potential unrecognized markers
-                        if trimmed.ends_with(':') && trimmed.len() < 20 {
-                            let prefix = trimmed.to_string();
-                            *analysis.unknown_prefixes.entry(prefix.clone()).or_insert(0) += 1;
-                            if analysis.potential_markers.len() < 10 {
-                                analysis.potential_markers.push(format!(
-                                    "Line {}: {}",
-                                    line_num + 1,
-                                    trimmed
-                                ));
-                            }
-                        } else if analysis.unparsed_samples.len() < 10 {
-                            analysis.unparsed_samples.push(format!(
+                AnalysisState::Initial if !trimmed.is_empty() => {
+                    // Check for potential unrecognized markers.
+                    if trimmed.ends_with(':') && trimmed.len() < 20 {
+                        let prefix = trimmed.to_string();
+                        *analysis.unknown_prefixes.entry(prefix.clone()).or_insert(0) += 1;
+                        if analysis.potential_markers.len() < 10 {
+                            analysis.potential_markers.push(format!(
                                 "Line {}: {}",
                                 line_num + 1,
-                                if trimmed.len() > 80 {
-                                    format!("{}...", &trimmed[..80])
-                                } else {
-                                    trimmed.to_string()
-                                }
+                                trimmed
                             ));
                         }
+                    } else if analysis.unparsed_samples.len() < 10 {
+                        analysis.unparsed_samples.push(format!(
+                            "Line {}: {}",
+                            line_num + 1,
+                            if trimmed.len() > 80 {
+                                format!("{}...", &trimmed[..80])
+                            } else {
+                                trimmed.to_string()
+                            }
+                        ));
                     }
                 }
+                AnalysisState::Initial => {}
                 _ => {}
             }
         }

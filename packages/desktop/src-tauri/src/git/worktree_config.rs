@@ -18,6 +18,9 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use crate::commands::observability::{
+    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+};
 
 /// Timeout for individual setup commands (5 minutes).
 const COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
@@ -716,11 +719,15 @@ pub async fn run_setup_commands(
 /// Restricts to allowed project roots (path_safety validation).
 #[tauri::command]
 #[specta::specta]
-pub async fn load_worktree_config(project_path: String) -> Result<Option<WorktreeConfig>, String> {
-    let canonical = path_safety::validate_project_directory_from_str(&project_path)
-        .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+pub async fn load_worktree_config(project_path: String) -> CommandResult<Option<WorktreeConfig>>  {
+    unexpected_command_result("load_worktree_config", "Failed to load worktree config", async {
 
-    Ok(load_config(&canonical))
+        let canonical = path_safety::validate_project_directory_from_str(&project_path)
+            .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+
+        Ok(load_config(&canonical))
+
+    }.await)
 }
 
 /// Validate project path using path_safety (restricts to allowed roots).
@@ -737,50 +744,54 @@ pub async fn run_worktree_setup(
     app: AppHandle,
     worktree_path: String,
     project_path: String,
-) -> Result<SetupResult, String> {
-    tracing::info!(
-        worktree_path = %worktree_path,
-        project_path = %project_path,
-        "run_worktree_setup called"
-    );
+) -> CommandResult<SetupResult>  {
+    unexpected_command_result("run_worktree_setup", "Failed to run worktree setup", async {
 
-    // Validate worktree path is inside ~/.acepe/worktrees/
-    let canonical = validate_worktree_path(Path::new(&worktree_path))?;
+        tracing::info!(
+            worktree_path = %worktree_path,
+            project_path = %project_path,
+            "run_worktree_setup called"
+        );
 
-    // Validate project path and load commands from config file (not from IPC)
-    let project_canonical = validate_project_path(&project_path)?;
-    let config = load_config(&project_canonical);
-    let commands = match config {
-        Some(c) if !c.setup_commands.is_empty() => c.setup_commands,
-        _ => {
-            tracing::info!("No setup commands found in config, skipping setup");
-            return Ok(SetupResult {
-                success: true,
-                commands_run: 0,
-                error: None,
-                output: vec![],
-            });
+        // Validate worktree path is inside ~/.acepe/worktrees/
+        let canonical = validate_worktree_path(Path::new(&worktree_path))?;
+
+        // Validate project path and load commands from config file (not from IPC)
+        let project_canonical = validate_project_path(&project_path)?;
+        let config = load_config(&project_canonical);
+        let commands = match config {
+            Some(c) if !c.setup_commands.is_empty() => c.setup_commands,
+            _ => {
+                tracing::info!("No setup commands found in config, skipping setup");
+                return Ok(SetupResult {
+                    success: true,
+                    commands_run: 0,
+                    error: None,
+                    output: vec![],
+                });
+            }
+        };
+
+        tracing::info!(
+            commands = ?commands,
+            "Found setup commands in config, executing"
+        );
+
+        let result = run_setup_commands(&app, &project_canonical, &canonical, &commands).await;
+
+        match &result {
+            Ok(r) => tracing::info!(
+                success = r.success,
+                commands_run = r.commands_run,
+                error = ?r.error,
+                "run_worktree_setup completed"
+            ),
+            Err(e) => tracing::error!(error = %e, "run_worktree_setup returned error"),
         }
-    };
 
-    tracing::info!(
-        commands = ?commands,
-        "Found setup commands in config, executing"
-    );
+        result
 
-    let result = run_setup_commands(&app, &project_canonical, &canonical, &commands).await;
-
-    match &result {
-        Ok(r) => tracing::info!(
-            success = r.success,
-            commands_run = r.commands_run,
-            error = ?r.error,
-            "run_worktree_setup completed"
-        ),
-        Err(e) => tracing::error!(error = %e, "run_worktree_setup returned error"),
-    }
-
-    result
+    }.await)
 }
 
 /// Maximum number of setup commands allowed.
@@ -825,44 +836,49 @@ fn validate_command(cmd: &str) -> Result<(), String> {
 pub async fn save_worktree_config(
     project_path: String,
     setup_commands: Vec<String>,
-) -> Result<(), String> {
-    let canonical = validate_project_path(&project_path)?;
+) -> CommandResult<()>  {
+    let canonical = expected_command_result(
+        "save_worktree_config",
+        validate_project_path(&project_path),
+    )?;
 
-    // Validate input
     if setup_commands.len() > MAX_SETUP_COMMANDS {
-        return Err(format!(
-            "Too many setup commands (max {})",
-            MAX_SETUP_COMMANDS
+        return Err(SerializableCommandError::expected(
+            "save_worktree_config",
+            format!("Too many setup commands (max {})", MAX_SETUP_COMMANDS),
         ));
     }
     for cmd in &setup_commands {
-        validate_command(cmd)?;
+        expected_command_result("save_worktree_config", validate_command(cmd))?;
     }
 
-    let config_path = resolve_config_write_path(&canonical);
+    unexpected_command_result("save_worktree_config", "Failed to save worktree config", async {
+        let config_path = resolve_config_write_path(&canonical);
 
-    // Read existing config to preserve non-worktree fields
-    let mut config: serde_json::Value = if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| format!("Failed to read config: {}", e))?;
-        serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?
-    } else {
-        serde_json::json!({})
-    };
+        // Read existing config to preserve non-worktree fields
+        let mut config: serde_json::Value = if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)
+                .map_err(|e| format!("Failed to read config: {}", e))?;
+            serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?
+        } else {
+            serde_json::json!({})
+        };
 
-    if !config.is_object() {
-        return Err("Config file must contain a JSON object at the root level".into());
-    }
+        if !config.is_object() {
+            return Err("Config file must contain a JSON object at the root level".into());
+        }
 
-    // Ensure intermediate "worktree" object exists (Value::Null indexing is a silent no-op)
-    if !config.get("worktree").is_some_and(|v| v.is_object()) {
-        config["worktree"] = serde_json::json!({});
-    }
-    config["worktree"]["setupCommands"] = serde_json::json!(setup_commands);
+        // Ensure intermediate "worktree" object exists (Value::Null indexing is a silent no-op)
+        if !config.get("worktree").is_some_and(|v| v.is_object()) {
+            config["worktree"] = serde_json::json!({});
+        }
+        config["worktree"]["setupCommands"] = serde_json::json!(setup_commands);
 
-    let content = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-    std::fs::write(&config_path, content).map_err(|e| format!("Failed to write config: {}", e))?;
+        let content = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+        std::fs::write(&config_path, content).map_err(|e| format!("Failed to write config: {}", e))?;
 
-    Ok(())
+        Ok(())
+
+    }.await)
 }

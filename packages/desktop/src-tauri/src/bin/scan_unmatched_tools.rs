@@ -16,6 +16,7 @@
 
 use acepe_lib::acp::parsers::adapters::CursorAdapter;
 use acepe_lib::acp::session_update::ToolKind;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -71,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut names: Vec<_> = unmatched.into_iter().collect();
-    names.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+    names.sort_by_key(|entry| Reverse(entry.1 .0));
 
     println!("Unmatched (name => count, samples):");
     println!("---");

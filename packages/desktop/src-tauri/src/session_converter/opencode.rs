@@ -174,19 +174,17 @@ fn convert_opencode_user_message(msg: &OpenCodeMessage) -> Option<StoredEntry> {
 
     for part in &msg.parts {
         match part {
-            OpenCodeMessagePart::Text { text } => {
-                if !text.trim().is_empty() {
-                    if text_content.is_empty() {
-                        text_content = text.clone();
-                    } else {
-                        text_content.push('\n');
-                        text_content.push_str(text);
-                    }
-                    chunks.push(StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some(text.clone()),
-                    });
+            OpenCodeMessagePart::Text { text } if !text.trim().is_empty() => {
+                if text_content.is_empty() {
+                    text_content = text.clone();
+                } else {
+                    text_content.push('\n');
+                    text_content.push_str(text);
                 }
+                chunks.push(StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some(text.clone()),
+                });
             }
             OpenCodeMessagePart::ToolResult { .. } => {
                 // Skip tool results in user message display

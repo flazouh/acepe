@@ -44,9 +44,23 @@ function convertToolCallData(data: ToolCallData): ToolCall {
 	const taskChildren = data.taskChildren ? data.taskChildren.map(convertToolCallData) : undefined;
 
 	return {
-		...data,
+		id: data.id,
 		name: canonicalToolName(data.name),
+		arguments: data.arguments,
+		rawInput: data.rawInput,
+		status: data.status,
+		result: data.result,
+		kind: data.kind,
+		title: data.title,
+		locations: data.locations,
+		skillMeta: data.skillMeta,
+		normalizedQuestions: data.normalizedQuestions,
+		normalizedTodos: data.normalizedTodos,
+		parentToolUseId: data.parentToolUseId,
 		taskChildren,
+		questionAnswer: data.questionAnswer,
+		awaitingPlanApproval: data.awaitingPlanApproval,
+		planApprovalRequestId: data.planApprovalRequestId,
 	};
 }
 

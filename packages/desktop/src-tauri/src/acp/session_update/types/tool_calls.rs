@@ -5,9 +5,7 @@ use super::{QuestionItem, TodoItem};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
 use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
-use crate::acp::tool_classification::{
-    classify_serialized_tool_call, is_unknown_tool_name, ToolClassificationHints,
-};
+use crate::acp::tool_classification::{classify_serialized_tool_call, ToolClassificationHints};
 
 /// Tool kind for routing to appropriate UI components.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
@@ -341,28 +339,39 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
         let raw = Raw::deserialize(deserializer)?;
         let normalized_arguments = unwrap_serialized_other_arguments(&raw.arguments);
         let agent = deserialize_agent_context::<D::Error>()?;
-        let classified = classify_serialized_tool_call(
+        let classification_hints = ToolClassificationHints {
+            name: Some(&raw.name),
+            title: raw.title.as_deref(),
+            kind: raw.kind,
+            kind_hint: raw.kind.map(|kind| kind.as_str()),
+            locations: raw.locations.as_deref(),
+        };
+        let classified_from_arguments = classify_serialized_tool_call(
             agent,
             &raw.id,
             &normalized_arguments,
-            ToolClassificationHints {
-                name: Some(&raw.name),
-                title: raw.title.as_deref(),
-                kind: raw.kind,
-                kind_hint: raw.kind.map(|kind| kind.as_str()),
-                locations: raw.locations.as_deref(),
-            },
+            classification_hints,
         );
+        let classified_from_raw = raw
+            .raw_input
+            .as_ref()
+            .map(|raw_input| {
+                classify_serialized_tool_call(agent, &raw.id, raw_input, classification_hints)
+            })
+            .filter(|classified| classified.kind != ToolKind::Other);
+        let use_raw_input = classified_from_raw.is_some();
+        let classified = classified_from_raw.unwrap_or(classified_from_arguments);
         let kind = classified.kind;
-        let name = if is_unknown_tool_name(&raw.name) && kind != ToolKind::Other {
-            classified.name
-        } else {
-            raw.name.clone()
-        };
+        let name = classified.name;
         let arguments = classified.arguments;
+        let normalized_source = if use_raw_input {
+            raw.raw_input.clone().unwrap_or(normalized_arguments)
+        } else {
+            normalized_arguments
+        };
 
         let (derived_questions, derived_todos) =
-            derive_normalized_questions_and_todos(&name, &normalized_arguments, agent);
+            derive_normalized_questions_and_todos(&name, &normalized_source, agent);
         let normalized_questions = raw.normalized_questions.or(derived_questions);
         let normalized_todos = raw.normalized_todos.or(derived_todos);
 

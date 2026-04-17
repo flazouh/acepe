@@ -302,6 +302,7 @@ pub(crate) fn interaction_transition_from_result(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn persist_interaction_transition(
     projection_registry: &ProjectionRegistry,
     db: Option<&DbConn>,

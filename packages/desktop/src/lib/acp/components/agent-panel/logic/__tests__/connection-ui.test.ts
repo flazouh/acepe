@@ -7,7 +7,11 @@ describe("derivePanelErrorInfo", () => {
 	it("returns panel error details when panel connection fails", () => {
 		const result = derivePanelErrorInfo({
 			panelConnectionState: PanelConnectionState.ERROR,
-			panelConnectionError: "npm error 404",
+			panelConnectionError: {
+				message: "npm error 404",
+				referenceId: "ref-123",
+				referenceSearchable: true,
+			},
 			sessionConnectionError: null,
 			activeTurnError: null,
 		});
@@ -16,6 +20,8 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.title).toBe("Connection error");
 		expect(result.summary).toBe("npm error 404");
 		expect(result.details).toBe("npm error 404");
+		expect(result.referenceId).toBe("ref-123");
+		expect(result.referenceSearchable).toBe(true);
 	});
 
 	it("returns session error details when session connection fails", () => {
@@ -30,12 +36,15 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.title).toBe("Connection error");
 		expect(result.summary).toBe("Failed to resume session");
 		expect(result.details).toBe("Failed to resume session");
+		expect(result.referenceId).toBeNull();
 	});
 
 	it("prefers panel error details when both are present", () => {
 		const result = derivePanelErrorInfo({
 			panelConnectionState: PanelConnectionState.ERROR,
-			panelConnectionError: "Panel error",
+			panelConnectionError: {
+				message: "Panel error",
+			},
 			sessionConnectionError: "Session error",
 			activeTurnError: {
 				content: "Rate limited",
@@ -59,6 +68,7 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.showError).toBe(false);
 		expect(result.summary).toBe(null);
 		expect(result.details).toBe(null);
+		expect(result.referenceId).toBeNull();
 	});
 
 	it("returns turn error details when the latest turn failed", () => {
@@ -71,6 +81,8 @@ describe("derivePanelErrorInfo", () => {
 				content: "Rate limit reached",
 				code: "429",
 				kind: "recoverable",
+				referenceId: "turn-ref",
+				referenceSearchable: false,
 				source: "json_rpc",
 			},
 		});
@@ -79,5 +91,7 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.title).toBe("Request error");
 		expect(result.summary).toBe("Rate limit reached");
 		expect(result.details).toBe("Rate limit reached\n\nCode: 429\nSource: json_rpc");
+		expect(result.referenceId).toBe("turn-ref");
+		expect(result.referenceSearchable).toBe(false);
 	});
 });

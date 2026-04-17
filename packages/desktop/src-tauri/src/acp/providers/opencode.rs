@@ -212,7 +212,7 @@ impl AgentProvider for OpenCodeProvider {
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,
-                        error = %error,
+                        error = ?error,
                         "HTTP fallback also failed for OpenCode session"
                     );
                     Ok(None)
