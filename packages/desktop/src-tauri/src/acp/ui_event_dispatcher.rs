@@ -725,12 +725,8 @@ async fn persist_dispatch_event(
     event: &AcpUiEvent,
     transcript_projection_registry: &TranscriptProjectionRegistry,
 ) -> Option<TranscriptDelta> {
-    let Some(db) = db else {
-        return None;
-    };
-    let Some(session_id) = event.session_id.as_deref() else {
-        return None;
-    };
+    let db = db?;
+    let session_id = event.session_id.as_deref()?;
     let AcpUiEventPayload::SessionUpdate(update) = &event.payload else {
         return None;
     };

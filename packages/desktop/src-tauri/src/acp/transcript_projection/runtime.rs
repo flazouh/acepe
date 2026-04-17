@@ -42,7 +42,7 @@ impl TranscriptProjectionRegistry {
         let mut session = self
             .sessions
             .entry(delta.session_id.clone())
-            .or_insert_with(SessionTranscriptProjection::default);
+            .or_default();
         session.apply_delta(delta);
         session.snapshot()
     }
@@ -57,7 +57,7 @@ impl TranscriptProjectionRegistry {
         let mut session = self
             .sessions
             .entry(session_id.clone())
-            .or_insert_with(SessionTranscriptProjection::default);
+            .or_default();
         let operations = session.apply_session_update(event_seq, update)?;
         Some(TranscriptDelta {
             event_seq,
