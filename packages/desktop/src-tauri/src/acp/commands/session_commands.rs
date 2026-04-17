@@ -12,7 +12,7 @@ use crate::acp::transcript_projection::{
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
-    SessionMetadataRepository, SessionProjectionSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
     SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
 };
 use sea_orm::DbConn;
@@ -630,8 +630,13 @@ async fn load_transcript_snapshot_for_resume(
             ),
         })?;
     if let Some(thread_snapshot) = thread_snapshot {
+        let revision = SessionJournalEventRepository::max_event_seq(db, session_id)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(0);
         return Ok(TranscriptSnapshot::from_stored_entries(
-            0,
+            revision,
             &thread_snapshot.entries,
         ));
     }
@@ -961,6 +966,17 @@ pub async fn acp_close_session(
             })?;
     }
     projection_registry.remove_session(&session_id);
+    if let Some(transcript_snapshot) =
+        transcript_projection_registry.snapshot_for_session(&session_id)
+    {
+        SessionTranscriptSnapshotRepository::set(db.inner(), &session_id, &transcript_snapshot)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to persist transcript snapshot for session {session_id}: {error}"
+                ),
+            })?;
+    }
     transcript_projection_registry.remove_session(&session_id);
 
     Ok(())

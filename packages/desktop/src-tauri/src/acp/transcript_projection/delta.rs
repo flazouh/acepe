@@ -1,7 +1,9 @@
+#[cfg(test)]
 use crate::acp::session_update::{SessionUpdate, TurnErrorData};
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
+#[cfg(test)]
 use crate::acp::types::ContentBlock;
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +17,7 @@ pub struct TranscriptDelta {
 }
 
 impl TranscriptDelta {
+    #[cfg(test)]
     #[must_use]
     pub fn from_session_update(event_seq: i64, update: &SessionUpdate) -> Option<Self> {
         let session_id = update.session_id()?.to_string();
@@ -44,6 +47,7 @@ pub enum TranscriptDeltaOperation {
     },
 }
 
+#[cfg(test)]
 impl TranscriptDeltaOperation {
     fn from_session_update(event_seq: i64, update: &SessionUpdate) -> Option<Vec<Self>> {
         match update {
@@ -115,6 +119,7 @@ impl TranscriptDeltaOperation {
     }
 }
 
+#[cfg(test)]
 fn text_chunk_from_block(
     block: &ContentBlock,
     entry_id: impl FnOnce() -> String,
@@ -135,6 +140,7 @@ fn text_chunk_from_block(
     }
 }
 
+#[cfg(test)]
 fn error_segment(event_seq: i64, error: &TurnErrorData) -> TranscriptSegment {
     TranscriptSegment::Text {
         segment_id: format!("error-event-{event_seq}:error"),

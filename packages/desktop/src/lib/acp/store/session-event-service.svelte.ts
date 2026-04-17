@@ -589,7 +589,7 @@ export class SessionEventService {
 		}
 
 		if (update.type === "agentMessageChunk" || update.type === "agentThoughtChunk") {
-			this.scheduleAssistantFallbackUpdate(sessionId, update, handler);
+			this.scheduleAssistantFallbackUpdate(sessionId, update, handler, hotState?.turnState);
 			return;
 		}
 
@@ -1069,8 +1069,28 @@ export class SessionEventService {
 	private scheduleAssistantFallbackUpdate(
 		sessionId: string,
 		update: Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>,
-		handler: SessionEventHandler
+		handler: SessionEventHandler,
+		turnState: import("./types.js").TurnState | undefined
 	): void {
+		// Fallback-deferral exists to let canonical transcript deltas win during
+		// live streaming. Only apply synchronously when we explicitly know we're in
+		// idle/replay — undefined/unknown turn state keeps the conservative defer path.
+		if (turnState === "idle") {
+			const aggregationKey = getAssistantAggregationKey(update);
+			handler
+				.aggregateAssistantChunk(
+					sessionId,
+					update.chunk,
+					aggregationKey,
+					update.type === "agentThoughtChunk"
+				)
+				.mapErr((error) =>
+					logger.error("Failed to aggregate replay assistant chunk", { error })
+				);
+			handler.ensureStreamingState(sessionId);
+			return;
+		}
+
 		const existing = this.pendingAssistantFallbacks.get(sessionId);
 		if (existing) {
 			existing.updates.push(update);

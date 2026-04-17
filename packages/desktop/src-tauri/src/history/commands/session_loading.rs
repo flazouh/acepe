@@ -235,16 +235,30 @@ pub async fn ensure_canonical_session_materialized(
                 )
             })?
     {
-        if SessionTranscriptSnapshotRepository::get(&db, &replay_context.local_session_id)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Failed to load transcript snapshot for {}: {error}",
-                    replay_context.local_session_id
-                )
-            })?
-            .is_none()
-        {
+        let journal_max =
+            SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "Failed to read journal cutoff for {}: {error}",
+                        replay_context.local_session_id
+                    )
+                })?
+                .unwrap_or(0);
+        let cached_transcript =
+            SessionTranscriptSnapshotRepository::get(&db, &replay_context.local_session_id)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "Failed to load transcript snapshot for {}: {error}",
+                        replay_context.local_session_id
+                    )
+                })?;
+        let is_stale = match cached_transcript.as_ref() {
+            Some(snapshot) => snapshot.revision < journal_max,
+            None => true,
+        };
+        if is_stale {
             persist_transcript_snapshot(&db, replay_context, &persisted).await?;
         }
         return Ok(Some(persisted));
