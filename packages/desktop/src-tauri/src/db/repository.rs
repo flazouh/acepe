@@ -789,6 +789,15 @@ impl SessionTranscriptSnapshotRepository {
 
         Ok(())
     }
+
+    pub async fn delete(db: &DbConn, session_id: &str) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Deleting session transcript snapshot");
+
+        crate::db::entities::session_transcript_snapshot::Entity::delete_by_id(session_id)
+            .exec(db)
+            .await?;
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -842,6 +851,15 @@ impl SessionThreadSnapshotRepository {
                 .await?;
         }
 
+        Ok(())
+    }
+
+    pub async fn delete(db: &DbConn, session_id: &str) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Deleting session thread snapshot");
+
+        crate::db::entities::session_thread_snapshot::Entity::delete_by_id(session_id)
+            .exec(db)
+            .await?;
         Ok(())
     }
 }

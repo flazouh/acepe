@@ -1073,9 +1073,12 @@ export class SessionEventService {
 		turnState: import("./types.js").TurnState | undefined
 	): void {
 		// Fallback-deferral exists to let canonical transcript deltas win during
-		// live streaming. Only apply synchronously when we explicitly know we're in
-		// idle/replay — undefined/unknown turn state keeps the conservative defer path.
-		if (turnState === "idle") {
+		// live streaming. Apply synchronously only when we're explicitly in
+		// idle/replay AND there's no already-queued batch for this session —
+		// bypassing a queued batch would reorder chunks (the queued ones flush
+		// on the next tick, after the sync-applied one).
+		const existing = this.pendingAssistantFallbacks.get(sessionId);
+		if (turnState === "idle" && !existing) {
 			const aggregationKey = getAssistantAggregationKey(update);
 			handler
 				.aggregateAssistantChunk(
@@ -1091,7 +1094,6 @@ export class SessionEventService {
 			return;
 		}
 
-		const existing = this.pendingAssistantFallbacks.get(sessionId);
 		if (existing) {
 			existing.updates.push(update);
 			return;

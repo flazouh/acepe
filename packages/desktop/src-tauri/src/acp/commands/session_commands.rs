@@ -632,8 +632,11 @@ async fn load_transcript_snapshot_for_resume(
     if let Some(thread_snapshot) = thread_snapshot {
         let revision = SessionJournalEventRepository::max_event_seq(db, session_id)
             .await
-            .ok()
-            .flatten()
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to determine journal cutoff for resumed session {session_id}: {error}"
+                ),
+            })?
             .unwrap_or(0);
         return Ok(TranscriptSnapshot::from_stored_entries(
             revision,

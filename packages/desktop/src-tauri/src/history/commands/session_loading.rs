@@ -254,14 +254,47 @@ pub async fn ensure_canonical_session_materialized(
                         replay_context.local_session_id
                     )
                 })?;
-        let is_stale = match cached_transcript.as_ref() {
+        let transcript_stale = match cached_transcript.as_ref() {
             Some(snapshot) => snapshot.revision < journal_max,
             None => true,
         };
-        if is_stale {
-            persist_transcript_snapshot(&db, replay_context, &persisted).await?;
+        // When the transcript cache is stale relative to the journal, we cannot
+        // recover freshness by re-persisting from the cached thread snapshot —
+        // that thread may itself be stale, and stamping a fresh revision onto
+        // stale entries produces a snapshot that silently drops events on
+        // reopen. Instead, invalidate both caches so the materialization path
+        // below rebuilds from the provider / journal. When the transcript is
+        // merely absent (cold start post-materialization), backfill from the
+        // already-persisted thread snapshot.
+        if !transcript_stale {
+            return Ok(Some(persisted));
         }
-        return Ok(Some(persisted));
+        if cached_transcript.is_none() {
+            persist_transcript_snapshot(&db, replay_context, &persisted).await?;
+            return Ok(Some(persisted));
+        }
+        tracing::warn!(
+            session_id = %replay_context.local_session_id,
+            cached_revision = cached_transcript.as_ref().map(|s| s.revision),
+            journal_max,
+            "Invalidating stale thread and transcript snapshots before re-materialization"
+        );
+        SessionThreadSnapshotRepository::delete(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to invalidate stale thread snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
+        SessionTranscriptSnapshotRepository::delete(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to invalidate stale transcript snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
     }
 
     let context = crate::history::session_context::SessionContext {
