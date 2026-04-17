@@ -315,7 +315,7 @@ where
 {
     #[cfg(test)]
     {
-        return Ok(current_agent().unwrap_or(AgentType::ClaudeCode));
+        Ok(current_agent().unwrap_or(AgentType::ClaudeCode))
     }
 
     #[cfg(not(test))]

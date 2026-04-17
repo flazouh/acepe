@@ -1496,6 +1496,7 @@ async fn test_cache_hit_project_path_override_scenario() {
     invalidate_cache().await;
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_scan_projects_streaming_emits_entries_progressively_per_project() {
     use crate::session_jsonl::cache::invalidate_cache;
@@ -1556,6 +1557,7 @@ async fn test_scan_projects_streaming_emits_entries_progressively_per_project() 
 
 /// Test that find_session_file returns immediately when direct path exists.
 /// This verifies O(1) lookup behavior - no scanning of other files.
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_find_session_file_direct_path_no_scanning() {
     let _lock = claude_home_test_lock().lock().unwrap();

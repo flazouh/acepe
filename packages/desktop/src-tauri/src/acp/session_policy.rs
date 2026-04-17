@@ -21,6 +21,12 @@ pub struct SessionPolicyRegistry {
     policies: DashMap<String, Arc<SessionPolicy>>,
 }
 
+impl Default for SessionPolicyRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionPolicyRegistry {
     pub fn new() -> Self {
         Self {

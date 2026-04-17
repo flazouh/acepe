@@ -235,9 +235,7 @@ fn translate_turn_completed(
 fn extract_codex_turn_id(
     params: Option<&serde_json::Map<String, Value>>,
 ) -> Option<String> {
-    let Some(params) = params else {
-        return None;
-    };
+    let params = params?;
 
     get_non_empty_string(params.get("turnId"))
         .or_else(|| {

@@ -139,22 +139,6 @@ pub(crate) fn detect_update_type(data: &serde_json::Value) -> Result<UpdateType,
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::infer_tool_kind_from_raw_arguments;
-    use crate::acp::session_update::ToolKind;
-
-    #[test]
-    fn description_and_query_do_not_infer_task_kind() {
-        let inferred = infer_tool_kind_from_raw_arguments(&serde_json::json!({
-            "description": "Create planning todos",
-            "query": "INSERT INTO todos VALUES ('todo-1')"
-        }));
-
-        assert_ne!(inferred, Some(ToolKind::Task));
-    }
-}
-
 pub(crate) fn parse_tool_call_update(
     data: &serde_json::Value,
     normalize_tool_kind: fn(&str) -> ToolKind,
@@ -300,4 +284,20 @@ pub(crate) fn parse_usage_telemetry(
             .and_then(|value| value.as_u64())
             .or_else(|| extract_result_context_window(data)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::infer_tool_kind_from_raw_arguments;
+    use crate::acp::session_update::ToolKind;
+
+    #[test]
+    fn description_and_query_do_not_infer_task_kind() {
+        let inferred = infer_tool_kind_from_raw_arguments(&serde_json::json!({
+            "description": "Create planning todos",
+            "query": "INSERT INTO todos VALUES ('todo-1')"
+        }));
+
+        assert_ne!(inferred, Some(ToolKind::Task));
+    }
 }

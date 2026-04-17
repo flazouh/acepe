@@ -121,9 +121,13 @@ pub async fn download_cli(
 
 /// Stub for download_cli when auto-download feature is disabled
 #[cfg(not(feature = "auto-download"))]
+type DownloadProgressCallback = Box<dyn Fn(u64, Option<u64>) + Send + Sync>;
+
+/// Stub for `download_cli` when the auto-download feature is disabled.
+#[cfg(not(feature = "auto-download"))]
 pub async fn download_cli(
     _version: Option<&str>,
-    _on_progress: Option<Box<dyn Fn(u64, Option<u64>) + Send + Sync>>,
+    _on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     Err(SdkError::ConfigError(
         "Auto-download feature is not enabled. \

@@ -30,7 +30,7 @@ pub struct ModelFallbackCandidate {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BackendIdentityPolicy {
     pub requires_persisted_provider_session_id: bool,
     pub prefers_incoming_provider_session_id_alias: bool,
@@ -75,15 +75,6 @@ impl BackendIdentityPolicy {
     ) -> &'a str {
         let _ = self;
         provider_session_id.unwrap_or(local_session_id)
-    }
-}
-
-impl Default for BackendIdentityPolicy {
-    fn default() -> Self {
-        Self {
-            requires_persisted_provider_session_id: false,
-            prefers_incoming_provider_session_id_alias: false,
-        }
     }
 }
 
