@@ -840,6 +840,34 @@ function handleProjectCreateButtonContextMenu(event: MouseEvent, projectPath: st
 	projectPathShowingAgentStrip = projectPath;
 }
 
+/**
+ * Primary tooltip label for the project `+` button. When a saved default agent
+ * resolves, advertise that the left-click will spawn that agent directly; otherwise
+ * keep the generic "New session in {projectName}" wording.
+ */
+function getProjectCreateButtonTooltipLabel(projectName: string): string {
+	const resolvedDefaultId = resolveDefaultAgentIdForCreateLocal();
+	if (resolvedDefaultId !== undefined) {
+		const agent = availableAgents.find((a) => a.id === resolvedDefaultId);
+		if (agent) {
+			return m.thread_list_new_default_agent_session({
+				agentName: agent.name,
+				projectName,
+			});
+		}
+	}
+	return m.thread_list_new_session_in_project({ projectName });
+}
+
+/**
+ * Secondary tooltip hint. Only shown when the right-click actually does something
+ * (i.e. there are quick actions to reveal: agents, terminal, or browser).
+ */
+function getProjectCreateButtonTooltipHint(): string | null {
+	if (!shouldShowProjectQuickActions()) return null;
+	return m.thread_list_new_session_right_click_hint();
+}
+
 function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
 	onOpenGitPanel?.(projectPath);
@@ -1175,17 +1203,20 @@ function openCreateBranchDialog(projectPath: string): void {
 																<button
 																	type="button"
 																	class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																	aria-label={m.thread_list_new_session_in_project({
-																		projectName: group.projectName,
-																	})}
+																	aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 																>
 																	<IconPlus class="h-3 w-3" />
 																</button>
 															</Tooltip.Trigger>
 															<Tooltip.Content>
-																{m.thread_list_new_session_in_project({
-																	projectName: group.projectName,
-																})}
+																<div class="flex flex-col gap-0.5">
+																	<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
+																	{#if getProjectCreateButtonTooltipHint()}
+																		<span class="text-[10px] text-muted-foreground">
+																			{getProjectCreateButtonTooltipHint()}
+																		</span>
+																	{/if}
+																</div>
 															</Tooltip.Content>
 														</Tooltip.Root>
 													</div>
@@ -1361,17 +1392,20 @@ function openCreateBranchDialog(projectPath: string): void {
 															<button
 																type="button"
 																class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																aria-label={m.thread_list_new_session_in_project({
-																	projectName: group.projectName,
-																})}
+																aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 															>
 																<IconPlus class="h-3 w-3" />
 															</button>
 														</Tooltip.Trigger>
 														<Tooltip.Content>
-															{m.thread_list_new_session_in_project({
-																projectName: group.projectName,
-															})}
+															<div class="flex flex-col gap-0.5">
+																<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
+																{#if getProjectCreateButtonTooltipHint()}
+																	<span class="text-[10px] text-muted-foreground">
+																		{getProjectCreateButtonTooltipHint()}
+																	</span>
+																{/if}
+															</div>
 														</Tooltip.Content>
 													</Tooltip.Root>
 												</div>
