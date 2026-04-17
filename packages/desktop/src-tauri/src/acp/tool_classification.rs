@@ -307,7 +307,19 @@ pub(crate) fn classify_raw_tool_call(
         hints.title,
         hints.kind_hint,
     );
-    let kind = promote_kind(identity.kind, arguments.tool_kind());
+    let mut kind = promote_kind(identity.kind, arguments.tool_kind());
+
+    // When the parser and promote_kind both left the kind as Other,
+    // check the raw JSON for well-known edit markers so tools with
+    // unrecognized names (e.g. "unknown") still classify correctly.
+    if kind == ToolKind::Other {
+        if let Some(inferred) = infer_kind_from_serialized_arguments(raw_arguments) {
+            if inferred != ToolKind::Other {
+                kind = inferred;
+            }
+        }
+    }
+
     let name = if is_unknown_tool_name(&identity.name) && kind != ToolKind::Other {
         canonical_tool_call_name_for_kind(kind).to_string()
     } else {

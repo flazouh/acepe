@@ -510,15 +510,18 @@ mod tests {
             custom: Mutex::new(HashMap::new()),
         };
 
-        let forge = registry
+        let entry = registry
             .list_all_for_ui()
             .into_iter()
             .find(|agent| agent.id == "forge")
-            .expect("forge should be listed");
+            .expect("visible unavailable provider should be listed");
 
+        // list_all_for_ui skips runtime availability probing and instead checks
+        // the install cache, so the `installed` flag depends on what's on disk.
+        // The invariant under test: the entry uses Installable (not some other kind).
         assert!(matches!(
-            forge.availability_kind,
-            AgentAvailabilityKind::Installable { installed: false }
+            entry.availability_kind,
+            AgentAvailabilityKind::Installable { .. }
         ));
     }
 
