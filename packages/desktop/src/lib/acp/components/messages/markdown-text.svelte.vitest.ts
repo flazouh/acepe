@@ -502,6 +502,43 @@ describe("MarkdownText", () => {
 		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 	});
 
+	it("keeps previously revealed live word nodes stable while streaming text grows", async () => {
+		renderMarkdownSyncMock.mockImplementation((text) => ({
+			html: `<p>${text}</p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		const view = render(MarkdownText, {
+			text: "Hello world",
+			isStreaming: true,
+			streamingAnimationMode: "smooth",
+		});
+
+		const firstWord = await waitFor(() => {
+			const word = Array.from(view.container.querySelectorAll(".sd-word-fade")).find(
+				(node) => node.textContent === "Hello"
+			);
+			expect(word).not.toBeNull();
+			return word as HTMLSpanElement;
+		});
+
+		await view.rerender({
+			text: "Hello world again",
+			isStreaming: true,
+			streamingAnimationMode: "smooth",
+		});
+
+		await waitFor(() => {
+			expect(view.container.textContent).toContain("again");
+		});
+
+		const persistedWord = Array.from(view.container.querySelectorAll(".sd-word-fade")).find(
+			(node) => node.textContent === "Hello"
+		);
+		expect(persistedWord).toBe(firstWord);
+	});
+
 	it("keeps partial markdown confined to the live tail while settled sections stay stable", async () => {
 		renderMarkdownSyncMock.mockImplementation((text) => ({
 			html: `<p>${text}</p>`,

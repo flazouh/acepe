@@ -37,7 +37,7 @@ import {
 	parseStreamingTailIncremental,
 	type StreamingTailParseResult,
 } from "./logic/parse-streaming-tail.js";
-import { renderLiveMarkdownSection } from "./logic/render-live-markdown.js";
+import StreamingLiveSection from "./streaming-live-section.svelte";
 import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
 import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
@@ -312,10 +312,6 @@ const visibleHtml = $derived.by(() => {
 const error = $derived(asyncError);
 const isLoading = $derived(syncResult.needsAsync && asyncPending);
 
-let streamingSettledHtmlByKey = $state<ReadonlyMap<string, string>>(new Map());
-let streamingLiveMarkdownByKey = $state<ReadonlyMap<string, string>>(new Map());
-let previousWordCountByKey = new Map<string, number>();
-
 // Parse content blocks from HTML (extracts mermaid, github badges, etc.)
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
 const contentBlocks = $derived(visibleHtml ? parseContentBlocks(visibleHtml) : []);
@@ -368,55 +364,6 @@ $effect(() => {
 	streamingTail = nextStreamingTail;
 	lastStreamingTailText = nextStreamingText;
 	lastStreamingTailResult = nextStreamingTail;
-});
-
-$effect(() => {
-	if (!isRenderingReveal) {
-		streamingSettledHtmlByKey = new Map();
-		streamingLiveMarkdownByKey = new Map();
-		previousWordCountByKey = new Map();
-		return;
-	}
-
-	const previousSettledHtmlByKey = untrack(() => streamingSettledHtmlByKey);
-	const nextSettledHtmlByKey = new Map<string, string>();
-	const nextLiveMarkdownByKey = new Map<string, string>();
-	const nextWordCountByKey = new Map<string, number>();
-	for (const section of streamingTail.sections) {
-		if (section.kind === "settled") {
-			const cachedHtml = previousSettledHtmlByKey.get(section.key);
-			if (cachedHtml !== undefined) {
-				nextSettledHtmlByKey.set(section.key, cachedHtml);
-				continue;
-			}
-
-			const result = renderLiveMarkdownSection(section, { animate: false });
-			if (result.html !== null) {
-				nextSettledHtmlByKey.set(section.key, result.html);
-			}
-			continue;
-		}
-
-		if (section.kind !== "live-markdown") {
-			continue;
-		}
-
-		const animateFromWordIndex = previousWordCountByKey.get(section.key) ?? 0;
-		const result = renderLiveMarkdownSection(section, {
-			animate: shouldAnimateStreaming,
-			animateFromWordIndex,
-		});
-		if (result.html === null) {
-			continue;
-		}
-
-		nextLiveMarkdownByKey.set(section.key, result.html);
-		nextWordCountByKey.set(section.key, result.wordCount);
-	}
-
-	streamingSettledHtmlByKey = nextSettledHtmlByKey;
-	streamingLiveMarkdownByKey = nextLiveMarkdownByKey;
-	previousWordCountByKey = nextWordCountByKey;
 });
 
 /**
@@ -568,28 +515,13 @@ function handleKeydown(event: KeyboardEvent) {
 				}}
 			>
 				{#if section.kind === "settled"}
-					{@const settledHtml = streamingSettledHtmlByKey.get(section.key)}
-					{#if settledHtml}
-						{@html settledHtml}
-					{:else}
-						<div class="streaming-live-text whitespace-pre-wrap">{section.markdown}</div>
-					{/if}
+					<StreamingLiveSection section={section} animate={false} />
 				{:else if section.kind === "live-code"}
-					<div
-						class:sd-word-fade={shouldAnimateStreaming}
-						class="streaming-live-code-shell"
-					>
-						<pre class="streaming-live-code"><code>{section.code}</code></pre>
-					</div>
+					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
 				{:else if section.kind === "live-markdown"}
-					{@const liveMarkdown = streamingLiveMarkdownByKey.get(section.key)}
-					{#if liveMarkdown}
-						{@html liveMarkdown}
-					{:else}
-						<div class="streaming-live-text whitespace-pre-wrap">{section.text}</div>
-					{/if}
+					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
 				{:else}
-					<div class="streaming-live-text whitespace-pre-wrap">{section.text}</div>
+					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
 				{/if}
 			</div>
 		{/each}

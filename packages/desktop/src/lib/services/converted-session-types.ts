@@ -554,10 +554,6 @@ export type UserSettingKey =
  */
 "custom_keybindings" | 
 /**
- * Streaming text animation style (none, fade, glow, typewriter)
- */
-"streaming_animation" | 
-/**
  * Webview zoom level (stored as float string, e.g., "1.0", "1.2")
  */
 "zoom_level" | 

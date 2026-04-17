@@ -2,14 +2,11 @@ import { fireEvent, render } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const setThinkingBlockCollapsedByDefaultMock = vi.fn();
-const setStreamingAnimationModeMock = vi.fn();
 const setPreferInlineMock = vi.fn();
 
 const chatPrefs = {
 	thinkingBlockCollapsedByDefault: false,
-	streamingAnimationMode: "smooth",
 	setThinkingBlockCollapsedByDefault: setThinkingBlockCollapsedByDefaultMock,
-	setStreamingAnimationMode: setStreamingAnimationModeMock,
 	isReady: true,
 };
 
@@ -43,16 +40,16 @@ import ChatSection from "./chat-section.svelte";
 describe("ChatSection", () => {
 	beforeEach(() => {
 		setThinkingBlockCollapsedByDefaultMock.mockReset();
-		setStreamingAnimationModeMock.mockReset();
 		setPreferInlineMock.mockReset();
 		chatPrefs.thinkingBlockCollapsedByDefault = false;
-		chatPrefs.streamingAnimationMode = "smooth";
 		planPrefs.preferInline = true;
 	});
 
-	it("renders chat settings without a streaming animation selector", () => {
+	it("renders the thinking and plan controls without a streaming animation selector", () => {
 		const view = render(ChatSection);
+
 		expect(view.container.querySelector('[aria-label="Streaming animation"]')).toBeNull();
-		expect(view.getByText("Pick the default behavior for chat and plan output.")).toBeTruthy();
+		expect(view.getByText("Thinking block collapsed by default")).toBeTruthy();
+		expect(view.getByText("Inline plan display")).toBeTruthy();
 	});
 });

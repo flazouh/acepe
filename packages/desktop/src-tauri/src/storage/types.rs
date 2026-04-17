@@ -11,8 +11,6 @@ pub enum UserSettingKey {
     WorkspaceState,
     /// Custom keybindings (JSON map of command -> key)
     CustomKeybindings,
-    /// Streaming text animation style (none, fade, glow, typewriter)
-    StreamingAnimation,
     /// Webview zoom level (stored as float string, e.g., "1.0", "1.2")
     ZoomLevel,
     /// Default models per agent per mode (JSON map)
@@ -91,7 +89,6 @@ impl UserSettingKey {
             UserSettingKey::UserTheme => "user_theme",
             UserSettingKey::WorkspaceState => "workspace_state",
             UserSettingKey::CustomKeybindings => "custom_keybindings",
-            UserSettingKey::StreamingAnimation => "streaming_animation",
             UserSettingKey::ZoomLevel => "zoom_level",
             UserSettingKey::AgentDefaultModels => "agent_default_models",
             UserSettingKey::AgentFavoriteModels => "agent_favorite_models",
