@@ -13,6 +13,8 @@ import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
 
 export class EntryIndexManager implements IEntryIndex {
+	private readonly entryIdIndex = new Map<string, Map<string, number>>();
+
 	// MessageId -> index lookup for O(1) assistant chunk aggregation
 	// Key: sessionId -> messageId -> entryIndex
 	private readonly messageIdIndex = new Map<string, Map<string, number>>();
@@ -20,6 +22,33 @@ export class EntryIndexManager implements IEntryIndex {
 	// ToolCallId -> index lookup for O(1) tool call updates
 	// Key: sessionId -> toolCallId -> entryIndex
 	private readonly toolCallIdIndex = new Map<string, Map<string, number>>();
+
+	getEntryIdIndex(sessionId: string, entryId: string): number | undefined {
+		return this.entryIdIndex.get(sessionId)?.get(entryId);
+	}
+
+	addEntryId(sessionId: string, entryId: string, index: number): void {
+		let sessionIndex = this.entryIdIndex.get(sessionId);
+		if (!sessionIndex) {
+			sessionIndex = new Map<string, number>();
+			this.entryIdIndex.set(sessionId, sessionIndex);
+		}
+		sessionIndex.set(entryId, index);
+	}
+
+	deleteEntryId(sessionId: string, entryId: string): void {
+		this.entryIdIndex.get(sessionId)?.delete(entryId);
+	}
+
+	rebuildEntryIdIndex(sessionId: string, entries: SessionEntry[]): void {
+		const sessionIndex = new Map<string, number>();
+
+		for (let i = 0; i < entries.length; i++) {
+			sessionIndex.set(entries[i].id, i);
+		}
+
+		this.entryIdIndex.set(sessionId, sessionIndex);
+	}
 
 	// ============================================
 	// MESSAGE ID INDEX
@@ -90,6 +119,7 @@ export class EntryIndexManager implements IEntryIndex {
 	// ============================================
 
 	clearSession(sessionId: string): void {
+		this.entryIdIndex.delete(sessionId);
 		this.messageIdIndex.delete(sessionId);
 		this.toolCallIdIndex.delete(sessionId);
 	}

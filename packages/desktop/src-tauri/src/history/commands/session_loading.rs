@@ -14,7 +14,7 @@ use crate::acp::session_open_snapshot::{
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::db::repository::{
     SessionJournalEventRepository, SessionProjectionSnapshotRepository,
-    SessionThreadSnapshotRepository,
+    SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
 };
 use std::sync::Arc;
 
@@ -86,7 +86,9 @@ fn derive_current_mode_id_from_entries(
     current_mode_id
 }
 
-fn apply_derived_current_mode_metadata(mut session: SessionThreadSnapshot) -> SessionThreadSnapshot {
+fn apply_derived_current_mode_metadata(
+    mut session: SessionThreadSnapshot,
+) -> SessionThreadSnapshot {
     if session.current_mode_id.is_none() {
         session.current_mode_id = derive_current_mode_id_from_entries(&session.entries);
     }
@@ -180,6 +182,41 @@ async fn load_unified_session_with_context(
     Ok(normalized.map(SessionThreadSnapshot::into_converted_session))
 }
 
+async fn persist_transcript_snapshot(
+    db: &DbConn,
+    replay_context: &SessionReplayContext,
+    snapshot: &SessionThreadSnapshot,
+) -> Result<(), String> {
+    let revision =
+        SessionJournalEventRepository::max_event_seq(db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to determine journal cutoff for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?
+            .unwrap_or(0);
+    let transcript_snapshot =
+        crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
+            revision,
+            &snapshot.entries,
+        );
+
+    SessionTranscriptSnapshotRepository::set(
+        db,
+        &replay_context.local_session_id,
+        &transcript_snapshot,
+    )
+    .await
+    .map_err(|error| {
+        format!(
+            "Failed to persist transcript snapshot for {}: {error}",
+            replay_context.local_session_id
+        )
+    })
+}
+
 pub async fn ensure_canonical_session_materialized(
     app: AppHandle,
     replay_context: &SessionReplayContext,
@@ -198,6 +235,18 @@ pub async fn ensure_canonical_session_materialized(
                 )
             })?
     {
+        if SessionTranscriptSnapshotRepository::get(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load transcript snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?
+            .is_none()
+        {
+            persist_transcript_snapshot(&db, replay_context, &persisted).await?;
+        }
         return Ok(Some(persisted));
     }
 
@@ -225,6 +274,7 @@ pub async fn ensure_canonical_session_materialized(
                 replay_context.local_session_id
             )
         })?;
+    persist_transcript_snapshot(&db, replay_context, &snapshot).await?;
 
     let projection = ProjectionRegistry::project_thread_snapshot(
         &replay_context.local_session_id,
@@ -232,14 +282,18 @@ pub async fn ensure_canonical_session_materialized(
         &snapshot,
     );
     if projection_has_runtime_state(&projection) {
-        SessionProjectionSnapshotRepository::set(&db, &replay_context.local_session_id, &projection)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Failed to persist projection snapshot for {}: {error}",
-                    replay_context.local_session_id
-                )
-            })?;
+        SessionProjectionSnapshotRepository::set(
+            &db,
+            &replay_context.local_session_id,
+            &projection,
+        )
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to persist projection snapshot for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?;
     }
 
     if SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
@@ -344,13 +398,7 @@ pub async fn get_session_open_result(
         }));
     }
 
-    Ok(assemble_session_open_result(
-        db.inner(),
-        &hub,
-        &replay_context,
-        &session_id,
-    )
-    .await)
+    Ok(assemble_session_open_result(db.inner(), &hub, &replay_context, &session_id).await)
 }
 
 #[cfg(test)]

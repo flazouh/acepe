@@ -169,7 +169,8 @@ impl AgentProvider for OpenCodeProvider {
         app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>>
+    {
         Box::pin(async move {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;

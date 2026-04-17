@@ -5,6 +5,12 @@ import type { SessionOpenFound } from "$lib/services/acp-types.js";
 import type { HistoryEntry } from "$lib/services/claude-history-types.js";
 import type { ConvertedSession } from "$lib/services/converted-session-types.js";
 
+vi.mock("$lib/analytics.js", () => ({
+	captureException: vi.fn(),
+	initAnalytics: vi.fn(),
+	setAnalyticsEnabled: vi.fn(),
+}));
+
 // Mock the api module
 vi.mock("../api.js", () => ({
 	api: {
@@ -68,7 +74,10 @@ function mockSessionOpenFound(
 		projectPath: overrides.projectPath ?? "/project",
 		worktreePath: overrides.worktreePath ?? null,
 		sourcePath: overrides.sourcePath ?? null,
-		threadEntries: overrides.threadEntries ?? [],
+		transcriptSnapshot: overrides.transcriptSnapshot ?? {
+			revision: overrides.lastEventSeq ?? 0,
+			entries: [],
+		},
 		sessionTitle: overrides.sessionTitle ?? "Hydrated title",
 		operations: overrides.operations ?? [],
 		interactions: overrides.interactions ?? [],
@@ -276,6 +285,85 @@ describe("SessionStore loadSessionById title update", () => {
 		});
 		expect(store.getSessionCold("canonical-session")?.createdAt).toEqual(createdAt);
 		expect(store.getSessionCold("canonical-session")?.updatedAt).toEqual(updatedAt);
+	});
+
+	it("hydrates entries from transcript snapshot when thread entries are absent", () => {
+		store.replaceSessionOpenSnapshot(
+			mockSessionOpenFound({
+				canonicalSessionId: "canonical-session",
+				sessionTitle: "Canonical title",
+				transcriptSnapshot: {
+					revision: 3,
+					entries: [
+						{
+							entryId: "user-1",
+							role: "user",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "user-1:block:0",
+									text: "hello",
+								},
+							],
+						},
+						{
+							entryId: "assistant-1",
+							role: "assistant",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "assistant-1:chunk:0",
+									text: "hi",
+								},
+							],
+						},
+						{
+							entryId: "tool-1",
+							role: "tool",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "tool-1:tool",
+									text: "Read file",
+								},
+							],
+						},
+						{
+							entryId: "error-1",
+							role: "error",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "error-1:error",
+									text: "boom",
+								},
+							],
+						},
+					],
+				},
+			})
+		);
+
+		const entries = store.getEntries("canonical-session");
+		expect(entries.map((entry) => entry.type)).toEqual([
+			"user",
+			"assistant",
+			"tool_call",
+			"error",
+		]);
+		expect(entries[0]?.message).toMatchObject({
+			content: { type: "text", text: "hello" },
+		});
+		expect(entries[1]?.message).toMatchObject({
+			chunks: [{ type: "message", block: { type: "text", text: "hi" } }],
+		});
+		expect(entries[2]?.message).toMatchObject({
+			name: "Read file",
+			title: "Read file",
+		});
+		expect(entries[3]?.message).toMatchObject({
+			content: "boom",
+		});
 	});
 
 	it("loads codex sessions from disk and applies returned title", async () => {

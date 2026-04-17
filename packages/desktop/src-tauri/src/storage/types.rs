@@ -58,6 +58,8 @@ pub enum UserSettingKey {
     ChatThinkingBlockCollapsedByDefault,
     /// Whether plans render inline in chat vs sidebar panel (boolean)
     PlanInlineMode,
+    /// Whether review opens fullscreen by default (boolean)
+    ReviewPreferFullscreen,
     /// Per-category notification preferences (JSON object)
     #[serde(rename = "notification-preferences")]
     NotificationPreferences,
@@ -116,6 +118,7 @@ impl UserSettingKey {
                 "chat_thinking_block_collapsed_by_default"
             }
             UserSettingKey::PlanInlineMode => "plan_inline_mode",
+            UserSettingKey::ReviewPreferFullscreen => "review_prefer_fullscreen",
             UserSettingKey::NotificationPreferences => "notification-preferences",
             UserSettingKey::VoiceModel => "voice_model",
             UserSettingKey::VoiceLanguage => "voice_language",

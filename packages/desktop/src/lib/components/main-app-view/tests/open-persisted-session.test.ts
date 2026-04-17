@@ -160,8 +160,11 @@ function createFoundResult(sessionId: string): SessionOpenResult {
 		worktreePath: null,
 		sourcePath: "/tmp/session-1.jsonl",
 		lastEventSeq: 1,
+		transcriptSnapshot: {
+			revision: 1,
+			entries: [],
+		},
 		messageCount: 0,
-		threadEntries: [],
 		sessionTitle: "Session 1",
 		operations: [],
 		interactions: [],

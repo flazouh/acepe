@@ -553,7 +553,9 @@ fn test_convert_session_error_with_nested_message_to_turn_error() {
     assert!(result.is_some());
 
     match result.unwrap() {
-        SessionUpdate::TurnError { error, session_id, .. } => {
+        SessionUpdate::TurnError {
+            error, session_id, ..
+        } => {
             assert_eq!(session_id, Some("ses_abc".to_string()));
             match error {
                 TurnErrorData::Structured(info) => {
@@ -582,7 +584,9 @@ fn test_convert_session_error_without_message_uses_fallback() {
     assert!(result.is_some());
 
     match result.unwrap() {
-        SessionUpdate::TurnError { error, session_id, .. } => {
+        SessionUpdate::TurnError {
+            error, session_id, ..
+        } => {
             assert_eq!(session_id, Some("ses_abc".to_string()));
             match error {
                 TurnErrorData::Structured(info) => {

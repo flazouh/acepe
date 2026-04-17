@@ -19,9 +19,12 @@ import type {
 	PlanData,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
-import type { SessionOpenFound, SessionTurnState } from "../../services/acp-types.js";
+import type {
+	SessionOpenFound,
+	SessionTurnState,
+	TranscriptDelta,
+} from "../../services/acp-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
-import { convertStoredEntryToSessionEntry } from "../converters/stored-entry-converter.js";
 import type { AppError } from "../errors/app-error.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
 import {
@@ -574,10 +577,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				: undefined;
 		const canonicalSession = this.getSessionCold(canonicalSessionId);
 		const preservedSession = canonicalSession ?? aliasSession;
-		const convertedEntries = snapshot.threadEntries.map((entry) => {
-			const timestamp = entry.timestamp ? new Date(entry.timestamp) : new Date();
-			return convertStoredEntryToSessionEntry(entry, timestamp);
-		});
 		const now = new Date();
 		const nextSessionLifecycleState =
 			snapshot.sourcePath !== null
@@ -616,7 +615,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			});
 		}
 
-		this.entryStore.storeEntriesAndBuildIndex(canonicalSessionId, convertedEntries);
+		this.entryStore.replaceTranscriptSnapshot(
+			canonicalSessionId,
+			snapshot.transcriptSnapshot,
+			now
+		);
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
 		this.hotStateStore.initializeHotState(canonicalSessionId);
 		this.hotStateStore.updateHotState(canonicalSessionId, {
@@ -1104,6 +1107,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	handleSessionUpdate(update: SessionUpdate): void {
 		this.eventService.handleSessionUpdate(update, this);
+	}
+
+	applyTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
+		this.entryStore.applyTranscriptDelta(sessionId, delta, new Date());
 	}
 
 	// ============================================

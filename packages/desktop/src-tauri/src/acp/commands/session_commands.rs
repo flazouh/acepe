@@ -6,9 +6,15 @@ use crate::acp::session_descriptor::{
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::redact_session_id;
+use crate::acp::transcript_projection::{
+    TranscriptDelta, TranscriptProjectionRegistry, TranscriptSnapshot,
+};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
-use crate::db::repository::{SessionMetadataRepository, SessionProjectionSnapshotRepository};
+use crate::db::repository::{
+    SessionMetadataRepository, SessionProjectionSnapshotRepository,
+    SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
+};
 use sea_orm::DbConn;
 
 pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
@@ -579,6 +585,60 @@ fn emit_lifecycle_event(
     }
 }
 
+fn replay_buffered_transcript_events(
+    hub: &AcpEventHubState,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+    session_id: &str,
+    buffered_events: Vec<crate::acp::event_hub::AcpEventEnvelope>,
+) {
+    let replayable = buffered_events
+        .into_iter()
+        .filter(|event| event.event_name == "acp-transcript-delta")
+        .filter(|event| event.session_id.as_deref() == Some(session_id))
+        .collect::<Vec<_>>();
+    if replayable.is_empty() {
+        return;
+    }
+    for event in &replayable {
+        if let Ok(delta) = serde_json::from_value::<TranscriptDelta>(event.payload.clone()) {
+            let _ = transcript_projection_registry.apply_delta(&delta);
+        }
+    }
+    hub.replay_buffered_events(replayable);
+}
+
+async fn load_transcript_snapshot_for_resume(
+    db: &DbConn,
+    session_id: &str,
+) -> Result<TranscriptSnapshot, SerializableAcpError> {
+    if let Some(snapshot) = SessionTranscriptSnapshotRepository::get(db, session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load transcript snapshot for resumed session {session_id}: {error}"
+            ),
+        })?
+    {
+        return Ok(snapshot);
+    }
+
+    let thread_snapshot = SessionThreadSnapshotRepository::get(db, session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load thread snapshot for resumed session {session_id}: {error}"
+            ),
+        })?;
+    if let Some(thread_snapshot) = thread_snapshot {
+        return Ok(TranscriptSnapshot::from_stored_entries(
+            0,
+            &thread_snapshot.entries,
+        ));
+    }
+
+    Ok(TranscriptSnapshot::from_stored_entries(0, &[]))
+}
+
 /// The heavy async work extracted from `acp_resume_session`.
 /// This runs inside `tokio::spawn` under a `RESUME_SESSION_TIMEOUT` deadline.
 async fn async_resume_session_work(
@@ -594,6 +654,8 @@ async fn async_resume_session_work(
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
     let session_registry = app.state::<SessionRegistry>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+    let db = app.state::<DbConn>();
     let parsed_open_token = if let Some(raw_open_token) = open_token.as_deref() {
         let token = uuid::Uuid::parse_str(raw_open_token).map_err(|error| {
             SerializableAcpError::InvalidState {
@@ -647,16 +709,27 @@ async fn async_resume_session_work(
             .map_err(SerializableAcpError::from)?;
     }
 
+    let transcript_snapshot = load_transcript_snapshot_for_resume(db.inner(), session_id).await?;
+    transcript_projection_registry
+        .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
+
     if let Some(open_token) = parsed_open_token {
         let hub = app.state::<Arc<AcpEventHubState>>();
-        if hub
-            .claim_reservation_for_session(open_token, session_id)
-            .is_none()
+        let buffered_events = if let Some(events) =
+            hub.claim_reservation_for_session(open_token, session_id)
         {
+            events
+        } else {
             return Err(SerializableAcpError::InvalidState {
                 message: format!("Session open token is no longer valid for session {session_id}"),
             });
-        }
+        };
+        replay_buffered_transcript_events(
+            hub.inner(),
+            transcript_projection_registry.inner().as_ref(),
+            session_id,
+            buffered_events,
+        );
     }
 
     let db = app.state::<DbConn>();
@@ -674,6 +747,87 @@ async fn async_resume_session_work(
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod transcript_buffer_tests {
+    use super::replay_buffered_transcript_events;
+    use crate::acp::event_hub::{AcpEventEnvelope, AcpEventHubState};
+    use crate::acp::transcript_projection::{
+        TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+        TranscriptProjectionRegistry, TranscriptSegment,
+    };
+    use serde_json::{json, to_value};
+
+    #[test]
+    fn replay_buffered_transcript_events_replays_only_matching_transcript_deltas() {
+        let hub = AcpEventHubState::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let mut receiver = hub.subscribe();
+
+        replay_buffered_transcript_events(
+            &hub,
+            &transcript_projection_registry,
+            "session-1",
+            vec![
+                AcpEventEnvelope {
+                    seq: 7,
+                    event_name: "acp-transcript-delta".to_string(),
+                    session_id: Some("session-1".to_string()),
+                    payload: to_value(TranscriptDelta {
+                        event_seq: 7,
+                        session_id: "session-1".to_string(),
+                        snapshot_revision: 7,
+                        operations: vec![TranscriptDeltaOperation::AppendEntry {
+                            entry: TranscriptEntry {
+                                entry_id: "assistant-1".to_string(),
+                                role: TranscriptEntryRole::Assistant,
+                                segments: vec![TranscriptSegment::Text {
+                                    segment_id: "assistant-1:segment:7".to_string(),
+                                    text: "hello".to_string(),
+                                }],
+                            },
+                        }],
+                    })
+                    .expect("serialize delta"),
+                    priority: "normal".to_string(),
+                    droppable: false,
+                    emitted_at_ms: 1,
+                },
+                AcpEventEnvelope {
+                    seq: 8,
+                    event_name: "acp-session-update".to_string(),
+                    session_id: Some("session-1".to_string()),
+                    payload: json!({ "type": "agentMessageChunk" }),
+                    priority: "normal".to_string(),
+                    droppable: true,
+                    emitted_at_ms: 2,
+                },
+                AcpEventEnvelope {
+                    seq: 9,
+                    event_name: "acp-transcript-delta".to_string(),
+                    session_id: Some("session-2".to_string()),
+                    payload: json!({ "eventSeq": 9 }),
+                    priority: "normal".to_string(),
+                    droppable: false,
+                    emitted_at_ms: 3,
+                },
+            ],
+        );
+
+        let replayed = receiver
+            .try_recv()
+            .expect("matching transcript delta should replay");
+        assert_eq!(replayed.seq, 7);
+        let runtime_snapshot = transcript_projection_registry
+            .snapshot_for_session("session-1")
+            .expect("runtime snapshot");
+        assert_eq!(runtime_snapshot.entries.len(), 1);
+        assert!(
+            receiver.try_recv().is_err(),
+            "non-matching events must not replay"
+        );
+    }
 }
 
 /// Fork an existing ACP session.
@@ -769,6 +923,7 @@ pub async fn acp_close_session(
     let session_registry = app.state::<SessionRegistry>();
     let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
     let db = app.state::<DbConn>();
 
     let agent_id_str = session_registry
@@ -806,6 +961,7 @@ pub async fn acp_close_session(
             })?;
     }
     projection_registry.remove_session(&session_id);
+    transcript_projection_registry.remove_session(&session_id);
 
     Ok(())
     }

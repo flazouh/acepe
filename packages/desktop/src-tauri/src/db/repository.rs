@@ -730,6 +730,68 @@ impl SessionProjectionSnapshotRepository {
 }
 
 // ============================================================================
+// Session Transcript Snapshot Repository
+// ============================================================================
+
+pub struct SessionTranscriptSnapshotRepository;
+
+impl SessionTranscriptSnapshotRepository {
+    pub async fn get(
+        db: &DbConn,
+        session_id: &str,
+    ) -> Result<Option<crate::acp::transcript_projection::TranscriptSnapshot>> {
+        tracing::debug!(session_id = %session_id, "Loading session transcript snapshot");
+
+        let model =
+            crate::db::entities::session_transcript_snapshot::Entity::find_by_id(session_id)
+                .one(db)
+                .await?;
+        model
+            .map(|row| {
+                serde_json::from_str::<crate::acp::transcript_projection::TranscriptSnapshot>(
+                    &row.snapshot_json,
+                )
+                .map_err(anyhow::Error::from)
+            })
+            .transpose()
+    }
+
+    pub async fn set(
+        db: &DbConn,
+        session_id: &str,
+        snapshot: &crate::acp::transcript_projection::TranscriptSnapshot,
+    ) -> Result<()> {
+        tracing::debug!(session_id = %session_id, "Saving session transcript snapshot");
+
+        let snapshot_json = serde_json::to_string(snapshot)?;
+        let now = Utc::now();
+        let existing =
+            crate::db::entities::session_transcript_snapshot::Entity::find_by_id(session_id)
+                .one(db)
+                .await?;
+
+        if let Some(existing_model) = existing {
+            let mut active: crate::db::entities::session_transcript_snapshot::ActiveModel =
+                existing_model.into();
+            active.snapshot_json = Set(snapshot_json);
+            active.updated_at = Set(now);
+            active.update(db).await?;
+        } else {
+            let active = crate::db::entities::session_transcript_snapshot::ActiveModel {
+                session_id: Set(session_id.to_string()),
+                snapshot_json: Set(snapshot_json),
+                updated_at: Set(now),
+            };
+            crate::db::entities::session_transcript_snapshot::Entity::insert(active)
+                .exec(db)
+                .await?;
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
 // Session Thread Snapshot Repository
 // ============================================================================
 
@@ -743,7 +805,10 @@ impl SessionThreadSnapshotRepository {
             .one(db)
             .await?;
         model
-            .map(|row| serde_json::from_str::<SessionThreadSnapshot>(&row.snapshot_json).map_err(anyhow::Error::from))
+            .map(|row| {
+                serde_json::from_str::<SessionThreadSnapshot>(&row.snapshot_json)
+                    .map_err(anyhow::Error::from)
+            })
             .transpose()
     }
 
@@ -866,7 +931,12 @@ impl SessionJournalEventRepository {
         db: &DbConn,
         session_id: &str,
     ) -> Result<SessionJournalRecord> {
-        Self::append(db, session_id, SessionJournalEventPayload::MaterializationBarrier).await
+        Self::append(
+            db,
+            session_id,
+            SessionJournalEventPayload::MaterializationBarrier,
+        )
+        .await
     }
 
     async fn append(
@@ -1734,7 +1804,8 @@ impl SessionMetadataRepository {
                 }
             }
 
-            let assigned_sequence_id = if let Some(existing_sequence_id) = latest_model.sequence_id {
+            let assigned_sequence_id = if let Some(existing_sequence_id) = latest_model.sequence_id
+            {
                 if Self::sequence_id_taken_by_other_session(
                     &txn,
                     &latest_model.project_path,

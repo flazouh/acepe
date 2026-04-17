@@ -8,17 +8,21 @@ mod session_metadata_tests {
         InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
         SessionSnapshot, SessionTurnState,
     };
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionDescriptorMissingFact,
         SessionDescriptorResolutionError, SessionReplayContext,
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
+    use crate::acp::transcript_projection::{
+        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    };
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
         SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
+        SessionTranscriptSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -263,6 +267,48 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn test_session_transcript_snapshot_round_trips() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-transcript".to_string(),
+            "Transcript session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-transcript.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = TranscriptSnapshot {
+            revision: 5,
+            entries: vec![TranscriptEntry {
+                entry_id: "assistant-1".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: "assistant-1:chunk:0".to_string(),
+                    text: "hello".to_string(),
+                }],
+            }],
+        };
+
+        SessionTranscriptSnapshotRepository::set(&db, "session-transcript", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionTranscriptSnapshotRepository::get(&db, "session-transcript")
+            .await
+            .unwrap()
+            .expect("expected persisted transcript snapshot");
+
+        assert_eq!(loaded.revision, 5);
+        assert_eq!(loaded.entries.len(), 1);
+        assert_eq!(loaded.entries[0].entry_id, "assistant-1");
+    }
+
+    #[tokio::test]
     async fn test_session_journal_replays_projection_state() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
@@ -462,9 +508,15 @@ mod session_metadata_tests {
         let session_id = "max-seq-session";
 
         // Seed metadata so the session is known
-        SessionMetadataRepository::ensure_exists(&db, session_id, "/test/repo", "claude-code", None)
-            .await
-            .expect("ensure exists");
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            session_id,
+            "/test/repo",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("ensure exists");
 
         let tool_call = crate::acp::session_update::SessionUpdate::ToolCall {
             tool_call: crate::acp::session_update::ToolCallData {

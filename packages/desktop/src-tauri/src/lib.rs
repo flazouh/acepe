@@ -62,6 +62,7 @@ use acp::providers::CustomAgentConfig;
 use acp::registry::AgentRegistry;
 use acp::session_policy::SessionPolicyRegistry;
 use acp::session_registry::SessionRegistry;
+use acp::transcript_projection::TranscriptProjectionRegistry;
 use checkpoint::commands::{
     checkpoint_create, checkpoint_get_file_content, checkpoint_get_file_diff_content,
     checkpoint_get_file_snapshots, checkpoint_list, checkpoint_revert, checkpoint_revert_file,
@@ -1004,6 +1005,7 @@ pub fn run() {
             app.manage(SessionRegistry::new());
             app.manage(Arc::new(SessionPolicyRegistry::new()));
             app.manage(Arc::new(ProjectionRegistry::new()));
+            app.manage(Arc::new(TranscriptProjectionRegistry::new()));
 
             // Terminal manager for process spawning
             app.manage(Arc::new(terminal::TerminalManager::new()));

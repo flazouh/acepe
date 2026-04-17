@@ -19,12 +19,19 @@ vi.mock("../utils/logger.js", () => ({
 	}),
 }));
 
+import type { TranscriptDelta } from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import type { SessionCold } from "../types.js";
+
+async function flushAssistantFallback(): Promise<void> {
+	await new Promise((resolve) => {
+		setTimeout(resolve, 0);
+	});
+}
 
 function createMockHandler(): SessionEventHandler {
 	return {
@@ -45,6 +52,7 @@ function createMockHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
+		applyTranscriptDelta: vi.fn(),
 	};
 }
 
@@ -208,6 +216,77 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateToolCallEntry).toHaveBeenCalledWith("session-123", update.update);
 	});
 
+	it("drops queued assistant fallback chunks when a transcript delta arrives first", async () => {
+		const update: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "assistant-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "hello",
+				},
+			},
+		};
+		const delta: TranscriptDelta = {
+			eventSeq: 7,
+			sessionId: "session-123",
+			snapshotRevision: 7,
+			operations: [
+				{
+					kind: "appendEntry",
+					entry: {
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+						{
+							kind: "text",
+							segmentId: "assistant-1:segment:7",
+							text: "hello",
+						},
+						],
+					},
+				},
+			],
+		};
+
+		service.handleSessionUpdate(update, handler);
+		service.handleTranscriptDelta(delta, handler);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(handler.aggregateAssistantChunk).not.toHaveBeenCalled();
+		expect(handler.applyTranscriptDelta).toHaveBeenCalledWith("session-123", delta);
+	});
+
+	it("falls back to assistant chunk aggregation when no transcript delta arrives", async () => {
+		const update: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-123",
+			message_id: "assistant-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "hello",
+				},
+			},
+		};
+
+		service.handleSessionUpdate(update, handler);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(handler.aggregateAssistantChunk).toHaveBeenCalledWith(
+			"session-123",
+			update.chunk,
+			"assistant-1",
+			false
+		);
+		expect(handler.applyTranscriptDelta).not.toHaveBeenCalled();
+	});
+
 	it("routes non-empty streaming deltas through canonical tool updates", () => {
 		const update: SessionUpdate = {
 			type: "toolCallUpdate",
@@ -365,7 +444,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.handleStreamComplete).toHaveBeenCalledWith("session-123");
+		expect(handler.handleStreamComplete).toHaveBeenCalledWith("session-123", null);
 	});
 
 	it("does not complete the turn again for a completed plan when the turn is already done", () => {
@@ -568,7 +647,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(missingSessionHandler.aggregateAssistantChunk).not.toHaveBeenCalled();
 	});
 
-	it("uses message_id for assistant aggregation even when part_id is present", () => {
+	it("uses message_id for assistant aggregation even when part_id is present", async () => {
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -580,6 +659,7 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
+		await flushAssistantFallback();
 
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledWith(
 			"session-123",
@@ -750,7 +830,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("merges chunks into one assistant entry when part_id changes mid-stream", () => {
+	it("merges chunks into one assistant entry when part_id changes mid-stream", async () => {
 		const sessionId = "session-aggregate";
 		const entryStore = new SessionEntryStore();
 		entryStore.storeEntriesAndBuildIndex(sessionId, []);
@@ -782,6 +862,7 @@ describe("SessionEventService streaming delta handling", () => {
 			updateCurrentMode: vi.fn(),
 			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
+			applyTranscriptDelta: vi.fn(),
 		};
 
 		service.handleSessionUpdate(
@@ -816,6 +897,7 @@ describe("SessionEventService streaming delta handling", () => {
 			},
 			integrationHandler
 		);
+		await flushAssistantFallback();
 
 		const assistantEntries = entryStore
 			.getEntries(sessionId)
@@ -1208,7 +1290,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("does not drop duplicate long assistant text chunks during active streaming", () => {
+	it("does not drop duplicate long assistant text chunks during active streaming", async () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "streaming",
@@ -1229,6 +1311,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 		service.handleSessionUpdate(update, handler);
+		await flushAssistantFallback();
 
 		// During active streaming, never drop — the LLM may repeat phrases legitimately
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(2);
@@ -1260,7 +1343,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not drop assistant chunks repeated outside the replay duplicate window", () => {
+	it("does not drop assistant chunks repeated outside the replay duplicate window", async () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "streaming",
@@ -1283,6 +1366,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 		service.handleSessionUpdate(update, handler);
+		await flushAssistantFallback();
 
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(2);
 	});

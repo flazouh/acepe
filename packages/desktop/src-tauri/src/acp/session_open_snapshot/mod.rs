@@ -19,9 +19,12 @@ use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::{InteractionSnapshot, OperationSnapshot, SessionTurnState};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::load_stored_projection;
+use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
-use crate::db::repository::{SessionJournalEventRepository, SessionThreadSnapshotRepository};
-use crate::session_jsonl::types::StoredEntry;
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionThreadSnapshotRepository,
+    SessionTranscriptSnapshotRepository,
+};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -90,8 +93,8 @@ pub struct SessionOpenFound {
     pub project_path: String,
     pub worktree_path: Option<String>,
     pub source_path: Option<String>,
-    // --- Thread content (provider-owned replay) ---
-    pub thread_entries: Vec<StoredEntry>,
+    // --- Transcript content (canonical contract) ---
+    pub transcript_snapshot: TranscriptSnapshot,
     pub session_title: String,
     // --- Canonical projection state ---
     pub operations: Vec<OperationSnapshot>,
@@ -135,8 +138,8 @@ pub async fn assemble_session_open_result(
                 return SessionOpenResult::Error(SessionOpenError {
                     requested_session_id: requested_session_id.to_string(),
                     message: format!(
-                        "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
-                    ),
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
                 });
             }
         };
@@ -148,7 +151,12 @@ pub async fn assemble_session_open_result(
     // snapshot assembly and connect-time claim.
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    hub.arm_reservation(open_token, canonical_session_id.clone(), last_event_seq, epoch_ms);
+    hub.arm_reservation(
+        open_token,
+        canonical_session_id.clone(),
+        last_event_seq,
+        epoch_ms,
+    );
 
     // --- 3. Load canonical projection at the proven cutoff ---
     let projection = match load_stored_projection(db, replay_context).await {
@@ -180,7 +188,22 @@ pub async fn assemble_session_open_result(
     };
 
     // --- 4. Resolve thread content ---
-    let thread_snapshot = match SessionThreadSnapshotRepository::get(db, canonical_session_id).await {
+    let transcript_snapshot =
+        match SessionTranscriptSnapshotRepository::get(db, canonical_session_id).await {
+            Ok(snapshot) => snapshot,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                    "Failed to load transcript snapshot for session {canonical_session_id}: {err}"
+                ),
+                });
+            }
+        };
+
+    let thread_snapshot = match SessionThreadSnapshotRepository::get(db, canonical_session_id).await
+    {
         Ok(snapshot) => snapshot,
         Err(err) => {
             hub.supersede_reservation(open_token);
@@ -192,9 +215,20 @@ pub async fn assemble_session_open_result(
             });
         }
     };
-    let (thread_entries, session_title) = match thread_snapshot {
-        Some(snapshot) => (snapshot.entries, snapshot.title),
-        None => (vec![], default_session_title(canonical_session_id)),
+    let (session_title, transcript_snapshot) = match (thread_snapshot, transcript_snapshot) {
+        (Some(snapshot), Some(transcript_snapshot)) => (snapshot.title, transcript_snapshot),
+        (Some(snapshot), None) => (
+            snapshot.title,
+            TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries),
+        ),
+        (None, Some(transcript_snapshot)) => (
+            default_session_title(canonical_session_id),
+            transcript_snapshot,
+        ),
+        (None, None) => (
+            default_session_title(canonical_session_id),
+            TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
+        ),
     };
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
@@ -207,7 +241,7 @@ pub async fn assemble_session_open_result(
         project_path: replay_context.project_path.clone(),
         worktree_path: replay_context.worktree_path.clone(),
         source_path: replay_context.source_path.clone(),
-        thread_entries,
+        transcript_snapshot,
         session_title,
         operations,
         interactions,
@@ -230,18 +264,17 @@ pub async fn session_open_result_for_new_session(
     worktree_path: Option<String>,
     source_path: Option<String>,
 ) -> SessionOpenResult {
-    let last_event_seq =
-        match SessionJournalEventRepository::max_event_seq(db, session_id).await {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError {
-                    requested_session_id: session_id.to_string(),
-                    message: format!(
-                        "Failed to determine journal cutoff for new session {session_id}: {err}"
-                    ),
-                });
-            }
-        };
+    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, session_id).await {
+        Ok(seq) => seq.unwrap_or(0),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError {
+                requested_session_id: session_id.to_string(),
+                message: format!(
+                    "Failed to determine journal cutoff for new session {session_id}: {err}"
+                ),
+            });
+        }
+    };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
@@ -257,7 +290,7 @@ pub async fn session_open_result_for_new_session(
         project_path,
         worktree_path,
         source_path,
-        thread_entries: vec![],
+        transcript_snapshot: TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
         session_title: default_session_title(session_id),
         operations: vec![],
         interactions: vec![],
@@ -275,14 +308,19 @@ mod tests {
     use super::*;
     use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::parsers::AgentType;
-    use crate::acp::session_descriptor::{
-        SessionDescriptorCompatibility, SessionReplayContext,
-    };
+    use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::types::CanonicalAgentId;
-    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+    use crate::db::repository::{
+        SessionJournalEventRepository, SessionMetadataRepository, SessionThreadSnapshotRepository,
+    };
+    use crate::session_jsonl::types::{
+        StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
+        StoredUserMessage,
+    };
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
@@ -352,6 +390,51 @@ mod tests {
             .expect("append journal event");
     }
 
+    async fn seed_thread_snapshot_with_messages(db: &DbConn, session_id: &str) {
+        SessionThreadSnapshotRepository::set(
+            db,
+            session_id,
+            &SessionThreadSnapshot {
+                entries: vec![
+                    StoredEntry::User {
+                        id: "user-1".to_string(),
+                        message: StoredUserMessage {
+                            id: Some("user-1".to_string()),
+                            content: StoredContentBlock {
+                                block_type: "text".to_string(),
+                                text: Some("hello world".to_string()),
+                            },
+                            chunks: vec![],
+                            sent_at: None,
+                        },
+                        timestamp: None,
+                    },
+                    StoredEntry::Assistant {
+                        id: "assistant-1".to_string(),
+                        message: StoredAssistantMessage {
+                            chunks: vec![StoredAssistantChunk {
+                                chunk_type: "message".to_string(),
+                                block: StoredContentBlock {
+                                    block_type: "text".to_string(),
+                                    text: Some("hi back".to_string()),
+                                },
+                            }],
+                            model: Some("gpt-5.4".to_string()),
+                            display_model: Some("GPT-5.4".to_string()),
+                            received_at: None,
+                        },
+                        timestamp: None,
+                    },
+                ],
+                title: "Persisted transcript".to_string(),
+                created_at: "2026-04-16T00:00:00Z".to_string(),
+                current_mode_id: None,
+            },
+        )
+        .await
+        .expect("seed thread snapshot");
+    }
+
     // -----------------------------------------------------------------------
     // Happy path: new session returns found with empty state and seq=0
     // -----------------------------------------------------------------------
@@ -379,7 +462,8 @@ mod tests {
         assert_eq!(found.requested_session_id, session_id);
         assert!(!found.is_alias);
         assert_eq!(found.last_event_seq, 0);
-        assert!(found.thread_entries.is_empty());
+        assert_eq!(found.transcript_snapshot.revision, 0);
+        assert!(found.transcript_snapshot.entries.is_empty());
         assert!(found.operations.is_empty());
         assert!(found.interactions.is_empty());
         assert_eq!(found.turn_state, SessionTurnState::Idle);
@@ -437,6 +521,7 @@ mod tests {
         };
         assert_eq!(found.canonical_session_id, session_id);
         assert_eq!(found.last_event_seq, 2);
+        assert_eq!(found.transcript_snapshot.revision, 2);
         assert!(Uuid::parse_str(&found.open_token).is_ok());
     }
 
@@ -461,6 +546,37 @@ mod tests {
         assert_eq!(found.requested_session_id, alias_id);
         assert_eq!(found.canonical_session_id, canonical_id);
         assert!(found.is_alias, "alias open should set is_alias=true");
+    }
+
+    #[tokio::test]
+    async fn existing_session_with_thread_snapshot_exposes_transcript_snapshot_shape() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "transcript-shape-session";
+        seed_session_metadata(&db, session_id, "copilot").await;
+        append_tool_call_event(&db, session_id).await;
+        append_tool_call_event(&db, session_id).await;
+        seed_thread_snapshot_with_messages(&db, session_id).await;
+
+        let replay_context = make_copilot_replay_context(session_id);
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.transcript_snapshot.revision, found.last_event_seq);
+        assert_eq!(found.transcript_snapshot.entries.len(), 2);
+        assert_eq!(found.transcript_snapshot.entries[0].entry_id, "user-1");
+        assert_eq!(found.transcript_snapshot.entries[0].segments.len(), 1);
+        assert_eq!(
+            found.transcript_snapshot.entries[0].segments[0],
+            crate::acp::transcript_projection::TranscriptSegment::Text {
+                segment_id: "user-1:block:0".to_string(),
+                text: "hello world".to_string(),
+            }
+        );
+        assert_eq!(found.transcript_snapshot.entries[1].entry_id, "assistant-1");
+        assert_eq!(found.session_title, "Persisted transcript");
     }
 
     // -----------------------------------------------------------------------

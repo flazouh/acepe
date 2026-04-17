@@ -127,6 +127,14 @@ impl AcpEventHubState {
         }
     }
 
+    pub fn replay_buffered_events(&self, events: Vec<AcpEventEnvelope>) {
+        for envelope in events {
+            if let Err(error) = self.sender.send(envelope) {
+                tracing::trace!(%error, "ACP event hub replay send failed (no active subscribers)");
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Open-token reservation primitives (Unit 1)
     // -----------------------------------------------------------------------
@@ -314,5 +322,67 @@ mod tests {
             hub.has_reservation(second),
             "newest token must remain active"
         );
+    }
+
+    #[test]
+    fn claim_reservation_for_session_returns_buffered_events_and_retires_token() {
+        let hub = AcpEventHubState::new();
+        let token = Uuid::new_v4();
+        hub.arm_reservation(token, "session-1".to_string(), 4, 0);
+        hub.publish(
+            "session_update",
+            Some("session-1".to_string()),
+            serde_json::json!({
+                "eventSeq": 5,
+                "kind": "appendEntry"
+            }),
+            "high",
+            false,
+        );
+
+        let claimed = hub
+            .claim_reservation_for_session(token, "session-1")
+            .expect("claim should succeed for matching session");
+
+        assert_eq!(claimed.len(), 1);
+        assert_eq!(claimed[0].event_name, "session_update");
+        assert_eq!(claimed[0].session_id.as_deref(), Some("session-1"));
+        assert!(
+            !hub.has_reservation(token),
+            "successful claim must retire the token"
+        );
+    }
+
+    #[test]
+    fn replay_buffered_events_preserves_event_order_for_subscribers() {
+        let hub = AcpEventHubState::new();
+        let mut receiver = hub.subscribe();
+
+        hub.replay_buffered_events(vec![
+            AcpEventEnvelope {
+                seq: 7,
+                event_name: "acp-transcript-delta".to_string(),
+                session_id: Some("session-1".to_string()),
+                payload: serde_json::json!({ "value": 1 }),
+                priority: "normal".to_string(),
+                droppable: false,
+                emitted_at_ms: 1,
+            },
+            AcpEventEnvelope {
+                seq: 8,
+                event_name: "acp-transcript-delta".to_string(),
+                session_id: Some("session-1".to_string()),
+                payload: serde_json::json!({ "value": 2 }),
+                priority: "normal".to_string(),
+                droppable: false,
+                emitted_at_ms: 2,
+            },
+        ]);
+
+        let first = receiver.try_recv().expect("first replayed event");
+        let second = receiver.try_recv().expect("second replayed event");
+
+        assert_eq!(first.seq, 7);
+        assert_eq!(second.seq, 8);
     }
 }
