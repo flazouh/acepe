@@ -507,3 +507,19 @@ function compareProjectOrder(
 	const bTime = bCreatedAt?.getTime() ?? 0;
 	return bTime - aTime;
 }
+
+/**
+ * Resolve the default agent id to use when the `+` button is left-clicked on a
+ * project row. Returns `undefined` when there is no saved default, or when the
+ * saved default is no longer present in `availableAgents` (e.g. the agent was
+ * removed or disabled since it was saved). In those fallback cases the caller
+ * should show the agent picker strip instead.
+ */
+export function resolveDefaultAgentIdForCreate(
+availableAgents: readonly { id: string }[],
+defaultAgentId: string | null | undefined
+): string | undefined {
+if (defaultAgentId == null) return undefined;
+const isAvailable = availableAgents.some((a) => a.id === defaultAgentId);
+return isAvailable ? defaultAgentId : undefined;
+}

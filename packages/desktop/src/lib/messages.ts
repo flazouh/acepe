@@ -988,6 +988,14 @@ export function thread_list_new_session_in_project(args: MessageArgs = {}): stri
 	return interpolate(`New session in {projectName}`, args);
 }
 
+export function thread_list_new_default_agent_session(args: MessageArgs = {}): string {
+	return interpolate(`New {agentName} session in {projectName}`, args);
+}
+
+export function thread_list_new_session_right_click_hint(args: MessageArgs = {}): string {
+	return interpolate(`Right-click for agent, terminal and browser options`, args);
+}
+
 export function thread_list_open_project_page(args: MessageArgs = {}): string {
 	return interpolate(`Open project page: {projectName}`, args);
 }

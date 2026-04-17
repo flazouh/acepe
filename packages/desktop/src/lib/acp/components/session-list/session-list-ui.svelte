@@ -55,6 +55,7 @@ import {
 	getNextSessionListVisibleCount,
 	getSessionListVisibleCount,
 	isSessionListNearBottom,
+	resolveDefaultAgentIdForCreate,
 } from "./session-list-logic.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
@@ -87,6 +88,12 @@ interface Props {
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
 	/** Available agents for session creation */
 	availableAgents?: AgentInfo[];
+	/**
+	 * Default agent id to spawn on a plain left-click of the `+` button.
+	 * When null/undefined or not present in `availableAgents`, the click falls
+	 * back to showing the agent picker strip.
+	 */
+	defaultAgentId?: string | null;
 	/** Current theme for agent icons */
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
@@ -137,6 +144,7 @@ let {
 	onCreateSession: _onCreateSession,
 	onCreateSessionForProject,
 	availableAgents = [],
+	defaultAgentId = null,
 	effectiveTheme = "light",
 	onProjectClick,
 	onSelectFile,
@@ -801,6 +809,65 @@ function handleCreateClick(event: MouseEvent, projectPath: string, agentId?: str
 	onCreateSessionForProject?.(projectPath, agentId);
 }
 
+/**
+ * Resolve the default agent id to use when the `+` button is left-clicked.
+ * Returns undefined when there is no saved default, or when the saved default
+ * is no longer present in `availableAgents` (e.g. the agent was removed or
+ * disabled since it was saved).
+ */
+function resolveDefaultAgentIdForCreateLocal(): string | undefined {
+	return resolveDefaultAgentIdForCreate(availableAgents, defaultAgentId);
+}
+
+function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) {
+	event.stopPropagation();
+	if (!shouldShowProjectQuickActions()) {
+		handleCreateClick(event, projectPath);
+		return;
+	}
+	const resolvedDefault = resolveDefaultAgentIdForCreateLocal();
+	if (resolvedDefault !== undefined) {
+		handleCreateClick(event, projectPath, resolvedDefault);
+		return;
+	}
+	projectPathShowingAgentStrip = projectPath;
+}
+
+function handleProjectCreateButtonContextMenu(event: MouseEvent, projectPath: string) {
+	if (!shouldShowProjectQuickActions()) return;
+	event.preventDefault();
+	event.stopPropagation();
+	projectPathShowingAgentStrip = projectPath;
+}
+
+/**
+ * Primary tooltip label for the project `+` button. When a saved default agent
+ * resolves, advertise that the left-click will spawn that agent directly; otherwise
+ * keep the generic "New session in {projectName}" wording.
+ */
+function getProjectCreateButtonTooltipLabel(projectName: string): string {
+	const resolvedDefaultId = resolveDefaultAgentIdForCreateLocal();
+	if (resolvedDefaultId !== undefined) {
+		const agent = availableAgents.find((a) => a.id === resolvedDefaultId);
+		if (agent) {
+			return m.thread_list_new_default_agent_session({
+				agentName: agent.name,
+				projectName,
+			});
+		}
+	}
+	return m.thread_list_new_session_in_project({ projectName });
+}
+
+/**
+ * Secondary tooltip hint. Only shown when the right-click actually does something
+ * (i.e. there are quick actions to reveal: agents, terminal, or browser).
+ */
+function getProjectCreateButtonTooltipHint(): string | null {
+	if (!shouldShowProjectQuickActions()) return null;
+	return m.thread_list_new_session_right_click_hint();
+}
+
 function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
 	onOpenGitPanel?.(projectPath);
@@ -1126,14 +1193,9 @@ function openCreateBranchDialog(projectPath: string): void {
 													<div
 														class="flex items-center"
 														role="presentation"
-														onclick={(e) => {
-															e.stopPropagation();
-															if (shouldShowProjectQuickActions()) {
-																projectPathShowingAgentStrip = group.projectPath;
-															} else {
-																handleCreateClick(e, group.projectPath);
-															}
-														}}
+														onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+														oncontextmenu={(e) =>
+															handleProjectCreateButtonContextMenu(e, group.projectPath)}
 														onkeydown={(e) => e.stopPropagation()}
 													>
 														<Tooltip.Root>
@@ -1141,17 +1203,20 @@ function openCreateBranchDialog(projectPath: string): void {
 																<button
 																	type="button"
 																	class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																	aria-label={m.thread_list_new_session_in_project({
-																		projectName: group.projectName,
-																	})}
+																	aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 																>
 																	<IconPlus class="h-3 w-3" />
 																</button>
 															</Tooltip.Trigger>
 															<Tooltip.Content>
-																{m.thread_list_new_session_in_project({
-																	projectName: group.projectName,
-																})}
+																<div class="flex flex-col gap-0.5">
+																	<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
+																	{#if getProjectCreateButtonTooltipHint()}
+																		<span class="text-[10px] text-muted-foreground">
+																			{getProjectCreateButtonTooltipHint()}
+																		</span>
+																	{/if}
+																</div>
 															</Tooltip.Content>
 														</Tooltip.Root>
 													</div>
@@ -1317,14 +1382,9 @@ function openCreateBranchDialog(projectPath: string): void {
 												<div
 													class="flex shrink-0 items-center"
 													role="presentation"
-													onclick={(e) => {
-														e.stopPropagation();
-														if (shouldShowProjectQuickActions()) {
-															projectPathShowingAgentStrip = group.projectPath;
-														} else {
-															handleCreateClick(e, group.projectPath);
-														}
-													}}
+													onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+													oncontextmenu={(e) =>
+														handleProjectCreateButtonContextMenu(e, group.projectPath)}
 													onkeydown={(e) => e.stopPropagation()}
 												>
 													<Tooltip.Root>
@@ -1332,17 +1392,20 @@ function openCreateBranchDialog(projectPath: string): void {
 															<button
 																type="button"
 																class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																aria-label={m.thread_list_new_session_in_project({
-																	projectName: group.projectName,
-																})}
+																aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 															>
 																<IconPlus class="h-3 w-3" />
 															</button>
 														</Tooltip.Trigger>
 														<Tooltip.Content>
-															{m.thread_list_new_session_in_project({
-																projectName: group.projectName,
-															})}
+															<div class="flex flex-col gap-0.5">
+																<span>{getProjectCreateButtonTooltipLabel(group.projectName)}</span>
+																{#if getProjectCreateButtonTooltipHint()}
+																	<span class="text-[10px] text-muted-foreground">
+																		{getProjectCreateButtonTooltipHint()}
+																	</span>
+																{/if}
+															</div>
 														</Tooltip.Content>
 													</Tooltip.Root>
 												</div>

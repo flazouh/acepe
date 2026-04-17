@@ -32,6 +32,8 @@ interface Props {
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
 	/** Available agents for session creation */
 	availableAgents?: AgentInfo[];
+	/** Saved default agent id used to skip the agent picker on left-clicking `+`. */
+	defaultAgentId?: string | null;
 	/** Current theme for agent icons */
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
@@ -82,6 +84,7 @@ let {
 	onCreateSession,
 	onCreateSessionForProject,
 	availableAgents = [],
+	defaultAgentId = null,
 	effectiveTheme = "light",
 	onProjectClick,
 	onProjectColorChange,
@@ -204,6 +207,7 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	onCreateSession={handleCreateSession}
 	onCreateSessionForProject={handleCreateSessionForProject}
 	{availableAgents}
+	{defaultAgentId}
 	{effectiveTheme}
 	{onProjectClick}
 	{onSelectFile}

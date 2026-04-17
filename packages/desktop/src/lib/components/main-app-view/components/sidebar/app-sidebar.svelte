@@ -245,6 +245,7 @@ const availableAgents = $derived(
 	}))
 );
 const effectiveTheme = $derived(themeState.effectiveTheme);
+const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
 let iconPickerOpen = $state(false);
 let iconPickerImages = $state<string[]>([]);
@@ -458,6 +459,7 @@ const visibleSessions = $derived.by(() => {
 			onCreateSession={handleNewThread}
 			onCreateSessionForProject={handleCreateSession}
 			{availableAgents}
+			{defaultAgentId}
 			{effectiveTheme}
 			onProjectColorChange={handleProjectColorChange}
 			onChangeProjectIcon={handleChangeProjectIcon}
