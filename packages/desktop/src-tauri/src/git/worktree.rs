@@ -1885,12 +1885,21 @@ branch refs/heads/clever-falcon";
             .expect("git clone should run");
         assert!(clone_output.status.success(), "git clone should succeed");
 
+        let checkout_main_output =
+            run_git(updater_dir.path(), &["checkout", "-B", "main", "origin/main"]);
+        assert!(
+            checkout_main_output.status.success(),
+            "git checkout -B main origin/main should succeed: {}",
+            String::from_utf8_lossy(&checkout_main_output.stderr)
+        );
+
         write_repo_file(updater_dir.path(), "README.md", "remote update\n");
         commit_all(updater_dir.path(), "remote update");
         let updater_push_output = run_git(updater_dir.path(), &["push", "origin", "main"]);
         assert!(
             updater_push_output.status.success(),
-            "git push from updater clone should succeed"
+            "git push from updater clone should succeed: {}",
+            String::from_utf8_lossy(&updater_push_output.stderr)
         );
 
         let remote_head_before = git_stdout(repo_dir.path(), &["rev-parse", "origin/main"]);
