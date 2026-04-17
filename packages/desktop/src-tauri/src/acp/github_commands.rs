@@ -843,11 +843,21 @@ mod tests {
 
         git(
             path,
-            &["remote", "add", "fork", "git@github.com:flazouh/forgecode.git"],
+            &[
+                "remote",
+                "add",
+                "fork",
+                "git@github.com:flazouh/forgecode.git",
+            ],
         );
         git(
             path,
-            &["remote", "add", "origin", "git@github.com:flazouh/acepe.git"],
+            &[
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:flazouh/acepe.git",
+            ],
         );
 
         let context = get_repo_context(path).expect("repo context should resolve from origin");

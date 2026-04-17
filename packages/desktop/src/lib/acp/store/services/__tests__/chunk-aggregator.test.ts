@@ -20,6 +20,10 @@ function createMockEntryStore(overrides: Partial<IEntryStoreInternal> = {}): IEn
 
 function createMockEntryIndex(overrides: Partial<IEntryIndex> = {}): IEntryIndex {
 	return {
+		getEntryIdIndex: vi.fn(() => undefined),
+		addEntryId: vi.fn(),
+		deleteEntryId: vi.fn(),
+		rebuildEntryIdIndex: vi.fn(),
 		getMessageIdIndex: vi.fn(() => undefined),
 		addMessageId: vi.fn(),
 		deleteMessageId: vi.fn(),

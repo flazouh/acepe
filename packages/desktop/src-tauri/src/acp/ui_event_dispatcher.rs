@@ -2,6 +2,7 @@ use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_update::SessionUpdate;
+use crate::acp::transcript_projection::{TranscriptDelta, TranscriptProjectionRegistry};
 use crate::db::repository::SessionJournalEventRepository;
 use sea_orm::DbConn;
 use serde_json::Value;
@@ -262,6 +263,10 @@ impl AcpUiEventDispatcher {
             .try_state::<Arc<ProjectionRegistry>>()
             .map(|state| state.inner().clone())
             .unwrap_or_else(|| Arc::new(ProjectionRegistry::new()));
+        let transcript_projection_registry = handle
+            .try_state::<Arc<TranscriptProjectionRegistry>>()
+            .map(|state| state.inner().clone())
+            .unwrap_or_else(|| Arc::new(TranscriptProjectionRegistry::new()));
         let Some(hub_state) = handle.try_state::<Arc<AcpEventHubState>>() else {
             tracing::warn!("ACP event hub state unavailable; UI event dispatcher disabled");
             return Self {
@@ -278,7 +283,13 @@ impl AcpUiEventDispatcher {
         let db = handle
             .try_state::<DbConn>()
             .map(|state| state.inner().clone());
-        tokio::spawn(run_dispatch_loop(hub, db, policy, rx));
+        tokio::spawn(run_dispatch_loop(
+            hub,
+            db,
+            policy,
+            rx,
+            transcript_projection_registry.clone(),
+        ));
 
         Self {
             tx: Some(tx),
@@ -423,6 +434,7 @@ async fn run_dispatch_loop(
     db: Option<DbConn>,
     policy: DispatchPolicy,
     mut rx: mpsc::UnboundedReceiver<AcpUiEvent>,
+    transcript_projection_registry: Arc<TranscriptProjectionRegistry>,
 ) {
     let mut state = DispatcherState::new(policy);
 
@@ -433,10 +445,14 @@ async fn run_dispatch_loop(
             state.enqueue(next);
         }
 
-        state.drain(&hub, db.as_ref()).await;
+        state
+            .drain(&hub, db.as_ref(), transcript_projection_registry.as_ref())
+            .await;
     }
 
-    state.drain(&hub, db.as_ref()).await;
+    state
+        .drain(&hub, db.as_ref(), transcript_projection_registry.as_ref())
+        .await;
 }
 
 struct DispatcherState {
@@ -495,7 +511,12 @@ impl DispatcherState {
         self.telemetry.enqueued += 1;
     }
 
-    async fn drain(&mut self, hub: &AcpEventHubState, db: Option<&DbConn>) {
+    async fn drain(
+        &mut self,
+        hub: &AcpEventHubState,
+        db: Option<&DbConn>,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+    ) {
         while self.global_backlog > 0 {
             self.refill_tokens();
             if self.tokens < 1.0 {
@@ -521,7 +542,8 @@ impl DispatcherState {
                 self.tokens -= 1.0;
                 self.global_backlog = self.global_backlog.saturating_sub(1);
 
-                persist_dispatch_event(db, &event).await;
+                let transcript_delta =
+                    persist_dispatch_event(db, &event, transcript_projection_registry).await;
 
                 if let Err(error) = event.publish(hub) {
                     tracing::error!(
@@ -530,6 +552,27 @@ impl DispatcherState {
                         session_id = ?event.session_id,
                         "Failed to emit ACP UI event"
                     );
+                }
+                if let Some(delta) = transcript_delta {
+                    let transcript_payload = serde_json::to_value(&delta).unwrap_or_else(|error| {
+                        tracing::error!(%error, event_seq = delta.event_seq, "Failed to serialize transcript delta");
+                        Value::Null
+                    });
+                    let transcript_event = AcpUiEvent::json_event(
+                        "acp-transcript-delta",
+                        transcript_payload,
+                        Some(delta.session_id.clone()),
+                        AcpUiEventPriority::Normal,
+                        false,
+                    );
+                    if let Err(error) = transcript_event.publish(hub) {
+                        tracing::error!(
+                            error = %error,
+                            session_id = %delta.session_id,
+                            event_seq = delta.event_seq,
+                            "Failed to emit ACP transcript delta"
+                        );
+                    }
                 }
 
                 self.telemetry.emitted += 1;
@@ -677,26 +720,33 @@ impl DispatcherState {
     }
 }
 
-async fn persist_dispatch_event(db: Option<&DbConn>, event: &AcpUiEvent) {
-    let Some(db) = db else {
-        return;
-    };
-    let Some(session_id) = event.session_id.as_deref() else {
-        return;
-    };
+async fn persist_dispatch_event(
+    db: Option<&DbConn>,
+    event: &AcpUiEvent,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+) -> Option<TranscriptDelta> {
+    let db = db?;
+    let session_id = event.session_id.as_deref()?;
     let AcpUiEventPayload::SessionUpdate(update) = &event.payload else {
-        return;
+        return None;
     };
 
-    if let Err(error) =
-        SessionJournalEventRepository::append_session_update(db, session_id, update.as_ref()).await
+    match SessionJournalEventRepository::append_session_update(db, session_id, update.as_ref())
+        .await
     {
-        tracing::error!(
-            error = %error,
-            session_id,
-            event_name = event.event_name,
-            "Failed to persist ACP session update into session journal"
-        );
+        Ok(Some(record)) => {
+            transcript_projection_registry.apply_session_update(record.event_seq, update.as_ref())
+        }
+        Ok(None) => None,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                session_id,
+                event_name = event.event_name,
+                "Failed to persist ACP session update into session journal"
+            );
+            None
+        }
     }
 }
 
@@ -711,6 +761,9 @@ mod tests {
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
+    use crate::db::repository::SessionMetadataRepository;
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
     use serde_json::json;
     use std::sync::Arc;
 
@@ -726,6 +779,16 @@ mod tests {
             message_id: None,
             session_id: Some(session_id.to_string()),
         }
+    }
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("in-memory db");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("migrations");
+        db
     }
 
     #[test]
@@ -760,6 +823,40 @@ mod tests {
 
         assert_eq!(first_text, "a");
         assert_eq!(second_text, "b");
+    }
+
+    #[tokio::test]
+    async fn persist_dispatch_event_builds_transcript_delta_from_journal_event_seq() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-1",
+            "/test/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("session metadata");
+        let event = AcpUiEvent::session_update(SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: Some("part-1".to_string()),
+            message_id: Some("assistant-1".to_string()),
+            session_id: Some("session-1".to_string()),
+        });
+
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let delta = persist_dispatch_event(Some(&db), &event, &transcript_projection_registry)
+            .await
+            .expect("transcript delta");
+
+        assert_eq!(delta.event_seq, 1);
+        assert_eq!(delta.snapshot_revision, 1);
+        assert_eq!(delta.session_id, "session-1");
     }
 
     #[test]

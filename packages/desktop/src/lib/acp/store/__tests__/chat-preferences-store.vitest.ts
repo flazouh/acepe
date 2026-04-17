@@ -1,10 +1,7 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-	DEFAULT_STREAMING_ANIMATION_MODE,
-	STREAMING_ANIMATION_MODE_SMOOTH,
-} from "../../types/streaming-animation-mode.js";
+import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../types/streaming-animation-mode.js";
 
 const getSettingMock = vi.fn();
 const setSettingMock = vi.fn();
@@ -42,107 +39,13 @@ describe("ChatPreferencesStore", () => {
 		expect(store.isReady).toBe(true);
 	});
 
-	it("loads persisted thinking and streaming animation preferences", async () => {
-		getSettingMock.mockReturnValueOnce(okAsync(true)).mockReturnValueOnce(okAsync("smooth"));
+	it("loads the persisted thinking preference", async () => {
+		getSettingMock.mockReturnValueOnce(okAsync(true));
 
 		const store = new ChatPreferencesStore();
 		await store.initialize();
 
 		expect(store.thinkingBlockCollapsedByDefault).toBe(true);
-		expect(store.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-	});
-
-	it("maps all legacy streaming animation values into the single paced behavior", async () => {
-		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("typewriter"));
-
-		const classicStore = new ChatPreferencesStore();
-		await classicStore.initialize();
-		expect(classicStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-
-		vi.resetModules();
-		vi.doMock("$lib/utils/tauri-client.js", () => ({
-			tauriClient: {
-				settings: {
-					get: getSettingMock,
-					set: setSettingMock,
-				},
-			},
-		}));
-		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
-
-		getSettingMock.mockReset();
-		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("none"));
-
-		const instantStore = new ChatPreferencesStore();
-		await instantStore.initialize();
-		expect(instantStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-
-		vi.resetModules();
-		vi.doMock("$lib/utils/tauri-client.js", () => ({
-			tauriClient: {
-				settings: {
-					get: getSettingMock,
-					set: setSettingMock,
-				},
-			},
-		}));
-		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
-
-		getSettingMock.mockReset();
-		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("glow"));
-
-		const smoothStore = new ChatPreferencesStore();
-		await smoothStore.initialize();
-		expect(smoothStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-
-		vi.resetModules();
-		vi.doMock("$lib/utils/tauri-client.js", () => ({
-			tauriClient: {
-				settings: {
-					get: getSettingMock,
-					set: setSettingMock,
-				},
-			},
-		}));
-		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
-
-		getSettingMock.mockReset();
-		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("fade"));
-
-		const fadeStore = new ChatPreferencesStore();
-		await fadeStore.initialize();
-		expect(fadeStore.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-
-		vi.resetModules();
-		vi.doMock("$lib/utils/tauri-client.js", () => ({
-			tauriClient: {
-				settings: {
-					get: getSettingMock,
-					set: setSettingMock,
-				},
-			},
-		}));
-		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
-
-		getSettingMock.mockReset();
-		getSettingMock.mockReturnValueOnce(okAsync(false)).mockReturnValueOnce(okAsync("bogus_unknown"));
-
-		const unknownStore = new ChatPreferencesStore();
-		await unknownStore.initialize();
-		expect(unknownStore.streamingAnimationMode).toBe(DEFAULT_STREAMING_ANIMATION_MODE);
-	});
-
-	it("persists streaming animation updates optimistically", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
-
-		const store = new ChatPreferencesStore();
-		await store.initialize();
-		await store.setStreamingAnimationMode("instant");
-
-		expect(store.streamingAnimationMode).toBe(STREAMING_ANIMATION_MODE_SMOOTH);
-		expect(setSettingMock).toHaveBeenCalledWith(
-			"streaming_animation",
-			STREAMING_ANIMATION_MODE_SMOOTH
-		);
+		expect(store.streamingAnimationMode).toBe(DEFAULT_STREAMING_ANIMATION_MODE);
 	});
 });

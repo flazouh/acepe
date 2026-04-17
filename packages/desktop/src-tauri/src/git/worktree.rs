@@ -1751,7 +1751,8 @@ branch refs/heads/clever-falcon";
         let worktree_path = worktree_dir.join("15-april-2026-20:22/acepe/50/copilot");
 
         assert_eq!(
-            managed_worktree_branch_name(&worktree_path).expect("managed branch name should resolve"),
+            managed_worktree_branch_name(&worktree_path)
+                .expect("managed branch name should resolve"),
             "15-april-2026-20-22/acepe/50/copilot"
         );
     }

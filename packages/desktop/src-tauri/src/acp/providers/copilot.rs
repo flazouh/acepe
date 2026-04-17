@@ -167,7 +167,8 @@ impl AgentProvider for CopilotProvider {
         app: &'a AppHandle,
         context: &'a SessionContext,
         replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>>
+    {
         Box::pin(async move {
             let session_id = &context.local_session_id;
             let db = app.try_state::<DbConn>().map(|state| state.inner().clone());

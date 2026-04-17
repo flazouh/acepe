@@ -8,6 +8,11 @@
 import type { SessionEntry } from "../../types.js";
 
 export interface IEntryIndex {
+	getEntryIdIndex(sessionId: string, entryId: string): number | undefined;
+	addEntryId(sessionId: string, entryId: string, index: number): void;
+	deleteEntryId(sessionId: string, entryId: string): void;
+	rebuildEntryIdIndex(sessionId: string, entries: SessionEntry[]): void;
+
 	// MessageId index (assistant chunk aggregation)
 	getMessageIdIndex(sessionId: string, messageId: string): number | undefined;
 	addMessageId(sessionId: string, messageId: string, index: number): void;

@@ -15,7 +15,10 @@ function createFoundResult(
 	const projectPath = overrides?.projectPath ?? "/repo";
 	const worktreePath = overrides?.worktreePath ?? null;
 	const sourcePath = overrides?.sourcePath ?? "/repo/.copilot/session.jsonl";
-	const threadEntries = overrides?.threadEntries ?? [];
+	const transcriptSnapshot = overrides?.transcriptSnapshot ?? {
+		revision: lastEventSeq,
+		entries: [],
+	};
 	const sessionTitle = overrides?.sessionTitle ?? "Hydrated session";
 	const operations = overrides?.operations ?? [];
 	const interactions = overrides?.interactions ?? [];
@@ -31,7 +34,7 @@ function createFoundResult(
 		projectPath,
 		worktreePath,
 		sourcePath,
-		threadEntries,
+		transcriptSnapshot,
 		sessionTitle,
 		operations,
 		interactions,

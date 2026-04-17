@@ -21,7 +21,7 @@ import type {
 	ToolCallUpdateData,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
-import type { SessionModelState } from "../../services/acp-types.js";
+import type { SessionModelState, TranscriptDelta } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
@@ -38,6 +38,10 @@ import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
 
 const logger = createLogger({ id: "session-event-service", name: "SessionEventService" });
+
+type PendingSessionEvent =
+	| { kind: "sessionUpdate"; update: SessionUpdate }
+	| { kind: "transcriptDelta"; delta: TranscriptDelta };
 
 function isJsonObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -243,9 +247,10 @@ function shouldBypassDisconnectedBuffer(update: SessionUpdate): boolean {
 export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
-	private eventSubscriptionId: string | null = null;
+	private sessionUpdateSubscriptionId: string | null = null;
+	private transcriptDeltaSubscriptionId: string | null = null;
 	// Pending events buffer for sessions being created (race condition handling)
-	private pendingEvents = new SvelteMap<string, SessionUpdate[]>();
+	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
 	private pendingEventTimestamps = new SvelteMap<string, number>();
 	private static readonly PENDING_EVENT_TIMEOUT_MS = 10000; // 10 seconds
 	private static readonly MAX_PENDING_EVENTS_PER_SESSION = 100; // Prevent unbounded growth
@@ -283,6 +288,13 @@ export class SessionEventService {
 
 	// Lifecycle waiters — per-session promises awaiting connectionComplete/connectionFailed
 	private lifecycleWaiters = new Map<string, LifecycleWaiter>();
+	private pendingAssistantFallbacks = new SvelteMap<
+		string,
+		{
+			timeoutId: ReturnType<typeof setTimeout>;
+			updates: Array<Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>>;
+		}
+	>();
 
 	/**
 	 * Set callbacks for handling permission and question requests.
@@ -379,11 +391,18 @@ export class SessionEventService {
 	 * Initialize session update subscription.
 	 */
 	initializeSessionUpdates(handler: SessionEventHandler): ResultAsync<void, AppError> {
-		if (this.eventSubscriber && this.eventSubscriptionId) {
+		if (
+			this.eventSubscriber &&
+			this.sessionUpdateSubscriptionId &&
+			this.transcriptDeltaSubscriptionId
+		) {
 			return okAsync(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
-		if (this.eventSubscriber && !this.eventSubscriptionId) {
+		if (
+			this.eventSubscriber &&
+			(!this.sessionUpdateSubscriptionId || !this.transcriptDeltaSubscriptionId)
+		) {
 			this.eventSubscriber = null;
 		}
 
@@ -392,16 +411,27 @@ export class SessionEventService {
 			.subscribe((update: SessionUpdate) => {
 				this.handleSessionUpdate(update, handler);
 			})
-			.map((id) => {
+			.andThen((sessionUpdateId) => {
+				this.sessionUpdateSubscriptionId = sessionUpdateId;
+				return subscriber.subscribeTranscriptDeltas((delta: TranscriptDelta) => {
+					this.handleTranscriptDelta(delta, handler);
+				});
+			})
+			.map((deltaSubscriptionId) => {
 				this.eventSubscriber = subscriber;
-				this.eventSubscriptionId = id;
+				this.transcriptDeltaSubscriptionId = deltaSubscriptionId;
 				this.startTelemetryReporter();
-				logger.debug("Session update subscription initialized", { subscriptionId: id });
+				logger.debug("Session update subscription initialized", {
+					sessionSubscriptionId: this.sessionUpdateSubscriptionId,
+					transcriptSubscriptionId: deltaSubscriptionId,
+				});
 				return undefined;
 			})
 			.mapErr((error) => {
+				subscriber.unsubscribe();
 				this.eventSubscriber = null;
-				this.eventSubscriptionId = null;
+				this.sessionUpdateSubscriptionId = null;
+				this.transcriptDeltaSubscriptionId = null;
 				logger.error("Failed to initialize session update subscription", { error });
 				return new AgentError(
 					"initializeSessionUpdates",
@@ -418,14 +448,19 @@ export class SessionEventService {
 			clearTimeout(timeoutId);
 		}
 		this.pendingFlushTimeouts.clear();
+		for (const pendingAssistantFallback of this.pendingAssistantFallbacks.values()) {
+			clearTimeout(pendingAssistantFallback.timeoutId);
+		}
+		this.pendingAssistantFallbacks.clear();
 		this.replayFingerprintState.clear();
 		this.stopTelemetryReporter();
 
-		if (this.eventSubscriber && this.eventSubscriptionId) {
-			this.eventSubscriber.unsubscribeById(this.eventSubscriptionId);
+		if (this.eventSubscriber) {
+			this.eventSubscriber.unsubscribe();
 			this.eventSubscriber = null;
-			this.eventSubscriptionId = null;
 		}
+		this.sessionUpdateSubscriptionId = null;
+		this.transcriptDeltaSubscriptionId = null;
 	}
 
 	/**
@@ -496,28 +531,14 @@ export class SessionEventService {
 
 		this.recordInboundEvent();
 
-		// Fast path for message/thought text chunks - process directly
-		// Rust batcher already accumulates text at 16ms intervals
+		// Assistant chunk updates may be superseded by canonical transcript deltas
+		// emitted in the same tick. Keep the startup buffering path, then defer
+		// actual aggregation until after we know whether a delta arrived.
 		if (update.type === "agentMessageChunk" || update.type === "agentThoughtChunk") {
 			if (!this.hasKnownSession(handler, sessionId)) {
 				this.bufferPendingEvent(sessionId, update);
 				return;
 			}
-			const aggregationKey = getAssistantAggregationKey(update);
-
-			if (update.chunk.content.type === "text") {
-				handler
-					.aggregateAssistantChunk(
-						sessionId,
-						update.chunk,
-						aggregationKey,
-						update.type === "agentThoughtChunk"
-					)
-					.mapErr((error) => logger.error("Failed to aggregate text chunk", { error }));
-				handler.ensureStreamingState(sessionId);
-				return;
-			}
-			// Non-text chunks fall through to normal processing
 		}
 
 		if (logger.isLevelEnabled("debug")) {
@@ -567,27 +588,12 @@ export class SessionEventService {
 			return;
 		}
 
+		if (update.type === "agentMessageChunk" || update.type === "agentThoughtChunk") {
+			this.scheduleAssistantFallbackUpdate(sessionId, update, handler, hotState?.turnState);
+			return;
+		}
+
 		switch (update.type) {
-			case "agentMessageChunk": {
-				const aggregationKey = getAssistantAggregationKey(update);
-				// Text chunks are handled by fast path above, this handles non-text (e.g., tool_use)
-				handler
-					.aggregateAssistantChunk(sessionId, update.chunk, aggregationKey, false)
-					.mapErr((error) => logger.error("Failed to aggregate message chunk", { error }));
-				handler.ensureStreamingState(sessionId);
-				break;
-			}
-
-			case "agentThoughtChunk": {
-				const aggregationKey = getAssistantAggregationKey(update);
-				// Text chunks are handled by fast path above, this handles non-text
-				handler
-					.aggregateAssistantChunk(sessionId, update.chunk, aggregationKey, true)
-					.mapErr((error) => logger.error("Failed to aggregate thought chunk", { error }));
-				handler.ensureStreamingState(sessionId);
-				break;
-			}
-
 			case "toolCall":
 				logger.debug("Creating tool call entry", {
 					sessionId,
@@ -764,6 +770,37 @@ export class SessionEventService {
 				update satisfies never;
 			}
 		}
+	}
+
+	handleTranscriptDelta(delta: TranscriptDelta, handler: SessionEventHandler): void {
+		const sessionId = delta.sessionId;
+		const session = handler.getSessionCold(sessionId);
+		const hotState = session ? handler.getHotState(sessionId) : null;
+		const isDisconnectedSession = hotState?.isConnected === false;
+		const isConnectingSession = hotState?.status === "connecting";
+
+		if (isDisconnectedSession && !isConnectingSession) {
+			this.telemetryDisconnectedDrops++;
+			this.warnWithCooldown("disconnected", "Buffered transcript delta while disconnected", {
+				sessionId,
+				snapshotRevision: delta.snapshotRevision,
+				agentId: session?.agentId,
+				status: hotState?.status,
+			});
+			this.bufferPendingTranscriptDelta(sessionId, delta);
+			return;
+		}
+
+		if (!this.hasKnownSession(handler, sessionId)) {
+			this.bufferPendingTranscriptDelta(sessionId, delta);
+			return;
+		}
+
+		this.recordInboundEvent();
+		if (this.deltaHasAssistantMutation(delta)) {
+			this.clearPendingAssistantFallback(sessionId);
+		}
+		handler.applyTranscriptDelta(sessionId, delta);
 	}
 
 	private shouldTreatPlanAsTurnComplete(
@@ -955,7 +992,7 @@ export class SessionEventService {
 
 	private flushPendingEventsChunked(
 		sessionId: string,
-		pending: SessionUpdate[],
+		pending: PendingSessionEvent[],
 		handler: SessionEventHandler,
 		offset: number
 	): void {
@@ -964,7 +1001,12 @@ export class SessionEventService {
 		const chunkSize = end - offset;
 
 		for (let i = offset; i < end; i++) {
-			this.handleSessionUpdate(pending[i], handler);
+			const pendingEvent = pending[i];
+			if (pendingEvent.kind === "sessionUpdate") {
+				this.handleSessionUpdate(pendingEvent.update, handler);
+				continue;
+			}
+			this.handleTranscriptDelta(pendingEvent.delta, handler);
 		}
 		const chunkDuration = this.nowMs() - chunkStart;
 		this.telemetryMaxReplayChunkDurationMs = Math.max(
@@ -1024,10 +1066,108 @@ export class SessionEventService {
 		return handler.getSessionCold(sessionId) !== undefined;
 	}
 
+	private scheduleAssistantFallbackUpdate(
+		sessionId: string,
+		update: Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>,
+		handler: SessionEventHandler,
+		turnState: import("./types.js").TurnState | undefined
+	): void {
+		// Fallback-deferral exists to let canonical transcript deltas win during
+		// live streaming. Apply synchronously only when we're explicitly in
+		// idle/replay AND there's no already-queued batch for this session —
+		// bypassing a queued batch would reorder chunks (the queued ones flush
+		// on the next tick, after the sync-applied one).
+		const existing = this.pendingAssistantFallbacks.get(sessionId);
+		if (turnState === "idle" && !existing) {
+			const aggregationKey = getAssistantAggregationKey(update);
+			handler
+				.aggregateAssistantChunk(
+					sessionId,
+					update.chunk,
+					aggregationKey,
+					update.type === "agentThoughtChunk"
+				)
+				.mapErr((error) =>
+					logger.error("Failed to aggregate replay assistant chunk", { error })
+				);
+			handler.ensureStreamingState(sessionId);
+			return;
+		}
+
+		if (existing) {
+			existing.updates.push(update);
+			return;
+		}
+
+		const updates = [update];
+		const timeoutId = setTimeout(() => {
+			const pending = this.pendingAssistantFallbacks.get(sessionId);
+			this.pendingAssistantFallbacks.delete(sessionId);
+			const fallbackUpdates = pending?.updates ?? updates;
+			for (const pendingUpdate of fallbackUpdates) {
+				const aggregationKey = getAssistantAggregationKey(pendingUpdate);
+				handler
+					.aggregateAssistantChunk(
+						sessionId,
+						pendingUpdate.chunk,
+						aggregationKey,
+						pendingUpdate.type === "agentThoughtChunk"
+					)
+					.mapErr((error) =>
+						logger.error("Failed to aggregate fallback assistant chunk", { error })
+					);
+				handler.ensureStreamingState(sessionId);
+			}
+		}, 0);
+
+		this.pendingAssistantFallbacks.set(sessionId, {
+			timeoutId,
+			updates,
+		});
+	}
+
+	private clearPendingAssistantFallback(sessionId: string): void {
+		const pending = this.pendingAssistantFallbacks.get(sessionId);
+		if (pending === undefined) {
+			return;
+		}
+		clearTimeout(pending.timeoutId);
+		this.pendingAssistantFallbacks.delete(sessionId);
+	}
+
+	private deltaHasAssistantMutation(delta: TranscriptDelta): boolean {
+		for (const operation of delta.operations) {
+			if (operation.kind === "appendEntry" && operation.entry.role === "assistant") {
+				return true;
+			}
+			if (operation.kind === "appendSegment" && operation.role === "assistant") {
+				return true;
+			}
+			if (operation.kind === "replaceSnapshot") {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Buffer event for session that may still be creating (race condition).
 	 */
 	private bufferPendingEvent(sessionId: string, update: SessionUpdate): void {
+		this.bufferPending(sessionId, {
+			kind: "sessionUpdate",
+			update,
+		});
+	}
+
+	private bufferPendingTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
+		this.bufferPending(sessionId, {
+			kind: "transcriptDelta",
+			delta,
+		});
+	}
+
+	private bufferPending(sessionId: string, pendingEvent: PendingSessionEvent): void {
 		const pending = this.pendingEvents.get(sessionId) ?? [];
 
 		// Enforce buffer size limit to prevent unbounded memory growth
@@ -1040,7 +1180,7 @@ export class SessionEventService {
 			});
 		}
 
-		pending.push(update);
+		pending.push(pendingEvent);
 		this.pendingEvents.set(sessionId, pending);
 		this.telemetryMaxPendingBacklog = Math.max(this.telemetryMaxPendingBacklog, pending.length);
 
@@ -1059,7 +1199,10 @@ export class SessionEventService {
 
 		logger.debug("Buffered event for pending session", {
 			sessionId,
-			type: update.type,
+			type:
+				pendingEvent.kind === "sessionUpdate"
+					? pendingEvent.update.type
+					: "transcriptDelta",
 			bufferSize: pending.length,
 		});
 	}

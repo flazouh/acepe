@@ -22,6 +22,7 @@ mod m20260408_000001_create_session_projection_snapshots;
 mod m20260408_000002_create_session_journal_events;
 mod m20260413_000001_add_project_sidebar_metadata;
 mod m20260416_000001_create_session_thread_snapshots;
+mod m20260416_000002_create_transcript_snapshots;
 
 pub struct Migrator;
 
@@ -51,6 +52,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260408_000002_create_session_journal_events::Migration),
             Box::new(m20260413_000001_add_project_sidebar_metadata::Migration),
             Box::new(m20260416_000001_create_session_thread_snapshots::Migration),
+            Box::new(m20260416_000002_create_transcript_snapshots::Migration),
         ]
     }
 }

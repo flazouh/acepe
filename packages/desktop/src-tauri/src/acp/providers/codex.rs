@@ -93,7 +93,8 @@ impl AgentProvider for CodexProvider {
         _app: &'a AppHandle,
         context: &'a SessionContext,
         _replay_context: &'a SessionReplayContext,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionThreadSnapshot>, String>> + Send + 'a>>
+    {
         Box::pin(async move {
             let session_id = &context.local_session_id;
 

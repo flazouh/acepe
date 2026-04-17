@@ -12,6 +12,7 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
 
 function applyStreamingArguments(
 	store: SessionEntryStore,
@@ -245,6 +246,123 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			// session2's tool calls should remain
 			expect(store.getStreamingArguments("tool3")).toEqual({ kind: "execute", command: "c" });
 		});
+	});
+});
+
+describe("SessionEntryStore - Transcript Deltas", () => {
+	let store: SessionEntryStore;
+
+	beforeEach(() => {
+		store = new SessionEntryStore();
+	});
+
+	it("hydrates transcript snapshots through the compatibility adapter", () => {
+		const snapshot: TranscriptSnapshot = {
+			revision: 5,
+			entries: [
+				{
+					entryId: "assistant-1",
+					role: "assistant",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "assistant-1:segment:5",
+							text: "hello",
+						},
+					],
+				},
+			],
+		};
+
+		store.replaceTranscriptSnapshot("session-1", snapshot, new Date("2026-04-16T00:00:00.000Z"));
+
+		expect(store.getEntries("session-1")).toEqual([
+			{
+				id: "assistant-1",
+				type: "assistant",
+				message: {
+					chunks: [
+						{
+							type: "message",
+							block: {
+								type: "text",
+								text: "hello",
+							},
+						},
+					],
+				},
+				timestamp: new Date("2026-04-16T00:00:00.000Z"),
+			},
+		]);
+	});
+
+	it("appends assistant transcript segments without rebuilding the whole session", () => {
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 5,
+				entries: [
+					{
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:5",
+								text: "hello",
+							},
+						],
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:00.000Z")
+		);
+
+		const delta: TranscriptDelta = {
+			eventSeq: 6,
+			sessionId: "session-1",
+			snapshotRevision: 6,
+			operations: [
+				{
+					kind: "appendSegment",
+					entryId: "assistant-1",
+					role: "assistant",
+					segment: {
+						kind: "text",
+						segmentId: "assistant-1:segment:6",
+						text: " world",
+					},
+				},
+			],
+		};
+
+		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:01.000Z"));
+
+		expect(store.getEntries("session-1")).toEqual([
+			{
+				id: "assistant-1",
+				type: "assistant",
+				message: {
+					chunks: [
+						{
+							type: "message",
+							block: {
+								type: "text",
+								text: "hello",
+							},
+						},
+						{
+							type: "message",
+							block: {
+								type: "text",
+								text: " world",
+							},
+						},
+					],
+				},
+				timestamp: new Date("2026-04-16T00:00:00.000Z"),
+			},
+		]);
 	});
 });
 

@@ -1,9 +1,10 @@
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
+use crate::session_jsonl::types::ConvertedSession;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -167,10 +168,7 @@ fn start_running_turn(snapshot: &mut SessionSnapshot) {
     snapshot.last_terminal_turn_id = None;
 }
 
-fn should_ignore_turn_complete(
-    snapshot: &SessionSnapshot,
-    turn_id: Option<&str>,
-) -> bool {
+fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
     preserves_failed_turn(snapshot)
         && (turn_id.is_none()
             || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
@@ -259,6 +257,16 @@ impl ProjectionRegistry {
         let registry = Self::new();
         registry.import_thread_snapshot(session_id, agent_id, thread_snapshot);
         registry.session_projection(session_id)
+    }
+
+    #[must_use]
+    pub fn project_converted_session(
+        session_id: &str,
+        agent_id: Option<CanonicalAgentId>,
+        converted: &ConvertedSession,
+    ) -> SessionProjectionSnapshot {
+        let thread_snapshot = SessionThreadSnapshot::from(converted.clone());
+        Self::project_thread_snapshot(session_id, agent_id, &thread_snapshot)
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -1081,7 +1089,10 @@ mod tests {
             .snapshot_for_session("session-1")
             .expect("expected failed snapshot");
         assert_eq!(failed_snapshot.turn_state, SessionTurnState::Failed);
-        assert_eq!(failed_snapshot.last_terminal_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            failed_snapshot.last_terminal_turn_id.as_deref(),
+            Some("turn-1")
+        );
         assert_eq!(
             failed_snapshot
                 .active_turn_failure
@@ -1125,7 +1136,10 @@ mod tests {
             .snapshot_for_session("session-1")
             .expect("expected failed snapshot after late updates");
         assert_eq!(failed_snapshot.turn_state, SessionTurnState::Failed);
-        assert_eq!(failed_snapshot.last_terminal_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            failed_snapshot.last_terminal_turn_id.as_deref(),
+            Some("turn-1")
+        );
         assert_eq!(
             failed_snapshot
                 .active_turn_failure

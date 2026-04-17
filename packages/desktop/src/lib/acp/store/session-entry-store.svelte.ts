@@ -23,6 +23,7 @@ import type {
 	ToolArguments,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
+import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
@@ -32,6 +33,11 @@ import type { IEntryStoreInternal } from "./services/interfaces/entry-store-inte
 import type { IEntryManager } from "./services/interfaces/index.js";
 import { ToolCallManager } from "./services/tool-call-manager.svelte.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
+import {
+	appendTranscriptSegmentToSessionEntry,
+	convertTranscriptEntryToSessionEntry,
+	convertTranscriptSnapshotToSessionEntries,
+} from "./services/transcript-snapshot-entry-adapter.js";
 import type { SessionEntry } from "./types.js";
 import { isToolCallEntry } from "./types.js";
 
@@ -63,6 +69,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	// Track which sessions have been preloaded
 	private preloadedIds = new Set<string>();
+	private readonly transcriptRevisionBySession = new Map<string, number>();
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
@@ -130,6 +137,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.entriesById.set(sessionId, normalizedEntries);
 
 		// Build indices for O(1) lookups
+		this.entryIndex.rebuildEntryIdIndex(sessionId, normalizedEntries);
 		this.entryIndex.rebuildMessageIdIndex(sessionId, normalizedEntries);
 		this.entryIndex.rebuildToolCallIdIndex(sessionId, normalizedEntries);
 		this.operationStore.clearSession(sessionId);
@@ -142,6 +150,71 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		}
 
 		this.preloadedIds.add(sessionId);
+	}
+
+	replaceTranscriptSnapshot(sessionId: string, snapshot: TranscriptSnapshot, timestamp: Date): void {
+		const entries = convertTranscriptSnapshotToSessionEntries(snapshot, timestamp);
+		this.storeEntriesAndBuildIndex(sessionId, entries);
+		this.transcriptRevisionBySession.set(sessionId, snapshot.revision);
+	}
+
+	applyTranscriptDelta(sessionId: string, delta: TranscriptDelta, timestamp: Date): void {
+		const currentRevision = this.transcriptRevisionBySession.get(sessionId);
+		if (currentRevision !== undefined && delta.snapshotRevision <= currentRevision) {
+			return;
+		}
+
+		for (const operation of delta.operations) {
+			if (operation.kind === "replaceSnapshot") {
+				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp);
+				this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
+				continue;
+			}
+
+			if (operation.kind === "appendEntry") {
+				if (operation.entry.role === "tool" || operation.entry.role === "user") {
+					continue;
+				}
+				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
+				const nextEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
+				if (existingIndex === undefined) {
+					this.addEntry(sessionId, nextEntry);
+				} else {
+					this.updateEntry(sessionId, existingIndex, nextEntry);
+				}
+				continue;
+			}
+
+			if (operation.role === "tool" || operation.role === "user") {
+				continue;
+			}
+			const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entryId);
+			if (existingIndex === undefined) {
+				const nextEntry = convertTranscriptEntryToSessionEntry(
+					{
+						entryId: operation.entryId,
+						role: operation.role,
+						segments: [operation.segment],
+					},
+					timestamp
+				);
+				this.addEntry(sessionId, nextEntry);
+				continue;
+			}
+
+			const existingEntries = this.entriesById.get(sessionId) ?? [];
+			const existingEntry = existingEntries[existingIndex];
+			if (existingEntry === undefined) {
+				continue;
+			}
+			const updatedEntry = appendTranscriptSegmentToSessionEntry(existingEntry, operation.segment);
+			if (updatedEntry === null) {
+				continue;
+			}
+			this.updateEntry(sessionId, existingIndex, updatedEntry);
+		}
+
+		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
 	}
 
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
@@ -208,6 +281,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const newEntries = [...entries, entry];
 		this.entriesById.set(sessionId, newEntries);
 		const newIndex = newEntries.length - 1;
+		this.entryIndex.addEntryId(sessionId, entry.id, newIndex);
 		if (entry.type === "assistant") {
 			this.entryIndex.addMessageId(sessionId, entry.id, newIndex);
 		} else if (isToolCallEntry(entry)) {
@@ -231,6 +305,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.entriesById.set(sessionId, newEntries);
 
 		// Rebuild indices since indices shifted after removal
+		this.entryIndex.rebuildEntryIdIndex(sessionId, newEntries);
 		this.entryIndex.rebuildMessageIdIndex(sessionId, newEntries);
 		this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 	}
@@ -252,6 +327,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			entryType: updatedEntry.type,
 			entryCount: newEntries.length,
 		});
+
+		if (previousEntry.id !== updatedEntry.id) {
+			this.entryIndex.deleteEntryId(sessionId, previousEntry.id);
+		}
+		this.entryIndex.addEntryId(sessionId, updatedEntry.id, index);
 
 		// Incremental index updates avoid O(n) rebuilds on every streamed/tool-call update.
 		if (previousEntry.type === "assistant" && updatedEntry.type === "assistant") {
@@ -288,6 +368,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 		this.entryIndex.clearSession(sessionId);
 		this.preloadedIds.delete(sessionId);
+		this.transcriptRevisionBySession.delete(sessionId);
 
 		// Delegate cleanup to extracted managers
 		this.chunkAggregator.clearSession(sessionId);

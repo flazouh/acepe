@@ -11,8 +11,6 @@ pub enum UserSettingKey {
     WorkspaceState,
     /// Custom keybindings (JSON map of command -> key)
     CustomKeybindings,
-    /// Streaming text animation style (none, fade, glow, typewriter)
-    StreamingAnimation,
     /// Webview zoom level (stored as float string, e.g., "1.0", "1.2")
     ZoomLevel,
     /// Default models per agent per mode (JSON map)
@@ -58,6 +56,8 @@ pub enum UserSettingKey {
     ChatThinkingBlockCollapsedByDefault,
     /// Whether plans render inline in chat vs sidebar panel (boolean)
     PlanInlineMode,
+    /// Whether review opens fullscreen by default (boolean)
+    ReviewPreferFullscreen,
     /// Per-category notification preferences (JSON object)
     #[serde(rename = "notification-preferences")]
     NotificationPreferences,
@@ -89,7 +89,6 @@ impl UserSettingKey {
             UserSettingKey::UserTheme => "user_theme",
             UserSettingKey::WorkspaceState => "workspace_state",
             UserSettingKey::CustomKeybindings => "custom_keybindings",
-            UserSettingKey::StreamingAnimation => "streaming_animation",
             UserSettingKey::ZoomLevel => "zoom_level",
             UserSettingKey::AgentDefaultModels => "agent_default_models",
             UserSettingKey::AgentFavoriteModels => "agent_favorite_models",
@@ -116,6 +115,7 @@ impl UserSettingKey {
                 "chat_thinking_block_collapsed_by_default"
             }
             UserSettingKey::PlanInlineMode => "plan_inline_mode",
+            UserSettingKey::ReviewPreferFullscreen => "review_prefer_fullscreen",
             UserSettingKey::NotificationPreferences => "notification-preferences",
             UserSettingKey::VoiceModel => "voice_model",
             UserSettingKey::VoiceLanguage => "voice_language",

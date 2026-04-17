@@ -1,5 +1,6 @@
 import { okAsync, ResultAsync } from "neverthrow";
 
+import type { TranscriptDelta } from "../../services/acp-types.js";
 import type { JsonValue, SessionUpdate } from "../../services/converted-session-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { type AcpError, ProtocolError } from "../errors/index.js";
@@ -18,6 +19,7 @@ import { openAcpEventSource } from "./acp-event-bridge.js";
 export class EventSubscriber {
 	private unlistenFn: (() => void) | null = null;
 	private listeners = new Map<string, (update: SessionUpdate) => void>();
+	private transcriptDeltaListeners = new Map<string, (delta: TranscriptDelta) => void>();
 	private listenerIdCounter = 0;
 	private isInitializing = false;
 	private initPromise: Promise<void> | null = null;
@@ -36,49 +38,128 @@ export class EventSubscriber {
 	subscribe(listener: (update: SessionUpdate) => void): ResultAsync<string, AcpError> {
 		const listenerId = `listener-${++this.listenerIdCounter}`;
 		this.listeners.set(listenerId, listener);
+		return this.ensureSubscribed(
+			listenerId,
+			() => this.listeners.has(listenerId),
+			() => {
+				this.listeners.delete(listenerId);
+			},
+			"session updates"
+		);
+	}
 
-		// If we already have a Tauri listener, just return the ID
+	subscribeTranscriptDeltas(
+		listener: (delta: TranscriptDelta) => void
+	): ResultAsync<string, AcpError> {
+		const listenerId = `listener-${++this.listenerIdCounter}`;
+		this.transcriptDeltaListeners.set(listenerId, listener);
+		return this.ensureSubscribed(
+			listenerId,
+			() => this.transcriptDeltaListeners.has(listenerId),
+			() => {
+				this.transcriptDeltaListeners.delete(listenerId);
+			},
+			"transcript deltas"
+		);
+	}
+
+	/**
+	 * Unsubscribe a specific listener by ID.
+	 * The Tauri listener is only removed when all listeners are unsubscribed.
+	 *
+	 * @param listenerId - The ID returned from subscribe()
+	 */
+	unsubscribeById(listenerId: string): void {
+		this.listeners.delete(listenerId);
+		this.transcriptDeltaListeners.delete(listenerId);
+
+		// If no more listeners, clean up the Tauri listener
+		if (this.listeners.size === 0 && this.transcriptDeltaListeners.size === 0 && this.unlistenFn) {
+			this.unlistenFn();
+			this.unlistenFn = null;
+		}
+	}
+
+	/**
+	 * Unsubscribe all listeners and clean up the Tauri listener.
+	 * @deprecated Use unsubscribeById for proper cleanup. This removes ALL listeners.
+	 */
+	unsubscribe(): void {
+		this.listeners.clear();
+		this.transcriptDeltaListeners.clear();
+		if (this.unlistenFn) {
+			this.unlistenFn();
+			this.unlistenFn = null;
+		}
+	}
+
+	/**
+	 * Get the number of active listeners.
+	 */
+	get listenerCount(): number {
+		return this.listeners.size + this.transcriptDeltaListeners.size;
+	}
+
+	private ensureSubscribed(
+		listenerId: string,
+		hasListener: () => boolean,
+		removeListener: () => void,
+		description: string
+	): ResultAsync<string, AcpError> {
 		if (this.unlistenFn) {
 			return okAsync(listenerId);
 		}
 
-		// If initialization is in progress, wait for it
 		if (this.isInitializing && this.initPromise) {
 			return ResultAsync.fromPromise(
 				this.initPromise.then(() => {
-					// Initialization may complete after this specific listener unsubscribed.
-					if (!this.listeners.has(listenerId)) {
+					if (!hasListener()) {
 						throw new Error("Listener was removed during subscriber initialization");
 					}
 					return listenerId;
 				}),
 				(error) => {
-					this.listeners.delete(listenerId);
+					removeListener();
 					return new ProtocolError(`Failed to wait for initialization: ${error}`, error);
 				}
 			);
 		}
 
-		// Create the single ACP event bridge listener that fans out to all registered callbacks.
 		this.isInitializing = true;
 		const listenResult = openAcpEventSource((envelope) => {
-			if (envelope.eventName !== "acp-session-update") {
+			if (envelope.eventName === "acp-session-update") {
+				const update = parseSessionUpdatePayload(envelope.payload);
+				if (!update) {
+					this.logger.warn("Discarding invalid acp-session-update payload", {
+						seq: envelope.seq,
+						eventName: envelope.eventName,
+					});
+					return;
+				}
+				for (const [id, cb] of this.listeners.entries()) {
+					try {
+						cb(update);
+					} catch (error) {
+						this.logger.error("Listener threw error", { listenerId: id, error });
+					}
+				}
 				return;
 			}
-			const update = parseSessionUpdatePayload(envelope.payload);
-			if (!update) {
-				this.logger.warn("Discarding invalid acp-session-update payload", {
+
+			if (envelope.eventName !== "acp-transcript-delta") {
+				return;
+			}
+			const delta = parseTranscriptDeltaPayload(envelope.payload);
+			if (!delta) {
+				this.logger.warn("Discarding invalid acp-transcript-delta payload", {
 					seq: envelope.seq,
 					eventName: envelope.eventName,
 				});
 				return;
 			}
-
-			// Fan out to all registered listeners
-			// Wrap each callback in try-catch so a single failure does not skip subsequent listeners
-			for (const [id, cb] of this.listeners.entries()) {
+			for (const [id, cb] of this.transcriptDeltaListeners.entries()) {
 				try {
-					cb(update);
+					cb(delta);
 				} catch (error) {
 					this.logger.error("Listener threw error", { listenerId: id, error });
 				}
@@ -86,9 +167,7 @@ export class EventSubscriber {
 		})
 			.map((unlisten) => {
 				this.isInitializing = false;
-				// If all listeners unsubscribed while initialization was in flight,
-				// immediately release the native Tauri listener to avoid leaks.
-				if (this.listeners.size === 0) {
+				if (this.listeners.size === 0 && this.transcriptDeltaListeners.size === 0) {
 					unlisten();
 					this.unlistenFn = null;
 				} else {
@@ -99,12 +178,10 @@ export class EventSubscriber {
 			.mapErr((error) => {
 				this.isInitializing = false;
 				this.unlistenFn = null;
-				this.listeners.delete(listenerId);
-				return new ProtocolError(`Failed to subscribe to session updates: ${error}`, error);
+				removeListener();
+				return new ProtocolError(`Failed to subscribe to ${description}: ${error}`, error);
 			});
 
-		// Store promise for awaiting in concurrent subscribe calls
-		// Propagate initialization failures so waiting subscribers can recover.
 		this.initPromise = listenResult
 			.match(
 				() => undefined,
@@ -118,41 +195,6 @@ export class EventSubscriber {
 			});
 
 		return listenResult;
-	}
-
-	/**
-	 * Unsubscribe a specific listener by ID.
-	 * The Tauri listener is only removed when all listeners are unsubscribed.
-	 *
-	 * @param listenerId - The ID returned from subscribe()
-	 */
-	unsubscribeById(listenerId: string): void {
-		this.listeners.delete(listenerId);
-
-		// If no more listeners, clean up the Tauri listener
-		if (this.listeners.size === 0 && this.unlistenFn) {
-			this.unlistenFn();
-			this.unlistenFn = null;
-		}
-	}
-
-	/**
-	 * Unsubscribe all listeners and clean up the Tauri listener.
-	 * @deprecated Use unsubscribeById for proper cleanup. This removes ALL listeners.
-	 */
-	unsubscribe(): void {
-		this.listeners.clear();
-		if (this.unlistenFn) {
-			this.unlistenFn();
-			this.unlistenFn = null;
-		}
-	}
-
-	/**
-	 * Get the number of active listeners.
-	 */
-	get listenerCount(): number {
-		return this.listeners.size;
 	}
 }
 
@@ -169,4 +211,23 @@ function parseSessionUpdatePayload(payload: JsonValue): SessionUpdate | null {
 		return null;
 	}
 	return payload as SessionUpdate;
+}
+
+function parseTranscriptDeltaPayload(payload: JsonValue): TranscriptDelta | null {
+	if (!isJsonObject(payload)) {
+		return null;
+	}
+	if (typeof payload.eventSeq !== "number") {
+		return null;
+	}
+	if (typeof payload.sessionId !== "string") {
+		return null;
+	}
+	if (typeof payload.snapshotRevision !== "number") {
+		return null;
+	}
+	if (!Array.isArray(payload.operations)) {
+		return null;
+	}
+	return payload as TranscriptDelta;
 }

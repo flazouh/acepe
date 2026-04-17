@@ -554,10 +554,6 @@ export type UserSettingKey =
  */
 "custom_keybindings" | 
 /**
- * Streaming text animation style (none, fade, glow, typewriter)
- */
-"streaming_animation" | 
-/**
  * Webview zoom level (stored as float string, e.g., "1.0", "1.2")
  */
 "zoom_level" | 
@@ -630,10 +626,6 @@ export type UserSettingKey =
  */
 "agent_env_overrides" | 
 /**
- * Whether opening review should use full-screen overlay (boolean string "true"/"false")
- */
-"review_prefer_fullscreen" | 
-/**
  * Use worktrees by default for new sessions (boolean)
  */
 "worktree_global_default_enabled" | 
@@ -649,6 +641,10 @@ export type UserSettingKey =
  * Whether plans render inline in chat vs sidebar panel (boolean)
  */
 "plan_inline_mode" | 
+/**
+ * Whether review opens fullscreen by default (boolean)
+ */
+"review_prefer_fullscreen" | 
 /**
  * Per-category notification preferences (JSON object)
  */
