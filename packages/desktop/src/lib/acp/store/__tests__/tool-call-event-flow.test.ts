@@ -1086,6 +1086,18 @@ describe("Tool Call Event Flow", () => {
 			const liveStore = new SessionEntryStore();
 			const preloadStore = new SessionEntryStore();
 
+			liveStore.createToolCallEntry("live-session", {
+				id: "tool-execute-1",
+				name: "Bash",
+				arguments: { kind: "execute", command: "pwd" },
+				status: "pending",
+				kind: "execute",
+				title: "pwd",
+				locations: null,
+				skillMeta: null,
+				result: null,
+				awaitingPlanApproval: false,
+			});
 			liveStore.updateToolCallEntry("live-session", {
 				toolCallId: "tool-execute-1",
 				status: "completed",
