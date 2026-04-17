@@ -18,6 +18,8 @@ type SessionOpenHydratorLike = Pick<
 	"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 >;
 
+type SessionOpenApiClient = Pick<typeof api, "getSessionOpenResult">;
+
 interface OpenPersistedSessionOptions {
 	readonly panelId: string;
 	readonly sessionId: string;
@@ -25,10 +27,19 @@ interface OpenPersistedSessionOptions {
 	readonly sessionOpenHydrator: SessionOpenHydratorLike;
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
+	readonly apiClient?: SessionOpenApiClient;
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
-	const { panelId, sessionId, sessionStore, sessionOpenHydrator, timeoutMs, source } = options;
+	const {
+		panelId,
+		sessionId,
+		sessionStore,
+		sessionOpenHydrator,
+		timeoutMs,
+		source,
+		apiClient = api,
+	} = options;
 	if (inflightPanelIds.has(panelId)) {
 		logger.debug("Skipping duplicate session-open request", {
 			source,
@@ -57,7 +68,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		timeoutId = setTimeout(() => reject(new Error("Session open timed out")), timeoutMs);
 	});
 
-	const openPromise = api
+	const openPromise = apiClient
 		.getSessionOpenResult(sessionId, session.projectPath, session.agentId, session.sourcePath)
 		.andThen((result) => {
 			if (result.outcome === "missing") {
@@ -128,4 +139,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			}
 			inflightPanelIds.delete(panelId);
 		});
+}
+
+export function resetOpenPersistedSessionStateForTests(): void {
+	inflightPanelIds.clear();
 }

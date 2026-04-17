@@ -630,10 +630,6 @@ export type UserSettingKey =
  */
 "agent_env_overrides" | 
 /**
- * Whether opening review should use full-screen overlay (boolean string "true"/"false")
- */
-"review_prefer_fullscreen" | 
-/**
  * Use worktrees by default for new sessions (boolean)
  */
 "worktree_global_default_enabled" | 
@@ -872,3 +868,4 @@ export type FileExplorerPreviewResponse =
  * Fallback for binary, too-large, deleted, or unsupported files.
  */
 { kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
+

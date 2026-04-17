@@ -41,7 +41,8 @@ export class SessionHandler {
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
-		>
+		>,
+		private readonly openPersistedSessionFn: typeof openPersistedSession = openPersistedSession
 	) {}
 
 	/**
@@ -108,7 +109,7 @@ export class SessionHandler {
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
 		if (panelId) {
-			openPersistedSession({
+			this.openPersistedSessionFn({
 				panelId,
 				sessionId,
 				sessionStore: this.sessionStore,

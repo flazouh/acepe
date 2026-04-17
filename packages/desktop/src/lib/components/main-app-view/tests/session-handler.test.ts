@@ -12,10 +12,6 @@ import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 
 const openPersistedSessionMock = mock(() => {});
 
-mock.module("../logic/open-persisted-session.js", () => ({
-	openPersistedSession: openPersistedSessionMock,
-}));
-
 import { SessionHandler } from "../logic/managers/session-handler.js";
 
 describe("SessionHandler", () => {
@@ -105,7 +101,8 @@ describe("SessionHandler", () => {
 			mockState,
 			mockSessionStore,
 			mockPanelStore,
-			mockSessionOpenHydrator
+			mockSessionOpenHydrator,
+			openPersistedSessionMock
 		);
 	});
 

@@ -1,18 +1,13 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { okAsync, ResultAsync } from "neverthrow";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
-const getSessionOpenResultMock = mock(() => okAsync(createFoundResult("session-1")));
-
-mock.module("$lib/acp/store/api.js", () => ({
-	api: {
-		getSessionOpenResult: getSessionOpenResultMock,
-	},
-}));
-
-import { openPersistedSession } from "../logic/open-persisted-session.js";
+import {
+	openPersistedSession,
+	resetOpenPersistedSessionStateForTests,
+} from "../logic/open-persisted-session.js";
 
 type SessionOpenStore = Pick<
 	SessionStore,
@@ -25,44 +20,9 @@ type SessionOpenHydratorLike = Pick<
 >;
 
 describe("openPersistedSession", () => {
-	let sessionStore: SessionOpenStore;
-	let sessionOpenHydrator: SessionOpenHydratorLike;
-
-	beforeEach(() => {
-		getSessionOpenResultMock.mockReset();
-		getSessionOpenResultMock.mockImplementation(() => okAsync(createFoundResult("session-1")));
-
-		sessionStore = {
-			setSessionLoading: mock(() => {}),
-			setSessionLoaded: mock(() => {}),
-			connectSession: mock(() => okAsync(undefined)),
-			getSessionCold: mock(() => ({
-				id: "session-1",
-				title: "Session 1",
-				projectPath: "/project",
-				agentId: "claude-code",
-				sourcePath: "/tmp/session-1.jsonl",
-				createdAt: new Date(),
-				updatedAt: new Date(),
-				parentId: null,
-			})),
-		} as unknown as SessionOpenStore;
-
-		sessionOpenHydrator = {
-			beginAttempt: mock(() => "request-1"),
-			clearAttempt: mock(() => {}),
-			hydrateFound: mock(() =>
-				okAsync({
-					canonicalSessionId: "session-1",
-					openToken: "open-token-1",
-					applied: true,
-				})
-			),
-			isCurrentAttempt: mock(() => true),
-		};
-	});
-
 	it("dedupes concurrent calls for the same panel", async () => {
+		const { apiClient, getSessionOpenResultMock, panelId, sessionOpenHydrator, sessionStore } =
+			createTestContext();
 		getSessionOpenResultMock.mockImplementation(
 			() =>
 				ResultAsync.fromSafePromise(
@@ -73,20 +33,22 @@ describe("openPersistedSession", () => {
 		);
 
 		openPersistedSession({
-			panelId: "panel-1",
+			panelId,
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
 			timeoutMs: 10_000,
 			source: "session-handler",
+			apiClient,
 		});
 		openPersistedSession({
-			panelId: "panel-1",
+			panelId,
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
 			timeoutMs: 10_000,
 			source: "session-handler",
+			apiClient,
 		});
 
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
@@ -95,18 +57,20 @@ describe("openPersistedSession", () => {
 	});
 
 	it("hydrates before connecting after a found result", async () => {
+		const { apiClient, panelId, sessionOpenHydrator, sessionStore } = createTestContext();
 		openPersistedSession({
-			panelId: "panel-1",
+			panelId,
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
 			timeoutMs: 10_000,
 			source: "session-handler",
+			apiClient,
 		});
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalledWith(
-			"panel-1",
+			panelId,
 			"request-1",
 			expect.objectContaining({
 				outcome: "found",
@@ -120,6 +84,8 @@ describe("openPersistedSession", () => {
 	});
 
 	it("marks the session loaded without connecting when the result is missing", async () => {
+		const { apiClient, getSessionOpenResultMock, panelId, sessionOpenHydrator, sessionStore } =
+			createTestContext();
 		getSessionOpenResultMock.mockImplementation(
 			() =>
 				okAsync({
@@ -129,20 +95,72 @@ describe("openPersistedSession", () => {
 		);
 
 		openPersistedSession({
-			panelId: "panel-1",
+			panelId,
 			sessionId: "session-1",
 			sessionStore,
 			sessionOpenHydrator,
 			timeoutMs: 10_000,
 			source: "session-handler",
+			apiClient,
 		});
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith(panelId);
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connectSession).not.toHaveBeenCalled();
 	});
 });
+
+function createTestContext(): {
+	apiClient: { getSessionOpenResult: ReturnType<typeof mock> };
+	getSessionOpenResultMock: ReturnType<typeof mock>;
+	panelId: string;
+	sessionOpenHydrator: SessionOpenHydratorLike;
+	sessionStore: SessionOpenStore;
+} {
+	resetOpenPersistedSessionStateForTests();
+	const panelId = `open-persisted-panel-${crypto.randomUUID()}`;
+	const getSessionOpenResultMock = mock(() => okAsync(createFoundResult("session-1")));
+
+	const sessionStore = {
+		setSessionLoading: mock(() => {}),
+		setSessionLoaded: mock(() => {}),
+		connectSession: mock(() => okAsync(undefined)),
+		getSessionCold: mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "claude-code",
+			sourcePath: "/tmp/session-1.jsonl",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			parentId: null,
+		})),
+	} as unknown as SessionOpenStore;
+
+	const sessionOpenHydrator = {
+		beginAttempt: mock(() => "request-1"),
+		clearAttempt: mock(() => {}),
+		hydrateFound: mock(() =>
+			okAsync({
+				canonicalSessionId: "session-1",
+				openToken: "open-token-1",
+				applied: true,
+			})
+		),
+		isCurrentAttempt: mock(() => true),
+	};
+
+	return {
+		apiClient: {
+			getSessionOpenResult: getSessionOpenResultMock,
+		},
+		getSessionOpenResultMock,
+		panelId,
+		sessionOpenHydrator,
+		sessionStore,
+	};
+}
 
 function createFoundResult(sessionId: string): SessionOpenResult {
 	return {

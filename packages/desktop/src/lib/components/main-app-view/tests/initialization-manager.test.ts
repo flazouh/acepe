@@ -14,10 +14,6 @@ import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnect
 
 const openPersistedSessionMock = mock(() => {});
 
-mock.module("../logic/open-persisted-session.js", () => ({
-	openPersistedSession: openPersistedSessionMock,
-}));
-
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		initialize: () => okAsync(undefined),
@@ -185,7 +181,8 @@ describe("InitializationManager", () => {
 			mockAgentPreferencesStore,
 			mockKeybindingsService,
 			mockPreconnectionAgentSkillsStore,
-			mockSessionOpenHydrator
+			mockSessionOpenHydrator,
+			openPersistedSessionMock
 		);
 	});
 
@@ -254,7 +251,8 @@ describe("InitializationManager", () => {
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
 				mockPreconnectionAgentSkillsStore,
-				mockSessionOpenHydrator
+				mockSessionOpenHydrator,
+				openPersistedSessionMock
 			);
 
 			const result = await manager.initialize();
@@ -808,7 +806,8 @@ describe("InitializationManager", () => {
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
 				mockPreconnectionAgentSkillsStore,
-				mockSessionOpenHydrator
+				mockSessionOpenHydrator,
+				openPersistedSessionMock
 			);
 
 			const result = await manager.initialize();

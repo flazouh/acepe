@@ -112,7 +112,8 @@ export class InitializationManager {
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
-		>
+		>,
+		private readonly openPersistedSessionFn: typeof openPersistedSession = openPersistedSession
 	) {}
 
 	/**
@@ -609,7 +610,7 @@ export class InitializationManager {
 			const session = this.sessionStore.getSessionCold(panel.sessionId);
 			if (!session) continue;
 
-			openPersistedSession({
+			this.openPersistedSessionFn({
 				panelId: panel.id,
 				sessionId: panel.sessionId,
 				sessionStore: this.sessionStore,
