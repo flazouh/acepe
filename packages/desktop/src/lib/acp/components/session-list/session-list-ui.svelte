@@ -87,6 +87,12 @@ interface Props {
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
 	/** Available agents for session creation */
 	availableAgents?: AgentInfo[];
+	/**
+	 * Default agent id to spawn on a plain left-click of the `+` button.
+	 * When null/undefined or not present in `availableAgents`, the click falls
+	 * back to showing the agent picker strip.
+	 */
+	defaultAgentId?: string | null;
 	/** Current theme for agent icons */
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
@@ -137,6 +143,7 @@ let {
 	onCreateSession: _onCreateSession,
 	onCreateSessionForProject,
 	availableAgents = [],
+	defaultAgentId = null,
 	effectiveTheme = "light",
 	onProjectClick,
 	onSelectFile,
@@ -801,6 +808,39 @@ function handleCreateClick(event: MouseEvent, projectPath: string, agentId?: str
 	onCreateSessionForProject?.(projectPath, agentId);
 }
 
+/**
+ * Resolve the default agent id to use when the `+` button is left-clicked.
+ * Returns undefined when there is no saved default, or when the saved default
+ * is no longer present in `availableAgents` (e.g. the agent was removed or
+ * disabled since it was saved).
+ */
+function resolveDefaultAgentIdForCreate(): string | undefined {
+	if (defaultAgentId == null) return undefined;
+	const isAvailable = availableAgents.some((a) => a.id === defaultAgentId);
+	return isAvailable ? defaultAgentId : undefined;
+}
+
+function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) {
+	event.stopPropagation();
+	if (!shouldShowProjectQuickActions()) {
+		handleCreateClick(event, projectPath);
+		return;
+	}
+	const resolvedDefault = resolveDefaultAgentIdForCreate();
+	if (resolvedDefault !== undefined) {
+		handleCreateClick(event, projectPath, resolvedDefault);
+		return;
+	}
+	projectPathShowingAgentStrip = projectPath;
+}
+
+function handleProjectCreateButtonContextMenu(event: MouseEvent, projectPath: string) {
+	if (!shouldShowProjectQuickActions()) return;
+	event.preventDefault();
+	event.stopPropagation();
+	projectPathShowingAgentStrip = projectPath;
+}
+
 function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
 	onOpenGitPanel?.(projectPath);
@@ -1126,14 +1166,9 @@ function openCreateBranchDialog(projectPath: string): void {
 													<div
 														class="flex items-center"
 														role="presentation"
-														onclick={(e) => {
-															e.stopPropagation();
-															if (shouldShowProjectQuickActions()) {
-																projectPathShowingAgentStrip = group.projectPath;
-															} else {
-																handleCreateClick(e, group.projectPath);
-															}
-														}}
+														onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+														oncontextmenu={(e) =>
+															handleProjectCreateButtonContextMenu(e, group.projectPath)}
 														onkeydown={(e) => e.stopPropagation()}
 													>
 														<Tooltip.Root>
@@ -1317,14 +1352,9 @@ function openCreateBranchDialog(projectPath: string): void {
 												<div
 													class="flex shrink-0 items-center"
 													role="presentation"
-													onclick={(e) => {
-														e.stopPropagation();
-														if (shouldShowProjectQuickActions()) {
-															projectPathShowingAgentStrip = group.projectPath;
-														} else {
-															handleCreateClick(e, group.projectPath);
-														}
-													}}
+													onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+													oncontextmenu={(e) =>
+														handleProjectCreateButtonContextMenu(e, group.projectPath)}
 													onkeydown={(e) => e.stopPropagation()}
 												>
 													<Tooltip.Root>
