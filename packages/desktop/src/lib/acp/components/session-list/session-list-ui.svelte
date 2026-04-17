@@ -55,6 +55,7 @@ import {
 	getNextSessionListVisibleCount,
 	getSessionListVisibleCount,
 	isSessionListNearBottom,
+	resolveDefaultAgentIdForCreate,
 } from "./session-list-logic.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
@@ -814,10 +815,8 @@ function handleCreateClick(event: MouseEvent, projectPath: string, agentId?: str
  * is no longer present in `availableAgents` (e.g. the agent was removed or
  * disabled since it was saved).
  */
-function resolveDefaultAgentIdForCreate(): string | undefined {
-	if (defaultAgentId == null) return undefined;
-	const isAvailable = availableAgents.some((a) => a.id === defaultAgentId);
-	return isAvailable ? defaultAgentId : undefined;
+function resolveDefaultAgentIdForCreateLocal(): string | undefined {
+	return resolveDefaultAgentIdForCreate(availableAgents, defaultAgentId);
 }
 
 function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) {
@@ -826,7 +825,7 @@ function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) 
 		handleCreateClick(event, projectPath);
 		return;
 	}
-	const resolvedDefault = resolveDefaultAgentIdForCreate();
+	const resolvedDefault = resolveDefaultAgentIdForCreateLocal();
 	if (resolvedDefault !== undefined) {
 		handleCreateClick(event, projectPath, resolvedDefault);
 		return;
