@@ -1,100 +1,56 @@
-//! # Claude Code SDK for Rust
+//! # Claude Code SDK — lower-level runtime authority
 //!
-//! A Rust SDK for interacting with the Claude Code CLI, providing both simple query
-//! and interactive client interfaces.
+//! `cc_sdk` is the single authoritative lower-level Claude runtime for this
+//! codebase.  It owns the direct Rust ↔ Claude CLI communication layer.
 //!
-//! ## Features
+//! The production path is:
 //!
-//! - **Simple Query Interface**: One-shot queries with the `query` function
-//! - **Interactive Client**: Stateful conversations with `ClaudeSDKClient`
-//! - **Streaming Support**: Async streaming of responses
-//! - **Type Safety**: Strongly typed messages and errors
-//! - **Flexible Configuration**: Extensive options for customization
-//!
-//! ## Quick Start
-//!
-//! ```rust,no_run
-//! use acepe_lib::cc_sdk::{query, Result};
-//! use futures::StreamExt;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let mut messages = query("What is 2 + 2?", None).await?;
-//!     
-//!     while let Some(msg) = messages.next().await {
-//!         println!("{:?}", msg?);
-//!     }
-//!     
-//!     Ok(())
-//! }
+//! ```text
+//! ClaudeCcSdkClient (acp/client/cc_sdk_client.rs)
+//!     -> ClaudeSDKClient  (this module)
+//!     -> Claude CLI subprocess
 //! ```
-
-#![warn(missing_docs)]
-#![warn(rustdoc::missing_crate_level_docs)]
+//!
+//! All other paths (sidecar, WebSocket, optimised client variants) have been
+//! removed.  Do not reintroduce a second lower-level runtime here.
 
 /// CLI download and management utilities
 pub mod cli_download;
 mod client;
-// mod client_v2;  // Has compilation errors
-// mod client_final;  // Has compilation errors
-mod client_working;
 mod errors;
-mod interactive;
 mod internal_query;
 mod message_parser;
-pub mod model_recommendation;
-mod optimized_client;
-mod perf_utils;
-mod query;
+// sdk_mcp is private: used internally by internal_query only
 mod sdk_mcp;
-/// Session history API
-pub mod sessions;
-pub mod token_tracker;
+mod token_tracker;
 pub mod transport;
 mod types;
 
-// Re-export main types and functions
+// Re-export the production-facing surface
 pub use client::ClaudeSDKClient;
-// pub use client_v2::ClaudeSDKClientV2;  // Has compilation errors
-// pub use client_final::ClaudeSDKClientFinal;  // Has compilation errors
-pub use client_working::ClaudeSDKClientWorking;
 pub use errors::{Result, SdkError};
-pub use interactive::InteractiveClient;
-pub use internal_query::Query;
-pub use query::query;
-// Keep the old name as an alias for backward compatibility
-pub use interactive::InteractiveClient as SimpleInteractiveClient;
-pub use model_recommendation::ModelRecommendation;
-pub use optimized_client::{ClientMode, OptimizedClient};
-pub use perf_utils::{MessageBatcher, PerformanceMetrics, RetryConfig};
-pub use sessions::{
-    get_session_messages, list_sessions, rename_session, tag_session, SessionInfo, SessionMessage,
-};
-pub use token_tracker::{BudgetLimit, BudgetManager, BudgetStatus, TokenUsageTracker};
-/// Default interactive client - the recommended client for interactive use
-pub type ClaudeSDKClientDefault = InteractiveClient;
 pub use types::{
     AgentDefinition,
     AssistantContent,
     AssistantMessage,
     AssistantMessageError,
     AsyncHookJSONOutput,
-    // Hook Input types (strongly-typed)
+    // Hook Input types
     BaseHookInput,
     CanUseTool,
     ClaudeCodeOptions,
+    ClaudeCodeOptionsBuilder,
     ContentBlock,
     ContentValue,
     ControlProtocolFormat,
     ControlRequest,
     ControlResponse,
-    // v0.7.0 enhancements (Python SDK parity)
     Effort,
-    // Hook types (v0.3.0 - strongly-typed hooks)
+    // Hook types
     HookCallback,
     HookContext,
     HookInput,
-    // Hook Output types (strongly-typed)
+    // Hook Output types
     HookJSONOutput,
     HookMatcher,
     HookSpecificOutput,
@@ -145,7 +101,6 @@ pub use types::{
     SdkBeta,
     SdkPluginConfig,
     SessionStartHookSpecificOutput,
-    // Phase 2 enhancements
     SettingSource,
     StopHookInput,
     SubagentStartHookInput,
@@ -158,7 +113,6 @@ pub use types::{
     TaskProgressMessage,
     TaskStartedMessage,
     TaskStatus,
-    // Task message types (Python SDK parity)
     TaskUsage,
     TextContent,
     ThinkingConfig,
@@ -166,7 +120,6 @@ pub use types::{
     ToolPermissionContext,
     ToolResultContent,
     ToolUseContent,
-    // Phase 3 enhancements (Python SDK v0.1.12+ sync)
     ToolsConfig,
     ToolsPreset,
     UserContent,
@@ -174,31 +127,3 @@ pub use types::{
     UserPromptSubmitHookInput,
     UserPromptSubmitHookSpecificOutput,
 };
-
-// Phase 3: Type aliases for naming consistency
-/// Alias for ClaudeCodeOptions (matches Python SDK naming)
-pub type ClaudeAgentOptions = ClaudeCodeOptions;
-/// Alias for ClaudeCodeOptionsBuilder (matches Python SDK naming)
-pub type ClaudeAgentOptionsBuilder = ClaudeCodeOptionsBuilder;
-
-// Re-export builder
-pub use types::ClaudeCodeOptionsBuilder;
-
-// Re-export transport types for convenience
-#[cfg(feature = "websocket")]
-pub use transport::websocket::{WebSocketConfig, WebSocketTransport};
-pub use transport::SubprocessTransport;
-
-// Re-export SDK MCP types
-pub use sdk_mcp::{
-    create_simple_tool, SdkMcpServer, SdkMcpServerBuilder, ToolDefinition, ToolHandler,
-    ToolInputSchema, ToolResult, ToolResultContent as SdkToolResultContent,
-};
-
-/// Prelude module for convenient imports
-pub mod prelude {
-    pub use super::{
-        query, ClaudeCodeOptions, ClaudeSDKClient, ClaudeSDKClientWorking, Message, PermissionMode,
-        Result, SdkError,
-    };
-}

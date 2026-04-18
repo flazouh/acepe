@@ -27,7 +27,7 @@ import type {
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
-import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
+import type { ContentBlock, SessionPlanResponse } from "../../../../services/converted-session-types.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
 import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";

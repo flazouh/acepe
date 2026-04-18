@@ -1,4 +1,4 @@
-import type { SessionPlanResponse } from "../../../../services/claude-history";
+import type { SessionPlanResponse } from "../../../../services/converted-session-types";
 
 /**
  * State for session plan loading.

@@ -130,3 +130,24 @@ pub async fn create_client(
     tracing::info!(agent_id = %agent_id.as_str(), "Client created and started");
     Ok(client)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::provider::AgentProvider;
+    use crate::acp::providers::claude_code::ClaudeCodeProvider;
+
+    /// Composition safeguard: `ClaudeCodeProvider` must report `CcSdk`, which routes
+    /// `create_client` to `ClaudeCcSdkClient` — the sole production Claude path.
+    /// If this test fails, a new Claude authority has been introduced.
+    #[test]
+    fn claude_provider_routes_to_cc_sdk_client() {
+        let provider = ClaudeCodeProvider;
+        assert_eq!(
+            provider.communication_mode(),
+            CommunicationMode::CcSdk,
+            "ClaudeCodeProvider must always use CommunicationMode::CcSdk so that \
+             create_client routes to ClaudeCcSdkClient (the sole production Claude path)"
+        );
+    }
+}

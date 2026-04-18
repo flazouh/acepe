@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
-import type { SessionPlanResponse } from "../../../../services/claude-history.js";
+import type { SessionPlanResponse } from "../../../../services/converted-session-types.js";
 import {
 	buildDesktopAgentPanelScene,
 	buildDesktopComposerModel,

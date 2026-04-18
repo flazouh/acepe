@@ -12,7 +12,7 @@ import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import * as m from "$lib/messages.js";
 
-import type { SessionPlanResponse } from "../../services/claude-history.js";
+import type { SessionPlanResponse } from "../../services/converted-session-types.js";
 
 import { useSessionContext } from "../hooks/use-session-context.js";
 import CopyButton from "./messages/copy-button.svelte";

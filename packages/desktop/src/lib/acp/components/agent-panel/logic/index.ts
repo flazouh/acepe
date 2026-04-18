@@ -10,7 +10,6 @@ export { derivePanelErrorInfo } from "./connection-ui";
 export { createAutoScroll } from "./create-auto-scroll.svelte.js";
 export { resolveEffectiveProjectPath } from "./effective-project-path";
 export { calculateLoadingProgress, isLoadingComplete } from "./loading-animator";
-export { loadSessionPlan } from "./plan-loader";
 export { mapSessionStatusToUI } from "./session-status-mapper";
 export { resolveVisibleSessionEntries } from "./visible-session-entries";
 export {
