@@ -26,7 +26,12 @@ import type {
 } from "../../services/acp-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
+import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
+import {
+	deriveStoreComposerState,
+	type StoreComposerState,
+} from "../logic/composer-ui-state.js";
 import {
 	deriveSessionRuntimeState,
 	deriveSessionUIState,
@@ -40,6 +45,7 @@ import type { SessionUpdate } from "../types/session-update";
 import type { ToolCallUpdate } from "../types/tool-call";
 import type { ActiveTurnFailure, TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
+import { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import {
 	SessionConnectionService,
 	type SessionMachineActor,
@@ -207,6 +213,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	// Connection service (state machines + connection tracking)
 	private readonly connectionService = new SessionConnectionService();
+
+	// Composer policy actors (submit/config/dispatch gating)
+	private readonly composerMachineService = new ComposerMachineService((sessionId) =>
+		this.getHotState(sessionId)
+	);
 
 	// Repository for CRUD and loading operations
 	private readonly repository: SessionRepository;
@@ -474,6 +485,47 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return deriveSessionRuntimeState(state, lastEntry);
 	}
 
+	/**
+	 * Canonical composer policy for a session (config block, dispatch, selector disables).
+	 * Reactive: subscribes to composer machine snapshots and runtime state.
+	 */
+	getStoreComposerState(sessionId: string): StoreComposerState | null {
+		this.hotStateStore.getHotState(sessionId);
+		const snapshot = this.composerMachineService.getState(sessionId);
+		if (!snapshot) {
+			return null;
+		}
+		return deriveStoreComposerState({
+			machineSnapshot: snapshot,
+			runtime: this.getSessionRuntimeState(sessionId),
+		});
+	}
+
+	/**
+	 * Re-seed composer committed state from hot state (call when panel binds / session changes).
+	 * Ensures the per-session actor exists before binding.
+	 */
+	bindComposerSession(sessionId: string): void {
+		this.composerMachineService.createOrGetActor(sessionId);
+		this.composerMachineService.bindSession(sessionId);
+	}
+
+	runComposerConfigOperation(
+		sessionId: string,
+		beginPayload: Omit<Extract<ComposerMachineEvent, { type: "CONFIG_BLOCK_BEGIN" }>, "type">,
+		operation: () => Promise<boolean>
+	): Promise<boolean> {
+		return this.composerMachineService.runConfigOperation(sessionId, beginPayload, operation);
+	}
+
+	composerBeginDispatch(sessionId: string): void {
+		this.composerMachineService.beginDispatch(sessionId);
+	}
+
+	composerEndDispatch(sessionId: string): void {
+		this.composerMachineService.endDispatch(sessionId);
+	}
+
 	applySessionProjection(projection: SessionProjectionSnapshot): void {
 		const sessionId = resolveProjectionSessionId(projection);
 		if (sessionId === null) {
@@ -553,6 +605,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.hotStateStore.removeHotState(sessionId);
 		this.capabilitiesStore.removeCapabilities(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
+		this.composerMachineService.removeMachine(sessionId);
 		preferencesStore.clearSessionModelPerMode(sessionId);
 		for (const cb of this.onRemoveCallbacks) {
 			cb(sessionId);
@@ -626,6 +679,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			turnState: toFrontendTurnState(snapshot.turnState),
 			connectionError: null,
 		});
+		this.connectionService.sendContentLoad(canonicalSessionId);
+		this.connectionService.sendContentLoaded(canonicalSessionId);
 	}
 
 	/**
@@ -892,6 +947,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			entryCountBeforeSend: this.entryStore.getEntries(sessionId).length,
 			preview: content.trim().slice(0, 120),
 		});
+		const hotState = this.hotStateStore.getHotState(sessionId);
 
 		const send = () =>
 			this.messagingSvc.sendMessage(sessionId, content, attachments).map(() => {
@@ -919,7 +975,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		return send();
+		if (hotState.isConnected) {
+			return send();
+		}
+
+		return this.connectSession(sessionId).andThen(() => send());
 	}
 
 	// ============================================

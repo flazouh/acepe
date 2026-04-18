@@ -7,6 +7,12 @@ interface EnterKeyIntentInput {
 	shiftKey: boolean;
 	metaKey: boolean;
 	ctrlKey: boolean;
+	/** When true, config work is blocking — suppress send, queue, steer, Enter-submit. */
+	hasBlockingComposerConfig?: boolean;
+	/** Send dispatch in flight — same gating as primary button `isSending`. */
+	isComposerDispatching?: boolean;
+	/** Canonical runtime/host submit disabled (session cannot submit). */
+	isSubmitDisabled?: boolean;
 }
 
 interface PrimaryButtonIntentInput {
@@ -22,17 +28,41 @@ interface DefaultSubmitActionInput {
 	isAgentBusy: boolean;
 	isStreaming: boolean;
 	isSubmitDisabled: boolean;
+	hasBlockingComposerConfig?: boolean;
+	isComposerDispatching?: boolean;
+	/** @deprecated Use hasBlockingComposerConfig */
+	hasBlockingPendingSessionConfigOperation?: boolean;
 }
 
 interface PrimaryButtonDisabledInput {
 	hasDraftInput: boolean;
-	isSending: boolean;
+	isComposerDispatching: boolean;
 	isAgentBusy: boolean;
 	isSubmitDisabled: boolean;
 	primaryButtonIntent: SubmitIntent;
+	hasBlockingComposerConfig?: boolean;
+	/** @deprecated Use isComposerDispatching */
+	isSending?: boolean;
+	/** @deprecated Use hasBlockingComposerConfig */
+	hasBlockingPendingSessionConfigOperation?: boolean;
+}
+
+function isBlockingConfig(input: {
+	hasBlockingComposerConfig?: boolean;
+	hasBlockingPendingSessionConfigOperation?: boolean;
+}): boolean {
+	return Boolean(input.hasBlockingComposerConfig ?? input.hasBlockingPendingSessionConfigOperation);
+}
+
+function isDispatching(input: { isComposerDispatching?: boolean; isSending?: boolean }): boolean {
+	return Boolean(input.isComposerDispatching ?? input.isSending);
 }
 
 export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent {
+	if (isBlockingConfig(input) || isDispatching(input) || input.isSubmitDisabled) {
+		return "none";
+	}
+
 	if (!input.hasDraftInput) {
 		return "none";
 	}
@@ -69,6 +99,10 @@ export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): Def
 		return "none";
 	}
 
+	if (isBlockingConfig(input) || input.isComposerDispatching) {
+		return "none";
+	}
+
 	if (input.hasSessionId && input.isAgentBusy) {
 		return "queue";
 	}
@@ -85,7 +119,11 @@ export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): Def
 }
 
 export function isPrimaryButtonDisabled(input: PrimaryButtonDisabledInput): boolean {
-	if (input.isSending) {
+	if (isDispatching(input)) {
+		return true;
+	}
+
+	if (isBlockingConfig(input)) {
 		return true;
 	}
 

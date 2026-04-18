@@ -1,9 +1,9 @@
 use super::*;
 use crate::acp::provider::{AgentProvider, ProjectDiscoveryCompleteness};
 use crate::acp::registry::AgentRegistry;
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use crate::commands::observability::{unexpected_command_result, CommandResult};
 
 fn is_worktree_project_path(project_path: &str) -> bool {
     let repo = match crate::file_index::git::open_repository(std::path::Path::new(project_path)) {
@@ -68,7 +68,7 @@ fn should_fallback_to_legacy_project_discovery(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_all_project_paths(app: AppHandle) -> CommandResult<Vec<ProjectInfo>>  {
+pub async fn list_all_project_paths(app: AppHandle) -> CommandResult<Vec<ProjectInfo>> {
     unexpected_command_result("list_all_project_paths", "Failed to list project paths", async {
 
         let providers = visible_history_providers(&app);
@@ -147,36 +147,39 @@ pub async fn list_all_project_paths(app: AppHandle) -> CommandResult<Vec<Project
 pub async fn count_sessions_for_project(
     app: AppHandle,
     project_path: String,
-) -> CommandResult<ProjectSessionCounts>  {
-    unexpected_command_result("count_sessions_for_project", "Failed to count sessions for project", async {
+) -> CommandResult<ProjectSessionCounts> {
+    unexpected_command_result(
+        "count_sessions_for_project",
+        "Failed to count sessions for project",
+        async {
+            let providers = visible_history_providers(&app);
+            let mut counts = HashMap::new();
 
-        let providers = visible_history_providers(&app);
-        let mut counts = HashMap::new();
-
-        for provider in providers {
-            let agent_id = provider.id().to_string();
-            match provider.count_sessions_for_project(&project_path).await {
-                Ok(count) if count > 0 => {
-                    counts.insert(agent_id, count);
-                }
-                Ok(_) => {}
-                Err(error) => {
-                    tracing::warn!(
-                        project = %project_path,
-                        agent_id = %agent_id,
-                        error = %error,
-                        "Failed to count provider sessions for project"
-                    );
+            for provider in providers {
+                let agent_id = provider.id().to_string();
+                match provider.count_sessions_for_project(&project_path).await {
+                    Ok(count) if count > 0 => {
+                        counts.insert(agent_id, count);
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        tracing::warn!(
+                            project = %project_path,
+                            agent_id = %agent_id,
+                            error = %error,
+                            "Failed to count provider sessions for project"
+                        );
+                    }
                 }
             }
+
+            Ok(ProjectSessionCounts {
+                path: project_path,
+                counts,
+            })
         }
-
-        Ok(ProjectSessionCounts {
-            path: project_path,
-            counts,
-        })
-
-    }.await)
+        .await,
+    )
 }
 
 #[cfg(test)]

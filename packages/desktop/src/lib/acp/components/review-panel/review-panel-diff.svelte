@@ -1,16 +1,17 @@
 <script lang="ts">
-import { type FileContents, parseDiffFromFile } from "@pierre/diffs";
 import { onDestroy, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
+import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import {
 	type ReviewDiffData,
 	ReviewDiffViewState,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
+import { createReviewDiffData } from "./review-diff-data.js";
 
 interface Props {
 	file: ModifiedFileEntry;
-	projectPath?: string;
+	projectPath?: string | null;
 	isActive?: boolean;
 	onHunkAccept?: (hunkIndex: number) => void;
 	onHunkReject?: (hunkIndex: number, oldContent: string) => void;
@@ -20,7 +21,7 @@ interface Props {
 
 let {
 	file,
-	projectPath: _projectPath = "",
+	projectPath = null,
 	isActive = true,
 	onHunkAccept,
 	onHunkReject,
@@ -28,42 +29,17 @@ let {
 }: Props = $props();
 
 let containerRef: HTMLDivElement | null = $state(null);
+let fetchedDiffData = $state<ReviewDiffData | null>(null);
 const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 const diffViewState = new ReviewDiffViewState();
+let lastRequestedDiffKey = 0;
 
-// Compute the combined diff for original and final file content
-const diffData = $derived.by((): ReviewDiffData | null => {
-	if (file.originalContent === null && file.finalContent === null) return null;
+const embeddedDiffData = $derived.by(() =>
+	createReviewDiffData(file, file.originalContent, file.finalContent)
+);
 
-	const originalContent = file.originalContent ?? "";
-	const finalContent = file.finalContent ?? "";
-
-	const cacheKey = `review-${file.filePath}`;
-
-	const oldFile: FileContents = {
-		name: file.fileName,
-		contents: originalContent,
-		cacheKey: `${cacheKey}-old`,
-	};
-
-	const newFile: FileContents = {
-		name: file.fileName,
-		contents: finalContent,
-		cacheKey: `${cacheKey}-new`,
-	};
-
-	// Pre-parse to get FileDiffMetadata which enables:
-	// - Full file rendering with expandable hunks
-	// - Accept/reject hunk functionality
-	const fileDiffMetadata = parseDiffFromFile(oldFile, newFile);
-
-	return {
-		oldFile,
-		newFile,
-		fileDiffMetadata,
-	};
-});
+const diffData = $derived.by(() => fetchedDiffData ?? embeddedDiffData);
 
 function handleHunkAction(
 	hunkIndex: number,
@@ -97,6 +73,36 @@ function renderDiff(container: HTMLDivElement): void {
 			onDiffStateReady?.(diffViewState);
 		});
 }
+
+$effect(() => {
+	const currentFile = file;
+	const currentProjectPath = projectPath;
+	const requestKey = lastRequestedDiffKey + 1;
+	lastRequestedDiffKey = requestKey;
+	fetchedDiffData = null;
+
+	if (!currentProjectPath) {
+		return;
+	}
+
+	fileContentCache.getFileDiff(currentFile.filePath, currentProjectPath).match(
+		(diff) => {
+			if (requestKey !== lastRequestedDiffKey) {
+				return;
+			}
+
+			fetchedDiffData = createReviewDiffData(currentFile, diff.oldContent, diff.newContent);
+		},
+		(error) => {
+			if (requestKey !== lastRequestedDiffKey) {
+				return;
+			}
+
+			console.error(`Failed to load full diff for ${currentFile.filePath}:`, error.message);
+			fetchedDiffData = null;
+		}
+	);
+});
 
 $effect(() => {
 	const container = containerRef;

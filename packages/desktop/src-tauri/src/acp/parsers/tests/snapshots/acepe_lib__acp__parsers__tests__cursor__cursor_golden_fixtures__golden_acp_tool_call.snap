@@ -10,6 +10,7 @@ ToolCallData {
         file_path: Some(
             "/tmp/main.go",
         ),
+        source_context: None,
     },
     raw_input: Some(
         Object {

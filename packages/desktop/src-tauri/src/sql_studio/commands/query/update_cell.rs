@@ -1,5 +1,5 @@
 use crate::commands::observability::{
-    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
+    expected_command_result, unexpected_command_result, CommandResult, SerializableCommandError,
 };
 use rusqlite::{params_from_iter, types::Value, Connection};
 use sea_orm::DbConn;
@@ -97,8 +97,11 @@ pub async fn sql_studio_update_table_cell(
             }
             "postgres" => {
                 let pool = connect_postgres(&connection).await?;
-                let qualified_table =
-                    build_qualified_table_name("postgres", &request.schema_name, &request.table_name);
+                let qualified_table = build_qualified_table_name(
+                    "postgres",
+                    &request.schema_name,
+                    &request.table_name,
+                );
                 let set_column = quote_ident_double(&request.column_name);
                 let where_clause = request
                     .primary_key_columns

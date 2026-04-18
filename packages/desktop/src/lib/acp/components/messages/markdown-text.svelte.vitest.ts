@@ -929,6 +929,34 @@ describe("MarkdownText", () => {
 			expect(view.container.querySelector(".sd-word-fade")).toBeNull();
 		});
 
+		it("does not restart reveal from the beginning after a remount with the same reveal key", async () => {
+			const text = "Remounted historical assistant text";
+			const firstView = render(MarkdownText, {
+				text,
+				isStreaming: true,
+				revealKey: "historical-remount-key",
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				expect(firstView.container.textContent).toContain("Remounted");
+			});
+
+			firstView.unmount();
+
+			const remountedView = render(MarkdownText, {
+				text,
+				isStreaming: true,
+				revealKey: "historical-remount-key",
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				expect(remountedView.container.textContent).toContain(text);
+				expect(remountedView.container.textContent).not.toBe("");
+			});
+		});
+
 		it("reports reveal activity through the paced drain window", async () => {
 			const activityStates: boolean[] = [];
 			const text = "Hello world";

@@ -1,4 +1,5 @@
 use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::reconciler::providers;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
@@ -191,7 +192,7 @@ fn tool_update_needs_enrichment(update: &ToolCallUpdateData) -> bool {
 
 fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
     match arguments {
-        ToolArguments::Read { file_path } => file_path.is_none(),
+        ToolArguments::Read { file_path, .. } => file_path.is_none(),
         ToolArguments::Delete {
             file_path,
             file_paths,
@@ -230,6 +231,8 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
             query.is_none() || max_results.is_none()
         }
         ToolArguments::Browser { .. } => false,
+        ToolArguments::Sql { query, .. } => query.is_none(),
+        ToolArguments::Unclassified { .. } => false,
         ToolArguments::Other { .. } => tool_arguments_detail_score(arguments) == 0,
     }
 }
@@ -258,7 +261,12 @@ fn enrich_tool_call_data(
         tool_call.raw_input = Some(persisted.input.clone());
     }
 
-    if tool_call.kind.is_none() || tool_call.kind == Some(ToolKind::Other) {
+    if tool_call.kind.is_none()
+        || matches!(
+            tool_call.kind,
+            Some(ToolKind::Other) | Some(ToolKind::Unclassified)
+        )
+    {
         let candidate_kind = tool_call.arguments.tool_kind();
         if candidate_kind != ToolKind::Other {
             tool_call.kind = Some(candidate_kind);
@@ -345,7 +353,7 @@ fn merge_persisted_arguments(candidate: ToolArguments, current: &ToolArguments) 
 
 fn parse_persisted_tool_arguments(persisted: &PersistedToolUse) -> Option<ToolArguments> {
     let parser = get_parser(AgentType::Cursor);
-    let detected_kind = parser.detect_tool_kind(&persisted.name);
+    let detected_kind = providers::detect_tool_kind(AgentType::Cursor, &persisted.name);
 
     parser
         .parse_typed_tool_arguments(
@@ -367,7 +375,7 @@ fn parse_persisted_tool_arguments(persisted: &PersistedToolUse) -> Option<ToolAr
 
 fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
     match arguments {
-        ToolArguments::Read { file_path } => usize::from(file_path.is_some()),
+        ToolArguments::Read { file_path, .. } => usize::from(file_path.is_some()),
         ToolArguments::Edit { edits } => edits.first().map_or(0, |e| {
             usize::from(e.file_path.is_some())
                 + usize::from(e.move_from.is_some())
@@ -417,6 +425,22 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             } else {
                 1
             }
+        }
+        ToolArguments::Sql { query, description } => {
+            usize::from(query.is_some()) + usize::from(description.is_some())
+        }
+        ToolArguments::Unclassified {
+            raw_name,
+            raw_kind_hint,
+            title,
+            arguments_preview,
+            signals_tried,
+        } => {
+            usize::from(!raw_name.is_empty())
+                + usize::from(raw_kind_hint.is_some())
+                + usize::from(title.is_some())
+                + usize::from(arguments_preview.is_some())
+                + usize::from(!signals_tried.is_empty())
         }
         ToolArguments::Other { raw } => {
             if raw.is_null() {
@@ -573,7 +597,10 @@ mod tests {
             tool_call: ToolCallData {
                 id: "call-1".to_string(),
                 name: "Read File".to_string(),
-                arguments: ToolArguments::Read { file_path: None },
+                arguments: ToolArguments::Read {
+                    file_path: None,
+                    source_context: None,
+                },
                 raw_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,
@@ -606,7 +633,7 @@ mod tests {
                     }))
                 );
                 match tool_call.arguments {
-                    ToolArguments::Read { file_path } => {
+                    ToolArguments::Read { file_path, .. } => {
                         assert_eq!(file_path.as_deref(), Some("/tmp/example.rs"));
                     }
                     other => panic!("Expected read arguments, got {:?}", other),
@@ -633,7 +660,10 @@ mod tests {
                 normalized_questions: None,
                 streaming_arguments: None,
                 streaming_plan: None,
-                arguments: Some(ToolArguments::Read { file_path: None }),
+                arguments: Some(ToolArguments::Read {
+                    file_path: None,
+                    source_context: None,
+                }),
                 failure_reason: None,
             },
             session_id: Some("session-123".to_string()),
@@ -644,7 +674,7 @@ mod tests {
         match enriched {
             SessionUpdate::ToolCallUpdate { update, .. } => {
                 match update.arguments {
-                    Some(ToolArguments::Read { file_path }) => {
+                    Some(ToolArguments::Read { file_path, .. }) => {
                         assert_eq!(file_path.as_deref(), Some("/tmp/example.rs"));
                     }
                     other => panic!("Expected read arguments, got {:?}", other),

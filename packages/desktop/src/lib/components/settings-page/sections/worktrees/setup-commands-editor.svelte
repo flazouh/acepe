@@ -95,16 +95,16 @@
 		{m.setup_scripts_load_failed_title()} · {m.setup_scripts_retry_label()}
 	</button>
 {:else}
-	<div class="overflow-hidden rounded-md bg-foreground/5">
+	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
 		{#each commands as command, index (command + index)}
 			<div
-				class="group flex items-center gap-1.5 px-2.5 py-1.5"
+				class="group flex items-center gap-1.5 px-3 h-8 {index > 0 ? 'border-t border-border/40' : ''}"
 				class:opacity-50={isSaving}
 			>
-				<span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-foreground/80">{command}</span>
+				<span class="min-w-0 flex-1 truncate text-[12px] text-foreground">{command}</span>
 				<button
 					type="button"
-					class="shrink-0 rounded p-0.5 text-muted-foreground/30 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 disabled:pointer-events-none"
+					class="shrink-0 size-5 flex items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground hover:bg-accent group-hover:opacity-100 disabled:pointer-events-none"
 					disabled={isSaving}
 					aria-label="Remove command: {command}"
 					onclick={() => void removeCommand(index)}
@@ -115,7 +115,7 @@
 		{/each}
 
 		<div
-			class="flex items-center gap-1.5 px-2.5 py-1.5 {hasCommands ? 'border-t border-foreground/5' : ''}"
+			class="flex items-center gap-1.5 px-3 h-8 {hasCommands ? 'border-t border-border/40' : ''}"
 			class:opacity-50={isSaving}
 		>
 			<input
@@ -124,7 +124,7 @@
 				bind:value={newCommand}
 				placeholder={hasCommands ? m.setup_scripts_add_placeholder() : m.settings_worktrees_setup_description()}
 				disabled={isSaving}
-				class="min-w-0 flex-1 bg-transparent font-mono text-[0.6875rem] text-foreground/80 outline-none placeholder:text-muted-foreground/30 disabled:cursor-not-allowed"
+				class="min-w-0 flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
 				onkeydown={handleKeydown}
 			/>
 			{#if newCommand.trim()}

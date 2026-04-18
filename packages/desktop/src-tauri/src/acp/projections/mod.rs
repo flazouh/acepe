@@ -1,3 +1,9 @@
+//! Session and interaction projection snapshots for the hub (operations, permissions, questions).
+//!
+//! Tool-call **argument** semantics and payload shaping for the desktop wire contract live in
+//! [`crate::acp::reconciler::projector`]. This module tracks operational state derived from
+//! already-projected [`ToolCallData`] / updates — it does not re-classify tools.
+
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
@@ -1801,9 +1807,8 @@ mod tests {
             current_mode_id: None,
         };
 
-        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
-            converted,
-        );
+        let thread_snapshot =
+            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
@@ -1873,9 +1878,8 @@ mod tests {
             current_mode_id: None,
         };
 
-        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
-            converted,
-        );
+        let thread_snapshot =
+            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
@@ -1909,9 +1913,8 @@ mod tests {
             current_mode_id: None,
         };
 
-        let thread_snapshot = crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(
-            converted,
-        );
+        let thread_snapshot =
+            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),

@@ -13,6 +13,7 @@ import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import * as m from "$lib/messages.js";
+import AgentSelector from "../../agent-selector.svelte";
 
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
 
@@ -24,6 +25,8 @@ let {
 	sessionId,
 	sessionTitle,
 	sessionAgentId,
+	currentAgentId,
+	availableAgents,
 	agentIconSrc,
 	agentName: _agentName,
 	isFullscreen,
@@ -40,6 +43,7 @@ let {
 	displayTitle = null,
 	onExportMarkdown,
 	onExportJson,
+	onAgentChange,
 	onScrollToTop,
 	// Debug props
 	debugPanelState,
@@ -67,6 +71,18 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 	>
 		{#snippet statusIndicator()}
 			<!-- Status is shown via the controls snippet in the action cell -->
+		{/snippet}
+
+		{#snippet leadingControl()}
+			<AgentSelector
+				{availableAgents}
+				{currentAgentId}
+				onAgentChange={(agentId) => onAgentChange?.(agentId)}
+				variant="ghost"
+				buttonClass="size-5 rounded p-0 text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors data-[state=open]:bg-accent"
+				contentClass="min-w-[220px]"
+				showChevron={false}
+			/>
 		{/snippet}
 
 		{#snippet controls()}

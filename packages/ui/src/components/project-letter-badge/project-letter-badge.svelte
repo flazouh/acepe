@@ -42,7 +42,11 @@
 
 	const fontSize = $derived(fontSizeProp ?? size * 0.715);
 	const radius = $derived(size * 0.25);
-	const badgeBg = $derived(showImage ? 'var(--badge-icon-bg)' : displayColor);
+	// When rendering an image, keep the badge background transparent so the
+	// anti-aliased pixels at the rounded corners blend with the ambient surface
+	// instead of the opaque `--badge-icon-bg` (which is near-foreground and
+	// produces dark hairlines around white images).
+	const badgeBg = $derived(showImage ? 'transparent' : displayColor);
 	const badgeFg = $derived(showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
 	const badgeBorder = $derived(showImage ? 'var(--badge-icon-border)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
 	const seqBg = $derived(showImage ? 'var(--badge-seq-bg)' : badgeBg);

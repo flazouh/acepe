@@ -37,12 +37,19 @@ export interface NormalizedBrowserResult {
 	readonly outcome: "success" | "failure" | null;
 }
 
+export interface NormalizedSqlResult {
+	readonly kind: "sql";
+	readonly rawText: string | null;
+	readonly rowCount: number | null;
+}
+
 export type NormalizedToolResult =
 	| NormalizedExecuteResult
 	| NormalizedSearchResult
 	| NormalizedFetchResult
 	| NormalizedWebSearchResult
-	| NormalizedBrowserResult;
+	| NormalizedBrowserResult
+	| NormalizedSqlResult;
 
 export function isExecuteNormalizedResult(
 	result: NormalizedToolResult | null | undefined
@@ -72,4 +79,10 @@ export function isBrowserNormalizedResult(
 	result: NormalizedToolResult | null | undefined
 ): result is NormalizedBrowserResult {
 	return result?.kind === "browser";
+}
+
+export function isSqlNormalizedResult(
+	result: NormalizedToolResult | null | undefined
+): result is NormalizedSqlResult {
+	return result?.kind === "sql";
 }

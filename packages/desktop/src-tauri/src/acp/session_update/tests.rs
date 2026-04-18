@@ -502,7 +502,7 @@ mod parse_tool_call_from_acp {
     }
 
     #[test]
-    fn defaults_to_unknown_when_tool_name_missing() {
+    fn defaults_to_tool_when_tool_name_missing() {
         let data = json!({
             "toolCallId": "tool-1"
         });
@@ -510,7 +510,7 @@ mod parse_tool_call_from_acp {
         let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().name, "unknown");
+        assert_eq!(result.unwrap().name, "Tool");
     }
 
     #[test]
@@ -981,7 +981,7 @@ mod parse_tool_call_from_acp {
         assert!(result.is_ok());
         let tool_call = result.unwrap();
         match tool_call.arguments {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path, Some("/test/path.rs".to_string()));
             }
             _ => panic!("Expected Read arguments"),
@@ -1194,7 +1194,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(
                         file_path,
                         Some("/Users/example/.codex/skills/using-superpowers/SKILL.md".to_string())
@@ -1435,7 +1435,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(file_path, Some("/tmp/a".to_string()));
                 }
                 _ => panic!("Expected read tool arguments"),
@@ -1620,7 +1620,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(
                         file_path.as_deref(),
                         Some("/Users/example/Downloads/sample-go-project/README.md")
@@ -1656,7 +1656,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(
                         file_path.as_deref(),
                         Some("/Users/example/explicit/README.md")
@@ -1691,7 +1691,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(file_path, None);
                 }
                 other => panic!("Expected read tool arguments, got {:?}", other),
@@ -1717,7 +1717,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(file_path, None);
                 }
                 other => panic!("Expected read tool arguments, got {:?}", other),
@@ -1743,7 +1743,7 @@ mod parse_tool_call_from_acp {
             let tool_call = result.unwrap();
             assert_eq!(tool_call.kind, Some(ToolKind::Read));
             match tool_call.arguments {
-                ToolArguments::Read { file_path } => {
+                ToolArguments::Read { file_path, .. } => {
                     assert_eq!(file_path.as_deref(), Some("README.md"));
                 }
                 other => panic!("Expected read tool arguments, got {:?}", other),
@@ -2151,6 +2151,7 @@ fn replays_serialized_copilot_read_tool_call_data_from_event_hub() {
         match tool_call.arguments {
             ToolArguments::Read {
                 file_path: Some(file_path),
+                ..
             } => {
                 assert_eq!(file_path, "/tmp/example.rs");
             }
@@ -2534,6 +2535,7 @@ mod parse_tool_call_update_from_acp {
                         "read",
                         Some(ToolArguments::Read {
                             file_path: Some(file_path),
+                            ..
                         }),
                     ) => {
                         assert_eq!(file_path, "/tmp/file.rs");
@@ -2746,7 +2748,7 @@ mod parse_tool_call_update_from_acp {
                 update.streaming_arguments.is_some(),
                 "streaming_arguments should be populated when accumulator parses partial JSON"
             );
-            if let Some(ToolArguments::Read { file_path }) = &update.streaming_arguments {
+            if let Some(ToolArguments::Read { file_path, .. }) = &update.streaming_arguments {
                 assert_eq!(file_path.as_deref(), Some("/tmp/test.rs"));
             } else {
                 panic!(

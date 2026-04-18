@@ -40,6 +40,18 @@ pub trait AgentClient: Send + Sync {
         cwd: String,
     ) -> AcpResult<ResumeSessionResponse>;
 
+    /// Load an existing session with replay semantics.
+    ///
+    /// Default implementation falls back to `resume_session` for providers that
+    /// do not distinguish between loading and resuming a session.
+    async fn load_session(
+        &mut self,
+        session_id: String,
+        cwd: String,
+    ) -> AcpResult<ResumeSessionResponse> {
+        self.resume_session(session_id, cwd).await
+    }
+
     /// Fork a session (creates a new session with copied history)
     async fn fork_session(
         &mut self,

@@ -11,12 +11,12 @@ use std::sync::LazyLock;
 use std::time::Instant;
 
 use super::partial_json::parse_partial_json;
+use super::reconciler::{providers, semantic_transition, RawClassificationInput};
 use super::session_update::{
-    parse_normalized_questions, parse_normalized_todos, PlanConfidence, PlanData, PlanSource,
-    QuestionItem, TodoItem, ToolArguments, ToolKind,
+    PlanConfidence, PlanData, PlanSource, QuestionItem, TodoItem, ToolArguments, ToolKind,
 };
-use super::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::parsers::AgentType;
+use crate::acp::reconciler::kind_payload::canonical_name_for_kind;
 
 /// Maximum accumulated size per tool call (1MB) to prevent DoS.
 const MAX_ACCUMULATED_SIZE: usize = 1_048_576;
@@ -36,6 +36,20 @@ struct ToolCallStreamState {
     tool_kind: Option<ToolKind>,
     /// Cached tool name from initial tool_call event (for use when deltas have "unknown").
     tool_name: Option<String>,
+}
+
+fn effective_streaming_tool_name(tool_name: &str, kind: ToolKind) -> String {
+    let trimmed_name = tool_name.trim();
+    if !trimmed_name.is_empty() && !trimmed_name.eq_ignore_ascii_case("unknown") {
+        return trimmed_name.to_string();
+    }
+
+    match kind {
+        ToolKind::Todo => "TodoWrite".to_string(),
+        ToolKind::Question => "AskUserQuestion".to_string(),
+        _ if kind != ToolKind::Unclassified => canonical_name_for_kind(kind).to_string(),
+        _ => trimmed_name.to_string(),
+    }
 }
 
 impl Default for ToolCallStreamState {
@@ -93,10 +107,12 @@ impl SessionStreamingState {
 
         // Also pre-cache tool_kind for consistency.
         // If we've already guessed `Other`, allow upgrading to a specific kind once known.
-        let detected_kind = get_parser(agent).detect_tool_kind(tool_name);
+        let detected_kind = providers::detect_tool_kind(agent, tool_name);
         if state.tool_kind.is_none()
-            || matches!(state.tool_kind, Some(ToolKind::Other))
-                && !matches!(detected_kind, ToolKind::Other)
+            || matches!(
+                state.tool_kind,
+                Some(ToolKind::Other) | Some(ToolKind::Unclassified)
+            ) && !matches!(detected_kind, ToolKind::Other | ToolKind::Unclassified)
         {
             state.tool_kind = Some(detected_kind);
         }
@@ -153,10 +169,12 @@ impl SessionStreamingState {
 
             // Cache tool kind from the resolved name.
             // If we previously cached `Other`, allow upgrade when resolved_name becomes specific.
-            let detected_kind = get_parser(agent).detect_tool_kind(resolved_name);
+            let detected_kind = providers::detect_tool_kind(agent, resolved_name);
             if state.tool_kind.is_none()
-                || matches!(state.tool_kind, Some(ToolKind::Other))
-                    && !matches!(detected_kind, ToolKind::Other)
+                || matches!(
+                    state.tool_kind,
+                    Some(ToolKind::Other) | Some(ToolKind::Unclassified)
+                ) && !matches!(detected_kind, ToolKind::Other | ToolKind::Unclassified)
             {
                 state.tool_kind = Some(detected_kind);
             }
@@ -188,7 +206,7 @@ impl SessionStreamingState {
         let resolved_name = state.tool_name.as_deref().unwrap_or("other");
         let tool_kind = state
             .tool_kind
-            .or_else(|| Some(get_parser(agent).detect_tool_kind(resolved_name)));
+            .or_else(|| Some(providers::detect_tool_kind(agent, resolved_name)));
         state.last_parsed.as_ref().and_then(|value| {
             self.normalize_value(tool_call_id, value, tool_kind, resolved_name, agent)
         })
@@ -203,29 +221,24 @@ impl SessionStreamingState {
         tool_name: &str,
         agent: AgentType,
     ) -> Option<StreamingNormalized> {
-        let parser = get_parser(agent);
-        let classified = classify_raw_tool_call(
-            parser,
-            tool_call_id,
-            value,
-            ToolClassificationHints {
+        let transition = semantic_transition(
+            agent,
+            &RawClassificationInput {
+                id: tool_call_id,
                 name: Some(tool_name),
                 title: Some(tool_name),
-                kind: tool_kind,
                 kind_hint: tool_kind.map(|kind| kind.as_str()),
-                locations: None,
+                arguments: value,
             },
         );
 
-        // Optional todos/questions for TodoWrite/AskUserQuestion
-        let todos = parse_normalized_todos(&classified.name, value, agent);
-        let questions = parse_normalized_questions(&classified.name, value, agent);
+        let effective_name = effective_streaming_tool_name(tool_name, transition.record.kind);
 
         Some(StreamingNormalized {
-            todos,
-            questions,
-            streaming_arguments: Some(classified.arguments),
-            effective_tool_name: Some(classified.name),
+            todos: transition.record.normalized_todos,
+            questions: transition.record.normalized_questions,
+            streaming_arguments: Some(transition.projected_arguments),
+            effective_tool_name: Some(effective_name),
         })
     }
 }
@@ -815,7 +828,7 @@ mod tests {
         assert!(normalized.streaming_arguments.is_some());
         // Without caching, file-path payloads still normalize as Read.
         match normalized.streaming_arguments.unwrap() {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/test.rs"));
             }
             other => panic!("Expected Read variant, got {:?}", other),
@@ -838,7 +851,7 @@ mod tests {
             .expect("first delta should parse");
 
         match first.streaming_arguments.expect("streaming args expected") {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/tmp/test.rs"));
             }
             other => panic!("Expected Read before seed, got {:?}", other),
@@ -860,6 +873,51 @@ mod tests {
             }
             other => panic!("Expected Edit after seed, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn streams_sql_arguments_as_sql() {
+        let state = SessionStreamingState::new();
+
+        std::thread::sleep(std::time::Duration::from_millis(160));
+        let normalized = state
+            .accumulate_delta(
+                "tool-sql-1",
+                "unknown",
+                r#"{"description":"Mark all done","query":"UPDATE todos SET status = 'done'"}"#,
+                AgentType::Copilot,
+            )
+            .expect("sql delta should parse");
+
+        match normalized
+            .streaming_arguments
+            .expect("streaming args expected")
+        {
+            ToolArguments::Sql { query, description } => {
+                assert_eq!(query.as_deref(), Some("UPDATE todos SET status = 'done'"));
+                assert_eq!(description.as_deref(), Some("Mark all done"));
+            }
+            other => panic!("Expected Sql variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn uses_canonical_todo_name_when_streaming_name_is_unknown() {
+        let state = SessionStreamingState::new();
+
+        std::thread::sleep(std::time::Duration::from_millis(160));
+        let normalized = state
+            .accumulate_delta(
+                "tool-todo-1",
+                "unknown",
+                r#"{"todos":[{"content":"Ship reconciler","status":"in_progress","activeForm":"Shipping reconciler"}]}"#,
+                AgentType::ClaudeCode,
+            )
+            .expect("todo delta should parse");
+
+        let todos = normalized.todos.expect("todos expected");
+        assert_eq!(todos.len(), 1);
+        assert_eq!(normalized.effective_tool_name.as_deref(), Some("TodoWrite"));
     }
 
     #[test]

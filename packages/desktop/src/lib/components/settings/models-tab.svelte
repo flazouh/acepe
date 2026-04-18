@@ -84,31 +84,31 @@ interface Props {
 let { embedded = false }: Props = $props();
 </script>
 
-<div class="flex flex-col h-full text-sm">
+<div class="flex flex-col h-full text-[13px]">
 	{#if !embedded}
 		<div class="mb-3 shrink-0">
-			<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+			<h2 class="text-[13px] font-semibold text-foreground">
 				{m.settings_models_defaults()}
 			</h2>
-			<p class="text-sm text-muted-foreground/50 mt-1">
+			<p class="text-[12px] text-muted-foreground mt-0.5">
 				{m.settings_models_defaults_description()}
 			</p>
 		</div>
 	{/if}
 
-	<div class="flex-1 min-h-0 overflow-auto rounded-lg border border-border/30">
+	<div class="flex-1 min-h-0 overflow-auto rounded-lg bg-muted/20 shadow-sm">
 		{#each AGENTS as agentId (agentId)}
 			{@const cachedModels = preferencesStore.getCachedModels(agentId)}
 			{@const AgentIcon = getAgentIcon(agentId)}
 
 			<!-- Agent header -->
 			<div
-				class="flex items-center gap-2 px-2 py-1.5 bg-muted/20 border-b border-border/20 sticky top-0"
+				class="flex items-center gap-2 px-3 h-8 bg-muted/20 border-b border-border/40 sticky top-0"
 			>
 				{#if AgentIcon}
 					<AgentIcon class="size-3.5" />
 				{/if}
-				<span class="text-sm font-semibold text-foreground/80">
+				<span class="text-[13px] font-semibold text-foreground">
 					{getAgentDisplayName(agentId)}
 				</span>
 			</div>
@@ -118,7 +118,7 @@ let { embedded = false }: Props = $props();
 				{@const modeType = mode as ModeType}
 				{@const currentDefault = selectedDefaults[agentId]?.[modeType] ?? ""}
 				<div
-					class="flex items-center gap-3 px-2 py-1.5 border-b border-border/10 hover:bg-muted/20 transition-colors"
+					class="flex items-center gap-3 px-3 h-9 border-b border-border/40 last:border-b-0 hover:bg-muted/30 transition-colors"
 				>
 					<!-- Mode label -->
 					<div class="flex items-center gap-1.5 w-16 shrink-0">
@@ -131,7 +131,7 @@ let { embedded = false }: Props = $props();
 								<IconCircleCheckFilled class="size-3.5 text-current" />
 							{/if}
 						</span>
-						<span class="text-sm font-medium text-muted-foreground">
+						<span class="text-[13px] font-medium text-muted-foreground">
 							{modeType === CanonicalModeId.PLAN ? "Plan" : "Build"}
 						</span>
 					</div>
@@ -145,7 +145,7 @@ let { embedded = false }: Props = $props();
 									{#snippet child({ props })}
 										<Button
 											variant="outline"
-											class="h-8 w-full justify-between text-left text-xs"
+											class="h-7 w-full justify-between text-left text-[13px]"
 											{...props}
 										>
 											<span class="truncate">{selectedModel?.name ?? "Not set"}</span>
@@ -159,7 +159,7 @@ let { embedded = false }: Props = $props();
 												class={currentDefault === "" ? "size-3.5 text-foreground" : "size-3.5 text-transparent"}
 												weight="bold"
 											/>
-											<span>No default</span>
+											<span class="text-[13px]">No default</span>
 										</div>
 									</DropdownMenu.Item>
 									<DropdownMenu.Separator />
@@ -173,9 +173,9 @@ let { embedded = false }: Props = $props();
 													weight="bold"
 												/>
 												<div class="min-w-0">
-													<div class="truncate text-sm">{model.name}</div>
+													<div class="truncate text-[13px]">{model.name}</div>
 													{#if model.description}
-														<div class="truncate text-xs text-muted-foreground/60">{model.description}</div>
+														<div class="truncate text-[12px] text-muted-foreground">{model.description}</div>
 													{/if}
 												</div>
 											</div>
@@ -184,7 +184,7 @@ let { embedded = false }: Props = $props();
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						{:else}
-							<span class="text-xs text-muted-foreground/40">
+							<span class="text-[12px] text-muted-foreground/40">
 								{m.settings_models_no_cache()}
 							</span>
 						{/if}

@@ -34,6 +34,7 @@
 		onToggleFullscreen?: () => void;
 		onScrollToTop?: () => void;
 		statusIndicator?: Snippet;
+		leadingControl?: Snippet;
 		dropdownMenu?: Snippet;
 		trailingActions?: Snippet;
 		controls?: Snippet;
@@ -63,6 +64,7 @@
 		onToggleFullscreen,
 		onScrollToTop,
 		statusIndicator,
+		leadingControl,
 		dropdownMenu,
 		trailingActions,
 		controls,
@@ -93,9 +95,14 @@
 
 <EmbeddedPanelHeader
 	onHeaderClick={onScrollToTop}
-	class="{showTrailingBorder ? 'border-r border-border/50' : ''} {className}"
+	class={className}
 >
 	{#if pendingProjectSelection}
+		{#if leadingControl}
+			<HeaderCell withDivider={false}>
+				{@render leadingControl()}
+			</HeaderCell>
+		{/if}
 		<HeaderTitleCell>
 			{#snippet children()}
 				<span class="text-[11px] font-medium truncate">Select a project</span>
@@ -119,7 +126,11 @@
 				/>
 			</HeaderCell>
 		{/if}
-		{#if agentIconSrc}
+		{#if leadingControl}
+			<HeaderCell>
+				{@render leadingControl()}
+			</HeaderCell>
+		{:else if agentIconSrc}
 			<HeaderCell>
 				<img src={agentIconSrc} alt="" class="w-3.5 h-3.5" role="presentation" />
 			</HeaderCell>
@@ -185,12 +196,12 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="border-b border-border/50 px-3 py-1.5 {showTrailingBorder
-			? 'border-r border-border/50'
-			: ''} {onScrollToTop ? 'cursor-pointer' : ''}"
+		class="border-b border-border/50 px-3 py-1.5 {onScrollToTop ? 'cursor-pointer' : ''}"
 		onclick={onScrollToTop}
 	>
-		<p class="text-[13px] font-medium leading-snug line-clamp-2 text-foreground">
+		<p
+			class="text-[13px] font-medium leading-[18px] text-foreground overflow-y-auto scrollbar-thin max-h-9"
+		>
 			{displayTitle ? displayTitle : sessionTitle ? sessionTitle : "New thread"}
 		</p>
 		{#if showMetaRow}

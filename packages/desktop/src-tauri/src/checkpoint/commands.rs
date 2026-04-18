@@ -9,11 +9,11 @@ use std::path::Path;
 
 use super::manager::{convert_to_relative_path_with_cached_bases, CheckpointManager};
 use super::repository::CheckpointRepository;
-use crate::commands::observability::{
-    CommandResult, SerializableCommandError, unexpected_command_result,
-};
 use super::types::{
     Checkpoint, CreateCheckpointInput, FileDiffContent, FileSnapshot, RevertResult,
+};
+use crate::commands::observability::{
+    unexpected_command_result, CommandResult, SerializableCommandError,
 };
 
 /// Validate that an ID string is a valid UUID format.
@@ -86,86 +86,91 @@ pub async fn checkpoint_create(
 ) -> CommandResult<Checkpoint> {
     validate_uuid(&session_id, "session_id", "checkpoint_create")?;
 
-    unexpected_command_result("checkpoint_create", "Failed to create checkpoint", async {
-        tracing::debug!(
-            session_id = %session_id,
-            project_path = %project_path,
-            worktree_path = ?worktree_path,
-            file_count = modified_files.len(),
-            is_auto = is_auto,
-            "checkpoint_create command"
-        );
+    unexpected_command_result(
+        "checkpoint_create",
+        "Failed to create checkpoint",
+        async {
+            tracing::debug!(
+                session_id = %session_id,
+                project_path = %project_path,
+                worktree_path = ?worktree_path,
+                file_count = modified_files.len(),
+                is_auto = is_auto,
+                "checkpoint_create command"
+            );
 
-        // Pre-canonicalize base paths once for all file conversions (performance optimization)
-        let project = Path::new(&project_path);
-        let project_canon = match project.canonicalize() {
-            Ok(p) => p,
-            Err(e) => {
-                return Err(format!("Cannot access project directory: {}", e));
-            }
-        };
-        let worktree_canon = worktree_path
-            .as_ref()
-            .and_then(|p| Path::new(p.as_str()).canonicalize().ok());
-
-        let relative_files: Vec<String> = modified_files
-            .into_iter()
-            .filter_map(|file_path| {
-                let path = Path::new(&file_path);
-
-                // If already relative (doesn't start with / or drive letter), use as-is
-                if !path.is_absolute() {
-                    return Some(file_path);
+            // Pre-canonicalize base paths once for all file conversions (performance optimization)
+            let project = Path::new(&project_path);
+            let project_canon = match project.canonicalize() {
+                Ok(p) => p,
+                Err(e) => {
+                    return Err(format!("Cannot access project directory: {}", e));
                 }
+            };
+            let worktree_canon = worktree_path
+                .as_ref()
+                .and_then(|p| Path::new(p.as_str()).canonicalize().ok());
 
-                // Convert absolute to relative using cached base paths
-                match convert_to_relative_path_with_cached_bases(
-                    path,
-                    &project_canon,
-                    worktree_canon.as_deref(),
-                ) {
-                    Ok(relative) => Some(relative),
-                    Err(e) => {
-                        tracing::warn!(
-                            path = %file_path,
-                            error = %e,
-                            "Failed to convert path to relative, skipping"
-                        );
-                        None
+            let relative_files: Vec<String> = modified_files
+                .into_iter()
+                .filter_map(|file_path| {
+                    let path = Path::new(&file_path);
+
+                    // If already relative (doesn't start with / or drive letter), use as-is
+                    if !path.is_absolute() {
+                        return Some(file_path);
                     }
-                }
-            })
-            .collect();
 
-        if relative_files.is_empty() {
-            return Err("No valid files to checkpoint".to_string());
-        }
+                    // Convert absolute to relative using cached base paths
+                    match convert_to_relative_path_with_cached_bases(
+                        path,
+                        &project_canon,
+                        worktree_canon.as_deref(),
+                    ) {
+                        Ok(relative) => Some(relative),
+                        Err(e) => {
+                            tracing::warn!(
+                                path = %file_path,
+                                error = %e,
+                                "Failed to convert path to relative, skipping"
+                            );
+                            None
+                        }
+                    }
+                })
+                .collect();
 
-        let input = CreateCheckpointInput {
-            session_id,
-            project_path,
-            worktree_path,
-            modified_files: relative_files,
-            tool_call_id,
-            name,
-            is_auto,
-        };
+            if relative_files.is_empty() {
+                return Err("No valid files to checkpoint".to_string());
+            }
 
-        let checkpoint_agent_id = agent_id.as_deref().unwrap_or("claude-code");
-        SessionMetadataRepository::ensure_exists(
-            &db,
-            &input.session_id,
-            &input.project_path,
-            checkpoint_agent_id,
-            input.worktree_path.as_deref(),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+            let input = CreateCheckpointInput {
+                session_id,
+                project_path,
+                worktree_path,
+                modified_files: relative_files,
+                tool_call_id,
+                name,
+                is_auto,
+            };
 
-        CheckpointManager::create_checkpoint(&db, input)
+            let checkpoint_agent_id = agent_id.as_deref().unwrap_or("claude-code");
+            SessionMetadataRepository::ensure_exists(
+                &db,
+                &input.session_id,
+                &input.project_path,
+                checkpoint_agent_id,
+                input.worktree_path.as_deref(),
+            )
             .await
-            .map_err(|e| e.to_string())
-    }.await)
+            .map_err(|e| e.to_string())?;
+
+            CheckpointManager::create_checkpoint(&db, input)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        .await,
+    )
 }
 
 /// List all checkpoints for a session.
@@ -174,17 +179,21 @@ pub async fn checkpoint_create(
 pub async fn checkpoint_list(
     db: State<'_, DbConn>,
     session_id: String,
-) -> CommandResult<Vec<Checkpoint>>  {
+) -> CommandResult<Vec<Checkpoint>> {
     validate_uuid(&session_id, "session_id", "checkpoint_list")?;
 
-    unexpected_command_result("checkpoint_list", "Failed to list checkpoints", async {
-        tracing::debug!(session_id = %session_id, "checkpoint_list command");
+    unexpected_command_result(
+        "checkpoint_list",
+        "Failed to list checkpoints",
+        async {
+            tracing::debug!(session_id = %session_id, "checkpoint_list command");
 
-        CheckpointManager::list_checkpoints(&db, &session_id)
-            .await
-            .map_err(|e| e.to_string())
-
-    }.await)
+            CheckpointManager::list_checkpoints(&db, &session_id)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        .await,
+    )
 }
 
 /// Get file content at a specific checkpoint.
@@ -195,7 +204,7 @@ pub async fn checkpoint_get_file_content(
     session_id: String,
     checkpoint_id: String,
     file_path: String,
-) -> CommandResult<String>  {
+) -> CommandResult<String> {
     verify_checkpoint_ownership(
         &db,
         &checkpoint_id,
@@ -204,20 +213,23 @@ pub async fn checkpoint_get_file_content(
     )
     .await?;
 
-    unexpected_command_result("checkpoint_get_file_content", "Failed to get checkpoint file content", async {
+    unexpected_command_result(
+        "checkpoint_get_file_content",
+        "Failed to get checkpoint file content",
+        async {
+            tracing::debug!(
+                checkpoint_id = %checkpoint_id,
+                session_id = %session_id,
+                file_path = %file_path,
+                "checkpoint_get_file_content command"
+            );
 
-        tracing::debug!(
-            checkpoint_id = %checkpoint_id,
-            session_id = %session_id,
-            file_path = %file_path,
-            "checkpoint_get_file_content command"
-        );
-
-        CheckpointManager::get_file_content_at_checkpoint(&db, &checkpoint_id, &file_path)
-            .await
-            .map_err(|e| e.to_string())
-
-    }.await)
+            CheckpointManager::get_file_content_at_checkpoint(&db, &checkpoint_id, &file_path)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        .await,
+    )
 }
 
 /// Get old and new file content for diff display at a checkpoint.
@@ -228,7 +240,7 @@ pub async fn checkpoint_get_file_diff_content(
     session_id: String,
     checkpoint_id: String,
     file_path: String,
-) -> CommandResult<FileDiffContent>  {
+) -> CommandResult<FileDiffContent> {
     let checkpoint = verify_checkpoint_ownership(
         &db,
         &checkpoint_id,
@@ -266,7 +278,10 @@ pub async fn checkpoint_get_file_diff_content(
     .ok_or_else(|| {
         SerializableCommandError::expected(
             "checkpoint_get_file_diff_content",
-            format!("File '{}' not found in checkpoint '{}'", file_path, checkpoint_id),
+            format!(
+                "File '{}' not found in checkpoint '{}'",
+                file_path, checkpoint_id
+            ),
         )
     })?;
 
@@ -289,30 +304,34 @@ pub async fn checkpoint_revert(
     checkpoint_id: String,
     project_path: String,
     worktree_path: Option<String>,
-) -> CommandResult<RevertResult>  {
+) -> CommandResult<RevertResult> {
     verify_checkpoint_ownership(&db, &checkpoint_id, &session_id, "checkpoint_revert").await?;
 
-    unexpected_command_result("checkpoint_revert", "Failed to revert to checkpoint", async {
+    unexpected_command_result(
+        "checkpoint_revert",
+        "Failed to revert to checkpoint",
+        async {
+            // Use worktree path if provided, otherwise use project path
+            let effective_path = worktree_path.as_ref().unwrap_or(&project_path);
 
-        // Use worktree path if provided, otherwise use project path
-        let effective_path = worktree_path.as_ref().unwrap_or(&project_path);
+            tracing::debug!(
+                checkpoint_id = %checkpoint_id,
+                session_id = %session_id,
+                project_path = %project_path,
+                worktree_path = ?worktree_path,
+                effective_path = %effective_path,
+                "checkpoint_revert command"
+            );
 
-        tracing::debug!(
-            checkpoint_id = %checkpoint_id,
-            session_id = %session_id,
-            project_path = %project_path,
-            worktree_path = ?worktree_path,
-            effective_path = %effective_path,
-            "checkpoint_revert command"
-        );
+            let result =
+                CheckpointManager::revert_to_checkpoint(&db, &checkpoint_id, effective_path)
+                    .await
+                    .map_err(|e| e.to_string());
 
-        let result = CheckpointManager::revert_to_checkpoint(&db, &checkpoint_id, effective_path)
-            .await
-            .map_err(|e| e.to_string());
-
-        result
-
-    }.await)
+            result
+        }
+        .await,
+    )
 }
 
 /// Revert a single file to a specific checkpoint.
@@ -328,30 +347,32 @@ pub async fn checkpoint_revert_file(
     file_path: String,
     project_path: String,
     worktree_path: Option<String>,
-) -> CommandResult<()>  {
-    verify_checkpoint_ownership(&db, &checkpoint_id, &session_id, "checkpoint_revert_file")
-        .await?;
+) -> CommandResult<()> {
+    verify_checkpoint_ownership(&db, &checkpoint_id, &session_id, "checkpoint_revert_file").await?;
 
-    unexpected_command_result("checkpoint_revert_file", "Failed to revert file to checkpoint", async {
+    unexpected_command_result(
+        "checkpoint_revert_file",
+        "Failed to revert file to checkpoint",
+        async {
+            // Use worktree path if provided, otherwise use project path
+            let effective_path = worktree_path.as_ref().unwrap_or(&project_path);
 
-        // Use worktree path if provided, otherwise use project path
-        let effective_path = worktree_path.as_ref().unwrap_or(&project_path);
+            tracing::debug!(
+                checkpoint_id = %checkpoint_id,
+                session_id = %session_id,
+                file_path = %file_path,
+                project_path = %project_path,
+                worktree_path = ?worktree_path,
+                effective_path = %effective_path,
+                "checkpoint_revert_file command"
+            );
 
-        tracing::debug!(
-            checkpoint_id = %checkpoint_id,
-            session_id = %session_id,
-            file_path = %file_path,
-            project_path = %project_path,
-            worktree_path = ?worktree_path,
-            effective_path = %effective_path,
-            "checkpoint_revert_file command"
-        );
-
-        CheckpointManager::revert_file(&db, &checkpoint_id, &file_path, effective_path)
-            .await
-            .map_err(|e| e.to_string())
-
-    }.await)
+            CheckpointManager::revert_file(&db, &checkpoint_id, &file_path, effective_path)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        .await,
+    )
 }
 
 /// Get file snapshots for a specific checkpoint.
@@ -361,7 +382,7 @@ pub async fn checkpoint_get_file_snapshots(
     db: State<'_, DbConn>,
     session_id: String,
     checkpoint_id: String,
-) -> CommandResult<Vec<FileSnapshot>>  {
+) -> CommandResult<Vec<FileSnapshot>> {
     verify_checkpoint_ownership(
         &db,
         &checkpoint_id,
@@ -370,17 +391,20 @@ pub async fn checkpoint_get_file_snapshots(
     )
     .await?;
 
-    unexpected_command_result("checkpoint_get_file_snapshots", "Failed to get checkpoint file snapshots", async {
+    unexpected_command_result(
+        "checkpoint_get_file_snapshots",
+        "Failed to get checkpoint file snapshots",
+        async {
+            tracing::debug!(
+                checkpoint_id = %checkpoint_id,
+                session_id = %session_id,
+                "checkpoint_get_file_snapshots command"
+            );
 
-        tracing::debug!(
-            checkpoint_id = %checkpoint_id,
-            session_id = %session_id,
-            "checkpoint_get_file_snapshots command"
-        );
-
-        CheckpointRepository::get_file_snapshots(&db, &checkpoint_id)
-            .await
-            .map_err(|e| e.to_string())
-
-    }.await)
+            CheckpointRepository::get_file_snapshots(&db, &checkpoint_id)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        .await,
+    )
 }

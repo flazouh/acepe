@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use crate::commands::observability::{
+    unexpected_command_result, CommandResult, SerializableCommandError,
+};
 use tauri::{AppHandle, Runtime, Webview, WebviewUrl, Window};
-use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
 
 /// State that tracks active browser child webviews by label.
 pub struct BrowserWebviewState<R: Runtime> {
@@ -35,36 +37,40 @@ pub async fn open_browser_webview<R: Runtime>(
     y: f64,
     w: f64,
     h: f64,
-) -> CommandResult<()>  {
-    unexpected_command_result("open_browser_webview", "Failed to open browser webview", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "open_browser_webview",
+        "Failed to open browser webview",
+        async {
+            let parsed_url: tauri::Url = url.parse().map_err(|e| format!("Invalid URL: {e}"))?;
 
-        let parsed_url: tauri::Url = url.parse().map_err(|e| format!("Invalid URL: {e}"))?;
+            // Only allow safe URL schemes to prevent local file access via file:// etc.
+            let scheme = parsed_url.scheme();
+            if !matches!(scheme, "http" | "https" | "about") {
+                return Err(format!("Blocked URL scheme: {scheme}"));
+            }
 
-        // Only allow safe URL schemes to prevent local file access via file:// etc.
-        let scheme = parsed_url.scheme();
-        if !matches!(scheme, "http" | "https" | "about") {
-            return Err(format!("Blocked URL scheme: {scheme}"));
+            let builder =
+                tauri::webview::WebviewBuilder::new(&label, WebviewUrl::External(parsed_url));
+
+            let position = tauri::LogicalPosition::new(x, y);
+            let size = tauri::LogicalSize::new(w, h);
+
+            let webview = window
+                .add_child(builder, position, size)
+                .map_err(|e| format!("Failed to create webview: {e}"))?;
+
+            let mut webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            webviews.insert(label.clone(), webview);
+
+            tracing::info!(label = %label, "Browser webview opened");
+            Ok(())
         }
-
-        let builder = tauri::webview::WebviewBuilder::new(&label, WebviewUrl::External(parsed_url));
-
-        let position = tauri::LogicalPosition::new(x, y);
-        let size = tauri::LogicalSize::new(w, h);
-
-        let webview = window
-            .add_child(builder, position, size)
-            .map_err(|e| format!("Failed to create webview: {e}"))?;
-
-        let mut webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        webviews.insert(label.clone(), webview);
-
-        tracing::info!(label = %label, "Browser webview opened");
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }
 
 /// Close and destroy a browser webview.
@@ -73,22 +79,25 @@ pub async fn close_browser_webview<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("close_browser_webview", "Failed to close browser webview", async {
-
-        let mut webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        if let Some(webview) = webviews.remove(&label) {
-            webview
-                .close()
-                .map_err(|e| format!("Failed to close webview: {e}"))?;
-            tracing::info!(label = %label, "Browser webview closed");
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "close_browser_webview",
+        "Failed to close browser webview",
+        async {
+            let mut webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            if let Some(webview) = webviews.remove(&label) {
+                webview
+                    .close()
+                    .map_err(|e| format!("Failed to close webview: {e}"))?;
+                tracing::info!(label = %label, "Browser webview closed");
+            }
+            Ok(())
         }
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }
 
 /// Reposition and resize a browser webview.
@@ -101,27 +110,30 @@ pub async fn resize_browser_webview<R: Runtime>(
     y: f64,
     w: f64,
     h: f64,
-) -> CommandResult<()>  {
-    unexpected_command_result("resize_browser_webview", "Failed to resize browser webview", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "resize_browser_webview",
+        "Failed to resize browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
+            webview
+                .set_position(tauri::LogicalPosition::new(x, y))
+                .map_err(|e| format!("Failed to set position: {e}"))?;
+            webview
+                .set_size(tauri::LogicalSize::new(w, h))
+                .map_err(|e| format!("Failed to set size: {e}"))?;
 
-        webview
-            .set_position(tauri::LogicalPosition::new(x, y))
-            .map_err(|e| format!("Failed to set position: {e}"))?;
-        webview
-            .set_size(tauri::LogicalSize::new(w, h))
-            .map_err(|e| format!("Failed to set size: {e}"))?;
-
-        Ok(())
-
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Apply zoom level to a browser webview.
@@ -131,24 +143,27 @@ pub async fn set_browser_webview_zoom<R: Runtime>(
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
     scale: f64,
-) -> CommandResult<()>  {
-    unexpected_command_result("set_browser_webview_zoom", "Failed to set browser webview zoom", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "set_browser_webview_zoom",
+        "Failed to set browser webview zoom",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
+            webview
+                .set_zoom(scale)
+                .map_err(|e| format!("Failed to set zoom: {e}"))?;
 
-        webview
-            .set_zoom(scale)
-            .map_err(|e| format!("Failed to set zoom: {e}"))?;
-
-        Ok(())
-
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Navigate a browser webview to a new URL.
@@ -158,7 +173,7 @@ pub async fn navigate_browser_webview<R: Runtime>(
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
     url: String,
-) -> CommandResult<()>  {
+) -> CommandResult<()> {
     let parsed_url: tauri::Url = url.parse().map_err(|e| {
         SerializableCommandError::expected("navigate_browser_webview", format!("Invalid URL: {e}"))
     })?;
@@ -201,23 +216,26 @@ pub async fn reload_browser_webview<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("reload_browser_webview", "Failed to reload browser webview", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "reload_browser_webview",
+        "Failed to reload browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
-
-        webview
-            .reload()
-            .map_err(|e| format!("Failed to reload: {e}"))?;
-        Ok(())
-
-    }.await)
+            webview
+                .reload()
+                .map_err(|e| format!("Failed to reload: {e}"))?;
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Navigate back in the browser webview history.
@@ -226,23 +244,26 @@ pub async fn browser_webview_back<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("browser_webview_back", "Failed to go back in browser webview", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "browser_webview_back",
+        "Failed to go back in browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
-
-        webview
-            .eval("history.back()")
-            .map_err(|e| format!("Failed to go back: {e}"))?;
-        Ok(())
-
-    }.await)
+            webview
+                .eval("history.back()")
+                .map_err(|e| format!("Failed to go back: {e}"))?;
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Navigate forward in the browser webview history.
@@ -251,23 +272,26 @@ pub async fn browser_webview_forward<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("browser_webview_forward", "Failed to go forward in browser webview", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "browser_webview_forward",
+        "Failed to go forward in browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
-
-        webview
-            .eval("history.forward()")
-            .map_err(|e| format!("Failed to go forward: {e}"))?;
-        Ok(())
-
-    }.await)
+            webview
+                .eval("history.forward()")
+                .map_err(|e| format!("Failed to go forward: {e}"))?;
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Get the current URL of a browser webview.
@@ -276,23 +300,26 @@ pub async fn get_browser_webview_url<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<String>  {
-    unexpected_command_result("get_browser_webview_url", "Failed to get browser webview URL", async {
+) -> CommandResult<String> {
+    unexpected_command_result(
+        "get_browser_webview_url",
+        "Failed to get browser webview URL",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            let webview = webviews
+                .get(&label)
+                .ok_or_else(|| format!("Webview not found: {label}"))?;
 
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        let webview = webviews
-            .get(&label)
-            .ok_or_else(|| format!("Webview not found: {label}"))?;
-
-        let url = webview
-            .url()
-            .map_err(|e| format!("Failed to get URL: {e}"))?;
-        Ok(url.to_string())
-
-    }.await)
+            let url = webview
+                .url()
+                .map_err(|e| format!("Failed to get URL: {e}"))?;
+            Ok(url.to_string())
+        }
+        .await,
+    )
 }
 
 /// Hide a browser webview (e.g., when panel is not visible).
@@ -301,21 +328,24 @@ pub async fn hide_browser_webview<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("hide_browser_webview", "Failed to hide browser webview", async {
-
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        if let Some(webview) = webviews.get(&label) {
-            webview
-                .hide()
-                .map_err(|e| format!("Failed to hide webview: {e}"))?;
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "hide_browser_webview",
+        "Failed to hide browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            if let Some(webview) = webviews.get(&label) {
+                webview
+                    .hide()
+                    .map_err(|e| format!("Failed to hide webview: {e}"))?;
+            }
+            Ok(())
         }
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }
 
 /// Show a hidden browser webview.
@@ -324,19 +354,22 @@ pub async fn show_browser_webview<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, BrowserWebviewState<R>>,
     label: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("show_browser_webview", "Failed to show browser webview", async {
-
-        let webviews = state
-            .webviews
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
-        if let Some(webview) = webviews.get(&label) {
-            webview
-                .show()
-                .map_err(|e| format!("Failed to show webview: {e}"))?;
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "show_browser_webview",
+        "Failed to show browser webview",
+        async {
+            let webviews = state
+                .webviews
+                .lock()
+                .map_err(|e| format!("Lock error: {e}"))?;
+            if let Some(webview) = webviews.get(&label) {
+                webview
+                    .show()
+                    .map_err(|e| format!("Failed to show webview: {e}"))?;
+            }
+            Ok(())
         }
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }

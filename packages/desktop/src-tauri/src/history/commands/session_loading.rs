@@ -4,17 +4,20 @@ use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::commands::observability::{
-    CommandResult, SerializableCommandError, unexpected_command_result,
-};
-use crate::opencode_history::commands::fetch_opencode_session;
+use crate::acp::session_journal::{SessionJournalEvent, SessionJournalEventPayload};
 use crate::acp::session_open_snapshot::{
     assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
 };
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::commands::observability::{
+    unexpected_command_result, CommandResult, SerializableCommandError,
+};
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionProjectionSnapshotRepository,
-    SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptSnapshotRepository,
+};
+use crate::opencode_history::commands::fetch_opencode_session;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -121,20 +124,6 @@ async fn load_unified_session_content_with_context(
         "Loading unified session"
     );
 
-    let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-    if let Some(db) = db.as_ref() {
-        if let Some(persisted) = SessionThreadSnapshotRepository::get(db, &context.local_session_id)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Failed to load persisted thread snapshot for {}: {error}",
-                    context.local_session_id
-                )
-            })?
-        {
-            return Ok(Some(persisted));
-        }
-    }
     let replay_context = context.replay_context();
     let registry = app.state::<Arc<AgentRegistry>>();
     let provider = registry.get(&context.agent_id);
@@ -182,36 +171,136 @@ async fn load_unified_session_with_context(
     Ok(normalized.map(SessionThreadSnapshot::into_converted_session))
 }
 
-async fn persist_transcript_snapshot(
+fn build_transcript_snapshot(
+    revision: i64,
+    snapshot: &SessionThreadSnapshot,
+) -> crate::acp::transcript_projection::TranscriptSnapshot {
+    crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
+        revision,
+        &snapshot.entries,
+    )
+}
+
+async fn persist_canonical_materialization(
     db: &DbConn,
     replay_context: &SessionReplayContext,
     snapshot: &SessionThreadSnapshot,
+    projection: &SessionProjectionSnapshot,
 ) -> Result<(), String> {
-    let revision =
-        SessionJournalEventRepository::max_event_seq(db, &replay_context.local_session_id)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Failed to determine journal cutoff for {}: {error}",
-                    replay_context.local_session_id
-                )
-            })?
-            .unwrap_or(0);
-    let transcript_snapshot =
-        crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
-            revision,
-            &snapshot.entries,
-        );
+    let has_projection_state = projection_has_runtime_state(projection);
+    let session_id = replay_context.local_session_id.clone();
 
-    SessionTranscriptSnapshotRepository::set(
-        db,
-        &replay_context.local_session_id,
-        &transcript_snapshot,
-    )
+    db.transaction::<_, (), sea_orm::DbErr>(|txn| {
+        let session_id = session_id.clone();
+        let snapshot = snapshot.clone();
+        let projection = projection.clone();
+        Box::pin(async move {
+            let now = chrono::Utc::now();
+            let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
+                .select_only()
+                .column_as(
+                    crate::db::entities::session_journal_event::Column::EventSeq.max(),
+                    "max_seq",
+                )
+                .filter(
+                    crate::db::entities::session_journal_event::Column::SessionId.eq(&session_id),
+                )
+                .into_tuple::<Option<i64>>()
+                .one(txn)
+                .await?
+                .flatten();
+            let revision = if let Some(revision) = max_seq {
+                revision
+            } else {
+                let barrier = SessionJournalEvent::new(
+                    &session_id,
+                    1,
+                    SessionJournalEventPayload::MaterializationBarrier,
+                );
+                crate::db::entities::session_journal_event::Entity::insert(
+                    crate::db::entities::session_journal_event::ActiveModel {
+                        event_id: Set(barrier.event_id.clone()),
+                        session_id: Set(barrier.session_id.clone()),
+                        event_seq: Set(barrier.event_seq),
+                        event_kind: Set(barrier.event_kind().to_string()),
+                        event_json: Set(serde_json::to_string(&barrier.payload)
+                            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?),
+                        created_at: Set(now),
+                    },
+                )
+                .exec(txn)
+                .await?;
+                barrier.event_seq
+            };
+            let transcript_json =
+                serde_json::to_string(&build_transcript_snapshot(revision, &snapshot))
+                    .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
+            let projection_json = serde_json::to_string(&projection)
+                .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
+
+            if let Some(existing_model) =
+                crate::db::entities::session_transcript_snapshot::Entity::find_by_id(&session_id)
+                    .one(txn)
+                    .await?
+            {
+                let mut active: crate::db::entities::session_transcript_snapshot::ActiveModel =
+                    existing_model.into();
+                active.snapshot_json = Set(transcript_json.clone());
+                active.updated_at = Set(now);
+                active.update(txn).await?;
+            } else {
+                crate::db::entities::session_transcript_snapshot::Entity::insert(
+                    crate::db::entities::session_transcript_snapshot::ActiveModel {
+                        session_id: Set(session_id.clone()),
+                        snapshot_json: Set(transcript_json.clone()),
+                        updated_at: Set(now),
+                    },
+                )
+                .exec(txn)
+                .await?;
+            }
+
+            if has_projection_state {
+                if let Some(existing_model) =
+                    crate::db::entities::session_projection_snapshot::Entity::find_by_id(
+                        &session_id,
+                    )
+                    .one(txn)
+                    .await?
+                {
+                    let mut active: crate::db::entities::session_projection_snapshot::ActiveModel =
+                        existing_model.into();
+                    active.snapshot_json = Set(projection_json.clone());
+                    active.updated_at = Set(now);
+                    active.update(txn).await?;
+                } else {
+                    crate::db::entities::session_projection_snapshot::Entity::insert(
+                        crate::db::entities::session_projection_snapshot::ActiveModel {
+                            session_id: Set(session_id.clone()),
+                            snapshot_json: Set(projection_json.clone()),
+                            updated_at: Set(now),
+                        },
+                    )
+                    .exec(txn)
+                    .await?;
+                }
+            } else {
+                crate::db::entities::session_projection_snapshot::Entity::delete_by_id(&session_id)
+                    .exec(txn)
+                    .await?;
+            }
+
+            crate::db::entities::session_thread_snapshot::Entity::delete_by_id(&session_id)
+                .exec(txn)
+                .await?;
+
+            Ok(())
+        })
+    })
     .await
     .map_err(|error| {
         format!(
-            "Failed to persist transcript snapshot for {}: {error}",
+            "Failed to persist canonical snapshots for {}: {error}",
             replay_context.local_session_id
         )
     })
@@ -225,77 +314,41 @@ pub async fn ensure_canonical_session_materialized(
         return Err("Database unavailable for session materialization".to_string());
     };
 
-    if let Some(persisted) =
-        SessionThreadSnapshotRepository::get(&db, &replay_context.local_session_id)
+    let journal_max =
+        SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
             .await
             .map_err(|error| {
                 format!(
-                    "Failed to load persisted thread snapshot for {}: {error}",
+                    "Failed to read journal cutoff for {}: {error}",
                     replay_context.local_session_id
                 )
             })?
-    {
-        let journal_max =
-            SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "Failed to read journal cutoff for {}: {error}",
-                        replay_context.local_session_id
-                    )
-                })?
-                .unwrap_or(0);
-        let cached_transcript =
-            SessionTranscriptSnapshotRepository::get(&db, &replay_context.local_session_id)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "Failed to load transcript snapshot for {}: {error}",
-                        replay_context.local_session_id
-                    )
-                })?;
-        let transcript_stale = match cached_transcript.as_ref() {
-            Some(snapshot) => snapshot.revision < journal_max,
-            None => true,
-        };
-        // When the transcript cache is stale relative to the journal, we cannot
-        // recover freshness by re-persisting from the cached thread snapshot —
-        // that thread may itself be stale, and stamping a fresh revision onto
-        // stale entries produces a snapshot that silently drops events on
-        // reopen. Instead, invalidate both caches so the materialization path
-        // below rebuilds from the provider / journal. When the transcript is
-        // merely absent (cold start post-materialization), backfill from the
-        // already-persisted thread snapshot.
-        if !transcript_stale {
-            return Ok(Some(persisted));
-        }
-        if cached_transcript.is_none() {
-            persist_transcript_snapshot(&db, replay_context, &persisted).await?;
-            return Ok(Some(persisted));
-        }
-        tracing::warn!(
-            session_id = %replay_context.local_session_id,
-            cached_revision = cached_transcript.as_ref().map(|s| s.revision),
-            journal_max,
-            "Invalidating stale thread and transcript snapshots before re-materialization"
-        );
-        SessionThreadSnapshotRepository::delete(&db, &replay_context.local_session_id)
+            .unwrap_or(0);
+    let cached_transcript =
+        SessionTranscriptSnapshotRepository::get(&db, &replay_context.local_session_id)
             .await
             .map_err(|error| {
                 format!(
-                    "Failed to invalidate stale thread snapshot for {}: {error}",
+                    "Failed to load transcript snapshot for {}: {error}",
                     replay_context.local_session_id
                 )
             })?;
-        SessionTranscriptSnapshotRepository::delete(&db, &replay_context.local_session_id)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Failed to invalidate stale transcript snapshot for {}: {error}",
-                    replay_context.local_session_id
-                )
-            })?;
+    let transcript_stale = match cached_transcript.as_ref() {
+        Some(snapshot) => snapshot.revision < journal_max,
+        None => true,
+    };
+    if !transcript_stale {
+        return Ok(None);
     }
+    let session_metadata =
+        SessionMetadataRepository::get_by_id(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load session metadata for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
 
     let context = crate::history::session_context::SessionContext {
         local_session_id: replay_context.local_session_id.clone(),
@@ -306,65 +359,19 @@ pub async fn ensure_canonical_session_materialized(
         source_path: replay_context.source_path.clone(),
         agent_id: replay_context.agent_id.clone(),
         compatibility: replay_context.compatibility.clone(),
-        session_metadata: None,
+        session_metadata,
     };
     let snapshot = load_unified_session_content_with_context(app, context).await?;
     let Some(snapshot) = snapshot else {
         return Ok(None);
     };
 
-    SessionThreadSnapshotRepository::set(&db, &replay_context.local_session_id, &snapshot)
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to persist thread snapshot for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?;
-    persist_transcript_snapshot(&db, replay_context, &snapshot).await?;
-
     let projection = ProjectionRegistry::project_thread_snapshot(
         &replay_context.local_session_id,
         Some(replay_context.agent_id.clone()),
         &snapshot,
     );
-    if projection_has_runtime_state(&projection) {
-        SessionProjectionSnapshotRepository::set(
-            &db,
-            &replay_context.local_session_id,
-            &projection,
-        )
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to persist projection snapshot for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?;
-    }
-
-    if SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to determine journal cutoff for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?
-        .is_none()
-    {
-        SessionJournalEventRepository::append_materialization_barrier(
-            &db,
-            &replay_context.local_session_id,
-        )
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to append materialization barrier for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?;
-    }
+    persist_canonical_materialization(&db, replay_context, &snapshot, &projection).await?;
 
     Ok(Some(snapshot))
 }
@@ -377,21 +384,24 @@ pub async fn get_unified_session(
     project_path: String,
     agent_id: String,
     source_path: Option<String>,
-) -> CommandResult<Option<ConvertedSession>>  {
-    unexpected_command_result("get_unified_session", "Failed to get unified session", async {
-
-        let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-        let context = crate::history::session_context::resolve_session_context(
-            db.as_ref(),
-            &session_id,
-            &project_path,
-            &agent_id,
-            source_path.as_deref(),
-        )
-        .await;
-        load_unified_session_with_context(app, context).await
-
-    }.await)
+) -> CommandResult<Option<ConvertedSession>> {
+    unexpected_command_result(
+        "get_unified_session",
+        "Failed to get unified session",
+        async {
+            let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+            let context = crate::history::session_context::resolve_session_context(
+                db.as_ref(),
+                &session_id,
+                &project_path,
+                &agent_id,
+                source_path.as_deref(),
+            )
+            .await;
+            load_unified_session_with_context(app, context).await
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -452,13 +462,33 @@ pub async fn get_session_open_result(
 mod tests {
     use super::{
         apply_session_title_metadata, build_empty_session_with_metadata, history_replay_family,
+        persist_canonical_materialization,
     };
+    use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::provider::HistoryReplayFamily;
+    use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
+    use crate::acp::session_open_snapshot::{assemble_session_open_result, SessionOpenResult};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
-    use crate::db::repository::SessionMetadataRow;
+    use crate::db::repository::{
+        SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
+        SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+    };
     use crate::session_jsonl::types::{ConvertedSession, SessionStats, StoredEntry};
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+    use std::sync::Arc;
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory SQLite");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("Failed to run migrations");
+        db
+    }
 
     fn make_session(title: &str) -> SessionThreadSnapshot {
         SessionThreadSnapshot {
@@ -607,6 +637,108 @@ mod tests {
             super::derive_current_mode_id_from_entries(&session.entries),
             Some("plan".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn journal_has_no_events_before_materialization() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "canonical-session",
+            "/repo",
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+        let replay_context = SessionReplayContext {
+            local_session_id: "canonical-session".to_string(),
+            history_session_id: "provider-canonical-session".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: crate::acp::parsers::AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: None,
+            effective_cwd: "/repo".to_string(),
+            source_path: None,
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+
+        let revision =
+            SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
+                .await
+                .expect("read revision");
+
+        assert_eq!(revision, None);
+    }
+
+    #[tokio::test]
+    async fn canonical_tool_call_materialization_reopens_from_canonical_state_only() {
+        let db = setup_test_db().await;
+        let hub = Arc::new(AcpEventHubState::new());
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "canonical-tool-session",
+            "/repo",
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![make_tool_call_entry(
+                "tool-read-1",
+                ToolKind::Read,
+                ToolCallStatus::Completed,
+            )],
+            title: "Canonical session".to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = SessionReplayContext {
+            local_session_id: "canonical-tool-session".to_string(),
+            history_session_id: "provider-canonical-tool-session".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: crate::acp::parsers::AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: None,
+            effective_cwd: "/repo".to_string(),
+            source_path: None,
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+        let projection = crate::acp::projections::ProjectionRegistry::project_thread_snapshot(
+            &replay_context.local_session_id,
+            Some(replay_context.agent_id.clone()),
+            &snapshot,
+        );
+        persist_canonical_materialization(&db, &replay_context, &snapshot, &projection)
+            .await
+            .expect("persist canonical materialization");
+
+        let transcript_snapshot =
+            SessionTranscriptSnapshotRepository::get(&db, "canonical-tool-session")
+                .await
+                .expect("load transcript")
+                .expect("expected transcript");
+        assert_eq!(transcript_snapshot.revision, 1);
+        let projection_snapshot =
+            SessionProjectionSnapshotRepository::get(&db, "canonical-tool-session")
+                .await
+                .expect("load projection")
+                .expect("expected projection");
+        assert!(
+            projection_snapshot.session.is_some()
+                || !projection_snapshot.operations.is_empty()
+                || !projection_snapshot.interactions.is_empty()
+        );
+
+        let result =
+            assemble_session_open_result(&db, &hub, &replay_context, "canonical-tool-session")
+                .await;
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.transcript_snapshot.revision, 1);
+        assert!(!found.transcript_snapshot.entries.is_empty());
     }
 }
 
@@ -763,7 +895,7 @@ pub async fn audit_session_load_timing(
     project_path: String,
     agent_id: String,
     source_path: Option<String>,
-) -> CommandResult<SessionLoadTiming>  {
+) -> CommandResult<SessionLoadTiming> {
     unexpected_command_result("audit_session_load_timing", "Failed to audit session load timing", async {
 
         let mut stages = Vec::new();
@@ -917,64 +1049,69 @@ pub async fn set_session_worktree_path(
     worktree_path: String,
     project_path: Option<String>,
     agent_id: Option<String>,
-) -> CommandResult<()>  {
-    unexpected_command_result("set_session_worktree_path", "Failed to set session worktree path", async {
-
-        tracing::info!(
-            session_id = %session_id,
-            worktree_path = %worktree_path,
-            "Persisting worktree path for session"
-        );
-
-        let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
-            tracing::error!(
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "set_session_worktree_path",
+        "Failed to set session worktree path",
+        async {
+            tracing::info!(
                 session_id = %session_id,
                 worktree_path = %worktree_path,
-                error = %e,
-                "Worktree path validation failed"
+                "Persisting worktree path for session"
             );
-            format!("Invalid worktree path: {}", e)
-        })?;
 
-        let db = app
-            .try_state::<DbConn>()
-            .ok_or("Database not available")?
-            .inner()
-            .clone();
+            let canonical = canonicalize_persisted_worktree_path(&worktree_path).map_err(|e| {
+                tracing::error!(
+                    session_id = %session_id,
+                    worktree_path = %worktree_path,
+                    error = %e,
+                    "Worktree path validation failed"
+                );
+                format!("Invalid worktree path: {}", e)
+            })?;
 
-        SessionMetadataRepository::set_worktree_path(
-            &db,
-            &session_id,
-            &canonical.to_string_lossy(),
-            project_path.as_deref(),
-            agent_id.as_deref(),
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                session_id = %session_id,
-                error = %e,
-                "Failed to persist worktree path to DB"
-            );
-            format!("Failed to set worktree path: {}", e)
-        })?;
+            let db = app
+                .try_state::<DbConn>()
+                .ok_or("Database not available")?
+                .inner()
+                .clone();
 
-        if let (Some(_project_path), Some(_agent_id)) = (project_path.as_deref(), agent_id.as_deref()) {
-            SessionMetadataRepository::mark_as_acepe_managed(&db, &session_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        session_id = %session_id,
-                        error = %e,
-                        "Failed to promote session to Acepe-managed state"
-                    );
-                    format!("Failed to set worktree path: {}", e)
-                })?;
+            SessionMetadataRepository::set_worktree_path(
+                &db,
+                &session_id,
+                &canonical.to_string_lossy(),
+                project_path.as_deref(),
+                agent_id.as_deref(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to persist worktree path to DB"
+                );
+                format!("Failed to set worktree path: {}", e)
+            })?;
+
+            if let (Some(_project_path), Some(_agent_id)) =
+                (project_path.as_deref(), agent_id.as_deref())
+            {
+                SessionMetadataRepository::mark_as_acepe_managed(&db, &session_id)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(
+                            session_id = %session_id,
+                            error = %e,
+                            "Failed to promote session to Acepe-managed state"
+                        );
+                        format!("Failed to set worktree path: {}", e)
+                    })?;
+            }
+
+            Ok(())
         }
-
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }
 
 /// Persist the PR number associated with a session.
@@ -985,33 +1122,36 @@ pub async fn set_session_pr_number(
     app: AppHandle,
     session_id: String,
     pr_number: Option<i32>,
-) -> CommandResult<()>  {
-    unexpected_command_result("set_session_pr_number", "Failed to set session PR number", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "set_session_pr_number",
+        "Failed to set session PR number",
+        async {
+            tracing::info!(
+                session_id = %session_id,
+                pr_number = ?pr_number,
+                "Persisting PR number for session"
+            );
 
-        tracing::info!(
-            session_id = %session_id,
-            pr_number = ?pr_number,
-            "Persisting PR number for session"
-        );
+            let db = app
+                .try_state::<DbConn>()
+                .ok_or("Database not available")?
+                .inner()
+                .clone();
 
-        let db = app
-            .try_state::<DbConn>()
-            .ok_or("Database not available")?
-            .inner()
-            .clone();
-
-        SessionMetadataRepository::set_pr_number(&db, &session_id, pr_number)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    session_id = %session_id,
-                    error = %e,
-                    "Failed to persist PR number to DB"
-                );
-                format!("Failed to set PR number: {}", e)
-            })
-
-    }.await)
+            SessionMetadataRepository::set_pr_number(&db, &session_id, pr_number)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Failed to persist PR number to DB"
+                    );
+                    format!("Failed to set PR number: {}", e)
+                })
+        }
+        .await,
+    )
 }
 
 /// Persist a user-provided title override for a session.
@@ -1021,7 +1161,7 @@ pub async fn set_session_title(
     app: AppHandle,
     session_id: String,
     title: String,
-) -> CommandResult<()>  {
+) -> CommandResult<()> {
     let trimmed_title = title.trim().to_string();
     if trimmed_title.is_empty() {
         return Err(SerializableCommandError::expected(
@@ -1030,19 +1170,26 @@ pub async fn set_session_title(
         ));
     }
 
-    unexpected_command_result("set_session_title", "Failed to set session title", async {
-        tracing::info!(
-            session_id = %session_id,
-            "Persisting title override for session"
-        );
+    unexpected_command_result(
+        "set_session_title",
+        "Failed to set session title",
+        async {
+            tracing::info!(
+                session_id = %session_id,
+                "Persisting title override for session"
+            );
 
-        let db = app
-            .try_state::<DbConn>()
-            .ok_or("Database not available")?
-            .inner()
-            .clone();
+            let db = app
+                .try_state::<DbConn>()
+                .ok_or("Database not available")?
+                .inner()
+                .clone();
 
-        SessionMetadataRepository::set_title_override(&db, &session_id, Some(trimmed_title.as_str()))
+            SessionMetadataRepository::set_title_override(
+                &db,
+                &session_id,
+                Some(trimmed_title.as_str()),
+            )
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -1052,6 +1199,7 @@ pub async fn set_session_title(
                 );
                 format!("Failed to set session title: {}", e)
             })
-
-    }.await)
+        }
+        .await,
+    )
 }

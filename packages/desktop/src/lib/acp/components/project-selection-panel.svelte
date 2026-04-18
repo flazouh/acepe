@@ -1,13 +1,9 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
-import type { AgentInfo } from "../logic/agent-manager.js";
 import type { Project } from "../logic/project-manager.svelte.js";
-import { capitalizeName } from "../utils/index.js";
 import ProjectCard from "./project-card.svelte";
 import type { ProjectCardData } from "./project-card-data.js";
 import { getVisibleProjectSelectionProjects } from "./project-selection-visibility.js";
@@ -22,24 +18,18 @@ import {
 
 interface Props {
 	projects: Project[];
-	availableAgents: AgentInfo[];
-	effectiveTheme: "light" | "dark";
-	onProjectAgentSelected: (project: Project, agentId: string) => void;
+	onProjectSelected: (project: Project) => void;
 	preSelectedProjectPath?: string | null;
 }
 
 let {
 	projects,
-	availableAgents,
-	effectiveTheme,
-	onProjectAgentSelected,
+	onProjectSelected,
 	preSelectedProjectPath = null,
 }: Props = $props();
 const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 const modifierSymbol = isMac ? "⌘" : "Ctrl";
 
-// Two-stage keyboard selection state
-let focusedProjectIndex = $state<number | null>(null);
 const missingProjectPaths = new SvelteSet<string>();
 const cardDataMap = new SvelteMap<
 	string,
@@ -53,21 +43,8 @@ const remoteStatusMap = new SvelteMap<string, { ahead: number; behind: number }>
 const displayProjects = $derived.by(() => {
 	return getVisibleProjectSelectionProjects(projects, preSelectedProjectPath, missingProjectPaths);
 });
-const isSinglePreselectedProject = $derived.by(
-	() => !!preSelectedProjectPath && displayProjects.length === 1
-);
 let lastProjectsKey = "";
 let lastDisplayProjectsKey = "";
-
-const effectiveFocusedIndex = $derived.by<number | null>(() => {
-	if (isSinglePreselectedProject) {
-		return displayProjects.length > 0 ? 0 : null;
-	}
-	if (focusedProjectIndex !== null && focusedProjectIndex >= displayProjects.length) {
-		return null;
-	}
-	return focusedProjectIndex;
-});
 
 const cardDataList = $derived<ProjectCardData[]>(
 	displayProjects.map((project) => {
@@ -253,12 +230,6 @@ function refreshMissingProjectPaths(): void {
 		(paths) => {
 			updateMissingProjectPaths(paths);
 			syncDisplayedProjectMetadata();
-			if (isSinglePreselectedProject) {
-				const preselectedProject = displayProjects[0];
-				if (preselectedProject && !missingProjectPaths.has(preselectedProject.path)) {
-					ensureProjectInfoLoaded(preselectedProject);
-				}
-			}
 		},
 		() => undefined
 	);
@@ -273,18 +244,10 @@ function syncDisplayedProjectMetadata(): void {
 	const hasRetryableMetadata = displayProjects.some((project) =>
 		shouldLoadProjectSelectionMetadata(project.path)
 	);
-	if (
-		!isSinglePreselectedProject &&
-		displayProjectsKey === lastDisplayProjectsKey &&
-		!hasRetryableMetadata
-	) {
+	if (displayProjectsKey === lastDisplayProjectsKey && !hasRetryableMetadata) {
 		return;
 	}
 	lastDisplayProjectsKey = displayProjectsKey;
-
-	if (isSinglePreselectedProject) {
-		return;
-	}
 
 	for (const project of displayProjects) {
 		ensureProjectInfoLoaded(project);
@@ -302,16 +265,6 @@ function handleKeyDown(event: KeyboardEvent) {
 		return;
 	}
 
-	// Handle Escape to clear focus
-	if (event.key === "Escape" && effectiveFocusedIndex !== null) {
-		if (isSinglePreselectedProject) {
-			return;
-		}
-		event.preventDefault();
-		focusedProjectIndex = null;
-		return;
-	}
-
 	const hasModifier = isMac ? event.metaKey : event.ctrlKey;
 	const hasWrongModifier = isMac ? event.ctrlKey : event.metaKey;
 	if (!hasModifier || hasWrongModifier || event.altKey || event.shiftKey) {
@@ -320,54 +273,21 @@ function handleKeyDown(event: KeyboardEvent) {
 
 	if (event.key >= "1" && event.key <= "9") {
 		const index = Number.parseInt(event.key, 10) - 1;
-
-		if (effectiveFocusedIndex !== null) {
-			// Stage 2: A project is focused, select an agent
-			if (index < availableAgents.length) {
+		if (index < displayProjects.length) {
+			const project = displayProjects[index];
+			if (project && !missingProjectPaths.has(project.path)) {
 				event.preventDefault();
 				event.stopPropagation();
-				const project = displayProjects[effectiveFocusedIndex];
-				focusedProjectIndex = null;
-				onProjectAgentSelected(project, availableAgents[index].id);
-			}
-		} else {
-			// Stage 1: No project focused, focus a project
-			if (index < displayProjects.length) {
-				const project = displayProjects[index];
-				if (project && !missingProjectPaths.has(project.path)) {
-					event.preventDefault();
-					event.stopPropagation();
-					focusedProjectIndex = index;
-					ensureProjectInfoLoaded(project);
-				}
+				onProjectSelected(project);
 			}
 		}
 	}
 }
 
-function handleProjectFocus(index: number) {
+function handleProjectSelect(index: number) {
 	const project = displayProjects[index];
-	if (project && missingProjectPaths.has(project.path)) return;
-	focusedProjectIndex = index;
-	if (project) {
-		ensureProjectInfoLoaded(project);
-	}
-}
-
-function handleAgentSelect(projectIndex: number, agentId: string) {
-	const project = displayProjects[projectIndex];
-	onProjectAgentSelected(project, agentId);
-}
-
-// Clear focus when clicking outside
-function handleContainerClick(event: MouseEvent) {
-	if (isSinglePreselectedProject) {
-		return;
-	}
-	const target = event.target as HTMLElement;
-	// If clicking directly on the container (not a child card), clear focus
-	if (target === event.currentTarget) {
-		focusedProjectIndex = null;
+	if (project && !missingProjectPaths.has(project.path)) {
+		onProjectSelected(project);
 	}
 }
 
@@ -383,40 +303,16 @@ onDestroy(() => {
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-	class="flex flex-col items-center justify-center h-full p-4 gap-4"
-	onclick={handleContainerClick}
->
-	{#if isSinglePreselectedProject}
-		<div class="grid grid-cols-2 gap-px rounded-md border border-border/50 overflow-hidden">
-			{#each availableAgents as agent (agent.id)}
-				{@const iconSrc = getAgentIcon(agent.id, effectiveTheme)}
-				<button
-					class="flex items-center gap-2 px-2.5 py-2 bg-popover opacity-60 hover:opacity-100 hover:bg-accent/50 transition-all cursor-pointer"
-					onclick={() => handleAgentSelect(0, agent.id)}
-				>
-					<img src={iconSrc} alt={agent.name} class="h-6 w-6 shrink-0" />
-					<span class="text-[11px] font-semibold text-foreground truncate">
-						{capitalizeName(agent.name)}
-					</span>
-				</button>
-			{/each}
-		</div>
-	{:else}
-		<div class="flex flex-col gap-1.5 w-full max-w-xs">
-			{#each cardDataList as data, index (data.project.path)}
-				<ProjectCard
-					{data}
-					{index}
-					{availableAgents}
-					{effectiveTheme}
-					{modifierSymbol}
-					isMissing={missingProjectPaths.has(data.project.path)}
-					isFocused={effectiveFocusedIndex === index}
-					onFocus={() => handleProjectFocus(index)}
-					onAgentSelect={(agentId) => handleAgentSelect(index, agentId)}
-				/>
-			{/each}
-		</div>
-	{/if}
+<div class="flex flex-col items-center justify-center h-full p-4 gap-4">
+	<div class="flex flex-col gap-1.5 w-full max-w-xs">
+		{#each cardDataList as data, index (data.project.path)}
+			<ProjectCard
+				{data}
+				{index}
+				{modifierSymbol}
+				isMissing={missingProjectPaths.has(data.project.path)}
+				onSelect={() => handleProjectSelect(index)}
+			/>
+		{/each}
+	</div>
 </div>

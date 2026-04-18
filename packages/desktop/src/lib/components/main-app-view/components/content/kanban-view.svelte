@@ -1275,7 +1275,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				});
 			}}
 		>
-			<div class="flex w-full flex-col px-2 py-2">
+			<div class="flex w-full flex-col px-2 py-2 [&_[contenteditable=true]]:min-h-[7.2rem]">
 				{#if canShowNewSessionInput}
 					{#if selectedProject}
 						<div class="mb-2">

@@ -76,15 +76,15 @@ async function handleResetAllToDefaults() {
 }
 </script>
 
-<div class="flex flex-col h-full gap-2 text-sm">
+<div class="flex flex-col h-full gap-2 text-[13px]">
 	<!-- Header -->
 	<div class="flex items-center justify-between shrink-0">
-		<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+		<h2 class="text-[13px] font-semibold text-foreground">
 			{m.settings_keybindings()}
 		</h2>
 		<button
 			type="button"
-			class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+			class="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
 			onclick={handleResetAllToDefaults}
 			disabled={isLoading}
 		>
@@ -100,15 +100,15 @@ async function handleResetAllToDefaults() {
 			type="text"
 			placeholder={m.settings_keybindings_search()}
 			bind:value={searchQuery}
-			class="w-full h-7 pl-7 pr-2 text-sm bg-muted/30 border border-border/30 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border/60 transition-colors"
+			class="w-full h-7 pl-7 pr-2 text-[13px] bg-muted/20 border border-border/60 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border transition-colors"
 		/>
 	</div>
 
 	<!-- List -->
-	<div class="flex-1 min-h-0 overflow-auto rounded-lg border border-border/30">
+	<div class="flex-1 min-h-0 overflow-auto rounded-lg bg-muted/20 shadow-sm">
 		{#each groupedActions as [category, actions] (category)}
 			<div
-				class="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 bg-muted/20 border-b border-border/20 sticky top-0"
+				class="px-3 h-8 flex items-center text-[12px] font-semibold text-muted-foreground bg-muted/20 border-b border-border/40 sticky top-0"
 			>
 				{category}
 			</div>
@@ -118,12 +118,12 @@ async function handleResetAllToDefaults() {
 				{@const isEditing = editingActionId === action.id}
 				<div
 					class={cn(
-						"flex items-center gap-2 px-2 py-1.5 border-b border-border/10 last:border-b-0",
+						"flex items-center gap-2 px-3 h-8 border-t border-border/40",
 						"hover:bg-muted/30 transition-colors group"
 					)}
 				>
 					<!-- Action label -->
-					<span class="flex-1 font-medium text-foreground/80 truncate">
+					<span class="flex-1 text-[13px] font-medium text-foreground truncate">
 						{action.label}
 					</span>
 
@@ -143,13 +143,13 @@ async function handleResetAllToDefaults() {
 									{/each}
 								</KbdGroup>
 							{:else}
-								<span class="text-xs text-muted-foreground/40">
+								<span class="text-[12px] text-muted-foreground/40">
 									{m.settings_keybindings_not_bound()}
 								</span>
 							{/if}
 							<button
 								type="button"
-								class="size-5 flex items-center justify-center rounded-sm text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 opacity-0 group-hover:opacity-100 transition-all"
+								class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
 								onclick={() => (editingActionId = action.id)}
 								disabled={isLoading}
 								title={m.settings_keybindings_edit()}
@@ -167,7 +167,7 @@ async function handleResetAllToDefaults() {
 							{#if isCustom}
 								<button
 									type="button"
-									class="size-5 flex items-center justify-center rounded-sm text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+									class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
 									onclick={() => handleReset(action.id)}
 									disabled={isLoading}
 									title={m.settings_keybindings_reset()}

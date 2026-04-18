@@ -3,15 +3,8 @@ import { IconEye } from "@tabler/icons-svelte";
 import { IconEyeOff } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
 import { IconTrash } from "@tabler/icons-svelte";
-import { FloppyDisk } from "phosphor-svelte";
-import { SlidersHorizontal } from "phosphor-svelte";
+import { FloppyDisk, SlidersHorizontal, X } from "phosphor-svelte";
 import { Button, Dialog, DialogContent, Input, PillButton } from "@acepe/ui";
-import {
-	CloseAction,
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
 
 interface EnvRow {
 	id: string;
@@ -188,22 +181,21 @@ function handleSave(): void {
 	<DialogContent
 		portalProps={{ disabled: true }}
 		showCloseButton={false}
-		class="w-[min(80vw,28.75rem)] overflow-hidden border border-border/40 bg-background p-0 shadow-sm"
+		class="w-[min(80vw,28.75rem)] overflow-hidden border border-border/60 bg-background p-0 shadow-sm"
 	>
-		<EmbeddedPanelHeader class="bg-accent/5 border-border/40">
-			<HeaderTitleCell>
-				{#snippet children()}
-					<span class="truncate text-[13px] font-medium leading-none text-foreground select-none">
-						{agentName} environment
-					</span>
-				{/snippet}
-			</HeaderTitleCell>
-			<HeaderActionCell>
-				{#snippet children()}
-					<CloseAction onClose={() => handleOpenChange(false)} />
-				{/snippet}
-			</HeaderActionCell>
-		</EmbeddedPanelHeader>
+		<div class="flex items-center gap-2 h-9 px-3 border-b border-border/40">
+			<span class="flex-1 truncate text-[13px] font-medium text-foreground select-none">
+				{agentName} environment
+			</span>
+			<button
+				type="button"
+				class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				aria-label="Close"
+				onclick={() => handleOpenChange(false)}
+			>
+				<X class="size-3.5" weight="bold" />
+			</button>
+		</div>
 
 		<div class="space-y-3 bg-background px-4 py-3">
 			<p class="text-[12px] text-muted-foreground">
@@ -228,7 +220,7 @@ function handleSave(): void {
 						<Input
 							value={row.name}
 							placeholder="AZURE_API_KEY"
-							class="h-8 px-2 text-[14px] placeholder:text-[14px]"
+							class="h-8 px-2 text-[13px] placeholder:text-[13px]"
 							oninput={(event) => updateRowName(row.id, event.currentTarget.value)}
 						/>
 						<div class="relative">
@@ -236,7 +228,7 @@ function handleSave(): void {
 								type={row.revealed ? "text" : "password"}
 								value={row.value}
 								placeholder="Value"
-								class="h-8 px-2 pr-10 text-[14px] placeholder:text-[14px]"
+								class="h-8 px-2 pr-10 text-[13px] placeholder:text-[13px]"
 								oninput={(event) => updateRowValue(row.id, event.currentTarget.value)}
 							/>
 							<Button
@@ -257,7 +249,7 @@ function handleSave(): void {
 							type="button"
 							variant="outline"
 							size="icon"
-							class="h-8 w-8 border-border/50"
+							class="h-8 w-8 border-border/60"
 							onclick={addRow}
 						>
 							<IconPlus class="h-3.5 w-3.5" />
@@ -266,7 +258,7 @@ function handleSave(): void {
 							type="button"
 							variant="outline"
 							size="icon"
-							class="h-8 w-8 border-border/50"
+							class="h-8 w-8 border-border/60"
 							onclick={() => removeRow(row.id)}
 						>
 							<IconTrash class="h-3.5 w-3.5" />
@@ -285,11 +277,11 @@ function handleSave(): void {
 			{/if}
 		</div>
 
-		<div class="flex justify-end border-t border-border/40 bg-accent/5 px-2 py-1.5">
+		<div class="flex justify-end border-t border-border/40 px-3 py-2">
 			<PillButton
 				variant="invert"
 				size="md"
-				class="shrink-0 text-[0.75rem] font-medium"
+				class="shrink-0 text-[12px] font-medium"
 				onclick={handleSave}
 			>
 				Save

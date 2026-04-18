@@ -1,0 +1,9 @@
+{
+  "toolCallId": "tool-copilot-edit",
+  "_meta": {
+    "claudeCode": {
+      "toolName": "apply_patch"
+    }
+  },
+  "rawInput": "*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch"
+}

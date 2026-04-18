@@ -8,6 +8,10 @@
 		filePath?: string | null;
 		/** File name (extracted from filePath if not provided) */
 		fileName?: string | null;
+		/** Optional provider-supplied excerpt for rich read displays */
+		sourceExcerpt?: string | null;
+		/** Optional source range label (e.g. "12-48") */
+		sourceRangeLabel?: string | null;
 		/** Lines added (from git diff stats) */
 		additions?: number;
 		/** Lines removed (from git diff stats) */
@@ -31,6 +35,8 @@
 	let {
 		filePath,
 		fileName: propFileName,
+		sourceExcerpt = null,
+		sourceRangeLabel = null,
 		additions = 0,
 		deletions = 0,
 		status = "done",
@@ -82,4 +88,14 @@
 			</span>
 		{/if}
 	</div>
+	{#if sourceRangeLabel || sourceExcerpt}
+		<div class="mt-1.5 space-y-1 pl-5">
+			{#if sourceRangeLabel}
+				<div class="font-mono text-[10px] text-muted-foreground/70">{sourceRangeLabel}</div>
+			{/if}
+			{#if sourceExcerpt}
+				<pre class="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{sourceExcerpt}</pre>
+			{/if}
+		</div>
+	{/if}
 </div>

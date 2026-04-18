@@ -195,6 +195,7 @@ mod tests {
                         name: "Read".to_string(),
                         arguments: ToolArguments::Read {
                             file_path: Some("/tmp/file".to_string()),
+                            source_context: None,
                         },
                         raw_input: None,
                         status: ToolCallStatus::Completed,

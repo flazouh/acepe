@@ -653,6 +653,68 @@ describe("ToolCallManager", () => {
 		});
 	});
 
+	describe("updateEntry", () => {
+		it("preserves read source context when merging streaming and final arguments", () => {
+			const existingEntry: SessionEntry = {
+				id: "tc-read-1",
+				type: "tool_call",
+				message: {
+					id: "tc-read-1",
+					name: "Read",
+					status: "in_progress",
+					arguments: {
+						kind: "read",
+						file_path: "/repo/src/session.ts",
+						source_context: {
+							path: "/repo/src/session.ts",
+							excerpt: "443. export function reconcile() {}",
+							viewRange: { startLine: 443, endLine: 443 },
+						},
+					},
+					awaitingPlanApproval: false,
+				},
+				timestamp: new Date(),
+				isStreaming: true,
+			};
+			const { manager, entryStore } = createTrackedManager([
+				{ sessionId: "s1", entry: existingEntry },
+			]);
+
+			const result = manager.updateEntry(
+				"s1",
+				createToolCallUpdate("tc-read-1", {
+					status: "completed",
+					arguments: {
+						kind: "read",
+						file_path: "/repo/src/session.ts",
+						source_context: {
+							path: "/repo/src/session.ts",
+							excerpt: "443. export function reconcile() {}",
+							viewRange: { startLine: 443, endLine: 443 },
+						},
+					},
+				})
+			);
+
+			expect(result.isOk()).toBe(true);
+			expect(entryStore.updateEntry).toHaveBeenCalledWith(
+				"s1",
+				0,
+				expect.objectContaining({
+					message: expect.objectContaining({
+						arguments: expect.objectContaining({
+							kind: "read",
+							source_context: expect.objectContaining({
+								path: "/repo/src/session.ts",
+								excerpt: "443. export function reconcile() {}",
+							}),
+						}),
+					}),
+				})
+			);
+		});
+	});
+
 	// ============================================
 	// updateEntry
 	// ============================================

@@ -1,4 +1,4 @@
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::terminal::manager::TerminalManager;
 use crate::terminal::types::{
     CreateTerminalRequest, CreateTerminalResponse, TerminalOutputResponse, WaitForExitResponse,
@@ -13,17 +13,22 @@ pub async fn terminal_create(
     app: AppHandle,
     request: CreateTerminalRequest,
 ) -> CommandResult<CreateTerminalResponse> {
-    unexpected_command_result("terminal_create", "Failed to create terminal", async {
-        tracing::info!(
-            session_id = %request.session_id,
-            command = %request.command,
-            "terminal_create called"
-        );
+    unexpected_command_result(
+        "terminal_create",
+        "Failed to create terminal",
+        async {
+            tracing::info!(
+                session_id = %request.session_id,
+                command = %request.command,
+                "terminal_create called"
+            );
 
-        let manager = app.state::<Arc<TerminalManager>>();
-        let result = manager.create_terminal(request).await;
-        result
-    }.await)
+            let manager = app.state::<Arc<TerminalManager>>();
+            let result = manager.create_terminal(request).await;
+            result
+        }
+        .await,
+    )
 }
 
 /// Get current output from a terminal
@@ -34,16 +39,21 @@ pub async fn terminal_output(
     session_id: String,
     terminal_id: String,
 ) -> CommandResult<TerminalOutputResponse> {
-    unexpected_command_result("terminal_output", "Failed to get terminal output", async {
-        tracing::debug!(
-            session_id = %session_id,
-            terminal_id = %terminal_id,
-            "terminal_output called"
-        );
+    unexpected_command_result(
+        "terminal_output",
+        "Failed to get terminal output",
+        async {
+            tracing::debug!(
+                session_id = %session_id,
+                terminal_id = %terminal_id,
+                "terminal_output called"
+            );
 
-        let manager = app.state::<Arc<TerminalManager>>();
-        manager.get_output(&terminal_id).await
-    }.await)
+            let manager = app.state::<Arc<TerminalManager>>();
+            manager.get_output(&terminal_id).await
+        }
+        .await,
+    )
 }
 
 /// Wait for a terminal process to exit
@@ -54,16 +64,21 @@ pub async fn terminal_wait_for_exit(
     session_id: String,
     terminal_id: String,
 ) -> CommandResult<WaitForExitResponse> {
-    unexpected_command_result("terminal_wait_for_exit", "Failed to wait for terminal exit", async {
-        tracing::debug!(
-            session_id = %session_id,
-            terminal_id = %terminal_id,
-            "terminal_wait_for_exit called"
-        );
+    unexpected_command_result(
+        "terminal_wait_for_exit",
+        "Failed to wait for terminal exit",
+        async {
+            tracing::debug!(
+                session_id = %session_id,
+                terminal_id = %terminal_id,
+                "terminal_wait_for_exit called"
+            );
 
-        let manager = app.state::<Arc<TerminalManager>>();
-        manager.wait_for_exit(&terminal_id).await
-    }.await)
+            let manager = app.state::<Arc<TerminalManager>>();
+            manager.wait_for_exit(&terminal_id).await
+        }
+        .await,
+    )
 }
 
 /// Kill a running terminal process
@@ -74,16 +89,21 @@ pub async fn terminal_kill(
     session_id: String,
     terminal_id: String,
 ) -> CommandResult<()> {
-    unexpected_command_result("terminal_kill", "Failed to kill terminal", async {
-        tracing::info!(
-            session_id = %session_id,
-            terminal_id = %terminal_id,
-            "terminal_kill called"
-        );
+    unexpected_command_result(
+        "terminal_kill",
+        "Failed to kill terminal",
+        async {
+            tracing::info!(
+                session_id = %session_id,
+                terminal_id = %terminal_id,
+                "terminal_kill called"
+            );
 
-        let manager = app.state::<Arc<TerminalManager>>();
-        manager.kill(&terminal_id).await
-    }.await)
+            let manager = app.state::<Arc<TerminalManager>>();
+            manager.kill(&terminal_id).await
+        }
+        .await,
+    )
 }
 
 /// Release terminal resources
@@ -94,14 +114,19 @@ pub async fn terminal_release(
     session_id: String,
     terminal_id: String,
 ) -> CommandResult<()> {
-    unexpected_command_result("terminal_release", "Failed to release terminal", async {
-        tracing::info!(
-            session_id = %session_id,
-            terminal_id = %terminal_id,
-            "terminal_release called"
-        );
+    unexpected_command_result(
+        "terminal_release",
+        "Failed to release terminal",
+        async {
+            tracing::info!(
+                session_id = %session_id,
+                terminal_id = %terminal_id,
+                "terminal_release called"
+            );
 
-        let manager = app.state::<Arc<TerminalManager>>();
-        manager.release(&terminal_id).await
-    }.await)
+            let manager = app.state::<Arc<TerminalManager>>();
+            manager.release(&terminal_id).await
+        }
+        .await,
+    )
 }

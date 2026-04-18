@@ -1,7 +1,7 @@
 use super::SyntheticToolCallContext;
-use crate::acp::parsers::kind::is_web_search_id;
 use crate::acp::permission_tracker::WebSearchDedup;
 use crate::acp::provider::AgentProvider;
+use crate::acp::reconciler::kind_payload::is_web_search_id;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]

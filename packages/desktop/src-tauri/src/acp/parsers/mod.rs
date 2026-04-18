@@ -6,15 +6,11 @@
 //!
 //! ## Architecture
 //!
-//! Tool name normalization is handled by agent-specific adapters in the `adapters` module.
-//! Each adapter normalizes tool names directly to `ToolKind` for UI routing. This provides:
-//!
-//! - Single source of truth for tool → kind mapping
-//! - Agent-specific name normalization in separate files
-//! - Easy testing and maintenance
+//! Tool name normalization lives under `crate::acp::reconciler::providers` (Unit 3).
+//! ACP `kind` hints and canonical display names live in `crate::acp::reconciler::kind_payload`.
+//! Parsers re-export adapter types for the `AgentParser` surface.
 
 pub mod acp_fields;
-pub mod adapters;
 pub(crate) mod argument_enrichment;
 pub(crate) mod arguments;
 pub mod cc_sdk_bridge;
@@ -23,14 +19,13 @@ pub(crate) mod codex_parser;
 pub(crate) mod copilot_parser;
 pub(crate) mod cursor_parser;
 pub(crate) mod edit_normalizers;
-pub mod kind;
 pub(crate) mod opencode_parser;
 pub mod provider_capabilities;
 pub(crate) mod shared_chat;
 pub mod status;
 mod types;
 
-pub use adapters::{
+pub use crate::acp::reconciler::providers::{
     ClaudeCodeAdapter, CodexAdapter, CopilotAdapter, CursorAdapter, OpenCodeAdapter,
 };
 pub use claude_code_parser::ClaudeCodeParser;

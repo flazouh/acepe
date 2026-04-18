@@ -62,12 +62,12 @@ function handleArchive(session: { id: string; projectPath: string; agentId: stri
 }
 </script>
 
-<div class="flex flex-col h-full min-h-0 gap-3 text-sm">
+<div class="flex flex-col h-full min-h-0 gap-3 text-[13px]">
 	<div class="shrink-0">
-		<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+		<h2 class="text-[13px] font-semibold text-foreground">
 			{m.settings_project_sessions()}
 		</h2>
-		<p class="text-xs text-muted-foreground/50 mt-0.5">
+		<p class="text-[12px] text-muted-foreground mt-0.5">
 			{m.settings_project_sessions_description()}
 		</p>
 	</div>

@@ -913,7 +913,7 @@ mod tests {
                     Some(crate::acp::session_update::ToolKind::Read)
                 );
                 match &message.arguments {
-                    crate::acp::session_update::ToolArguments::Read { file_path } => {
+                    crate::acp::session_update::ToolArguments::Read { file_path, .. } => {
                         assert_eq!(file_path.as_deref(), Some("/repo/src/file.rs"));
                     }
                     other => panic!("expected read arguments, got {other:?}"),

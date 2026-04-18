@@ -14,7 +14,7 @@
 //! Default logs_dir: ./logs/streaming (relative to cwd). Pass a directory that
 //! contains both streaming and/or historical jsonl (same dir can have both).
 
-use acepe_lib::acp::parsers::adapters::CursorAdapter;
+use acepe_lib::acp::parsers::CursorAdapter;
 use acepe_lib::acp::session_update::ToolKind;
 use std::cmp::Reverse;
 use std::collections::HashMap;

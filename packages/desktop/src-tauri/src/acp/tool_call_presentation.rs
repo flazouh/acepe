@@ -15,7 +15,7 @@ pub(crate) fn title_is_placeholder(title: Option<&str>) -> bool {
 
 pub(crate) fn synthesize_title(arguments: &ToolArguments) -> Option<String> {
     match arguments {
-        ToolArguments::Read { file_path } => {
+        ToolArguments::Read { file_path, .. } => {
             file_path.as_ref().map(|path| format!("Read {}", path))
         }
         ToolArguments::Edit { edits, .. } => edits.first().and_then(synthesize_edit_title),
@@ -97,7 +97,7 @@ pub(crate) fn merge_tool_arguments(
 
 fn extract_paths(arguments: &ToolArguments) -> Option<Vec<String>> {
     match arguments {
-        ToolArguments::Read { file_path } | ToolArguments::Search { file_path, .. } => {
+        ToolArguments::Read { file_path, .. } | ToolArguments::Search { file_path, .. } => {
             file_path.clone().map(|path| vec![path])
         }
         ToolArguments::Delete {
@@ -154,6 +154,7 @@ mod tests {
         assert_eq!(
             synthesize_title(&ToolArguments::Read {
                 file_path: Some("/tmp/read.rs".to_string()),
+                source_context: None,
             }),
             Some("Read /tmp/read.rs".to_string())
         );

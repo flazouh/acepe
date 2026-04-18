@@ -1057,7 +1057,7 @@ fn test_state_input_takes_precedence() {
 
     match result.unwrap() {
         SessionUpdate::ToolCall { tool_call, .. } => match &tool_call.arguments {
-            crate::acp::session_update::ToolArguments::Read { file_path } => {
+            crate::acp::session_update::ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/correct/path"));
             }
             _ => panic!("Expected Read arguments"),

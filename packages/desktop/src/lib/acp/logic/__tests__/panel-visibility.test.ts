@@ -52,8 +52,6 @@ function makeInput(overrides: Partial<Parameters<typeof derivePanelViewState>[0]
 		hasSession: true,
 		showProjectSelection: false,
 		hasEffectiveProjectPath: true,
-		hasSelectedAgentId: true,
-		hasAvailableAgents: false,
 		errorInfo: NO_ERROR,
 		...overrides,
 	};
@@ -199,60 +197,6 @@ describe("derivePanelViewState", () => {
 			expect(result.kind).not.toBe("ready");
 			expect(result.kind).not.toBe("project_selection");
 		}
-	});
-
-	// ── Project Selection (includes agent selection with embedded agents) ────
-
-	it("should return project_selection when agents available but none selected (agents now embedded in project cards)", () => {
-		const result = derivePanelViewState(
-			makeInput({
-				hasAvailableAgents: true,
-				hasSelectedAgentId: false,
-				hasSession: false,
-				runtimeState: null,
-			})
-		);
-		expect(result.kind).toBe("project_selection");
-	});
-
-	it("should not return project_selection for agent selection when an agent is already selected", () => {
-		const result = derivePanelViewState(
-			makeInput({
-				hasAvailableAgents: true,
-				hasSelectedAgentId: true,
-				hasSession: false,
-				runtimeState: null,
-			})
-		);
-		expect(result.kind).not.toBe("project_selection");
-	});
-
-	it("should not return project_selection for existing sessions that already have an agent", () => {
-		const result = derivePanelViewState(
-			makeInput({
-				hasAvailableAgents: true,
-				hasSelectedAgentId: false,
-				hasSession: true,
-				runtimeState: makeRuntimeState({
-					showConversation: false,
-					showReadyPlaceholder: true,
-				}),
-				entriesCount: 0,
-			})
-		);
-		expect(result.kind).toBe("ready");
-	});
-
-	it("should keep existing session conversations visible even when no draft agent is selected", () => {
-		const result = derivePanelViewState(
-			makeInput({
-				hasAvailableAgents: true,
-				hasSelectedAgentId: false,
-				hasSession: true,
-				entriesCount: 3,
-			})
-		);
-		expect(result.kind).toBe("conversation");
 	});
 
 	// ── Priority 4: Ready ──────────────────────────────────────

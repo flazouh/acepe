@@ -1,17 +1,8 @@
 <script lang="ts">
-	import { VoiceDownloadProgress } from "@acepe/ui";
-	import { AgentToolCard } from "@acepe/ui/agent-panel";
-import {
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
-import { DownloadSimple } from "phosphor-svelte";
-import { Microphone } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
+import { VoiceDownloadProgress } from "@acepe/ui";
+import { DownloadSimple, Microphone, Trash } from "phosphor-svelte";
 
-	import { Switch } from "$lib/components/ui/switch/index.js";
+import { Switch } from "$lib/components/ui/switch/index.js";
 import * as m from "$lib/messages.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 
@@ -44,51 +35,39 @@ function formatBytes(bytes: number): string {
 	/>
 
 	<!-- Voice enable card -->
-	<AgentToolCard variant="muted">
-		<EmbeddedPanelHeader>
-			<HeaderCell withDivider={false}>
-				<Microphone class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
-			</HeaderCell>
-			<HeaderTitleCell compactPadding>
-				<span class="truncate text-[13px] font-semibold text-foreground">
-					{m.voice_settings_enable_label()}
-				</span>
-			</HeaderTitleCell>
-			<HeaderActionCell withDivider>
-				<div class="flex items-center h-7 px-1.5" data-header-control>
-					<Switch
-						checked={voiceSettingsStore.enabled}
-						onCheckedChange={(checked) => {
-							void voiceSettingsStore.setEnabled(checked === true);
-						}}
-					/>
-				</div>
-			</HeaderActionCell>
-		</EmbeddedPanelHeader>
+	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+		<div class="flex items-center h-9 px-3 gap-2">
+			<Microphone class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
+			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
+				{m.voice_settings_enable_label()}
+			</span>
+			<Switch
+				checked={voiceSettingsStore.enabled}
+				onCheckedChange={(checked) => {
+					void voiceSettingsStore.setEnabled(checked === true);
+				}}
+			/>
+		</div>
 		{#if selectedModelIsEnglishOnly}
-			<div class="flex items-center h-6 px-2.5 border-t border-border/30 text-[11px] text-muted-foreground/55">
+			<div class="flex items-center h-8 px-3 border-t border-border/40 text-[12px] text-muted-foreground">
 				English-only model uses English transcription.
 			</div>
 		{/if}
-	</AgentToolCard>
+	</div>
 
 	<!-- Models card -->
-	<AgentToolCard variant="muted">
-		<EmbeddedPanelHeader class="!border-b-0">
-			<HeaderCell withDivider={false}>
-				<div class="size-3.5 shrink-0 rounded-sm bg-muted-foreground/20 flex items-center justify-center">
-					<span class="text-[8px] font-bold text-muted-foreground">AI</span>
-				</div>
-			</HeaderCell>
-			<HeaderTitleCell compactPadding>
-				<span class="truncate text-[13px] font-semibold text-foreground">
-					{m.voice_settings_models_title()}
-				</span>
-			</HeaderTitleCell>
-		</EmbeddedPanelHeader>
+	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+		<div class="flex items-center h-9 px-3 gap-2">
+			<div class="size-3.5 shrink-0 rounded-sm bg-muted-foreground/20 flex items-center justify-center">
+				<span class="text-[8px] font-bold text-muted-foreground">AI</span>
+			</div>
+			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
+				{m.voice_settings_models_title()}
+			</span>
+		</div>
 
 		{#if voiceSettingsStore.modelsLoading}
-			<div class="flex items-center h-7 px-2.5 text-[12px] text-muted-foreground/60">
+			<div class="flex items-center h-8 px-3 border-t border-border/40 text-[12px] text-muted-foreground">
 				{m.voice_settings_loading_models()}
 			</div>
 		{:else}
@@ -97,16 +76,14 @@ function formatBytes(bytes: number): string {
 					{@const isSelected = voiceSettingsStore.selectedModelId === model.id}
 					{@const isDownloading = voiceSettingsStore.downloadProgressModelId === model.id}
 
-					<div class="flex items-center gap-2 h-7 w-full px-2.5 border-t border-border/30">
-						<!-- Selectable area: radio + name + badges -->
+					<div class="flex items-center gap-2 h-8 w-full px-3 border-t border-border/40">
 						<button
 							type="button"
 							role="radio"
 							aria-checked={isSelected}
-							class="flex items-center gap-2 flex-1 min-w-0 h-full text-left hover:bg-accent/50 -mx-2.5 px-2.5 transition-colors"
+							class="flex items-center gap-2 flex-1 min-w-0 h-full text-left hover:bg-accent/50 -mx-3 px-3 transition-colors"
 							onclick={() => void voiceSettingsStore.setSelectedModelId(model.id)}
 						>
-							<!-- Radio indicator -->
 							<div
 								class="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border {isSelected ? 'border-foreground' : 'border-muted-foreground/40'}"
 							>
@@ -115,15 +92,13 @@ function formatBytes(bytes: number): string {
 								{/if}
 							</div>
 
-							<!-- Model name -->
 							<span
-								class="truncate text-[13px] font-medium {isSelected ? 'text-foreground' : 'text-foreground/70'}"
+								class="truncate text-[13px] font-medium {isSelected ? 'text-foreground' : 'text-foreground/80'}"
 							>
 								{model.name}
 							</span>
 
-							<!-- Language badge -->
-							<span class="text-[11px] text-muted-foreground/50">
+							<span class="text-[12px] text-muted-foreground">
 								{#if model.is_english_only}
 									EN
 								{:else}
@@ -131,13 +106,11 @@ function formatBytes(bytes: number): string {
 								{/if}
 							</span>
 
-							<!-- Size -->
-							<span class="ml-auto text-[11px] text-muted-foreground/40">
+							<span class="ml-auto text-[12px] text-muted-foreground">
 								{formatBytes(model.size_bytes)}
 							</span>
 						</button>
 
-						<!-- Action area (outside the radio button) -->
 						{#if isDownloading}
 							<VoiceDownloadProgress
 								ariaLabel={`Downloading ${model.name}`}
@@ -149,7 +122,7 @@ function formatBytes(bytes: number): string {
 						{:else if model.is_downloaded}
 							<button
 								type="button"
-								class="group flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-destructive"
+								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive hover:bg-accent"
 								title={m.voice_settings_delete()}
 								onclick={() => void voiceSettingsStore.deleteModel(model.id)}
 							>
@@ -159,7 +132,7 @@ function formatBytes(bytes: number): string {
 						{:else}
 							<button
 								type="button"
-								class="group flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-foreground"
+								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
 								title={m.voice_settings_download()}
 								onclick={() => void voiceSettingsStore.downloadModel(model.id)}
 							>
@@ -171,5 +144,5 @@ function formatBytes(bytes: number): string {
 				{/each}
 			</div>
 		{/if}
-	</AgentToolCard>
+	</div>
 </div>

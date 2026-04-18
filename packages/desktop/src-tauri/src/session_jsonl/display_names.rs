@@ -2,7 +2,7 @@
 //!
 //! Converts raw identifiers to user-friendly display names.
 
-use crate::acp::parsers::kind::{canonical_name_for_kind, infer_kind_from_payload};
+use crate::acp::reconciler::kind_payload::{canonical_name_for_kind, infer_kind_from_payload};
 
 /// Format a tool name into a user-friendly display title.
 ///

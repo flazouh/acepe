@@ -257,6 +257,8 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 	if (kind === "skill") return "Skill";
 	if (kind === "tool_search") return "Tool search";
 	if (kind === "browser") return "Browser";
+	if (kind === "sql") return "SQL";
+	if (kind === "unclassified") return "Tool";
 	if (kind === "enter_plan_mode") return "Enter plan mode";
 	if (kind === "exit_plan_mode") return "Exit plan mode";
 	if (kind === "create_plan") return "Create plan";
@@ -327,7 +329,7 @@ function getToolSubtitle(toolCall: ToolCall): string | undefined {
 
 function getToolFilePath(toolCall: ToolCall): string | undefined {
 	if (toolCall.arguments.kind === "read") {
-		return toolCall.arguments.file_path ?? undefined;
+		return toolCall.arguments.file_path ?? toolCall.arguments.source_context?.path ?? undefined;
 	}
 
 	if (toolCall.arguments.kind === "search") {
@@ -349,8 +351,39 @@ function getToolFilePath(toolCall: ToolCall): string | undefined {
 	return undefined;
 }
 
+function getReadSourceExcerpt(toolCall: ToolCall): string | null {
+	if (toolCall.arguments.kind !== "read") {
+		return null;
+	}
+
+	return toolCall.arguments.source_context?.excerpt ?? null;
+}
+
+function getReadSourceRangeLabel(toolCall: ToolCall): string | null {
+	if (toolCall.arguments.kind !== "read") {
+		return null;
+	}
+
+	const range = toolCall.arguments.source_context?.viewRange;
+	if (!range) {
+		return null;
+	}
+
+	const start = range.startLine;
+	const end = range.endLine;
+	if (start === null || start === undefined) {
+		return end === null || end === undefined ? null : `Lines ${end}`;
+	}
+
+	if (end === null || end === undefined || end === start) {
+		return `Line ${start}`;
+	}
+
+	return `Lines ${start}-${end}`;
+}
+
 function serializeOtherToolDetails(toolCall: ToolCall): string | null {
-	if (toolCall.kind !== "other") {
+	if (toolCall.kind !== "other" && toolCall.kind !== "unclassified") {
 		return null;
 	}
 
@@ -701,8 +734,18 @@ function mapToolCallEntry(
 		title: resolveToolTitle(toolCall, kind, turnState),
 		subtitle,
 		detailsText:
-			kind === "browser" ? (browserPayload.detailsText ?? null) : serializeOtherToolDetails(toolCall),
+			kind === "browser"
+				? (browserPayload.detailsText ?? null)
+				: kind === "sql"
+					? serializeToolResult(
+							toolCall.normalizedResult?.kind === "sql"
+								? toolCall.normalizedResult.rawText
+								: toolCall.result
+						)
+					: serializeOtherToolDetails(toolCall),
 		filePath: getToolFilePath(toolCall),
+		sourceExcerpt: getReadSourceExcerpt(toolCall),
+		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
 		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
 		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
@@ -897,7 +940,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 		};
 	}
 
-	if (entry.type === "assistant_merged_thoughts") {
+	if (entry.type === "assistant_merged") {
 		return {
 			id: entry.key,
 			type: "assistant",

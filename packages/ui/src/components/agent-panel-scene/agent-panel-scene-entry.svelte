@@ -168,7 +168,13 @@
 		summaryLabel={`${entry.lintDiagnostics.length} issues in ${lintFileCount} files`}
 	/>
 {:else if isToolCall(entry) && entry.kind === "read"}
-	<AgentToolRead filePath={entry.filePath} status={entry.status} {iconBasePath} />
+	<AgentToolRead
+		filePath={entry.filePath}
+		sourceExcerpt={entry.sourceExcerpt ?? null}
+		sourceRangeLabel={entry.sourceRangeLabel ?? null}
+		status={entry.status}
+		{iconBasePath}
+	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
 		command={entry.command ?? null}

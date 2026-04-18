@@ -11,12 +11,12 @@ use crate::acp::inbound_request_router::{
 };
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
-use crate::acp::parsers::kind::is_web_search_id;
 use crate::acp::parsers::AgentType;
 use crate::acp::permission_tracker::{PermissionContext, PermissionTracker, WebSearchDedup};
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::AgentProvider;
 use crate::acp::provider_extensions::InboundResponseAdapter;
+use crate::acp::reconciler::kind_payload::is_web_search_id;
 use crate::acp::session_registry::SessionRegistry;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,

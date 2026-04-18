@@ -24,8 +24,9 @@ use crate::acp::session_update::{
     InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
     PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
     SessionUpdate, SkillMeta, TodoItem, TodoStatus, ToolArguments, ToolCallData, ToolCallLocation,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
-    TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
+    ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
+    UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -254,6 +255,8 @@ pub fn export_all_types() {
     export_type!(ContentChunk);
     export_type!(ToolCallData);
     export_type!(EditEntry);
+    export_type!(ToolSourceRange);
+    export_type!(ToolSourceContext);
     export_type!(ToolArguments);
     export_type!(ToolCallUpdateData);
     export_type!(PlanData);
@@ -359,6 +362,8 @@ pub fn export_all_types() {
     export_acp_type!(ToolCallStatus);
     export_acp_type!(ChunkAggregationHint);
     export_acp_type!(EditEntry);
+    export_acp_type!(ToolSourceRange);
+    export_acp_type!(ToolSourceContext);
     export_acp_type!(ToolArguments);
     export_acp_type!(ToolReference);
     export_acp_type!(QuestionOption);

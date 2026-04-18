@@ -5,7 +5,7 @@ import {
 	resolveDefaultSubmitAction,
 	resolveEnterKeyIntent,
 	resolvePrimaryButtonIntent,
-} from "./submit-intent.js";
+} from "../submit-intent.js";
 
 describe("submit intent", () => {
 	it("queues on Enter while agent is busy", () => {
@@ -105,7 +105,7 @@ describe("submit intent", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: true,
-				isSending: false,
+				isComposerDispatching: false,
 				isAgentBusy: true,
 				isSubmitDisabled: true,
 				primaryButtonIntent: "send",
@@ -117,11 +117,63 @@ describe("submit intent", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: false,
-				isSending: false,
+				isComposerDispatching: false,
 				isAgentBusy: true,
 				isSubmitDisabled: true,
 				primaryButtonIntent: "cancel",
 			})
 		).toBe(false);
+	});
+
+	it("does not expose a send action while a pending config gate can still veto submit", () => {
+		expect(
+			resolveDefaultSubmitAction({
+				hasDraftInput: true,
+				hasSessionId: true,
+				isAgentBusy: false,
+				isStreaming: false,
+				isSubmitDisabled: false,
+				hasBlockingPendingSessionConfigOperation: true,
+			})
+		).toBe("none");
+	});
+
+	it("disables the primary send button while submit is blocked by pending session config", () => {
+		expect(
+			isPrimaryButtonDisabled({
+				hasDraftInput: true,
+				isComposerDispatching: false,
+				isAgentBusy: false,
+				isSubmitDisabled: false,
+				primaryButtonIntent: "send",
+				hasBlockingComposerConfig: true,
+			})
+		).toBe(true);
+	});
+
+	it("suppresses Enter submit while composer config is blocking", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: false,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: false,
+				hasBlockingComposerConfig: true,
+			})
+		).toBe("none");
+	});
+
+	it("suppresses default submit action while composer dispatch is in flight", () => {
+		expect(
+			resolveDefaultSubmitAction({
+				hasDraftInput: true,
+				hasSessionId: true,
+				isAgentBusy: false,
+				isStreaming: false,
+				isSubmitDisabled: false,
+				isComposerDispatching: true,
+			})
+		).toBe("none");
 	});
 });

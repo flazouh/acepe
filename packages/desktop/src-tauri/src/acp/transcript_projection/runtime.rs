@@ -39,10 +39,7 @@ impl TranscriptProjectionRegistry {
 
     #[must_use]
     pub fn apply_delta(&self, delta: &TranscriptDelta) -> TranscriptSnapshot {
-        let mut session = self
-            .sessions
-            .entry(delta.session_id.clone())
-            .or_default();
+        let mut session = self.sessions.entry(delta.session_id.clone()).or_default();
         session.apply_delta(delta);
         session.snapshot()
     }
@@ -54,10 +51,7 @@ impl TranscriptProjectionRegistry {
         update: &SessionUpdate,
     ) -> Option<TranscriptDelta> {
         let session_id = update.session_id()?.to_string();
-        let mut session = self
-            .sessions
-            .entry(session_id.clone())
-            .or_default();
+        let mut session = self.sessions.entry(session_id.clone()).or_default();
         let operations = session.apply_session_update(event_seq, update)?;
         Some(TranscriptDelta {
             event_seq,

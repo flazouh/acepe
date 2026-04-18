@@ -31,6 +31,8 @@ export type AgentToolKind =
 	| "task"
 	| "task_output"
 	| "browser"
+	| "sql"
+	| "unclassified"
 	| "other";
 
 export interface AgentUserEntry {
@@ -56,6 +58,8 @@ export interface AgentToolEntry {
 	scriptText?: string | null;
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
+	sourceExcerpt?: string | null;
+	sourceRangeLabel?: string | null;
 	status: AgentToolStatus;
 	// Execute-specific
 	command?: string | null;

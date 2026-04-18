@@ -23,6 +23,8 @@ const TOOL_KIND_TO_AGENT_TOOL_KIND: Record<ToolKind, AgentToolKind> = {
 	create_plan: "other",
 	tool_search: "other",
 	browser: "browser",
+	sql: "sql",
+	unclassified: "unclassified",
 	other: "other",
 };
 

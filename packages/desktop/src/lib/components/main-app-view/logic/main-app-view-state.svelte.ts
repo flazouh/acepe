@@ -47,6 +47,7 @@ import { PanelHandler } from "./managers/panel-handler.js";
 import { ProjectHandler } from "./managers/project-handler.js";
 import { SessionHandler } from "./managers/session-handler.js";
 import { ensureSpawnableAgentSelected } from "./spawnable-agents.js";
+import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 
 const logger = createLogger({ id: "main-app-view-state", name: "MainAppViewState" });
 
@@ -580,27 +581,28 @@ export class MainAppViewState {
 			return;
 		}
 
+		const resolvedAgentId =
+			agentId ??
+			resolveDefaultAgentIdForCreate(
+				this.agentStore.agents,
+				this.agentPreferencesStore.defaultAgentId
+			);
+
 		if (this.onNewThreadOverride) {
 			this.onNewThreadOverride({
 				projectPath: project.path,
-				agentId,
+				agentId: resolvedAgentId,
 			});
 			return;
 		}
 
-		if (agentId) {
-			const panel = this.panelStore.spawnPanel({
-				requireProjectSelection: false,
-				projectPath: project.path,
-				pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
-			});
-			this.panelStore.setPanelAgent(panel.id, agentId);
-		} else {
-			this.panelStore.spawnPanel({
-				requireProjectSelection: false,
-				projectPath: project.path,
-				pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
-			});
+		const panel = this.panelStore.spawnPanel({
+			requireProjectSelection: false,
+			projectPath: project.path,
+			pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
+		});
+		if (resolvedAgentId) {
+			this.panelStore.setPanelAgent(panel.id, resolvedAgentId);
 		}
 	}
 

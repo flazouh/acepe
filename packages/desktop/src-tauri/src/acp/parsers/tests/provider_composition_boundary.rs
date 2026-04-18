@@ -69,13 +69,16 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
             [
                 format!("super::{}", family.adapter_module),
                 format!("super::{}Adapter", family.type_prefix),
-                format!("crate::acp::parsers::adapters::{}", family.adapter_module),
                 format!(
-                    "crate::acp::parsers::adapters::{}Adapter",
+                    "crate::acp::reconciler::providers::{}",
+                    family.adapter_module
+                ),
+                format!(
+                    "crate::acp::reconciler::providers::{}Adapter",
                     family.type_prefix
                 ),
                 format!(
-                    "crate::acp::parsers::adapters::{}::{}Adapter",
+                    "crate::acp::reconciler::providers::{}::{}Adapter",
                     family.adapter_module, family.type_prefix
                 ),
                 format!("crate::acp::parsers::{}Adapter", family.type_prefix),
@@ -85,7 +88,7 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
     forbidden_paths.extend(runtime_forbidden_paths());
 
     BoundaryCase {
-        relative_path: format!("adapters/{}.rs", current.adapter_module),
+        relative_path: format!("reconciler/providers/{}.rs", current.adapter_module),
         forbidden_paths,
     }
 }
@@ -141,6 +144,7 @@ fn parser_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCase
 #[test]
 fn provider_modules_do_not_cross_provider_boundaries() {
     let parser_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/parsers");
+    let acp_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp");
 
     // OpenCode remains provider-owned today. We intentionally apply the same no-sibling-import
     // rule to its parser, adapter, and edit normalizer instead of treating it as a hidden
@@ -192,7 +196,11 @@ fn provider_modules_do_not_cross_provider_boundaries() {
     let violations: Vec<String> = cases
         .iter()
         .flat_map(|case| {
-            let source_path = parser_root.join(&case.relative_path);
+            let source_path = if case.relative_path.starts_with("reconciler/") {
+                acp_root.join(&case.relative_path)
+            } else {
+                parser_root.join(&case.relative_path)
+            };
             let source = fs::read_to_string(&source_path).unwrap_or_else(|error| {
                 panic!("failed to read {}: {error}", source_path.display())
             });

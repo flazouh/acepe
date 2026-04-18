@@ -7,18 +7,19 @@ type ThinkingEntry = {
 	startedAtMs?: number | null;
 };
 
-export type MergedThoughtAssistantDisplayEntry = {
-	type: "assistant_merged_thoughts";
+export type MergedAssistantDisplayEntry = {
+	type: "assistant_merged";
 	key: string;
 	memberIds: readonly string[];
 	message: AssistantMessage;
 	timestamp?: Date;
+	latestTimestamp?: Date;
 	isStreaming?: boolean;
 };
 
 export type VirtualizedDisplayEntry =
 	| SessionEntry
-	| MergedThoughtAssistantDisplayEntry
+	| MergedAssistantDisplayEntry
 	| ThinkingEntry;
 
 export const THINKING_DISPLAY_ENTRY: ThinkingEntry = {
@@ -27,19 +28,66 @@ export const THINKING_DISPLAY_ENTRY: ThinkingEntry = {
 	startedAtMs: null,
 };
 
-function isThoughtOnlyAssistantEntry(
-	entry: SessionEntry
-): entry is SessionEntry & { type: "assistant" } {
-	if (entry.type !== "assistant") return false;
-	const chunks = entry.message.chunks;
-	if (chunks.length === 0) return false;
-	return chunks.every((chunk) => chunk.type === "thought");
+function isAssistantEntry(entry: SessionEntry): entry is SessionEntry & { type: "assistant" } {
+	return entry.type === "assistant";
 }
 
-export function isMergedThoughtAssistantDisplayEntry(
+function isVirtualizedAssistantEntry(
 	entry: VirtualizedDisplayEntry
-): entry is MergedThoughtAssistantDisplayEntry {
-	return entry.type === "assistant_merged_thoughts";
+): entry is SessionEntry & { type: "assistant" } {
+	return entry.type === "assistant";
+}
+
+export function isMergedAssistantDisplayEntry(
+	entry: VirtualizedDisplayEntry
+): entry is MergedAssistantDisplayEntry {
+	return entry.type === "assistant_merged";
+}
+
+function createMergedAssistantDisplayEntry(
+	entry: SessionEntry & { type: "assistant" }
+): MergedAssistantDisplayEntry {
+	return {
+		type: "assistant_merged",
+		key: entry.id,
+		memberIds: [entry.id],
+		message: entry.message,
+		timestamp: entry.timestamp,
+		latestTimestamp: entry.timestamp,
+		isStreaming: entry.isStreaming,
+	};
+}
+
+function mergeAssistantMessages(
+	previous: AssistantMessage,
+	next: AssistantMessage
+): AssistantMessage {
+	return {
+		chunks: previous.chunks.concat(next.chunks),
+		model: next.model ?? previous.model,
+		displayModel: next.displayModel ?? previous.displayModel,
+		receivedAt: previous.receivedAt ?? next.receivedAt,
+		thinkingDurationMs: next.thinkingDurationMs ?? previous.thinkingDurationMs,
+	};
+}
+
+function mergeAssistantEntry(
+	previous: MergedAssistantDisplayEntry,
+	entry: SessionEntry & { type: "assistant" }
+): MergedAssistantDisplayEntry {
+	return {
+		type: "assistant_merged",
+		key: previous.key,
+		memberIds: previous.memberIds.concat(entry.id),
+		message: mergeAssistantMessages(previous.message, entry.message),
+		timestamp: previous.timestamp ?? entry.timestamp,
+		latestTimestamp: entry.timestamp ?? previous.latestTimestamp,
+		isStreaming: previous.isStreaming || entry.isStreaming,
+	};
+}
+
+function hasThoughtChunks(message: AssistantMessage): boolean {
+	return message.chunks.some((chunk) => chunk.type === "thought");
 }
 
 export function buildVirtualizedDisplayEntries(
@@ -48,43 +96,47 @@ export function buildVirtualizedDisplayEntries(
 	const merged: VirtualizedDisplayEntry[] = [];
 
 	for (const entry of sessionEntries) {
-		if (!isThoughtOnlyAssistantEntry(entry)) {
+		if (!isAssistantEntry(entry)) {
 			merged.push(entry);
 			continue;
 		}
 
 		const previous = merged.at(-1);
-		if (!previous || !isMergedThoughtAssistantDisplayEntry(previous)) {
-			merged.push({
-				type: "assistant_merged_thoughts",
-				key: entry.id,
-				memberIds: [entry.id],
-				message: entry.message,
-				timestamp: entry.timestamp,
-				isStreaming: entry.isStreaming,
-			});
+		if (!previous) {
+			if (hasThoughtChunks(entry.message)) {
+				merged.push(createMergedAssistantDisplayEntry(entry));
+				continue;
+			}
+			merged.push(entry);
 			continue;
 		}
 
-		merged[merged.length - 1] = {
-			type: "assistant_merged_thoughts",
-			key: previous.key,
-			memberIds: [...previous.memberIds, entry.id],
-			message: {
-				...previous.message,
-				...entry.message,
-				chunks: [...previous.message.chunks, ...entry.message.chunks],
-			},
-			timestamp: previous.timestamp ?? entry.timestamp,
-			isStreaming: previous.isStreaming || entry.isStreaming,
-		};
+		if (isMergedAssistantDisplayEntry(previous)) {
+			merged[merged.length - 1] = mergeAssistantEntry(previous, entry);
+			continue;
+		}
+
+		if (isVirtualizedAssistantEntry(previous)) {
+			merged[merged.length - 1] = mergeAssistantEntry(
+				createMergedAssistantDisplayEntry(previous),
+				entry
+			);
+			continue;
+		}
+
+		if (hasThoughtChunks(entry.message)) {
+			merged.push(createMergedAssistantDisplayEntry(entry));
+			continue;
+		}
+
+		merged.push(entry);
 	}
 
 	return merged;
 }
 
 export function getVirtualizedDisplayEntryKey(entry: VirtualizedDisplayEntry): string {
-	if (entry.type === "assistant_merged_thoughts") return entry.key;
+	if (entry.type === "assistant_merged") return entry.key;
 	if (entry.type === "thinking") return entry.id;
 	return entry.id;
 }
@@ -96,7 +148,7 @@ export function getVirtualizedDisplayEntryTimestampMs(
 		return entry.startedAtMs ?? null;
 	}
 
-	if (entry.type === "assistant_merged_thoughts") {
+	if (entry.type === "assistant_merged") {
 		return entry.timestamp?.getTime() ?? null;
 	}
 
@@ -121,7 +173,7 @@ export function resolveDisplayEntryThinkingDurationMs(
 		return Math.max(0, nowMs - entry.startedAtMs);
 	}
 
-	if (entry.type !== "assistant_merged_thoughts") {
+	if (entry.type !== "assistant_merged" || !hasThoughtChunks(entry.message)) {
 		return null;
 	}
 
@@ -144,6 +196,11 @@ export function resolveDisplayEntryThinkingDurationMs(
 		if (nextTimestampMs !== null) {
 			return Math.max(0, nextTimestampMs - startedAtMs);
 		}
+	}
+
+	const endedAtMs = entry.latestTimestamp?.getTime();
+	if (endedAtMs !== undefined && endedAtMs > startedAtMs) {
+		return Math.max(0, endedAtMs - startedAtMs);
 	}
 
 	if (entry.isStreaming) {

@@ -19,7 +19,7 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 			</button>
 		{/snippet}
 	</SettingsSectionHeader>
-	<div class="flex-1 min-h-0 overflow-hidden rounded-sm border border-border bg-muted/30">
+	<div class="flex-1 min-h-0 overflow-hidden rounded-lg bg-muted/20 shadow-sm">
 		<SkillsPage bind:this={skillsPageRef} />
 	</div>
 </div>

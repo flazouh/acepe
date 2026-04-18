@@ -469,10 +469,7 @@ impl StreamingDeltaBatcher {
         }
     }
 
-    fn build_tool_delta_update(
-        tool_call_id: String,
-        buffer: DeltaBuffer,
-    ) -> Option<SessionUpdate> {
+    fn build_tool_delta_update(tool_call_id: String, buffer: DeltaBuffer) -> Option<SessionUpdate> {
         if buffer.accumulated.is_empty()
             && buffer.normalized_todos.is_none()
             && buffer.normalized_questions.is_none()
@@ -609,17 +606,17 @@ impl StreamingDeltaBatcher {
         let now = Instant::now();
         let mut results = Vec::new();
 
-        for (tool_call_id, buffer) in
-            self.take_sorted_delta_buffers(|buf| now.duration_since(buf.first_received) >= BATCH_INTERVAL)
-        {
+        for (tool_call_id, buffer) in self.take_sorted_delta_buffers(|buf| {
+            now.duration_since(buf.first_received) >= BATCH_INTERVAL
+        }) {
             if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
                 results.push(update);
             }
         }
 
-        for (_, buffer) in
-            self.take_sorted_message_buffers(|buf| now.duration_since(buf.first_received) >= BATCH_INTERVAL)
-        {
+        for (_, buffer) in self.take_sorted_message_buffers(|buf| {
+            now.duration_since(buf.first_received) >= BATCH_INTERVAL
+        }) {
             if let Some(update) = Self::build_message_chunk_update(buffer) {
                 results.push(update);
             }
@@ -636,8 +633,16 @@ impl StreamingDeltaBatcher {
     /// Get the time until the next pending streaming buffer should flush.
     #[must_use = "check the time to coordinate with tokio::select! timer"]
     pub fn time_until_flush(&self) -> Option<Duration> {
-        let oldest_delta = self.delta_buffers.values().map(|buf| buf.first_received).min();
-        let oldest_message = self.message_buffers.values().map(|buf| buf.first_received).min();
+        let oldest_delta = self
+            .delta_buffers
+            .values()
+            .map(|buf| buf.first_received)
+            .min();
+        let oldest_message = self
+            .message_buffers
+            .values()
+            .map(|buf| buf.first_received)
+            .min();
         let oldest = match (oldest_delta, oldest_message) {
             (Some(delta), Some(message)) => Some(std::cmp::min(delta, message)),
             (Some(delta), None) => Some(delta),
@@ -665,7 +670,8 @@ impl StreamingDeltaBatcher {
     fn flush_session(&mut self, session_id: &str) -> Vec<SessionUpdate> {
         let mut results = Vec::new();
 
-        for (tool_call_id, buffer) in self.take_sorted_delta_buffers(|buf| buf.session_id == session_id)
+        for (tool_call_id, buffer) in
+            self.take_sorted_delta_buffers(|buf| buf.session_id == session_id)
         {
             if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
                 results.push(update);
@@ -869,6 +875,7 @@ mod tests {
                     name: "Read".to_string(),
                     arguments: ToolArguments::Read {
                         file_path: Some("/tmp/example.txt".to_string()),
+                        source_context: None,
                     },
                     raw_input: None,
                     status: crate::acp::session_update::ToolCallStatus::InProgress,

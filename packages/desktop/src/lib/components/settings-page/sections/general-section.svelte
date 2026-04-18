@@ -1,6 +1,5 @@
 <script lang="ts">
 import { Warning } from "phosphor-svelte";
-import { ThemeToggle } from "$lib/components/theme/index.js";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as m from "$lib/messages.js";
@@ -8,7 +7,7 @@ import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
-import SettingsControlCard from "../settings-control-card.svelte";
+import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
@@ -30,22 +29,10 @@ async function handleResetDatabase() {
 
 <div class="w-full">
 	<SettingsSection
-		title={m.settings_appearance()}
-		description="Choose how Acepe looks."
-	>
-		<SettingsControlCard
-			label={m.settings_theme()}
-			description="Use light, dark, or match your system."
-		>
-			<ThemeToggle />
-		</SettingsControlCard>
-	</SettingsSection>
-
-	<SettingsSection
 		title="Notifications"
 		description="Control when Acepe should surface important activity."
 	>
-		<SettingsControlCard
+		<SettingRow
 			label="Questions & permissions"
 			description="Show a popup when an agent needs input while the app is unfocused."
 		>
@@ -55,8 +42,8 @@ async function handleResetDatabase() {
 					notifPrefs.setQuestionsEnabled(checked === true);
 				}}
 			/>
-		</SettingsControlCard>
-		<SettingsControlCard
+		</SettingRow>
+		<SettingRow
 			label="Task completions"
 			description="Show a popup when an agent finishes a task while the app is unfocused."
 		>
@@ -66,8 +53,8 @@ async function handleResetDatabase() {
 					notifPrefs.setCompletionsEnabled(checked === true);
 				}}
 			/>
-		</SettingsControlCard>
-		<SettingsControlCard
+		</SettingRow>
+		<SettingRow
 			label="Attention queue"
 			description="Show an attention queue in the sidebar listing sessions that need your input or are actively working."
 		>
@@ -77,14 +64,14 @@ async function handleResetDatabase() {
 					void attentionQueue.setEnabled(checked === true);
 				}}
 			/>
-		</SettingsControlCard>
+		</SettingRow>
 	</SettingsSection>
 
 	<SettingsSection
 		title="Telemetry"
 		description="Control anonymous usage and crash reporting."
 	>
-		<SettingsControlCard
+		<SettingRow
 			label="Share anonymous usage data"
 			description="Sends anonymous app-open events to PostHog and crash reports to Sentry. No code, prompts, or file contents are collected."
 		>
@@ -94,17 +81,17 @@ async function handleResetDatabase() {
 					void analyticsPrefs.setEnabled(checked === true);
 				}}
 			/>
-		</SettingsControlCard>
+		</SettingRow>
 	</SettingsSection>
 
-	<!-- Danger Zone -->
+	<!-- Danger Zone — standalone emphasized card (per R18) -->
 	<div class="mt-16">
 		<SettingsSectionHeader
 			title={m.settings_danger_zone()}
 			description="Reset local app data and start fresh."
 		/>
-		<div class="overflow-hidden rounded-sm border border-destructive/30 bg-muted/30">
-			<div class="flex items-center justify-between px-5 py-4">
+		<div class="overflow-hidden rounded-lg bg-destructive/5 shadow-sm">
+			<div class="flex items-center justify-between gap-4 px-4 py-3">
 				<div class="flex items-center gap-2 min-w-0">
 					<Warning class="size-3.5 text-destructive shrink-0" weight="fill" />
 					<div class="min-w-0">
@@ -116,7 +103,7 @@ async function handleResetDatabase() {
 				</div>
 				<button
 					type="button"
-					class="shrink-0 rounded-md bg-destructive px-2 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+					class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
 					onclick={() => (showResetConfirm = true)}
 				>
 					{m.settings_reset_database()}

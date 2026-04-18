@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::commands::observability::{
-    CommandResult, SerializableCommandError, unexpected_command_result,
+    unexpected_command_result, CommandResult, SerializableCommandError,
 };
 use rusqlite::Connection;
 use sea_orm::DbConn;
@@ -92,9 +92,9 @@ pub async fn sql_studio_execute_query(
                     {
                         let current_row = (0..columns.len())
                             .map(|idx| {
-                                row.get_ref(idx)
-                                    .map(sqlite_value_to_string)
-                                    .map_err(|e| format!("Failed reading SQLite column {}: {}", idx, e))
+                                row.get_ref(idx).map(sqlite_value_to_string).map_err(|e| {
+                                    format!("Failed reading SQLite column {}: {}", idx, e)
+                                })
                             })
                             .collect::<Result<Vec<_>, String>>()?;
                         rows.push(current_row);

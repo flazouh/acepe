@@ -5,6 +5,8 @@ interface Props {
 	additions: number;
 	deletions: number;
 	status: "running" | "done" | "error";
+	sourceExcerpt?: string | null;
+	sourceRangeLabel?: string | null;
 	interactive?: boolean;
 	onSelect?: (() => void) | undefined;
 }
@@ -15,6 +17,8 @@ let {
 	additions,
 	deletions,
 	status,
+	sourceExcerpt = null,
+	sourceRangeLabel = null,
 	interactive = false,
 	onSelect,
 }: Props = $props();
@@ -26,4 +30,6 @@ let {
 	<span data-testid="additions">{additions}</span>
 	<span data-testid="deletions">{deletions}</span>
 	<span data-testid="status">{status}</span>
+	<span data-testid="source-excerpt">{sourceExcerpt}</span>
+	<span data-testid="source-range">{sourceRangeLabel}</span>
 </button>

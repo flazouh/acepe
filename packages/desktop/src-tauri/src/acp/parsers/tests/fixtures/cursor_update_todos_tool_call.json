@@ -1,0 +1,18 @@
+{
+  "sessionUpdate": "tool_call",
+  "toolCallId": "tool-cursor-todo",
+  "kind": "other",
+  "status": "pending",
+  "title": "Update TODOs: Add unit tests",
+  "rawInput": {
+    "_toolName": "updateTodos",
+    "todos": [
+      {
+        "content": "Add unit tests",
+        "activeForm": "Adding unit tests",
+        "id": "1",
+        "status": "TODO_STATUS_IN_PROGRESS"
+      }
+    ]
+  }
+}

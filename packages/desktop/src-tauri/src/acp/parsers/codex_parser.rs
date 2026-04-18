@@ -1,9 +1,7 @@
 //! Parser for Codex agent.
 
-use crate::acp::parsers::adapters::CodexAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::codex::parse_edit_arguments;
-use crate::acp::parsers::kind as kind_utils;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::status as status_utils;
 use crate::acp::parsers::types::{
@@ -11,6 +9,8 @@ use crate::acp::parsers::types::{
     parse_todo_write, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
     ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
+use crate::acp::parsers::CodexAdapter;
+use crate::acp::reconciler::kind_payload as kind_utils;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,

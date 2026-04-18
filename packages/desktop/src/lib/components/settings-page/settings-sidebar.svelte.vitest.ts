@@ -24,7 +24,7 @@ describe("SettingsSidebar", () => {
 
 		const rail = view.container.querySelector("nav");
 		expect(rail).not.toBeNull();
-		expect(rail?.className).toContain("w-[176px]");
+		expect(rail?.className).toContain("w-[160px]");
 		expect(view.queryByText("Account")).toBeNull();
 		expect(view.queryByText("Workspace")).toBeNull();
 		expect(view.queryByText("AI")).toBeNull();
@@ -32,11 +32,11 @@ describe("SettingsSidebar", () => {
 		expect(view.queryByRole("button", { name: "Language" })).toBeNull();
 
 		const navButtons = rail?.querySelectorAll("button") ?? [];
-		expect(navButtons).toHaveLength(9);
+		expect(navButtons).toHaveLength(12);
 
 		for (const button of navButtons) {
-			expect(button.className).toContain("gap-2.5");
-			expect(button.className).toContain("text-[13px]");
+			expect(button.className).toContain("gap-2");
+			expect(button.className).toContain("text-[12px]");
 		}
 
 		const activeButton = view.getByRole("button", { name: "General" });

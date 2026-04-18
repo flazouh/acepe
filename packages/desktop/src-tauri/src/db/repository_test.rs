@@ -18,6 +18,7 @@ mod session_metadata_tests {
     use crate::acp::transcript_projection::{
         TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
+    use crate::acp::types::CanonicalAgentId;
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
@@ -256,14 +257,91 @@ mod session_metadata_tests {
         SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
             .await
             .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(&db, "session-thread")
-            .await
-            .unwrap()
-            .expect("expected persisted thread snapshot");
+        let loaded = SessionThreadSnapshotRepository::get(
+            &db,
+            "session-thread",
+            &CanonicalAgentId::ClaudeCode,
+        )
+        .await
+        .unwrap()
+        .expect("expected persisted thread snapshot");
 
         assert_eq!(loaded.title, "Thread session");
         assert_eq!(loaded.current_mode_id.as_deref(), Some("plan"));
         assert!(loaded.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_session_thread_snapshot_round_trips_tool_calls() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-thread-tool-call".to_string(),
+            "Thread tool call session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "codex".to_string(),
+            "-Users-test-project/session-thread-tool-call.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![crate::session_jsonl::types::StoredEntry::ToolCall {
+                id: "tool-call-1".to_string(),
+                message: crate::acp::session_update::ToolCallData {
+                    id: "tool-call-1".to_string(),
+                    name: "read_file".to_string(),
+                    arguments: crate::acp::session_update::ToolArguments::Read {
+                        file_path: Some("/Users/test/project/src/main.rs".to_string()),
+                        source_context: None,
+                    },
+                    raw_input: None,
+                    status: crate::acp::session_update::ToolCallStatus::Completed,
+                    kind: Some(crate::acp::session_update::ToolKind::Read),
+                    result: None,
+                    title: Some("Read src/main.rs".to_string()),
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                timestamp: None,
+            }],
+            title: "Thread tool call session".to_string(),
+            created_at: "2026-04-16T00:00:00Z".to_string(),
+            current_mode_id: Some("build".to_string()),
+        };
+
+        SessionThreadSnapshotRepository::set(&db, "session-thread-tool-call", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionThreadSnapshotRepository::get(
+            &db,
+            "session-thread-tool-call",
+            &CanonicalAgentId::Codex,
+        )
+        .await
+        .unwrap()
+        .expect("expected persisted thread snapshot");
+
+        assert_eq!(loaded.entries.len(), 1);
+        let crate::session_jsonl::types::StoredEntry::ToolCall { message, .. } = &loaded.entries[0]
+        else {
+            panic!("expected tool call entry");
+        };
+        assert_eq!(
+            message.kind,
+            Some(crate::acp::session_update::ToolKind::Read)
+        );
+        assert_eq!(message.name, "read_file");
     }
 
     #[tokio::test]
@@ -524,6 +602,7 @@ mod session_metadata_tests {
                 name: "Read".to_string(),
                 arguments: crate::acp::session_update::ToolArguments::Read {
                     file_path: Some("/repo/README.md".to_string()),
+                    source_context: None,
                 },
                 raw_input: None,
                 status: crate::acp::session_update::ToolCallStatus::Completed,

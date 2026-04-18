@@ -5,6 +5,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Selector } from "../selector/index.js";
+	import type { ButtonVariant } from "../button/index.js";
 	import type { AgentSelectorViewItem } from "./types.js";
 
 	interface Props {
@@ -13,6 +14,11 @@
 		open?: boolean;
 		disabled?: boolean;
 		isLoading?: boolean;
+		class?: string;
+		buttonClass?: string;
+		contentClass?: string;
+		showChevron?: boolean;
+		variant?: ButtonVariant;
 		emptyLabel?: string;
 		favoriteColor?: string;
 		onSelect?: (agentId: string) => void;
@@ -26,6 +32,11 @@
 		open = $bindable(false),
 		disabled = false,
 		isLoading = false,
+		class: className = "",
+		buttonClass = "",
+		contentClass = "",
+		showChevron = true,
+		variant = "outline",
 		emptyLabel = "No agents available",
 		favoriteColor = Colors.red,
 		onSelect,
@@ -56,12 +67,17 @@
 	}
 </script>
 
-<Selector
-	bind:this={selectorRef}
-	bind:open
-	disabled={disabled || isLoading || agents.length === 0}
-	{onOpenChange}
->
+	<Selector
+		bind:this={selectorRef}
+		bind:open
+		disabled={disabled || isLoading || agents.length === 0}
+		class={className}
+		{buttonClass}
+		{contentClass}
+		{showChevron}
+		{variant}
+		{onOpenChange}
+	>
 	{#snippet renderButton()}
 		{#if isLoading}
 			<span class="h-4 w-4 shrink-0 rounded animate-pulse bg-muted"></span>

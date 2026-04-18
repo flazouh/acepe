@@ -23,7 +23,7 @@
 	<!-- Header card — tab bar + top bar -->
 	{#if tabBar}
 		<div
-			class="flex flex-col gap-0.5 shrink-0 bg-card/50 border border-border rounded-lg overflow-hidden"
+			class="flex flex-col gap-0.5 shrink-0 bg-card/50 rounded-lg overflow-hidden shadow-sm"
 		>
 			{@render tabBar()}
 		</div>

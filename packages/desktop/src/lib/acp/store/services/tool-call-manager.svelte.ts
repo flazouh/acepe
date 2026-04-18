@@ -136,6 +136,24 @@ function mergeOptionalField<T>(
 	return incomingValue ?? currentValue;
 }
 
+function mergeStringList(currentValues: string[], incomingValues: string[]): string[] {
+	const merged: string[] = [];
+
+	for (const value of currentValues) {
+		if (!merged.includes(value)) {
+			merged.push(value);
+		}
+	}
+
+	for (const value of incomingValues) {
+		if (!merged.includes(value)) {
+			merged.push(value);
+		}
+	}
+
+	return merged;
+}
+
 function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments): ToolArguments {
 	if (currentArgs.kind !== nextArgs.kind) {
 		return nextArgs;
@@ -147,6 +165,10 @@ function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments)
 			return {
 				kind: "read",
 				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
+				source_context: mergeOptionalField(
+					currentArgs.source_context ?? null,
+					nextArgs.source_context ?? null
+				),
 			};
 		case "edit":
 			if (nextArgs.kind !== "edit") return nextArgs;
@@ -232,6 +254,27 @@ function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments)
 				max_results: mergeOptionalField(currentArgs.max_results, nextArgs.max_results),
 			};
 		case "browser":
+			return nextArgs;
+		case "sql":
+			if (nextArgs.kind !== "sql") return nextArgs;
+			return {
+				kind: "sql",
+				query: mergeOptionalField(currentArgs.query, nextArgs.query),
+				description: mergeOptionalField(currentArgs.description, nextArgs.description),
+			};
+		case "unclassified":
+			if (nextArgs.kind !== "unclassified") return nextArgs;
+			return {
+				kind: "unclassified",
+				raw_name: nextArgs.raw_name.length > 0 ? nextArgs.raw_name : currentArgs.raw_name,
+				raw_kind_hint: mergeOptionalField(currentArgs.raw_kind_hint, nextArgs.raw_kind_hint),
+				title: mergeOptionalField(currentArgs.title, nextArgs.title),
+				arguments_preview: mergeOptionalField(
+					currentArgs.arguments_preview,
+					nextArgs.arguments_preview
+				),
+				signals_tried: mergeStringList(currentArgs.signals_tried, nextArgs.signals_tried),
+			};
 		case "other":
 			return nextArgs;
 	}

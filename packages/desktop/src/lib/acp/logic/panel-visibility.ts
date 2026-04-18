@@ -25,8 +25,6 @@ export interface PanelViewStateInput {
 	readonly hasSession: boolean;
 	readonly showProjectSelection: boolean;
 	readonly hasEffectiveProjectPath: boolean;
-	readonly hasSelectedAgentId: boolean;
-	readonly hasAvailableAgents: boolean;
 	readonly errorInfo: PanelErrorInfo;
 }
 
@@ -48,17 +46,11 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		hasSession,
 		showProjectSelection,
 		hasEffectiveProjectPath,
-		hasSelectedAgentId,
-		hasAvailableAgents,
 		errorInfo,
 	} = input;
 
-	// 1. Project selection — also handles agent selection since agents are now embedded in project cards.
-	// Only new-session flows require selecting an agent from the project cards. Existing sessions
-	// already have an agent identity, even if the draft-level selectedAgentId prop is empty.
-	const needsProjectOrAgentSelection =
-		showProjectSelection || (!hasSession && hasAvailableAgents && !hasSelectedAgentId);
-	if (needsProjectOrAgentSelection) {
+	// 1. Project selection — project choice only.
+	if (showProjectSelection) {
 		return { kind: "project_selection" };
 	}
 
@@ -81,7 +73,7 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 	const sessionIsReady =
 		hasSession &&
 		((runtimeState?.showReadyPlaceholder ?? false) || (runtimeState?.showConversation ?? false));
-	const canStartSession = !hasSession && hasEffectiveProjectPath && hasSelectedAgentId;
+	const canStartSession = !hasSession && hasEffectiveProjectPath;
 	const result: PanelViewState = { kind: "ready" };
 	if (sessionIsReady || canStartSession) {
 		return result;

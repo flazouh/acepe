@@ -160,7 +160,9 @@ export function deriveSessionRuntimeState(
 		connectionPhase,
 		contentPhase,
 		activityPhase,
-		canSubmit: connection === ConnectionState.READY,
+		canSubmit:
+			connection === ConnectionState.READY ||
+			(connection === ConnectionState.DISCONNECTED && content === ContentState.LOADED),
 		canCancel: isCancellable,
 		showStop: isCancellable,
 		showThinking,

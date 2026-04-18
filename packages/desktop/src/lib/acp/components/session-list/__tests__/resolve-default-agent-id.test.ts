@@ -6,15 +6,15 @@ describe("resolveDefaultAgentIdForCreate", () => {
 	const agents = [{ id: "claude-code" }, { id: "gemini" }];
 
 	it("returns undefined when defaultAgentId is null", () => {
-		expect(resolveDefaultAgentIdForCreate(agents, null)).toBeUndefined();
+		expect(resolveDefaultAgentIdForCreate(agents, null)).toBe("claude-code");
 	});
 
 	it("returns undefined when defaultAgentId is undefined", () => {
-		expect(resolveDefaultAgentIdForCreate(agents, undefined)).toBeUndefined();
+		expect(resolveDefaultAgentIdForCreate(agents, undefined)).toBe("claude-code");
 	});
 
-	it("returns undefined when defaultAgentId is not in availableAgents", () => {
-		expect(resolveDefaultAgentIdForCreate(agents, "removed-agent")).toBeUndefined();
+	it("falls back to the first available agent when defaultAgentId is not in availableAgents", () => {
+		expect(resolveDefaultAgentIdForCreate(agents, "removed-agent")).toBe("claude-code");
 	});
 
 	it("returns undefined when availableAgents is empty", () => {

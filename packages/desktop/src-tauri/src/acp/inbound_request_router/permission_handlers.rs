@@ -1,12 +1,13 @@
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::ProjectionRegistry;
+use crate::acp::reconciler::providers;
+use crate::acp::reconciler::session_tool::{resolve_raw_tool_identity, ToolClassificationHints};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_update::{
     build_tool_call_from_raw, InteractionReplyHandler, PermissionData, QuestionData, QuestionItem,
     QuestionOption, RawToolCallInput, SessionUpdate, ToolCallStatus, ToolKind, ToolReference,
 };
 use crate::acp::streaming_log::log_streaming_event;
-use crate::acp::tool_classification::{resolve_raw_tool_identity, ToolClassificationHints};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
@@ -94,7 +95,7 @@ async fn handle_session_request_permission_with_state(
             kind: tool_call
                 .kind
                 .as_deref()
-                .map(|kind| parser.detect_tool_kind(kind)),
+                .map(|kind| providers::detect_tool_kind(agent_type, kind)),
             kind_hint: tool_call.kind.as_deref(),
             locations: None,
         },
@@ -376,6 +377,7 @@ mod tests {
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
                 file_path: Some("/tmp/example.txt".to_string()),
+                source_context: None,
             },
             raw_input: Some(json!({ "file_path": "/tmp/example.txt" })),
             status: ToolCallStatus::Pending,

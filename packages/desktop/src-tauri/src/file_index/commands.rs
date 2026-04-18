@@ -11,12 +11,12 @@ use crate::path_safety::validate_project_directory_from_str;
 
 use super::git::get_file_content_from_head;
 use super::service::FileIndexService;
-use crate::commands::observability::{
-    CommandResult, SerializableCommandError, expected_command_result, unexpected_command_result,
-};
 use super::types::{
     FileDiffResult, FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus,
     ProjectGitOverview, ProjectIndex,
+};
+use crate::commands::observability::{
+    expected_command_result, unexpected_command_result, CommandResult, SerializableCommandError,
 };
 
 fn validate_project_path_for_indexing(project_path: &str) -> Result<String, String> {
@@ -163,13 +163,16 @@ fn detect_image_mime(path: &Path) -> &'static str {
 pub async fn get_project_files(
     service: State<'_, FileIndexService>,
     project_path: String,
-) -> CommandResult<ProjectIndex>  {
-    unexpected_command_result("get_project_files", "Failed to get project files", async {
-
-        let validated_path = validate_project_path_for_indexing(&project_path)?;
-        service.get_project_index(&validated_path).await
-
-    }.await)
+) -> CommandResult<ProjectIndex> {
+    unexpected_command_result(
+        "get_project_files",
+        "Failed to get project files",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            service.get_project_index(&validated_path).await
+        }
+        .await,
+    )
 }
 
 /// Get git status for a project (separate from full index for speed).
@@ -178,19 +181,22 @@ pub async fn get_project_files(
 pub async fn get_project_git_status(
     service: State<'_, FileIndexService>,
     project_path: String,
-) -> CommandResult<Vec<FileGitStatus>>  {
-    unexpected_command_result("get_project_git_status", "Failed to get project git status", async {
-
-        let validated_path = validate_project_path_for_indexing(&project_path)?;
-        let statuses = service.get_git_status_only(&validated_path).await?;
-        debug!(
-            project_path = %validated_path,
-            status_count = statuses.len(),
-            "get_project_git_status command completed"
-        );
-        Ok(statuses)
-
-    }.await)
+) -> CommandResult<Vec<FileGitStatus>> {
+    unexpected_command_result(
+        "get_project_git_status",
+        "Failed to get project git status",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            let statuses = service.get_git_status_only(&validated_path).await?;
+            debug!(
+                project_path = %validated_path,
+                status_count = statuses.len(),
+                "get_project_git_status command completed"
+            );
+            Ok(statuses)
+        }
+        .await,
+    )
 }
 
 /// Get git status summary for a project (no per-file diff stats).
@@ -201,13 +207,16 @@ pub async fn get_project_git_status(
 pub async fn get_project_git_status_summary(
     service: State<'_, FileIndexService>,
     project_path: String,
-) -> CommandResult<Vec<FileGitStatus>>  {
-    unexpected_command_result("get_project_git_status_summary", "Failed to get project git status summary", async {
-
-        let validated_path = validate_project_path_for_indexing(&project_path)?;
-        service.get_git_status_summary_only(&validated_path).await
-
-    }.await)
+) -> CommandResult<Vec<FileGitStatus>> {
+    unexpected_command_result(
+        "get_project_git_status_summary",
+        "Failed to get project git status summary",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            service.get_git_status_summary_only(&validated_path).await
+        }
+        .await,
+    )
 }
 
 /// Get branch + TCC-safe git status summary for a project.
@@ -216,13 +225,16 @@ pub async fn get_project_git_status_summary(
 pub async fn get_project_git_overview_summary(
     service: State<'_, FileIndexService>,
     project_path: String,
-) -> CommandResult<ProjectGitOverview>  {
-    unexpected_command_result("get_project_git_overview_summary", "Failed to get project git overview summary", async {
-
-        let validated_path = validate_project_path_for_indexing(&project_path)?;
-        service.get_git_overview_summary(&validated_path).await
-
-    }.await)
+) -> CommandResult<ProjectGitOverview> {
+    unexpected_command_result(
+        "get_project_git_overview_summary",
+        "Failed to get project git overview summary",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            service.get_git_overview_summary(&validated_path).await
+        }
+        .await,
+    )
 }
 
 /// Invalidate the file index cache for a project.
@@ -231,13 +243,16 @@ pub async fn get_project_git_overview_summary(
 pub async fn invalidate_project_files(
     service: State<'_, FileIndexService>,
     project_path: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("invalidate_project_files", "Failed to invalidate project files", async {
-
-        service.invalidate(&project_path);
-        Ok(())
-
-    }.await)
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "invalidate_project_files",
+        "Failed to invalidate project files",
+        async {
+            service.invalidate(&project_path);
+            Ok(())
+        }
+        .await,
+    )
 }
 
 fn is_image_extension(ext: &str) -> bool {
@@ -270,63 +285,69 @@ fn detect_binary_mime(ext: &str) -> &'static str {
 /// then falls back to `find_file_in_project` for bare filenames.
 #[tauri::command]
 #[specta::specta]
-pub async fn resolve_file_path(file_path: String, project_path: String) -> CommandResult<String>  {
-    unexpected_command_result("resolve_file_path", "Failed to resolve file path", async {
-
-        let full_path = Path::new(&project_path).join(&file_path);
-        if full_path.exists() {
-            return Ok(full_path.to_string_lossy().to_string());
+pub async fn resolve_file_path(file_path: String, project_path: String) -> CommandResult<String> {
+    unexpected_command_result(
+        "resolve_file_path",
+        "Failed to resolve file path",
+        async {
+            let full_path = Path::new(&project_path).join(&file_path);
+            if full_path.exists() {
+                return Ok(full_path.to_string_lossy().to_string());
+            }
+            find_file_in_project(&file_path, &project_path).map(|p| p.to_string_lossy().to_string())
         }
-        find_file_in_project(&file_path, &project_path).map(|p| p.to_string_lossy().to_string())
-
-    }.await)
+        .await,
+    )
 }
 
 /// Smart path resolution: If the exact path doesn't exist, attempts to find the file
 /// by matching the filename (or partial path suffix) within the project directory.
 #[tauri::command]
 #[specta::specta]
-pub async fn read_file_content(file_path: String, project_path: String) -> CommandResult<String>  {
-    unexpected_command_result("read_file_content", "Failed to read file content", async {
+pub async fn read_file_content(file_path: String, project_path: String) -> CommandResult<String> {
+    unexpected_command_result(
+        "read_file_content",
+        "Failed to read file content",
+        async {
+            let full_path = Path::new(&project_path).join(&file_path);
 
-        let full_path = Path::new(&project_path).join(&file_path);
+            // Try direct path first
+            let resolved_path = if full_path.exists() {
+                full_path
+            } else {
+                // File not found at direct path - try to find it by searching
+                find_file_in_project(&file_path, &project_path)?
+            };
 
-        // Try direct path first
-        let resolved_path = if full_path.exists() {
-            full_path
-        } else {
-            // File not found at direct path - try to find it by searching
-            find_file_in_project(&file_path, &project_path)?
-        };
+            let ext = resolved_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
 
-        let ext = resolved_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-
-        if is_image_extension(&ext) {
-            // Read binary and return as base64 data URL
-            let bytes = fs::read(&resolved_path)
-                .await
-                .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
-            let mime_type = detect_image_mime(&resolved_path);
-            let base64_data = BASE64.encode(&bytes);
-            Ok(format!("data:{};base64,{}", mime_type, base64_data))
-        } else if is_binary_extension(&ext) {
-            let bytes = fs::read(&resolved_path)
-                .await
-                .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
-            let mime_type = detect_binary_mime(&ext);
-            let base64_data = BASE64.encode(&bytes);
-            Ok(format!("data:{};base64,{}", mime_type, base64_data))
-        } else {
-            fs::read_to_string(&resolved_path)
-                .await
-                .map_err(|e| format!("Failed to read file {}: {}", file_path, e))
+            if is_image_extension(&ext) {
+                // Read binary and return as base64 data URL
+                let bytes = fs::read(&resolved_path)
+                    .await
+                    .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
+                let mime_type = detect_image_mime(&resolved_path);
+                let base64_data = BASE64.encode(&bytes);
+                Ok(format!("data:{};base64,{}", mime_type, base64_data))
+            } else if is_binary_extension(&ext) {
+                let bytes = fs::read(&resolved_path)
+                    .await
+                    .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
+                let mime_type = detect_binary_mime(&ext);
+                let base64_data = BASE64.encode(&bytes);
+                Ok(format!("data:{};base64,{}", mime_type, base64_data))
+            } else {
+                fs::read_to_string(&resolved_path)
+                    .await
+                    .map_err(|e| format!("Failed to read file {}: {}", file_path, e))
+            }
         }
-
-    }.await)
+        .await,
+    )
 }
 
 /// Find a file in the project by matching path suffix.
@@ -410,58 +431,61 @@ fn find_file_in_project(file_path: &str, project_path: &str) -> Result<PathBuf, 
 pub async fn get_file_diff(
     file_path: String,
     project_path: String,
-) -> CommandResult<FileDiffResult>  {
-    unexpected_command_result("get_file_diff", "Failed to get file diff", async {
+) -> CommandResult<FileDiffResult> {
+    unexpected_command_result(
+        "get_file_diff",
+        "Failed to get file diff",
+        async {
+            let project = Path::new(&project_path);
+            let full_path = project.join(&file_path);
+            debug!(
+                %project_path,
+                %file_path,
+                resolved_path = %full_path.display(),
+                "get_file_diff command started"
+            );
 
-        let project = Path::new(&project_path);
-        let full_path = project.join(&file_path);
-        debug!(
-            %project_path,
-            %file_path,
-            resolved_path = %full_path.display(),
-            "get_file_diff command started"
-        );
+            // Get new content from working directory
+            let new_content = fs::read_to_string(&full_path)
+                .await
+                .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
 
-        // Get new content from working directory
-        let new_content = fs::read_to_string(&full_path)
+            // Get old content from HEAD (blocking, but fast for single file)
+            let old_content = tokio::task::spawn_blocking({
+                let project_path = project_path.clone();
+                let file_path = file_path.clone();
+                move || get_file_content_from_head(Path::new(&project_path), &file_path)
+            })
             .await
-            .map_err(|e| format!("Failed to read file {}: {}", file_path, e))?;
+            .map_err(|e| format!("Task join error: {}", e))?
+            .map_err(|e| format!("Failed to get HEAD content: {}", e))?;
 
-        // Get old content from HEAD (blocking, but fast for single file)
-        let old_content = tokio::task::spawn_blocking({
-            let project_path = project_path.clone();
-            let file_path = file_path.clone();
-            move || get_file_content_from_head(Path::new(&project_path), &file_path)
-        })
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
-        .map_err(|e| format!("Failed to get HEAD content: {}", e))?;
+            // Extract file name from path
+            let file_name = Path::new(&file_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&file_path)
+                .to_string();
 
-        // Extract file name from path
-        let file_name = Path::new(&file_path)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(&file_path)
-            .to_string();
+            let result = FileDiffResult {
+                old_content,
+                new_content,
+                file_name,
+            };
 
-        let result = FileDiffResult {
-            old_content,
-            new_content,
-            file_name,
-        };
+            debug!(
+                %project_path,
+                %file_path,
+                has_old_content = result.old_content.is_some(),
+                old_len = result.old_content.as_ref().map(|value| value.len()).unwrap_or(0),
+                new_len = result.new_content.len(),
+                "get_file_diff command completed"
+            );
 
-        debug!(
-            %project_path,
-            %file_path,
-            has_old_content = result.old_content.is_some(),
-            old_len = result.old_content.as_ref().map(|value| value.len()).unwrap_or(0),
-            new_len = result.new_content.len(),
-            "get_file_diff command completed"
-        );
-
-        Ok(result)
-
-    }.await)
+            Ok(result)
+        }
+        .await,
+    )
 }
 
 /// Revert file content by writing new content to disk.
@@ -473,16 +497,19 @@ pub async fn revert_file_content(
     file_path: String,
     project_path: String,
     content: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("revert_file_content", "Failed to revert file content", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "revert_file_content",
+        "Failed to revert file content",
+        async {
+            let full_path = Path::new(&project_path).join(&file_path);
 
-        let full_path = Path::new(&project_path).join(&file_path);
-
-        fs::write(&full_path, content)
-            .await
-            .map_err(|e| format!("Failed to write file {}: {}", file_path, e))
-
-    }.await)
+            fs::write(&full_path, content)
+                .await
+                .map_err(|e| format!("Failed to write file {}: {}", file_path, e))
+        }
+        .await,
+    )
 }
 
 /// Read an image file as base64 data URL.
@@ -490,52 +517,58 @@ pub async fn revert_file_content(
 /// Returns a data URL string that can be used directly as an img src.
 #[tauri::command]
 #[specta::specta]
-pub async fn read_image_as_base64(file_path: String) -> CommandResult<String>  {
-    unexpected_command_result("read_image_as_base64", "Failed to read image as base64", async {
+pub async fn read_image_as_base64(file_path: String) -> CommandResult<String> {
+    unexpected_command_result(
+        "read_image_as_base64",
+        "Failed to read image as base64",
+        async {
+            let path = Path::new(&file_path);
 
-        let path = Path::new(&file_path);
+            // Read the file bytes
+            let bytes = fs::read(&path)
+                .await
+                .map_err(|e| format!("Failed to read image {}: {}", file_path, e))?;
 
-        // Read the file bytes
-        let bytes = fs::read(&path)
-            .await
-            .map_err(|e| format!("Failed to read image {}: {}", file_path, e))?;
+            // Determine MIME type from extension
+            let mime_type = detect_image_mime(path);
 
-        // Determine MIME type from extension
-        let mime_type = detect_image_mime(path);
-
-        // Encode as base64 data URL
-        let base64_data = BASE64.encode(&bytes);
-        Ok(format!("data:{};base64,{}", mime_type, base64_data))
-
-    }.await)
+            // Encode as base64 data URL
+            let base64_data = BASE64.encode(&bytes);
+            Ok(format!("data:{};base64,{}", mime_type, base64_data))
+        }
+        .await,
+    )
 }
 
 /// Delete a file or directory at the given path within a project.
 /// Path must be within the project (validated). Directories are removed recursively.
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_path(project_path: String, relative_path: String) -> CommandResult<()>  {
-    unexpected_command_result("delete_path", "Failed to delete path", async {
+pub async fn delete_path(project_path: String, relative_path: String) -> CommandResult<()> {
+    unexpected_command_result(
+        "delete_path",
+        "Failed to delete path",
+        async {
+            let canonical = validate_existing_path_within_project(&project_path, &relative_path)?;
 
-        let canonical = validate_existing_path_within_project(&project_path, &relative_path)?;
-
-        let meta = fs::metadata(&canonical)
-            .await
-            .map_err(|e| format!("Cannot access path: {}", e))?;
-
-        if meta.is_dir() {
-            fs::remove_dir_all(&canonical)
+            let meta = fs::metadata(&canonical)
                 .await
-                .map_err(|e| format!("Failed to delete directory: {}", e))?;
-        } else {
-            fs::remove_file(&canonical)
-                .await
-                .map_err(|e| format!("Failed to delete file: {}", e))?;
+                .map_err(|e| format!("Cannot access path: {}", e))?;
+
+            if meta.is_dir() {
+                fs::remove_dir_all(&canonical)
+                    .await
+                    .map_err(|e| format!("Failed to delete directory: {}", e))?;
+            } else {
+                fs::remove_file(&canonical)
+                    .await
+                    .map_err(|e| format!("Failed to delete file: {}", e))?;
+            }
+
+            Ok(())
         }
-
-        Ok(())
-
-    }.await)
+        .await,
+    )
 }
 
 #[cfg(test)]
@@ -627,75 +660,84 @@ pub async fn rename_path(
     project_path: String,
     from_relative: String,
     to_relative: String,
-) -> CommandResult<()>  {
-    unexpected_command_result("rename_path", "Failed to rename path", async {
+) -> CommandResult<()> {
+    unexpected_command_result(
+        "rename_path",
+        "Failed to rename path",
+        async {
+            let from_full = validate_existing_path_within_project(&project_path, &from_relative)?;
+            let to_full = validate_target_under_project(&project_path, &to_relative)?;
 
-        let from_full = validate_existing_path_within_project(&project_path, &from_relative)?;
-        let to_full = validate_target_under_project(&project_path, &to_relative)?;
+            fs::rename(&from_full, &to_full)
+                .await
+                .map_err(|e| format!("Failed to rename: {}", e))?;
 
-        fs::rename(&from_full, &to_full)
-            .await
-            .map_err(|e| format!("Failed to rename: {}", e))?;
-
-        Ok(())
-
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Copy a file to the same directory with a "-copy" suffix before the extension.
 #[tauri::command]
 #[specta::specta]
-pub async fn copy_file(project_path: String, relative_path: String) -> CommandResult<String>  {
-    unexpected_command_result("copy_file", "Failed to copy file", async {
+pub async fn copy_file(project_path: String, relative_path: String) -> CommandResult<String> {
+    unexpected_command_result(
+        "copy_file",
+        "Failed to copy file",
+        async {
+            let source = validate_existing_path_within_project(&project_path, &relative_path)?;
 
-        let source = validate_existing_path_within_project(&project_path, &relative_path)?;
+            let meta = fs::metadata(&source)
+                .await
+                .map_err(|e| format!("Cannot access file: {}", e))?;
+            if meta.is_dir() {
+                return Err("Cannot duplicate a directory".to_string());
+            }
 
-        let meta = fs::metadata(&source)
-            .await
-            .map_err(|e| format!("Cannot access file: {}", e))?;
-        if meta.is_dir() {
-            return Err("Cannot duplicate a directory".to_string());
+            let stem = source
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("file");
+            let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let parent = source.parent().ok_or("Invalid file path")?;
+            let base = if ext.is_empty() {
+                format!("{}-copy", stem)
+            } else {
+                format!("{}-copy.{}", stem, ext)
+            };
+            let dest = parent.join(&base);
+
+            let content = fs::read(&source)
+                .await
+                .map_err(|e| format!("Failed to read file: {}", e))?;
+            fs::write(&dest, content)
+                .await
+                .map_err(|e| format!("Failed to write copy: {}", e))?;
+
+            let relative = dest
+                .strip_prefix(
+                    Path::new(&project_path)
+                        .canonicalize()
+                        .map_err(|e| e.to_string())?,
+                )
+                .map_err(|_| "Path error".to_string())?
+                .to_string_lossy()
+                .to_string();
+            Ok(relative)
         }
-
-        let stem = source
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("file");
-        let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let parent = source.parent().ok_or("Invalid file path")?;
-        let base = if ext.is_empty() {
-            format!("{}-copy", stem)
-        } else {
-            format!("{}-copy.{}", stem, ext)
-        };
-        let dest = parent.join(&base);
-
-        let content = fs::read(&source)
-            .await
-            .map_err(|e| format!("Failed to read file: {}", e))?;
-        fs::write(&dest, content)
-            .await
-            .map_err(|e| format!("Failed to write copy: {}", e))?;
-
-        let relative = dest
-            .strip_prefix(
-                Path::new(&project_path)
-                    .canonicalize()
-                    .map_err(|e| e.to_string())?,
-            )
-            .map_err(|_| "Path error".to_string())?
-            .to_string_lossy()
-            .to_string();
-        Ok(relative)
-
-    }.await)
+        .await,
+    )
 }
 
 /// Create an empty file at the given path within the project.
 #[tauri::command]
 #[specta::specta]
-pub async fn create_file(project_path: String, relative_path: String) -> CommandResult<()>  {
-    let full = expected_command_result("create_file", validate_target_under_project(&project_path, &relative_path))?;
+pub async fn create_file(project_path: String, relative_path: String) -> CommandResult<()> {
+    let full = expected_command_result(
+        "create_file",
+        validate_target_under_project(&project_path, &relative_path),
+    )?;
 
     if full.exists() {
         return Err(SerializableCommandError::expected(
@@ -713,21 +755,28 @@ pub async fn create_file(project_path: String, relative_path: String) -> Command
         }
     }
 
-    unexpected_command_result("create_file", "Failed to create file", async {
-        fs::File::create(&full)
-            .await
-            .map_err(|e| format!("Failed to create file: {}", e))?;
+    unexpected_command_result(
+        "create_file",
+        "Failed to create file",
+        async {
+            fs::File::create(&full)
+                .await
+                .map_err(|e| format!("Failed to create file: {}", e))?;
 
-        Ok(())
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Create a directory at the given path within the project.
 #[tauri::command]
 #[specta::specta]
-pub async fn create_directory(project_path: String, relative_path: String) -> CommandResult<()>  {
-    let full =
-        expected_command_result("create_directory", validate_target_under_project(&project_path, &relative_path))?;
+pub async fn create_directory(project_path: String, relative_path: String) -> CommandResult<()> {
+    let full = expected_command_result(
+        "create_directory",
+        validate_target_under_project(&project_path, &relative_path),
+    )?;
 
     if full.exists() {
         return Err(SerializableCommandError::expected(
@@ -745,13 +794,18 @@ pub async fn create_directory(project_path: String, relative_path: String) -> Co
         }
     }
 
-    unexpected_command_result("create_directory", "Failed to create directory", async {
-        fs::create_dir(&full)
-            .await
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    unexpected_command_result(
+        "create_directory",
+        "Failed to create directory",
+        async {
+            fs::create_dir(&full)
+                .await
+                .map_err(|e| format!("Failed to create directory: {}", e))?;
 
-        Ok(())
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Search project files for the file explorer modal.
@@ -766,15 +820,18 @@ pub async fn search_project_files_for_explorer(
     query: String,
     limit: u32,
     offset: u32,
-) -> CommandResult<FileExplorerSearchResponse>  {
-    unexpected_command_result("search_project_files_for_explorer", "Failed to search project files for explorer", async {
-
-        let validated_path = validate_project_path_for_indexing(&project_path)?;
-        service
-            .explorer_search(&validated_path, &query, limit, offset)
-            .await
-
-    }.await)
+) -> CommandResult<FileExplorerSearchResponse> {
+    unexpected_command_result(
+        "search_project_files_for_explorer",
+        "Failed to search project files for explorer",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            service
+                .explorer_search(&validated_path, &query, limit, offset)
+                .await
+        }
+        .await,
+    )
 }
 
 /// Get a preview payload for the selected explorer row.
@@ -787,14 +844,18 @@ pub async fn get_file_explorer_preview(
     service: State<'_, FileIndexService>,
     project_path: String,
     file_path: String,
-) -> CommandResult<FileExplorerPreviewResponse>  {
-    unexpected_command_result("get_file_explorer_preview", "Failed to get file explorer preview", async {
-
-        let validated_project = validate_project_path_for_indexing(&project_path)?;
-        let _validated_file = validate_preview_path_within_project(&validated_project, &file_path)?;
-        service
-            .explorer_preview(&validated_project, &file_path)
-            .await
-
-    }.await)
+) -> CommandResult<FileExplorerPreviewResponse> {
+    unexpected_command_result(
+        "get_file_explorer_preview",
+        "Failed to get file explorer preview",
+        async {
+            let validated_project = validate_project_path_for_indexing(&project_path)?;
+            let _validated_file =
+                validate_preview_path_within_project(&validated_project, &file_path)?;
+            service
+                .explorer_preview(&validated_project, &file_path)
+                .await
+        }
+        .await,
+    )
 }

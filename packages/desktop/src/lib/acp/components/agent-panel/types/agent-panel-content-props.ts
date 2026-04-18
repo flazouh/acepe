@@ -23,7 +23,7 @@ export interface AgentPanelContentProps {
 	isAtBottom?: boolean;
 	isAtTop?: boolean;
 	isStreaming?: boolean;
-	readonly onProjectAgentSelected?: (project: Project, agentId: string) => void;
+	readonly onProjectSelected?: (project: Project) => void;
 	readonly onRetryConnection?: () => void;
 	readonly onCancelConnection?: () => void;
 	readonly agentIconSrc?: string;

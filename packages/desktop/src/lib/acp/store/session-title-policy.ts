@@ -1,6 +1,5 @@
 const FALLBACK_SESSION_TITLES = new Set(["New Thread", "New session", "New Session", "Loading..."]);
 const GENERATED_SESSION_TITLE_PATTERN = /^Session [a-f0-9-]{6,}$/i;
-const MAX_DERIVED_TITLE_CHARS = 100;
 /** Matches complete `@[type:value]` tokens and incomplete ones truncated without closing `]`. */
 const INLINE_TOKEN_PATTERN = /@\[(file|image|text|text_ref|command|skill):[^\]]+\]?/;
 
@@ -178,12 +177,7 @@ export function deriveSessionTitleFromUserInput(input: string): string | null {
 		return null;
 	}
 
-	const chars = Array.from(firstLine);
-	if (chars.length <= MAX_DERIVED_TITLE_CHARS) {
-		return firstLine;
-	}
-
-	return `${chars.slice(0, MAX_DERIVED_TITLE_CHARS).join("")}...`;
+	return firstLine;
 }
 
 /**

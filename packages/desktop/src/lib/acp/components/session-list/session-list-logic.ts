@@ -510,16 +510,21 @@ function compareProjectOrder(
 
 /**
  * Resolve the default agent id to use when the `+` button is left-clicked on a
- * project row. Returns `undefined` when there is no saved default, or when the
- * saved default is no longer present in `availableAgents` (e.g. the agent was
- * removed or disabled since it was saved). In those fallback cases the caller
- * should show the agent picker strip instead.
+ * project row. The saved default wins when it is still available; otherwise we
+ * fall back to the first available agent so the sidebar create button remains a
+ * direct action instead of opening a second picker surface.
  */
 export function resolveDefaultAgentIdForCreate(
-availableAgents: readonly { id: string }[],
-defaultAgentId: string | null | undefined
+	availableAgents: readonly { id: string }[],
+	defaultAgentId: string | null | undefined
 ): string | undefined {
-if (defaultAgentId == null) return undefined;
-const isAvailable = availableAgents.some((a) => a.id === defaultAgentId);
-return isAvailable ? defaultAgentId : undefined;
+	if (defaultAgentId != null) {
+		const defaultAgent = availableAgents.find((agent) => agent.id === defaultAgentId);
+		if (defaultAgent) {
+			return defaultAgent.id;
+		}
+	}
+
+	const firstAvailableAgent = availableAgents[0];
+	return firstAvailableAgent ? firstAvailableAgent.id : undefined;
 }

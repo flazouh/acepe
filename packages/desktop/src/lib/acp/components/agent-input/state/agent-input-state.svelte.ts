@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { okAsync, type ResultAsync } from "neverthrow";
+import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
@@ -596,19 +596,23 @@ export class AgentInputState {
 
 		// Validate project and agent are set before session creation.
 		if (!projectPath || projectPath.trim().length === 0) {
-			throw new SessionCreationError(
-				selectedAgentId ?? "unknown",
-				"unknown",
-				new Error("No project selected for this panel")
+			return errAsync(
+				new SessionCreationError(
+					selectedAgentId ?? "unknown",
+					"unknown",
+					new Error("No project selected for this panel")
+				)
 			);
 		}
 
 		const effectiveProjectPath = projectPath;
 		if (!selectedAgentId) {
-			throw new SessionCreationError(
-				"unknown",
-				effectiveProjectPath,
-				new Error("No agent selected for this panel")
+			return errAsync(
+				new SessionCreationError(
+					"unknown",
+					effectiveProjectPath,
+					new Error("No agent selected for this panel")
+				)
 			);
 		}
 

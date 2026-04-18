@@ -91,10 +91,7 @@ impl SerializableCommandError {
         self
     }
 
-    pub fn with_diagnostics(
-        mut self,
-        diagnostics: SerializableCommandErrorDiagnostics,
-    ) -> Self {
+    pub fn with_diagnostics(mut self, diagnostics: SerializableCommandErrorDiagnostics) -> Self {
         self.diagnostics = Some(diagnostics);
         self
     }
@@ -154,9 +151,8 @@ pub fn unexpected_command_result<T>(
     message: &'static str,
     result: Result<T, String>,
 ) -> CommandResult<T> {
-    result.map_err(|diagnostics| {
-        capture_unexpected_command_error(command_name, message, diagnostics)
-    })
+    result
+        .map_err(|diagnostics| capture_unexpected_command_error(command_name, message, diagnostics))
 }
 
 pub fn capture_unexpected_command_error(
@@ -257,8 +253,12 @@ mod tests {
         let message = format!("{}/projects/acepe/test.log", home_dir.to_string_lossy());
         let diagnostics = SerializableCommandErrorDiagnostics::new(message);
 
-        assert!(diagnostics.summary.contains("<user_home>/projects/acepe/test.log"));
-        assert!(!diagnostics.summary.contains(home_dir.to_string_lossy().as_ref()));
+        assert!(diagnostics
+            .summary
+            .contains("<user_home>/projects/acepe/test.log"));
+        assert!(!diagnostics
+            .summary
+            .contains(home_dir.to_string_lossy().as_ref()));
     }
 
     #[test]

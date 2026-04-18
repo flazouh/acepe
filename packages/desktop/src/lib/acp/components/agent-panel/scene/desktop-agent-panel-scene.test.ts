@@ -112,6 +112,53 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("preserves read source context in scene tool entries", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-read-1",
+				type: "tool_call",
+				message: {
+					id: "tool-read-1",
+					name: "view",
+					arguments: {
+						kind: "read",
+						file_path: null,
+						source_context: {
+							path: "/repo/src/session.ts",
+							excerpt: "443. export function reconcile() {}",
+							viewRange: { startLine: 443, endLine: 443 },
+						},
+					},
+					rawInput: null,
+					status: "completed",
+					result: null,
+					kind: "read",
+					title: "Read",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "completed");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-read-1",
+			type: "tool_call",
+			kind: "read",
+			filePath: "/repo/src/session.ts",
+			sourceExcerpt: "443. export function reconcile() {}",
+			sourceRangeLabel: "Line 443",
+		});
+	});
+
 	it("only keeps the trailing incomplete tool call live during streaming", () => {
 		const entries: SessionEntry[] = [
 			{
@@ -673,6 +720,88 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("preserves details for sql and unclassified tool entries", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "sql-1",
+				type: "tool_call",
+				message: {
+					id: "sql-1",
+					name: "unknown",
+					arguments: {
+						kind: "sql",
+						query: "UPDATE todos SET status = 'done'",
+						description: "Mark all done",
+					},
+					rawInput: { description: "Mark all done" },
+					status: "completed",
+					result: {
+						rowsAffected: 3,
+					},
+					kind: "sql",
+					title: "Mark all done",
+					locations: null,
+					skillMeta: null,
+					normalizedResult: {
+						kind: "sql",
+						rawText: "{\n  \"rowsAffected\": 3\n}",
+						rowCount: null,
+					},
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+			{
+				id: "unclassified-1",
+				type: "tool_call",
+				message: {
+					id: "unclassified-1",
+					name: "unknown",
+					arguments: {
+						kind: "unclassified",
+						raw_name: "unknown",
+						raw_kind_hint: "other",
+						title: "Mystery tool",
+						arguments_preview: "{\"foo\":\"bar\"}",
+						signals_tried: ["provider_name_map", "argument_shape"],
+					},
+					rawInput: { foo: "bar" },
+					status: "completed",
+					result: null,
+					kind: "unclassified",
+					title: "Mystery tool",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "other",
+			detailsText: "{\n  \"rowsAffected\": 3\n}",
+		});
+		expect(conversation.entries[1]).toMatchObject({
+			type: "tool_call",
+			kind: "other",
+			detailsText: expect.stringContaining('"kind": "unclassified"'),
+		});
+	});
+
 	it("builds composer and sidebars into a desktop scene model", () => {
 		const plan: SessionPlanResponse = {
 			slug: "jwt-migration",
@@ -874,7 +1003,7 @@ describe("desktop agent panel scene adapter", () => {
 	it("maps merged virtualized assistant entries into shared conversation entries", () => {
 		const entry = mapVirtualizedDisplayEntryToConversationEntry(
 			{
-				type: "assistant_merged_thoughts",
+				type: "assistant_merged",
 				key: "assistant-merged",
 				memberIds: ["assistant-1", "assistant-2"],
 				message: {
