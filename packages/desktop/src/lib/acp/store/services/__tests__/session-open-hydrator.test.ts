@@ -150,4 +150,71 @@ describe("SessionOpenHydrator", () => {
 		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
 		expect(updatePanelSession).not.toHaveBeenCalled();
 	});
+
+	// ==========================================================================
+	// Unit 0: Characterization — pre-cutover session hydration invariants
+	// ==========================================================================
+
+	it("[characterize] pre-cutover session with no sourcePath hydrates successfully through open path", async () => {
+		// A session recorded before the canonical materialization was in place will
+		// arrive with sourcePath: null and lastEventSeq: 0. It must still hydrate
+		// through the current open path without error.
+		const requestToken = hydrator.beginAttempt("panel-pre-cutover");
+
+		const result = await hydrator.hydrateFound(
+			"panel-pre-cutover",
+			requestToken,
+			createFoundResult({
+				sourcePath: null,
+				lastEventSeq: 0,
+				transcriptSnapshot: { revision: 0, entries: [] },
+				operations: [],
+				interactions: [],
+			})
+		);
+
+		expect(result.isOk()).toBe(true);
+		const applied = result._unsafeUnwrap();
+		expect(applied.applied).toBe(true);
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+	});
+
+	it("[characterize] session with in-progress operations preserves those operations through hydration", async () => {
+		// A session reopened during an active tool call must carry the in-progress
+		// operation in the hydrated snapshot so the UI renders the in-flight state.
+		const requestToken = hydrator.beginAttempt("panel-with-ops");
+
+		const inProgressOperation = {
+			id: "op-read-1",
+			session_id: "canonical-session",
+			tool_call_id: "tool-read-1",
+			name: "Read",
+			kind: "read" as const,
+			status: "in_progress" as const,
+			title: "Read /repo/src/main.ts",
+			arguments: { kind: "read" as const, file_path: "/repo/src/main.ts" },
+			progressive_arguments: null,
+			result: null,
+			command: null,
+			parent_tool_call_id: null,
+			parent_operation_id: null,
+			child_tool_call_ids: [],
+			child_operation_ids: [],
+		};
+
+		const result = await hydrator.hydrateFound("panel-with-ops", requestToken, {
+			...createFoundResult({ lastEventSeq: 5 }),
+			operations: [inProgressOperation],
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+		// The snapshot passed to replaceSessionOpenSnapshot must carry the operation
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const snapshotArg = (replaceSessionOpenSnapshot.mock.calls as any)[0]?.[0];
+		expect(snapshotArg?.operations).toHaveLength(1);
+		expect(snapshotArg?.operations[0]?.id).toBe("op-read-1");
+		expect(snapshotArg?.operations[0]?.status).toBe("in_progress");
+	});
 });

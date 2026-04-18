@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionOpenFound } from "$lib/services/acp-types.js";
@@ -91,5 +91,38 @@ describe("SessionStore.createSession", () => {
 			outcome: "found",
 			...sessionOpen,
 		});
+	});
+
+	// ==========================================================================
+	// Unit 0: Characterization — crash/recovery and error path invariants
+	// ==========================================================================
+
+	it("[characterize] error path: createSession propagates connection error without silently diverging", async () => {
+		// If the underlying connection fails (e.g. crash/recovery scenario), the
+		// result must surface as an error so callers can decide how to recover
+		// rather than silently ending up with a partially-initialized session.
+		const hydrateCreated = vi.fn(() => okAsync(undefined));
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		store.setSessionOpenHydrator({ hydrateCreated });
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				errAsync(new Error("Provider crashed during session creation"))
+			),
+		};
+
+		const result = await store.createSession({
+			projectPath: "/repo",
+			agentId: "copilot",
+		});
+
+		// Must propagate as Err — no silent divergence
+		expect(result.isErr()).toBe(true);
+		// Must not partially hydrate when the connection itself failed
+		expect(hydrateCreated).not.toHaveBeenCalled();
 	});
 });

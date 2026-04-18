@@ -75,7 +75,64 @@ describe("LiveInteractionProjectionSync", () => {
 
 		expect(unsubscribeByIdMock).toHaveBeenCalledWith("listener-1");
 	});
-});
+
+	// ==========================================================================
+	// Unit 0: Characterization — interaction recovery through reconnect
+	// ==========================================================================
+
+	it("[characterize] interaction events continue to fire after stop + restart (reconnect scenario)", async () => {
+		const sync = new LiveInteractionProjectionSync(
+			{
+				subscribe: subscribeMock,
+				unsubscribeById: unsubscribeByIdMock,
+			},
+			{
+				hydrateSession: hydrateSessionMock,
+			}
+		);
+
+		await sync.start();
+		// Simulate a mid-session interaction
+		listener?.(createEvent("interaction_upserted"));
+		expect(hydrateSessionMock).toHaveBeenCalledTimes(1);
+
+		// Reconnect: stop and re-start (e.g. after a provider disconnect)
+		sync.stop();
+		hydrateSessionMock.mockClear();
+
+		// Re-start the sync (as the reconnect path does)
+		await sync.start();
+
+		// Subsequent interaction events must still fire after the reconnect
+		// (listener is re-bound by subscribeMock when start() is called again)
+		if (listener !== null) {
+			listener(createEvent("interaction_upserted"));
+			listener(createEvent("interaction_resolved"));
+		}
+		expect(hydrateSessionMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("[characterize] permission and question interaction events each trigger hydration independently", async () => {
+		// Permissions and questions arrive as `interaction_upserted` events.
+		// Each must trigger exactly one hydration call so the UI stays in sync.
+		const sync = new LiveInteractionProjectionSync(
+			{
+				subscribe: subscribeMock,
+				unsubscribeById: unsubscribeByIdMock,
+			},
+			{
+				hydrateSession: hydrateSessionMock,
+			}
+		);
+
+		await sync.start();
+
+		listener?.(createEvent("interaction_upserted")); // permission arrived
+		listener?.(createEvent("interaction_upserted")); // question arrived
+		listener?.(createEvent("interaction_cancelled")); // user cancelled one
+
+		expect(hydrateSessionMock).toHaveBeenCalledTimes(3);
+	});
 
 function createEvent(kind: SessionDomainEvent["kind"]): SessionDomainEvent {
 	return {
@@ -88,3 +145,4 @@ function createEvent(kind: SessionDomainEvent["kind"]): SessionDomainEvent {
 		kind,
 	};
 }
+});

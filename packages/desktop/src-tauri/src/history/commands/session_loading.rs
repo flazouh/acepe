@@ -681,6 +681,133 @@ mod tests {
         assert_eq!(found.transcript_snapshot.revision, 1);
         assert!(!found.transcript_snapshot.entries.is_empty());
     }
+
+    // =========================================================================
+    // Unit 0: Characterization — reconnect and recovery invariants (Rust side)
+    //
+    // These tests lock in the open-result contract that must stay true while
+    // the canonical pipeline replaces legacy authority. Keep them green across
+    // all later units.
+    // =========================================================================
+
+    #[tokio::test]
+    async fn in_progress_tool_call_is_preserved_in_open_result_operations() {
+        // When a session is reopened (e.g. during or after a reconnect), any
+        // in-progress tool call that was materialized into the canonical
+        // projection snapshot must appear in `SessionOpenFound.operations`.
+        // This is the contract that lets the UI render the in-flight operation
+        // without replaying the full event stream from scratch.
+        let db = setup_test_db().await;
+        let hub = Arc::new(AcpEventHubState::new());
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "reconnect-in-progress-session",
+            "/repo",
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![make_tool_call_entry(
+                "tool-read-inflight",
+                ToolKind::Read,
+                ToolCallStatus::InProgress,
+            )],
+            title: "Reconnect session".to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = SessionReplayContext {
+            local_session_id: "reconnect-in-progress-session".to_string(),
+            history_session_id: "provider-reconnect-session".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: crate::acp::parsers::AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: None,
+            effective_cwd: "/repo".to_string(),
+            source_path: None,
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+        let projection = crate::acp::projections::ProjectionRegistry::project_thread_snapshot(
+            &replay_context.local_session_id,
+            Some(replay_context.agent_id.clone()),
+            &snapshot,
+        );
+        persist_canonical_materialization(&db, &replay_context, &snapshot, &projection)
+            .await
+            .expect("persist canonical materialization");
+
+        let result = assemble_session_open_result(
+            &db,
+            &hub,
+            &replay_context,
+            "reconnect-in-progress-session",
+        )
+        .await;
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+
+        // The in-progress operation must be present so the UI can resume rendering it
+        assert!(
+            !found.operations.is_empty(),
+            "expected in-progress operation in open result"
+        );
+        let op = &found.operations[0];
+        assert_eq!(op.tool_call_id, "tool-read-inflight");
+        assert_eq!(op.status, ToolCallStatus::InProgress);
+    }
+
+    #[tokio::test]
+    async fn session_with_no_materialized_projection_returns_empty_operations_and_interactions() {
+        // A pre-cutover session that has not yet been materialized through the
+        // canonical path returns an open result with no operations or interactions
+        // rather than an error. This is the invariant that keeps older sessions
+        // openable while the canonical pipeline rolls out.
+        let db = setup_test_db().await;
+        let hub = Arc::new(AcpEventHubState::new());
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "pre-cutover-session",
+            "/repo",
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+
+        let replay_context = SessionReplayContext {
+            local_session_id: "pre-cutover-session".to_string(),
+            history_session_id: "provider-pre-cutover-session".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: crate::acp::parsers::AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: None,
+            effective_cwd: "/repo".to_string(),
+            source_path: None,
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+
+        // Intentionally do NOT call persist_canonical_materialization — simulates a
+        // pre-cutover session that has no canonical projection in the DB yet.
+        let result =
+            assemble_session_open_result(&db, &hub, &replay_context, "pre-cutover-session").await;
+
+        // Must return a valid Found result (not Error) so the session is still openable
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found for pre-cutover session, got {result:?}");
+        };
+        assert!(
+            found.operations.is_empty(),
+            "expected empty operations for pre-cutover session"
+        );
+        assert!(
+            found.interactions.is_empty(),
+            "expected empty interactions for pre-cutover session"
+        );
+    }
 }
 
 /// Audit session load timing for performance bottleneck identification.

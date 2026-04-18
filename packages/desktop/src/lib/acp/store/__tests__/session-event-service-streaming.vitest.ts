@@ -1187,6 +1187,231 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.ensureStreamingState).toHaveBeenCalledWith("session-123");
 	});
 
+	// ==========================================================================
+	// Unit 0: Characterization — reconnect and recovery invariants
+	//
+	// These tests lock in the current behavior that must stay true while the
+	// canonical pipeline replaces legacy authority (Units 2-7). They are the
+	// standing regression harness. Do not delete them; update assertions if
+	// canonical behavior is intentionally changed.
+	// ==========================================================================
+
+	it("[characterize] reconnect during in-progress tool call: buffered update is replayed on flush and subsequent status update applies once", () => {
+		const disconnectedHandler = createMockHandler();
+		const session = { id: "session-123", agentId: "claude-code" } as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "idle",
+		});
+
+		// Phase 1: tool call arrives while disconnected — must be buffered
+		const toolCallUpdate: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-read-1",
+				name: "Read",
+				status: "in_progress",
+				kind: "read",
+				arguments: { kind: "read", file_path: "/repo/src/main.ts" },
+				awaitingPlanApproval: false,
+			},
+		};
+		service.handleSessionUpdate(toolCallUpdate, disconnectedHandler, 50);
+		expect(disconnectedHandler.createToolCallEntry).not.toHaveBeenCalled();
+
+		// Phase 2: reconnect — flush replays the buffered call exactly once
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "streaming",
+			turnState: "streaming",
+		});
+		service.flushPendingEvents("session-123", disconnectedHandler);
+		expect(disconnectedHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
+		expect(disconnectedHandler.createToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			toolCallUpdate.tool_call
+		);
+
+		// Phase 3: completion update after reconnect applies without duplication
+		const completionUpdate: SessionUpdate = {
+			type: "toolCallUpdate",
+			session_id: "session-123",
+			update: {
+				toolCallId: "tool-read-1",
+				status: "completed",
+				result: { content: "// file contents" },
+			},
+		};
+		service.handleSessionUpdate(completionUpdate, disconnectedHandler, 51);
+		expect(disconnectedHandler.updateToolCallEntry).toHaveBeenCalledTimes(1);
+		expect(disconnectedHandler.updateToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			completionUpdate.update
+		);
+	});
+
+	it("[characterize] late buffered delivery does not apply the same envelope-seq twice after reconnect", () => {
+		const disconnectedHandler = createMockHandler();
+		const session = { id: "session-123", agentId: "claude-code" } as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "idle",
+		});
+
+		const update: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-late-1",
+				name: "Search",
+				status: "in_progress",
+				kind: "search",
+				arguments: { kind: "search", query: "idempotency" },
+				awaitingPlanApproval: false,
+			},
+		};
+
+		// Same envelope-seq delivered twice while disconnected
+		service.handleSessionUpdate(update, disconnectedHandler, 77);
+		service.handleSessionUpdate(update, disconnectedHandler, 77);
+
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "streaming",
+		});
+		service.flushPendingEvents("session-123", disconnectedHandler);
+
+		// Only one entry must be created — the second envelope-seq duplicate is dropped
+		expect(disconnectedHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
+	});
+
+	it("[characterize] permission prompt fires exactly once even when session was just disconnected then reconnected", () => {
+		const onPermissionRequest = vi.fn();
+		service.setCallbacks({ onPermissionRequest });
+
+		const disconnectedHandler = createMockHandler();
+		const session = { id: "session-123", agentId: "copilot" } as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "idle",
+		});
+
+		// Permission requests are not buffered for disconnected sessions — they
+		// bypass the disconnected buffer and fire immediately. This invariant
+		// ensures a permission prompt is never silently lost while disconnected.
+		const permUpdate: SessionUpdate = {
+			type: "permissionRequest",
+			session_id: "session-123",
+			permission: {
+				id: "perm-reconnect-1",
+				sessionId: "session-123",
+				jsonRpcRequestId: 99,
+				permission: "Edit",
+				patterns: ["/repo/src/*.ts"],
+				metadata: { rawInput: { file_path: "/repo/src/main.ts" } },
+				always: [],
+				autoAccepted: false,
+				tool: { messageId: "", callId: "tool-edit-reconnect" },
+			},
+		};
+		service.handleSessionUpdate(permUpdate, disconnectedHandler, 80);
+
+		// Fires immediately — not buffered
+		expect(onPermissionRequest).toHaveBeenCalledTimes(1);
+		expect(onPermissionRequest).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "perm-reconnect-1" })
+		);
+
+		// Simulate reconnect + flush — no second fire
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "idle",
+		});
+		service.flushPendingEvents("session-123", disconnectedHandler);
+		expect(onPermissionRequest).toHaveBeenCalledTimes(1);
+	});
+
+	it("[characterize] question prompt fires exactly once even when session was just disconnected then reconnected", () => {
+		const onQuestionRequest = vi.fn();
+		service.setCallbacks({ onQuestionRequest });
+
+		const disconnectedHandler = createMockHandler();
+		const session = { id: "session-123", agentId: "copilot" } as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "idle",
+		});
+
+		const questionUpdate: SessionUpdate = {
+			type: "questionRequest",
+			session_id: "session-123",
+			question: {
+				id: "question-reconnect-1",
+				sessionId: "session-123",
+				questions: [
+					{
+						question: "Continue with changes?",
+						header: "Confirm",
+						options: [
+							{ label: "Yes", description: "Proceed" },
+							{ label: "No", description: "Cancel" },
+						],
+						multiSelect: false,
+					},
+				],
+				tool: { messageId: "", callId: "tool-question-reconnect" },
+			},
+		};
+		service.handleSessionUpdate(questionUpdate, disconnectedHandler, 81);
+
+		// Question prompts bypass the disconnected buffer — fires immediately
+		expect(onQuestionRequest).toHaveBeenCalledTimes(1);
+		expect(onQuestionRequest).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "question-reconnect-1" })
+		);
+
+		// Flush does not re-fire the prompt
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "idle",
+		});
+		service.flushPendingEvents("session-123", disconnectedHandler);
+		expect(onQuestionRequest).toHaveBeenCalledTimes(1);
+	});
+
+	it("[characterize] error path: connection-failed event rejects the lifecycle waiter and is not silently dropped", async () => {
+		const disconnectedHandler = createMockHandler();
+		const session = { id: "session-crash-1", agentId: "copilot" } as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		// Connecting — connectionFailed bypasses the disconnected buffer
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "connecting",
+		});
+
+		// Register a lifecycle waiter before the event fires (simulating a reconnect attempt)
+		const { promise } = service.waitForLifecycleEvent("session-crash-1", 1, 5000);
+
+		const failUpdate: SessionUpdate = {
+			type: "connectionFailed",
+			session_id: "session-crash-1",
+			attempt_id: 1,
+			error: "Provider disconnected",
+		};
+		service.handleSessionUpdate(failUpdate, disconnectedHandler);
+
+		// Waiter promise must reject — crash/recovery receives the error deterministically
+		await expect(promise).rejects.toThrow("Provider disconnected");
+	});
+
 	it("syncs mode from configOptionUpdate when a mode option is present", () => {
 		const update: SessionUpdate = {
 			type: "configOptionUpdate",
