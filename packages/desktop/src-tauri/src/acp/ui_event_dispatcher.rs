@@ -1,5 +1,6 @@
-use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
+use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptProjectionRegistry};
@@ -332,7 +333,7 @@ impl AcpUiEventDispatcher {
         }
 
         let derived_domain_event = session_domain_event_from_update(&event.payload)
-            .map(|event| self.create_session_domain_event(&event.session_id, event.kind));
+            .map(|event| self.create_session_domain_event(&event.session_id, event.kind, event.payload));
 
         #[cfg(test)]
         if let Some(sink) = &self.test_sink {
@@ -362,7 +363,16 @@ impl AcpUiEventDispatcher {
     }
 
     pub fn enqueue_session_domain_event(&self, session_id: &str, kind: SessionDomainEventKind) {
-        let event = self.create_session_domain_event(session_id, kind);
+        self.enqueue_session_domain_event_with_payload(session_id, kind, None);
+    }
+
+    pub fn enqueue_session_domain_event_with_payload(
+        &self,
+        session_id: &str,
+        kind: SessionDomainEventKind,
+        payload: Option<SessionDomainEventPayload>,
+    ) {
+        let event = self.create_session_domain_event(session_id, kind, payload);
 
         #[cfg(test)]
         if let Some(sink) = &self.test_sink {
@@ -385,6 +395,7 @@ impl AcpUiEventDispatcher {
         &self,
         session_id: &str,
         kind: SessionDomainEventKind,
+        payload: Option<SessionDomainEventPayload>,
     ) -> AcpUiEvent {
         let event = SessionDomainEvent {
             event_id: format!("session-domain-event-{}", Uuid::new_v4()),
@@ -394,6 +405,7 @@ impl AcpUiEventDispatcher {
             occurred_at_ms: chrono::Utc::now().timestamp_millis().max(0),
             causation_id: None,
             kind,
+            payload,
         };
 
         AcpUiEvent::session_domain_event(event)
@@ -406,17 +418,7 @@ fn session_domain_event_from_update(payload: &AcpUiEventPayload) -> Option<Sessi
     };
 
     let session_id = update.session_id()?.to_string();
-    let kind = match update.as_ref() {
-        SessionUpdate::PermissionRequest { .. } | SessionUpdate::QuestionRequest { .. } => {
-            SessionDomainEventKind::InteractionUpserted
-        }
-        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => {
-            SessionDomainEventKind::InteractionUpserted
-        }
-        SessionUpdate::TurnComplete { .. } => SessionDomainEventKind::TurnCompleted,
-        SessionUpdate::TurnError { .. } => SessionDomainEventKind::TurnFailed,
-        _ => return None,
-    };
+    let (kind, event_payload) = session_update_to_domain_event(update.as_ref())?;
 
     Some(SessionDomainEvent {
         event_id: String::new(),
@@ -426,6 +428,7 @@ fn session_domain_event_from_update(payload: &AcpUiEventPayload) -> Option<Sessi
         occurred_at_ms: 0,
         causation_id: None,
         kind,
+        payload: event_payload,
     })
 }
 
@@ -984,6 +987,7 @@ mod tests {
             occurred_at_ms: 123,
             causation_id: None,
             kind: SessionDomainEventKind::SessionConnected,
+            payload: None,
         });
 
         assert_eq!(event.event_name, "acp-session-domain-event");

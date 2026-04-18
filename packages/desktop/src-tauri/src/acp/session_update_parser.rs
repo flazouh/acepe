@@ -9,8 +9,13 @@ use serde_json::Value;
 
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
+use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::parsers::AgentType;
-use crate::acp::session_update::{parse_session_update_with_agent, SessionUpdate};
+use crate::acp::projections::InteractionKind;
+use crate::acp::session_update::{
+    parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolCallStatus, ToolKind,
+    TurnErrorData,
+};
 
 pub fn parse_session_update_notification_with_agent(agent: AgentType, json: &Value) -> ParseResult {
     parse_session_update_notification_for_agent(agent, json)
@@ -154,6 +159,172 @@ fn parse_session_update_notification_for_agent(agent: AgentType, json: &Value) -
                 update_type: session_update_type.to_string(),
             }
         }
+    }
+}
+
+/// Map a parsed [`SessionUpdate`] to its canonical `(kind, payload)` pair.
+///
+/// Returns `None` when the update has no canonical domain-event representation
+/// (e.g. config updates handled separately, or unrecognised variants).
+///
+/// Callers that already know the correct kind (e.g. interaction resolution in
+/// `client_transport`) should build the `SessionDomainEventPayload` directly
+/// rather than routing through this function.
+pub fn session_update_to_domain_event(
+    update: &SessionUpdate,
+) -> Option<(SessionDomainEventKind, Option<SessionDomainEventPayload>)> {
+    match update {
+        // ── transcript ─────────────────────────────────────────────────────
+        SessionUpdate::UserMessageChunk { chunk, .. } => {
+            let text = extract_chunk_text(chunk);
+            Some((
+                SessionDomainEventKind::UserMessageSegmentAppended,
+                Some(SessionDomainEventPayload::UserMessageSegmentAppended {
+                    message_id: String::new(),
+                    part_id: None,
+                    text,
+                }),
+            ))
+        }
+        SessionUpdate::AgentMessageChunk {
+            chunk,
+            message_id,
+            part_id,
+            ..
+        } => {
+            let text = extract_chunk_text(chunk);
+            Some((
+                SessionDomainEventKind::AssistantMessageSegmentAppended,
+                Some(SessionDomainEventPayload::AssistantMessageSegmentAppended {
+                    message_id: message_id.clone().unwrap_or_default(),
+                    part_id: part_id.clone(),
+                    text,
+                }),
+            ))
+        }
+        SessionUpdate::AgentThoughtChunk {
+            chunk,
+            message_id,
+            part_id,
+            ..
+        } => {
+            let text = extract_chunk_text(chunk);
+            Some((
+                SessionDomainEventKind::AssistantThoughtSegmentAppended,
+                Some(SessionDomainEventPayload::AssistantThoughtSegmentAppended {
+                    message_id: message_id.clone().unwrap_or_default(),
+                    part_id: part_id.clone(),
+                    text,
+                }),
+            ))
+        }
+
+        // ── tool execution ─────────────────────────────────────────────────
+        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => {
+            Some((
+                SessionDomainEventKind::InteractionUpserted,
+                Some(SessionDomainEventPayload::InteractionUpserted {
+                    interaction_id: tool_call.id.clone(),
+                    interaction_kind: InteractionKind::PlanApproval,
+                }),
+            ))
+        }
+        SessionUpdate::ToolCall { tool_call, .. } => {
+            let status = tool_call.status.clone();
+            Some((
+                SessionDomainEventKind::OperationUpserted,
+                Some(SessionDomainEventPayload::OperationUpserted {
+                    operation_id: tool_call.id.clone(),
+                    tool_call_id: tool_call.id.clone(),
+                    tool_name: tool_call.name.clone(),
+                    tool_kind: tool_call.kind.unwrap_or(ToolKind::Unclassified),
+                    status,
+                    parent_operation_id: tool_call.parent_tool_use_id.clone(),
+                }),
+            ))
+        }
+        SessionUpdate::ToolCallUpdate { update, .. } => {
+            let status = update.status.clone().unwrap_or(ToolCallStatus::InProgress);
+            Some((
+                SessionDomainEventKind::OperationUpserted,
+                Some(SessionDomainEventPayload::OperationUpserted {
+                    operation_id: update.tool_call_id.clone(),
+                    tool_call_id: update.tool_call_id.clone(),
+                    tool_name: String::new(),
+                    tool_kind: ToolKind::Unclassified,
+                    status,
+                    parent_operation_id: None,
+                }),
+            ))
+        }
+
+        // ── interactions ───────────────────────────────────────────────────
+        SessionUpdate::PermissionRequest { permission, .. } => Some((
+            SessionDomainEventKind::InteractionUpserted,
+            Some(SessionDomainEventPayload::InteractionUpserted {
+                interaction_id: permission.id.clone(),
+                interaction_kind: InteractionKind::Permission,
+            }),
+        )),
+        SessionUpdate::QuestionRequest { question, .. } => Some((
+            SessionDomainEventKind::InteractionUpserted,
+            Some(SessionDomainEventPayload::InteractionUpserted {
+                interaction_id: question.id.clone(),
+                interaction_kind: InteractionKind::Question,
+            }),
+        )),
+
+        // ── turn lifecycle ─────────────────────────────────────────────────
+        SessionUpdate::TurnComplete { turn_id, .. } => Some((
+            SessionDomainEventKind::TurnCompleted,
+            Some(SessionDomainEventPayload::TurnCompleted {
+                turn_id: turn_id.clone(),
+            }),
+        )),
+        SessionUpdate::TurnError { error, turn_id, .. } => {
+            let error_message = match error {
+                TurnErrorData::Legacy(msg) => msg.clone(),
+                TurnErrorData::Structured(info) => {
+                    info.message.clone()
+                }
+            };
+            Some((
+                SessionDomainEventKind::TurnFailed,
+                Some(SessionDomainEventPayload::TurnFailed {
+                    turn_id: turn_id.clone(),
+                    error_message,
+                }),
+            ))
+        }
+
+        // ── usage / telemetry ──────────────────────────────────────────────
+        SessionUpdate::UsageTelemetryUpdate { data } => Some((
+            SessionDomainEventKind::UsageTelemetryUpdated,
+            Some(SessionDomainEventPayload::UsageTelemetryUpdated {
+                data: data.clone(),
+            }),
+        )),
+
+        // ── connection lifecycle (handled via enqueue_session_domain_event) ─
+        SessionUpdate::ConnectionComplete { .. } | SessionUpdate::ConnectionFailed { .. } => None,
+
+        // ── config / mode / commands — no domain event ─────────────────────
+        SessionUpdate::Plan { .. }
+        | SessionUpdate::AvailableCommandsUpdate { .. }
+        | SessionUpdate::CurrentModeUpdate { .. }
+        | SessionUpdate::ConfigOptionUpdate { .. } => None,
+    }
+}
+
+/// Extract plain text from a `ContentChunk` for canonical event payloads.
+fn extract_chunk_text(chunk: &ContentChunk) -> String {
+    use crate::acp::types::ContentBlock;
+    match &chunk.content {
+        ContentBlock::Text { text } => text.clone(),
+        ContentBlock::Image { .. }
+        | ContentBlock::Audio { .. }
+        | ContentBlock::Resource { .. }
+        | ContentBlock::ResourceLink { .. } => String::new(),
     }
 }
 

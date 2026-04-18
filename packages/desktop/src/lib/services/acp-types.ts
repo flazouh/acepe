@@ -177,9 +177,83 @@ export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?:
  */
 export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; questions: QuestionItem[]; tool?: ToolReference | null }
 
+/**
+ * Payload for usage telemetry session update (generic, not provider-specific).
+ */
+export type UsageTelemetryData = { sessionId: string; eventId?: string | null; 
+/**
+ * Scope of the telemetry (e.g. "step", later "turn").
+ */
+scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceModelId?: string | null; timestampMs?: number | null; 
+/**
+ * Context window size reported by the agent (e.g. from usage_update `size` field).
+ */
+contextWindowSize?: number | null }
+
+/**
+ * Token counts for usage telemetry (generic, adapter-agnostic).
+ */
+export type UsageTelemetryTokens = { total?: number | null; input?: number | null; output?: number | null; cacheRead?: number | null; cacheWrite?: number | null; reasoning?: number | null }
+
+/**
+ * Todo item status.
+ */
+export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled"
+
+/**
+ * Todo item.
+ */
+export type TodoItem = { content: string; activeForm: string; status: TodoStatus; startedAt?: number | null; completedAt?: number | null; duration?: number | null }
+
+/**
+ * Semantic todo update operation derived from provider tool calls.
+ */
+export type TodoUpdateOperation = "replace" | "upsert" | "set_status" | "set_status_by_filter"
+
+/**
+ * Canonical todo update payload, independent from provider transport details.
+ */
+export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | null; fromStatuses?: TodoStatus[] | null; toStatus?: TodoStatus | null }
+
+export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
+
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string }
+
+export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[] }
+
+export type TranscriptSnapshot = { revision: number; entries: TranscriptEntry[] }
+
+export type TranscriptDeltaOperation = { kind: "appendEntry"; entry: TranscriptEntry } | { kind: "appendSegment"; entryId: string; role: TranscriptEntryRole; segment: TranscriptSegment } | { kind: "replaceSnapshot"; snapshot: TranscriptSnapshot }
+
+export type TranscriptDelta = { eventSeq: number; sessionId: string; snapshotRevision: number; operations: TranscriptDeltaOperation[] }
+
+/**
+ * Marker enum identifying the domain event kind.
+ * 
+ * Kept as a flat string enum for backward-compatible discrimination
+ * in frontend subscribers (`event.kind === "..."` comparisons).
+ * Typed payload data is carried in [`SessionDomainEvent::payload`].
+ */
 export type SessionDomainEventKind = "session_identity_resolved" | "session_connected" | "session_disconnected" | "session_config_changed" | "turn_started" | "turn_completed" | "turn_failed" | "turn_cancelled" | "user_message_segment_appended" | "assistant_message_segment_appended" | "assistant_thought_segment_appended" | "operation_upserted" | "operation_child_linked" | "operation_completed" | "interaction_upserted" | "interaction_resolved" | "interaction_cancelled" | "usage_telemetry_updated" | "todo_state_updated"
 
-export type SessionDomainEvent = { event_id: string; seq: number; session_id: string; provider_session_id: string | null; occurred_at_ms: number; causation_id: string | null; kind: SessionDomainEventKind }
+/**
+ * Typed payload carried by a canonical domain event.
+ * 
+ * Each variant corresponds to a [`SessionDomainEventKind`] and carries the
+ * structured data that downstream reducers and projections need.  Consumers
+ * can switch on `event.kind` for quick discrimination and access the typed
+ * payload via `event.payload` when richer data is required.
+ */
+export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
+
+/**
+ * Canonical domain event envelope.
+ * 
+ * `kind` identifies the event type for quick string-based discrimination.
+ * `payload` carries typed structured data — `None` only for events where
+ * payloads are not yet wired at the emission site.
+ */
+export type SessionDomainEvent = { event_id: string; seq: number; session_id: string; provider_session_id: string | null; occurred_at_ms: number; causation_id: string | null; kind: SessionDomainEventKind; payload?: SessionDomainEventPayload | null }
 
 export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
 
@@ -212,26 +286,6 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[] }
-
-export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
-
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string }
-
-export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[] }
-
-export type TranscriptSnapshot = { revision: number; entries: TranscriptEntry[] }
-
-export type TranscriptDeltaOperation =
-	| { kind: "appendEntry"; entry: TranscriptEntry }
-	| { kind: "appendSegment"; entryId: string; role: TranscriptEntryRole; segment: TranscriptSegment }
-	| { kind: "replaceSnapshot"; snapshot: TranscriptSnapshot }
-
-export type TranscriptDelta = {
-	eventSeq: number;
-	sessionId: string;
-	snapshotRevision: number;
-	operations: TranscriptDeltaOperation[];
-}
 
 /**
  * Payload for the `error` outcome — persisted state was found but could not
@@ -443,3 +497,4 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
+

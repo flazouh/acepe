@@ -5,10 +5,14 @@ use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
 };
-use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
+use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::model_display::{
     DisplayModelGroup, DisplayableModel, ModelDisplayFamily, ModelPresentationMetadata,
     ModelsForDisplay, UsageMetricsPresentation,
+};
+use crate::acp::transcript_projection::{
+    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+    TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::projections::{
     InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
@@ -23,10 +27,10 @@ use crate::acp::session_update::{
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
     InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
     PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
-    SessionUpdate, SkillMeta, TodoItem, TodoStatus, ToolArguments, ToolCallData, ToolCallLocation,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
-    ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
-    UsageTelemetryData, UsageTelemetryTokens,
+    SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate, TodoUpdateOperation, ToolArguments,
+    ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
+    ToolSourceContext, ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind,
+    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -372,7 +376,20 @@ pub fn export_all_types() {
     export_acp_type!(InteractionReplyHandler);
     export_acp_type!(PermissionData);
     export_acp_type!(QuestionData);
+    export_acp_type!(UsageTelemetryData);
+    export_acp_type!(UsageTelemetryTokens);
+    export_acp_type!(TodoStatus);
+    export_acp_type!(TodoItem);
+    export_acp_type!(TodoUpdateOperation);
+    export_acp_type!(TodoUpdate);
+    export_acp_type!(TranscriptEntryRole);
+    export_acp_type!(TranscriptSegment);
+    export_acp_type!(TranscriptEntry);
+    export_acp_type!(TranscriptSnapshot);
+    export_acp_type!(TranscriptDeltaOperation);
+    export_acp_type!(TranscriptDelta);
     export_acp_type!(SessionDomainEventKind);
+    export_acp_type!(SessionDomainEventPayload);
     export_acp_type!(SessionDomainEvent);
     export_acp_type!(SessionTurnState);
     export_acp_type!(SessionSnapshot);
@@ -399,6 +416,15 @@ pub fn export_all_types() {
     acp_types = acp_types.replace(
         "export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay }",
         "export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay; providerMetadata?: ProviderMetadataProjection }",
+    );
+    // specta does not rename struct variant fields for internally-tagged enums; fix manually
+    acp_types = acp_types.replace(
+        "{ kind: \"text\"; segment_id: string; text: string }",
+        "{ kind: \"text\"; segmentId: string; text: string }",
+    );
+    acp_types = acp_types.replace(
+        "{ kind: \"appendSegment\"; entry_id: string;",
+        "{ kind: \"appendSegment\"; entryId: string;",
     );
     if acp_types.contains("StoredEntry") && !acp_types.contains("converted-session-types.js") {
         acp_types = acp_types.replacen(
