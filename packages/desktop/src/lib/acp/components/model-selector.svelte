@@ -7,8 +7,6 @@ import {
 } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
-import * as m from "$lib/messages.js";
-
 import type {
 	DisplayableModel,
 	ModelsForDisplay,
@@ -323,13 +321,13 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	selectedReasoningVariantId={currentModelId}
 	primarySelectorLabel={primarySelectorLabel}
 	primaryTriggerProviderSource={`${primarySelectorLabel} ${selectedReasoningBaseGroup?.baseModelId ?? currentModelId ?? ""}`}
-	searchPlaceholder={m.model_selector_search_placeholder()}
+	searchPlaceholder={"Search models..."}
 	loadingLabel="Loading models..."
 	noModelsLabel="No models available"
 	noReasoningLevelsLabel="No reasoning levels available"
-	reasoningEffortTooltipLabel={m.model_selector_reasoning_effort_tooltip()}
-	planLabel={m.plan_heading()}
-	buildLabel={m.plan_sidebar_build()}
+	reasoningEffortTooltipLabel={"Reasoning effort"}
+	planLabel={"Plan"}
+	buildLabel={"Build"}
 	onModelChange={handleSharedModelChange}
 	onSetPlanDefault={agentId
 		? (modelId) => preferencesStore.setDefaultModel(agentId, CanonicalModeId.PLAN, modelId)

@@ -3,16 +3,14 @@ import type { SectionedFeedGroup, SectionedFeedItemData } from "@acepe/ui";
 import { SectionedFeed } from "@acepe/ui";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import type { QueueSectionGroup, QueueSectionId } from "$lib/acp/store/queue/utils.js";
-import * as m from "$lib/messages.js";
-
 import QueueItemComponent from "./queue-item.svelte";
 
 const SECTION_LABELS: Record<QueueSectionId, () => string> = {
-	answer_needed: () => m.queue_group_answer_needed(),
-	planning: () => m.queue_group_planning(),
-	working: () => m.queue_group_working(),
+	answer_needed: () => "Input needed",
+	planning: () => "Planning",
+	working: () => "Working",
 	needs_review: () => "Needs Review",
-	error: () => m.queue_group_error(),
+	error: () => "Error",
 };
 
 interface Props {

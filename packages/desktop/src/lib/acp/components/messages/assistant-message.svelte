@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolThinking } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { groupAssistantChunks } from "../../logic/assistant-chunk-grouper.js";
 import { sanitizeAssistantText } from "../../logic/assistant-text-sanitizer.js";
@@ -122,12 +121,12 @@ const thinkingHeaderLabel = $derived.by(() => {
 		const s = Math.round(ms / 1000);
 		return `Thinking for ${String(s <= 1 ? 1 : s)}s`;
 	}
-	if (isStreaming) return m.tool_thinking_streaming();
+	if (isStreaming) return "Thinking";
 	if (ms != null && ms >= 0) {
 		const s = Math.round(ms / 1000);
-		return m.tool_thinking_done_duration({ seconds: String(s <= 1 ? 1 : s) });
+		return `Thought for ${String(s <= 1 ? 1 : s)}s`;
 	}
-	return m.tool_thinking_done();
+	return "Thought";
 });
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();

@@ -4,7 +4,6 @@ import { Colors } from "@acepe/ui";
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Trash } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -60,7 +59,7 @@ const contentClass = $derived(
 		: "flex min-w-0 flex-1 items-center gap-1.5 text-xs text-muted-foreground"
 );
 
-const label = $derived(isPending ? m.tool_delete_running() : m.tool_delete_completed());
+const label = $derived(isPending ? "Deleting" : "Deleted");
 </script>
 
 <AgentToolCard variant="muted">

@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolSearch } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -96,16 +95,16 @@ const agentStatus = $derived.by(() => {
 	durationLabel={elapsedLabel ?? undefined}
 	iconBasePath="/svgs/icons"
 	{variant}
-	findingLabel={m.tool_search_finding()}
-	foundLabel={m.tool_search_found()}
-	greppingLabel={m.tool_search_grepping()}
-	greppedLabel={m.tool_search_grepped()}
+	findingLabel={"Finding"}
+	foundLabel={"Found"}
+	greppingLabel={"Grepping"}
+	greppedLabel={"Grepped"}
 	resultCountLabel={(count) =>
 		count === 1
-			? m.tool_search_result_count_one({ count })
-			: m.tool_search_result_count_other({ count })}
-	showMoreLabel={(count) => m.tool_search_show_more({ count })}
-	showLessLabel={m.tool_search_show_less()}
-	ariaExpandResults={m.aria_expand_results()}
-	ariaCollapseResults={m.aria_collapse_results()}
+			? `${count} result`
+			: `${count} results`}
+	showMoreLabel={(count) => `Show ${count} more`}
+	showLessLabel={"Show less"}
+	ariaExpandResults={"Expand results"}
+	ariaCollapseResults={"Collapse results"}
 />

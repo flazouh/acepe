@@ -24,9 +24,6 @@ import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/upd
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
-
-
 interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
@@ -65,7 +62,7 @@ const updateDownloadPercent = $derived(
 );
 
 const updateActionText = $derived(
-	updaterState?.kind === "installing" ? m.update_installing() : "Updating"
+	updaterState?.kind === "installing" ? "Installing update..." : "Updating"
 );
 
 type LayoutFamily = "standard" | "kanban";
@@ -136,8 +133,8 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 						<div class="w-[52px]">
 							<VoiceDownloadProgress
 								ariaLabel={updaterState?.kind === "installing"
-									? m.update_installing()
-									: m.update_downloading()}
+									? "Installing update..."
+									: "Downloading update"}
 								compact={true}
 								label=""
 								percent={updateDownloadPercent}

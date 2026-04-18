@@ -61,7 +61,6 @@ import {
 	QUESTION_ACTIONS,
 	showNotification,
 } from "$lib/notifications/notification-state.js";
-import * as m from "$lib/messages.js";
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { createAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
@@ -729,8 +728,8 @@ function startDevUpdateSimulation(): void {
 // Register urgency jump handler (Cmd+J)
 kb.upsertAction({
 	id: KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST,
-	label: m.keybinding_jump_to_urgent(),
-	description: m.keybinding_jump_to_urgent_description(),
+	label: "Jump to Urgent",
+	description: "Focus the most urgent tab (asking question or error)",
 	category: "navigation",
 	handler: () => {
 		const firstTab = urgencyTabsStore.firstTab;
@@ -1161,8 +1160,8 @@ onDestroy(() => {
 				{#snippet addProjectButton()}
 					<button
 						class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-						title={m.add_repository_button()}
-						aria-label={m.add_repository_button()}
+						title={"Add repository"}
+						aria-label={"Add repository"}
 						onclick={() => (addProjectDialogOpen = true)}
 					>
 						<FolderPlus class="size-4" weight="fill" />
@@ -1179,8 +1178,8 @@ onDestroy(() => {
 							{#snippet failed(error, reset)}
 								<div class="flex flex-1 items-center justify-center p-4">
 									<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
-										<span>{m.error_boundary_sidebar_failed()}</span>
-										<button class="underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+										<span>{"Sidebar encountered an error."}</span>
+										<button class="underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
 									</div>
 								</div>
 							{/snippet}
@@ -1228,8 +1227,8 @@ onDestroy(() => {
 						{#snippet failed(error, reset)}
 							<div class="flex flex-1 items-center justify-center p-4">
 								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-									<span>{m.error_boundary_panel_failed()}</span>
-									<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+									<span>{"This panel encountered an error."}</span>
+									<button class="text-xs underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
 								</div>
 							</div>
 						{/snippet}
@@ -1387,12 +1386,12 @@ onDestroy(() => {
 			role="dialog"
 			aria-modal="true"
 			aria-label={updaterState.kind === "checking"
-				? m.update_checking()
+				? "Checking for updates"
 				: updaterState.kind === "installing"
-					? m.update_installing()
+					? "Installing update..."
 				: updaterState.kind === "error"
-					? m.update_error()
-					: m.update_downloading()}
+					? "Update failed"
+					: "Downloading update"}
 		>
 			<UpdateAvailablePage
 				updaterState={updaterState}

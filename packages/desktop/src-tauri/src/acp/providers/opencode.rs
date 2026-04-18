@@ -202,14 +202,14 @@ impl AgentProvider for OpenCodeProvider {
                 _ => unreachable!(),
             }
 
-            match crate::opencode_history::commands::get_opencode_session(
-                app.clone(),
-                lookup_session_id.to_string(),
-                context.effective_project_path.clone(),
+            match crate::opencode_history::commands::fetch_opencode_session(
+                app,
+                lookup_session_id,
+                &context.effective_project_path,
             )
             .await
             {
-                Ok(converted) => Ok(Some(converted.into())),
+                Ok(snapshot) => Ok(Some(snapshot)),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

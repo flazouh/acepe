@@ -6,8 +6,6 @@ import { CaretRight } from "phosphor-svelte";
 import { CaretUp } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	hunkCurrent: number;
 	hunkTotal: number;
@@ -60,11 +58,11 @@ const navBtnClass =
 			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
 			style="background: color-mix(in srgb, {Colors.red} 8%, transparent); color: {Colors.red};"
 			disabled={!hasPendingHunks}
-			title={m.review_reject_file()}
+			title={"Reject file"}
 			onclick={onRejectFile}
 		>
 			<XCircle class="h-3 w-3 shrink-0" weight="fill" />
-			{m.review_undo()}
+			{"Undo"}
 		</button>
 		<div class="w-px bg-border/50"></div>
 		<button
@@ -72,11 +70,11 @@ const navBtnClass =
 			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
 			style="background: color-mix(in srgb, {Colors.green} 8%, transparent); color: {Colors.green};"
 			disabled={!hasPendingHunks}
-			title={m.review_accept_file()}
+			title={"Accept file"}
 			onclick={onAcceptFile}
 		>
 			<CheckCircle class="h-3 w-3 shrink-0" weight="fill" />
-			{m.review_keep()}
+			{"Keep"}
 		</button>
 	</div>
 
@@ -87,8 +85,8 @@ const navBtnClass =
 				type="button"
 				class={navBtnClass}
 				disabled={!hasPrevHunk}
-				title={m.review_prev_hunk()}
-				aria-label={m.review_prev_hunk()}
+				title={"Previous hunk"}
+				aria-label={"Previous hunk"}
 				onclick={onPrevHunk}
 			>
 				<CaretUp class="h-3 w-3" weight="fill" />
@@ -103,8 +101,8 @@ const navBtnClass =
 				type="button"
 				class={navBtnClass}
 				disabled={!hasNextHunk}
-				title={m.review_next_hunk()}
-				aria-label={m.review_next_hunk()}
+				title={"Next hunk"}
+				aria-label={"Next hunk"}
 				onclick={onNextHunk}
 			>
 				<CaretDown class="h-3 w-3" weight="fill" />
@@ -119,8 +117,8 @@ const navBtnClass =
 				type="button"
 				class={navBtnClass}
 				disabled={!hasPrevPendingFile}
-				title={m.review_prev_file()}
-				aria-label={m.review_prev_file()}
+				title={"Previous file"}
+				aria-label={"Previous file"}
 				onclick={onPrevFile}
 			>
 				<CaretLeft class="h-3 w-3" weight="fill" />
@@ -135,8 +133,8 @@ const navBtnClass =
 				type="button"
 				class={navBtnClass}
 				disabled={!hasNextPendingFile}
-				title={m.review_next_file()}
-				aria-label={m.review_next_file()}
+				title={"Next file"}
+				aria-label={"Next file"}
 				onclick={onNextFile}
 			>
 				<CaretRight class="h-3 w-3" weight="fill" />

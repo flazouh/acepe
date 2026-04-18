@@ -19,7 +19,6 @@ import { MagnifyingGlass } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type {
@@ -113,7 +112,7 @@ async function loadProjects() {
 		},
 		(error) => {
 			console.error("Failed to list project paths:", error);
-			toast.error(m.open_project_scan_error());
+			toast.error("Failed to scan projects");
 			loading = false;
 		}
 	);
@@ -188,7 +187,7 @@ async function handleImport(path: string, name: string) {
 			addedPaths = new Set([...addedPaths, path]);
 
 			// Show toast
-			toast.success(m.open_project_added_toast({ name }));
+			toast.success(`${name} added to repositories`);
 		})
 		.mapErr((error) => {
 			// Show error toast
@@ -212,7 +211,7 @@ async function handleCloneBrowse() {
 			}
 		},
 		(_error) => {
-			toast.error(m.clone_repository_browse_error());
+			toast.error("Failed to browse for folder");
 		}
 	);
 }
@@ -230,12 +229,12 @@ async function handleClone() {
 
 	result.match(
 		(cloneResult) => {
-			toast.success(m.clone_repository_success());
+			toast.success("Repository cloned successfully");
 			onCloneComplete(cloneResult.path, cloneResult.name);
 			handleOpenChange(false);
 		},
 		(error) => {
-			toast.error(m.clone_repository_error({ error: error.message }));
+			toast.error(`Clone failed: ${error.message}`);
 			cloning = false;
 		}
 	);
@@ -279,13 +278,13 @@ function handleOpenChange(newOpen: boolean) {
 				<HeaderTitleCell>
 					<FolderPlus size={14} weight="fill" class="shrink-0 mr-1.5 text-muted-foreground" />
 					<span class="text-[11px] font-medium text-foreground select-none truncate leading-none">
-						{m.add_project_title()}
+						{"Add Project"}
 					</span>
 				</HeaderTitleCell>
 				<HeaderActionCell>
 					<EmbeddedIconButton
 						active={activeView === "import"}
-						title={m.add_project_view_import()}
+						title={"Import from history"}
 						onclick={() => {
 							activeView = "import";
 						}}
@@ -294,17 +293,17 @@ function handleOpenChange(newOpen: boolean) {
 					</EmbeddedIconButton>
 					<EmbeddedIconButton
 						active={activeView === "clone"}
-						title={m.add_project_view_clone()}
+						title={"Clone repository"}
 						onclick={() => {
 							activeView = "clone";
 						}}
 					>
 						<GitBranch size={14} />
 					</EmbeddedIconButton>
-					<EmbeddedIconButton title={m.add_project_view_browse()} onclick={() => onBrowseFolder()}>
+					<EmbeddedIconButton title={"Browse folder"} onclick={() => onBrowseFolder()}>
 						<Folder size={14} />
 					</EmbeddedIconButton>
-					<CloseAction onClose={() => handleOpenChange(false)} title={m.common_close()} />
+					<CloseAction onClose={() => handleOpenChange(false)} title={"Close"} />
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>
 
@@ -315,7 +314,7 @@ function handleOpenChange(newOpen: boolean) {
 					<!-- svelte-ignore a11y_autofocus -->
 					<input
 						type="text"
-						placeholder={m.open_project_search_placeholder()}
+						placeholder={"Filter projects..."}
 						bind:value={searchQuery}
 						class="bg-transparent border-none outline-none text-[11px] font-mono text-foreground placeholder:text-muted-foreground/40 w-full"
 						autofocus
@@ -339,17 +338,14 @@ function handleOpenChange(newOpen: boolean) {
 					>
 						<span>
 							{#if searchQuery.trim()}
-								{m.open_project_filtered_count({
-									visible: filteredProjects.length,
-									total: projects.length,
-								})}
+								{`${filteredProjects.length} of ${projects.length} projects`}
 							{:else}
-								{m.open_project_found_count({ count: projects.length })}
+								{`${projects.length} projects found`}
 							{/if}
 						</span>
 						{#if addedPaths.size > 0}
 							<span class="mx-1.5 text-border">·</span>
-							<span>{m.open_project_imported_count({ count: addedPaths.size })}</span>
+							<span>{`${addedPaths.size} imported`}</span>
 						{/if}
 					</div>
 				{/if}
@@ -360,12 +356,12 @@ function handleOpenChange(newOpen: boolean) {
 					<div class="space-y-1.5">
 						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
 							<Link size={12} />
-							{m.clone_form_url_label()}
+							{"Repository URL"}
 						</label>
 						<input
 							type="text"
 							bind:value={cloneUrl}
-							placeholder={m.clone_form_url_placeholder()}
+							placeholder={"https://github.com/user/repo.git"}
 							disabled={cloning}
 							class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
 						/>
@@ -375,13 +371,13 @@ function handleOpenChange(newOpen: boolean) {
 					<div class="space-y-1.5">
 						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
 							<FolderOpen size={12} />
-							{m.clone_form_destination_label()}
+							{"Destination"}
 						</label>
 						<div class="flex items-center gap-2">
 							<input
 								type="text"
 								value={cloneDestination}
-								placeholder={m.clone_form_destination_placeholder()}
+								placeholder={"Select a folder..."}
 								readonly
 								disabled={cloning}
 								class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
@@ -392,7 +388,7 @@ function handleOpenChange(newOpen: boolean) {
 								disabled={cloning}
 								onclick={handleCloneBrowse}
 							>
-								{m.clone_form_browse()}
+								{"Browse"}
 							</PillButton>
 						</div>
 					</div>
@@ -401,12 +397,12 @@ function handleOpenChange(newOpen: boolean) {
 					<div class="space-y-1.5">
 						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
 							<GitBranch size={12} />
-							{m.clone_form_branch_label()}
+							{"Branch"}
 						</label>
 						<input
 							type="text"
 							bind:value={cloneBranch}
-							placeholder={m.clone_form_branch_placeholder()}
+							placeholder={"main"}
 							disabled={cloning}
 							class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
 						/>
@@ -422,10 +418,10 @@ function handleOpenChange(newOpen: boolean) {
 						>
 							{#if cloning}
 								<Spinner class="size-3" />
-								{m.clone_form_cloning()}
+								{"Cloning..."}
 							{:else}
 								<DownloadSimple size={14} />
-								{m.clone_form_clone()}
+								{"Clone"}
 							{/if}
 						</PillButton>
 					</div>

@@ -23,8 +23,6 @@ import {
 	openIssueReportDraft,
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	error?: Error | null;
 	reset?: () => void;
@@ -261,13 +259,13 @@ async function copyError() {
 	await copyTextToClipboard(errorText)
 		.map(() => {
 			copiedMessage = true;
-			toast.success(m.toast_error_copied());
+			toast.success("Error message copied to clipboard");
 			setTimeout(() => {
 				copiedMessage = false;
 			}, TIMING.TOAST_DURATION_MS);
 		})
 		.mapErr((e) => {
-			toast.error(m.toast_error_copy_failed());
+			toast.error("Failed to copy error message");
 			console.error("Failed to copy error:", e);
 		});
 }
@@ -281,13 +279,13 @@ async function copyFixPrompt() {
 	await copyTextToClipboard(fixPrompt)
 		.map(() => {
 			copiedFixPrompt = true;
-			toast.success(m.toast_fix_prompt_copied());
+			toast.success("Fix prompt copied to clipboard");
 			setTimeout(() => {
 				copiedFixPrompt = false;
 			}, TIMING.TOAST_DURATION_MS);
 		})
 		.mapErr((e) => {
-			toast.error(m.toast_fix_prompt_copy_failed());
+			toast.error("Failed to copy fix prompt");
 			console.error("Failed to copy fix prompt:", e);
 		});
 }
@@ -418,7 +416,7 @@ function handleDismiss() {
 					class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
 				>
 					<ArrowsClockwise class="h-3 w-3" weight="fill" />
-					{m.button_reload()}
+					{"Reload"}
 				</button>
 			</div>
 		</div>

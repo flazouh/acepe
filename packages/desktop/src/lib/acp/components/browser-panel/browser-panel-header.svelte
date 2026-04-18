@@ -1,7 +1,5 @@
 <script lang="ts">
 import { AgentPanelBrowserHeader as SharedAgentPanelBrowserHeader } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	url: string;
 	onBack?: () => void;
@@ -17,11 +15,11 @@ let { url, onBack, onForward, onReload, onNavigate, onOpenExternal, onClose }: P
 
 <SharedAgentPanelBrowserHeader
 	{url}
-	backLabel={m.link_preview_back()}
-	forwardLabel={m.link_preview_forward()}
-	reloadLabel={m.link_preview_refresh()}
-	openExternalLabel={m.link_preview_open_browser()}
-	closeLabel={m.common_close()}
+	backLabel={"Go back"}
+	forwardLabel={"Go forward"}
+	reloadLabel={"Refresh"}
+	openExternalLabel={"Open in browser"}
+	closeLabel={"Close"}
 	{onBack}
 	{onForward}
 	{onReload}

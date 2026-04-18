@@ -20,7 +20,6 @@ import { NotePencil } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
 import { SidebarSimple } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";
@@ -251,13 +250,13 @@ const canKeepAll = $derived.by(() => {
 });
 
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
-	reviewLabel: m.modified_files_review_button(),
+	reviewLabel: "Review",
 	onReview: () => {
 		handleReviewButtonClick(0);
 	},
 	keepState: isKeepAllApplied ? "applied" : canKeepAll ? "enabled" : "disabled",
-	keepLabel: m.review_keep(),
-	appliedLabel: m.review_applied(),
+	keepLabel: "Keep",
+	appliedLabel: "Applied",
 	onKeep: handleKeepAllClick,
 	reviewedCount: reviewedFileCount,
 	totalCount: modifiedFilesState?.fileCount ?? 0,
@@ -431,14 +430,14 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 								<span class="flex items-center gap-1 shrink-0">
 									{#if createPrLoading}
 										<Spinner class="size-3 shrink-0" />
-										{createPrLabel ? createPrLabel : m.agent_panel_open_pr()}
+										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
 										<GitPullRequest
 											size={11}
 											weight="bold"
 											class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 										/>
-										{m.agent_panel_open_pr()}
+										{"Open PR"}
 									{/if}
 								</span>
 								<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
@@ -597,7 +596,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 							role="none"
 						>
 							<PrStateIcon state="MERGED" size={11} />
-							{m.pr_card_merged()}
+							{"Merged"}
 						</div>
 					{:else}
 						<DropdownMenu.Root>
@@ -615,12 +614,12 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 									{#if merging}
 										<span class="flex items-center gap-1">
 											<Spinner class="size-[11px]" />
-											{m.pr_card_merge()}
+											{"Merge"}
 										</span>
 									{:else}
 										<span class="flex items-center gap-1">
 											<GitMerge size={11} weight="fill" />
-											{m.pr_card_merge()}
+											{"Merge"}
 										</span>
 									{/if}
 								</button>
@@ -639,19 +638,19 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
 									class="cursor-pointer text-[0.6875rem]"
 								>
-									{m.pr_card_squash_merge()}
+									{"Squash merge"}
 								</DropdownMenu.Item>
 								<DropdownMenu.Item
 									onSelect={() => { void mergeStrategyStore.set("merge"); onMerge("merge"); }}
 									class="cursor-pointer text-[0.6875rem]"
 								>
-									{m.pr_card_merge_commit()}
+									{"Merge commit"}
 								</DropdownMenu.Item>
 								<DropdownMenu.Item
 									onSelect={() => { void mergeStrategyStore.set("rebase"); onMerge("rebase"); }}
 									class="cursor-pointer text-[0.6875rem]"
 								>
-									{m.pr_card_rebase_merge()}
+									{"Rebase merge"}
 								</DropdownMenu.Item>
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>

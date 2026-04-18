@@ -22,10 +22,6 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Paraglide
-src/lib/paraglide
-project.inlang/cache/
-
 # Playwright & E2E Testing
 test-results/
 playwright-report/

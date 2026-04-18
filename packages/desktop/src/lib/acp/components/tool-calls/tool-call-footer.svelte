@@ -1,6 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
-
 import AnimatedChevron from "../animated-chevron.svelte";
 
 interface ToolCallFooterProps {
@@ -23,7 +21,7 @@ interface ToolCallFooterProps {
 let { isContentCollapsed, onToggleCollapse, ariaLabel }: ToolCallFooterProps = $props();
 
 const defaultAriaLabel = $derived(
-	isContentCollapsed ? m.tool_call_expand_content() : m.tool_call_collapse_content()
+	isContentCollapsed ? "Expand content view" : "Collapse content to few lines"
 );
 </script>
 

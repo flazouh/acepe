@@ -2,7 +2,6 @@
 import { CheckCircle } from "phosphor-svelte";
 import { CircleNotch } from "phosphor-svelte";
 import { FolderSimple } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import ActionsCell from "./cells/actions-cell.svelte";
 
 import AgentCountsCell from "./cells/agent-counts-cell.svelte";
@@ -44,16 +43,16 @@ function shortenPath(path: string): string {
 {#if loading}
 	<div class="flex items-center justify-center gap-2 py-12 text-muted-foreground">
 		<CircleNotch class="size-4 animate-spin" />
-		<span class="text-xs">{m.open_project_scanning()}</span>
+		<span class="text-xs">{"Scanning for projects..."}</span>
 	</div>
 {:else if projects.length === 0}
 	<div class="flex flex-col items-center justify-center gap-2 py-12 text-center px-6">
 		<FolderSimple weight="light" class="size-8 text-muted-foreground/50" />
 		<p class="text-xs text-muted-foreground">
-			{m.open_project_empty()}
+			{"No projects with sessions found"}
 		</p>
 		<p class="text-[11px] text-muted-foreground/70">
-			{m.open_project_empty_hint()}
+			{"Start a session with an agent in a project directory, then come back here to import it."}
 		</p>
 	</div>
 {:else}

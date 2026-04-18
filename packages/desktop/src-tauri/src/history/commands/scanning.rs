@@ -9,7 +9,7 @@ fn indexed_source_path(file_path: String) -> Option<String> {
 }
 
 fn derive_title_from_converted_session(
-    session: &crate::session_jsonl::types::ConvertedSession,
+    session: &crate::acp::session_thread_snapshot::SessionThreadSnapshot,
 ) -> Option<String> {
     for entry in &session.entries {
         if let crate::session_jsonl::types::StoredEntry::User { message, .. } = entry {
@@ -33,7 +33,7 @@ fn resolve_indexed_session_title(
     session_id: &str,
     display: &str,
     title_overridden: bool,
-    session: Option<&crate::session_jsonl::types::ConvertedSession>,
+    session: Option<&crate::acp::session_thread_snapshot::SessionThreadSnapshot>,
 ) -> String {
     if title_overridden {
         return display.to_string();
@@ -331,17 +331,16 @@ mod tests {
         resolve_indexed_session_title,
     };
     use crate::db::repository::SessionMetadataRow;
-    use crate::session_jsonl::types::{
-        ConvertedSession, SessionStats, StoredContentBlock, StoredEntry, StoredUserMessage,
-    };
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+    use crate::session_jsonl::types::{StoredContentBlock, StoredEntry, StoredUserMessage};
 
-    fn make_session(title: &str, user_text: &str) -> ConvertedSession {
+    fn make_session(title: &str, user_text: &str) -> SessionThreadSnapshot {
         let content = StoredContentBlock {
             block_type: "text".to_string(),
             text: Some(user_text.to_string()),
         };
 
-        ConvertedSession {
+        SessionThreadSnapshot {
             entries: vec![StoredEntry::User {
                 id: "entry-1".to_string(),
                 message: StoredUserMessage {
@@ -352,7 +351,6 @@ mod tests {
                 },
                 timestamp: Some("2026-04-06T00:00:00Z".to_string()),
             }],
-            stats: SessionStats::default(),
             title: title.to_string(),
             created_at: "2026-04-06T00:00:00Z".to_string(),
             current_mode_id: None,

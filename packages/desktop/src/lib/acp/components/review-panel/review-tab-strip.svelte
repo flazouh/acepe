@@ -3,8 +3,6 @@ import { FilePathBadge } from "@acepe/ui";
 import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
-
 import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
 import type { FileReviewStatus } from "./review-session-state.js";
 
@@ -34,13 +32,13 @@ const tabs = $derived.by((): TabItem[] =>
 function getStatusTooltip(status: FileReviewStatus): string {
 	switch (status) {
 		case "accepted":
-			return m.review_status_accepted_tooltip();
+			return "Fully accepted";
 		case "partial":
-			return m.review_status_partial_tooltip();
+			return "Partially reviewed";
 		case "denied":
-			return m.review_status_denied_tooltip();
+			return "Rejected";
 		default:
-			return m.review_status_partial_tooltip();
+			return "Partially reviewed";
 	}
 }
 </script>

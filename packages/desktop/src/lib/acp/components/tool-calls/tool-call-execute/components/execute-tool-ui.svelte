@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { AgentToolCard } from "@acepe/ui/agent-panel";
 	import { CodeBlock } from "$lib/components/ui/code-block";
-	import * as m from "$lib/messages.js";
 	import { getSessionStore } from "../../../../store/index.js";
 	import type { TurnState } from "../../../../store/types.js";
 	import type { ToolCall } from "../../../../types/tool-call.js";
@@ -151,7 +150,7 @@ const modalDisplayOutput = $derived.by(() => {
 				<div class="flex items-center gap-2 font-mono text-sm">
 					<span class="text-amber-600 dark:text-amber-400">$</span>
 					<span class="whitespace-pre-wrap break-all text-foreground"
-						>{extractedCommand || m.common_command_fallback()}</span
+						>{extractedCommand || "Command"}</span
 					>
 				</div>
 			</div>

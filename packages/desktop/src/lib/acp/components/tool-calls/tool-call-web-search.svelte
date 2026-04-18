@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolWebSearch } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -61,18 +60,18 @@ const agentStatus = $derived.by(() => {
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}
 	onLinkClick={(url, title) => panelStore.openBrowserPanel(projectPath ?? "", url, title)}
-	searchingLabel={m.tool_web_search_searching()}
-	searchFailedLabel={m.tool_web_search_failed()}
-	searchedLabel={m.tool_web_search_searched()}
-	noResultsLabel={m.tool_web_search_no_results_label()}
+	searchingLabel={"Searching"}
+	searchFailedLabel={"Search Failed"}
+	searchedLabel={"Searched"}
+	noResultsLabel={"No results"}
 	resultCountLabel={(count) =>
 		count === 1
-			? m.tool_web_search_result_count_one({ count })
-			: m.tool_web_search_result_count_other({ count })}
-	showMoreCollapsedLabel={(count) => m.tool_web_search_show_more({ count })}
-	showLessCollapsedLabel={m.tool_web_search_show_less()}
-	showMoreExpandedLabel={(count) => m.tool_web_search_show_more_expanded({ count })}
-	showLessExpandedLabel={m.tool_web_search_show_less_expanded()}
-	ariaExpandResults={m.aria_expand_results()}
-	ariaCollapseResults={m.aria_collapse_results()}
+			? `${count} result`
+			: `${count} results`}
+	showMoreCollapsedLabel={(count) => `+${count} more`}
+	showLessCollapsedLabel={"show less"}
+	showMoreExpandedLabel={(count) => `Show ${count} more`}
+	showLessExpandedLabel={"Show less"}
+	ariaExpandResults={"Expand results"}
+	ariaCollapseResults={"Collapse results"}
 />

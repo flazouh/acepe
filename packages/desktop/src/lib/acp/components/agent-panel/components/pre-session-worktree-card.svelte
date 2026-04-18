@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
-	import * as m from "$lib/messages.js";
 	import { extractProjectName } from "$lib/acp/utils/path-utils.js";
 	import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
 
@@ -45,7 +44,7 @@
 	{failureMessage}
 	retryLabel="Retry"
 	dismissLabel="Dismiss"
-	setupScriptsLabel={projectPath ? m.setup_scripts_button_title() : null}
+	setupScriptsLabel={projectPath ? "Setup scripts" : null}
 	{onYes}
 	{onNo}
 	{onAlways}

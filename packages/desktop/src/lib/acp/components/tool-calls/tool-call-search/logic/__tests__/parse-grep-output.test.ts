@@ -105,7 +105,7 @@ describe("parseSearchResult", () => {
 	it("parses grep stdout lines as content with a single-file searchPath", () => {
 		const parsed = parseSearchResult(
 			{
-				stdout: '6:\t"scripts": {\n23:\t\t"translate:update": "inlang machine translate --force"',
+				stdout: '6:\t"scripts": {\n23:\t\t"translate:update": "npm run translate"',
 			},
 			undefined,
 			"packages/desktop/package.json"

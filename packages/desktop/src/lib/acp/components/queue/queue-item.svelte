@@ -16,7 +16,6 @@ import {
 } from "@acepe/ui";
 import { XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
-import * as m from "$lib/messages.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
@@ -139,7 +138,7 @@ const permissionVerb = $derived.by(() => {
 	return pendingPermission.permission;
 });
 const displayTitle = $derived(
-	normalizeTitleForDisplay(item.title || "") || m.agent_panel_new_thread()
+	normalizeTitleForDisplay(item.title || "") || "New Thread"
 );
 
 const questionId = $derived(pendingQuestion?.tool?.callID ?? pendingQuestion?.id ?? "");
@@ -204,7 +203,7 @@ const hasError = $derived(item.state.connection === "error" || item.connectionEr
 const statusText = $derived.by(() => {
 	if (hasPendingQuestion || hasPendingPlanApproval) return null;
 	if (isThinking) {
-		return m.waiting_planning_next_moves();
+		return "Planning next moves";
 	}
 	if (item.pendingText) {
 		return item.pendingText;
@@ -261,7 +260,7 @@ const planApprovalToolCall = $derived.by(() => {
 	return null;
 });
 const planApprovalPrompt = $derived(
-	planApprovalToolCall?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running()
+	planApprovalToolCall?.normalizedQuestions?.[0]?.question ?? "Creating plan"
 );
 
 const toolContent = $derived(activityProjection.toolContent);
@@ -473,7 +472,7 @@ function handleNextQuestion() {
 				<HeaderActionCell>
 					<button type="button" class="plan-queue-action" onclick={handleExitPlanBuild}>
 						<BuildIcon size="sm" />
-						{m.plan_sidebar_build()}
+						{"Build"}
 					</button>
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>
@@ -533,7 +532,7 @@ function handleNextQuestion() {
 				<HeaderActionCell>
 					<button type="button" class="plan-queue-action" onclick={handlePlanApprove}>
 						<BuildIcon size="sm" />
-						{m.plan_sidebar_build()}
+						{"Build"}
 					</button>
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>
@@ -572,11 +571,11 @@ function handleNextQuestion() {
 		{currentAnswerDisplay}
 		{currentQuestionOptions}
 		{otherText}
-		otherPlaceholder={m.question_other_placeholder()}
+		otherPlaceholder={"Type your answer..."}
 		{showOtherInput}
 		{showSubmitButton}
 		{canSubmit}
-		submitLabel={m.common_submit()}
+		submitLabel={"Submit"}
 		onOptionSelect={handleOptionSelect}
 		onOtherInput={handleOtherInput}
 		onOtherKeydown={handleOtherKeydown}

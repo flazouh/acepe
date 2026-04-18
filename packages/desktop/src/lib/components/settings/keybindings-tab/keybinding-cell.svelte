@@ -5,8 +5,6 @@ import { Button } from "$lib/components/ui/button/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import type { Keybinding } from "$lib/keybindings/types.js";
 import { formatKeyStringToArray } from "$lib/keybindings/utils/formatter.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	binding: Keybinding | undefined;
 	actionId: string;
@@ -27,7 +25,7 @@ let { binding, actionId, isCustom, isLoading, onEdit, onReset }: Props = $props(
 			{/each}
 		</KbdGroup>
 	{:else}
-		<span class="text-xs text-muted-foreground/60">{m.settings_keybindings_not_bound()}</span>
+		<span class="text-xs text-muted-foreground/60">{"Not bound"}</span>
 	{/if}
 
 	<Button
@@ -36,7 +34,7 @@ let { binding, actionId, isCustom, isLoading, onEdit, onReset }: Props = $props(
 		class="h-6 w-6"
 		onclick={() => onEdit(actionId)}
 		disabled={isLoading}
-		title={m.settings_keybindings_edit()}
+		title={"Edit keybinding"}
 	>
 		<IconPencil class="h-3.5 w-3.5" />
 	</Button>
@@ -47,7 +45,7 @@ let { binding, actionId, isCustom, isLoading, onEdit, onReset }: Props = $props(
 			class="h-6 w-6 text-muted-foreground hover:text-destructive"
 			onclick={() => onReset(actionId)}
 			disabled={isLoading}
-			title={m.settings_keybindings_reset()}
+			title={"Reset to default"}
 		>
 			<IconX class="h-3.5 w-3.5" />
 		</Button>

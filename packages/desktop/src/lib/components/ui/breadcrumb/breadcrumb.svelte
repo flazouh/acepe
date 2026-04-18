@@ -1,6 +1,5 @@
 <script lang="ts">
 import type { HTMLAttributes } from "svelte/elements";
-import * as m from "$lib/messages.js";
 import type { WithElementRef } from "$lib/utils.js";
 
 let {
@@ -15,7 +14,7 @@ let {
 	bind:this={ref}
 	data-slot="breadcrumb"
 	class={className}
-	aria-label={m.aria_breadcrumb()}
+	aria-label={"breadcrumb"}
 	{...restProps}
 >
 	{@render children?.()}

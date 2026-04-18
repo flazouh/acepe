@@ -7,8 +7,6 @@ import { WarningCircle } from "phosphor-svelte";
 import { untrack } from "svelte";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	url: string;
 	open: boolean;
@@ -99,7 +97,7 @@ function getDomain(urlString: string): string {
 					type="button"
 					onclick={goBack}
 					class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-					title={m.link_preview_back()}
+					title={"Go back"}
 				>
 					<ArrowLeft class="h-4 w-4" weight="regular" />
 				</button>
@@ -107,7 +105,7 @@ function getDomain(urlString: string): string {
 					type="button"
 					onclick={goForward}
 					class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-					title={m.link_preview_forward()}
+					title={"Go forward"}
 				>
 					<ArrowRight class="h-4 w-4" weight="regular" />
 				</button>
@@ -115,7 +113,7 @@ function getDomain(urlString: string): string {
 					type="button"
 					onclick={refresh}
 					class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-					title={m.link_preview_refresh()}
+					title={"Refresh"}
 				>
 					<ArrowsClockwise class="h-4 w-4" weight="regular" />
 				</button>
@@ -142,15 +140,15 @@ function getDomain(urlString: string): string {
 					onclick={openInBrowser}
 					class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md
 						text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-					title={m.link_preview_open_browser()}
+					title={"Open in browser"}
 				>
 					<ArrowSquareOut class="h-3.5 w-3.5" weight="regular" />
-					<span class="hidden sm:inline">{m.link_preview_open_browser()}</span>
+					<span class="hidden sm:inline">{"Open in browser"}</span>
 				</button>
 				<Dialog.Close
 					class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
 				>
-					<span class="sr-only">{m.common_close()}</span>
+					<span class="sr-only">{"Close"}</span>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						width="16"
@@ -181,10 +179,10 @@ function getDomain(urlString: string): string {
 					</div>
 					<div class="space-y-2">
 						<h3 class="text-lg font-medium text-foreground">
-							{m.link_preview_error_title()}
+							{"Unable to load page"}
 						</h3>
 						<p class="text-sm text-muted-foreground max-w-md">
-							{m.link_preview_error_description()}
+							{"This page cannot be displayed in the preview. Some websites block being embedded in other applications."}
 						</p>
 					</div>
 					<div class="flex items-center gap-2">
@@ -193,14 +191,14 @@ function getDomain(urlString: string): string {
 							onclick={refresh}
 							class="px-4 py-2 text-sm font-medium rounded-md bg-muted hover:bg-muted/80 transition-colors"
 						>
-							{m.link_preview_try_again()}
+							{"Try again"}
 						</button>
 						<button
 							type="button"
 							onclick={openInBrowser}
 							class="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
 						>
-							{m.link_preview_open_browser()}
+							{"Open in browser"}
 						</button>
 					</div>
 				</div>
@@ -210,7 +208,7 @@ function getDomain(urlString: string): string {
 					<div class="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
 						<div class="flex flex-col items-center gap-3">
 							<Spinner class="h-8 w-8 text-primary" />
-							<span class="text-sm text-muted-foreground">{m.common_loading()}</span>
+							<span class="text-sm text-muted-foreground">{"Loading..."}</span>
 						</div>
 					</div>
 				{/if}
@@ -219,7 +217,7 @@ function getDomain(urlString: string): string {
 				<iframe
 					bind:this={iframeRef}
 					src={currentUrl}
-					title={m.link_preview_title()}
+					title={"Link Preview"}
 					class="w-full h-full border-0"
 					sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
 					referrerpolicy="no-referrer"

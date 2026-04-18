@@ -308,7 +308,6 @@ pub fn export_all_types() {
     export_type!(SkillMeta);
     export_type!(QuestionAnswer);
     export_type!(StoredEntry);
-    export_type!(ConvertedSession);
     export_type!(SessionPlanResponse);
     export_type!(UserSettingKey);
 

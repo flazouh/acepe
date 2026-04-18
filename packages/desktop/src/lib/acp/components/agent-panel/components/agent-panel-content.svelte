@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -151,7 +150,7 @@ export function scrollToTop() {
 					{/each}
 					<MessageWrapper entryIndex={sessionEntries.length} entryKey="pending-thinking" {isFullscreen}>
 						<div class="py-3 text-sm text-muted-foreground">
-							<TextShimmer>{m.waiting_planning_next_moves()}</TextShimmer>
+							<TextShimmer>{"Planning next moves"}</TextShimmer>
 						</div>
 					</MessageWrapper>
 				</div>

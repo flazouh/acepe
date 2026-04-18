@@ -1,5 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import { DiffPill } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
@@ -43,10 +42,10 @@ function formatDate(isoDate: string): string {
 </script>
 
 <svelte:head>
-	<title>{m.blog_index_title()} - Acepe</title>
-	<meta name="description" content={m.blog_index_subtitle()} />
-	<meta property="og:title" content="{m.blog_index_title()} - Acepe" />
-	<meta property="og:description" content={m.blog_index_subtitle()} />
+	<title>{"Blog"} - Acepe</title>
+	<meta name="description" content={"Product updates and how-to guides for the Acepe desktop app"} />
+	<meta property="og:title" content="{"Blog"} - Acepe" />
+	<meta property="og:description" content={"Product updates and how-to guides for the Acepe desktop app"} />
 	<meta property="og:type" content="website" />
 </svelte:head>
 
@@ -63,12 +62,12 @@ function formatDate(isoDate: string): string {
 				<h1
 					class="mb-4 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[56px]"
 				>
-					{m.blog_index_title()}
+					{"Blog"}
 				</h1>
 				<p
 					class="mx-auto max-w-[600px] text-lg leading-[1.5] text-muted-foreground md:text-[22px]"
 				>
-					{m.blog_index_subtitle()}
+					{"Product updates and how-to guides for the Acepe desktop app"}
 				</p>
 			</div>
 		</section>
@@ -123,7 +122,7 @@ function formatDate(isoDate: string): string {
 								href="/blog/{post.slug}"
 								class="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
 							>
-								{m.blog_read_more()}
+								{"Read more"}
 								<ArrowRight class="h-3.5 w-3.5" />
 							</a>
 						</div>

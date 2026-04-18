@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentPanelTodoHeader as SharedAgentPanelTodoHeader } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { ThreadWithEntries } from "../logic/todo-state.svelte.js";
@@ -84,8 +83,8 @@ function getMarkdown(): string {
 		completedCount={todoState.completedCount}
 		totalCount={todoState.totalCount}
 		isLive={todoState.isLive}
-		allCompletedLabel={m.todo_all_completed()}
-		pausedLabel={m.todo_tasks_paused()}
+		allCompletedLabel={"All tasks completed"}
+		pausedLabel={"Tasks paused"}
 		{compact}
 	>
 		{#snippet copyButton()}

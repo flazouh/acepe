@@ -51,7 +51,6 @@ import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-q
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -163,7 +162,7 @@ async function handleExportJson() {
 async function handleOpenStreamingLog() {
 	await tauriClient.shell.openStreamingLog(session.id).match(
 		() => undefined,
-		(err) => toast.error(m.thread_export_raw_error({ error: err.message }))
+		(err) => toast.error(`Failed to open streaming log: ${err.message}`)
 	);
 }
 
@@ -363,7 +362,7 @@ const statusText = $derived.by(() => {
 	}
 
 	if (previewActivityKind === "thinking") {
-		return m.waiting_planning_next_moves();
+		return "Planning next moves";
 	}
 
 	if (liveSessionState.attention.hasUnseenCompletion) {
@@ -584,7 +583,7 @@ function handleNextQuestion() {
 					type="button"
 					class="shrink-0 self-start mt-1 p-0.5 hover:bg-accent rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					onclick={handleChevronClick}
-					aria-label={isExpanded ? m.aria_collapse() : m.aria_expand()}
+					aria-label={isExpanded ? "Collapse" : "Expand"}
 				>
 					{#if isExpanded}
 						<IconChevronDown class="h-3.5 w-3.5 text-muted-foreground" />
@@ -598,7 +597,7 @@ function handleNextQuestion() {
 			{#snippet agentBadge()}
 				<img
 					src={getThemedAgentIcon(session.agentId)}
-					alt={m.alt_agent_icon()}
+					alt={"Agent"}
 					class="{getAgentIconClass()} shrink-0 m-0.5"
 					width="12"
 					height="12"
@@ -680,31 +679,31 @@ function handleNextQuestion() {
 									<CopyButton
 										text={session.id}
 										variant="menu"
-										label={m.session_menu_copy_id()}
+										label={"Copy session ID"}
 										hideIcon
 										size={16}
 									/>
 								</DropdownMenu.Item>
 								{#if onRename}
 									<DropdownMenu.Item onSelect={openRenameEditor} class="cursor-pointer">
-										{m.file_list_rename()}
+										{"Rename"}
 									</DropdownMenu.Item>
 								{/if}
 								{#if onExportMarkdown || onExportJson}
 									<DropdownMenu.Separator />
 									<DropdownMenu.Sub>
 										<DropdownMenu.SubTrigger class="cursor-pointer">
-											{m.session_menu_export()}
+											{"Export"}
 										</DropdownMenu.SubTrigger>
 										<DropdownMenu.SubContent class="min-w-[160px]">
 											{#if onExportMarkdown}
 												<DropdownMenu.Item onSelect={handleExportMarkdown} class="cursor-pointer">
-													{m.session_menu_export_markdown()}
+													{"Export as Markdown"}
 												</DropdownMenu.Item>
 											{/if}
 											{#if onExportJson}
 												<DropdownMenu.Item onSelect={handleExportJson} class="cursor-pointer">
-													{m.session_menu_export_json()}
+													{"Export as JSON"}
 												</DropdownMenu.Item>
 											{/if}
 										</DropdownMenu.SubContent>
@@ -713,7 +712,7 @@ function handleNextQuestion() {
 								{#if isDev}
 									<DropdownMenu.Separator />
 									<DropdownMenu.Item onSelect={handleOpenStreamingLog} class="cursor-pointer">
-										{m.thread_export_raw_streaming()}
+										{"Open Streaming Log"}
 									</DropdownMenu.Item>
 								{/if}
 							</DropdownMenu.Content>
@@ -783,11 +782,11 @@ function handleNextQuestion() {
 					{currentAnswerDisplay}
 					{currentQuestionOptions}
 					{otherText}
-					otherPlaceholder={m.question_other_placeholder()}
+					otherPlaceholder={"Type your answer..."}
 					{showOtherInput}
 					{showSubmitButton}
 					{canSubmit}
-					submitLabel={m.common_submit()}
+					submitLabel={"Submit"}
 					onOptionSelect={handleOptionSelect}
 					onOtherInput={handleOtherInput}
 					onOtherKeydown={handleOtherKeydown}

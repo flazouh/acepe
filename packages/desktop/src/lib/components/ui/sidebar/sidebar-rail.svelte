@@ -1,6 +1,5 @@
 <script lang="ts">
 import type { HTMLAttributes } from "svelte/elements";
-import * as m from "$lib/messages.js";
 import { cn, type WithElementRef } from "$lib/utils.js";
 import * as Tooltip from "../tooltip/index.js";
 import { useSidebar } from "./context.svelte.js";
@@ -21,7 +20,7 @@ const sidebar = useSidebar();
 			bind:this={ref}
 			data-sidebar="rail"
 			data-slot="sidebar-rail"
-			aria-label={m.aria_toggle_sidebar()}
+			aria-label={"Toggle Sidebar"}
 			tabIndex={-1}
 			onclick={sidebar.toggle}
 			class={cn(
@@ -39,6 +38,6 @@ const sidebar = useSidebar();
 		</button>
 	</Tooltip.Trigger>
 	<Tooltip.Content>
-		{m.aria_toggle_sidebar()}
+		{"Toggle Sidebar"}
 	</Tooltip.Content>
 </Tooltip.Root>

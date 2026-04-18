@@ -7,7 +7,6 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
 import { findGitStatusForFile, getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
-import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 interface Props {
@@ -144,7 +143,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				filePath={activeFilePanel.filePath}
 				projectPath={activeFilePanel.projectPath}
 				projectName={projects.find((project) => project.path === activeFilePanel.projectPath)?.name ??
-					m.project_unknown()}
+					"Unknown"}
 				projectColor={projects.find((project) => project.path === activeFilePanel.projectPath)?.color}
 				projectIconSrc={projects.find((project) => project.path === activeFilePanel.projectPath)?.iconPath ??
 					null}

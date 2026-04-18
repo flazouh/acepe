@@ -2,7 +2,6 @@
 import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
 import { Pagination as PaginationPrimitive } from "bits-ui";
 import { buttonVariants } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 
 let {
@@ -14,7 +13,7 @@ let {
 
 <PaginationPrimitive.PrevButton
 	bind:ref
-	aria-label={m.aria_previous_page()}
+	aria-label={"Go to previous page"}
 	class={cn(
 		buttonVariants({
 			size: "default",
@@ -26,5 +25,5 @@ let {
 	{...restProps}
 >
 	<ChevronLeftIcon />
-	<span class="hidden sm:block">{m.pagination_previous()}</span>
+	<span class="hidden sm:block">{"Previous"}</span>
 </PaginationPrimitive.PrevButton>

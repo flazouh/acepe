@@ -10,8 +10,6 @@ import { EmbeddedIconButton, EmbeddedPanelHeader, HeaderTitleCell } from "@acepe
 import { Colors } from "@acepe/ui/colors";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { WarningCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	error: string;
 	onRetry: () => void;
@@ -46,7 +44,7 @@ let { error, onRetry, onCancel }: Props = $props();
 					id="connection-error-title"
 					class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none"
 				>
-					{m.connection_error_title()}
+					{"Connection Failed"}
 				</span>
 			</HeaderTitleCell>
 		</EmbeddedPanelHeader>
@@ -54,14 +52,14 @@ let { error, onRetry, onCancel }: Props = $props();
 		<!-- Content -->
 		<div class="flex flex-col gap-4 px-5 py-5">
 			<p class="text-sm text-muted-foreground leading-relaxed">
-				{m.connection_error_description()}
+				{"We couldn't connect to the agent. Check your credentials and try again."}
 			</p>
 
 			<details class="group">
 				<summary class="cursor-pointer select-none text-xs text-muted-foreground hover:text-foreground transition-colors list-none">
 					<span class="inline-flex items-center gap-1">
 						<span class="group-open:rotate-90 transition-transform">▶</span>
-						{m.connection_error_details()}
+						{"Details"}
 					</span>
 				</summary>
 				<div
@@ -79,7 +77,7 @@ let { error, onRetry, onCancel }: Props = $props();
 				onclick={onCancel}
 				class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
 			>
-				{m.common_cancel()}
+				{"Cancel"}
 			</button>
 			<button
 				type="button"
@@ -87,7 +85,7 @@ let { error, onRetry, onCancel }: Props = $props();
 				class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
 			>
 				<ArrowsClockwise class="h-3 w-3" weight="fill" />
-				{m.connection_error_retry()}
+				{"Retry"}
 			</button>
 		</div>
 		</div>

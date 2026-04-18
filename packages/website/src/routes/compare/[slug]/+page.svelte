@@ -1,5 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
 import { Check, X, ArrowRight, Minus } from "@lucide/svelte";
@@ -63,7 +62,7 @@ function toggleFaq(index: number): void {
 				<div
 					class="mb-5 inline-flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1"
 				>
-					<span class="font-mono text-xs text-muted-foreground">{m.compare_badge()}</span>
+					<span class="font-mono text-xs text-muted-foreground">{"comparison"}</span>
 				</div>
 				<h1
 					class="mb-4 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[56px]"
@@ -80,13 +79,13 @@ function toggleFaq(index: number): void {
 						href="/download"
 						class="theme-invert-btn inline-flex h-10 items-center justify-center rounded-full px-6 text-sm font-medium transition-all duration-200"
 					>
-						{m.compare_cta_download()}
+						{"Download Acepe"}
 					</a>
 					<a
 						href="/pricing"
 						class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-border/50 bg-card/40 px-6 text-sm font-medium text-foreground transition-colors hover:bg-card/70"
 					>
-						{m.compare_cta_pricing()}
+						{"See pricing"}
 						<ArrowRight class="h-3.5 w-3.5" />
 					</a>
 				</div>
@@ -99,17 +98,17 @@ function toggleFaq(index: number): void {
 				<div class="grid gap-8 md:grid-cols-[220px_1fr]">
 					<div>
 						<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
-							{m.compare_verification_title()}
+							{"Public-source verification"}
 						</p>
 						<p class="mt-3 max-w-[260px] text-sm leading-relaxed text-muted-foreground">
-							{m.compare_verification_description()}
+							{"This page only publishes claims backed by public product materials or public repository evidence."}
 						</p>
 					</div>
 
 					<div class="grid gap-6 md:grid-cols-[160px_1fr]">
 						<div>
 							<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
-								{m.compare_verification_last_verified()}
+								{"Last verified"}
 							</p>
 							{#if comparison.lastVerifiedOn}
 								<p class="mt-3 text-sm font-medium text-foreground">
@@ -120,7 +119,7 @@ function toggleFaq(index: number): void {
 
 						<div>
 							<p class="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
-								{m.compare_verification_sources()}
+								{"Sources"}
 							</p>
 							<div class="mt-3 flex flex-col gap-3">
 								{#each comparison.sourceNotes as source}
@@ -149,14 +148,14 @@ function toggleFaq(index: number): void {
 		<!-- Comparison Table -->
 		<section class="mx-auto max-w-4xl px-4 pb-20 md:px-6">
 			<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
-				{m.compare_table_title()}
+				{"Feature by feature"}
 			</h2>
 
 			<div class="overflow-hidden rounded-xl border border-border/50">
 				<!-- Table header -->
 				<div class="grid grid-cols-[1fr_1fr_1fr] border-b border-border/50 bg-card/30">
 					<div class="px-4 py-3 text-sm font-medium text-muted-foreground">
-						{m.compare_table_feature()}
+						{"Feature"}
 					</div>
 					<div class="px-4 py-3 text-center text-sm font-semibold text-foreground">
 						Acepe
@@ -210,7 +209,7 @@ function toggleFaq(index: number): void {
 		<!-- Differentiators -->
 		<section class="mx-auto max-w-4xl px-4 pb-20 md:px-6">
 			<h2 class="mb-10 text-center text-2xl font-semibold tracking-tight md:text-3xl">
-				{m.compare_differentiators_title()}
+				{"Why developers choose Acepe"}
 			</h2>
 
 			<div class="grid gap-6 md:grid-cols-3">
@@ -230,10 +229,10 @@ function toggleFaq(index: number): void {
 			<div class="rounded-2xl border border-border/50 bg-card/20 p-6 md:p-8">
 				<div class="max-w-2xl">
 					<h2 class="text-2xl font-semibold tracking-tight md:text-3xl">
-						{m.compare_resources_title()}
+						{"See Acepe features behind this comparison"}
 					</h2>
 					<p class="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
-						{m.compare_resources_description()}
+						{"These product articles explain the queue, checkpoint, and SQL workflows that show up as differentiators throughout the comparison."}
 					</p>
 				</div>
 				<div class="mt-6 grid gap-4 md:grid-cols-3">
@@ -260,7 +259,7 @@ function toggleFaq(index: number): void {
 		<!-- FAQ -->
 		<section class="mx-auto max-w-3xl px-4 pb-20 md:px-6">
 			<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
-				{m.compare_faq_title()}
+				{"Frequently asked questions"}
 			</h2>
 
 			<div class="flex flex-col gap-2">
@@ -292,16 +291,16 @@ function toggleFaq(index: number): void {
 		<section class="flex justify-center px-4 pb-32 md:px-6">
 			<div class="text-center">
 				<h2 class="mb-4 text-2xl font-semibold tracking-tight md:text-3xl">
-					{m.compare_cta_title()}
+					{"Ready to try Acepe?"}
 				</h2>
 				<p class="mx-auto mb-8 max-w-[500px] text-muted-foreground">
-					{m.compare_cta_description()}
+					{"Free forever for individuals. One download, every agent, full control."}
 				</p>
 				<a
 					href="/download"
 					class="theme-invert-btn inline-flex h-10 items-center justify-center rounded-full px-6 text-sm font-medium transition-all duration-200"
 				>
-					{m.compare_cta_download()}
+					{"Download Acepe"}
 				</a>
 			</div>
 		</section>

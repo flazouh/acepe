@@ -1,6 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
-
 import { createPanZoomHandlers } from "./use-pan-zoom.js";
 
 let {
@@ -44,7 +42,7 @@ function toggleSource(): void {
 {#if loading}
 	<div class="mermaid-loading">
 		<div class="loading-spinner"></div>
-		<span class="loading-text">{m.mermaid_loading()}</span>
+		<span class="loading-text">{"Rendering diagram..."}</span>
 	</div>
 {:else if error}
 	<div class="mermaid-error">
@@ -55,11 +53,11 @@ function toggleSource(): void {
 					fill="currentColor"
 				/>
 			</svg>
-			<p class="error-title">{m.mermaid_render_error()}</p>
+			<p class="error-title">{"Failed to render diagram"}</p>
 		</div>
 		<p class="error-message">{error}</p>
 		<button type="button" class="source-toggle" onclick={toggleSource}>
-			{showSource ? m.mermaid_hide_source() : m.mermaid_show_source()}
+			{showSource ? "Hide source" : "Show source"}
 		</button>
 		{#if showSource}
 			<pre class="error-code">{code}</pre>

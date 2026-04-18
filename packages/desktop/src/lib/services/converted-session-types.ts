@@ -83,6 +83,10 @@ normalizedQuestions?: QuestionItem[] | null;
  */
 normalizedTodos?: TodoItem[] | null; 
 /**
+ * Semantic todo update derived from provider tool calls while preserving transport provenance.
+ */
+normalizedTodoUpdate?: TodoUpdate | null; 
+/**
  * Parent task ID for nested tool calls.
  */
 parentToolUseId?: string | null; 
@@ -520,12 +524,6 @@ answers: Partial<{ [key in string]: JsonValue }> }
  * Discriminated union tagged by "type".
  */
 export type StoredEntry = { type: "user"; id: string; message: StoredUserMessage; timestamp?: string | null } | { type: "assistant"; id: string; message: StoredAssistantMessage; timestamp?: string | null } | { type: "tool_call"; id: string; message: ToolCallData; timestamp?: string | null } | { type: "error"; id: string; message: StoredErrorMessage; timestamp?: string | null }
-
-/**
- * Result of converting a full session to stored entries.
- * Returned by get_converted_session command.
- */
-export type ConvertedSession = { entries: StoredEntry[]; stats: SessionStats; title: string; createdAt: string; currentModeId?: string | null }
 
 /**
  * Response for session plan request.

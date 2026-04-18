@@ -1,6 +1,5 @@
 <script lang="ts">
 import { BrandLockup, TextShimmer } from "@acepe/ui";
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Check, ArrowRight, Terminal } from "@lucide/svelte";
 import { GithubLogo } from "phosphor-svelte";
@@ -258,40 +257,40 @@ let { data } = $props();
 						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
-						{m.landing_hero_title()}
+						{"The Agentic Developer Environment"}
 					</p>
 				</div>
 
 				<!-- Product -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_product()}
+						{"Product"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/blog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_blog()}
+								{"Blog"}
 							</a>
 						</li>
 						<li>
 							<a href="/changelog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.changelog_nav_label()}
+								{"Changelog"}
 							</a>
 						</li>
 						<li>
 							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_pricing()}
+								{"Pricing"}
 							</a>
 						</li>
 						<li>
 							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_compare()}
+								{"Compare"}
 							</a>
 						</li>
 						{#if data.featureFlags?.roadmapEnabled}
 							<li>
 								<a href="/roadmap" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-									{m.nav_roadmap()}
+									{"Roadmap"}
 								</a>
 							</li>
 						{/if}
@@ -301,7 +300,7 @@ let { data } = $props();
 				<!-- Resources -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_resources()}
+						{"Resources"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
@@ -335,17 +334,17 @@ let { data } = $props();
 				<!-- Legal -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_legal()}
+						{"Legal"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/privacy" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_privacy()}
+								{"Privacy"}
 							</a>
 						</li>
 						<li>
 							<a href="/terms" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_terms()}
+								{"Terms"}
 							</a>
 						</li>
 					</ul>
@@ -355,7 +354,7 @@ let { data } = $props();
 			<!-- Bottom bar -->
 			<div class="mt-10 border-t border-border/30 pt-6">
 				<span class="font-mono text-[11px] text-muted-foreground/50">
-					{m.footer_copyright({ year: new Date().getFullYear().toString() })}
+					{`© ${new Date().getFullYear().toString()} Acepe. All rights reserved.`}
 				</span>
 			</div>
 		</div>

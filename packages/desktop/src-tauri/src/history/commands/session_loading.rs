@@ -856,11 +856,13 @@ pub async fn audit_session_load_timing_cli(
             add_stage(&mut stages, "read_and_parse", t1);
 
             let t2 = Instant::now();
-            let converted =
-                crate::session_converter::convert_claude_full_session_to_entries(&full_session);
+            let snapshot =
+                crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                    &full_session,
+                );
             add_stage(&mut stages, "convert", t2);
 
-            Some(converted)
+            Some(snapshot)
         }
         CanonicalAgentId::Cursor => {
             if let Some(ref sp) = source_path {
@@ -869,10 +871,10 @@ pub async fn audit_session_load_timing_cli(
                     Ok(Some(fs)) => {
                         add_stage(&mut stages, "load_from_source", t0);
                         let t1 = Instant::now();
-                        let converted =
-                            crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                        let snapshot =
+                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                         add_stage(&mut stages, "convert", t1);
-                        Some(converted)
+                        Some(snapshot)
                     }
                     Ok(None) | Err(_) => {
                         add_stage(&mut stages, "load_from_source_failed", t0);
@@ -884,11 +886,9 @@ pub async fn audit_session_load_timing_cli(
                         match full_session {
                             Some(fs) => {
                                 let t2 = Instant::now();
-                                let c = crate::session_converter::convert_cursor_full_session_to_entries(
-                                    &fs,
-                                );
+                                let s = crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                                 add_stage(&mut stages, "convert", t2);
-                                Some(c)
+                                Some(s)
                             }
                             None => None,
                         }
@@ -903,10 +903,10 @@ pub async fn audit_session_load_timing_cli(
                 match full_session {
                     Some(fs) => {
                         let t1 = Instant::now();
-                        let c =
-                            crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                        let s =
+                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                         add_stage(&mut stages, "convert", t1);
-                        Some(c)
+                        Some(s)
                     }
                     None => None,
                 }
@@ -915,7 +915,7 @@ pub async fn audit_session_load_timing_cli(
         CanonicalAgentId::Codex => {
             let t0 = Instant::now();
             let codex_result =
-                codex_parser::load_session(&session_id, &project_path, source_path.as_deref())
+                codex_parser::load_thread_snapshot(&session_id, &project_path, source_path.as_deref())
                     .await
                     .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
@@ -942,7 +942,7 @@ pub async fn audit_session_load_timing_cli(
     };
 
     let total_ms = total_start.elapsed().as_millis();
-    let entry_count = result.as_ref().map(|c| c.entries.len()).unwrap_or(0);
+    let entry_count = result.as_ref().map(|s| s.entries.len()).unwrap_or(0);
 
     Ok(SessionLoadTiming {
         agent: agent_name.to_string(),
@@ -996,11 +996,13 @@ pub async fn audit_session_load_timing(
                 add_stage(&mut stages, "read_and_parse", t1);
 
                 let t2 = Instant::now();
-                let converted =
-                    crate::session_converter::convert_claude_full_session_to_entries(&full_session);
+                let snapshot =
+                    crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                        &full_session,
+                    );
                 add_stage(&mut stages, "convert", t2);
 
-                (Some(converted), "claude-code".to_string())
+                (Some(snapshot), "claude-code".to_string())
             }
             CanonicalAgentId::Cursor => {
                 if let Some(ref sp) = source_path {
@@ -1009,31 +1011,28 @@ pub async fn audit_session_load_timing(
                         Ok(Some(fs)) => {
                             add_stage(&mut stages, "load_from_source", t0);
                             let t1 = Instant::now();
-                            let converted =
-                                crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                            let snapshot =
+                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                             add_stage(&mut stages, "convert", t1);
-                            (Some(converted), "cursor".to_string())
+                            (Some(snapshot), "cursor".to_string())
                         }
                         Ok(None) | Err(_) => {
                             add_stage(&mut stages, "load_from_source_failed", t0);
-                            // Fall through to find_session_by_id
                             let t_find = Instant::now();
                             let full_session = cursor_parser::find_session_by_id(&session_id)
                                 .await
                                 .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
                             add_stage(&mut stages, "find_transcript", t_find);
-                            let converted = match full_session {
+                            let snapshot = match full_session {
                                 Some(fs) => {
                                     let t2 = Instant::now();
-                                    let c = crate::session_converter::convert_cursor_full_session_to_entries(
-                                        &fs,
-                                    );
+                                    let s = crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                                     add_stage(&mut stages, "convert", t2);
-                                    Some(c)
+                                    Some(s)
                                 }
                                 None => None,
                             };
-                            (converted, "cursor".to_string())
+                            (snapshot, "cursor".to_string())
                         }
                     }
                 } else {
@@ -1042,17 +1041,17 @@ pub async fn audit_session_load_timing(
                         .await
                         .map_err(|e| format!("Failed to find Cursor session: {}", e))?;
                     add_stage(&mut stages, "find_transcript", t0);
-                    let converted = match full_session {
+                    let snapshot = match full_session {
                         Some(fs) => {
                             let t1 = Instant::now();
-                            let c =
-                                crate::session_converter::convert_cursor_full_session_to_entries(&fs);
+                            let s =
+                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
                             add_stage(&mut stages, "convert", t1);
-                            Some(c)
+                            Some(s)
                         }
                         None => None,
                     };
-                    (converted, "cursor".to_string())
+                    (snapshot, "cursor".to_string())
                 }
             }
             CanonicalAgentId::OpenCode => {
@@ -1061,14 +1060,14 @@ pub async fn audit_session_load_timing(
                     opencode_parser::load_session_from_disk(&session_id, source_path.as_deref()).await;
                 add_stage(&mut stages, "load_from_disk", t0);
 
-                if let Ok(Some(converted)) = disk_result {
-                    (Some(converted), "opencode".to_string())
+                if let Ok(Some(snapshot)) = disk_result {
+                    (Some(snapshot), "opencode".to_string())
                 } else {
                     let t1 = Instant::now();
                     match fetch_opencode_session(&app, &session_id, &project_path).await {
-                        Ok(converted) => {
+                        Ok(snapshot) => {
                             add_stage(&mut stages, "http_fetch", t1);
-                            (Some(converted), "opencode".to_string())
+                            (Some(snapshot), "opencode".to_string())
                         }
                         Err(e) => {
                             add_stage(&mut stages, "http_failed", t1);
@@ -1080,7 +1079,7 @@ pub async fn audit_session_load_timing(
             CanonicalAgentId::Codex => {
                 let t0 = Instant::now();
                 let codex_result =
-                    codex_parser::load_session(&session_id, &project_path, source_path.as_deref())
+                    codex_parser::load_thread_snapshot(&session_id, &project_path, source_path.as_deref())
                         .await
                         .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
                 add_stage(&mut stages, "load_session", t0);

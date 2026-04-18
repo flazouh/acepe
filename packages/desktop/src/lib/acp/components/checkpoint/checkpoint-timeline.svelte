@@ -4,7 +4,6 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../store/types.js";
@@ -71,7 +70,7 @@ async function loadFilesForCheckpoint(checkpointId: string) {
 	const result = await checkpointStore.getFileSnapshotsForCheckpoint(sessionId, checkpointId);
 	result.match(
 		(snapshots) => fileSnapshots.set(checkpointId, snapshots),
-		(error) => toast.error(m.checkpoint_load_files_failed({ error: error.message }))
+		(error) => toast.error(`Failed to load files: ${error.message}`)
 	);
 	loadingFilesForCheckpoint = null;
 }
@@ -131,20 +130,17 @@ async function handleRevert(checkpoint: Checkpoint) {
 		(revertResult) => {
 			if (revertResult.success) {
 				toast.success(
-					m.checkpoint_revert_success({ checkpointNumber: checkpoint.checkpointNumber })
+					`Reverted to checkpoint #${checkpoint.checkpointNumber}`
 				);
 			} else {
 				toast.warning(
-					m.checkpoint_revert_partial({
-						succeeded: revertResult.revertedFiles.length,
-						failed: revertResult.failedFiles.length,
-					})
+					`Partially reverted: ${revertResult.revertedFiles.length} succeeded, ${revertResult.failedFiles.length} failed`
 				);
 			}
 			onRevertComplete?.();
 		},
 		(error) => {
-			toast.error(m.checkpoint_revert_failed({ error: error.message }));
+			toast.error(`Failed to revert: ${error.message}`);
 		}
 	);
 
@@ -179,7 +175,7 @@ function isExpanded(checkpointId: string): boolean {
 				onclick={onClose}
 			>
 				<ArrowLeft class="h-3.5 w-3.5" weight="bold" />
-				<span class="text-xs">{m.common_back()}</span>
+				<span class="text-xs">{"Back"}</span>
 			</Button>
 		</div>
 	{/if}
@@ -190,11 +186,11 @@ function isExpanded(checkpointId: string): boolean {
 			{#if isLoading}
 				<div class="flex items-center justify-center h-24 text-muted-foreground text-sm">
 					<Spinner class="h-4 w-4 mr-2" />
-					{m.checkpoint_loading()}
+					{"Loading checkpoints..."}
 				</div>
 			{:else if visibleCheckpoints.length === 0}
 				<div class="flex items-center justify-center h-24 text-muted-foreground text-xs">
-					{m.checkpoint_empty_state()}
+					{"No checkpoints yet"}
 				</div>
 			{:else}
 				<!-- Simple list with gap - reversed so oldest (first) is at top -->

@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AgentToolFetch } from "@acepe/ui/agent-panel";
 import { Result } from "neverthrow";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -55,9 +54,9 @@ const agentStatus = $derived.by(() => {
 	{resultText}
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}
-	fetchingLabel={m.tool_fetch_fetching()}
-	fetchFailedLabel={m.tool_fetch_failed()}
-	fetchedLabel={m.tool_fetch_fetched()}
-	resultLabel={m.tool_fetch_result_label()}
-	errorLabel={m.tool_fetch_error_label()}
+	fetchingLabel={"Fetching"}
+	fetchFailedLabel={"Fetch failed"}
+	fetchedLabel={"Fetched"}
+	resultLabel={"Result"}
+	errorLabel={"Error"}
 />

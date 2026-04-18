@@ -4,24 +4,12 @@ use crate::acp::session_update::ToolCallUpdateData;
 use crate::acp::tool_call_presentation::{
     merge_tool_arguments, synthesize_locations, synthesize_title, title_is_placeholder,
 };
-use crate::session_jsonl::types::{ConvertedSession, FullSession, StoredEntry};
+use crate::session_jsonl::types::{FullSession, StoredEntry};
 
 #[derive(serde::Deserialize)]
 struct StreamingLogEntry {
     direction: String,
     data: serde_json::Value,
-}
-
-#[allow(dead_code)]
-pub(crate) fn convert_cursor_full_session_to_entries(session: &FullSession) -> ConvertedSession {
-    let snapshot = convert_cursor_full_session_to_thread_snapshot(session);
-    ConvertedSession {
-        entries: snapshot.entries,
-        stats: session.stats.clone(),
-        title: snapshot.title,
-        created_at: snapshot.created_at,
-        current_mode_id: snapshot.current_mode_id,
-    }
 }
 
 pub(crate) fn convert_cursor_full_session_to_thread_snapshot(
@@ -158,8 +146,8 @@ mod tests {
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::streaming_log::{clear_session_log, log_emitted_event};
-    use crate::session_jsonl::types::SessionStats;
 
     #[test]
     fn overlays_edit_arguments_from_streaming_log() {
@@ -203,7 +191,7 @@ mod tests {
 
         log_emitted_event(session_id, &emitted_update);
 
-        let mut converted = ConvertedSession {
+        let mut converted = SessionThreadSnapshot {
             entries: vec![StoredEntry::ToolCall {
                 id: "tool-edit-1".to_string(),
                 message: ToolCallData {
@@ -236,7 +224,6 @@ mod tests {
                 },
                 timestamp: Some("2026-03-20T07:49:55.869382+00:00".to_string()),
             }],
-            stats: SessionStats::default(),
             title: "Cursor Session".to_string(),
             created_at: "2026-03-20T07:49:55.000000+00:00".to_string(),
             current_mode_id: None,
@@ -297,7 +284,7 @@ mod tests {
 
         log_emitted_event(session_id, &emitted_update);
 
-        let mut converted = ConvertedSession {
+        let mut converted = SessionThreadSnapshot {
             entries: vec![StoredEntry::ToolCall {
                 id: "tool-rename-1".to_string(),
                 message: ToolCallData {
@@ -330,7 +317,6 @@ mod tests {
                 },
                 timestamp: Some("2026-03-20T07:49:55.869382+00:00".to_string()),
             }],
-            stats: SessionStats::default(),
             title: "Cursor Session".to_string(),
             created_at: "2026-03-20T07:49:55.000000+00:00".to_string(),
             current_mode_id: None,
@@ -389,7 +375,7 @@ mod tests {
 
         log_emitted_event(session_id, &emitted_update);
 
-        let mut converted = ConvertedSession {
+        let mut converted = SessionThreadSnapshot {
             entries: vec![StoredEntry::ToolCall {
                 id: "tool-read-1".to_string(),
                 message: ToolCallData {
@@ -417,7 +403,6 @@ mod tests {
                 },
                 timestamp: Some("2026-03-20T07:49:55.869382+00:00".to_string()),
             }],
-            stats: SessionStats::default(),
             title: "Cursor Session".to_string(),
             created_at: "2026-03-20T07:49:55.000000+00:00".to_string(),
             current_mode_id: None,

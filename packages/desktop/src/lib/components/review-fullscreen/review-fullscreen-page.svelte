@@ -4,8 +4,6 @@ import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/
 import { aggregateFileEdits } from "$lib/acp/components/modified-files/logic/aggregate-file-edits.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	sessionId: string;
 	fileIndex: number;
@@ -37,19 +35,19 @@ function handleFileIndexChange(index: number): void {
 	<div
 		class="flex items-center justify-between px-4 py-2 pt-[46px] border-b border-border shrink-0"
 	>
-		<h1 class="text-lg font-medium">{m.modified_files_review_title()}</h1>
-		<Button variant="ghost" size="icon" onclick={onClose} aria-label={m.common_close()}>
+		<h1 class="text-lg font-medium">{"Review Changes"}</h1>
+		<Button variant="ghost" size="icon" onclick={onClose} aria-label={"Close"}>
 			<IconX class="h-5 w-5" />
 		</Button>
 	</div>
 
 	{#if !identity}
 		<div class="flex-1 flex items-center justify-center text-muted-foreground">
-			{m.common_loading()}
+			{"Loading..."}
 		</div>
 	{:else if !hasModifications}
 		<div class="flex-1 flex items-center justify-center text-muted-foreground px-4">
-			{m.modified_files_count({ count: 0 })} – {m.common_close()}
+			{`${0} files changed`} – {"Close"}
 		</div>
 	{:else}
 		<div class="flex-1 flex flex-col min-h-0 overflow-hidden">

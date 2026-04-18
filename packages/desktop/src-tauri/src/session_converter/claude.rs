@@ -1,9 +1,5 @@
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::session_jsonl::types::{ConvertedSession, FullSession};
-
-pub(crate) fn convert_claude_full_session_to_entries(session: &FullSession) -> ConvertedSession {
-    super::fullsession::convert_full_session_to_entries(session)
-}
+use crate::session_jsonl::types::FullSession;
 
 pub(crate) fn convert_claude_full_session_to_thread_snapshot(
     session: &FullSession,

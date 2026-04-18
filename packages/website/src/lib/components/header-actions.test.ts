@@ -6,7 +6,7 @@ describe("header actions", () => {
 		const source = await readFile(new URL("./header.svelte", import.meta.url), "utf8");
 
 		expect(source).toContain('import { BrandLockup } from "@acepe/ui";');
-		expect(source).not.toContain("<TextShimmer>{m.nav_download()}</TextShimmer>");
+		expect(source).not.toContain('<TextShimmer>{"Download"}</TextShimmer>');
 		expect(source).toContain("cursor-pointer items-center justify-center rounded-full");
 	});
 });

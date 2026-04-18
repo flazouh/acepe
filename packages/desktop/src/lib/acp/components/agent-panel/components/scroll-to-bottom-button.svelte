@@ -1,7 +1,5 @@
 <script lang="ts">
 import { AgentPanelScrollToBottomButton as SharedAgentPanelScrollToBottomButton } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
-
 interface ScrollToBottomButtonProps {
 	/**
 	 * Whether the button should be visible.
@@ -20,6 +18,6 @@ let { visible, onClick }: ScrollToBottomButtonProps = $props();
 
 <SharedAgentPanelScrollToBottomButton
 	{visible}
-	ariaLabel={m.agent_panel_scroll_bottom()}
+	ariaLabel={"Scroll Bottom"}
 	{onClick}
 />

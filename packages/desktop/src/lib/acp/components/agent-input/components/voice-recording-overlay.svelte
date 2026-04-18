@@ -1,7 +1,6 @@
 <!-- VoiceRecordingOverlay - Error-only content shown in the text area.
      Minimal Apple-like error display with subtle fade-in. -->
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";
 
 interface Props {
@@ -39,7 +38,7 @@ const isLiveCapture = $derived(
 			aria-live="assertive"
 		>
 			<p class="text-[13px] text-muted-foreground leading-snug">
-				{voiceState.errorMessage ? voiceState.errorMessage : m.voice_error_permission_denied()}
+				{voiceState.errorMessage ? voiceState.errorMessage : "Microphone permission denied"}
 			</p>
 		</div>
 	{/if}

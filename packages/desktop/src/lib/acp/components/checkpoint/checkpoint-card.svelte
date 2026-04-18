@@ -11,7 +11,6 @@ import {
 	type CheckpointFile as UICheckpointFile,
 } from "@acepe/ui";
 import { SvelteMap } from "svelte/reactivity";
-import * as m from "$lib/messages.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
 import CheckpointDiffPreview from "./checkpoint-diff-preview.svelte";
@@ -209,11 +208,11 @@ function getLanguageFromPath(filePath: string): string {
 	showRevertButton={true}
 	alwaysShowRevert={true}
 	allowFileDiffExpand={true}
-	revertLabel={m.checkpoint_revert_button()}
-	fileRevertLabel={m.checkpoint_revert_button()}
-	cancelLabel={m.common_cancel()}
-	confirmLabel={m.common_confirm()}
-	loadingFilesMessage={m.checkpoint_loading_files()}
+	revertLabel={"Revert"}
+	fileRevertLabel={"Revert"}
+	cancelLabel={"Cancel"}
+	confirmLabel={"Confirm"}
+	loadingFilesMessage={"Loading files..."}
 	{onToggleExpand}
 	onRevertClick={handleRevertClick}
 	onRevertConfirm={handleRevertConfirm}

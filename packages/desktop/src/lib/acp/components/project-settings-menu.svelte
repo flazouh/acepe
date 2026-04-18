@@ -5,8 +5,6 @@ import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
-
 import { COLOR_NAMES, Colors } from "../utils/colors.js";
 import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
 
@@ -52,14 +50,14 @@ const selectedColorHex = $derived.by(() => {
 			</DropdownMenu.Trigger>
 		</Tooltip.Trigger>
 		<Tooltip.Content>
-			{m.project_settings()}
+			{"Project Settings"}
 		</Tooltip.Content>
 	</Tooltip.Root>
 	<DropdownMenu.Content align="start" class="w-44">
 		<DropdownMenu.Sub>
 			<DropdownMenu.SubTrigger>
 				<Palette class="h-3.5 w-3.5 mr-2" weight="fill" />
-				<span class="flex-1">{m.project_color()}</span>
+				<span class="flex-1">{"Color"}</span>
 				<span
 					class="h-3.5 w-3.5 rounded-full border border-border shrink-0"
 					style="background-color: {selectedColorHex};"
@@ -103,7 +101,7 @@ const selectedColorHex = $derived.by(() => {
 				}}
 			>
 				<Trash class="h-3.5 w-3.5 mr-2" weight="fill" />
-				{m.project_remove()}
+				{"Remove Project"}
 			</DropdownMenu.Item>
 		{/if}
 	</DropdownMenu.Content>
@@ -118,9 +116,9 @@ const selectedColorHex = $derived.by(() => {
 		onInteractOutside={() => (showRemoveConfirm = false)}
 	>
 		<div class="px-2 py-2">
-			<p class="text-[11px] font-medium">{m.project_remove_confirm_title()}</p>
+			<p class="text-[11px] font-medium">{"Remove Project"}</p>
 			<p class="text-[10px] text-muted-foreground leading-snug mt-0.5">
-				{m.project_remove_confirm_description({ projectName })}
+				{`Remove "${projectName}" from your workspace? This will not delete any files.`}
 			</p>
 		</div>
 		<div class="flex items-stretch border-t border-border/30">
@@ -129,7 +127,7 @@ const selectedColorHex = $derived.by(() => {
 				class="flex-1 flex items-center justify-center px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-r border-border/30"
 				onclick={() => (showRemoveConfirm = false)}
 			>
-				{m.common_cancel()}
+				{"Cancel"}
 			</button>
 			<button
 				type="button"
@@ -140,7 +138,7 @@ const selectedColorHex = $derived.by(() => {
 				}}
 			>
 				<Trash class="size-3" weight="fill" />
-				{m.common_delete()}
+				{"Delete"}
 			</button>
 		</div>
 	</Popover.Content>

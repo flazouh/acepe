@@ -5,8 +5,6 @@ import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
-import * as m from "$lib/messages.js";
-
 import SessionTable from "./project-tab/session-table.svelte";
 
 interface Props {
@@ -65,10 +63,10 @@ function handleArchive(session: { id: string; projectPath: string; agentId: stri
 <div class="flex flex-col h-full min-h-0 gap-3 text-[13px]">
 	<div class="shrink-0">
 		<h2 class="text-[13px] font-semibold text-foreground">
-			{m.settings_project_sessions()}
+			{"Sessions"}
 		</h2>
 		<p class="text-[12px] text-muted-foreground mt-0.5">
-			{m.settings_project_sessions_description()}
+			{"View and manage all conversation sessions."}
 		</p>
 	</div>
 

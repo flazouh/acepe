@@ -3,8 +3,6 @@ import { IconCheck } from "@tabler/icons-svelte";
 import { ResultAsync } from "neverthrow";
 import { Copy } from "phosphor-svelte";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	/**
 	 * Text to copy when clicked. Component handles clipboard + toast internally.
@@ -97,12 +95,12 @@ async function handleClick(event?: MouseEvent) {
 		const result = getText();
 		textToCopy = typeof result === "string" ? result : await result;
 	} else {
-		toastError(m.toast_no_content_to_copy());
+		toastError("No content to copy");
 		return;
 	}
 
 	if (!textToCopy.trim()) {
-		toastError(m.toast_no_content_to_copy());
+		toastError("No content to copy");
 		return;
 	}
 
@@ -111,14 +109,14 @@ async function handleClick(event?: MouseEvent) {
 		(e) => new Error(`Failed to copy: ${String(e)}`)
 	)
 		.map(() => {
-			toastSuccess(m.toast_copied_to_clipboard());
+			toastSuccess("Copied to clipboard");
 			internalCopied = true;
 			setTimeout(() => {
 				internalCopied = false;
 			}, 2000);
 		})
 		.mapErr((e) => {
-			toastError(m.message_input_copy_failed());
+			toastError("Failed to copy");
 			console.error("Failed to copy:", e);
 		});
 }
@@ -126,7 +124,7 @@ async function handleClick(event?: MouseEvent) {
 
 <button
 	onclick={(e) => handleClick(e)}
-	title={copied ? "Copied!" : (titleOverride ?? m.button_copy())}
+	title={copied ? "Copied!" : (titleOverride ?? "Copy")}
 	class="{baseClass} {colorClass} {className}"
 	type="button"
 >

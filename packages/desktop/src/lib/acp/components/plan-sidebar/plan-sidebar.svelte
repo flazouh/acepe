@@ -5,7 +5,6 @@ import { ArrowsOut } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-import * as m from "$lib/messages.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
 
 import { useSessionContext } from "../../hooks/use-session-context.js";
@@ -40,19 +39,19 @@ let isBuilding = $state(false);
 
 async function handleBuildPlan() {
 	if (!sessionId || !onSendMessage) {
-		toast.error(m.plan_sidebar_no_active_session());
+		toast.error("No active session");
 		return;
 	}
 
 	isBuilding = true;
 
-	const message = m.plan_sidebar_build_message();
+	const message = "Please implement this plan.";
 
 	try {
 		await onSendMessage(sessionId, message);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		toast.error(m.plan_sidebar_send_message_error({ error: errorMessage }));
+		toast.error(`Failed to send message: ${errorMessage}`);
 		isBuilding = false;
 	}
 }
@@ -67,7 +66,7 @@ function handleDownloadMarkdown() {
 	a.click();
 	document.body.removeChild(a);
 	URL.revokeObjectURL(url);
-	toast.success(m.plan_downloaded());
+	toast.success("Plan downloaded");
 }
 </script>
 
@@ -82,21 +81,21 @@ function handleDownloadMarkdown() {
 		{isBuilding}
 		onBuild={handleBuildPlan}
 		{onClose}
-		buildLabel={m.plan_sidebar_build()}
-		buildingLabel={m.plan_sidebar_building()}
+		buildLabel={"Build"}
+		buildingLabel={"Building"}
 	>
 		{#snippet headerActions()}
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 			<EmbeddedIconButton
-				title={m.plan_download()}
-				ariaLabel={m.plan_download()}
+				title={"Download"}
+				ariaLabel={"Download"}
 				onclick={handleDownloadMarkdown}
 			>
 				<DownloadSimple size={14} weight="bold" />
 			</EmbeddedIconButton>
 			<EmbeddedIconButton
-				title={m.plan_sidebar_open_fullscreen()}
-				ariaLabel={m.plan_sidebar_open_fullscreen()}
+				title={"Open in fullscreen"}
+				ariaLabel={"Open in fullscreen"}
 				onclick={onOpenFullscreen}
 			>
 				<ArrowsOut size={14} weight="bold" />

@@ -13,14 +13,6 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("$lib/messages.js", () => ({
-	terminal_panel_title: () => "Terminal",
-	common_close: () => "Close",
-	terminal_new_tab: () => "New tab",
-	panel_fullscreen: () => "Enter fullscreen",
-	panel_exit_fullscreen: () => "Exit fullscreen",
-}));
-
 import TerminalPanelHeader from "../terminal-panel-header.svelte";
 
 afterEach(cleanup);

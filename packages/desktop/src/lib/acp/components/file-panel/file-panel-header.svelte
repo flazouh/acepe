@@ -4,7 +4,6 @@ import { CloseAction, EmbeddedIconButton } from "@acepe/ui/panel-header";
 import { FolderOpen } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
-import * as m from "$lib/messages.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import CopyButton from "../messages/copy-button.svelte";
 import type { FilePanelDisplayMode } from "./file-panel-format.js";
@@ -56,7 +55,7 @@ function handleOpenInFinder() {
 		.resolveFilePath(filePath, projectPath)
 		.andThen(revealInFinder)
 		.mapErr(() => {
-			toast.error(m.file_panel_open_in_finder_error());
+			toast.error("Failed to open in Finder");
 		});
 }
 
@@ -65,10 +64,10 @@ function getFullPath(): string {
 }
 
 function getDisplayModeLabel(mode: FilePanelDisplayMode): string {
-	if (mode === "rendered") return m.plan_preview();
+	if (mode === "rendered") return "Preview";
 	if (mode === "structured") return "Tree";
 	if (mode === "table") return "Table";
-	return m.plan_source();
+	return "Source";
 }
 
 const uiDisplayModes = $derived(
@@ -137,16 +136,16 @@ function handleEditorModeChange(modeId: string) {
 					variant="icon"
 					size={14}
 					class="h-7 w-7 text-muted-foreground hover:text-foreground"
-					title={m.button_copy()}
+					title={"Copy"}
 				/>
 			</div>
 		{/if}
-		<EmbeddedIconButton onclick={handleOpenInFinder} title={m.file_panel_open_in_finder()}>
+		<EmbeddedIconButton onclick={handleOpenInFinder} title={"Open in Finder"}>
 			<FolderOpen class="h-3.5 w-3.5" weight="fill" />
-			<span class="sr-only">{m.file_panel_open_in_finder()}</span>
+			<span class="sr-only">{"Open in Finder"}</span>
 		</EmbeddedIconButton>
 		{#if !compact}
-			<CloseAction onClose={onClose} title={m.common_close()} />
+			<CloseAction onClose={onClose} title={"Close"} />
 		{/if}
 	{/snippet}
 </FilePanelHeaderLayout>

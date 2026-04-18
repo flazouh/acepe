@@ -8,7 +8,6 @@ import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type { CloneRepositoryDialogProps } from "./clone-repository-dialog-props.js";
@@ -39,7 +38,7 @@ async function handleBrowse() {
 		},
 		(error) => {
 			console.error("Failed to browse for destination:", error);
-			toast.error(m.clone_repository_browse_error());
+			toast.error("Failed to browse for folder");
 		}
 	);
 }
@@ -54,14 +53,14 @@ async function handleClone() {
 
 	result.match(
 		(cloneResult) => {
-			toast.success(m.clone_repository_success());
+			toast.success("Repository cloned successfully");
 			onCloneComplete(cloneResult.path, cloneResult.name);
 			onOpenChange(false);
 			resetForm();
 		},
 		(error) => {
 			console.error("Clone failed:", error);
-			toast.error(m.clone_repository_error({ error: error.message }));
+			toast.error(`Clone failed: ${error.message}`);
 			cloning = false;
 		}
 	);
@@ -80,8 +79,8 @@ function handleOpenChange(newOpen: boolean) {
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
 	<Dialog.Content class="max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>{m.clone_repository_title()}</Dialog.Title>
-			<Dialog.Description>{m.clone_repository_description()}</Dialog.Description>
+			<Dialog.Title>{"Clone Repository"}</Dialog.Title>
+			<Dialog.Description>{"Clone a git repository to your machine"}</Dialog.Description>
 		</Dialog.Header>
 
 		<div class="space-y-4 py-4">
@@ -89,11 +88,11 @@ function handleOpenChange(newOpen: boolean) {
 			<div class="space-y-2">
 				<Label for="clone-url" class="flex items-center gap-2">
 					<Link class="size-4" weight="bold" />
-					{m.clone_repository_url_label()}
+					{"Repository URL"}
 				</Label>
 				<Input
 					id="clone-url"
-					placeholder={m.clone_repository_url_placeholder()}
+					placeholder={"https://github.com/user/repo.git"}
 					bind:value={url}
 					disabled={cloning}
 				/>
@@ -103,18 +102,18 @@ function handleOpenChange(newOpen: boolean) {
 			<div class="space-y-2">
 				<Label for="clone-destination" class="flex items-center gap-2">
 					<FolderOpen class="size-4" weight="bold" />
-					{m.clone_repository_destination_label()}
+					{"Destination"}
 				</Label>
 				<div class="flex gap-2">
 					<Input
 						id="clone-destination"
 						readonly
 						value={destination}
-						placeholder={m.clone_repository_destination_placeholder()}
+						placeholder={"Select a folder..."}
 						class="flex-1"
 					/>
 					<Button variant="outline" onclick={handleBrowse} disabled={cloning}>
-						{m.clone_repository_browse()}
+						{"Browse"}
 					</Button>
 				</div>
 			</div>
@@ -123,7 +122,7 @@ function handleOpenChange(newOpen: boolean) {
 			<div class="space-y-2">
 				<Label for="clone-branch" class="flex items-center gap-2">
 					<GitBranch class="size-4" weight="bold" />
-					{m.clone_repository_branch_label()}
+					{"Branch"}
 				</Label>
 				<Input id="clone-branch" placeholder="main" bind:value={branch} disabled={cloning} />
 			</div>
@@ -131,14 +130,14 @@ function handleOpenChange(newOpen: boolean) {
 
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => handleOpenChange(false)} disabled={cloning}>
-				{m.common_cancel()}
+				{"Cancel"}
 			</Button>
 			<Button onclick={handleClone} disabled={!isValid || cloning}>
 				{#if cloning}
 					<Spinner class="size-4 mr-2" />
-					{m.clone_repository_cloning()}
+					{"Cloning..."}
 				{:else}
-					{m.clone_repository_clone()}
+					{"Clone"}
 				{/if}
 			</Button>
 		</Dialog.Footer>

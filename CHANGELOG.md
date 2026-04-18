@@ -107,7 +107,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tauri and Vite watch ignore files aligned so frontend-only changes stay on Vite HMR
 
 ### Fixed
-- Generated i18n messages now included in svelte-check so typed Paraglide exports remain valid
 - Kanban tool kinds normalized to the shared AgentToolKind subset before building card data
 - Updater no longer allows startup updates to proceed through the install flow
 - Floating surfaces now route through layer tokens for correct stacking

@@ -313,10 +313,9 @@ where
 }
 
 // ============================================
-// CONVERTED SESSION TYPES
+// STORED ENTRY TYPES
 // ============================================
-// These types are used for the optimized get_converted_session command
-// which moves conversion from JavaScript to Rust for better performance.
+// These types represent the canonical storage format for session entries.
 
 /// A content block in a user or assistant message.
 /// Simplified version for storage/display.
@@ -415,8 +414,8 @@ pub enum StoredEntry {
     },
 }
 
-/// Result of converting a full session to stored entries.
-/// Returned by get_converted_session command.
+/// Intermediate representation of a converted session.
+/// Kept for internal conversion pipelines; prefer `SessionThreadSnapshot` for public APIs.
 #[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 pub struct ConvertedSession {
     pub entries: Vec<StoredEntry>,

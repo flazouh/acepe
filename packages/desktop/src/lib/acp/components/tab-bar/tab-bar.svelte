@@ -7,7 +7,6 @@ import {
 	type AppTabStatus,
 } from "@acepe/ui/app-layout";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/messages.js";
 import { getAgentIcon } from "../../constants/thread-list-constants.js";
 import type { TabBarTab, TabBarTabGroup } from "../../store/tab-bar-utils.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
@@ -35,7 +34,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 
 	return {
 		id: tab.panelId,
-		title: tab.title ?? m.agent_panel_new_thread(),
+		title: tab.title ?? "New Thread",
 		projectName: tab.projectName ?? undefined,
 		projectColor: tab.projectColor ?? undefined,
 		projectIconSrc: tab.projectIconSrc,

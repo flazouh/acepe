@@ -1,8 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as m from "$lib/messages.js";
-
 import AgentPanelHeader from "../agent-panel-header.svelte";
 
 vi.mock(
@@ -56,8 +54,8 @@ describe("AgentPanelHeader project-header style", () => {
 			debugPanelState: null,
 		});
 
-		const fullscreen = container.querySelector(`button[title='${m.panel_fullscreen()}']`);
-		const close = container.querySelector(`button[title='${m.common_close()}']`);
+		const fullscreen = container.querySelector(`button[title='${"Fullscreen"}']`);
+		const close = container.querySelector(`button[title='${"Close"}']`);
 		const header = container.firstElementChild;
 
 		expect(fullscreen).not.toBeNull();
@@ -194,8 +192,8 @@ describe("AgentPanelHeader project-header style", () => {
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
 
-		expect(screen.getByRole("menuitem", { name: m.session_menu_copy_id() })).not.toBeNull();
-		expect(screen.queryByRole("menuitem", { name: m.thread_open_in_finder() })).toBeNull();
-		expect(screen.queryByRole("menuitem", { name: m.session_menu_delete() })).toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Copy session ID" })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Open Thread in Finder" })).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Delete session" })).toBeNull();
 	});
 });

@@ -16,15 +16,6 @@ vi.mock("@acepe/ui/agent-panel", async () => ({
 	).default,
 }));
 
-vi.mock("$lib/messages.js", () => ({
-	terminal_panel_title: () => "Terminal",
-	embedded_terminal_close_tab_tooltip: () => "Close terminal tab",
-	terminal_new_tab: () => "New terminal",
-	terminal_loading_shell: () => "Loading shell...",
-	terminal_shell_error: ({ error }: { error: string }) => `Shell error: ${error}`,
-	embedded_terminal_error_fallback: () => "Terminal error",
-}));
-
 vi.mock("$lib/utils/tauri-client/shell.js", () => ({
 	shell: {
 		getDefaultShell: () => ({

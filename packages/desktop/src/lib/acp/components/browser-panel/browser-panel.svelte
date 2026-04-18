@@ -6,7 +6,6 @@ import {
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import * as m from "$lib/messages.js";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
@@ -306,11 +305,11 @@ $effect(() => {
 	{#snippet header()}
 		<SharedAgentPanelBrowserHeader
 			url={currentUrl}
-			backLabel={m.link_preview_back()}
-			forwardLabel={m.link_preview_forward()}
-			reloadLabel={m.link_preview_refresh()}
-			openExternalLabel={m.link_preview_open_browser()}
-			closeLabel={m.common_close()}
+			backLabel={"Go back"}
+			forwardLabel={"Go forward"}
+			reloadLabel={"Refresh"}
+			openExternalLabel={"Open in browser"}
+			closeLabel={"Close"}
 			onBack={goBack}
 			onForward={goForward}
 			onReload={reload}

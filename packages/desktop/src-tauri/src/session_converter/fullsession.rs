@@ -4,9 +4,8 @@ use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{tool_call_status_from_str, SkillMeta, ToolCallData};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
-    ContentBlock, ConvertedSession, FullSession, OrderedMessage, QuestionAnswer,
-    StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
-    StoredUserMessage,
+    ContentBlock, FullSession, OrderedMessage, QuestionAnswer, StoredAssistantChunk,
+    StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -98,27 +97,17 @@ pub(crate) fn parse_skill_meta_from_content(content: &str) -> SkillMeta {
     }
 }
 
-pub(crate) fn convert_full_session_to_entries(session: &FullSession) -> ConvertedSession {
-    convert_full_session_to_entries_with_agent(session, AgentType::ClaudeCode)
-}
-
 pub(crate) fn convert_full_session_to_thread_snapshot_with_agent(
     session: &FullSession,
     agent_type: AgentType,
 ) -> SessionThreadSnapshot {
-    let converted = convert_full_session_to_entries_with_agent(session, agent_type);
-    SessionThreadSnapshot {
-        entries: converted.entries,
-        title: converted.title,
-        created_at: converted.created_at,
-        current_mode_id: converted.current_mode_id,
-    }
+    convert_full_session_impl(session, agent_type)
 }
 
-pub(crate) fn convert_full_session_to_entries_with_agent(
+fn convert_full_session_impl(
     session: &FullSession,
     agent_type: AgentType,
-) -> ConvertedSession {
+) -> SessionThreadSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
 
     // First pass: collect tool results from user messages
@@ -229,9 +218,8 @@ pub(crate) fn convert_full_session_to_entries_with_agent(
     // Sixth pass: calculate todo timing from state transitions
     calculate_todo_timing(&mut entries);
 
-    ConvertedSession {
+    SessionThreadSnapshot {
         entries,
-        stats: session.stats.clone(),
         title: session.title.clone(),
         created_at: session.created_at.clone(),
         current_mode_id: None,

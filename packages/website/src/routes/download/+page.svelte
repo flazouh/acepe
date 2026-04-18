@@ -1,6 +1,5 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Download } from "@lucide/svelte";
 import { AppleLogo, GithubLogo } from "phosphor-svelte";
@@ -52,7 +51,7 @@ function handleDownload() {
 					Downloading...
 				{:else}
 					<Download class="h-4 w-4" />
-					{m.landing_download_button()}
+					{"Download for macOS"}
 				{/if}
 			</a>
 
@@ -106,29 +105,29 @@ function handleDownload() {
 						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
-						{m.landing_hero_title()}
+						{"The Agentic Developer Environment"}
 					</p>
 				</div>
 
 				<!-- Product -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_product()}
+						{"Product"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/blog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_blog()}
+								{"Blog"}
 							</a>
 						</li>
 						<li>
 							<a href="/changelog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.changelog_nav_label()}
+								{"Changelog"}
 							</a>
 						</li>
 						<li>
 							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_pricing()}
+								{"Pricing"}
 							</a>
 						</li>
 					</ul>
@@ -137,7 +136,7 @@ function handleDownload() {
 				<!-- Resources -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_resources()}
+						{"Resources"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
@@ -157,17 +156,17 @@ function handleDownload() {
 				<!-- Legal -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_legal()}
+						{"Legal"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/privacy" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_privacy()}
+								{"Privacy"}
 							</a>
 						</li>
 						<li>
 							<a href="/terms" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_terms()}
+								{"Terms"}
 							</a>
 						</li>
 					</ul>
@@ -177,7 +176,7 @@ function handleDownload() {
 			<!-- Bottom bar -->
 			<div class="mt-10 border-t border-border/30 pt-6">
 				<span class="font-mono text-[11px] text-muted-foreground/50">
-					{m.footer_copyright({ year: new Date().getFullYear().toString() })}
+					{`© ${new Date().getFullYear().toString()} Acepe. All rights reserved.`}
 				</span>
 			</div>
 		</div>

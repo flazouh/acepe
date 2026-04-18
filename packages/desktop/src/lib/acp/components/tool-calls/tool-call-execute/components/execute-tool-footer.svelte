@@ -1,6 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
-
 import AnimatedChevron from "../../../animated-chevron.svelte";
 
 interface ExecuteToolFooterProps {
@@ -26,7 +24,7 @@ let { isContentCollapsed, onToggleCollapse }: ExecuteToolFooterProps = $props();
 		onToggleCollapse();
 	}}
 	class="flex items-center justify-center w-full py-1 border-t border-border hover:bg-muted transition-colors cursor-pointer"
-	aria-label={isContentCollapsed ? m.tool_call_expand_content() : m.tool_call_collapse_content()}
+	aria-label={isContentCollapsed ? "Expand content view" : "Collapse content to few lines"}
 >
 	<AnimatedChevron isOpen={!isContentCollapsed} class="h-3 w-3 text-muted-foreground" />
 </button>

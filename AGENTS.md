@@ -173,5 +173,4 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - [Svelte 5 Patterns](.agent-guides/svelte.md)
 - [Rust/Tauri Development](.agent-guides/rust-tauri.md)
 - [Neverthrow Error Handling](.agent-guides/neverthrow.md)
-- [i18n (Paraglide)](.agent-guides/i18n.md)
 - [Code Quality](.agent-guides/code-quality.md)

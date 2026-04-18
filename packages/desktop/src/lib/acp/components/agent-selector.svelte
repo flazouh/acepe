@@ -5,7 +5,6 @@ import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-	import * as m from "$lib/messages.js";
 	import { Heart } from "phosphor-svelte";
 	import { getAgentIcon } from "../constants/thread-list-constants.js";
 	import type { AgentInfo } from "../logic/agent-manager.js";
@@ -110,7 +109,7 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 
 	{#if availableAgents.length === 0}
 		<div class="px-2 py-1.5 text-sm text-muted-foreground">
-			{m.agent_selector_no_agents()}
+			{"No agents available"}
 		</div>
 	{:else}
 		{#each availableAgents as agent (agent.id)}

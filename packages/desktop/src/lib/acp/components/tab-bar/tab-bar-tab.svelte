@@ -6,7 +6,6 @@ import { HandPalmIcon } from "phosphor-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import type { TabBarTab } from "../../store/tab-bar-store.svelte.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
@@ -41,7 +40,7 @@ let containerElement: HTMLSpanElement | undefined = $state();
 let textElement: HTMLSpanElement | undefined = $state();
 
 const displayTitle = $derived(
-	normalizeTitleForDisplay(tab.title ?? "") || m.agent_panel_new_thread()
+	normalizeTitleForDisplay(tab.title ?? "") || "New Thread"
 );
 const hasTurns = $derived(tab.conversationPreview.length > 0);
 
@@ -154,7 +153,7 @@ function handleClose(e: MouseEvent) {
 						onclick={handleClose}
 					>
 						<IconX class="h-3 w-3" />
-						<span class="sr-only">{m.common_close()}</span>
+						<span class="sr-only">{"Close"}</span>
 					</button>
 				</Button>
 			</div>

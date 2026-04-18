@@ -41,7 +41,6 @@ import {
 	Skeleton,
 } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import type { GitRemoteStatus } from "$lib/utils/tauri-client/git.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -476,7 +475,7 @@ function handleFileSelect(filePath: string, projectPath: string) {
 function handleRevealInFinder(fullPath: string) {
 	revealInFinder(fullPath).match(
 		() => {},
-		() => toast.error(m.file_panel_open_in_finder_error())
+		() => toast.error("Failed to open in Finder")
 	);
 }
 
@@ -499,7 +498,7 @@ function handleDeleteConfirm(projectPath: string, relativePath: string) {
 		.mapErr((e) => new Error(String(e)))
 		.match(
 			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(m.file_list_delete_error({ error: err.message }))
+			(err) => toast.error(`Failed to delete: ${err.message}`)
 		);
 }
 
@@ -512,7 +511,7 @@ function handleRenameConfirm(projectPath: string, relativePath: string, newName:
 		.mapErr((e) => new Error(String(e)))
 		.match(
 			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(m.file_list_rename_error({ error: err.message }))
+			(err) => toast.error(`Failed to rename: ${err.message}`)
 		);
 }
 
@@ -522,7 +521,7 @@ function handleDuplicateRequest(projectPath: string, relativePath: string) {
 		.mapErr((e) => new Error(String(e)))
 		.match(
 			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(m.file_list_duplicate_error({ error: err.message }))
+			(err) => toast.error(`Failed to duplicate: ${err.message}`)
 		);
 }
 
@@ -546,7 +545,7 @@ function handleNewFileSubmit() {
 		.mapErr((e) => new Error(String(e)))
 		.match(
 			() => handleRefreshFileTree(data.projectPath),
-			(err) => toast.error(m.file_list_new_file_error({ error: err.message }))
+			(err) => toast.error(`Failed to create file: ${err.message}`)
 		);
 }
 
@@ -570,7 +569,7 @@ function handleNewFolderSubmit() {
 		.mapErr((e) => new Error(String(e)))
 		.match(
 			() => handleRefreshFileTree(data.projectPath),
-			(err) => toast.error(m.file_list_new_folder_error({ error: err.message }))
+			(err) => toast.error(`Failed to create folder: ${err.message}`)
 		);
 }
 
@@ -831,13 +830,10 @@ function getProjectCreateButtonTooltipLabel(projectName: string): string {
 	if (resolvedDefaultId !== undefined) {
 		const agent = availableAgents.find((a) => a.id === resolvedDefaultId);
 		if (agent) {
-			return m.thread_list_new_default_agent_session({
-				agentName: agent.name,
-				projectName,
-			});
+			return `New ${agent.name} session in ${projectName}`;
 		}
 	}
-	return m.thread_list_new_session_in_project({ projectName });
+	return `New session in ${projectName}`;
 }
 
 function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
@@ -895,11 +891,7 @@ function announceProjectReorder(projectPath: string, orderedPaths: string[]): vo
 
 	reorderAnnouncement = "";
 	queueMicrotask(() => {
-		reorderAnnouncement = m.project_reorder_announcement({
-			projectName: group.projectName,
-			position: position + 1,
-			total: orderedPaths.length,
-		});
+		reorderAnnouncement = `Moved ${group.projectName} to position ${position + 1} of ${orderedPaths.length}`;
 	});
 }
 
@@ -1124,13 +1116,13 @@ function openCreateBranchDialog(projectPath: string): void {
 																	event.stopPropagation();
 																	onOpenTerminal(group.projectPath);
 																}}
-																aria-label={m.sidebar_open_terminal({ projectName: group.projectName })}
+																aria-label={`Open terminal in ${group.projectName}`}
 															>
 																<Terminal class="h-3 w-3" weight="fill" />
 															</button>
 														</Tooltip.Trigger>
 														<Tooltip.Content>
-															{m.sidebar_open_terminal({ projectName: group.projectName })}
+															{`Open terminal in ${group.projectName}`}
 														</Tooltip.Content>
 													</Tooltip.Root>
 												{/if}
@@ -1144,13 +1136,13 @@ function openCreateBranchDialog(projectPath: string): void {
 																	event.stopPropagation();
 																	onOpenBrowser(group.projectPath);
 																}}
-																aria-label={m.sidebar_open_browser({ projectName: group.projectName })}
+																aria-label={`Open browser in ${group.projectName}`}
 															>
 																<Browser class="h-3 w-3" weight="fill" />
 															</button>
 														</Tooltip.Trigger>
 														<Tooltip.Content>
-															{m.sidebar_open_browser({ projectName: group.projectName })}
+															{`Open browser in ${group.projectName}`}
 														</Tooltip.Content>
 													</Tooltip.Root>
 												{/if}
@@ -1205,7 +1197,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											}}
 										>
 											<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
-											{m.project_move_up()}
+											{"Move Up"}
 										</ContextMenu.Item>
 										<ContextMenu.Item
 											disabled={
@@ -1216,7 +1208,7 @@ function openCreateBranchDialog(projectPath: string): void {
 											}}
 										>
 											<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
-											{m.project_move_down()}
+											{"Move Down"}
 										</ContextMenu.Item>
 										{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
 											<ContextMenu.Separator />
@@ -1224,13 +1216,13 @@ function openCreateBranchDialog(projectPath: string): void {
 										{#if onChangeProjectIcon}
 											<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
 												<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
-												{m.project_icon_change()}
+												{"Change icon..."}
 											</ContextMenu.Item>
 										{/if}
 										{#if onResetProjectIcon && group.projectIconSrc}
 											<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
 												<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
-												{m.project_icon_reset()}
+												{"Reset to letter badge"}
 											</ContextMenu.Item>
 										{/if}
 									</ContextMenu.Content>
@@ -1309,13 +1301,13 @@ function openCreateBranchDialog(projectPath: string): void {
 															event.stopPropagation();
 															onOpenTerminal(group.projectPath);
 														}}
-														aria-label={m.sidebar_open_terminal({ projectName: group.projectName })}
+														aria-label={`Open terminal in ${group.projectName}`}
 													>
 														<Terminal class="h-3 w-3" weight="fill" />
 													</button>
 												</Tooltip.Trigger>
 												<Tooltip.Content>
-													{m.sidebar_open_terminal({ projectName: group.projectName })}
+													{`Open terminal in ${group.projectName}`}
 												</Tooltip.Content>
 											</Tooltip.Root>
 										{/if}
@@ -1329,13 +1321,13 @@ function openCreateBranchDialog(projectPath: string): void {
 															event.stopPropagation();
 															onOpenBrowser(group.projectPath);
 														}}
-														aria-label={m.sidebar_open_browser({ projectName: group.projectName })}
+														aria-label={`Open browser in ${group.projectName}`}
 													>
 														<Browser class="h-3 w-3" weight="fill" />
 													</button>
 												</Tooltip.Trigger>
 												<Tooltip.Content>
-													{m.sidebar_open_browser({ projectName: group.projectName })}
+													{`Open browser in ${group.projectName}`}
 												</Tooltip.Content>
 											</Tooltip.Root>
 										{/if}
@@ -1390,7 +1382,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									}}
 								>
 									<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
-									{m.project_move_up()}
+									{"Move Up"}
 								</ContextMenu.Item>
 								<ContextMenu.Item
 									disabled={onReorderProjects === undefined || projectIndex === sessionGroups.length - 1}
@@ -1399,7 +1391,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									}}
 								>
 									<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
-									{m.project_move_down()}
+									{"Move Down"}
 								</ContextMenu.Item>
 								{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
 									<ContextMenu.Separator />
@@ -1407,13 +1399,13 @@ function openCreateBranchDialog(projectPath: string): void {
 								{#if onChangeProjectIcon}
 									<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
 										<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
-										{m.project_icon_change()}
+										{"Change icon..."}
 									</ContextMenu.Item>
 								{/if}
 								{#if onResetProjectIcon && group.projectIconSrc}
 									<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
 										<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
-										{m.project_icon_reset()}
+										{"Reset to letter badge"}
 									</ContextMenu.Item>
 								{/if}
 							</ContextMenu.Content>
@@ -1467,7 +1459,7 @@ function openCreateBranchDialog(projectPath: string): void {
 								{:else if flattenedFiles.length === 0}
 									<!-- Empty files -->
 									<div class="px-2.5 py-2 text-xs text-muted-foreground">
-										{m.file_list_empty()}
+										{"No files found"}
 									</div>
 								{:else}
 									<!-- File tree -->
@@ -1734,7 +1726,7 @@ function openCreateBranchDialog(projectPath: string): void {
 <Dialog.Root bind:open={newFileDialogOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title>{m.file_list_new_file()}</Dialog.Title>
+			<Dialog.Title>{"New file"}</Dialog.Title>
 		</Dialog.Header>
 		<form
 			onsubmit={(e) => {
@@ -1744,14 +1736,14 @@ function openCreateBranchDialog(projectPath: string): void {
 			class="space-y-4"
 		>
 			<div class="grid gap-2">
-				<Label for="new-file-input">{m.file_list_new_file_prompt()}</Label>
+				<Label for="new-file-input">{"File name"}</Label>
 				<Input id="new-file-input" bind:value={newFileInput} class="w-full" />
 			</div>
 			<Dialog.Footer>
 				<Dialog.Close type="button" class={buttonVariants({ variant: "outline" })}>
-					{m.common_cancel()}
+					{"Cancel"}
 				</Dialog.Close>
-				<Button type="submit">{m.common_confirm()}</Button>
+				<Button type="submit">{"Confirm"}</Button>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
@@ -1761,7 +1753,7 @@ function openCreateBranchDialog(projectPath: string): void {
 <Dialog.Root bind:open={newFolderDialogOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title>{m.file_list_new_folder()}</Dialog.Title>
+			<Dialog.Title>{"New folder"}</Dialog.Title>
 		</Dialog.Header>
 		<form
 			onsubmit={(e) => {
@@ -1771,14 +1763,14 @@ function openCreateBranchDialog(projectPath: string): void {
 			class="space-y-4"
 		>
 			<div class="grid gap-2">
-				<Label for="new-folder-input">{m.file_list_new_folder_prompt()}</Label>
+				<Label for="new-folder-input">{"Folder name"}</Label>
 				<Input id="new-folder-input" bind:value={newFolderInput} class="w-full" />
 			</div>
 			<Dialog.Footer>
 				<Dialog.Close type="button" class={buttonVariants({ variant: "outline" })}>
-					{m.common_cancel()}
+					{"Cancel"}
 				</Dialog.Close>
-				<Button type="submit">{m.common_confirm()}</Button>
+				<Button type="submit">{"Confirm"}</Button>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>

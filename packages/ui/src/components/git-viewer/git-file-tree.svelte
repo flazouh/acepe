@@ -2,7 +2,7 @@
 	/**
 	 * GitFileTree — Dumb, generic file tree with diff stats.
 	 * Reuses the same tree-building logic as the desktop file list,
-	 * stripped of context menus, Tauri, and i18n.
+	 * stripped of context menus and Tauri.
 	 */
 	import { CaretRight } from "phosphor-svelte";
 	import { FilePlus } from "phosphor-svelte";

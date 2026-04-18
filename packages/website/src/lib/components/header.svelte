@@ -1,6 +1,5 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import * as m from "$lib/messages.js";
 import { browser } from "$app/environment";
 import { page } from "$app/stores";
 import { Download, Menu, Moon, Sun } from "@lucide/svelte";
@@ -34,7 +33,7 @@ function formatStars(count: number): string {
 const theme = $derived($websiteThemeStore);
 
 const toggleThemeLabel = $derived(
-	theme === "dark" ? m.theme_switch_to_light() : m.theme_switch_to_dark()
+	theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
 );
 
 function handleThemeToggle() {
@@ -69,21 +68,21 @@ const mobileNavLinkClass =
 		<!-- Desktop nav: centered links -->
 		<nav class="hidden items-center justify-center gap-1 md:flex">
 			<a href="/blog" class={desktopNavLinkClass}>
-				{m.nav_blog()}
+				{"Blog"}
 			</a>
 			{#if showRoadmap}
 				<a href="/roadmap" class={desktopNavLinkClass}>
-					{m.nav_roadmap()}
+					{"Roadmap"}
 				</a>
 			{/if}
 			<a href="/changelog" class={desktopNavLinkClass}>
-				{m.changelog_nav_label()}
+				{"Changelog"}
 			</a>
 			<a href="/pricing" class={desktopNavLinkClass}>
-				{m.nav_pricing()}
+				{"Pricing"}
 			</a>
 			<a href="/compare" class={desktopNavLinkClass}>
-				{m.nav_compare()}
+				{"Compare"}
 			</a>
 		</nav>
 
@@ -145,7 +144,7 @@ const mobileNavLinkClass =
 					href="/download"
 					class="theme-invert-btn group inline-flex h-8 items-center justify-center rounded-full pr-1 pl-4 text-sm font-medium transition-all duration-200"
 				>
-					{m.nav_download()}
+					{"Download"}
 					<span
 						class="theme-invert-btn-icon ml-2 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200"
 					>
@@ -158,7 +157,7 @@ const mobileNavLinkClass =
 					href="/login"
 					class="inline-flex h-8 items-center justify-center rounded-full bg-card/70 px-4 text-sm text-foreground transition-colors hover:bg-card"
 				>
-					{m.login()}
+					{"Login"}
 				</a>
 			{/if}
 		</div>
@@ -168,7 +167,7 @@ const mobileNavLinkClass =
 			<Drawer bind:open={drawerOpen} shouldScaleBackground={false} direction="top">
 				<DrawerTrigger
 					class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
-					aria-label={m.nav_menu()}
+					aria-label={"Open menu"}
 				>
 					<Menu class="h-5 w-5" />
 				</DrawerTrigger>
@@ -245,21 +244,21 @@ const mobileNavLinkClass =
 						</div>
 						<nav class="flex flex-col gap-1">
 							<a href="/blog" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-								{m.nav_blog()}
+								{"Blog"}
 							</a>
 							{#if showRoadmap}
 								<a href="/roadmap" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-									{m.nav_roadmap()}
+									{"Roadmap"}
 								</a>
 							{/if}
 							<a href="/changelog" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-								{m.changelog_nav_label()}
+								{"Changelog"}
 							</a>
 							<a href="/pricing" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-								{m.nav_pricing()}
+								{"Pricing"}
 							</a>
 							<a href="/compare" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-								{m.nav_compare()}
+								{"Compare"}
 							</a>
 							{#if showDownload}
 								<a
@@ -267,7 +266,7 @@ const mobileNavLinkClass =
 									class="theme-invert-btn group mt-2 flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 pr-1 pl-4 text-sm font-medium"
 									onclick={() => (drawerOpen = false)}
 								>
-									{m.nav_download()}
+									{"Download"}
 									<span
 										class="theme-invert-btn-icon flex h-6 w-6 items-center justify-center rounded-full"
 									>
@@ -281,7 +280,7 @@ const mobileNavLinkClass =
 									class="flex min-h-11 items-center justify-center rounded-full bg-card/70 px-4 text-sm text-foreground transition-colors hover:bg-card"
 									onclick={() => (drawerOpen = false)}
 								>
-									{m.login()}
+									{"Login"}
 								</a>
 							{/if}
 						</nav>

@@ -2,7 +2,6 @@
 import { BuildIcon, PlanIcon } from "@acepe/ui";
 import { onDestroy, onMount } from "svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import type { AvailableMode } from "../types/available-mode.js";
 import { CanonicalModeId } from "../types/canonical-mode-id.js";
@@ -93,8 +92,8 @@ function isSelected(modeId: string): boolean {
 									{selected
 									? 'bg-accent text-foreground'
 									: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-								title={mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
-								aria-label={mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
+								title={mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
+								aria-label={mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
 							>
 								{#if mode.id === CanonicalModeId.PLAN}
 									<PlanIcon
@@ -113,7 +112,7 @@ function isSelected(modeId: string): boolean {
 						{/snippet}
 					</Tooltip.Trigger>
 					<Tooltip.Content>
-						{mode.id === CanonicalModeId.PLAN ? m.plan_heading() : m.plan_sidebar_build()}
+						{mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
 					</Tooltip.Content>
 				</Tooltip.Root>
 			{/each}

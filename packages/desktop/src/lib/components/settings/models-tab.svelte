@@ -12,8 +12,6 @@ import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { Colors } from "$lib/acp/utils/colors.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/messages.js";
-
 const AGENTS = ["opencode", "cursor", "claude-code", "codex"];
 
 let selectedDefaults = $state<Record<string, Record<ModeType, string>>>({});
@@ -88,10 +86,10 @@ let { embedded = false }: Props = $props();
 	{#if !embedded}
 		<div class="mb-3 shrink-0">
 			<h2 class="text-[13px] font-semibold text-foreground">
-				{m.settings_models_defaults()}
+				{"Default Models"}
 			</h2>
 			<p class="text-[12px] text-muted-foreground mt-0.5">
-				{m.settings_models_defaults_description()}
+				{"Configure the default models to use for each agent and mode."}
 			</p>
 		</div>
 	{/if}
@@ -185,7 +183,7 @@ let { embedded = false }: Props = $props();
 							</DropdownMenu.Root>
 						{:else}
 							<span class="text-[12px] text-muted-foreground/40">
-								{m.settings_models_no_cache()}
+								{"Connect to the agent to see available models."}
 							</span>
 						{/if}
 					</div>

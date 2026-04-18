@@ -85,7 +85,6 @@ import {
 	ensureSpawnableAgentSelected,
 	getSpawnableSessionAgents,
 } from "../../logic/spawnable-agents.js";
-import * as m from "$lib/messages.js";
 import KanbanThreadDialog from "./kanban-thread-dialog.svelte";
 import {
 	canSendWithoutSession,
@@ -217,12 +216,12 @@ const projectColorsByPath = $derived.by(() => {
 const operationStore = sessionStore.getOperationStore();
 
 const SECTION_LABELS: Record<ThreadBoardStatus, () => string> = {
-	answer_needed: () => m.queue_group_answer_needed(),
-	planning: () => m.queue_group_planning(),
-	working: () => m.queue_group_working(),
+	answer_needed: () => "Input needed",
+	planning: () => "Planning",
+	working: () => "Working",
 	needs_review: () => "Needs Review",
 	idle: () => "Done",
-	error: () => m.queue_group_error(),
+	error: () => "Error",
 };
 
 const SECTION_ORDER: readonly ThreadBoardStatus[] = [
@@ -234,8 +233,7 @@ const SECTION_ORDER: readonly ThreadBoardStatus[] = [
 ];
 
 // NOTE: SECTION_LABELS is also defined in queue-section.svelte. Both are
-// thin i18n wrappers that cannot be extracted without coupling the store
-// layer to Paraglide runtime. Duplication is acceptable here.
+// Thin label helpers that cannot be extracted without coupling the store; duplication is acceptable here.
 
 function getSessionDisplayName(item: ThreadBoardItem): string {
 	return formatSessionTitleForDisplay(item.title, item.projectName);
@@ -473,7 +471,7 @@ function getPlanApprovalRequest(item: ThreadBoardItem) {
 function getPlanApprovalPrompt(item: ThreadBoardItem): string {
 	const approval = getPlanApprovalRequest(item);
 	if (!approval) {
-		return m.tool_create_plan_running();
+		return "Creating plan";
 	}
 
 	const currentTool =
@@ -485,22 +483,22 @@ function getPlanApprovalPrompt(item: ThreadBoardItem): string {
 	}
 
 	const lastTool = item.lastToolCall?.id === approval.tool.callID ? item.lastToolCall : null;
-	return lastTool?.normalizedQuestions?.[0]?.question ?? m.tool_create_plan_running();
+	return lastTool?.normalizedQuestions?.[0]?.question ?? "Creating plan";
 }
 
 function buildSceneMenuActions(): readonly KanbanSceneMenuAction[] {
 	const actions: KanbanSceneMenuAction[] = [
-		{ id: "copy-id", label: m.session_menu_copy_id() },
-		{ id: "copy-title", label: m.session_menu_copy_title() },
-		{ id: "open-raw", label: m.session_menu_open_raw_file() },
-		{ id: "open-in-acepe", label: m.session_menu_open_in_acepe() },
-		{ id: "export-markdown", label: m.session_menu_export_markdown() },
-		{ id: "export-json", label: m.session_menu_export_json() },
+		{ id: "copy-id", label: "Copy session ID" },
+		{ id: "copy-title", label: "Copy session title" },
+		{ id: "open-raw", label: "Open raw session file" },
+		{ id: "open-in-acepe", label: "Open raw session in Acepe" },
+		{ id: "export-markdown", label: "Export as Markdown" },
+		{ id: "export-json", label: "Export as JSON" },
 	];
 
 	if (isDev) {
 		actions.push({ id: "copy-streaming-log-path", label: "Copy Streaming Log Path" });
-		actions.push({ id: "export-raw-streaming", label: m.thread_export_raw_streaming() });
+		actions.push({ id: "export-raw-streaming", label: "Open Streaming Log" });
 	}
 
 	return actions;
@@ -578,7 +576,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				agentIconSrc: getAgentIcon(panel.selectedAgentId, themeState.effectiveTheme),
 				agentLabel: panel.selectedAgentId,
 				isAutoMode: hotState.provisionalAutonomousEnabled,
-				projectName: project ? project.name : m.project_unknown(),
+				projectName: project ? project.name : "Unknown",
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
 				projectIconSrc: project ? project.iconPath ?? null : null,
 				activityText,
@@ -731,8 +729,8 @@ async function handleOpenRawFile(item: ThreadBoardItem): Promise<void> {
 		.getSessionFilePath(item.sessionId, item.projectPath)
 		.andThen((path) => openFileInEditor(path))
 		.match(
-			() => toast.success(m.thread_export_raw_success()),
-			(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
+			() => toast.success("Opened streaming log in file manager"),
+			(err) => toast.error(`Failed to open session file: ${err.message}`)
 		);
 }
 
@@ -744,7 +742,7 @@ async function handleOpenInAcepe(item: ThreadBoardItem): Promise<void> {
 			const dirPath = parts.join("/") || "/";
 			panelStore.openFilePanel(fileName, dirPath, { ownerPanelId: item.panelId });
 		},
-		(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
+		(err) => toast.error(`Failed to open session file: ${err.message}`)
 	);
 }
 
@@ -756,22 +754,22 @@ async function handleExportMarkdown(item: ThreadBoardItem): Promise<void> {
 		navigator.clipboard.writeText(markdown),
 		(error) => new Error(String(error))
 	).match(
-		() => toast.success(m.session_menu_export_success()),
-		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
+		() => toast.success("Copied to clipboard"),
+		(err) => toast.error(`Failed to export: ${err.message}`)
 	);
 }
 
 async function handleExportJson(item: ThreadBoardItem): Promise<void> {
 	const cold = sessionStore.getSessionCold(item.sessionId);
 	if (!cold) {
-		toast.error(m.session_menu_export_error({ error: "Session not found" }));
+		toast.error(`Failed to export: ${"Session not found"}`);
 		return;
 	}
 
 	const entries = sessionStore.getEntries(item.sessionId);
 	await copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
-		() => toast.success(m.session_menu_export_success()),
-		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
+		() => toast.success("Copied to clipboard"),
+		(err) => toast.error(`Failed to export: ${err.message}`)
 	);
 }
 
@@ -780,22 +778,22 @@ async function handleCopyStreamingLogPath(item: ThreadBoardItem): Promise<void> 
 		.getStreamingLogPath(item.sessionId)
 		.andThen((path) => copyTextToClipboard(path))
 		.match(
-			() => toast.success(m.file_list_copy_path_toast()),
-			() => toast.error(m.file_list_copy_path_error())
+			() => toast.success("Path copied to clipboard"),
+			() => toast.error("Failed to copy path")
 		);
 }
 
 async function handleExportRawStreaming(item: ThreadBoardItem): Promise<void> {
 	await tauriClient.shell.openStreamingLog(item.sessionId).match(
 		() => undefined,
-		(err) => toast.error(m.thread_export_raw_error({ error: err.message }))
+		(err) => toast.error(`Failed to open streaming log: ${err.message}`)
 	);
 }
 
 async function handleCopyValue(value: string): Promise<void> {
 	await copyTextToClipboard(value).match(
 		() => undefined,
-		() => toast.error(m.file_list_copy_path_error())
+		() => toast.error("Failed to copy path")
 	);
 }
 
@@ -1038,9 +1036,9 @@ function buildSceneFooter(item: ThreadBoardItem) {
 			toolKind: toScenePermissionToolKind(compactDisplay.kind),
 			progress,
 			allowAlwaysLabel:
-				permission.always && permission.always.length > 0 ? m.permission_always_allow() : undefined,
-			approveLabel: m.permission_allow(),
-			rejectLabel: m.permission_deny(),
+				permission.always && permission.always.length > 0 ? "Always" : undefined,
+			approveLabel: "Allow",
+			rejectLabel: "Deny",
 		};
 	}
 
@@ -1048,7 +1046,7 @@ function buildSceneFooter(item: ThreadBoardItem) {
 		return {
 			kind: "plan_approval" as const,
 			prompt: getPlanApprovalPrompt(item),
-			approveLabel: m.plan_sidebar_build(),
+			approveLabel: "Build",
 			rejectLabel: "Cancel",
 		};
 	}
@@ -1066,11 +1064,11 @@ function buildSceneFooter(item: ThreadBoardItem) {
 			currentQuestionAnswered: questionUiState.currentQuestionAnswered,
 			currentQuestionOptions: questionUiState.currentQuestionOptions,
 			otherText: questionUiState.otherText,
-			otherPlaceholder: m.question_other_placeholder(),
+			otherPlaceholder: "Type your answer...",
 			showOtherInput: questionUiState.showOtherInput,
 			showSubmitButton: questionUiState.showSubmitButton,
 			canSubmit: questionUiState.canSubmit,
-			submitLabel: m.common_submit(),
+			submitLabel: "Submit",
 		};
 	}
 

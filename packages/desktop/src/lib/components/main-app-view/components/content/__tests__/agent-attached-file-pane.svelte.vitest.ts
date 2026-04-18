@@ -23,10 +23,6 @@ vi.mock("$lib/acp/components/file-panel/index.js", async () => ({
 	FilePanel: (await import("./fixtures/file-panel-stub.svelte")).default,
 }));
 
-vi.mock("$lib/messages.js", () => ({
-	project_unknown: () => "Unknown project",
-}));
-
 const getProjectGitStatusMapMock = vi.fn();
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({

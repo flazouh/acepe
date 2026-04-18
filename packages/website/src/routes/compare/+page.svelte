@@ -1,5 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { ArrowRight } from "@lucide/svelte";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
@@ -14,10 +13,10 @@ const comparisons = $derived(
 </script>
 
 <svelte:head>
-	<title>{m.compare_index_title()} - Acepe</title>
-	<meta name="description" content={m.compare_index_description()} />
-	<meta property="og:title" content="{m.compare_index_title()} - Acepe" />
-	<meta property="og:description" content={m.compare_index_description()} />
+	<title>{"Compare Acepe"} - Acepe</title>
+	<meta name="description" content={"See how Acepe stacks up against other developer tools, feature by feature."} />
+	<meta property="og:title" content="{"Compare Acepe"} - Acepe" />
+	<meta property="og:description" content={"See how Acepe stacks up against other developer tools, feature by feature."} />
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content="https://acepe.dev/compare" />
 </svelte:head>
@@ -35,17 +34,17 @@ const comparisons = $derived(
 				<div
 					class="mb-5 inline-flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1"
 				>
-					<span class="font-mono text-xs text-muted-foreground">{m.compare_badge()}</span>
+					<span class="font-mono text-xs text-muted-foreground">{"comparison"}</span>
 				</div>
 				<h1
 					class="mb-4 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[56px]"
 				>
-					{m.compare_index_title()}
+					{"Compare Acepe"}
 				</h1>
 				<p
 					class="mx-auto max-w-[600px] text-lg leading-[1.5] text-muted-foreground md:text-[22px]"
 				>
-					{m.compare_index_description()}
+					{"See how Acepe stacks up against other developer tools, feature by feature."}
 				</p>
 			</div>
 		</section>

@@ -3,8 +3,6 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { MoreHorizontal } from "@lucide/svelte/icons";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
-
 interface ProjectItem {
 	path: string;
 	name: string;
@@ -36,7 +34,7 @@ const hasHiddenProjects = $derived(hiddenProjects.size > 0);
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Portal>
 				<DropdownMenu.Content align="end" class="w-56">
-					<DropdownMenu.Label>{m.thread_list_visible_projects()}</DropdownMenu.Label>
+					<DropdownMenu.Label>{"Visible Projects"}</DropdownMenu.Label>
 					<DropdownMenu.Separator />
 					{#each projects as project (project.path)}
 						{@const isVisible = !hiddenProjects.has(project.path)}
@@ -47,7 +45,7 @@ const hasHiddenProjects = $derived(hiddenProjects.size > 0);
 					{/each}
 					{#if projects.length === 0}
 						<div class="py-2 px-2 text-xs text-muted-foreground text-center">
-							{m.thread_list_no_projects()}
+							{"No projects"}
 						</div>
 					{/if}
 				</DropdownMenu.Content>
@@ -55,6 +53,6 @@ const hasHiddenProjects = $derived(hiddenProjects.size > 0);
 		</DropdownMenu.Root>
 	</Tooltip.Trigger>
 	<Tooltip.Content>
-		{m.thread_list_filter_projects()}
+		{"Filter projects"}
 	</Tooltip.Content>
 </Tooltip.Root>

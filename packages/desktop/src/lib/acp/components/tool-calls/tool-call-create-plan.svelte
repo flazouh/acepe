@@ -6,7 +6,6 @@ import { PlanCard } from "@acepe/ui/plan-card";
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { Result } from "neverthrow";
 import { CheckCircle, XCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import type { AcpError } from "../../errors/index.js";
 import { usePlanInline } from "../../hooks/use-plan-inline.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
@@ -221,7 +220,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 				<HeaderTitleCell compactPadding>
 					<PlanIcon size="sm" class="shrink-0 mr-1" />
 					<TextShimmer class="inline-flex h-4 m-0 items-center text-xs leading-none">
-						{m.tool_create_plan_running()}
+						{"Creating plan"}
 					</TextShimmer>
 				</HeaderTitleCell>
 			</EmbeddedPanelHeader>
@@ -255,7 +254,7 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 			<HeaderTitleCell compactPadding>
 				<PlanIcon size="sm" class="shrink-0 mr-1" />
 				<TextShimmer class="inline-flex h-4 m-0 items-center text-xs leading-none">
-					{m.tool_create_plan_running()}
+					{"Creating plan"}
 				</TextShimmer>
 			</HeaderTitleCell>
 		</EmbeddedPanelHeader>
@@ -279,13 +278,13 @@ const cardStatus = $derived.by((): PlanCardStatus => {
 			<HeaderActionCell>
 				<button type="button" class="plan-action-btn" onclick={handleApprove}>
 					<BuildIcon size="sm" />
-					{m.plan_sidebar_build()}
+					{"Build"}
 				</button>
 			</HeaderActionCell>
 		</EmbeddedPanelHeader>
 		<div class="plan-title-area">
 			<span class="text-xs text-muted-foreground leading-snug">
-				{thinkState.questions?.[0]?.question || m.tool_create_plan_running()}
+				{thinkState.questions?.[0]?.question || "Creating plan"}
 			</span>
 		</div>
 	</div>

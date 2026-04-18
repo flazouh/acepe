@@ -3,16 +3,17 @@ use std::collections::HashMap;
 
 use crate::acp::parsers::{get_parser, AgentParser, AgentType, ClaudeCodeParser};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{tool_call_status_from_str, ToolCallData};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
-    ContentBlock, ConvertedSession, FullSession, OrderedMessage, StoredAssistantChunk,
-    StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+    ContentBlock, FullSession, OrderedMessage, StoredAssistantChunk, StoredAssistantMessage,
+    StoredContentBlock, StoredEntry, StoredUserMessage,
 };
 
 use super::full_session::parse_full_session;
 
-pub fn convert_full_session_to_entries(session: &FullSession) -> ConvertedSession {
+pub fn convert_full_session_to_entries(session: &FullSession) -> SessionThreadSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
 
     // First pass: collect tool results from all messages so sources that co-locate
@@ -59,9 +60,8 @@ pub fn convert_full_session_to_entries(session: &FullSession) -> ConvertedSessio
     // Calculate todo timing from state transitions
     crate::session_converter::calculate_todo_timing(&mut entries);
 
-    ConvertedSession {
+    SessionThreadSnapshot {
         entries,
-        stats: session.stats.clone(),
         title: session.title.clone(),
         created_at: session.created_at.clone(),
         current_mode_id: None,
@@ -235,15 +235,13 @@ fn convert_assistant_message(
     (assistant_entry, tool_entries)
 }
 
-/// Parse and convert a session directly to ConvertedSession.
-/// This is the main entry point for the optimized conversion.
-/// Uses the shared session converter for consistency.
+/// Parse a session and return a `SessionThreadSnapshot`.
 pub async fn parse_converted_session(
     session_id: &str,
     project_path: &str,
-) -> Result<ConvertedSession> {
+) -> Result<SessionThreadSnapshot> {
     let full_session = parse_full_session(session_id, project_path).await?;
-    Ok(crate::session_converter::convert_claude_full_session_to_entries(&full_session))
+    Ok(crate::session_converter::convert_claude_full_session_to_thread_snapshot(&full_session))
 }
 
 #[cfg(test)]

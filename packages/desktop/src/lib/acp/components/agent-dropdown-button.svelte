@@ -2,7 +2,6 @@
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconPlus } from "@tabler/icons-svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
 
@@ -47,7 +46,7 @@ function handleAgentSelect(agent: AgentInfo) {
 				</DropdownMenu.Trigger>
 			</Tooltip.Trigger>
 			<Tooltip.Content>
-				{m.thread_list_new_session_in_project({ projectName })}
+				{`New session in ${projectName}`}
 			</Tooltip.Content>
 		</Tooltip.Root>
 		<DropdownMenu.Content align="start" class="flex gap-1 p-1.5 min-w-0">
@@ -62,7 +61,7 @@ function handleAgentSelect(agent: AgentInfo) {
 						</DropdownMenu.Item>
 					</Tooltip.Trigger>
 					<Tooltip.Content>
-						{m.thread_list_new_agent_session({ agentName: agent.name })}
+						{`New ${agent.name} session`}
 					</Tooltip.Content>
 				</Tooltip.Root>
 			{/each}
@@ -79,7 +78,7 @@ function handleAgentSelect(agent: AgentInfo) {
 			</button>
 		</Tooltip.Trigger>
 		<Tooltip.Content>
-			{m.thread_list_new_session_in_project({ projectName })}
+			{`New session in ${projectName}`}
 		</Tooltip.Content>
 	</Tooltip.Root>
 {/if}

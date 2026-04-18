@@ -5,7 +5,6 @@ import {
 	AgentPanelPermissionBarProgress,
 	AgentPanelPermissionBarActions,
 } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../application/dto/session-entry.js";
@@ -120,9 +119,9 @@ const showEditPreview = $derived(
 
 		{#snippet actionBar()}
 			<AgentPanelPermissionBarActions
-				allowLabel={m.permission_allow()}
-				alwaysAllowLabel={m.permission_always_allow()}
-				denyLabel={m.permission_deny()}
+				allowLabel={"Allow"}
+				alwaysAllowLabel={"Always"}
+				denyLabel={"Deny"}
 				showAlwaysAllow={currentPermission.always !== undefined && currentPermission.always.length > 0}
 				onAllow={() => permissionStore.reply(currentPermission.id, "once")}
 				onAlwaysAllow={() => permissionStore.reply(currentPermission.id, "always")}

@@ -37,7 +37,6 @@ import { Tree } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
-import * as m from "$lib/messages.js";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import MicButton from "../agent-input/components/mic-button.svelte";
@@ -484,7 +483,7 @@ async function handleGenerate() {
 	result.match(
 		(ctx) => {
 			if (!ctx) {
-				toast.warning(m.git_no_staged_changes());
+				toast.warning("No staged changes to generate from");
 				generating = false;
 				return;
 			}
@@ -492,7 +491,7 @@ async function handleGenerate() {
 			generating = false;
 		},
 		(err) => {
-			toast.error(m.git_generation_failed({ error: err.message }));
+			toast.error(`Generation failed: ${err.message}`);
 			generating = false;
 		}
 	);

@@ -3,8 +3,6 @@ import { FilePathBadge } from "@acepe/ui";
 import { IconChevronLeft } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/messages.js";
-
 import type { ModifiedFilesState } from "../modified-files/types/modified-files-state.js";
 
 interface Props {
@@ -27,7 +25,7 @@ const hasNextFile = $derived(selectedFileIndex < modifiedFilesState.files.length
 		<!-- Back button -->
 		<Button variant="ghost" size="sm" onclick={onClose} class="shrink-0">
 			<IconChevronLeft class="h-4 w-4" />
-			{m.modified_files_back_button()}
+			{"Back"}
 		</Button>
 
 		<!-- File tabs (wrapped row) - same chip as markdown -->
@@ -47,7 +45,7 @@ const hasNextFile = $derived(selectedFileIndex < modifiedFilesState.files.length
 		<!-- Next file button (only shown when there's a next file) -->
 		{#if hasNextFile}
 			<Button variant="outline" size="sm" onclick={onNextFile} class="shrink-0">
-				{m.modified_files_next_file_button()}
+				{"Next"}
 				<IconChevronRight class="h-4 w-4" />
 			</Button>
 		{/if}

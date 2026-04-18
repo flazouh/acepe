@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AgentToolQuestion } from "@acepe/ui/agent-panel";
 import { onMount } from "svelte";
-import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
@@ -295,12 +294,12 @@ onMount(() => {
 	onSubmit={handleSubmit}
 	onCancel={handleCancel}
 	{hasSelections}
-	waitingLabel={m.tool_question_waiting()}
-	questionLabel={m.tool_question_label()}
-	cancelledLabel={m.tool_question_cancelled_label()}
-	cancelledDescription={m.tool_question_cancelled_description()}
-	noAnswerLabel={m.tool_question_no_answer()}
-	otherPlaceholder={m.tool_question_other_placeholder()}
-	cancelLabel={m.tool_question_cancel()}
-	submitLabel={m.tool_question_submit()}
+	waitingLabel={"Waiting for question..."}
+	questionLabel={"Question"}
+	cancelledLabel={"Cancelled"}
+	cancelledDescription={"Question was cancelled without an answer."}
+	noAnswerLabel={"No answer"}
+	otherPlaceholder={"Other..."}
+	cancelLabel={"Cancel"}
+	submitLabel={"Submit"}
 />

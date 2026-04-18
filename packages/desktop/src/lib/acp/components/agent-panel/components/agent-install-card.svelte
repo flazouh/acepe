@@ -2,7 +2,6 @@
 	import { VoiceDownloadProgress } from "@acepe/ui";
 	import { AgentPanelInstallCard as SharedAgentPanelInstallCard } from "@acepe/ui/agent-panel";
 	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import * as m from "$lib/messages.js";
 import AgentIcon from "../../agent-icon.svelte";
 
 interface Props {
@@ -15,7 +14,7 @@ interface Props {
 let { agentId, agentName, stage, progress }: Props = $props();
 
 const progressPercent = $derived(progress < 0 ? 0 : progress > 1 ? 100 : progress * 100);
-const installTitle = $derived(m.agent_install_setting_up({ agentName }));
+const installTitle = $derived(`Setting up ${agentName}...`);
 </script>
 
 <SharedAgentPanelInstallCard

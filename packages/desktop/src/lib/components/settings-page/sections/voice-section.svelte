@@ -3,7 +3,6 @@ import { VoiceDownloadProgress } from "@acepe/ui";
 import { DownloadSimple, Microphone, Trash } from "phosphor-svelte";
 
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/messages.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 
 import SettingsSectionHeader from "../settings-section-header.svelte";
@@ -30,8 +29,8 @@ function formatBytes(bytes: number): string {
 
 <div class="w-full space-y-3">
 	<SettingsSectionHeader
-		title={m.settings_voice()}
-		description={m.voice_settings_enable_description()}
+		title={"Voice"}
+		description={"Allow microphone-based transcription in the composer."}
 	/>
 
 	<!-- Voice enable card -->
@@ -39,7 +38,7 @@ function formatBytes(bytes: number): string {
 		<div class="flex items-center h-9 px-3 gap-2">
 			<Microphone class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
 			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
-				{m.voice_settings_enable_label()}
+				{"Enable voice dictation"}
 			</span>
 			<Switch
 				checked={voiceSettingsStore.enabled}
@@ -62,16 +61,16 @@ function formatBytes(bytes: number): string {
 				<span class="text-[8px] font-bold text-muted-foreground">AI</span>
 			</div>
 			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
-				{m.voice_settings_models_title()}
+				{"Speech models"}
 			</span>
 		</div>
 
 		{#if voiceSettingsStore.modelsLoading}
 			<div class="flex items-center h-8 px-3 border-t border-border/40 text-[12px] text-muted-foreground">
-				{m.voice_settings_loading_models()}
+				{"Loading voice models…"}
 			</div>
 		{:else}
-			<div role="radiogroup" aria-label={m.voice_settings_models_title()}>
+			<div role="radiogroup" aria-label={"Speech models"}>
 				{#each voiceSettingsStore.models as model (model.id)}
 					{@const isSelected = voiceSettingsStore.selectedModelId === model.id}
 					{@const isDownloading = voiceSettingsStore.downloadProgressModelId === model.id}
@@ -102,7 +101,7 @@ function formatBytes(bytes: number): string {
 								{#if model.is_english_only}
 									EN
 								{:else}
-									{m.voice_settings_model_multilingual()}
+									{"Multilingual"}
 								{/if}
 							</span>
 
@@ -123,7 +122,7 @@ function formatBytes(bytes: number): string {
 							<button
 								type="button"
 								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive hover:bg-accent"
-								title={m.voice_settings_delete()}
+								title={"Delete"}
 								onclick={() => void voiceSettingsStore.deleteModel(model.id)}
 							>
 								<Trash class="size-3 hidden group-hover:block" weight="fill" />
@@ -133,7 +132,7 @@ function formatBytes(bytes: number): string {
 							<button
 								type="button"
 								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
-								title={m.voice_settings_download()}
+								title={"Download"}
 								onclick={() => void voiceSettingsStore.downloadModel(model.id)}
 							>
 								<DownloadSimple class="size-3 hidden group-hover:block" weight="fill" />

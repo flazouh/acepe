@@ -2,7 +2,6 @@
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { IconCheck } from "@tabler/icons-svelte";
 import { ArrowsInLineVertical, ArrowsOutLineVertical, Package } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import type { ToolCallStatus } from "$lib/services/converted-session-types.js";
 
 import type { ToolStatusResult } from "../../../utils/tool-state-utils.js";
@@ -104,7 +103,7 @@ const displayArgs = $derived(
 			<div class="flex items-center gap-1 text-xs text-muted-foreground">
 				{#if effectiveToolStatus.isPending}
 					<TextShimmer class="text-[10px] uppercase tracking-wide"
-						>{m.plan_sidebar_todo_running()}</TextShimmer
+						>{"Running"}</TextShimmer
 					>
 				{:else if effectiveToolStatus.isSuccess}
 					<IconCheck class="size-3" />

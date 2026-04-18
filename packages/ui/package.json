@@ -28,6 +28,10 @@
       "svelte": "./src/components/dialog/index.ts",
       "default": "./src/components/dialog/index.ts"
     },
+    "./popover": {
+      "svelte": "./src/components/popover/index.ts",
+      "default": "./src/components/popover/index.ts"
+    },
     "./drawer": {
       "svelte": "./src/components/drawer/index.ts",
       "default": "./src/components/drawer/index.ts"

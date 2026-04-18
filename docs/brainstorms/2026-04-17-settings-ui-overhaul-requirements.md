@@ -56,7 +56,7 @@ Users benefit from predictable category naming (matching the reference they intu
 **Migration**
 
 - R22. All persisted settings keep their current storage keys; no user data migration is required. Only the *presentation* moves between sections.
-- R23. i18n keys (`m.settings_*`) are added for the new category labels and for any rows that change wording; existing keys are retained when wording is unchanged.
+- R23. User-visible strings for the new category labels and any rows that change wording are updated in place; unchanged wording stays as-is.
 - R24. Each existing section file is either renamed/repointed or split; the overhaul leaves the `sections/` directory with one file per top-level category and no dead code.
 
 ## Success Criteria
@@ -91,7 +91,7 @@ Users benefit from predictable category naming (matching the reference they intu
 
 - `SegmentedToggleGroup` in `@acepe/ui/panel-header` is the pill primitive used by the worktree card and is reusable across Settings. (Verified: `packages/ui/src/components/agent-panel/pre-session-worktree-card.svelte:13,58-61`.)
 - Current Settings primitives (`setting-row.svelte`, `settings-section.svelte`, `settings-section-header.svelte`) already implement the row and header shape close enough to the Codex reference that the main rebuild work is in replacing `settings-control-card.svelte` and consolidating section files, not reinventing primitives.
-- Paraglide i18n (`$lib/messages.js`) is the translation boundary; new category labels get new keys.
+- Settings copy lives as English strings in the Settings Svelte components; new category labels are added where needed.
 - No external design system or token changes are required; existing Tailwind theme tokens are sufficient.
 - Feature issues #133–#141 will land *after* this overhaul and are planned separately.
 

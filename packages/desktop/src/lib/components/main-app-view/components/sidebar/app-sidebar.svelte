@@ -19,7 +19,6 @@ import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.sve
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/index.js";
-import * as m from "$lib/messages.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
@@ -194,9 +193,9 @@ function handleExportMarkdown(sessionId: string) {
 		navigator.clipboard.writeText(markdown),
 		(e) => new Error(String(e))
 	).match(
-		() => toast.success(m.session_menu_export_success()),
+		() => toast.success("Copied to clipboard"),
 		(err) => {
-			toast.error(m.session_menu_export_error({ error: err.message }));
+			toast.error(`Failed to export: ${err.message}`);
 			logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
 		}
 	);
@@ -205,14 +204,14 @@ function handleExportMarkdown(sessionId: string) {
 async function handleExportJson(sessionId: string) {
 	const cold = sessionStore.getSessionCold(sessionId);
 	if (!cold) {
-		toast.error(m.session_menu_export_error({ error: "Session not found" }));
+		toast.error(`Failed to export: ${"Session not found"}`);
 		return;
 	}
 	const entries = sessionStore.getEntries(sessionId);
 	copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
-		() => toast.success(m.session_menu_export_success()),
+		() => toast.success("Copied to clipboard"),
 		(err) => {
-			toast.error(m.session_menu_export_error({ error: err.message }));
+			toast.error(`Failed to export: ${err.message}`);
 			logger.error("[ExportJson] Failed", { sessionId, error: err });
 		}
 	);

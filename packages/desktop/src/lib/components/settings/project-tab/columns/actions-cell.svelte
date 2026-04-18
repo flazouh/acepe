@@ -4,8 +4,6 @@ import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconEye } from "@tabler/icons-svelte";
 import { IconFolder } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	sessionId: string;
 	projectPath: string;
@@ -37,13 +35,13 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 			{#if onView}
 				<DropdownMenu.Item onclick={() => onView(sessionId)}>
 					<IconEye class="h-4 w-4 mr-2" />
-					{m.common_open()}
+					{"Open"}
 				</DropdownMenu.Item>
 			{/if}
 			{#if onOpenInFinder}
 				<DropdownMenu.Item onclick={() => onOpenInFinder(sessionId, projectPath)}>
 					<IconFolder class="h-4 w-4 mr-2" />
-					{m.thread_open_in_finder()}
+					{"Open Thread in Finder"}
 				</DropdownMenu.Item>
 			{/if}
 			{#if onArchive}

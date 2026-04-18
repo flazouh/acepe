@@ -14,7 +14,6 @@ import {
 	Robot,
 	Tree,
 } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 
 import type { SettingsSectionId } from "./settings-types.js";
@@ -35,17 +34,17 @@ interface Props {
 let { activeSection, onSectionChange }: Props = $props();
 
 const sections: readonly SidebarSection[] = [
-	{ id: "general", icon: GearFine, label: () => m.settings_general() },
+	{ id: "general", icon: GearFine, label: () => "General" },
 	{ id: "appearance", icon: Palette, label: () => "Appearance" },
 	{ id: "agents", icon: Robot, label: () => "Agents" },
-	{ id: "chat", icon: ChatCircle, label: () => m.settings_chat() },
+	{ id: "chat", icon: ChatCircle, label: () => "Chat" },
 	{ id: "voice", icon: Microphone, label: () => "Voice" },
 	{ id: "skills", icon: PuzzlePiece, label: () => "Skills" },
-	{ id: "keybindings", icon: Keyboard, label: () => m.settings_keybindings() },
+	{ id: "keybindings", icon: Keyboard, label: () => "Keybindings" },
 	{ id: "mcp", icon: Plugs, label: () => "MCP servers" },
 	{ id: "git", icon: GitBranch, label: () => "Git" },
 	{ id: "environments", icon: FolderSimple, label: () => "Environments" },
-	{ id: "worktrees", icon: Tree, label: () => m.settings_worktree_section() },
+	{ id: "worktrees", icon: Tree, label: () => "Worktrees" },
 	{ id: "archived", icon: Archive, label: () => "Archived sessions" },
 	{ id: "usage", icon: ChartLine, label: () => "Usage" },
 ];

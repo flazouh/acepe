@@ -1,4 +1,3 @@
-import * as m from "$lib/messages.js";
 import type { TurnState } from "../store/types.js";
 import { isSearchNormalizedResult } from "../types/normalized-tool-result.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -140,7 +139,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	read: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_read_running() : m.tool_read_completed();
+			return status.isPending ? "Reading" : "Read";
 		},
 		subtitle: (toolCall) => {
 			const filePath = getReadSourcePath(toolCall);
@@ -156,7 +155,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	edit: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_edit_running() : m.tool_edit_completed();
+			return status.isPending ? "Editing" : "Edited";
 		},
 		filePath: (toolCall) =>
 			toolCall.arguments.kind === "edit" ? (toolCall.arguments.edits[0]?.filePath ?? null) : null,
@@ -170,7 +169,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	execute: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_bash_running() : m.tool_bash_completed();
+			return status.isPending ? "Running command" : "Executed";
 		},
 		subtitle: (toolCall) => {
 			const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
@@ -187,7 +186,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	search: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			if (status.isPending) return m.tool_grep_running();
+			if (status.isPending) return "Grepping";
 
 			const normalizedResult = isSearchNormalizedResult(toolCall.normalizedResult)
 				? toolCall.normalizedResult
@@ -196,15 +195,15 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 				(toolCall.result !== null && toolCall.result !== undefined) ||
 				(toolCall.normalizedResult !== null && toolCall.normalizedResult !== undefined);
 			if (!hasAnyResult) {
-				return m.tool_grep_completed();
+				return "Grep";
 			}
 
 			if (normalizedResult === null) {
-				return m.tool_grep_completed();
+				return "Grep";
 			}
 
 			const numFiles = normalizedResult.numFiles;
-			return numFiles > 0 ? m.tool_grep_results({ count: numFiles }) : m.tool_grep_no_matches();
+			return numFiles > 0 ? `Grepped ${numFiles} files` : "No matches";
 		},
 		subtitle: (toolCall) => {
 			const query = toolCall.arguments.kind === "search" ? toolCall.arguments.query : null;
@@ -216,17 +215,17 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	glob: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			if (status.isPending) return m.tool_glob_running();
+			if (status.isPending) return "Exploring files";
 
 			const result = toolCall.result as Record<string, unknown> | unknown[] | null;
 			if (!result) {
-				return m.tool_glob_running();
+				return "Exploring files";
 			}
 			const totalFiles =
 				(typeof result === "object" && "totalFiles" in result
 					? (result.totalFiles as number)
 					: null) ?? (Array.isArray(result) ? result.length : 0);
-			return totalFiles > 0 ? m.tool_glob_results({ count: totalFiles }) : m.tool_glob_no_results();
+			return totalFiles > 0 ? `Found ${totalFiles} files` : "No files found";
 		},
 		subtitle: (toolCall) => {
 			const pattern = toolCall.arguments.kind === "glob" ? toolCall.arguments.pattern : null;
@@ -237,7 +236,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	fetch: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_web_fetch_running() : m.tool_web_fetch_completed();
+			return status.isPending ? "Fetching" : "Fetched";
 		},
 		subtitle: (toolCall) => {
 			const url = toolCall.arguments.kind === "fetch" ? toolCall.arguments.url : null;
@@ -267,7 +266,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	},
 
 	think: {
-		title: () => m.tool_thinking(),
+		title: () => "Thinking",
 		subtitle: (toolCall) => {
 			if (toolCall.arguments.kind === "think" && toolCall.arguments.description) {
 				return truncateText(toolCall.arguments.description, 50);
@@ -279,7 +278,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	todo: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_todo_running() : m.tool_todo_completed();
+			return status.isPending ? "Updating todos" : "Updated todos";
 		},
 		subtitle: (toolCall) => {
 			const todos = toolCall.normalizedTodos;
@@ -298,7 +297,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	question: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_ask_running() : m.tool_ask_completed();
+			return status.isPending ? "Asking question" : "Asked question";
 		},
 		subtitle: (toolCall) => {
 			// Show the first question text if available from normalizedQuestions
@@ -313,7 +312,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	task: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_task_running() : m.tool_task_completed();
+			return status.isPending ? "Running task" : "Task completed";
 		},
 		subtitle: (toolCall) => {
 			if (toolCall.arguments.kind === "think" && toolCall.arguments.description) {
@@ -329,8 +328,8 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			const skillName = extractSkillCallInput(toolCall.arguments).skill;
 			const displayName = skillName ?? "skill";
 			return status.isPending
-				? m.tool_skill_running({ name: displayName })
-				: m.tool_skill_completed({ name: displayName });
+				? `Running ${displayName}`
+				: `Ran ${displayName}`;
 		},
 		subtitle: (toolCall) => {
 			if (toolCall.skillMeta?.description) {
@@ -343,7 +342,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	move: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_move_running() : m.tool_move_completed();
+			return status.isPending ? "Moving" : "Moved";
 		},
 		subtitle: (toolCall) => {
 			const from = toolCall.arguments.kind === "move" ? toolCall.arguments.from : null;
@@ -360,7 +359,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	delete: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_delete_running() : m.tool_delete_completed();
+			return status.isPending ? "Deleting" : "Deleted";
 		},
 		subtitle: (toolCall) => getDeleteSubtitle(toolCall),
 		tooltipContent: (toolCall) =>
@@ -377,29 +376,29 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
 			return status.isPending
-				? m.tool_enter_plan_mode_running()
-				: m.tool_enter_plan_mode_completed();
+				? "Entering plan mode"
+				: "Entered plan mode";
 		},
 	},
 
 	exit_plan_mode: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_exit_plan_mode_running() : m.tool_exit_plan_mode_completed();
+			return status.isPending ? "Reviewing plan" : "Plan ready";
 		},
 	},
 
 	create_plan: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_create_plan_running() : m.tool_create_plan_completed();
+			return status.isPending ? "Creating plan" : "Created plan";
 		},
 	},
 
 	tool_search: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_tool_search_running() : m.tool_tool_search_completed();
+			return status.isPending ? "Loading tools" : "Loaded tools";
 		},
 		subtitle: (toolCall) => {
 			const query = toolCall.arguments.kind === "toolSearch" ? toolCall.arguments.query : null;
@@ -410,7 +409,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	task_output: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending ? m.tool_task_output_running() : m.tool_task_output_completed();
+			return status.isPending ? "Getting output" : "Got output";
 		},
 		subtitle: (toolCall) => {
 			const taskId = toolCall.arguments.kind === "taskOutput" ? toolCall.arguments.task_id : null;
@@ -558,7 +557,7 @@ export function getToolKindFilePath(kind: ToolKind, toolCall: ToolCall): string 
 /**
  * Get display text for compact UI (queue item, session list item).
  * Uses subtitle when available, else title. For file tools, returns basename only
- * (consumer adds i18n verb: "Reading X", "Editing X").
+ * (consumer adds a verb prefix such as "Reading X", "Editing X").
  *
  * @param kind - The canonical tool kind
  * @param toolCall - The tool call

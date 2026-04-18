@@ -7,7 +7,6 @@ import {
 } from "$lib/components/ui/codemirror-editor/index.js";
 import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/messages.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";
@@ -383,7 +382,7 @@ const shellClass = $derived(
 
 		{#snippet emptyDisplay()}
 			<div class="p-4 text-sm text-muted-foreground">
-				{m.file_list_empty()}
+				{"No files found"}
 			</div>
 		{/snippet}
 	</FilePanelLayout>

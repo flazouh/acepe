@@ -1,5 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import { ArrowRightIcon, BrandLockup, BrandShaderBackground, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
@@ -287,105 +286,105 @@ const features = [
 	{
 		id: "multi-agent",
 		icon: Stack,
-		label: m.feature_multi_agent_title(),
+		label: "Multi-Agent Support",
 		tag: "core",
-		description: m.feature_multi_agent_description(),
+		description: "Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
 		usecases: [
-			m.feature_multi_agent_usecase_1(),
-			m.feature_multi_agent_usecase_2(),
-			m.feature_multi_agent_usecase_3(),
+			"Use different agents for different tasks without context switching",
+			"Run multiple agents in parallel for faster development",
+			"Switch agents instantly with keyboard shortcuts",
 		],
 	},
 	{
 		id: "parallel",
 		icon: ArrowsOutSimple,
-		label: m.feature_parallel_focus_title(),
+		label: "Parallel Sessions & Focus",
 		tag: "workflow",
-		description: m.feature_parallel_focus_description(),
+		description: "Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
 		usecases: [
-			m.feature_parallel_focus_usecase_1(),
-			m.feature_parallel_focus_usecase_2(),
-			m.feature_parallel_focus_usecase_3(),
+			"Run agents on separate tasks and see all of them making progress at once",
+			"Work across multiple repos at the same time without losing track",
+			"Have 10 agents working across different projects with full visibility into each",
 		],
 	},
 	{
 		id: "plan-mode",
 		icon: Lightning,
-		label: m.feature_plan_mode_title(),
+		label: "Plan Mode",
 		tag: "planning",
-		description: m.feature_plan_mode_description(),
+		description: "Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
 		usecases: [
-			m.feature_plan_mode_usecase_1(),
-			m.feature_plan_mode_usecase_2(),
-			m.feature_plan_mode_usecase_3(),
+			"Built-in review and deepen skills refine plans before execution",
+			"Plans render as clean markdown you can copy or download",
+			"Read through the plan, adjust if needed, then run",
 		],
 	},
 	{
 		id: "checkpoints",
 		icon: GitBranch,
-		label: m.feature_checkpoints_title(),
+		label: "Checkpoints",
 		tag: "safety",
-		description: m.feature_checkpoints_description(),
+		description: "Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
 		usecases: [
-			m.feature_checkpoints_usecase_1(),
-			m.feature_checkpoints_usecase_2(),
-			m.feature_checkpoints_usecase_3(),
+			"Auto-checkpoints capture state after each tool run",
+			"Revert entire project or individual files to any checkpoint",
+			"Roll back to any checkpoint when the agent goes in the wrong direction",
 		],
 	},
 	{
 		id: "sessions",
 		icon: ClockCounterClockwise,
-		label: m.feature_sessions_title(),
+		label: "Session Management",
 		tag: "history",
-		description: m.feature_sessions_description(),
+		description: "The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
 		usecases: [
-			m.feature_sessions_usecase_1(),
-			m.feature_sessions_usecase_2(),
-			m.feature_sessions_usecase_3(),
+			"Search and filter across all your agent interactions",
+			"Recover context from previous sessions instantly",
+			"Organize sessions by project for easy reference",
 		],
 	},
 	{
 		id: "keyboard",
 		icon: Command,
-		label: m.feature_keyboard_title(),
+		label: "Keyboard-First",
 		tag: "input",
-		description: m.feature_keyboard_description(),
+		description: "⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
 		usecases: [
-			m.feature_keyboard_usecase_1(),
-			m.feature_keyboard_usecase_2(),
-			m.feature_keyboard_usecase_3(),
+			"Navigate entirely with keyboard shortcuts for flow state",
+			"Customize shortcuts to match your muscle memory",
+			"Discover new shortcuts with the searchable command palette",
 		],
 	},
 	{
 		id: "sql-studio",
 		icon: HardDrives,
-		label: m.feature_sql_studio_title(),
+		label: "SQL Studio",
 		tag: "data",
-		description: m.feature_sql_studio_description(),
+		description: "Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
 		usecases: [
-			m.feature_sql_studio_usecase_1(),
-			m.feature_sql_studio_usecase_2(),
-			m.feature_sql_studio_usecase_3(),
+			"Connect to local or remote databases with saved connections",
+			"Browse schemas and tables, run queries, inspect results",
+			"Execute data-changing SQL with explicit write mode control",
 		],
 	},
 	{
 		id: "queue",
 		icon: Queue,
-		label: m.feature_queue_title(),
+		label: "Attention Queue",
 		tag: "triage",
-		description: m.feature_queue_description(),
+		description: "Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
 		usecases: [
-			m.feature_queue_usecase_1(),
-			m.feature_queue_usecase_2(),
-			m.feature_queue_usecase_3(),
+			"Answer-needed sessions stay at the top until you respond",
+			"See errors and active work before idle sessions",
+			"Switch context quickly without hunting through terminals",
 		],
 	},
 ];
 </script>
 
 <svelte:head>
-	<title>{m.landing_hero_title()} - Acepe</title>
-	<meta name="description" content={m.landing_hero_subtitle()} />
+	<title>{"The Agentic Developer Environment"} - Acepe</title>
+	<meta name="description" content={"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."} />
 </svelte:head>
 
 <div class="min-h-screen">
@@ -401,10 +400,10 @@ const features = [
 				<AgentIconsRow size={24} class="mb-6" />
 
 				<h1 class="mb-6 text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[56px]">
-					{m.landing_hero_title()}
+					{"The Agentic Developer Environment"}
 				</h1>
 				<p class="mx-auto mb-10 max-w-[760px] text-lg leading-[1.5] font-normal tracking-[-0.01em] text-muted-foreground md:text-[22px]">
-					{m.landing_hero_subtitle()}
+					{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."}
 				</p>
 
 				<div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -414,7 +413,7 @@ const features = [
 						size="default"
 						class="h-11 py-1.5 pr-1.5 pl-5"
 					>
-						{m.landing_hero_cta()}
+						{"Get started"}
 						{#snippet trailingIcon()}
 							<ArrowRightIcon size="lg" />
 						{/snippet}
@@ -437,10 +436,10 @@ const features = [
 						<span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">The new paradigm</span>
 					</div>
 					<h2 class="mb-6 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[40px]">
-						{m.landing_ade_title()}
+						{"Why an ADE?"}
 					</h2>
 					<p class="max-w-[640px] text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
-						{m.landing_ade_description()}
+						{"Every new agent is another terminal window, another scrollback buffer, another thing to manually track. An ADE collapses all of that into one workspace."}
 					</p>
 				</div>
 
@@ -448,29 +447,29 @@ const features = [
 				<div class="grid gap-6 md:grid-cols-3 md:gap-8">
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
 						<div class="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-							{m.landing_pillar_orchestrate_label()}
+							{"01 — Orchestrate"}
 						</div>
-						<h3 class="mb-2 text-sm font-semibold">{m.landing_pillar_orchestrate_title()}</h3>
+						<h3 class="mb-2 text-sm font-semibold">{"Run any agent, in parallel"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{m.landing_pillar_orchestrate_description()}
+							{"Claude Code, Codex, Cursor Agent, OpenCode, all in one window. Start multiple agents on separate tasks and switch between them with ⌘L."}
 						</p>
 					</div>
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
 						<div class="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-							{m.landing_pillar_observe_label()}
+							{"02 — Observe"}
 						</div>
-						<h3 class="mb-2 text-sm font-semibold">{m.landing_pillar_observe_title()}</h3>
+						<h3 class="mb-2 text-sm font-semibold">{"See what every agent is doing"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{m.landing_pillar_observe_description()}
+							{"Each session shows its agent, project color, and live status at a glance. The attention queue surfaces what needs you. Plans, todos, file diffs, and code all render cleanly inside the app."}
 						</p>
 					</div>
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
 						<div class="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-							{m.landing_pillar_control_label()}
+							{"03 — Control"}
 						</div>
-						<h3 class="mb-2 text-sm font-semibold">{m.landing_pillar_control_title()}</h3>
+						<h3 class="mb-2 text-sm font-semibold">{"Revert, checkpoint, intervene"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{m.landing_pillar_control_description()}
+							{"Checkpoints snapshot your files after every tool run, so you can revert a single file or a whole session. Review plans before the agent acts on them, and intervene mid-task if something looks wrong."}
 						</p>
 					</div>
 				</div>
@@ -486,10 +485,10 @@ const features = [
 						<span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Features</span>
 					</div>
 					<h2 class="mb-4 text-3xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[44px]">
-						{m.landing_features_heading()}
+						{"Everything an ADE should have"}
 					</h2>
 					<p class="max-w-[600px] text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
-						{m.landing_features_subheading()}
+						{"For developers who run AI agents every day."}
 					</p>
 				</div>
 
@@ -680,10 +679,10 @@ const features = [
 		<section class="border-t border-border/50 px-4 py-24 md:px-6">
 			<div class="mx-auto flex max-w-2xl flex-col items-center text-center">
 				<h2 class="mb-4 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[36px]">
-					{m.landing_cta_title()}
+					{"Your ADE is ready"}
 				</h2>
 				<p class="mb-8 max-w-[500px] whitespace-pre-line text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
-					{m.landing_cta_description()}
+					{"Acepe is free while in beta.\nOne download, every agent, full control."}
 				</p>
 				<PillButton
 					href="/download"
@@ -691,7 +690,7 @@ const features = [
 					size="default"
 					class="h-11 py-1.5 pr-1.5 pl-5"
 				>
-					{m.landing_hero_cta()}
+					{"Get started"}
 					{#snippet trailingIcon()}
 						<ArrowRightIcon size="lg" />
 					{/snippet}
@@ -700,7 +699,7 @@ const features = [
 					href="/compare/cursor"
 					class="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
 				>
-					{m.landing_cta_compare()}
+					{"See how Acepe compares →"}
 				</a>
 			</div>
 		</section>
@@ -716,40 +715,40 @@ const features = [
 						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
-						{m.landing_hero_title()}
+						{"The Agentic Developer Environment"}
 					</p>
 				</div>
 
 				<!-- Product -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_product()}
+						{"Product"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/blog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_blog()}
+								{"Blog"}
 							</a>
 						</li>
 						<li>
 							<a href="/changelog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.changelog_nav_label()}
+								{"Changelog"}
 							</a>
 						</li>
 						<li>
 							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_pricing()}
+								{"Pricing"}
 							</a>
 						</li>
 						<li>
 							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.nav_compare()}
+								{"Compare"}
 							</a>
 						</li>
 						{#if data.featureFlags?.roadmapEnabled}
 							<li>
 								<a href="/roadmap" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-									{m.nav_roadmap()}
+									{"Roadmap"}
 								</a>
 							</li>
 						{/if}
@@ -759,7 +758,7 @@ const features = [
 				<!-- Resources -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_resources()}
+						{"Resources"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
@@ -779,17 +778,17 @@ const features = [
 				<!-- Legal -->
 				<div>
 					<h3 class="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-						{m.footer_legal()}
+						{"Legal"}
 					</h3>
 					<ul class="flex flex-col gap-2">
 						<li>
 							<a href="/privacy" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_privacy()}
+								{"Privacy"}
 							</a>
 						</li>
 						<li>
 							<a href="/terms" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{m.footer_terms()}
+								{"Terms"}
 							</a>
 						</li>
 					</ul>
@@ -799,7 +798,7 @@ const features = [
 			<!-- Bottom bar -->
 			<div class="mt-10 border-t border-border/30 pt-6">
 				<span class="font-mono text-[11px] text-muted-foreground/50">
-					{m.footer_copyright({ year: new Date().getFullYear().toString() })}
+					{`© ${new Date().getFullYear().toString()} Acepe. All rights reserved.`}
 				</span>
 			</div>
 		</div>

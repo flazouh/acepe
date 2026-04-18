@@ -160,9 +160,7 @@ export const TAURI_COMMAND_CLIENT = {
     set_session_worktree_path: createGeneratedCommand(COMMANDS.history.set_session_worktree_path),
   },
   opencode_history: {
-    get_opencode_converted_session: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_converted_session),
     get_opencode_history: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_history),
-    get_opencode_session: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_session),
     get_opencode_sessions_for_project: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_sessions_for_project),
   },
   skills: {

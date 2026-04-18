@@ -12,7 +12,6 @@ import {
 import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import AgentSelector from "../../agent-selector.svelte";
 
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
@@ -90,9 +89,9 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 				status={sessionStatus}
 				{isConnecting}
 				agentId={sessionAgentId}
-				warmingLabel={m.thread_status_preparing()}
-				connectedLabel={m.thread_status_connected()}
-				errorLabel={m.thread_status_error()}
+				warmingLabel={"Preparing thread..."}
+				connectedLabel={"Thread is connected"}
+				errorLabel={"Thread error - click to retry"}
 			/>
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger
@@ -105,7 +104,7 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 						<CopyButton
 							text={sessionId ?? ""}
 							variant="menu"
-							label={m.session_menu_copy_id()}
+							label={"Copy session ID"}
 							hideIcon
 							size={16}
 						/>
@@ -114,17 +113,17 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 						<DropdownMenu.Separator />
 						<DropdownMenu.Sub>
 							<DropdownMenu.SubTrigger class="cursor-pointer">
-								{m.session_menu_export()}
+								{"Export"}
 							</DropdownMenu.SubTrigger>
 							<DropdownMenu.SubContent class="min-w-[160px]">
 								{#if onExportMarkdown}
 									<DropdownMenu.Item onSelect={() => onExportMarkdown?.()} class="cursor-pointer">
-										{m.session_menu_export_markdown()}
+										{"Export as Markdown"}
 									</DropdownMenu.Item>
 								{/if}
 								{#if onExportJson}
 									<DropdownMenu.Item onSelect={() => onExportJson?.()} class="cursor-pointer">
-										{m.session_menu_export_json()}
+										{"Export as JSON"}
 									</DropdownMenu.Item>
 								{/if}
 							</DropdownMenu.SubContent>
@@ -136,7 +135,7 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 							Copy Streaming Log Path
 						</DropdownMenu.Item>
 						<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
-							{m.thread_export_raw_streaming()}
+							{"Open Streaming Log"}
 						</DropdownMenu.Item>
 					{/if}
 				</DropdownMenu.Content>
@@ -170,9 +169,9 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 			<FullscreenAction
 				{isFullscreen}
 				onToggle={onToggleFullscreen}
-				titleEnter={m.panel_fullscreen()}
-				titleExit={m.panel_exit_fullscreen()}
+				titleEnter={"Fullscreen"}
+				titleExit={"Exit Fullscreen"}
 			/>
-			<CloseAction {onClose} title={m.common_close()} />
+			<CloseAction {onClose} title={"Close"} />
 		{/snippet}
 	</AgentPanelHeaderLayout>

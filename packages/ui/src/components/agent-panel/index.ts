@@ -70,6 +70,19 @@ export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-tex
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export { default as AgentInputVoiceModelMenu } from "./agent-input-voice-model-menu.svelte";
 export { default as AgentInputVoiceRecordingOverlay } from "./agent-input-voice-recording-overlay.svelte";
+export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
+export type {
+	AgentComposerToolbarVoiceBinding,
+	AgentInputToolbarVoicePhase,
+	MicButtonVisualState,
+} from "./agent-input-toolbar-voice.js";
+export {
+	canCancelVoiceInteraction,
+	canStartVoiceInteraction,
+	getMicButtonVisualState,
+} from "./agent-input-toolbar-voice.js";
+export { default as AgentPanelTrailingPaneLayout } from "./agent-panel-trailing-pane-layout.svelte";
+export { default as AgentPanelWorktreeCloseConfirmPopover } from "./agent-panel-worktree-close-confirm-popover.svelte";
 export { default as AgentPanelCreatePrButton } from "./create-pr-button.svelte";
 export { default as AgentPanelMergeButton } from "./merge-button.svelte";
 export { default as AgentPanelPermissionBar } from "./permission-bar.svelte";

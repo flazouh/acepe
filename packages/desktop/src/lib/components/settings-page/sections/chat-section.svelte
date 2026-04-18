@@ -2,7 +2,6 @@
 import { getChatPreferencesStore } from "$lib/acp/store/chat-preferences-store.svelte.js";
 import { getPlanPreferenceStore } from "$lib/acp/store/plan-preference-store.svelte.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/messages.js";
 import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 
@@ -11,13 +10,13 @@ const planPrefs = getPlanPreferenceStore();
 </script>
 
 <SettingsSection
-	title={m.settings_chat()}
+	title={"Chat"}
 	description="Pick the default behavior for chat and plan output."
 >
 	{#if chatPrefs}
 		<SettingRow
-			label={m.settings_chat_thinking_collapsed()}
-			description={m.settings_chat_thinking_collapsed_description()}
+			label={"Thinking block collapsed by default"}
+			description={"Start with the thinking block collapsed; use the chevron to expand."}
 		>
 			<Switch
 				checked={chatPrefs.thinkingBlockCollapsedByDefault}
@@ -28,8 +27,8 @@ const planPrefs = getPlanPreferenceStore();
 		</SettingRow>
 	{/if}
 	<SettingRow
-		label={m.settings_plans_prefer_inline()}
-		description={m.settings_plans_prefer_inline_description()}
+		label={"Inline plan display"}
+		description={"Show plans inline in chat instead of opening the sidebar"}
 	>
 		<Switch
 			checked={planPrefs.preferInline}

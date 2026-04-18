@@ -1,8 +1,6 @@
 <script lang="ts">
 import { Badge } from "$lib/components/ui/badge/index.js";
 import { Card } from "$lib/components/ui/card/index.js";
-import * as m from "$lib/messages.js";
-
 import type { StoredPlan, StoredPlanStep } from "../infrastructure/storage/ThreadStorage.js";
 
 let { plan }: { plan: StoredPlan } = $props();
@@ -26,7 +24,7 @@ const statusColor = (status: StoredPlanStep["status"]) => {
 <div class="flex justify-start mb-4">
 	<Card class="max-w-[80%]">
 		<div class="p-4 space-y-3">
-			<h3 class="font-semibold">{m.plan_heading()}</h3>
+			<h3 class="font-semibold">{"Plan"}</h3>
 			<div class="space-y-2">
 				{#each plan.steps as step, index (index)}
 					<div class="flex items-start gap-2">
@@ -44,7 +42,7 @@ const statusColor = (status: StoredPlanStep["status"]) => {
 			</div>
 			{#if plan.currentStep !== undefined}
 				<div class="text-sm text-muted-foreground">
-					{m.plan_current_step()}
+					{"Current step:"}
 					{plan.currentStep + 1}
 				</div>
 			{/if}

@@ -29,8 +29,6 @@ import type { ChangelogEntry, ChangeType } from "$lib/changelog/index.js";
 import { groupChangesByType } from "$lib/changelog/index.js";
 import type { Theme } from "$lib/components/theme/context.svelte.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/messages.js";
-
 const numberIcons: Component[] = [
 	NumberCircleOne,
 	NumberCircleTwo,
@@ -222,14 +220,14 @@ onDestroy(() => {
 	class="fixed inset-0 z-[var(--app-elevated-z)] flex items-center justify-center"
 	role="dialog"
 	aria-modal="true"
-	aria-label={m.changelog_title()}
+	aria-label={"What's New in"}
 >
 	<!-- Backdrop -->
 	<button
 		type="button"
 		class="absolute inset-0 w-full h-full bg-black/60 cursor-default border-0 p-0 appearance-none"
 		onclick={onDismiss}
-		aria-label={m.common_close()}
+		aria-label={"Close"}
 	></button>
 
 	<!-- Modal -->
@@ -242,7 +240,7 @@ onDestroy(() => {
 			<div bind:this={shaderContainer} class="changelog-hero-shader absolute inset-0"></div>
 			<div class="changelog-hero-overlay absolute inset-0"></div>
 			<h1 class="changelog-hero-title relative z-10 text-3xl font-semibold">
-				{m.changelog_hero_title()}
+				{"What's New in Acepe"}
 			</h1>
 			<!-- Close button -->
 			<button
@@ -273,7 +271,7 @@ onDestroy(() => {
 					</div>
 					<h2 class="mt-4 text-2xl font-semibold text-foreground">
 						{#if entries.length === 1}
-							{m.changelog_title()} v{entry.version}
+							{"What's New in"} v{entry.version}
 						{:else}
 							v{entry.version}
 						{/if}

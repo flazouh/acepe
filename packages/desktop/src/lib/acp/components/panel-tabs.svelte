@@ -4,8 +4,6 @@ import { IconX } from "@tabler/icons-svelte";
 import { normalizeTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
-
 import type { Project } from "../logic/project-manager.svelte.js";
 
 import { getProjectColor } from "../utils/colors.js";
@@ -53,7 +51,7 @@ function getProjectInfo(panel: PanelTabInfo): { name: string; color: string; ico
 		{@const isFocused = panel.id === focusedPanelId}
 		{@const projectInfo = getProjectInfo(panel)}
 		{@const title =
-			normalizeTitleForDisplay(panel.sessionTitle ?? "") || m.agent_panel_new_thread()}
+			normalizeTitleForDisplay(panel.sessionTitle ?? "") || "New Thread"}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
@@ -89,13 +87,13 @@ function getProjectInfo(panel: PanelTabInfo): { name: string; color: string; ico
 							}}
 						>
 							<IconX class="h-3 w-3" />
-							<span class="sr-only">{m.common_close()}</span>
+							<span class="sr-only">{"Close"}</span>
 						</button>
 					</Button>
 				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content side="bottom">
-				{m.panel_tabs_tooltip()}
+				{"Click to focus panel"}
 			</Tooltip.Content>
 		</Tooltip.Root>
 	{/each}

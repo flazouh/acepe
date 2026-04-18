@@ -99,15 +99,6 @@ describe("VoiceInputState", () => {
 				success: vi.fn(),
 			},
 		}));
-		mock.module("$lib/messages.js", () => ({
-			voice_no_speech_detected: () => "No speech detected",
-			voice_error_stop_failed: () => "Stop failed",
-			voice_error_download_failed: () => "Download failed",
-			voice_error_model_status_failed: () => "Model status failed",
-			voice_error_start_failed: () => "Start failed",
-			voice_error_load_failed: () => "Load failed",
-			voice_error_transcription_timeout: () => "Transcription timed out",
-		}));
 		mock.module("$lib/acp/types/sounds.js", () => ({
 			SoundEffect: {
 				SoundUp: "sound-up",

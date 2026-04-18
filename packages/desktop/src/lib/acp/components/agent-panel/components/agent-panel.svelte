@@ -2,22 +2,11 @@
 import { AgentPanelShell } from "@acepe/ui/agent-panel";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import { listen } from "@tauri-apps/api/event";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { okAsync, ResultAsync } from "neverthrow";
 import { Clock } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
-import { Tree } from "phosphor-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
-import * as Popover from "$lib/components/ui/popover/index.js";
 import { createLocalReferenceDetails } from "$lib/errors/error-reference.js";
-import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
-import * as m from "$lib/messages.js";
-import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
-import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
 import type { Project } from "../../../logic/project-manager.svelte";
 import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
@@ -30,43 +19,32 @@ import { formatSessionTitleForDisplay } from "../../../store/session-title-polic
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
-import type { WorktreeSetupEvent } from "../../../types/worktree-setup.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
 import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
 import { createLogger } from "../../../utils/logger.js";
-import { sessionEntriesToMarkdown } from "../../../utils/session-to-markdown.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import { aggregateFileEdits } from "../../modified-files/logic/aggregate-file-edits.js";
-import ModifiedFilesHeader, {
-	type PrGenerationConfig,
-} from "../../modified-files/modified-files-header.svelte";
+import type { PrGenerationConfig } from "../../modified-files/modified-files-header.svelte";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
-import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
 	AgentPanelWorktreeStatusDisplay as SharedWorktreeStatusDisplay,
 	AgentPanelPlanHeader as SharedPlanHeader,
 } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
-import { PlanSidebar } from "../../plan-sidebar/index.js";
-import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agent-panel";
 import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
-import { AgentPanelTodoHeader as SharedTodoHeader } from "@acepe/ui/agent-panel";
 import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
 import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js";
-import CopyButton from "../../messages/copy-button.svelte";
-import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,
 	createWorktreeCreationState,
-	copySessionToClipboard,
 	copyTextToClipboard,
 	derivePanelErrorInfo,
 	mapSessionStatusToUI,
@@ -81,34 +59,64 @@ import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
-import { getOpenInFinderTarget } from "../logic/open-in-finder-target";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
-import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
-import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
+import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
+import { PlanSidebar } from "../../plan-sidebar/index.js";
+import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
+import {
+	AgentPanelTrailingPaneLayout,
+	AgentPanelWorktreeCloseConfirmPopover,
+} from "@acepe/ui/agent-panel";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
-import AgentInstallCard from "./agent-install-card.svelte";
 import {
 	resolveAgentContentColumnStyle,
 	resolveAgentPanelEffectiveWidth,
 	resolveAgentPanelWidthStyle,
 	shouldUseCenteredFullscreenContent,
 } from "./agent-panel-layout.js";
-import WorktreeSetupCard from "./worktree-setup-card.svelte";
-import AgentErrorCard from "./agent-error-card.svelte";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
+import {
+	cancelQueuedMessageAndRestoreInput,
+	clearMessageQueue,
+	removeAttachmentFromQueuedMessage,
+	sendQueuedMessageNow,
+} from "../logic/queue-strip-handlers.js";
+import {
+	copyStreamingLogPathToClipboard,
+	copyThreadContentToClipboard,
+	discardPreparedWorktreeSessionLaunch,
+	exportSessionJsonToClipboard,
+	exportSessionMarkdownToClipboard,
+	fetchPanelGitBranch,
+	fetchWorktreeHasUncommittedChanges,
+	fetchWorktreePathListedForProject,
+	loadCheckpointsBeforeTimelineOpen,
+	openSessionFileInAcepePanel,
+	openSessionInFinder,
+	openSessionRawFileInEditor,
+	openStreamingLog,
+	persistSessionPrNumber,
+	persistSessionWorktreePathAfterRename,
+	removeWorktreeFromDisk,
+	runCreatePrWorkflow,
+	runMergePrWorkflow,
+	runPanelConnectionRetry,
+	scheduleCheckpointReloadAfterRevert,
+	subscribeGitWorktreeSetupChannel,
+} from "../services/index.js";
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -552,9 +560,9 @@ $effect(() => {
 	}
 
 	let unlisten: (() => void) | null = null;
-	const unlistenPromise = listen<WorktreeSetupEvent>("git:worktree-setup", (event) => {
+	void subscribeGitWorktreeSetupChannel((payload) => {
 		if (
-			!matchesWorktreeSetupContext(event.payload, {
+			!matchesWorktreeSetupContext(payload, {
 				projectPaths,
 				worktreePaths,
 			})
@@ -565,10 +573,8 @@ $effect(() => {
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
 		}
-		worktreeSetupState = reduceWorktreeSetupEvent(worktreeSetupState, event.payload);
-	});
-
-	unlistenPromise
+		worktreeSetupState = reduceWorktreeSetupEvent(worktreeSetupState, payload);
+	})
 		.then((callback) => {
 			unlisten = callback;
 		})
@@ -982,7 +988,7 @@ $effect(() => {
 
 	_panelBranch = null;
 
-	void tauriClient.git.currentBranch(decision.path).match(
+	void fetchPanelGitBranch(decision.path).match(
 		(branch) => {
 			if (currentVersion === branchRequestVersion) {
 				_panelBranch = branch;
@@ -1012,11 +1018,10 @@ $effect(() => {
 		return;
 	}
 	let disposed = false;
-	void tauriClient.git.worktreeList(projectPath).match(
-		(worktrees) => {
+	void fetchWorktreePathListedForProject(projectPath, worktreePath).match(
+		(listed) => {
 			if (disposed) return;
-			const found = worktrees.some((wt) => wt.directory === worktreePath);
-			if (!found) {
+			if (!listed) {
 				worktreeDeleted = true;
 				if (currentSessionId) {
 					sessionStore.disconnectSession(currentSessionId);
@@ -1055,7 +1060,7 @@ async function handleClose() {
 		worktreeCloseConfirming = confirmationState.confirming;
 		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
 		worktreeDirtyCheckPending = confirmationState.dirtyCheckPending;
-		const hasDirtyChanges = await tauriClient.git.hasUncommittedChanges(worktreePath).match(
+		const hasDirtyChanges = await fetchWorktreeHasUncommittedChanges(worktreePath).match(
 			(dirty) => dirty,
 			() => false // safe default on error — show normal confirmation
 		);
@@ -1092,7 +1097,7 @@ function handleWorktreeRemoveAndClose() {
 			worktreePath,
 		},
 		{
-			removeWorktree: (path, shouldForce) => tauriClient.git.worktreeRemove(path, shouldForce),
+			removeWorktree: (path, shouldForce) => removeWorktreeFromDisk(path, shouldForce),
 			markSessionWorktreeDeleted: (id) => {
 				sessionStore.updateSession(id, { worktreeDeleted: true });
 			},
@@ -1187,9 +1192,7 @@ function handleRetryWorktree(): void {
 function handleStartInProjectRoot(): void {
 	preSessionWorktreeFailure = null;
 	if (panelId && panelPreparedWorktreeLaunch) {
-		void tauriClient.git
-			.discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true)
-			.match(
+		void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
 				() => {
 					activeWorktreePath = null;
 					activeWorktreeOwnerProjectPath = null;
@@ -1222,20 +1225,18 @@ function handleWorktreeRenamed(info: WorktreeInfo): void {
 		worktreePath: info.directory,
 	});
 
-	void tauriClient.history
-		.setSessionWorktreePath(
+	void persistSessionWorktreePathAfterRename(
+		sessionId,
+		info.directory,
+		sessionProjectPath ? sessionProjectPath : undefined,
+		sessionAgentId ? sessionAgentId : undefined
+	).mapErr((error) => {
+		logger.error("Failed to persist renamed worktree path to DB", {
 			sessionId,
-			info.directory,
-			sessionProjectPath ? sessionProjectPath : undefined,
-			sessionAgentId ? sessionAgentId : undefined
-		)
-		.mapErr((error) => {
-			logger.error("Failed to persist renamed worktree path to DB", {
-				sessionId,
-				worktreePath: info.directory,
-				error,
-			});
+			worktreePath: info.directory,
+			error,
 		});
+	});
 }
 
 async function handleCreatePr(config?: PrGenerationConfig) {
@@ -1245,310 +1246,117 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		logger.warn("handleCreatePr: no effectivePathForGit, aborting");
 		return;
 	}
-	createPrRunning = true;
-	createPrLabel = m.agent_panel_pr_staging();
-
-	// Stage agent-modified files before commit+push+PR
-	if (modifiedFilesState) {
-		const prefix = path.endsWith("/") ? path : `${path}/`;
-		const filePaths = modifiedFilesState.files.map((f) =>
-			f.filePath.startsWith(prefix) ? f.filePath.slice(prefix.length) : f.filePath
-		);
-		logger.info("handleCreatePr: staging modified files", { count: filePaths.length, filePaths });
-		const stageResult = await tauriClient.git.stageFiles(path, filePaths);
-		if (stageResult.isErr()) {
-			createPrRunning = false;
-			createPrLabel = null;
-			const details = getErrorCauseDetails(stageResult._unsafeUnwrapErr());
-			logger.error("handleCreatePr: staging failed", {
-				rootCause: details.rootCause,
-				formatted: details.formatted,
-			});
-			toast.error(details.rootCause ?? stageResult._unsafeUnwrapErr().message);
-			return;
-		}
-	}
-
-	// Generate commit message + PR content via AI (falls back to default if generation fails)
-	createPrLabel = m.git_generating();
-	streamingShipData = null;
-	let commitMsg = m.agent_panel_default_commit_message();
-	let prTitle: string | undefined;
-	let prBody: string | undefined;
-
-	const shipCtxResult = await tauriClient.git.collectShipContext(
+	await runCreatePrWorkflow({
 		path,
-		config?.customPrompt ? config.customPrompt : undefined
-	);
-	if (shipCtxResult.isOk() && shipCtxResult.value) {
-		const ctx = shipCtxResult.value;
-		logger.info("handleCreatePr: generating commit/PR content via AI", { branch: ctx.branch });
-		const prompt = ctx.prompt;
-
-		// Use the streaming text generation service — updates the PR card live
-		const { generateShipContentStreaming } = await import(
-			"../../ship-card/ship-card-generation.js"
-		);
-		const genResult = await generateShipContentStreaming(
-			prompt,
-			path,
-			(data) => {
-				const hadPreviewContent = hasStreamingPreviewContent(streamingShipData);
-				const hasPreviewContent = hasStreamingPreviewContent(data);
-				if (!hadPreviewContent && hasPreviewContent) {
-					prCardRenderKey += 1;
-				}
-				streamingShipData = data;
-			},
-			config?.agentId ? config.agentId : effectivePanelAgentId ? effectivePanelAgentId : undefined,
-			config?.modelId ? config.modelId : undefined
-		);
-		if (genResult.isOk()) {
-			const gen = genResult.value;
-			if (gen.commitMessage) commitMsg = gen.commitMessage as typeof commitMsg;
-			if (gen.prTitle) prTitle = gen.prTitle;
-			if (gen.prDescription) prBody = gen.prDescription;
-			logger.info("handleCreatePr: AI generation complete", { prTitle, hasBody: !!prBody });
-		} else {
-			logger.warn("handleCreatePr: AI generation failed, using defaults", {
-				error: genResult.error.message,
-			});
-			streamingShipData = null;
-		}
-	}
-
-	createPrLabel = m.agent_panel_pr_pushing();
-	logger.info("handleCreatePr: calling runStackedAction", {
-		path,
-		action: "commit_push_pr",
-		commitMsg,
-		prTitle,
-	});
-	const result = await tauriClient.git.runStackedAction(
-		path,
-		"commit_push_pr",
-		commitMsg,
-		prTitle,
-		prBody
-	);
-	await result.match(
-		(ok) => {
-			createPrRunning = false;
-			createPrLabel = null;
-			streamingShipData = null;
-			logger.info("handleCreatePr: success", {
-				action: ok.action,
-				commitStatus: ok.commit.status,
-				pushStatus: ok.push.status,
-				prStatus: ok.pr.status,
-				prUrl: ok.pr.url,
-			});
-			switch (ok.pr.status) {
-				case "created":
-					toast.success(`Created PR #${ok.pr.number ?? ""}`);
-					break;
-				case "opened_existing":
-					toast.success(`Opened PR #${ok.pr.number ?? ""}`);
-					break;
-				case "skipped_not_requested":
-					toast.success("Pushed to branch");
-					break;
-				default: {
-					const _: never = ok.pr.status;
-					toast.success("Pushed to branch");
-				}
-			}
-			if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
-				if (ok.pr.number != null && sessionId) {
-					sessionStore.updateSession(sessionId, { prNumber: ok.pr.number });
-					void tauriClient.history.setSessionPrNumber(sessionId, ok.pr.number);
-				}
-				if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
-			}
+		sessionId,
+		modifiedFilesState,
+		config,
+		effectivePanelAgentId,
+		setCreatePrRunning: (running) => {
+			createPrRunning = running;
 		},
-		(err) => {
-			createPrRunning = false;
-			createPrLabel = null;
+		setCreatePrLabel: (label) => {
+			createPrLabel = label;
+		},
+		onStreamReset: () => {
 			streamingShipData = null;
-			const details = getErrorCauseDetails(err);
-			logger.error("handleCreatePr: failed", {
-				message: err.message,
-				rootCause: details.rootCause,
-				chain: details.chain,
-				formatted: details.formatted,
-			});
-			toast.error(details.rootCause ?? err.message);
-		}
-	);
+		},
+		onStreamUpdate: (data) => {
+			const hadPreviewContent = hasStreamingPreviewContent(streamingShipData);
+			const hasPreviewContent = hasStreamingPreviewContent(data);
+			if (!hadPreviewContent && hasPreviewContent) {
+				prCardRenderKey += 1;
+			}
+			streamingShipData = data;
+		},
+		deps: {
+			updateSessionPrNumber: (id, n) => {
+				sessionStore.updateSession(id, { prNumber: n });
+			},
+			persistSessionPrNumber: (id, n) => {
+				void persistSessionPrNumber(id, n);
+			},
+		},
+	});
 }
 
 async function handleMergePr(strategy: MergeStrategy) {
 	const path = effectivePathForGit;
 	const prNum = createdPr;
 	if (!path || prNum == null || !sessionId) return;
-	mergePrRunning = true;
-	try {
-		await tauriClient.git.mergePr(path, prNum, strategy).match(
-			() => {
-				toast.success(m.agent_panel_pr_merged());
-				if (sessionId) {
-					sessionStore.updateSession(sessionId, { prState: "MERGED" });
-				}
-				// Refresh PR details so the card reflects the merged state
-				fetchPrDetails({
-					sessionId,
-					projectPath: path,
-					prNumber: prNum,
-				});
-			},
-			(err) => {
-				const details = getErrorCauseDetails(err);
-				toast.error(details.rootCause ?? err.message);
-			}
-		);
-	} finally {
-		mergePrRunning = false;
-	}
+	await runMergePrWorkflow({
+		path,
+		prNum,
+		strategy,
+		setMergePrRunning: (running) => {
+			mergePrRunning = running;
+		},
+		onMerged: () => {
+			sessionStore.updateSession(sessionId, { prState: "MERGED" });
+			fetchPrDetails({
+				sessionId,
+				projectPath: path,
+				prNumber: prNum,
+			});
+		},
+	});
 }
 
 async function handleCopyContent() {
 	if (!sessionId) {
-		toast.error(m.thread_copy_content_error_no_thread());
+		toast.error("No thread to copy");
 		return;
 	}
-
-	// Assemble cold data + entries for clipboard copy
-	const cold = sessionStore.getSessionCold(sessionId);
-	if (!cold) {
-		toast.error(m.thread_copy_content_error_no_thread());
-		return;
-	}
-	const entries = sessionStore.getEntries(sessionId);
-
-	await copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
-		() => toast.success(m.thread_copy_content_success()),
-		() => toast.error(m.thread_copy_content_error())
-	);
+	await copyThreadContentToClipboard({
+		sessionId,
+		getSessionCold: (id) => sessionStore.getSessionCold(id),
+		getEntries: (id) => sessionStore.getEntries(id),
+	});
 }
 
 async function handleOpenInFinder() {
-	const target = getOpenInFinderTarget({
+	await openSessionInFinder({
 		sessionId,
 		projectPath: sessionProjectPath,
 		agentId: sessionAgentId,
 		sourcePath: sessionMetadata?.sourcePath ?? null,
 	});
-
-	if (!target) {
-		toast.error(m.thread_open_in_finder_error_no_thread());
-		return;
-	}
-
-	if (target.kind === "reveal") {
-		await revealInFinder(target.path).mapErr(() => toast.error(m.thread_open_in_finder_error()));
-		return;
-	}
-
-	await tauriClient.shell
-		.openInFinder(target.sessionId, target.projectPath)
-		.mapErr(() => toast.error(m.thread_open_in_finder_error()));
 }
 
 async function handleExportRawStreaming() {
-	if (!sessionId) {
-		toast.error(m.thread_export_raw_error_no_thread());
-		return;
-	}
-
-	await tauriClient.shell.openStreamingLog(sessionId).match(
-		() => undefined,
-		(error) => toast.error(m.thread_export_raw_error({ error: error.message }))
-	);
+	await openStreamingLog(sessionId);
 }
 
 async function handleCopyStreamingLogPath() {
-	if (!sessionId) {
-		logger.warn("handleCopyStreamingLogPath: no session id");
-		toast.error(m.thread_export_raw_error_no_thread());
-		return;
-	}
-
-	logger.info("handleCopyStreamingLogPath: requesting streaming log path", { sessionId });
-
-	await tauriClient.shell
-		.getStreamingLogPath(sessionId)
-		.andThen((path) => {
-			logger.info("handleCopyStreamingLogPath: received streaming log path", {
-				sessionId,
-				path,
-			});
-
-			return copyTextToClipboard(path);
-		})
-		.match(
-			() => {
-				logger.info("handleCopyStreamingLogPath: copy succeeded", { sessionId });
-				toast.success(m.file_list_copy_path_toast());
-			},
-			(error) => {
-				logger.error("handleCopyStreamingLogPath: copy failed", {
-					sessionId,
-					error: error.message,
-				});
-				toast.error(m.file_list_copy_path_error());
-			}
-		);
+	await copyStreamingLogPathToClipboard({ sessionId, logger });
 }
 
 async function handleOpenRawFile() {
-	if (!sessionId || !sessionProjectPath) return;
-	await tauriClient.shell
-		.getSessionFilePath(sessionId, sessionProjectPath)
-		.andThen((path) => openFileInEditor(path))
-		.match(
-			() => toast.success(m.thread_export_raw_success()),
-			(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
-		);
+	await openSessionRawFileInEditor({ sessionId, sessionProjectPath });
 }
 
 async function handleOpenInAcepe() {
-	if (!sessionId || !sessionProjectPath) return;
-	await tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).match(
-		(fullPath) => {
-			const parts = fullPath.split(/[/\\]/);
-			const fileName = parts.pop() ?? fullPath;
-			const dirPath = parts.join("/") || "/";
-			panelStore.openFilePanel(fileName, dirPath, { ownerPanelId: effectivePanelId });
-		},
-		(err) => toast.error(m.session_menu_open_raw_error({ error: err.message }))
-	);
+	await openSessionFileInAcepePanel({
+		sessionId,
+		sessionProjectPath,
+		effectivePanelId,
+		openFilePanel: (fileName, dirPath, opts) => panelStore.openFilePanel(fileName, dirPath, opts),
+	});
 }
 
 async function handleExportMarkdown(): Promise<void> {
 	if (!sessionId) return;
 	const entries = sessionStore.getEntries(sessionId);
-	const markdown = sessionEntriesToMarkdown(entries);
-	await ResultAsync.fromPromise(
-		navigator.clipboard.writeText(markdown),
-		(e) => new Error(String(e))
-	).match(
-		() => toast.success(m.session_menu_export_success()),
-		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
-	);
+	await exportSessionMarkdownToClipboard(entries);
 }
 
 async function handleExportJson() {
 	if (!sessionId) return;
-	const cold = sessionStore.getSessionCold(sessionId);
-	if (!cold) {
-		toast.error(m.session_menu_export_error({ error: "Session not found" }));
-		return;
-	}
-	const entries = sessionStore.getEntries(sessionId);
-	copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
-		() => toast.success(m.session_menu_export_success()),
-		(err) => toast.error(m.session_menu_export_error({ error: err.message }))
-	);
+	await exportSessionJsonToClipboard({
+		sessionId,
+		getSessionCold: (id) => sessionStore.getSessionCold(id),
+		getEntries: (id) => sessionStore.getEntries(id),
+	});
 }
 
 function handlePanelClick(e: MouseEvent) {
@@ -1587,23 +1395,27 @@ function handlePanelKeyDown(e: KeyboardEvent) {
 }
 
 function handleRetryConnection() {
-	if (!sessionId && panelId && panelConnectionState === PanelConnectionState.ERROR) {
-		connectionStore.send(panelId, { type: PanelConnectionEvent.CANCEL });
-		errorDismissed = false;
-		return;
-	}
-
-	// Retry session creation using panel's current project and agent
-	if (project && effectivePanelAgentId) {
-		void installAgentThenCreateSession(project, effectivePanelAgentId);
-	} else {
-		console.warn(`Retry connection failed: Missing project or agent`, {
+	runPanelConnectionRetry({
+		sessionId,
+		panelId: panelId ?? undefined,
+		panelConnectionState,
+		project,
+		effectivePanelAgentId,
+		onClearErrorDismissed: () => {
+			errorDismissed = false;
+		},
+		onSendCancelToPanel: (id) => {
+			connectionStore.send(id, { type: PanelConnectionEvent.CANCEL });
+		},
+		onRecreateSession: (proj, agentId) => {
+			void installAgentThenCreateSession(proj, agentId);
+		},
+		logContext: {
 			panelId: effectivePanelId,
 			projectPath: project?.path,
 			agentId: effectivePanelAgentId,
-		});
-		toast.error("Cannot retry connection: Project or agent not available.");
-	}
+		},
+	});
 }
 
 function handleCancelConnection() {
@@ -1672,9 +1484,8 @@ async function handleToggleCheckpointTimeline() {
 	if (!sessionId) return;
 
 	if (!showCheckpointTimeline) {
-		// Load checkpoints when opening
 		isLoadingCheckpoints = true;
-		await checkpointStore.loadCheckpoints(sessionId);
+		await loadCheckpointsBeforeTimelineOpen(sessionId);
 		isLoadingCheckpoints = false;
 	}
 	showCheckpointTimeline = !showCheckpointTimeline;
@@ -1685,9 +1496,8 @@ function handleCloseCheckpointTimeline() {
 }
 
 function handleCheckpointRevertComplete() {
-	// Reload checkpoints after a revert (new safety checkpoint may have been created)
 	if (sessionId) {
-		checkpointStore.loadCheckpoints(sessionId);
+		scheduleCheckpointReloadAfterRevert(sessionId);
 	}
 }
 
@@ -1751,6 +1561,126 @@ const queueMessages = $derived.by(() => {
 	return messageQueueStore.getQueue(sessionId);
 });
 const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessionId) : false);
+
+const queueStripDisplayMessages = $derived.by(() => {
+	if (!sessionId) return [];
+	return queueMessages.map((msg) => ({
+		id: msg.id,
+		content: msg.content,
+		attachmentCount: msg.attachments.length,
+		attachments: msg.attachments.map((a) => ({
+			id: a.id,
+			displayName: a.displayName,
+			extension: a.extension || null,
+			kind:
+				a.type === "image" ? ("image" as const) : a.type === "text" ? ("other" as const) : ("file" as const),
+		})),
+	}));
+});
+
+function handlePreSessionWorktreeYes(): void {
+	preSessionWorktreeFailure = null;
+	const store = getWorktreeDefaultStore();
+	if (store.globalDefault) {
+		void store.set(false);
+	}
+	if (panelId) {
+		panelStore.setPendingWorktreeEnabled(panelId, true);
+	}
+}
+
+function handlePreSessionWorktreeNo(): void {
+	preSessionWorktreeFailure = null;
+	const store = getWorktreeDefaultStore();
+	if (store.globalDefault) {
+		void store.set(false);
+	}
+	if (panelId) {
+		if (panelPreparedWorktreeLaunch) {
+			void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
+				() => {
+					panelStore.clearPreparedWorktreeLaunch(panelId);
+				},
+				(error) => {
+					toast.error(`Failed to discard prepared worktree: ${error.message}`);
+				}
+			);
+		}
+		panelStore.setPendingWorktreeEnabled(panelId, false);
+	}
+}
+
+function handlePreSessionWorktreeAlways(): void {
+	preSessionWorktreeFailure = null;
+	const store = getWorktreeDefaultStore();
+	const toggled = !store.globalDefault;
+	void store.set(toggled);
+	if (panelId) {
+		panelStore.setPendingWorktreeEnabled(panelId, toggled);
+	}
+}
+
+function handlePreSessionWorktreeDismiss(): void {
+	preSessionWorktreeFailure = null;
+	if (panelId) {
+		if (panelPreparedWorktreeLaunch) {
+			void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
+				() => {
+					panelStore.clearPreparedWorktreeLaunch(panelId);
+				},
+				(error) => {
+					toast.error(`Failed to discard prepared worktree: ${error.message}`);
+				}
+			);
+		}
+		panelStore.setPendingWorktreeEnabled(panelId, false);
+	}
+}
+
+function handleQueueStripCancel(messageId: string): void {
+	if (!sessionId || !agentInputRef) {
+		return;
+	}
+	cancelQueuedMessageAndRestoreInput({
+		sessionId,
+		messageId,
+		queueMessages,
+		agentInputRef,
+		messageQueueStore,
+	});
+}
+
+function handleQueueStripRemoveAttachment(messageId: string, attachmentId: string): void {
+	if (sessionId) {
+		removeAttachmentFromQueuedMessage({
+			sessionId,
+			messageId,
+			attachmentId,
+			messageQueueStore,
+		});
+	}
+}
+
+function handleQueueStripClear(): void {
+	if (sessionId) {
+		clearMessageQueue({ sessionId, messageQueueStore });
+	}
+}
+
+function handleQueueStripSendNow(messageId: string): void {
+	if (sessionId) {
+		sendQueuedMessageNow({ sessionId, messageId, messageQueueStore });
+	}
+}
+
+async function handlePlanSidebarSendMessage(sid: string, message: string): Promise<void> {
+	await sessionStore.sendMessage(sid, message).match(
+		() => {},
+		(error) => {
+			throw error;
+		}
+	);
+}
 </script>
 
 <AgentPanelShell
@@ -1829,8 +1759,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 				<SharedPlanHeader
 					title={planState.plan.title}
 					isExpanded={showPlanSidebar}
-					expandLabel={m.plan_sidebar_expand()}
-					collapseLabel={m.plan_sidebar_collapse()}
+					expandLabel={"Open"}
+					collapseLabel={"Close"}
 					onToggleSidebar={() => panelStore.setPlanSidebarExpanded(panelId, !showPlanSidebar)}
 				/>
 			{/if}
@@ -1889,7 +1819,7 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 						<button
 							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
 							onclick={scrollToTop}
-							aria-label={m.agent_panel_scroll_top()}
+							aria-label={"Scroll Top"}
 						>
 							<ArrowUp class="h-4 w-4" />
 						</button>
@@ -1916,234 +1846,67 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 	{/snippet}
 
 	{#snippet preComposer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-				{#if worktreeDeleted}
-					<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
-						<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
-							<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-								<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
-								<span class="text-[0.6875rem] text-muted-foreground">
-									{m.worktree_deleted_banner()}
-								</span>
-							</div>
-						</div>
-					</div>
-				{/if}
-				<div class="flex shrink-0 flex-col gap-0.5 pb-1">
-					<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
-						<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-							<div class="flex flex-col gap-0.5 px-5">
-							{#if showInlineErrorCard}
-								<AgentErrorCard
-									title={errorInfo.title}
-									summary={errorInfo.summary ?? "Failed to connect to agent"}
-									details={errorInfo.details ?? "Unknown error"}
-									referenceId={inlineErrorReferenceId}
-									referenceSearchable={inlineErrorReferenceSearchable}
-									onRetry={handleRetryConnection}
-									onDismiss={handleDismissError}
-									onCopyReferenceId={handleCopyInlineErrorReference}
-									issueActionLabel={inlineErrorIssueDraft
-										? resolveIssueActionLabel(inlineErrorIssueDraft)
-										: "Create issue"}
-									onIssueAction={inlineErrorIssueDraft ? handleIssueFromInlineError : undefined}
-								/>
-							{/if}
-							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
-								<PreSessionWorktreeCard
-									pendingWorktreeEnabled={worktreePending}
-									alwaysEnabled={getWorktreeDefaultStore().globalDefault}
-									failureMessage={preSessionWorktreeFailure}
-									projectPath={worktreeToggleProjectPath}
-									projectName={effectiveProjectName ?? null}
-									onYes={() => {
-										preSessionWorktreeFailure = null;
-										const store = getWorktreeDefaultStore();
-										if (store.globalDefault) {
-											void store.set(false);
-										}
-										if (panelId) {
-											panelStore.setPendingWorktreeEnabled(panelId, true);
-										}
-									}}
-									onNo={() => {
-										preSessionWorktreeFailure = null;
-										const store = getWorktreeDefaultStore();
-										if (store.globalDefault) {
-											void store.set(false);
-										}
-										if (panelId) {
-											if (panelPreparedWorktreeLaunch) {
-												void tauriClient.git
-													.discardPreparedWorktreeSessionLaunch(
-														panelPreparedWorktreeLaunch.launchToken,
-														true
-													)
-													.match(
-														() => {
-															panelStore.clearPreparedWorktreeLaunch(panelId);
-														},
-														(error) => {
-															toast.error(
-																`Failed to discard prepared worktree: ${error.message}`
-															);
-														}
-													);
-											}
-											panelStore.setPendingWorktreeEnabled(panelId, false);
-										}
-									}}
-									onAlways={() => {
-										preSessionWorktreeFailure = null;
-										const store = getWorktreeDefaultStore();
-										const toggled = !store.globalDefault;
-										void store.set(toggled);
-										if (panelId) {
-											panelStore.setPendingWorktreeEnabled(panelId, toggled);
-										}
-									}}
-									onDismiss={() => {
-										preSessionWorktreeFailure = null;
-										if (panelId) {
-											if (panelPreparedWorktreeLaunch) {
-												void tauriClient.git
-													.discardPreparedWorktreeSessionLaunch(
-														panelPreparedWorktreeLaunch.launchToken,
-														true
-													)
-													.match(
-														() => {
-															panelStore.clearPreparedWorktreeLaunch(panelId);
-														},
-														(error) => {
-															toast.error(
-																`Failed to discard prepared worktree: ${error.message}`
-															);
-														}
-													);
-											}
-											panelStore.setPendingWorktreeEnabled(panelId, false);
-										}
-									}}
-									onRetry={worktreePending ? handleRetryWorktree : undefined}
-								/>
-							{/if}
-							{#if worktreeSetupState?.isVisible}
-								<WorktreeSetupCard state={worktreeSetupState} />
-							{/if}
-							{#if agentInstallState}
-								<AgentInstallCard
-									agentId={agentInstallState.agentId}
-									agentName={agentInstallState.agentName}
-									stage={agentInstallState.stage}
-									progress={agentInstallState.progress}
-								/>
-							{/if}
-							{#if sessionId}
-								<PermissionBar
-									sessionId={sessionId}
-									projectPath={effectiveProjectPath ?? sessionProjectPath}
-									entries={sessionEntries}
-									turnState={sessionHotState?.turnState ?? "idle"}
-								/>
-							{/if}
-							{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
-								{#key prCardRenderKey}
-									<PrStatusCard
-										projectPath={effectivePathForGit}
-										prNumber={createdPr}
-										isCreating={createPrRunning}
-										prDetails={prDetails}
-										fetchError={prFetchError}
-										streamingData={streamingShipData}
-									/>
-								{/key}
-							{/if}
-							{#if modifiedFilesState}
-								<ModifiedFilesHeader
-									{modifiedFilesState}
-									{sessionId}
-									onEnterReviewMode={handleEnterReviewMode}
-									onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
-									createPrLoading={createPrRunning}
-									{createPrLabel}
-									onMerge={createdPr && prDetails && prDetails.state !== "MERGED"
-										? (strategy) => void handleMergePr(strategy)
-										: undefined}
-									merging={mergePrRunning}
-									prState={prDetails ? prDetails.state : null}
-									{availableAgents}
-									currentAgentId={effectivePanelAgentId}
-									currentModelId={sessionCurrentModelId}
-									{effectiveTheme}
-								/>
-							{/if}
-							{#if showTodoHeader && todoState}
-								<SharedTodoHeader
-									items={todoState.items}
-									currentTask={todoState.currentTask}
-									completedCount={todoState.completedCount}
-									totalCount={todoState.totalCount}
-									isLive={todoState.isLive}
-									allCompletedLabel={m.todo_all_completed()}
-									pausedLabel={m.todo_tasks_paused()}
-								>
-									{#snippet copyButton()}
-										<CopyButton getText={getTodoMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
-									{/snippet}
-								</SharedTodoHeader>
-							{/if}
-							{#if sessionId && queueMessages.length > 0}
-								<SharedQueueCardStrip
-									messages={queueMessages.map((msg) => ({
-										id: msg.id,
-										content: msg.content,
-										attachmentCount: msg.attachments.length,
-										attachments: msg.attachments.map((a) => ({
-											id: a.id,
-											displayName: a.displayName,
-											extension: a.extension || null,
-											kind: a.type === "image" ? "image" as const : a.type === "text" ? "other" as const : "file" as const,
-										})),
-									}))}
-									isPaused={queueIsPaused}
-									queueLabel={m.agent_input_queued_messages()}
-									pausedLabel={m.agent_input_queue_paused()}
-									resumeLabel={m.agent_input_queue_resume()}
-									clearLabel={m.agent_input_queue_clear()}
-									sendLabel={m.agent_input_queue_send_now()}
-									cancelLabel={m.common_cancel()}
-									onCancel={(messageId) => {
-										if (!sessionId || !agentInputRef) {
-											return;
-										}
-										const queuedMessage = queueMessages.find((message) => message.id === messageId);
-										if (!queuedMessage) {
-											return;
-										}
-										agentInputRef.restoreQueuedMessage(
-											queuedMessage.content,
-											queuedMessage.attachments
-										);
-										messageQueueStore.removeMessage(sessionId, messageId);
-									}}
-									onRemoveAttachment={(messageId, attachmentId) => {
-										if (sessionId) messageQueueStore.removeAttachmentFromMessage(sessionId, messageId, attachmentId);
-									}}
-									onClear={() => { if (sessionId) messageQueueStore.clearQueue(sessionId); }}
-									onResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
-									onSendNow={(messageId) => {
-										if (sessionId) messageQueueStore.sendNow(sessionId, messageId);
-									}}
-								/>
-							{/if}
-							</div>
-						</div>
-					</div>
-				</div>
-			{/if}
-		</div>
+		<AgentPanelPreComposerStack
+			{reviewMode}
+			showConversationChrome={viewState.kind === "conversation" ||
+				viewState.kind === "ready" ||
+				viewState.kind === "error"}
+			{worktreeDeleted}
+			{centeredFullscreenContent}
+			{showInlineErrorCard}
+			{errorInfo}
+			{inlineErrorReferenceId}
+			{inlineErrorReferenceSearchable}
+			onRetryConnection={handleRetryConnection}
+			onDismissError={handleDismissError}
+			onCopyInlineErrorReference={handleCopyInlineErrorReference}
+			inlineErrorIssueDraft={inlineErrorIssueDraft}
+			onIssueFromInlineError={handleIssueFromInlineError}
+			{showPreSessionWorktreeCard}
+			{worktreePending}
+			worktreeToggleProjectPath={worktreeToggleProjectPath}
+			effectiveProjectName={effectiveProjectName ?? null}
+			{preSessionWorktreeFailure}
+			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
+			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
+			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
+			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
+			onRetryWorktree={handleRetryWorktree}
+			{worktreeSetupState}
+			{agentInstallState}
+			{sessionId}
+			effectiveProjectPath={effectiveProjectPath}
+			{sessionProjectPath}
+			sessionEntries={sessionEntries}
+			sessionTurnState={sessionHotState?.turnState ?? "idle"}
+			{effectivePathForGit}
+			{createdPr}
+			{createPrRunning}
+			{prCardRenderKey}
+			{prDetails}
+			{prFetchError}
+			{streamingShipData}
+			{modifiedFilesState}
+			onEnterReviewMode={handleEnterReviewMode}
+			onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
+			{createPrLabel}
+			onMergePr={(strategy) => void handleMergePr(strategy)}
+			{mergePrRunning}
+			{availableAgents}
+			effectivePanelAgentId={effectivePanelAgentId}
+			{sessionCurrentModelId}
+			{effectiveTheme}
+			{showTodoHeader}
+			{todoState}
+			getTodoMarkdown={getTodoMarkdown}
+			queueStripMessages={queueStripDisplayMessages}
+			{queueIsPaused}
+			onQueueCancel={handleQueueStripCancel}
+			onQueueRemoveAttachment={handleQueueStripRemoveAttachment}
+			onQueueClear={handleQueueStripClear}
+			onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
+			onQueueSendNow={handleQueueStripSendNow}
+		/>
 	{/snippet}
 
 	{#snippet composer()}
@@ -2199,8 +1962,8 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 								{#if sessionProjectPath && checkpoints.length > 0}
 									<EmbeddedIconButton
 										active={showCheckpointTimeline}
-										title={m.checkpoint_toggle_tooltip()}
-										ariaLabel={m.checkpoint_toggle_tooltip()}
+										title={"View checkpoints"}
+										ariaLabel={"View checkpoints"}
 										onclick={handleToggleCheckpointTimeline}
 									>
 										<Clock class="h-3.5 w-3.5" weight="fill" />
@@ -2234,9 +1997,9 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 					terminalActive={isTerminalDrawerOpen}
 					terminalDisabled={effectivePathForGit === null}
 					terminalTitle={effectivePathForGit !== null
-						? m.embedded_terminal_toggle_tooltip()
-						: m.embedded_terminal_no_cwd_tooltip()}
-					terminalAriaLabel={m.embedded_terminal_toggle_tooltip()}
+						? "Toggle terminal"
+						: "No project selected"}
+					terminalAriaLabel={"Toggle terminal"}
 					onToggleTerminal={() => {
 						if (panelId && effectivePathForGit) {
 							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
@@ -2276,38 +2039,39 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 	{/snippet}
 
 	{#snippet trailingPane()}
-		{#if hasPlan && planState.plan && showPlanSidebar && panelId}
-			<PlanSidebar
-				plan={planState.plan}
-				projectPath={sessionProjectPath ?? undefined}
-				sessionId={sessionId ?? undefined}
-				columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
-				onOpenFullscreen={() => panelState.openPlanDialog()}
-				onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
-				onSendMessage={async (sid, message) => {
-					await sessionStore.sendMessage(sid, message).match(
-						() => {},
-						(error) => { throw error; }
-					);
-				}}
-			/>
-		{/if}
-
-		{#if showBrowserSidebar && panelId}
-			<div
-				class="flex flex-col h-full border-l border-border/50 shrink-0"
-				style="min-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; max-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px;"
+		{#if panelId}
+			<AgentPanelTrailingPaneLayout
+				showPlan={Boolean(hasPlan && planState.plan && showPlanSidebar)}
+				showBrowser={Boolean(showBrowserSidebar)}
 			>
-				<BrowserPanelComponent
-					panelId="embedded-browser-{panelId}"
-					url={browserSidebarUrl ?? "https://www.google.com"}
-					title="Browser"
-					width={BROWSER_SIDEBAR_COLUMN_WIDTH}
-					isFillContainer={true}
-					onClose={() => panelStore.setBrowserSidebarExpanded(panelId, false)}
-					onResize={() => {}}
-				/>
-			</div>
+				{#snippet plan()}
+					<PlanSidebar
+						plan={planState.plan!}
+						projectPath={sessionProjectPath ?? undefined}
+						sessionId={sessionId ?? undefined}
+						columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
+						onOpenFullscreen={() => panelState.openPlanDialog()}
+						onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
+						onSendMessage={handlePlanSidebarSendMessage}
+					/>
+				{/snippet}
+				{#snippet browser()}
+					<div
+						class="flex flex-col h-full border-l border-border/50 shrink-0"
+						style="min-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px; max-width: {BROWSER_SIDEBAR_COLUMN_WIDTH}px;"
+					>
+						<BrowserPanelComponent
+							panelId="embedded-browser-{panelId}"
+							url={browserSidebarUrl ?? "https://www.google.com"}
+							title="Browser"
+							width={BROWSER_SIDEBAR_COLUMN_WIDTH}
+							isFillContainer={true}
+							onClose={() => panelStore.setBrowserSidebarExpanded(panelId, false)}
+							onResize={() => {}}
+						/>
+					</div>
+				{/snippet}
+			</AgentPanelTrailingPaneLayout>
 		{/if}
 	{/snippet}
 
@@ -2323,42 +2087,18 @@ const queueIsPaused = $derived(sessionId ? messageQueueStore.pausedIds.has(sessi
 	{/snippet}
 </AgentPanelShell>
 
-<Popover.Root bind:open={worktreeCloseConfirming}>
-	<Popover.Content
-		align="end"
-		customAnchor={headerRef}
-		class="w-52 p-0 overflow-hidden"
-		onInteractOutside={handleWorktreeCloseCancel}
-	>
-		<div class="px-2 py-2">
-			<p class="text-[11px] font-medium">
-				{worktreeDirtyCheckPending
-					? m.worktree_toggle_checking()
-					: worktreeHasDirtyChanges
-					? m.worktree_close_confirm_dirty_title({ name: _activeWorktreeName ?? "worktree" })
-					: m.worktree_close_confirm_title({ name: _activeWorktreeName ?? "worktree" })}
-			</p>
-			<p class="text-[10px] text-muted-foreground leading-snug mt-0.5">
-				{m.worktree_close_confirm_description()}
-			</p>
-		</div>
-		<div class="flex items-stretch border-t border-border/30">
-			<button
-				type="button"
-				class="flex-1 flex items-center justify-center px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-r border-border/30"
-				onclick={handleWorktreeCloseCancel}
-			>
-				{m.common_cancel()}
-			</button>
-			<button
-				type="button"
-				class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-				onclick={handleWorktreeRemoveAndClose}
-				disabled={worktreeDirtyCheckPending}
-			>
-				<Trash class="size-3" weight="fill" />
-				{m.common_confirm()}
-			</button>
-		</div>
-	</Popover.Content>
-</Popover.Root>
+<AgentPanelWorktreeCloseConfirmPopover
+	bind:open={worktreeCloseConfirming}
+	headerAnchor={headerRef}
+	title={worktreeDirtyCheckPending
+		? "Checking repository..."
+		: worktreeHasDirtyChanges
+			? `Has uncommitted changes — remove "${_activeWorktreeName ?? "worktree"}"?`
+			: `Remove worktree "${_activeWorktreeName ?? "worktree"}"?`}
+	description={"The worktree branch and directory will be permanently deleted."}
+	cancelLabel={"Cancel"}
+	confirmLabel={"Confirm"}
+	confirmDisabled={worktreeDirtyCheckPending}
+	onCancel={handleWorktreeCloseCancel}
+	onConfirmRemoveAndClose={handleWorktreeRemoveAndClose}
+/>

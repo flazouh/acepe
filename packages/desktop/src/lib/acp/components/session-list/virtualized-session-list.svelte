@@ -1,6 +1,5 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/messages.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { SessionItem } from "$lib/components/ui/session-item/index.js";
 import {
@@ -187,7 +186,7 @@ setSessionListHighlightContext(highlightContext);
 			/>
 			{#snippet failed(error, reset)}
 				<div class="px-3 py-1.5 text-[10px] text-muted-foreground">
-					{m.error_boundary_session_item_failed()}
+					{"Failed to render session."}
 				</div>
 			{/snippet}
 		</svelte:boundary>

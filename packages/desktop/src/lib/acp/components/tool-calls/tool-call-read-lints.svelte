@@ -2,7 +2,6 @@
 import type { LintDiagnostic } from "@acepe/ui/agent-panel";
 
 import { AgentToolReadLints } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 
@@ -71,13 +70,10 @@ const parsedResult = $derived.by(() => {
 	totalFiles={parsedResult.totalFiles}
 	diagnostics={parsedResult.diagnostics}
 	durationLabel={elapsedLabel ?? undefined}
-	runningLabel={m.tool_read_lints_running({})}
-	doneLabel={m.tool_read_lints_done({})}
-	noIssuesLabel={m.tool_read_lints_no_issues({})}
-	summaryLabel={m.tool_read_lints_summary({
-		count: parsedResult.totalDiagnostics,
-		files: parsedResult.totalFiles,
-	})}
-	ariaCollapse={m.tool_read_lints_aria_collapse({})}
-	ariaExpand={m.tool_read_lints_aria_expand({})}
+	runningLabel={"Checking lints"}
+	doneLabel={"Read lints"}
+	noIssuesLabel={"No issues"}
+	summaryLabel={`${parsedResult.totalDiagnostics} issues in ${parsedResult.totalFiles} files`}
+	ariaCollapse={"Collapse lint results"}
+	ariaExpand={"Expand lint results"}
 />

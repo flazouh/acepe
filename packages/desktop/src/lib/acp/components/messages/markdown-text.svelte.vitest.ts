@@ -21,10 +21,6 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
 }));
 
-vi.mock("$lib/messages.js", () => ({
-	markdown_render_error: ({ error }: { error: string }) => `Error rendering markdown: ${error}`,
-}));
-
 vi.mock("../../hooks/use-session-context.js", () => ({
 	useSessionContext: () => null,
 }));

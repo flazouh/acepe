@@ -1,2 +1,4 @@
 [build]
 rustc-wrapper = ""
+# Keep build artifacts inside each worktree instead of a shared machine-wide cache.
+target-dir = "target"

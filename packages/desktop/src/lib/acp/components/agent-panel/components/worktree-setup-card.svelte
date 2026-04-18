@@ -2,7 +2,6 @@
 import { AgentPanelWorktreeSetupCard as SharedAgentPanelWorktreeSetupCard } from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { WarningCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 
 interface Props {
@@ -12,10 +11,10 @@ interface Props {
 let { state: setupState }: Props = $props();
 
 const summaryText = $derived.by(() => {
-	if (setupState.status === "creating-worktree") return m.worktree_toggle_creating();
+	if (setupState.status === "creating-worktree") return "Creating worktree...";
 	if (setupState.status === "failed" && setupState.error) return setupState.error;
 	if (setupState.activeCommand) return setupState.activeCommand;
-	return m.settings_worktree_setup_running();
+	return "Running setup...";
 });
 
 const progressText = $derived.by(() => {
@@ -25,20 +24,20 @@ const progressText = $derived.by(() => {
 });
 const titleText = $derived.by(() => {
 	if (setupState.status === "failed") {
-		return m.settings_worktree_setup_failed();
+		return "Setup script failed";
 	}
 
 	if (setupState.status === "creating-worktree") {
-		return m.worktree_toggle_creating();
+		return "Creating worktree...";
 	}
 
-	return m.settings_worktree_setup_running();
+	return "Running setup...";
 });
 const detailsText = $derived(
 	setupState.outputText ||
 		(setupState.status === "creating-worktree"
-			? m.worktree_toggle_creating()
-			: m.settings_worktree_setup_running())
+			? "Creating worktree..."
+			: "Running setup...")
 );
 </script>
 

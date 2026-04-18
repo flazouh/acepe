@@ -3,8 +3,6 @@ import { BrandLockup, BrandShaderBackground, TextShimmer } from "@acepe/ui";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
-
 export type UpdateState = "checking" | "downloading" | "error";
 
 interface Props {
@@ -50,17 +48,17 @@ function formatBytes(bytes: number): string {
 		<div class="mt-5">
 			{#if updateState === "checking"}
 				<div class="flex flex-col gap-3">
-					<p class="text-[15px] font-medium text-white">{m.update_checking()}</p>
+					<p class="text-[15px] font-medium text-white">{"Checking for updates"}</p>
 					<div class="flex items-center gap-2.5">
 						<Spinner class="size-3.5 text-white/40" />
-						<span class="text-xs text-white/40">{m.update_checking_description()}</span>
+						<span class="text-xs text-white/40">{"Looking for the latest version..."}</span>
 					</div>
 				</div>
 			{:else if updateState === "downloading"}
 				<div class="flex flex-col gap-3">
 					<div class="flex items-baseline justify-between">
 						<TextShimmer class="text-[15px] font-medium text-white">
-							{m.update_downloading()}
+							{"Downloading update"}
 						</TextShimmer>
 						{#if downloadPercent != null}
 							<span class="text-xs tabular-nums text-white/50">{downloadPercent}%</span>
@@ -83,15 +81,15 @@ function formatBytes(bytes: number): string {
 								/ {formatBytes(total)}{/if}
 						</span>
 						{#if downloadPercent != null && downloadPercent >= 100}
-							<span>{m.update_installing()}</span>
+							<span>{"Installing update..."}</span>
 						{/if}
 					</div>
 				</div>
 			{:else if updateState === "error"}
 				<div class="flex flex-col gap-3">
-					<p class="text-[15px] font-medium text-white">{m.update_error()}</p>
+					<p class="text-[15px] font-medium text-white">{"Update failed"}</p>
 					<p class="text-xs leading-relaxed text-white/40">
-						{errorMessage ?? m.update_error_description()}
+						{errorMessage ?? "Something went wrong while updating. Please check your connection and try again."}
 					</p>
 					<div class="mt-1">
 						<Button
@@ -100,7 +98,7 @@ function formatBytes(bytes: number): string {
 							onclick={onRetry}
 							class="group gap-1.5 h-7 px-3 text-xs"
 						>
-							{m.update_retry()}
+							{"Retry"}
 							<RefreshCw class="size-3 transition-transform duration-200 group-hover:rotate-180" />
 						</Button>
 					</div>

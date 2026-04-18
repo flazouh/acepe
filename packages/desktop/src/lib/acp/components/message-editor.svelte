@@ -3,8 +3,6 @@ import { IconSend } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import * as m from "$lib/messages.js";
-
 import type { ContentBlock } from "../../services/converted-session-types.js";
 
 let {
@@ -54,7 +52,7 @@ function handleKeyDown(event: KeyboardEvent) {
 		bind:ref={textareaRef}
 		bind:value={message}
 		onkeydown={handleKeyDown}
-		placeholder={m.message_editor_placeholder()}
+		placeholder={"Type your message... (Enter to send, Shift+Enter for newline)"}
 		disabled={isLoading || disabled}
 		class="min-h-[60px] max-h-[200px] resize-none"
 		rows={3}

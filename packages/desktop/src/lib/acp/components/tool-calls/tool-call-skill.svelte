@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolSkill } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -48,11 +47,11 @@ const agentStatus = $derived.by(() => {
 	description={skillMeta?.description ?? null}
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}
-	loadingLabel={m.tool_skill_loading()}
-	fallbackLabel={m.tool_skill_fallback()}
-	runningStatusLabel={m.tool_skill_status_running()}
-	doneStatusLabel={m.tool_skill_status_done()}
-	ariaExpandLabel={m.aria_expand()}
-	ariaCollapseLabel={m.aria_collapse()}
-	ariaExpandDescriptionLabel={m.aria_expand_description()}
+	loadingLabel={"Loading skill"}
+	fallbackLabel={"Skill"}
+	runningStatusLabel={"Running"}
+	doneStatusLabel={"Done"}
+	ariaExpandLabel={"Expand"}
+	ariaCollapseLabel={"Collapse"}
+	ariaExpandDescriptionLabel={"Expand to see full description"}
 />

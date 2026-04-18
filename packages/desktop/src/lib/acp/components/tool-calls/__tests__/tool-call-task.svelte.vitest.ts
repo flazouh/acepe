@@ -23,12 +23,6 @@ vi.mock("@acepe/ui/agent-panel", async () => {
 	};
 });
 
-vi.mock("$lib/messages.js", () => ({
-	tool_task_running_fallback: () => "Running task",
-	tool_task_fallback: () => "Task",
-	tool_task_result_label: () => "Result",
-}));
-
 const getStreamingArgumentsMock = vi.fn(() => null);
 
 vi.mock("../../../store/index.js", () => ({

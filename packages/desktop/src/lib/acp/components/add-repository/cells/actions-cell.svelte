@@ -2,8 +2,6 @@
 import { Button } from "@acepe/ui/button";
 import { CheckCircle } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
-
 interface Props {
 	isAdded: boolean;
 }
@@ -19,7 +17,7 @@ let { isAdded }: Props = $props();
 		disabled={true}
 	>
 		<CheckCircle weight="fill" size={12} class="text-green-500" />
-		{m.open_project_added()}
+		{"Added"}
 	</Button>
 {:else}
 	<Button
@@ -28,6 +26,6 @@ let { isAdded }: Props = $props();
 		class="gap-1 opacity-0 transition-opacity group-hover:opacity-100"
 	>
 		<DownloadSimple size={12} />
-		{m.open_project_import()}
+		{"Import"}
 	</Button>
 {/if}

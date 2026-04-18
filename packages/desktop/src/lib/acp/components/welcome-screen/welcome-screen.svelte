@@ -17,7 +17,6 @@ import {
 	openIssueReportDraft,
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
-import * as m from "$lib/messages.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
 
@@ -127,7 +126,7 @@ async function handleOnboardingImport(path: string, name: string) {
 			onboardingImportProjectPath = null;
 			onboardingImportProjectName = null;
 			onboardingAddedPaths = new Set([...onboardingAddedPaths, path]);
-			toast.success(m.open_project_added_toast({ name }));
+			toast.success(`${name} added to repositories`);
 		},
 		(error) => {
 			if (!isUnexpectedOnboardingImportError(error)) {
@@ -357,9 +356,9 @@ async function finishOnboarding(): Promise<void> {
 
 			<!-- Center: Welcome Message -->
 			<div class="flex-1 flex flex-col justify-center gap-4">
-				<h1 class="text-3xl font-bold text-foreground">{m.splash_welcome()}</h1>
+				<h1 class="text-3xl font-bold text-foreground">{"Welcome to Acepe"}</h1>
 				<p class="text-base text-muted-foreground max-w-lg">
-					{m.splash_description()}
+					{"Your unified interface for AI coding agents. Work with Claude, Copilot, Codex, and other agents in parallel, all in one place."}
 				</p>
 			</div>
 
@@ -377,7 +376,7 @@ async function finishOnboarding(): Promise<void> {
 						class="group/open-pr h-9 gap-2 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
 						onclick={advanceFromSplash}
 					>
-						<span>{m.splash_enter()}</span>
+						<span>{"Get Started"}</span>
 					</Button>
 				</div>
 			</div>
@@ -400,9 +399,9 @@ async function finishOnboarding(): Promise<void> {
 			{#if onboardingStep === "agents"}
 				<div class="space-y-6">
 					<div class="text-center space-y-2">
-						<h2 class="text-2xl font-semibold">{m.welcome_choose_agents()}</h2>
+						<h2 class="text-2xl font-semibold">{"Choose your agents"}</h2>
 						<p class="text-sm text-muted-foreground">
-							{m.welcome_agents_description()}
+							{"Select one or more AI agents to use. You can always change this later in settings."}
 						</p>
 					</div>
 
@@ -437,7 +436,7 @@ async function finishOnboarding(): Promise<void> {
 								disabled={onboardingSelectedAgents.length === 0}
 								onclick={() => (onboardingStep = "projects")}
 							>
-								{m.common_confirm()}
+								{"Confirm"}
 							</Button>
 						</div>
 					</div>
@@ -465,9 +464,9 @@ async function finishOnboarding(): Promise<void> {
 					{/if}
 					{#if filteredProjects.length === 0 && !onboardingProjectsLoading}
 						<div class="flex flex-col items-center justify-center py-12 text-center space-y-3">
-							<p class="text-sm text-muted-foreground">{m.onboarding_projects_no_match()}</p>
+							<p class="text-sm text-muted-foreground">{"No projects found with selected agents"}</p>
 							<p class="text-xs text-muted-foreground/70">
-								{m.onboarding_projects_change_agents()}
+								{"Go back to select different agents, or skip importing for now."}
 							</p>
 						</div>
 					{:else}
@@ -490,12 +489,12 @@ async function finishOnboarding(): Promise<void> {
 								class="h-9 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
 								onclick={() => (onboardingStep = "agents")}
 							>
-								{m.common_back()}
+								{"Back"}
 							</Button>
 						</div>
 						<div class="flex gap-3">
 							<PillButton variant="ghost" onclick={() => finishOnboarding()}>
-								{m.welcome_skip_for_now()}
+								{"Skip for now"}
 							</PillButton>
 							<div class="flex items-center rounded-xl border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0">
 								<Button
@@ -504,7 +503,7 @@ async function finishOnboarding(): Promise<void> {
 									class="h-9 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
 									onclick={() => finishOnboarding()}
 								>
-									{m.welcome_finish()}
+									{"Finish"}
 								</Button>
 							</div>
 						</div>
@@ -513,7 +512,7 @@ async function finishOnboarding(): Promise<void> {
 			{:else}
 				<div class="flex flex-col items-center justify-center py-12 gap-3">
 					<Spinner class="h-8 w-8" />
-					<p class="text-sm text-muted-foreground">{onboardingBusyMessage || m.common_loading()}</p>
+					<p class="text-sm text-muted-foreground">{onboardingBusyMessage || "Loading..."}</p>
 				</div>
 			{/if}
 		</div>

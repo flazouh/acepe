@@ -2,7 +2,6 @@
 import { Warning } from "phosphor-svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/messages.js";
 import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
@@ -87,7 +86,7 @@ async function handleResetDatabase() {
 	<!-- Danger Zone — standalone emphasized card (per R18) -->
 	<div class="mt-16">
 		<SettingsSectionHeader
-			title={m.settings_danger_zone()}
+			title={"Danger Zone"}
 			description="Reset local app data and start fresh."
 		/>
 		<div class="overflow-hidden rounded-lg bg-destructive/5 shadow-sm">
@@ -95,9 +94,9 @@ async function handleResetDatabase() {
 				<div class="flex items-center gap-2 min-w-0">
 					<Warning class="size-3.5 text-destructive shrink-0" weight="fill" />
 					<div class="min-w-0">
-						<p class="text-[13px] font-medium">{m.settings_reset_database()}</p>
+						<p class="text-[13px] font-medium">{"Reset Database"}</p>
 						<p class="text-[12px] text-muted-foreground/60">
-							{m.settings_reset_database_description()}
+							{"Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."}
 						</p>
 					</div>
 				</div>
@@ -106,7 +105,7 @@ async function handleResetDatabase() {
 					class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
 					onclick={() => (showResetConfirm = true)}
 				>
-					{m.settings_reset_database()}
+					{"Reset Database"}
 				</button>
 			</div>
 		</div>
@@ -117,18 +116,18 @@ async function handleResetDatabase() {
 <AlertDialog.Root bind:open={showResetConfirm}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title>{m.settings_reset_database_confirm_title()}</AlertDialog.Title>
+			<AlertDialog.Title>{"Reset Database?"}</AlertDialog.Title>
 			<AlertDialog.Description>
-				{m.settings_reset_database_confirm_description()}
+				{"This will permanently delete the local SQLite database containing all your projects, API keys, preferences, and session history. Your session files on disk will not be affected. This action cannot be undone."}
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{m.common_cancel()}</AlertDialog.Cancel>
+			<AlertDialog.Cancel>{"Cancel"}</AlertDialog.Cancel>
 			<AlertDialog.Action
 				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 				onclick={handleResetDatabase}
 			>
-				{m.settings_reset_database_reset_button()}
+				{"Reset Database"}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

@@ -1,7 +1,6 @@
 <script lang="ts">
 import { onMount, tick } from "svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { TaskProgress } from "../application/dto/task-progress.js";
@@ -183,7 +182,7 @@ $effect(() => {
 					</div>
 				</div>
 
-				<p class="text-xs text-muted-foreground text-center mt-3">{m.thread_view_resizing()}</p>
+				<p class="text-xs text-muted-foreground text-center mt-3">{"Resizing..."}</p>
 			</div>
 		</div>
 	{:else}
@@ -199,7 +198,7 @@ $effect(() => {
 			<!-- Status indicators at the bottom (outside virtual list) -->
 			{#if session.status === "connecting"}
 				<div class="px-4 py-3 text-muted-foreground border-t border-border/50">
-					<span class="text-sm">{m.thread_view_connecting()}</span>
+					<span class="text-sm">{"Connecting..."}</span>
 				</div>
 			{/if}
 

@@ -19,7 +19,6 @@ import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Result } from "neverthrow";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
-import * as m from "$lib/messages.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 import { renderMarkdownSync } from "../../utils/markdown-renderer.js";
@@ -122,7 +121,7 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 			title: displayTitle,
 			descriptionHtml: streamingDescriptionHtml,
 			isStreaming,
-			generatingLabel: m.pr_card_generating(),
+			generatingLabel: "Generating...",
 		};
 	}
 
@@ -130,7 +129,7 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 		return {
 			mode: "creating",
 			number: prNumber,
-			creatingLabel: m.pr_card_creating(),
+			creatingLabel: "Creating PR...",
 		};
 	}
 

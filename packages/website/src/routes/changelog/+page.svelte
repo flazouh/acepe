@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { ChangeType } from "@acepe/changelog";
 import { CHANGELOG, groupChangesByType } from "@acepe/changelog";
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { Bug, Lightning, RocketLaunch, Warning } from "phosphor-svelte";
 
@@ -27,8 +26,8 @@ function formatDate(dateStr: string): string {
 </script>
 
 <svelte:head>
-	<title>{m.changelog_page_title()} - Acepe</title>
-	<meta name="description" content={m.changelog_page_description()} />
+	<title>{"Changelog"} - Acepe</title>
+	<meta name="description" content={"What's new in Acepe. Updates are listed newest first."} />
 </svelte:head>
 
 <div class="min-h-screen">
@@ -44,8 +43,8 @@ function formatDate(dateStr: string): string {
 				<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">//</span>
 				<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">releases</span>
 			</div>
-			<h1 class="mb-2 text-2xl font-semibold tracking-[-0.03em] md:text-[36px]">{m.changelog_page_title()}</h1>
-			<p class="font-mono text-xs text-muted-foreground/50">{m.changelog_page_description()}</p>
+			<h1 class="mb-2 text-2xl font-semibold tracking-[-0.03em] md:text-[36px]">{"Changelog"}</h1>
+			<p class="font-mono text-xs text-muted-foreground/50">{"What's new in Acepe. Updates are listed newest first."}</p>
 		</div>
 
 		<!-- Entries -->

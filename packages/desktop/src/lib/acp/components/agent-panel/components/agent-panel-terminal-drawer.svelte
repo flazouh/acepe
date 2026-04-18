@@ -13,7 +13,6 @@ import { X } from "phosphor-svelte";
 import { onMount } from "svelte";
 import type { EmbeddedTerminalTab } from "$lib/acp/store/embedded-terminal-store.svelte.js";
 import { EmbeddedTerminalStore } from "$lib/acp/store/embedded-terminal-store.svelte.js";
-import * as m from "$lib/messages.js";
 import { shell } from "$lib/utils/tauri-client/shell.js";
 
 import { TerminalRenderer } from "../../terminal-panel/index.js";
@@ -156,12 +155,12 @@ function handleResizePointerUp(): void {
 				onclick={() => handleSelectTab(tab.id)}
 				onkeydown={(e) => e.key === 'Enter' && handleSelectTab(tab.id)}
 			>
-				<span>{m.terminal_panel_title()} {i + 1}</span>
+				<span>{"Terminal"} {i + 1}</span>
 				<button
 					type="button"
 					class="inline-flex h-4 w-4 items-center justify-center rounded
 						opacity-50 hover:opacity-100 hover:bg-muted-foreground/10 cursor-pointer"
-					title={m.embedded_terminal_close_tab_tooltip()}
+					title={"Close terminal"}
 					onclick={(e) => {
 						e.stopPropagation();
 						handleCloseTab(tab.id);
@@ -176,7 +175,7 @@ function handleResizePointerUp(): void {
 			type="button"
 			class="h-7 w-7 inline-flex items-center justify-center border-l border-border/50
 				text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer"
-			title={m.terminal_new_tab()}
+			title={"New terminal"}
 			onclick={handleAddTab}
 		>
 			<Plus size={12} weight="bold" />
@@ -198,17 +197,17 @@ function handleResizePointerUp(): void {
 				{/each}
 			{:else if shellError}
 				<div class="flex items-center justify-center h-full text-sm text-destructive p-4">
-					{m.terminal_shell_error({ error: shellError })}
+					{`Failed to detect shell: ${shellError}`}
 				</div>
 			{:else}
 				<div class="flex items-center justify-center h-full text-sm text-muted-foreground">
-					{m.terminal_loading_shell()}
+					{"Detecting shell..."}
 				</div>
 			{/if}
 
 			{#snippet failed(error)}
 				<div class="flex items-center justify-center h-full text-sm text-destructive p-4">
-					{m.embedded_terminal_error_fallback()}
+					{"Terminal failed to load. Close and reopen the drawer to retry."}
 				</div>
 			{/snippet}
 		</svelte:boundary>

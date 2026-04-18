@@ -2,7 +2,6 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
-import * as m from "$lib/messages.js";
 import { tauriClient } from "../../../../utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type {
@@ -155,7 +154,7 @@ export class VoiceInputState {
 				if (text) {
 					this.onTranscriptionReady?.(text);
 				} else {
-					toast.info(m.voice_no_speech_detected());
+					toast.info("No speech detected");
 				}
 				this.transitionTo("complete");
 				// Auto-advance complete → idle (no timer needed — fire immediately)
@@ -370,7 +369,7 @@ export class VoiceInputState {
 			(err: AppError) => {
 				log("stopRecording: FAILED", { error: err.message });
 				this.clearWatchdog();
-				this.setError(err.message ?? m.voice_error_stop_failed());
+				this.setError(err.message ?? "Failed to stop recording");
 			}
 		);
 	}
@@ -443,7 +442,7 @@ export class VoiceInputState {
 						(err: AppError) => {
 							log("downloadModel: FAILED", { error: err.message });
 							this.activeDownloadModelId = null;
-							this.setError(err.message ?? m.voice_error_download_failed());
+							this.setError(err.message ?? "Model download failed");
 						}
 					);
 				} else if (modelInfo.is_loaded) {
@@ -458,7 +457,7 @@ export class VoiceInputState {
 			},
 			(err: AppError) => {
 				log("getModelStatus: FAILED", { error: err.message });
-				this.setError(err.message ?? m.voice_error_model_status_failed());
+				this.setError(err.message ?? "Failed to check model status");
 			}
 		);
 	}
@@ -489,7 +488,7 @@ export class VoiceInputState {
 			(err: AppError) => {
 				log("loadModel: FAILED", { error: err.message });
 				this.isLoadingModel = false;
-				this.setError(err.message ?? m.voice_error_load_failed());
+				this.setError(err.message ?? "Failed to load model");
 			}
 		);
 	}
@@ -503,7 +502,7 @@ export class VoiceInputState {
 			},
 			(err: AppError) => {
 				log("startRecording: FAILED", { error: err.message });
-				this.setError(err.message ?? m.voice_error_start_failed());
+				this.setError(err.message ?? "Failed to start recording");
 			}
 		);
 	}
@@ -555,7 +554,7 @@ export class VoiceInputState {
 			this.transcribingWatchdogTimer = null;
 			if (this.phase === "transcribing") {
 				log("transcribing watchdog fired — timeout");
-				this.setError(m.voice_error_transcription_timeout());
+				this.setError("Transcription timed out");
 			}
 		}, TRANSCRIBING_WATCHDOG_MS);
 	}

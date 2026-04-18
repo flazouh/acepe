@@ -3,7 +3,6 @@
 	import { X } from "phosphor-svelte";
 	import { Kbd } from "$lib/components/ui/kbd/index.js";
 	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import * as m from "$lib/messages.js";
 	import { tauriClient } from "$lib/utils/tauri-client.js";
 
 	interface Props {
@@ -92,7 +91,7 @@
 		class="w-full py-2 text-center text-[0.6875rem] text-muted-foreground hover:text-foreground transition-colors"
 		onclick={() => void load()}
 	>
-		{m.setup_scripts_load_failed_title()} · {m.setup_scripts_retry_label()}
+		{"Could not load setup scripts"} · {"Retry"}
 	</button>
 {:else}
 	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
@@ -122,7 +121,7 @@
 				bind:this={inputEl}
 				type="text"
 				bind:value={newCommand}
-				placeholder={hasCommands ? m.setup_scripts_add_placeholder() : m.settings_worktrees_setup_description()}
+				placeholder={hasCommands ? "add a command..." : "Commands run after creating a worktree (e.g., install dependencies)"}
 				disabled={isSaving}
 				class="min-w-0 flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
 				onkeydown={handleKeydown}

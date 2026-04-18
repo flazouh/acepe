@@ -1,8 +1,6 @@
 <script lang="ts">
 import { Badge } from "$lib/components/ui/badge/index.js";
 import { Card } from "$lib/components/ui/card/index.js";
-import * as m from "$lib/messages.js";
-
 import type { ToolCall } from "../types/tool-call.js";
 
 let { toolCall }: { toolCall: ToolCall } = $props();
@@ -37,7 +35,7 @@ const statusColor = $derived.by(() => {
 			{/if}
 			{#if toolCall.result !== undefined}
 				<div class="text-sm">
-					<strong>{m.tool_call_result_label()}</strong>
+					<strong>{"Result:"}</strong>
 					<pre class="whitespace-pre-wrap mt-1">{JSON.stringify(toolCall.result, null, 2)}</pre>
 				</div>
 			{/if}

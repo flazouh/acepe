@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Pagination as PaginationPrimitive } from "bits-ui";
 
-import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 
 let {
@@ -19,7 +18,7 @@ let {
 	bind:ref
 	bind:page
 	role="navigation"
-	aria-label={m.aria_pagination()}
+	aria-label={"pagination"}
 	data-slot="pagination"
 	class={cn("mx-auto flex w-full justify-center", className)}
 	{count}

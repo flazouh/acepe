@@ -1,7 +1,6 @@
 <script lang="ts">
 import { TextShimmer } from "@acepe/ui";
 
-import * as m from "$lib/messages.js";
 import type { TodoStatus } from "$lib/services/converted-session-types.js";
 
 import {
@@ -27,16 +26,16 @@ const isRunning = $derived(status === "in_progress" && isLive);
 
 {#if status === "completed"}
 	<span class={TODO_BADGE_BASE_CLASSES}>
-		{@html TODO_ICON_COMPLETED}{m.plan_sidebar_todo_done()}</span
+		{@html TODO_ICON_COMPLETED}{"Done"}</span
 	>
 {:else if status === "cancelled"}
 	<span class={TODO_BADGE_BASE_CLASSES}>
-		{@html TODO_ICON_CANCELLED}{m.plan_sidebar_todo_cancelled()}</span
+		{@html TODO_ICON_CANCELLED}{"Cancelled"}</span
 	>
 {:else if isRunning}
 	<span class={TODO_BADGE_BASE_CLASSES}>
-		<TextShimmer class="text-[0.6875rem]">{m.plan_sidebar_todo_running()}</TextShimmer></span
+		<TextShimmer class="text-[0.6875rem]">{"Running"}</TextShimmer></span
 	>
 {:else}
-	<span class={TODO_BADGE_BASE_CLASSES}>{m.plan_sidebar_todo_pending()}</span>
+	<span class={TODO_BADGE_BASE_CLASSES}>{"Pending"}</span>
 {/if}

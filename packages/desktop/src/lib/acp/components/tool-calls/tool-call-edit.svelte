@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
@@ -143,14 +142,14 @@ const themeNames = { dark: "Cursor Dark", light: "pierre-light" };
 	{workerPool}
 	onBeforeRender={registerCursorThemeForPierreDiffs}
 	unsafeCSS={pierreDiffsUnsafeCSS}
-	editingLabel={m.tool_edit_editing()}
-	editedLabel={m.tool_edit_edited()}
-	awaitingApprovalLabel={m.tool_edit_awaiting_approval()}
-	interruptedLabel={m.tool_edit_interrupted()}
-	failedLabel={m.tool_edit_failed()}
-	pendingLabel={m.tool_edit_pending()}
-	preparingLabel={m.tool_edit_preparing_label()}
-	ariaCollapseDiff={m.aria_collapse_diff()}
-	ariaExpandDiff={m.aria_expand_diff()}
+	editingLabel={"Editing"}
+	editedLabel={"Edited"}
+	awaitingApprovalLabel={"Awaiting approval"}
+	interruptedLabel={"Interrupted"}
+	failedLabel={"Failed"}
+	pendingLabel={"Pending"}
+	preparingLabel={"Preparing edit…"}
+	ariaCollapseDiff={"Collapse diff"}
+	ariaExpandDiff={"Expand diff"}
 	{defaultExpanded}
 />

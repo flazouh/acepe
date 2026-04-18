@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolTask } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -54,7 +53,7 @@ const children = $derived(
 	showDoneIcon={toolStatus.isSuccess}
 	iconBasePath="/svgs/icons"
 	durationLabel={elapsedLabel ?? undefined}
-	runningFallback={m.tool_task_running_fallback()}
-	doneFallback={m.tool_task_fallback()}
-	resultLabel={m.tool_task_result_label()}
+	runningFallback={"Running task…"}
+	doneFallback={"Task"}
+	resultLabel={"Result"}
 />

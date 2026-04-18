@@ -13,7 +13,6 @@
 <script lang="ts">
 	import { VoiceDownloadProgress } from "@acepe/ui";
 	import { Microphone } from "phosphor-svelte";
-	import * as m from "$lib/messages.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -68,16 +67,16 @@ const visualState = $derived(getMicButtonVisualState(voiceState.phase));
 
 const title = $derived(
 	isDownloading
-		? m.voice_downloading_model()
+		? "Downloading speech model…"
 		: isLoadingModel
 			? "Loading model…"
 			: isCheckingPermission
 				? "Checking…"
 				: isTranscribing
-					? m.voice_transcribing()
+					? "Transcribing…"
 					: isRecording
-						? m.voice_stop_recording()
-						: m.voice_start_recording()
+						? "Stop recording"
+						: "Start voice recording"
 );
 
 const hoverTitle = $derived(visualState === "mic" ? "Hold Right ⌥ to talk" : title);

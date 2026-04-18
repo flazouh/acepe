@@ -13,8 +13,7 @@
 			"!**/.svelte-kit",
 			"!**/build",
 			"!**/dist",
-			"!src/app.css",
-			"!src/lib/paraglide"
+			"!src/app.css"
 		]
 	},
 	"css": {
@@ -59,8 +58,7 @@
 			"!.svelte-kit/**",
 			"!build/**",
 			"!dist/**",
-			"!src/app.css",
-			"!src/lib/paraglide/**"
+			"!src/app.css"
 		]
 	},
 	"overrides": [

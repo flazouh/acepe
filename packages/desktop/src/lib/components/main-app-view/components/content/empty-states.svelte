@@ -25,7 +25,6 @@ import {
 	openIssueReportDraft,
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
-import * as m from "$lib/messages.js";
 import { toast } from "svelte-sonner";
 
 import {
@@ -541,7 +540,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 		</div>
 	{:else}
 		<p class="text-muted-foreground text-sm">
-			{m.empty_panel_description()}
+			{"Create a new session to begin working with an AI agent on your project."}
 		</p>
 	{/if}
 	</div>

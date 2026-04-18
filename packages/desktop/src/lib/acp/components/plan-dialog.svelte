@@ -10,8 +10,6 @@ import {
 import { DownloadSimple } from "phosphor-svelte";
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
-import * as m from "$lib/messages.js";
-
 import type { SessionPlanResponse } from "../../services/claude-history.js";
 
 import { useSessionContext } from "../hooks/use-session-context.js";
@@ -40,7 +38,7 @@ function downloadAsMarkdown() {
 	a.click();
 	document.body.removeChild(a);
 	URL.revokeObjectURL(url);
-	toastSuccess(m.plan_downloaded());
+	toastSuccess("Plan downloaded");
 }
 </script>
 
@@ -63,8 +61,8 @@ function downloadAsMarkdown() {
 			<HeaderActionCell withDivider={false}>
 				<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 				<EmbeddedIconButton
-					title={m.plan_download()}
-					ariaLabel={m.plan_download()}
+					title={"Download"}
+					ariaLabel={"Download"}
 					onclick={downloadAsMarkdown}
 				>
 					<DownloadSimple size={14} weight="bold" />

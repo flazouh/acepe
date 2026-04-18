@@ -148,7 +148,9 @@ pub async fn benchmark_all_sessions() -> anyhow::Result<BenchmarkStats> {
 
                 // Convert to entries to get entry count
                 let converted =
-                    crate::session_converter::convert_claude_full_session_to_entries(&full_session);
+                    crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                        &full_session,
+                    );
 
                 results.push(SessionResult {
                     session_id: session.session_id.clone(),

@@ -1,29 +1,11 @@
 <script lang="ts">
-import { IconArrowUp } from "@tabler/icons-svelte";
-import { Result } from "neverthrow";
-import { ImageSquare } from "phosphor-svelte";
-import { Stop } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
-import { Button } from "$lib/components/ui/button/index.js";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
-import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
-import * as m from "$lib/messages.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
-	AgentInputArtefactBadge,
-	AgentInputConfigOptionSelector,
-	AgentInputMicButton,
-	AgentInputModeSelector,
-	AgentInputFilePickerDropdown,
-	AgentInputPastedTextOverlay,
-	AgentInputSlashCommandDropdown,
-	AgentInputVoiceModelMenu,
-	AgentInputVoiceRecordingOverlay,
+	AgentInputComposerToolbar,
 	AgentPanelComposer as SharedAgentPanelComposer,
 	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
@@ -38,23 +20,20 @@ import {
 } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
-import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
-import { SoundEffect } from "../../types/sounds.js";
-import { playSound } from "../../utils/sound.js";
 import { createLogger } from "../../utils/logger.js";
 import { filterVisibleModes } from "../../utils/mode-filter.js";
-import FilePreview from "../file-picker/file-preview.svelte";
+import { resolvePanelDraftOnMount } from "./services/index.js";
+import AgentInputComposerBody from "./components/agent-input-composer-body.svelte";
+import AgentInputDropZone from "./components/agent-input-drop-zone.svelte";
+import { decodeInlineTextTokenValue, truncateHoverPreview } from "./logic/inline-token-preview.js";
+import { handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule } from "./logic/voice-mic-keyboard.js";
+import { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
+import { toVoiceToolbarBinding } from "./logic/voice-toolbar-binding.js";
 import { ModelSelector } from "../index.js";
 import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
-import { runWorktreeSetup } from "../worktree/worktree-setup-orchestrator.js";
-import { getMicButtonVisualState } from "./components/mic-button-state.js";
 import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
 import { VoiceInputState } from "./state/voice-input-state.svelte.js";
-import {
-	canCancelVoiceInteraction,
-	canStartVoiceInteraction,
-	shouldShowVoiceOverlay,
-} from "./logic/voice-ui-state.js";
+import { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
 	findInlineArtefactRangeAtPosition,
@@ -83,7 +62,6 @@ import {
 	shouldShowSlashCommandDropdown,
 } from "./logic/slash-command-source.js";
 import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
-import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 import { type SubmitIntent } from "../../logic/submit-intent.js";
 import {
 	deriveComposerInteractionState,
@@ -97,17 +75,6 @@ import {
 import { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 import { resolveAutonomousSupport } from "./logic/autonomous-support.js";
 import { getToolbarConfigOptions } from "./logic/toolbar-config-options.js";
-import { createPendingUserEntry } from "./logic/pending-user-entry.js";
-import {
-	shouldClearPersistedDraftBeforeAsyncSend,
-	shouldRestoreInitialDraft,
-} from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
-import {
-	formatPreSessionSendFailure,
-	restoreComposerStateAfterFailedSend,
-	type ComposerRestoreSnapshot,
-} from "./logic/first-send-recovery.js";
-import { findErrorReference } from "$lib/errors/error-reference.js";
 import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 import {
 	shouldRouteWindowVoiceHold,
@@ -116,7 +83,7 @@ import {
 } from "./logic/voice-keyboard.js";
 import { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
 import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
-import { SessionCreationError } from "./errors/agent-input-error.js";
+import { createAgentInputController } from "./agent-input-controller.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
@@ -149,6 +116,28 @@ let voiceStatePendingSessionId: string | null = $state(null);
 let voiceStateInitGeneration = 0;
 let autonomousStatusMessage = $state("");
 const voiceEnabled = $derived(voiceSettingsStore.enabled);
+const voiceToolbarBinding = $derived(toVoiceToolbarBinding(voiceState));
+const voiceMicTooltipLabels = $derived.by(() => ({
+	downloadingModel: "Downloading speech model…",
+	loadingModel: "Loading model...",
+	checkingPermission: "Checking...",
+	transcribing: "Transcribing…",
+	stopRecording: "Stop recording",
+	startRecording: "Start voice recording",
+}));
+const voiceRecordingOverlayPhase = $derived.by((): "checking_permission" | "recording" | "error" => {
+	const v = voiceState;
+	if (!v) {
+		return "error";
+	}
+	if (v.phase === "checking_permission") {
+		return "checking_permission";
+	}
+	if (v.phase === "recording") {
+		return "recording";
+	}
+	return "error";
+});
 const voiceOverlayActive = $derived.by(() => {
 	const currentVoiceState = voiceState;
 	if (currentVoiceState === null) {
@@ -565,23 +554,6 @@ const composerInteraction = $derived.by(() => {
 		isComposerDispatching: isDispatching,
 	});
 });
-const HOVER_PREVIEW_MAX_CHARS = 500;
-
-function truncateHoverContent(value: string): string {
-	if (value.length <= HOVER_PREVIEW_MAX_CHARS) {
-		return value;
-	}
-	return `${value.slice(0, HOVER_PREVIEW_MAX_CHARS)}…`;
-}
-
-function decodeInlineTextTokenValue(value: string): string | null {
-	const result = Result.fromThrowable(
-		(v: string) => decodeURIComponent(escape(atob(v))),
-		() => new Error("Invalid base64 or URI")
-	)(value);
-	return result.isOk() ? result.value : null;
-}
-
 function applyInlineTokenHoverTitles(): void {
 	if (!editorRef) {
 		return;
@@ -610,7 +582,7 @@ function applyInlineTokenHoverTitles(): void {
 
 		if (tokenType === "text") {
 			const decoded = decodeInlineTextTokenValue(tokenValue);
-			node.setAttribute("title", truncateHoverContent(decoded ?? "Pasted text"));
+			node.setAttribute("title", truncateHoverPreview(decoded ?? "Pasted text"));
 			continue;
 		}
 
@@ -635,6 +607,60 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 	});
 	applyInlineTokenHoverTitles();
 	setSerializedCursorOffset(editorRef, nextCursor ?? inputState.message.length);
+}
+
+async function handleCancel() {
+	if (props.sessionId) {
+		const result = await sessionStore.cancelStreaming(props.sessionId);
+		if (result.isErr()) {
+			console.error("Failed to cancel streaming:", result.error);
+		}
+	}
+}
+
+const agentInputController = createAgentInputController({
+	getProps: () => props,
+	inputState,
+	getComposerInteraction: () => composerInteraction,
+	getAutonomousToggleActive: () => autonomousToggleActive,
+	getProvisionalModeId: () => provisionalModeId,
+	getProvisionalModelId: () => provisionalModelId,
+	getIsStreaming: () => isStreaming,
+	sessionStore,
+	panelStore,
+	connectionStore,
+	messageQueueStore,
+	logger,
+	syncEditorFromMessage,
+	getEditorRef: () => editorRef,
+	getLastDraftValue: () => lastDraftValue,
+	setLastDraftValue: (v) => {
+		lastDraftValue = v;
+	},
+	getDraftDebounceTimer: () => draftDebounceTimer,
+	setDraftDebounceTimer: (t) => {
+		draftDebounceTimer = t;
+	},
+	handleCancel,
+});
+
+const {
+	notifyDraftChange,
+	clearDraft,
+	captureAndClearInput,
+	createComposerRestoreSnapshot,
+	applyComposerRestoreSnapshot,
+	handleSend,
+	handleSteer,
+	handlePrimaryButtonClick,
+} = agentInputController;
+
+export function retrySend(): void {
+	agentInputController.retrySend();
+}
+
+export function restoreQueuedMessage(draft: string, attachments: readonly Attachment[]): void {
+	agentInputController.restoreQueuedMessage(draft, attachments);
 }
 
 function getCaretDropdownPosition(): { top: number; left: number } | null {
@@ -904,27 +930,27 @@ onMount(() => {
 			hasPendingWorktreeSetup: panelHotState?.pendingWorktreeSetup !== null,
 			messageLengthBeforeRestore: inputState.message.length,
 		});
-		if (pendingComposerRestore !== null) {
-			applyComposerRestoreSnapshot(pendingComposerRestore);
+		const resolution = resolvePanelDraftOnMount({
+			panelId: props.panelId,
+			sessionId: props.sessionId,
+			pendingComposerRestore,
+			storedDraft: draft,
+			hasPendingUserEntry,
+		});
+		if (resolution.kind === "pending_snapshot") {
+			applyComposerRestoreSnapshot(resolution.snapshot);
 			logger.info("[first-send-trace] restored pending composer snapshot on mount", {
 				panelId: props.panelId,
 				sessionId: props.sessionId ?? null,
-				draftLength: pendingComposerRestore.draft.length,
+				draftLength: resolution.snapshot.draft.length,
 			});
-		} else if (
-			shouldRestoreInitialDraft({
-				panelId: props.panelId,
-				sessionId: props.sessionId,
-				draft,
-				hasPendingUserEntry,
-			})
-		) {
-			inputState.message = draft;
-			lastDraftValue = draft;
+		} else if (resolution.kind === "initial_draft") {
+			inputState.message = resolution.draft;
+			lastDraftValue = resolution.draft;
 			logger.info("[first-send-trace] restored initial draft on mount", {
 				panelId: props.panelId,
 				sessionId: props.sessionId ?? null,
-				draftLength: draft.length,
+				draftLength: resolution.draft.length,
 			});
 		} else {
 			logger.info("[first-send-trace] skipped draft restore on mount", {
@@ -972,493 +998,6 @@ onDestroy(() => {
 	}
 	inputState.destroy();
 });
-
-// Debounced draft change notification - saves to PanelStore
-function notifyDraftChange(draft: string) {
-	if (!props.panelId) return;
-	if (draftDebounceTimer) {
-		clearTimeout(draftDebounceTimer);
-	}
-	draftDebounceTimer = setTimeout(() => {
-		if (props.panelId) {
-			panelStore.setMessageDraft(props.panelId, draft);
-		}
-	}, 500); // 500ms debounce for draft persistence
-}
-
-// Clear draft from panel store (called after message is sent)
-function clearDraft() {
-	if (props.panelId) {
-		// Cancel any pending debounced draft save
-		if (draftDebounceTimer) {
-			clearTimeout(draftDebounceTimer);
-			draftDebounceTimer = null;
-		}
-		lastDraftValue = "";
-		panelStore.setMessageDraft(props.panelId, "");
-		logger.info("[first-send-trace] cleared persisted draft", {
-			panelId: props.panelId,
-			sessionId: props.sessionId ?? null,
-		});
-	}
-}
-
-function cloneAttachmentForRestore(
-	attachment: (typeof inputState.attachments)[number]
-): (typeof inputState.attachments)[number] {
-	if (attachment.content !== undefined) {
-		return {
-			id: attachment.id,
-			type: attachment.type,
-			path: attachment.path,
-			displayName: attachment.displayName,
-			extension: attachment.extension,
-			content: attachment.content,
-		};
-	}
-
-	return {
-		id: attachment.id,
-		type: attachment.type,
-		path: attachment.path,
-		displayName: attachment.displayName,
-		extension: attachment.extension,
-	};
-}
-
-function createComposerRestoreSnapshot(): ComposerRestoreSnapshot {
-	const inlineTextEntries: Array<[string, string]> = [];
-	for (const [refId, text] of inputState.inlineTextMap.entries()) {
-		inlineTextEntries.push([refId, text]);
-	}
-
-	const attachments = inputState.attachments.map((attachment) =>
-		cloneAttachmentForRestore(attachment)
-	);
-
-	return {
-		draft: inputState.message,
-		attachments,
-		inlineTextEntries,
-	};
-}
-
-function applyComposerRestoreSnapshot(snapshot: ComposerRestoreSnapshot): void {
-	if (draftDebounceTimer) {
-		clearTimeout(draftDebounceTimer);
-		draftDebounceTimer = null;
-	}
-
-	restoreComposerStateAfterFailedSend(inputState, snapshot);
-	lastDraftValue = snapshot.draft;
-	if (props.panelId) {
-		panelStore.setMessageDraft(props.panelId, snapshot.draft);
-	}
-	syncEditorFromMessage(inputState.message.length);
-	queueMicrotask(() => editorRef?.focus());
-	logger.info("[first-send-trace] restored composer snapshot", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		draftLength: snapshot.draft.length,
-		attachmentCount: snapshot.attachments.length,
-		inlineTextCount: snapshot.inlineTextEntries.length,
-	});
-}
-
-/**
- * Capture the current input, expand inline refs, serialize attachments,
- * validate, and clear the input state. All send paths call this first.
- */
-function captureAndClearInput(): PreparedMessage | null {
-	const result = prepareMessageForSend(
-		inputState.message,
-		inputState.inlineTextMap,
-		inputState.attachments
-	);
-	if (result.isErr()) return null;
-	const messageLength = inputState.message.length;
-	const attachmentCount = inputState.attachments.length;
-
-	inputState.message = "";
-	inputState.clearAttachments();
-	inputState.clearInlineTextMap();
-	syncEditorFromMessage(0);
-
-	if (inputState.textareaRef) {
-		inputState.textareaRef.style.height = "auto";
-		inputState.textareaRef.style.overflowY = "hidden";
-	}
-
-	queueMicrotask(() => {
-		logger.info("[first-send-trace] captureAndClearInput", {
-			panelId: props.panelId ?? null,
-			sessionId: props.sessionId ?? null,
-			messageLength,
-			attachmentCount,
-		});
-	});
-
-	return result.value;
-}
-
-// Handle send message (or queue when agent is busy)
-async function handleSend() {
-	const t0 = performance.now();
-	const defaultSubmitAction = composerInteraction.defaultSubmitAction;
-
-	if (defaultSubmitAction === "none") {
-		return;
-	}
-
-	if (defaultSubmitAction === "steer") {
-		handleSteer();
-		return;
-	}
-
-	if (defaultSubmitAction === "queue") {
-		if (!props.sessionId) {
-			return;
-		}
-		const result = prepareMessageForSend(
-			inputState.message,
-			inputState.inlineTextMap,
-			inputState.attachments
-		);
-		if (result.isErr()) return;
-		const accepted = messageQueueStore.enqueue(
-			props.sessionId,
-			result.value.content,
-			result.value.imageAttachments
-		);
-		if (!accepted) return;
-		// Only clear input after successful enqueue
-		inputState.message = "";
-		inputState.clearAttachments();
-		inputState.clearInlineTextMap();
-		clearDraft();
-		return;
-	}
-
-	const sessionIdForDispatch = props.sessionId;
-	if (sessionIdForDispatch) {
-		sessionStore.composerBeginDispatch(sessionIdForDispatch);
-	}
-	const restoreSnapshot = createComposerRestoreSnapshot();
-	const isPreSessionSend = Boolean(props.panelId) && !props.sessionId;
-
-	// Capture and clear input before async work — this is the visual "instant clear"
-	const prepared = captureAndClearInput();
-	if (!prepared) {
-		if (sessionIdForDispatch) {
-			sessionStore.composerEndDispatch(sessionIdForDispatch);
-		}
-		return;
-	}
-	const shouldClearDraftEarly = shouldClearPersistedDraftBeforeAsyncSend({
-		panelId: props.panelId,
-		sessionId: props.sessionId,
-	});
-	if (shouldClearDraftEarly) {
-		clearDraft();
-	}
-	if (!props.panelId) {
-		inputState.message = "";
-	}
-	const overridePanelId = props.onWillSend?.();
-	const effectivePanelId =
-		overridePanelId !== undefined && overridePanelId !== null ? overridePanelId : props.panelId;
-	if (isPreSessionSend && effectivePanelId && props.projectPath && props.selectedAgentId) {
-		connectionStore.send(effectivePanelId, {
-			type: PanelConnectionEvent.START_CONNECTION,
-			projectPath: props.projectPath,
-			agentId: props.selectedAgentId,
-			title: props.projectName ?? undefined,
-		});
-	}
-
-	if (effectivePanelId && !props.sessionId) {
-		panelStore.setPendingUserEntry(effectivePanelId, createPendingUserEntry(prepared.content));
-	}
-
-	// Sound + logging deferred — never block the UI thread for non-visual work
-	playSound(SoundEffect.Paste);
-	queueMicrotask(() => {
-		logger.info("handleSend: preparing send", {
-			panelId: props.panelId,
-			sessionId: props.sessionId ?? null,
-			contentLength: prepared.content.length,
-			isPreSessionSend,
-			t_ms: Math.round(performance.now() - t0),
-		});
-	});
-
-	// When worktree toggle is pending, create worktree first (need the path), then run setup in background
-	let worktreePathForSend: string | undefined = props.worktreePath ?? undefined;
-	let preparedWorktreeLaunch = props.preparedWorktreeLaunch ?? null;
-	if (!worktreePathForSend && props.worktreePending && props.projectPath) {
-		const selectedAgentId = props.selectedAgentId;
-		if (!selectedAgentId) {
-			if (effectivePanelId) {
-				panelStore.clearPendingWorktreeSetup(effectivePanelId);
-				panelStore.clearPendingUserEntry(effectivePanelId);
-			}
-			if (effectivePanelId && props.onSendError) {
-				panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
-				panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
-			}
-			lastDraftValue = restoreSnapshot.draft;
-			if (props.onSendError) {
-				props.onSendError(effectivePanelId ?? null);
-			} else {
-				applyComposerRestoreSnapshot(restoreSnapshot);
-			}
-			if (sessionIdForDispatch) {
-				sessionStore.composerEndDispatch(sessionIdForDispatch);
-			}
-			return;
-		}
-		if (preparedWorktreeLaunch) {
-			worktreePathForSend = preparedWorktreeLaunch.worktree.directory;
-		} else {
-			if (effectivePanelId) {
-				panelStore.setPendingWorktreeSetup(effectivePanelId, {
-					projectPath: props.projectPath,
-					worktreePath: null,
-					phase: "creating-worktree",
-				});
-			}
-			props.onWorktreeCreating?.();
-			logger.info("[worktree-flow] handleSend: preparing worktree launch before send", {
-				projectPath: props.projectPath,
-				panelId: props.panelId ?? null,
-				t_ms: Math.round(performance.now() - t0),
-			});
-			const createResult = await tauriClient.git.prepareWorktreeSessionLaunch(
-				props.projectPath,
-				selectedAgentId
-			);
-			if (createResult.isOk()) {
-				preparedWorktreeLaunch = createResult.value;
-				worktreePathForSend = preparedWorktreeLaunch.worktree.directory;
-				props.onPreparedWorktreeLaunch?.(preparedWorktreeLaunch);
-				if (effectivePanelId) {
-					panelStore.setPendingWorktreeSetup(effectivePanelId, {
-						projectPath: props.projectPath,
-						worktreePath: preparedWorktreeLaunch.worktree.directory,
-						phase: "running",
-					});
-				}
-				logger.info("[first-send-trace] worktree launch prepared", {
-					panelId: props.panelId ?? null,
-					projectPath: props.projectPath,
-					worktreePathForSend,
-					launchToken: preparedWorktreeLaunch.launchToken,
-					sequenceId: preparedWorktreeLaunch.sequenceId,
-					t_ms: Math.round(performance.now() - t0),
-				});
-				props.onWorktreeCreated?.(preparedWorktreeLaunch.worktree.directory);
-				void runWorktreeSetup({
-					projectPath: props.projectPath!,
-					worktreeCwd: preparedWorktreeLaunch.worktree.directory,
-				}).match(
-					(result) => {
-						if (!result.setupSuccess) toast.warning(m.settings_worktree_setup_failed());
-					},
-					(error) => {
-						logger.warn("Worktree setup failed", { error });
-						toast.warning(m.settings_worktree_setup_failed());
-					}
-				);
-			} else {
-				if (effectivePanelId) {
-					panelStore.clearPendingWorktreeSetup(effectivePanelId);
-					panelStore.clearPendingUserEntry(effectivePanelId);
-				}
-				const failure =
-					createResult.error instanceof Error
-						? createResult.error
-						: new Error(m.worktree_create_failed());
-				const failureMessage = formatPreSessionSendFailure(failure);
-				logger.warn("Worktree launch preparation failed", {
-					error: createResult.error,
-					failureMessage,
-				});
-				if (effectivePanelId && props.onSendError) {
-					panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
-					panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
-				}
-				lastDraftValue = restoreSnapshot.draft;
-				if (props.onSendError) {
-					props.onSendError(effectivePanelId ?? null);
-				} else {
-					applyComposerRestoreSnapshot(restoreSnapshot);
-				}
-				props.onWorktreeCreateFailed?.(failureMessage);
-				toast.error(m.worktree_create_failed());
-				if (sessionIdForDispatch) {
-					sessionStore.composerEndDispatch(sessionIdForDispatch);
-				}
-				return;
-			}
-		}
-		if (!preparedWorktreeLaunch && !worktreePathForSend) {
-			if (effectivePanelId) {
-				panelStore.clearPendingUserEntry(effectivePanelId);
-			}
-			props.onWorktreeCreateFailed?.(m.worktree_create_failed());
-			if (sessionIdForDispatch) {
-				sessionStore.composerEndDispatch(sessionIdForDispatch);
-			}
-			return;
-		}
-	}
-
-	logger.info("[worktree-flow] handleSend: dispatching send", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		worktreePathForSend: worktreePathForSend ?? null,
-		selectedAgentId: props.selectedAgentId ?? null,
-		elapsed_ms: Math.round(performance.now() - t0),
-	});
-	const handleSessionCreated = (createdSessionId: string) => {
-		if (isPreSessionSend && effectivePanelId) {
-			connectionStore.send(effectivePanelId, {
-				type: PanelConnectionEvent.CONNECTION_SUCCESS,
-				sessionId: createdSessionId,
-			});
-		}
-		props.onSessionCreated?.(createdSessionId, effectivePanelId ?? null);
-	};
-	inputState
-		.sendPreparedMessage({
-			content: prepared.content,
-			panelId: effectivePanelId,
-			sessionId: props.sessionId,
-			initialAutonomousEnabled: autonomousToggleActive,
-			initialModeId: props.sessionId ? null : provisionalModeId,
-			initialModelId: props.sessionId ? null : provisionalModelId,
-			selectedAgentId: props.selectedAgentId,
-			projectPath: props.projectPath,
-			projectName: props.projectName,
-			onSessionCreated: handleSessionCreated,
-			worktreePath: worktreePathForSend,
-			launchToken: preparedWorktreeLaunch?.launchToken ?? null,
-			imageAttachments: prepared.imageAttachments,
-		})
-		.map(() => {
-			logger.info("handleSend: sendMessage resolved", {
-				elapsed_ms: Math.round(performance.now() - t0),
-			});
-			// Existing panels persist drafts in PanelStore and need explicit clearing.
-			// Empty-state send has no draft persistence and clearing here reintroduces
-			// the just-sent message into the newly mounted panel input.
-			if (props.panelId) {
-				clearDraft();
-			}
-		})
-		.mapErr((error) => {
-			if (effectivePanelId) {
-				panelStore.clearPendingWorktreeSetup(effectivePanelId);
-			}
-			if (effectivePanelId && isPreSessionSend && error instanceof SessionCreationError) {
-				panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
-				panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
-				lastDraftValue = restoreSnapshot.draft;
-				const failureMessage = formatPreSessionSendFailure(error);
-				const errorReference = findErrorReference(error);
-				connectionStore.send(effectivePanelId, {
-					type: PanelConnectionEvent.CONNECTION_ERROR,
-					error: {
-						message: failureMessage,
-						referenceId: errorReference?.referenceId,
-						referenceSearchable: errorReference?.searchable,
-					},
-				});
-				if (props.worktreePending && preparedWorktreeLaunch) {
-					props.onWorktreeCreateFailed?.(failureMessage);
-				}
-				props.onSendError?.(effectivePanelId);
-			} else if (shouldClearDraftEarly && props.panelId) {
-				panelStore.setMessageDraft(props.panelId, prepared.content);
-			}
-			// Error is logged in the state class
-			return error;
-		})
-		.match(
-			() => undefined,
-			() => undefined
-		)
-		.finally(() => {
-			if (sessionIdForDispatch) {
-				sessionStore.composerEndDispatch(sessionIdForDispatch);
-			}
-		});
-}
-
-export function retrySend(): void {
-	void handleSend();
-}
-
-export function restoreQueuedMessage(draft: string, attachments: readonly Attachment[]): void {
-	const restoredAttachments = attachments.map((attachment) =>
-		cloneAttachmentForRestore(attachment)
-	);
-	applyComposerRestoreSnapshot({
-		draft,
-		attachments: restoredAttachments,
-		inlineTextEntries: [],
-	});
-}
-
-// Handle steer: cancel current streaming + send immediately
-function handleSteer() {
-	const sessionId = props.sessionId;
-	if (!sessionId || (!inputState.message.trim() && inputState.attachments.length === 0)) return;
-	logger.info("handleSteer: preparing steer send", {
-		panelId: props.panelId,
-		sessionId,
-	});
-	props.onWillSend?.();
-
-	const prepared = captureAndClearInput();
-	if (!prepared) return;
-	clearDraft();
-
-	sessionStore.composerBeginDispatch(sessionId);
-	sessionStore
-		.cancelStreaming(sessionId)
-		.andThen(() => sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments))
-		.mapErr((error) => {
-			console.error("Steer failed:", error);
-			return error;
-		})
-		.match(
-			() => undefined,
-			() => undefined
-		)
-		.finally(() => {
-			sessionStore.composerEndDispatch(sessionId);
-		});
-}
-
-function handlePrimaryButtonClick(): void {
-	const primaryButtonIntent = composerInteraction.primaryButtonIntent;
-	if (primaryButtonIntent === "steer") {
-		handleSteer();
-		return;
-	}
-	if (primaryButtonIntent === "cancel") {
-		void handleCancel();
-		return;
-	}
-	if (primaryButtonIntent === "send") {
-		void handleSend();
-		return;
-	}
-	if (isStreaming) {
-		void handleCancel();
-	}
-}
 
 // Handle mode change
 async function handleModeChange(modeId: string) {
@@ -2095,7 +1634,7 @@ async function handleEditorPaste(event: ClipboardEvent): Promise<void> {
 		const result = await createImageAttachment(file, item.type);
 		if (result.isErr()) {
 			if (result.error.kind === "too_large") {
-				toast.error(m.image_too_large());
+				toast.error("Image exceeds 10 MB limit");
 			}
 			continue;
 		}
@@ -2146,48 +1685,6 @@ $effect(() => {
 	syncEditorFromMessage(cursorPos);
 });
 
-// Handle cancel streaming
-async function handleCancel() {
-	if (props.sessionId) {
-		const result = await sessionStore.cancelStreaming(props.sessionId);
-		if (result.isErr()) {
-			console.error("Failed to cancel streaming:", result.error);
-		}
-	}
-}
-
-function resolveVoiceMicLabel(currentVoiceState: VoiceInputState): string {
-	if (currentVoiceState.phase === "downloading_model") {
-		return m.voice_downloading_model();
-	}
-	if (currentVoiceState.phase === "loading_model") {
-		return "Loading model...";
-	}
-	if (currentVoiceState.phase === "checking_permission") {
-		return "Checking...";
-	}
-	if (currentVoiceState.phase === "transcribing") {
-		return m.voice_transcribing();
-	}
-	if (currentVoiceState.phase === "recording") {
-		return m.voice_stop_recording();
-	}
-	return m.voice_start_recording();
-}
-
-function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInputState): void {
-	if (event.key === " " || event.key === "Enter") {
-		event.preventDefault();
-		if (currentVoiceState.phase === "idle") {
-			currentVoiceState.onKeyboardHoldStart();
-		} else if (currentVoiceState.phase === "recording") {
-			currentVoiceState.onKeyboardHoldEnd();
-		}
-	}
-	if (event.key === "Escape" && canCancelVoiceInteraction(currentVoiceState.phase)) {
-		currentVoiceState.cancelRecording();
-	}
-}
 </script>
 
 <div
@@ -2205,31 +1702,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 	}}
 >
 	{#if inputState.isDragOver}
-		<div
-			class="flex-shrink-0 p-3 rounded-xl border border-dashed transition-all duration-150 {inputState.isDragHovering
-				? 'border-foreground/40 bg-input/50'
-				: 'border-border bg-input/30'}"
-		>
-			<div class="flex flex-col items-center justify-center gap-2 min-h-[80px]">
-				<div
-					class="p-2.5 rounded-lg transition-colors duration-150 {inputState.isDragHovering
-						? 'bg-foreground/10'
-						: 'bg-muted'}"
-				>
-					<ImageSquare
-						class="h-5 w-5 transition-colors duration-150 {inputState.isDragHovering
-							? 'text-foreground'
-							: 'text-muted-foreground'}"
-						weight="duotone"
-					/>
-				</div>
-				<span
-					class="text-sm transition-colors duration-150 {inputState.isDragHovering
-						? 'text-foreground'
-						: 'text-muted-foreground'}">Drop image to attach</span
-				>
-			</div>
-		</div>
+		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
@@ -2237,330 +1710,133 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 			contentClass={voiceOverlayActive ? "relative" : "p-1.5"}
 		>
 			{#snippet content()}
-				{#if voiceState !== null && voiceOverlayActive}
-					<AgentInputVoiceRecordingOverlay
-						phase={voiceState.phase === "checking_permission" ? "checking_permission" : voiceState.phase === "recording" ? "recording" : "error"}
-						meterLevels={voiceState.waveform.meterLevels}
-						barCount={voiceState.waveform.barCount}
-						errorMessage={voiceState.errorMessage}
-						defaultErrorMessage={m.voice_error_permission_denied()}
-					/>
-				{:else if inputReady}
-					{#if inputState.attachments.length > 0}
-						<div class="flex flex-wrap gap-1.5">
-							{#each inputState.attachments as attachment (attachment.id)}
-								<AgentInputArtefactBadge
-									displayName={attachment.displayName}
-									extension={attachment.extension ?? null}
-									kind={attachment.type === "image" ? "image" : "file"}
-									onRemove={() => inputState.removeAttachment(attachment.id)}
-								/>
-							{/each}
-						</div>
-					{/if}
-					<div class="flex gap-1.5 min-w-0">
-						<div class="relative flex-1 min-w-0">
-							<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-							<div
-								bind:this={editorRef}
-								role="textbox"
-								aria-multiline="true"
-								aria-label={m.agent_input_placeholder()}
-								tabindex="0"
-								contenteditable="true"
-								autocapitalize="off"
-								spellcheck={false}
-							class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
-							onbeforeinput={handleEditorBeforeInput}
-							oninput={() => handleEditorInput()}
-								onkeydown={handleEditorKeyDown}
-								onkeyup={handleEditorKeyUp}
-								onfocus={handleEditorFocus}
-								onblur={handleEditorBlur}
-								onclick={handleEditorClick}
-							onmouseover={handleEditorMouseOver}
-								onmouseout={handleEditorMouseOut}
-								onpaste={(event) => handleEditorPaste(event)}
-								oncut={handleEditorCut}
-							></div>
-							{#if overlayMode && overlayRefId && overlayAnchorRect}
-								{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
-								<AgentInputPastedTextOverlay
-									mode={overlayMode}
-									refId={overlayRefId}
-									anchorRect={overlayAnchorRect}
-									textContent={overlayText}
-									onSave={handleOverlaySave}
-									onClose={closeOverlay}
-									onMouseEnter={cancelOverlayClose}
-								/>
-							{/if}
-							{#if inputState.message.length === 0}
-								<div
-									class="pointer-events-none absolute left-0 top-0 text-sm leading-relaxed text-muted-foreground select-none"
-								>
-									{m.agent_input_placeholder()}
-								</div>
-							{/if}
-						</div>
-						<!-- Submit button: in-flow, bottom-aligned -->
-						<div class="flex items-end shrink-0">
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props: triggerProps })}
-									<Button
-										{...triggerProps}
-										type="button"
-										size="icon"
-										onclick={handlePrimaryButtonClick}
-										disabled={composerInteraction.primaryButtonDisabled}
-										class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
-									>
-										{#if composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
-											<Stop weight="fill" class="h-3.5 w-3.5" />
-											<span class="sr-only">{m.agent_input_interrupt()}</span>
-										{:else}
-											<IconArrowUp class="h-3.5 w-3.5" />
-											<span class="sr-only">{isAgentBusy ? m.agent_input_queue_message() : m.agent_input_send_message()}</span>
-										{/if}
-									</Button>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content>
-									{#if isAgentBusy && hasDraftInput}
-										<div class="flex items-center gap-3">
-											<div class="flex items-center gap-1.5">
-												<span>{m.agent_input_queue_message()}</span>
-												<KbdGroup><Kbd>Enter</Kbd></KbdGroup>
-											</div>
-										<div class="flex items-center gap-1.5">
-											<span>{m.agent_input_interrupt()}</span>
-											<KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup>
-										</div>
-										</div>
-									{:else}
-										<div class="flex items-center gap-2">
-											<span
-												>{isStreaming
-													? m.agent_input_stop_streaming()
-													: m.agent_input_send_message()}</span
-											>
-											{#if !isStreaming}
-												<KbdGroup><Kbd>Enter</Kbd></KbdGroup>
-											{/if}
-										</div>
-									{/if}
-								</Tooltip.Content>
-							</Tooltip.Root>
-						</div>
-					</div>
-				{:else}
-					<div class="flex items-center gap-2">
-						<div class="flex-1 flex flex-col gap-2">
-							<Skeleton class="h-4 w-3/4" />
-							<Skeleton class="h-4 w-1/2" />
-						</div>
-						<Skeleton class="h-8 w-8 rounded-full shrink-0" />
-					</div>
-				{/if}
-				<AgentInputSlashCommandDropdown
-					bind:this={inputState.slashDropdownRef}
-					commands={effectiveAvailableCommands}
-					isOpen={isSlashDropdownVisible}
-					query={inputState.slashQuery}
-					position={inputState.slashPosition}
-					headerLabel={m.slash_command_header()}
-					noCommandsLabel={m.slash_command_no_commands_available()}
-					noResultsLabel={m.slash_command_no_results()}
-					startTypingLabel={m.slash_command_start_typing()}
-					selectHintLabel={m.slash_command_select_hint()}
-					closeHintLabel={m.slash_command_close_hint()}
-					onSelect={(cmd: AvailableCommand) => handleCommandSelect(cmd)}
-					onClose={() => inputState.handleDropdownClose()}
+				<AgentInputComposerBody
+					bind:editorRef
+					{voiceState}
+					{voiceOverlayActive}
+					{inputReady}
+					{inputState}
+					overlayMode={overlayMode}
+					overlayRefId={overlayRefId}
+					overlayAnchorRect={overlayAnchorRect}
+					{composerInteraction}
+					{isStreaming}
+					{hasDraftInput}
+					{isAgentBusy}
+					effectiveAvailableCommands={effectiveAvailableCommands}
+					isSlashDropdownVisible={isSlashDropdownVisible}
+					filePickerProjectPath={filePickerProjectPath}
+					onEditorBeforeInput={handleEditorBeforeInput}
+					onEditorInput={() => handleEditorInput()}
+					onEditorKeyDown={handleEditorKeyDown}
+					onEditorKeyUp={handleEditorKeyUp}
+					onEditorFocus={handleEditorFocus}
+					onEditorBlur={handleEditorBlur}
+					onEditorClick={handleEditorClick}
+					onEditorMouseOver={handleEditorMouseOver}
+					onEditorMouseOut={handleEditorMouseOut}
+					onEditorPaste={(e) => handleEditorPaste(e)}
+					onEditorCut={handleEditorCut}
+					onOverlaySave={handleOverlaySave}
+					onOverlayClose={closeOverlay}
+					onOverlayMouseEnterCancel={cancelOverlayClose}
+					onPrimaryButtonClick={handlePrimaryButtonClick}
+					onCommandSelect={handleCommandSelect}
+					onFileSelect={handleFileSelect}
+					onSlashDropdownClose={() => inputState.handleDropdownClose()}
+					onFileDropdownClose={() => inputState.handleFileDropdownClose()}
+					placeholderLabel={"Plan, @ for context, / for commands"}
+					voiceOverlayPhase={voiceRecordingOverlayPhase}
+					voiceDefaultErrorMessage={"Microphone permission denied"}
+					primarySrQueue={"Queue"}
+					primarySrSend={"Send message"}
+					primarySrInterrupt={"Interrupt"}
+					tooltipQueueRowLabel={"Queue"}
+					tooltipInterruptShiftRowLabel={"Interrupt"}
+					tooltipStopStreaming={"Stop"}
+					tooltipSend={"Send message"}
+					slashLabels={{
+						header: "Commands",
+						noCommands: "No commands available",
+						noResults: "No commands found",
+						startTyping: "Start typing to search commands...",
+						selectHint: "to select",
+						closeHint: "to close",
+					}}
+					filePickerLabels={{
+						header: "Add file context",
+						noResults: "No matching files",
+						selectHint: "to select",
+						closeHint: "to close",
+					}}
 				/>
-				<AgentInputFilePickerDropdown
-					bind:this={inputState.fileDropdownRef}
-					files={inputState.availableFiles}
-					isOpen={inputState.showFileDropdown}
-					isLoading={inputState.filesLoading}
-					query={inputState.fileQuery}
-					position={inputState.filePosition}
-					headerLabel={m.file_picker_header()}
-					noResultsLabel={m.file_picker_no_results()}
-					selectHintLabel={m.file_picker_select_hint()}
-					closeHintLabel={m.file_picker_close_hint()}
-					onSelect={(file) => handleFileSelect(file)}
-					onClose={() => inputState.handleFileDropdownClose()}
-				>
-					{#snippet preview(file)}
-						<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
-					{/snippet}
-				</AgentInputFilePickerDropdown>
 			{/snippet}
 			{#snippet footer()}
-			{#if inputReady}
-				{@const currentVoiceState = voiceState}
-				{@const isVoiceRecordingUi = currentVoiceState !== null && (currentVoiceState.phase === "checking_permission" || currentVoiceState.phase === "recording")}
-				{@const isVoiceActive = currentVoiceState !== null && currentVoiceState.phase !== "idle" && currentVoiceState.phase !== "error"}
-				<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
-				<!-- Normal toolbar: fades out during recording -->
-				<div
-					class="flex items-center h-7 transition-opacity duration-200 ease-out"
-					class:opacity-0={isVoiceRecordingUi}
-					class:pointer-events-none={isVoiceRecordingUi || selectorsDisabledByComposer}
+				<AgentInputComposerToolbar
+					{inputReady}
+					{autonomousStatusMessage}
+					{visibleModes}
+					{selectedModeMenuOptionId}
+					{autonomousToggleActive}
+					autoModeDisabled={autoModeDisabled}
+					autoModeDisabledReason={autoModeDisabledReason}
+					planModeLabel={"Plan"}
+					buildModeLabel={"Build"}
+					autoModeLabel="Auto"
+					onModeMenuChange={handleModeMenuChange}
+					{selectorsLoading}
+					{selectorsDisabledByComposer}
+					toolbarConfigOptions={toolbarConfigOptions}
+					onConfigOptionChange={handleConfigOptionChange}
+					agentProjectPicker={props.agentProjectPicker}
+					checkpointButton={props.checkpointButton}
+					voiceState={voiceToolbarBinding}
+					{voiceEnabled}
+					composerIsDispatching={storeComposerState?.isDispatching ?? false}
+					getMicButtonTitle={(_voice) =>
+						voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
+					onVoiceMicKeyDown={(event, _binding) => {
+						if (voiceState) {
+							handleVoiceMicKeyDownFromModule(event, voiceState);
+						}
+					}}
+					voiceModels={voiceSettingsStore.models.map((model) => ({
+						id: model.id,
+						name: model.name,
+						sizeBytes: model.size_bytes,
+						isDownloaded: model.is_downloaded,
+					}))}
+					voiceSelectedModelId={voiceSettingsStore.selectedModelId}
+					voiceModelsLoading={voiceSettingsStore.modelsLoading}
+					voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
+					voiceDownloadPercent={voiceSettingsStore.downloadPercent}
+					voiceMenuLabel={"Voice model"}
+					voiceModelsLoadingLabel={"Loading voice models…"}
+					onVoiceSelectModel={(modelId) => {
+						void voiceSettingsStore.setSelectedModelId(modelId);
+					}}
+					onVoiceDownloadModel={(modelId) => {
+						void voiceSettingsStore.downloadModel(modelId);
+					}}
+					voiceCloseLabel={"Close"}
 				>
-					{#if visibleModes.length > 0}
-						<AgentInputModeSelector
-							availableModes={visibleModes}
-							currentModeId={selectedModeMenuOptionId}
-							planLabel={m.plan_heading()}
-							buildLabel={m.plan_sidebar_build()}
-							autoLabel="Auto"
-							autonomousActive={autonomousToggleActive}
-							autoDisabled={autoModeDisabled}
-							autoDisabledReason={autoModeDisabledReason}
-							onModeChange={(modeId) => {
-								void handleModeMenuChange(modeId);
-							}}
+					{#snippet modelSelector()}
+						<ModelSelector
+							availableModels={effectiveAvailableModels}
+							currentModelId={effectiveCurrentModelId}
+							modelsDisplay={sessionCapabilities?.modelsDisplay ?? cachedModelsDisplay}
+							onModelChange={handleModelChange}
+							isLoading={selectorsLoading}
+							panelId={props.panelId}
 						/>
-						<div class="h-full w-px bg-border/50"></div>
-					{:else if selectorsLoading}
-						<Skeleton class="h-7 w-7" />
-						<div class="h-full w-px bg-border/50"></div>
-					{/if}
-					<ModelSelector
-						availableModels={effectiveAvailableModels}
-						currentModelId={effectiveCurrentModelId}
-						modelsDisplay={sessionCapabilities?.modelsDisplay ?? cachedModelsDisplay}
-						onModelChange={handleModelChange}
-						isLoading={selectorsLoading}
-						panelId={props.panelId}
-					/>
-					{#if toolbarConfigOptions.length > 0}
-						<div class="h-full w-px bg-border/50"></div>
-						<div class="flex items-center">
-							{#each toolbarConfigOptions as configOption (configOption.id)}
-								<AgentInputConfigOptionSelector
-									{configOption}
-									onValueChange={(configId, value) => {
-										void handleConfigOptionChange(configId, value);
-									}}
-									disabled={selectorsLoading || selectorsDisabledByComposer}
-								/>
-							{/each}
-						</div>
-					{/if}
-					{#if props.agentProjectPicker}
-						<div class="h-full w-px bg-border/50"></div>
-						{@render props.agentProjectPicker()}
-					{/if}
-					<div class="h-full w-px bg-border/50"></div>
-				</div>
-
-				<!-- Right side: recording visualization OR normal controls -->
-				<div class="flex items-center h-7 ml-auto">
-					{#if currentVoiceState !== null && isVoiceRecordingUi}
-						<div class="voice-recording-bar flex items-center pr-0.5">
-							{#if currentVoiceState.recordingElapsedLabel}
-								<span class="mr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
-									{currentVoiceState.recordingElapsedLabel}
-								</span>
-							{/if}
-							<AgentInputMicButton
-								visualState={getMicButtonVisualState(currentVoiceState.phase)}
-								downloadPercent={currentVoiceState.downloadPercent}
-								title={resolveVoiceMicLabel(currentVoiceState)}
-								ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
-								disabled={!canStartVoiceInteraction(currentVoiceState.phase, storeComposerState?.isDispatching ?? false) && !canCancelVoiceInteraction(currentVoiceState.phase)}
-								onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
-								onpointerup={() => currentVoiceState.onMicPointerUp()}
-								onpointercancel={() => currentVoiceState.onMicPointerCancel()}
-								onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
-							/>
-						</div>
-					{:else}
-						<!-- Normal right-side controls -->
-						<div
-							class="flex items-center gap-1.5 transition-opacity duration-200 ease-out"
-							class:opacity-0={isVoiceActive}
-							class:pointer-events-none={isVoiceActive}
-						>
-							{#if props.sessionId}
-								<ModelSelectorMetricsChip
-									sessionId={props.sessionId}
-									agentId={capabilitiesAgentId}
-								/>
-							{/if}
-							{#if props.checkpointButton}
-								{@render props.checkpointButton()}
-							{/if}
-						</div>
-						{#if currentVoiceState !== null && voiceEnabled}
-							{#if currentVoiceState.phase === "error"}
-								<button
-									type="button"
-									class="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline mr-1"
-									onclick={() => currentVoiceState.dismissError()}
-								>
-									{m.common_close()}
-								</button>
-							{/if}
-							<div class="voice-controls flex items-center">
-								<AgentInputVoiceModelMenu
-									models={voiceSettingsStore.models.map((model) => ({
-										id: model.id,
-										name: model.name,
-										sizeBytes: model.size_bytes,
-										isDownloaded: model.is_downloaded,
-									}))}
-									selectedModelId={voiceSettingsStore.selectedModelId}
-									modelsLoading={voiceSettingsStore.modelsLoading}
-									downloadingModelId={voiceSettingsStore.downloadProgressModelId}
-									downloadPercent={voiceSettingsStore.downloadPercent}
-									menuLabel={m.voice_model_menu_label()}
-									loadingLabel={m.voice_settings_loading_models()}
-									onSelectModel={(modelId) => {
-										void voiceSettingsStore.setSelectedModelId(modelId);
-									}}
-									onDownloadModel={(modelId) => {
-										void voiceSettingsStore.downloadModel(modelId);
-									}}
-								/>
-								<AgentInputMicButton
-									visualState={getMicButtonVisualState(currentVoiceState.phase)}
-									downloadPercent={currentVoiceState.downloadPercent}
-									title={resolveVoiceMicLabel(currentVoiceState)}
-									ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
-									disabled={!canStartVoiceInteraction(currentVoiceState.phase, storeComposerState?.isDispatching ?? false) && !canCancelVoiceInteraction(currentVoiceState.phase)}
-									onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
-									onpointerup={() => currentVoiceState.onMicPointerUp()}
-									onpointercancel={() => currentVoiceState.onMicPointerCancel()}
-									onkeydown={(event) => handleVoiceMicKeyDown(event, currentVoiceState)}
-								/>
-							</div>
+					{/snippet}
+					{#snippet metricsChip()}
+						{#if props.sessionId}
+							<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={capabilitiesAgentId} />
 						{/if}
-					{/if}
-				</div>
-			{/if}
+					{/snippet}
+				</AgentInputComposerToolbar>
 			{/snippet}
 		</SharedAgentPanelComposer>
 	{/if}
 </div>
-
-<style>
-	/* Voice recording bar: fade-in when entering recording state */
-	.voice-recording-bar {
-		animation: voice-bar-enter 180ms ease-out;
-	}
-
-	@keyframes voice-bar-enter {
-		from {
-			opacity: 0;
-			transform: translateX(8px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(0);
-		}
-	}
-</style>

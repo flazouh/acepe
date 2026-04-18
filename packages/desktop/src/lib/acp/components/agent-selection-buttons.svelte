@@ -4,7 +4,6 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
 
@@ -55,7 +54,7 @@ onDestroy(() => {
 </script>
 
 <div class="flex flex-col items-center gap-4">
-	<span class="text-sm text-muted-foreground">{m.agent_selection_choose_agent()}</span>
+	<span class="text-sm text-muted-foreground">{"Choose your agent"}</span>
 	<div class="flex items-start justify-center gap-6">
 		{#each availableAgents as agent, index (agent.id)}
 			{@const iconSrc = getAgentIcon(agent.id, theme)}

@@ -1,6 +1,5 @@
 <script lang="ts">
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/messages.js";
 import ProjectHeader from "../project-header.svelte";
 
 import { flattenFileTree } from "./file-list-logic.js";
@@ -42,14 +41,14 @@ function getFlattenedFiles(group: FileGroup): Array<{ node: FileTreeNode; projec
 		<!-- Empty state - no projects -->
 		<div class="flex items-center justify-center flex-1 text-center p-4">
 			<div class="text-sm text-muted-foreground">
-				<p>{m.file_list_empty()}</p>
+				<p>{"No files found"}</p>
 			</div>
 		</div>
 	{:else if allEmpty}
 		<!-- All projects empty -->
 		<div class="flex items-center justify-center flex-1 text-center p-4">
 			<div class="text-sm text-muted-foreground">
-				<p>{m.file_list_empty()}</p>
+				<p>{"No files found"}</p>
 			</div>
 		</div>
 	{:else}
@@ -116,7 +115,7 @@ function getFlattenedFiles(group: FileGroup): Array<{ node: FileTreeNode; projec
 							{:else if flattenedFiles.length === 0}
 								<!-- Empty project -->
 								<div class="p-2 text-xs text-muted-foreground">
-									{m.file_list_empty()}
+									{"No files found"}
 								</div>
 							{:else}
 								<!-- File tree -->

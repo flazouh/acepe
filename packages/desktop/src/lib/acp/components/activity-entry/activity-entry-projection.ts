@@ -3,7 +3,6 @@ import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
 
 import type { SessionEntry } from "../../application/dto/session-entry.js";
-import * as m from "../../../messages.js";
 import { getToolCompactDisplayText, getToolKindFilePath } from "../../registry/tool-kind-ui-registry.js";
 import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { TurnState } from "../../store/types.js";
@@ -307,15 +306,15 @@ function getFileToolDisplayText(
 	const verb =
 		toolKind === "read"
 			? isStreaming
-				? m.tool_read_running()
-				: m.tool_read_completed()
+				? "Reading"
+				: "Read"
 			: toolKind === "edit"
 				? isStreaming
-					? m.tool_edit_running()
-					: m.tool_edit_completed()
+					? "Editing"
+					: "Edited"
 				: isStreaming
-					? m.tool_delete_running()
-					: m.tool_delete_completed();
+					? "Deleting"
+					: "Deleted";
 
 	return `${verb} ${fileName}`;
 }

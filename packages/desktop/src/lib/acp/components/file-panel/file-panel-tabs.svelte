@@ -2,8 +2,6 @@
 import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
-import * as m from "$lib/messages.js";
-
 import FilePanel from "./file-panel.svelte";
 
 interface Props {

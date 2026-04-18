@@ -1,8 +1,6 @@
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as m from "$lib/messages.js";
-
 const openUrlMock = vi.fn();
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
@@ -47,13 +45,13 @@ describe("BrowserPanelHeader", () => {
 
 		const urlInput = container.querySelector("input[name='browser-url']");
 
-		const back = container.querySelector(`button[title='${m.link_preview_back()}']`);
-		const forward = container.querySelector(`button[title='${m.link_preview_forward()}']`);
-		const reload = container.querySelector(`button[title='${m.link_preview_refresh()}']`);
+		const back = container.querySelector(`button[title='${"Go back"}']`);
+		const forward = container.querySelector(`button[title='${"Go forward"}']`);
+		const reload = container.querySelector(`button[title='${"Refresh"}']`);
 		const openExternal = container.querySelector(
-			`button[title='${m.link_preview_open_browser()}']`
+			`button[title='${"Open in browser"}']`
 		);
-		const close = container.querySelector(`button[title='${m.common_close()}']`);
+		const close = container.querySelector(`button[title='${"Close"}']`);
 
 		expect(urlInput).not.toBeNull();
 		expect(back).not.toBeNull();

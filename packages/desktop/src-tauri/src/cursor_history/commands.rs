@@ -4,10 +4,10 @@
 //! loading Cursor conversation history.
 
 use crate::commands::observability::{
-    unexpected_command_result, CommandResult, SerializableCommandError,
+    unexpected_command_result, CommandResult,
 };
 use crate::cursor_history::parser;
-use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry};
+use crate::session_jsonl::types::{FullSession, HistoryEntry};
 use uuid::Uuid;
 
 fn get_logger_id() -> String {
@@ -109,62 +109,6 @@ pub async fn get_cursor_session(
     )
 }
 
-/// Get a converted Cursor session with entries ready for display.
-///
-/// This uses the shared converter to return ConvertedSession format,
-/// consistent with Claude Code sessions.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_cursor_converted_session(
-    session_id: String,
-    project_path: String,
-) -> CommandResult<ConvertedSession> {
-    unexpected_command_result(
-        "get_cursor_converted_session",
-        "Failed to get converted Cursor session",
-        async {
-            let logger_id = get_logger_id();
-
-            tracing::info!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                project_path = %project_path,
-                "Loading and converting Cursor session"
-            );
-
-            let full_session = parser::load_full_conversation(&session_id, &project_path)
-                .await
-                .map_err(|e| {
-                    let error_msg = format!(
-                        "Failed to load Cursor session {} from project {}: {}",
-                        session_id, project_path, e
-                    );
-                    tracing::error!(
-                        logger_id = %logger_id,
-                        session_id = %session_id,
-                        project_path = %project_path,
-                        error = %e,
-                        "Failed to load Cursor session"
-                    );
-                    error_msg
-                })?;
-
-            let converted =
-                crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
-
-            tracing::info!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                entries_count = converted.entries.len(),
-                total_messages = converted.stats.total_messages,
-                "Converted Cursor session"
-            );
-
-            Ok(converted)
-        }
-        .await,
-    )
-}
 
 /// Check if a project has Cursor history available.
 ///
@@ -199,64 +143,6 @@ pub async fn has_cursor_history(project_path: String) -> CommandResult<bool> {
     )
 }
 
-/// Get a converted Cursor session by searching across all projects.
-///
-/// This is a fallback command that searches for a session by ID only,
-/// without requiring a project path. Useful when the stored project path
-/// is incorrect or the session has been moved.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_cursor_converted_session_by_id(
-    session_id: String,
-) -> CommandResult<ConvertedSession> {
-    let logger_id = get_logger_id();
-
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        "Searching for Cursor session across all projects"
-    );
-
-    let full_session = unexpected_command_result(
-        "get_cursor_converted_session_by_id",
-        "Failed to get Cursor session by ID",
-        parser::find_transcript_by_id(&session_id)
-            .await
-            .map_err(|e| {
-                let error_msg =
-                    format!("Failed to search for Cursor session {}: {}", session_id, e);
-                tracing::error!(
-                    logger_id = %logger_id,
-                    session_id = %session_id,
-                    error = %e,
-                    "Failed to find Cursor session"
-                );
-                error_msg
-            }),
-    )?
-    .ok_or_else(|| {
-        let error_msg = format!("Cursor session {} not found in any project", session_id);
-        tracing::warn!(
-            logger_id = %logger_id,
-            session_id = %session_id,
-            "Session not found in any project"
-        );
-        SerializableCommandError::expected("get_cursor_converted_session_by_id", error_msg)
-    })?;
-
-    let converted = crate::session_converter::convert_cursor_full_session_to_entries(&full_session);
-
-    tracing::info!(
-        logger_id = %logger_id,
-        session_id = %session_id,
-        found_in_project = %full_session.project_path,
-        entries_count = converted.entries.len(),
-        total_messages = converted.stats.total_messages,
-        "Found and converted Cursor session"
-    );
-
-    Ok(converted)
-}
 
 /// Check if Cursor is installed on the system.
 #[tauri::command]

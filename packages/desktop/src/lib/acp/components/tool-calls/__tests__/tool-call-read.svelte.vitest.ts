@@ -23,11 +23,6 @@ vi.mock("@acepe/ui/agent-panel", async () => {
 	};
 });
 
-vi.mock("$lib/messages.js", () => ({
-	tool_read_running: () => "Reading",
-	tool_read_completed: () => "Read",
-}));
-
 const openFilePanelMock = vi.fn();
 const getStreamingArgumentsMock = vi.fn(() => null);
 const getProjectGitStatusMapMock = vi.fn();

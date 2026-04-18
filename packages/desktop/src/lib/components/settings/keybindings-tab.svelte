@@ -7,7 +7,6 @@ import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import type { Action, Keybinding } from "$lib/keybindings/types.js";
 import { formatKeyStringToArray } from "$lib/keybindings/utils/formatter.js";
-import * as m from "$lib/messages.js";
 import { saveCustomKeybindings } from "$lib/services/settings.svelte.js";
 import { cn } from "$lib/utils.js";
 
@@ -80,7 +79,7 @@ async function handleResetAllToDefaults() {
 	<!-- Header -->
 	<div class="flex items-center justify-between shrink-0">
 		<h2 class="text-[13px] font-semibold text-foreground">
-			{m.settings_keybindings()}
+			{"Keybindings"}
 		</h2>
 		<button
 			type="button"
@@ -89,7 +88,7 @@ async function handleResetAllToDefaults() {
 			disabled={isLoading}
 		>
 			<IconRotateClockwise class="size-3" />
-			{m.settings_keybindings_reset_all()}
+			{"Reset All"}
 		</button>
 	</div>
 
@@ -98,7 +97,7 @@ async function handleResetAllToDefaults() {
 		<IconSearch class="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
 		<input
 			type="text"
-			placeholder={m.settings_keybindings_search()}
+			placeholder={"Search keybindings..."}
 			bind:value={searchQuery}
 			class="w-full h-7 pl-7 pr-2 text-[13px] bg-muted/20 border border-border/60 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border transition-colors"
 		/>
@@ -144,7 +143,7 @@ async function handleResetAllToDefaults() {
 								</KbdGroup>
 							{:else}
 								<span class="text-[12px] text-muted-foreground/40">
-									{m.settings_keybindings_not_bound()}
+									{"Not bound"}
 								</span>
 							{/if}
 							<button
@@ -152,7 +151,7 @@ async function handleResetAllToDefaults() {
 								class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
 								onclick={() => (editingActionId = action.id)}
 								disabled={isLoading}
-								title={m.settings_keybindings_edit()}
+								title={"Edit keybinding"}
 							>
 								<svg
 									class="size-2.5"
@@ -170,7 +169,7 @@ async function handleResetAllToDefaults() {
 									class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
 									onclick={() => handleReset(action.id)}
 									disabled={isLoading}
-									title={m.settings_keybindings_reset()}
+									title={"Reset to default"}
 								>
 									<svg
 										class="size-2.5"

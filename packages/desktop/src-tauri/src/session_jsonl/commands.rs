@@ -6,7 +6,7 @@ use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
 use crate::history::indexer::{IndexStatus, IndexerHandle};
 use crate::session_jsonl::cache;
 use crate::session_jsonl::parser;
-use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry, SessionMessage};
+use crate::session_jsonl::types::{FullSession, HistoryEntry, SessionMessage};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -289,55 +289,6 @@ pub async fn get_full_session(
     )
 }
 
-/// Get converted session data with pre-converted entries.
-/// This is the optimized version that moves conversion from JavaScript to Rust.
-/// Returns entries ready for display without further client-side processing.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_converted_session(
-    session_id: String,
-    project_path: String,
-) -> CommandResult<ConvertedSession> {
-    unexpected_command_result(
-        "get_converted_session",
-        "Failed to get converted session",
-        async {
-            let logger_id = get_logger_id();
-            tracing::info!(
-                logger_id = %logger_id,
-                session_id = %session_id,
-                project_path = %project_path,
-                "Parsing and converting session"
-            );
-
-            // Parse full session and convert using shared converter
-            let full_session = parser::parse_full_session(&session_id, &project_path)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        logger_id = %logger_id,
-                        session_id = %session_id,
-                        error = %e,
-                        "Failed to parse session"
-                    );
-                    e.to_string()
-                })?;
-
-            let result =
-                crate::session_converter::convert_claude_full_session_to_entries(&full_session);
-
-            tracing::info!(
-                logger_id = %logger_id,
-                entries_count = result.entries.len(),
-                total_messages = result.stats.total_messages,
-                "Parsed and converted session"
-            );
-
-            Ok(result)
-        }
-        .await,
-    )
-}
 
 /// Cache statistics for monitoring performance.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

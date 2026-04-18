@@ -86,7 +86,7 @@ const demoCardBase: KanbanCardData = {
 
 const demoCardStreaming: KanbanCardData = {
 	id: "demo-2",
-	title: "Add i18n support",
+	title: "Add localization",
 	agentIconSrc: "/svgs/icons/claude.svg",
 	agentLabel: "claude",
 	isAutoMode: true,

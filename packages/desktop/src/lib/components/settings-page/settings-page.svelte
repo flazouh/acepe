@@ -1,7 +1,6 @@
 <script lang="ts">
 import { X } from "phosphor-svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import * as m from "$lib/messages.js";
 import AgentsModelsSection from "./sections/agents-models-section.svelte";
 import AppearanceSection from "./sections/appearance-section.svelte";
 import ArchivedSessionsSection from "./sections/archived-sessions-section.svelte";
@@ -43,8 +42,8 @@ function handleSectionChange(section: SettingsSectionId) {
 	<button
 		type="button"
 		class="absolute right-1 top-1 z-10 flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
-		title={m.common_close()}
-		aria-label={m.common_close()}
+		title={"Close"}
+		aria-label={"Close"}
 		onclick={() => onClose?.()}
 	>
 		<X class="size-3.5" weight="bold" />

@@ -5,8 +5,8 @@ use crate::acp::session_update::{tool_call_status_from_str, ToolArguments, ToolC
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
-    ConvertedSession, SessionStats, StoredAssistantChunk, StoredAssistantMessage,
-    StoredContentBlock, StoredEntry, StoredUserMessage,
+    SessionStats, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
+    StoredUserMessage,
 };
 use std::collections::HashMap;
 
@@ -72,21 +72,12 @@ fn parse_task_children_from_metadata(
     Some(children)
 }
 
-/// Convert OpenCode messages to ConvertedSession format.
-///
-/// This function converts OpenCode HTTP API messages to the unified
-/// ConvertedSession format used by the frontend.
+/// Convert OpenCode messages to a `SessionThreadSnapshot`.
 pub fn convert_opencode_messages_to_session(
     messages: Vec<OpenCodeMessage>,
-) -> Result<ConvertedSession, String> {
-    let (snapshot, stats) = convert_opencode_messages(messages)?;
-    Ok(ConvertedSession {
-        entries: snapshot.entries,
-        stats,
-        title: snapshot.title,
-        created_at: snapshot.created_at,
-        current_mode_id: snapshot.current_mode_id,
-    })
+) -> Result<SessionThreadSnapshot, String> {
+    let (snapshot, _stats) = convert_opencode_messages(messages)?;
+    Ok(snapshot)
 }
 
 fn convert_opencode_messages(

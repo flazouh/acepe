@@ -1,8 +1,6 @@
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import * as m from "$lib/messages.js";
-
 import FilePanelHeader from "../file-panel-header.svelte";
 
 vi.mock(
@@ -47,7 +45,7 @@ describe("FilePanelHeader project-header style", () => {
 		expect(structuredToggleButton).not.toBeNull();
 		expect(structuredToggleButton?.className).toContain("h-7");
 
-		const close = container.querySelector(`button[title='${m.common_close()}']`);
+		const close = container.querySelector(`button[title='${"Close"}']`);
 		expect(close).not.toBeNull();
 		expect(close?.className).toContain("h-7");
 		if (close) {

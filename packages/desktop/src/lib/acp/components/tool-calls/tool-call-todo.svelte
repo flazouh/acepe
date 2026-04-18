@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolTodo } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 
@@ -27,6 +26,6 @@ const todos = $derived(toolCall.normalizedTodos ?? []);
 	{todos}
 	{isLive}
 	durationLabel={elapsedLabel ?? undefined}
-	tasksLabel={m.tool_todo_tasks_label()}
-	fallbackLabel={m.tool_todo_fallback()}
+	tasksLabel={"Tasks"}
+	fallbackLabel={"Updated todos"}
 />

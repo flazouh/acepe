@@ -8,7 +8,6 @@ import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.j
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import * as m from "$lib/messages.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
@@ -54,7 +53,7 @@ export class KeybindingManager {
 		// Settings toggle - directly toggles overlay state (no $app/navigation needed)
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.SETTINGS_OPEN,
-			label: m.keybinding_open_settings(),
+			label: "Open Settings",
 			category: "navigation",
 			handler: () => {
 				this.state.toggleSettings();
@@ -74,7 +73,7 @@ export class KeybindingManager {
 		// Command palette toggle
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.COMMAND_PALETTE_TOGGLE,
-			label: m.keybinding_toggle_command_palette(),
+			label: "Toggle Command Palette",
 			category: "navigation",
 			handler: () => {
 				this.state.commandPaletteOpen = !this.state.commandPaletteOpen;
@@ -84,8 +83,8 @@ export class KeybindingManager {
 		// Model selector toggle
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.SELECTOR_MODEL_TOGGLE,
-			label: m.keybinding_toggle_model_selector(),
-			description: m.keybinding_toggle_model_selector_description(),
+			label: "Toggle Model Selector",
+			description: "Open or close the model selector dropdown",
 			category: "selection",
 			handler: () => {
 				this.selectorRegistry.toggleFocused("model", this.panelStore.focusedPanelId);
@@ -95,8 +94,8 @@ export class KeybindingManager {
 		// Mode selector cycle (Cmd+. cycles through modes instead of opening dropdown)
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE,
-			label: m.keybinding_toggle_mode_selector(),
-			description: m.keybinding_toggle_mode_selector_description(),
+			label: "Toggle Mode Selector",
+			description: "Open or close the mode selector dropdown",
 			category: "selection",
 			handler: () => {
 				this.selectorRegistry.cycleFocused("mode", this.panelStore.focusedPanelId);
@@ -106,8 +105,8 @@ export class KeybindingManager {
 		// Thread create - handler will be set by initialization manager
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.THREAD_CREATE,
-			label: m.agent_sidebar_create_new_thread(),
-			description: m.agent_sidebar_create_new_thread_description(),
+			label: "Create New Thread",
+			description: "Create a new conversation thread",
 			category: "navigation",
 			handler: () => {
 				// Handler will be set by state class
@@ -118,8 +117,8 @@ export class KeybindingManager {
 		// Note: "when" context check is already on the keybinding, not needed on the action
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.THREAD_CLOSE,
-			label: m.keybinding_close_thread(),
-			description: m.keybinding_close_thread_description(),
+			label: "Close Thread",
+			description: "Close the currently focused thread panel",
 			category: "navigation",
 			handler: () => {
 				const focusedPanelId = this.panelStore.focusedPanelId;
@@ -142,8 +141,8 @@ export class KeybindingManager {
 		// Sidebar toggle
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.SIDEBAR_TOGGLE,
-			label: m.keybinding_toggle_sidebar(),
-			description: m.keybinding_toggle_sidebar_description(),
+			label: "Toggle Sidebar",
+			description: "Show or hide the sidebar",
 			category: "view",
 			handler: () => {
 				this.state.sidebarOpen = !this.state.sidebarOpen;
@@ -165,8 +164,8 @@ export class KeybindingManager {
 
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.ZOOM_IN,
-			label: m.keybinding_zoom_in(),
-			description: m.keybinding_zoom_in_description(),
+			label: "Zoom In",
+			description: "Increase the zoom level",
 			category: "view",
 			handler: () => {
 				zoomService.zoomIn();
@@ -175,8 +174,8 @@ export class KeybindingManager {
 
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.ZOOM_OUT,
-			label: m.keybinding_zoom_out(),
-			description: m.keybinding_zoom_out_description(),
+			label: "Zoom Out",
+			description: "Decrease the zoom level",
 			category: "view",
 			handler: () => {
 				zoomService.zoomOut();
@@ -185,8 +184,8 @@ export class KeybindingManager {
 
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.ZOOM_RESET,
-			label: m.keybinding_zoom_reset(),
-			description: m.keybinding_zoom_reset_description(),
+			label: "Reset Zoom",
+			description: "Reset zoom to 100%",
 			category: "view",
 			handler: () => {
 				zoomService.resetZoom();
@@ -196,8 +195,8 @@ export class KeybindingManager {
 		// Urgency jump - handler will be set by main-app-view
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST,
-			label: m.keybinding_jump_to_urgent(),
-			description: m.keybinding_jump_to_urgent_description(),
+			label: "Jump to Urgent",
+			description: "Focus the most urgent tab (asking question or error)",
 			category: "navigation",
 			handler: () => {
 				// Handler will be set by main-app-view
@@ -223,8 +222,8 @@ export class KeybindingManager {
 	setThreadCreateHandler(handler: () => void): void {
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.THREAD_CREATE,
-			label: m.agent_sidebar_create_new_thread(),
-			description: m.agent_sidebar_create_new_thread_description(),
+			label: "Create New Thread",
+			description: "Create a new conversation thread",
 			category: "navigation",
 			handler,
 		});
@@ -238,8 +237,8 @@ export class KeybindingManager {
 	setUrgencyJumpHandler(handler: () => void): void {
 		this.keybindingsService.upsertAction({
 			id: KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST,
-			label: m.keybinding_jump_to_urgent(),
-			description: m.keybinding_jump_to_urgent_description(),
+			label: "Jump to Urgent",
+			description: "Focus the most urgent tab (asking question or error)",
 			category: "navigation",
 			handler,
 		});

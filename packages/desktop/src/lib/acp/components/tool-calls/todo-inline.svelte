@@ -2,8 +2,6 @@
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { ListChecks } from "phosphor-svelte";
 import * as Table from "$lib/components/ui/table/index.js";
-import * as m from "$lib/messages.js";
-
 import type { ToolCall } from "../../types/tool-call.js";
 import CopyButton from "../messages/copy-button.svelte";
 import TodoStatusBadge from "../todo-status-badge.svelte";
@@ -64,7 +62,7 @@ function getMarkdown(): string {
 		<div class="px-3 py-2 space-y-2">
 			<!-- Header with progress -->
 			<div class="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
-				<span class="font-medium uppercase tracking-wide">{m.todo_heading()}</span>
+				<span class="font-medium uppercase tracking-wide">{"Tasks"}</span>
 				<div class="flex items-center gap-2">
 					<span class="font-mono">{completedCount}/{totalTasks}</span>
 					<CopyButton getText={getMarkdown} size={12} variant="icon" class="p-1" />

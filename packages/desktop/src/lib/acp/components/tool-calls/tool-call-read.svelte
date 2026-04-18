@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolRead } from "@acepe/ui/agent-panel";
-import * as m from "$lib/messages.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
@@ -138,6 +137,6 @@ const agentStatus = $derived.by(() => {
 	iconBasePath="/svgs/icons"
 	interactive={isFileClickable}
 	onSelect={isFileClickable ? handleFileClick : undefined}
-	runningLabel={m.tool_read_running()}
-	doneLabel={m.tool_read_completed()}
+	runningLabel={"Reading"}
+	doneLabel={"Read"}
 />

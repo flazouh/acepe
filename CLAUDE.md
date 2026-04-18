@@ -168,7 +168,7 @@ The agent panel follows a View–Model–Controller split across packages:
 | **Scene** | `AgentPanelScene` (`packages/ui/src/components/agent-panel-scene/`) | Convenience renderer. Maps `AgentPanelSceneModel` to `AgentPanel` shell slots. Accepts snippet overrides for platform content. |
 
 **Key rules:**
-- New UI for the agent panel goes in `@acepe/ui` as a presentational component with prop-based data. Labels as props, not i18n imports.
+- New UI for the agent panel goes in `@acepe/ui` as a presentational component with prop-based data. Pass user-visible copy via props (English strings from the host or literals in shared UI when appropriate).
 - The composer view also follows this rule: composer leaf controls, selector rows, metrics, and dropdown shells live in `@acepe/ui`, while desktop keeps the controller/state adapters in `agent-input-ui.svelte` and related wrappers.
 - `packages/website` renders `@acepe/ui` components with mock data — proves the view layer works independently.
 - Domain controllers (`modified-files-header`, `review-content`) may access domain-specific stores but should compose `@acepe/ui` sub-components for rendering.
@@ -190,5 +190,4 @@ The agent panel follows a View–Model–Controller split across packages:
 - [Svelte 5 Patterns](.agent-guides/svelte.md)
 - [Rust/Tauri Development](.agent-guides/rust-tauri.md)
 - [Neverthrow Error Handling](.agent-guides/neverthrow.md)
-- [i18n (Paraglide)](.agent-guides/i18n.md)
 - [Code Quality](.agent-guides/code-quality.md)

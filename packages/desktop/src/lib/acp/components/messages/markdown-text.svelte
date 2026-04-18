@@ -1,7 +1,6 @@
 <script lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getContext, untrack } from "svelte";
-import * as m from "$lib/messages.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import {
 	GITHUB_COMMIT_SHA_PATTERN,
@@ -489,7 +488,7 @@ function handleKeydown(event: KeyboardEvent) {
 {#if error}
 	<!-- Show error state -->
 	<div class="text-sm text-destructive">
-		<p>{m.markdown_render_error({ error })}</p>
+		<p>{`Markdown rendering failed: ${error}`}</p>
 		<p class="whitespace-pre-wrap mt-2">{text}</p>
 	</div>
 {:else if visibleHtml}

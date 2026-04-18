@@ -2,8 +2,6 @@
 import { IconAlertCircle, IconCircleCheckFilled } from "@tabler/icons-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import * as m from "$lib/messages.js";
-
 import type { SessionStatus } from "../state/index.js";
 
 import { Colors } from "../utils/colors.js";
@@ -36,7 +34,7 @@ const shouldShow = $derived(show && status !== "empty");
 					</div>
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{m.thread_status_preparing()}
+					{"Preparing thread..."}
 				</Tooltip.Content>
 			</Tooltip.Root>
 		{:else if status === "connected"}
@@ -48,7 +46,7 @@ const shouldShow = $derived(show && status !== "empty");
 				</Tooltip.Trigger>
 				<Tooltip.Content>
 					<div class="space-y-1.5">
-						<div class="font-medium">{m.thread_status_connected()}</div>
+						<div class="font-medium">{"Thread is connected"}</div>
 						{#if agentId}
 							<table class="text-xs">
 								<tbody>
@@ -75,7 +73,7 @@ const shouldShow = $derived(show && status !== "empty");
 					</button>
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{m.thread_status_error()}
+					{"Thread error - click to retry"}
 				</Tooltip.Content>
 			</Tooltip.Root>
 		{/if}

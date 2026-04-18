@@ -10,7 +10,6 @@ import { IconChevronLeft } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as m from "$lib/messages.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import type { ReviewDiffViewState } from "../modified-files/components/review-diff-view-state.svelte.js";
@@ -326,7 +325,7 @@ function handlePointerUp() {
 >
 	<EmbeddedPanelHeader>
 		<HeaderActionCell withDivider={false}>
-			<EmbeddedIconButton onclick={onClose} title={m.modified_files_back_button()}>
+			<EmbeddedIconButton onclick={onClose} title={"Back"}>
 				<IconChevronLeft class="h-4 w-4" />
 			</EmbeddedIconButton>
 		</HeaderActionCell>
@@ -344,11 +343,11 @@ function handlePointerUp() {
 
 		<HeaderActionCell withDivider={true}>
 			{#if nextFileIdx !== null}
-				<EmbeddedIconButton onclick={handleNextFile} title={m.modified_files_next_file_button()}>
+				<EmbeddedIconButton onclick={handleNextFile} title={"Next"}>
 					<IconChevronRight class="h-4 w-4" />
 				</EmbeddedIconButton>
 			{/if}
-			<CloseAction onClose={onClose} title={m.common_close()} />
+			<CloseAction onClose={onClose} title={"Close"} />
 		</HeaderActionCell>
 	</EmbeddedPanelHeader>
 

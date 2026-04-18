@@ -1,7 +1,6 @@
 <script lang="ts">
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
-import * as m from "$lib/messages.js";
 import { fileContentCache } from "$lib/acp/services/file-content-cache.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../../review/review-file-revision.js";
@@ -170,7 +169,7 @@ function handleHunkAccept(hunkIndex: number): void {
 function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 	if (!selectedFile) return;
 	if (!sessionId && !projectPath) {
-		toast.error(m.hunk_revert_failed({ error: "Missing session id and project path" }));
+		toast.error(`Failed to revert: ${"Missing session id and project path"}`);
 		return;
 	}
 
@@ -185,7 +184,7 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 
 	writeResult.match(
 		() => {
-			toast.success(m.hunk_revert_success({ filePath: capturedFile.fileName }));
+			toast.success(`Reverted changes in ${capturedFile.fileName}`);
 			recordResolvedAction(capturedFile, hunkIndex, "reject");
 			const nextState = updateFileStatus(capturedFile, (prev) => {
 				const stats = capturedDiffState?.getHunkStats() ?? {
@@ -211,7 +210,7 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 			});
 			maybeAutoAdvanceAfterResolve(nextState, capturedFileIndex);
 		},
-		(error: Error) => toast.error(m.hunk_revert_failed({ error: error.message }))
+		(error: Error) => toast.error(`Failed to revert: ${error.message}`)
 	);
 }
 

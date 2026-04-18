@@ -2,7 +2,6 @@
 import { FilePathBadge, PillButton, RevertIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { FileSnapshot } from "../../types/checkpoint.js";
 
@@ -24,10 +23,10 @@ async function handleRevertFile(filePath: string) {
 
 	result.match(
 		() => {
-			toast.success(m.checkpoint_file_reverted({ filePath: getFileName(filePath) }));
+			toast.success(`Reverted ${getFileName(filePath)}`);
 		},
 		(error) => {
-			toast.error(m.checkpoint_file_revert_failed({ error: error.message }));
+			toast.error(`Failed to revert file: ${error.message}`);
 		}
 	);
 

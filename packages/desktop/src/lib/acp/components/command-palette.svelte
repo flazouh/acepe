@@ -1,7 +1,6 @@
 <script lang="ts">
 import * as Dialog from "$lib/components/ui/dialog/index.js";
 import * as Kbd from "$lib/components/ui/kbd/index.js";
-import * as m from "$lib/messages.js";
 import { TIMING } from "../constants/timing.js";
 import type { UseCommandPalette } from "../hooks/use-command-palette.svelte.js";
 
@@ -109,7 +108,7 @@ const filteredCommands = $derived(commandPalette.getFilteredCommands());
 				<input
 					bind:this={inputRef}
 					type="text"
-					placeholder={m.command_palette_placeholder()}
+					placeholder={"Type a command..."}
 					autocomplete="off"
 					autocapitalize="off"
 					spellcheck={false}

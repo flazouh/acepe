@@ -1,7 +1,6 @@
 <script lang="ts">
 import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/agent-panel";
 
-import * as m from "$lib/messages.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
 import { buildReviewWorkspaceFilesFromSessionState } from "./review-workspace-model.js";
@@ -42,8 +41,8 @@ const reviewWorkspaceSelectedIndex = $derived.by(() =>
 	selectedFileIndex={reviewWorkspaceSelectedIndex}
 	{onClose}
 	onFileSelect={onFileIndexChange}
-	headerLabel={m.modified_files_review_title()}
-	closeButtonLabel={m.modified_files_back_button()}
+	headerLabel={"Review Changes"}
+	closeButtonLabel={"Back"}
 	emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
 >
 	{#snippet content()}

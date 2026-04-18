@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AgentToolExecute } from "@acepe/ui/agent-panel";
 import { splitCommandSegments } from "@acepe/ui/bash-tokenizer";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -89,8 +88,8 @@ const stderrHtml = $derived(
 	status={agentStatus}
 	durationLabel={elapsedLabel ?? undefined}
 	{commandHtmls}
-	runningLabel={m.tool_bash_running_no_cmd()}
-	finishedLabel={agentStatus === "error" ? m.tool_bash_failed() : m.tool_bash_success()}
-	ariaCollapseOutput={m.aria_collapse_output()}
-	ariaExpandOutput={m.aria_expand_output()}
+	runningLabel={"Running command…"}
+	finishedLabel={agentStatus === "error" ? "Failed" : "Success"}
+	ariaCollapseOutput={"Collapse output"}
+	ariaExpandOutput={"Expand output"}
 />

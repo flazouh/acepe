@@ -6,8 +6,6 @@ import {
 	formatKeyStringToArray,
 	keyboardEventToKeyString,
 } from "$lib/keybindings/utils/formatter.js";
-import * as m from "$lib/messages.js";
-
 let {
 	actionId,
 	onSave,
@@ -74,7 +72,7 @@ function handleKeyDown(event: KeyboardEvent) {
 				const action = kb.getAllActions().find((a) => a.id === b.command);
 				return action?.label || b.command;
 			});
-			error = m.settings_keybindings_used_by({ actions: conflictLabels.join(", ") });
+			error = `Used by: ${conflictLabels.join(", ")}`;
 		} else {
 			error = null;
 			handleSave();
@@ -117,7 +115,7 @@ onDestroy(() => {
 				></span>
 				<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
 			</span>
-			<span class="text-xs text-muted-foreground">{m.settings_keybindings_press_keys()}</span>
+			<span class="text-xs text-muted-foreground">{"Press keys..."}</span>
 		</div>
 	{:else if newKey}
 		<div class="flex items-center gap-2">
@@ -137,14 +135,14 @@ onDestroy(() => {
 					}}
 					class="text-xs text-muted-foreground hover:text-foreground underline"
 				>
-					{m.settings_keybindings_retry()}
+					{"Retry"}
 				</button>
 				<button
 					type="button"
 					onclick={handleCancel}
 					class="text-xs text-muted-foreground hover:text-foreground underline"
 				>
-					{m.common_cancel()}
+					{"Cancel"}
 				</button>
 			{/if}
 		</div>

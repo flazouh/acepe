@@ -15,7 +15,6 @@ import { XCircle } from "phosphor-svelte";
 import { tick } from "svelte";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
-import * as m from "$lib/messages.js";
 import FileIcon from "./file-icon.svelte";
 import type { FileTreeNode } from "./file-list-types.js";
 
@@ -213,7 +212,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					<button
 						type="button"
 						class="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-						aria-label={m.common_cancel()}
+						aria-label={"Cancel"}
 						onclick={() => cancelRename()}
 					>
 						<XCircle weight="fill" class="h-3.5 w-3.5" />
@@ -221,7 +220,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					<button
 						type="button"
 						class="shrink-0 rounded p-0.5 text-success hover:bg-success/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-						aria-label={m.common_confirm()}
+						aria-label={"Confirm"}
 						onclick={() => submitRename()}
 					>
 						<CheckCircle weight="fill" class="h-3.5 w-3.5" />
@@ -287,7 +286,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									<CopyButton
 										text={fullPath}
 										variant="menu"
-										label={m.file_list_copy_path()}
+										label={"Copy path"}
 										size={12}
 									/>
 								</DropdownMenu.Item>
@@ -298,7 +297,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<FolderOpen class="h-3 w-3 shrink-0" weight="fill" />
-									{m.file_list_reveal_in_finder()}
+									{"Reveal in Finder"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onRefresh}
@@ -308,7 +307,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<IconRotateClockwise class="h-3 w-3 shrink-0" />
-									{m.file_list_refresh()}
+									{"Refresh"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onRename}
@@ -318,7 +317,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<IconPencil class="h-3 w-3 shrink-0" />
-									{m.file_list_rename()}
+									{"Rename"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onDuplicate && !node.isDirectory}
@@ -327,7 +326,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<IconCopy class="h-3 w-3 shrink-0" />
-									{m.file_list_duplicate()}
+									{"Duplicate"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onNewFile}
@@ -336,7 +335,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<IconFilePlus class="h-3 w-3 shrink-0" />
-									{m.file_list_new_file()}
+									{"New file"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onNewFolder}
@@ -345,7 +344,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 								>
 									<FolderPlus class="h-3 w-3 shrink-0" weight="fill" />
-									{m.file_list_new_folder()}
+									{"New folder"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onDeleteConfirm}
@@ -358,7 +357,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 										class="!py-1 !text-success data-[highlighted]:bg-success/10 dark:data-[highlighted]:bg-success/20 data-[highlighted]:!text-success data-[highlighted]:[&_svg]:!text-success"
 									>
 										<XCircle weight="fill" class="h-3 w-3 shrink-0 text-success" />
-										{m.common_cancel()}
+										{"Cancel"}
 									</DropdownMenu.Item>
 									<DropdownMenu.Item
 										variant="destructive"
@@ -369,7 +368,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 										}}
 									>
 										<CheckCircle weight="fill" class="h-3 w-3 shrink-0" />
-										{m.common_confirm()}
+										{"Confirm"}
 									</DropdownMenu.Item>
 								{:else}
 									<DropdownMenu.Item
@@ -377,7 +376,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 										onSelect={handleDeleteClick}
 									>
 										<IconTrash class="h-3 w-3 shrink-0 text-destructive" />
-										{m.file_list_delete()}
+										{"Delete"}
 									</DropdownMenu.Item>
 								{/if}
 							{:else if onDelete}
@@ -387,7 +386,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									onSelect={handleDelete}
 								>
 									<IconTrash class="h-3 w-3 shrink-0" />
-									{m.file_list_delete()}
+									{"Delete"}
 								</DropdownMenu.Item>
 							{/if}
 						</DropdownMenu.Content>
@@ -401,7 +400,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 			<ContextMenu.Item
 				class="group/item !py-1 cursor-pointer data-[highlighted]:[&_svg]:!text-primary"
 			>
-				<CopyButton text={fullPath} variant="menu" label={m.file_list_copy_path()} size={12} />
+				<CopyButton text={fullPath} variant="menu" label={"Copy path"} size={12} />
 			</ContextMenu.Item>
 		{/if}
 		{#if onRevealInFinder}
@@ -410,7 +409,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<FolderOpen class="h-3 w-3 shrink-0" weight="fill" />
-				{m.file_list_reveal_in_finder()}
+				{"Reveal in Finder"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onRefresh}
@@ -420,7 +419,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<IconRotateClockwise class="h-3 w-3 shrink-0" />
-				{m.file_list_refresh()}
+				{"Refresh"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onRename}
@@ -430,7 +429,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<IconPencil class="h-3 w-3 shrink-0" />
-				{m.file_list_rename()}
+				{"Rename"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onDuplicate && !node.isDirectory}
@@ -439,7 +438,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<IconCopy class="h-3 w-3 shrink-0" />
-				{m.file_list_duplicate()}
+				{"Duplicate"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onNewFile}
@@ -448,7 +447,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<IconFilePlus class="h-3 w-3 shrink-0" />
-				{m.file_list_new_file()}
+				{"New file"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onNewFolder}
@@ -457,7 +456,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
 			>
 				<FolderPlus class="h-3 w-3 shrink-0" weight="fill" />
-				{m.file_list_new_folder()}
+				{"New folder"}
 			</ContextMenu.Item>
 		{/if}
 		{#if onDeleteConfirm}
@@ -470,7 +469,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					class="!py-1 !text-success data-[highlighted]:bg-success/10 dark:data-[highlighted]:bg-success/20 data-[highlighted]:!text-success data-[highlighted]:[&_svg]:!text-success"
 				>
 					<XCircle weight="fill" class="h-3 w-3 shrink-0 text-success" />
-					{m.common_cancel()}
+					{"Cancel"}
 				</ContextMenu.Item>
 				<ContextMenu.Item
 					variant="destructive"
@@ -481,7 +480,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					}}
 				>
 					<CheckCircle weight="fill" class="h-3 w-3 shrink-0" />
-					{m.common_confirm()}
+					{"Confirm"}
 				</ContextMenu.Item>
 			{:else}
 				<ContextMenu.Item
@@ -489,7 +488,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					onSelect={handleDeleteClick}
 				>
 					<IconTrash class="h-3 w-3 shrink-0" />
-					{m.file_list_delete()}
+					{"Delete"}
 				</ContextMenu.Item>
 			{/if}
 		{:else if onDelete}
@@ -499,7 +498,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				onSelect={handleDelete}
 			>
 				<IconTrash class="h-3 w-3 shrink-0" />
-				{m.file_list_delete()}
+				{"Delete"}
 			</ContextMenu.Item>
 		{/if}
 	</ContextMenu.Content>

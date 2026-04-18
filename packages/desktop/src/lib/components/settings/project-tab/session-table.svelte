@@ -9,7 +9,6 @@ import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
 import type { SessionSummary } from "$lib/acp/application/dto/session.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
-import * as m from "$lib/messages.js";
 import { cn } from "$lib/utils.js";
 import ActionsCell from "./columns/actions-cell.svelte";
 import * as logic from "./session-table-logic.js";
@@ -36,7 +35,7 @@ let {
 	onOpenInFinder,
 	onArchive,
 	onUnarchive,
-	emptyMessage = m.settings_project_sessions_empty(),
+	emptyMessage = "No sessions yet",
 	class: className,
 }: Props = $props();
 
@@ -104,7 +103,7 @@ function titleCase(s: string): string {
 			/>
 			<input
 				type="text"
-				placeholder={m.settings_project_sessions_search()}
+				placeholder={"Search sessions..."}
 				value={state.searchQuery}
 				oninput={(e) => state.setSearchQuery(e.currentTarget.value)}
 				class="w-full h-7 pl-7 pr-2 text-[13px] bg-muted/20 border border-border/60 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border transition-colors"
@@ -114,7 +113,7 @@ function titleCase(s: string): string {
 			class="h-7 px-1.5 text-[12px] bg-muted/20 border border-border/60 rounded-md text-muted-foreground outline-none"
 			onchange={(e) => state.setProjectFilter(e.currentTarget.value || null)}
 		>
-			<option value="">{m.settings_project_sessions_all_projects()}</option>
+			<option value="">{"All projects"}</option>
 			{#each uniqueProjects as project (project.path)}
 				<option value={project.path}>{project.name}</option>
 			{/each}
@@ -123,7 +122,7 @@ function titleCase(s: string): string {
 			class="h-7 px-1.5 text-[12px] bg-muted/20 border border-border/60 rounded-md text-muted-foreground outline-none"
 			onchange={(e) => state.setAgentFilter(e.currentTarget.value || null)}
 		>
-			<option value="">{m.settings_project_sessions_all_agents()}</option>
+			<option value="">{"All agents"}</option>
 			{#each uniqueAgents as agent (agent)}
 				<option value={agent}>{titleCase(agent)}</option>
 			{/each}
@@ -159,12 +158,12 @@ function titleCase(s: string): string {
 
 		<!-- Rows -->
 		{#if loading}
-			<div class="py-6 text-center text-[12px] text-muted-foreground/40">{m.common_loading()}</div>
+			<div class="py-6 text-center text-[12px] text-muted-foreground/40">{"Loading..."}</div>
 		{:else if isEmpty}
 			<div class="py-6 text-center text-[12px] text-muted-foreground/40">{emptyMessage}</div>
 		{:else if !hasResults}
 			<div class="py-6 text-center text-[12px] text-muted-foreground/40">
-				{m.settings_project_sessions_no_results()}
+				{"No results found"}
 			</div>
 		{:else}
 			{#each paginatedRows as row (row.id)}
@@ -213,7 +212,7 @@ function titleCase(s: string): string {
 	<!-- Footer -->
 	<div class="flex items-center justify-between shrink-0 text-[12px]">
 		<span class="text-muted-foreground">
-			{m.settings_project_sessions_count({ count: filteredCount, total: totalCount })}
+			{`Showing ${filteredCount} of ${totalCount} sessions`}
 		</span>
 		{#if totalPages > 1}
 			<div class="flex items-center gap-0.5">

@@ -7,11 +7,12 @@ use tauri::{AppHandle, Manager, State};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::providers::OpenCodeProvider;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::opencode_history::parser;
 use crate::path_safety::validate_project_directory_from_str;
 use crate::session_converter;
-use crate::session_jsonl::types::{ConvertedSession, HistoryEntry};
+use crate::session_jsonl::types::HistoryEntry;
 
 /// Get OpenCode history entries.
 ///
@@ -78,7 +79,7 @@ pub(crate) async fn fetch_opencode_session(
     app: &AppHandle,
     session_id: &str,
     directory: &str,
-) -> Result<ConvertedSession, String> {
+) -> Result<SessionThreadSnapshot, String> {
     let mut client = get_or_create_opencode_client(app, directory).await?;
 
     client
@@ -93,37 +94,6 @@ pub(crate) async fn fetch_opencode_session(
 
     session_converter::convert_opencode_messages_to_session(messages)
         .map_err(|e| format!("Failed to convert session: {}", e))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_opencode_session(
-    app: AppHandle,
-    session_id: String,
-    directory: String,
-) -> CommandResult<ConvertedSession> {
-    unexpected_command_result(
-        "get_opencode_session",
-        "Failed to get OpenCode session",
-        fetch_opencode_session(&app, &session_id, &directory).await,
-    )
-}
-
-/// Get converted OpenCode session (alias for get_opencode_session).
-///
-/// This is a convenience command that calls get_opencode_session.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_opencode_converted_session(
-    app: AppHandle,
-    session_id: String,
-    directory: String,
-) -> CommandResult<ConvertedSession> {
-    unexpected_command_result(
-        "get_opencode_converted_session",
-        "Failed to get converted OpenCode session",
-        fetch_opencode_session(&app, &session_id, &directory).await,
-    )
 }
 
 /// Get OpenCode sessions for a specific project via HTTP API.

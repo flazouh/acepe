@@ -17,8 +17,6 @@ import {
 } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as m from "$lib/messages.js";
-
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
 
@@ -348,8 +346,8 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						{#snippet failed(error, reset)}
 							<div class="flex flex-1 items-center justify-center p-4">
 								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-									<span>{m.error_boundary_panel_failed()}</span>
-									<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+									<span>{"This panel encountered an error."}</span>
+									<button class="text-xs underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
 								</div>
 							</div>
 						{/snippet}
@@ -362,7 +360,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					panelId={filePanel.id}
 					filePath={filePanel.filePath}
 					projectPath={filePanel.projectPath}
-					projectName={project ? project.name : m.project_unknown()}
+					projectName={project ? project.name : "Unknown"}
 					projectColor={project?.color}
 					projectIconSrc={project?.iconPath ?? null}
 					width={filePanel.width}
@@ -391,7 +389,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					group={terminalGroup}
 					tabs={panelStore.getTerminalTabsForGroup(terminalGroup.id)}
 					projectPath={terminalGroup.projectPath}
-					projectName={project ? project.name : m.project_unknown()}
+					projectName={project ? project.name : "Unknown"}
 					projectColor={project ? project.color : "#4AD0FF"}
 					projectIconSrc={project?.iconPath ?? null}
 					panelStore={terminalTabsPanelStore}
@@ -422,7 +420,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						<FilePanelTabs
 							filePanels={group.filePanels}
 							activeFilePanelId={panelStore.getActiveTopLevelFilePanelId(group.projectPath)}
-							projectName={project ? project.name : m.project_unknown()}
+							projectName={project ? project.name : "Unknown"}
 							projectColor={project?.color}
 							projectIconSrc={project?.iconPath ?? null}
 							onSelectFilePanel={(panelId) => panelStore.setActiveTopLevelFilePanel(group.projectPath, panelId)}
@@ -536,8 +534,8 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								{#snippet failed(error, reset)}
 									<div class="flex flex-1 items-center justify-center p-4">
 										<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-											<span>{m.error_boundary_panel_failed()}</span>
-											<button class="text-xs underline hover:text-foreground" onclick={reset}>{m.error_boundary_retry()}</button>
+											<span>{"This panel encountered an error."}</span>
+											<button class="text-xs underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
 										</div>
 									</div>
 								{/snippet}

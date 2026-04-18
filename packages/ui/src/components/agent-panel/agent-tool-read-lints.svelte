@@ -49,7 +49,7 @@
 	const hasContent = $derived(
 		!isPending && (totalDiagnostics > 0 || totalFiles > 0 || (diagnostics?.length ?? 0) > 0)
 	);
-	// summaryLabel is pre-formatted from desktop (i18n with count/files); use as-is when we have content
+	// summaryLabel is pre-formatted from desktop (includes count/files); use as-is when we have content
 	const summaryText = $derived.by(() => {
 		if (totalDiagnostics === 0 && totalFiles === 0) {
 			return noIssuesLabel;

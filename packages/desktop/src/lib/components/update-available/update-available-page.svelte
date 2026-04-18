@@ -8,8 +8,6 @@ import {
 } from "$lib/components/main-app-view/logic/updater-state.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as m from "$lib/messages.js";
-
 const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 
 interface Props {
@@ -78,17 +76,17 @@ onMount(() => {
 			<!-- State content -->
 			{#if updaterState.kind === "checking"}
 				<div class="flex flex-col gap-1.5">
-					<p class="text-[13px] font-medium text-foreground">{m.update_checking()}</p>
+					<p class="text-[13px] font-medium text-foreground">{"Checking for updates"}</p>
 					<div class="flex items-center gap-2">
 						<Spinner class="size-3 text-muted-foreground/40" />
-						<span class="text-[11px] text-muted-foreground/50">{m.update_checking_description()}</span>
+						<span class="text-[11px] text-muted-foreground/50">{"Looking for the latest version..."}</span>
 					</div>
 				</div>
 			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
 				<div class="flex flex-col gap-2">
 					<div class="flex items-baseline justify-between">
 						<TextShimmer class="text-[13px] font-medium text-foreground">
-							{isInstalling ? m.update_installing() : m.update_downloading()}
+							{isInstalling ? "Installing update..." : "Downloading update"}
 						</TextShimmer>
 						{#if downloadPercent !== null}
 							<span class="text-[11px] tabular-nums text-muted-foreground/50">{downloadPercent}%</span>
@@ -96,7 +94,7 @@ onMount(() => {
 					</div>
 
 					<VoiceDownloadProgress
-						ariaLabel={isInstalling ? m.update_installing() : m.update_downloading()}
+						ariaLabel={isInstalling ? "Installing update..." : "Downloading update"}
 						compact={true}
 						fillWidth={true}
 						label=""
@@ -111,18 +109,18 @@ onMount(() => {
 								{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
 							</span>
 							{#if isInstalling}
-								<span>{m.update_installing()}</span>
+								<span>{"Installing update..."}</span>
 							{/if}
 						</div>
 					{:else}
 						<div class="flex items-center justify-end text-[11px] text-muted-foreground/40">
-							<span>{m.update_installing()}</span>
+							<span>{"Installing update..."}</span>
 						</div>
 					{/if}
 				</div>
 			{:else if updaterState.kind === "error"}
 				<div class="flex flex-col gap-1.5">
-					<p class="text-[13px] font-medium text-foreground">{m.update_error()}</p>
+					<p class="text-[13px] font-medium text-foreground">{"Update failed"}</p>
 					<p class="text-[11px] leading-relaxed text-muted-foreground/50">
 						{updaterState.message}
 					</p>
@@ -133,7 +131,7 @@ onMount(() => {
 							onclick={onRetry}
 							class="group gap-1.5 h-6 px-2.5 text-[11px]"
 						>
-							{m.update_retry()}
+							{"Retry"}
 							<RefreshCw class="size-3 transition-transform duration-200 group-hover:rotate-180" />
 						</Button>
 					</div>

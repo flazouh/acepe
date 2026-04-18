@@ -5,8 +5,6 @@ import { IconEyeOff } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import * as m from "$lib/messages.js";
-
 let {
 	value = $bindable(""),
 	onSave,
@@ -38,7 +36,7 @@ function handleClear() {
 		<Input
 			type={showPassword ? "text" : "password"}
 			bind:value={inputValue}
-			placeholder={m.api_key_placeholder()}
+			placeholder={"Enter API key..."}
 			class="pr-20"
 			disabled={isLoading}
 		/>
@@ -65,12 +63,12 @@ function handleClear() {
 			disabled={!hasChanges || isLoading || !inputValue.trim()}
 		>
 			<IconCheck class="h-4 w-4 mr-2" />
-			{m.common_save()}
+			{"Save"}
 		</Button>
 		{#if value}
 			<Button variant="outline" size="sm" onclick={handleClear} disabled={isLoading}>
 				<IconX class="h-4 w-4 mr-2" />
-				{m.common_clear()}
+				{"Clear"}
 			</Button>
 		{/if}
 	</div>

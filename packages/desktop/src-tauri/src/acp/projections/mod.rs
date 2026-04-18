@@ -10,7 +10,6 @@ use crate::acp::session_update::{
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
 use crate::acp::types::CanonicalAgentId;
-use crate::session_jsonl::types::ConvertedSession;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -263,16 +262,6 @@ impl ProjectionRegistry {
         let registry = Self::new();
         registry.import_thread_snapshot(session_id, agent_id, thread_snapshot);
         registry.session_projection(session_id)
-    }
-
-    #[must_use]
-    pub fn project_converted_session(
-        session_id: &str,
-        agent_id: Option<CanonicalAgentId>,
-        converted: &ConvertedSession,
-    ) -> SessionProjectionSnapshot {
-        let thread_snapshot = SessionThreadSnapshot::from(converted.clone());
-        Self::project_thread_snapshot(session_id, agent_id, &thread_snapshot)
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -1026,9 +1015,10 @@ mod tests {
         ContentChunk, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
     };
     use crate::acp::types::ContentBlock;
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::session_jsonl::types::{
-        ConvertedSession, QuestionAnswer, SessionStats, StoredAssistantChunk,
-        StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+        QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock,
+        StoredEntry, StoredUserMessage,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1794,7 +1784,7 @@ mod tests {
 
     #[test]
     fn project_converted_session_preserves_stored_error_source() {
-        let converted = ConvertedSession {
+        let thread_snapshot = SessionThreadSnapshot {
             entries: vec![StoredEntry::Error {
                 id: "error-1".to_string(),
                 message: crate::session_jsonl::types::StoredErrorMessage {
@@ -1805,14 +1795,11 @@ mod tests {
                 },
                 timestamp: Some("2026-04-15T00:00:00Z".to_string()),
             }],
-            stats: SessionStats::default(),
             title: "Imported error".to_string(),
             created_at: "2026-04-15T00:00:00Z".to_string(),
             current_mode_id: None,
         };
 
-        let thread_snapshot =
-            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
@@ -1834,7 +1821,7 @@ mod tests {
 
     #[test]
     fn project_converted_session_clears_historical_error_when_later_entries_continue() {
-        let converted = ConvertedSession {
+        let thread_snapshot = SessionThreadSnapshot {
             entries: vec![
                 StoredEntry::Error {
                     id: "error-1".to_string(),
@@ -1876,14 +1863,11 @@ mod tests {
                     timestamp: Some("2026-04-15T00:00:02Z".to_string()),
                 },
             ],
-            stats: SessionStats::default(),
             title: "Recovered session".to_string(),
             created_at: "2026-04-15T00:00:00Z".to_string(),
             current_mode_id: None,
         };
 
-        let thread_snapshot =
-            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),
@@ -1900,7 +1884,7 @@ mod tests {
 
     #[test]
     fn project_converted_session_defaults_missing_stored_error_source_to_unknown() {
-        let converted = ConvertedSession {
+        let thread_snapshot = SessionThreadSnapshot {
             entries: vec![StoredEntry::Error {
                 id: "error-1".to_string(),
                 message: crate::session_jsonl::types::StoredErrorMessage {
@@ -1911,14 +1895,11 @@ mod tests {
                 },
                 timestamp: Some("2026-04-15T00:00:00Z".to_string()),
             }],
-            stats: SessionStats::default(),
             title: "Imported error".to_string(),
             created_at: "2026-04-15T00:00:00Z".to_string(),
             current_mode_id: None,
         };
 
-        let thread_snapshot =
-            crate::acp::session_thread_snapshot::SessionThreadSnapshot::from(converted);
         let projection = ProjectionRegistry::project_thread_snapshot(
             "session-1",
             Some(CanonicalAgentId::Codex),

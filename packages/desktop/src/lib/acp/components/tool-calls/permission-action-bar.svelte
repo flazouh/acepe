@@ -2,7 +2,6 @@
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
 import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "../../utils/colors.js";
@@ -69,19 +68,19 @@ const buttonClass = "justify-center shrink-0";
 	<div class="flex items-center justify-end gap-1" class:w-full={!inline && !compact}>
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleReject}>
 			<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
-			<span>{m.permission_deny()}</span>
+			<span>{"Deny"}</span>
 		</Button>
 
 		{#if hasAlwaysOption}
 			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAlwaysAllow}>
 				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
-				<span>{m.permission_always_allow()}</span>
+				<span>{"Always"}</span>
 			</Button>
 		{/if}
 
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAllowOnce}>
 			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {greenColor}" />
-			<span>{m.permission_allow()}</span>
+			<span>{"Allow"}</span>
 		</Button>
 	</div>
 </div>

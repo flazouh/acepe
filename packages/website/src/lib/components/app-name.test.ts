@@ -7,6 +7,6 @@ describe("app name", () => {
 
 		expect(source).toContain('import { TextShimmer } from "@acepe/ui";');
 		expect(source).toContain("font-sans");
-		expect(source).toContain("{m.app_name()}");
+		expect(source).toContain('{"Acepe"}');
 	});
 });

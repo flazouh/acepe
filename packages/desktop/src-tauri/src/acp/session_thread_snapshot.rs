@@ -1,4 +1,4 @@
-use crate::session_jsonl::types::{ConvertedSession, SessionStats, StoredEntry};
+use crate::session_jsonl::types::StoredEntry;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -20,28 +20,6 @@ impl SessionThreadSnapshot {
             title: format!("Session {short_id}"),
             created_at: chrono::Utc::now().to_rfc3339(),
             current_mode_id: None,
-        }
-    }
-
-    #[must_use]
-    pub fn into_converted_session(self) -> ConvertedSession {
-        ConvertedSession {
-            entries: self.entries,
-            stats: SessionStats::default(),
-            title: self.title,
-            created_at: self.created_at,
-            current_mode_id: self.current_mode_id,
-        }
-    }
-}
-
-impl From<ConvertedSession> for SessionThreadSnapshot {
-    fn from(value: ConvertedSession) -> Self {
-        Self {
-            entries: value.entries,
-            title: value.title,
-            created_at: value.created_at,
-            current_mode_id: value.current_mode_id,
         }
     }
 }

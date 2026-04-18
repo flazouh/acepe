@@ -8,7 +8,7 @@ use crate::acp::session_update::{
 use crate::acp::types::ContentBlock;
 use crate::history::constants::MAX_SESSIONS_PER_PROJECT;
 use crate::history::title_utils::normalize_display_title;
-use crate::session_jsonl::types::ConvertedSession;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -143,7 +143,7 @@ pub(crate) async fn parse_copilot_session_at_root(
     session_state_root: &Path,
     events_jsonl_path: &Path,
     title: &str,
-) -> Result<ConvertedSession, String> {
+) -> Result<SessionThreadSnapshot, String> {
     let canonical_root = session_state_root
         .canonicalize()
         .map_err(|error| format!("Failed to resolve Copilot session-state root: {error}"))?;

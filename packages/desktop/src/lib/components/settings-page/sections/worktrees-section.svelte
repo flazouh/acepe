@@ -1,7 +1,6 @@
 <script lang="ts">
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/messages.js";
 import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 
@@ -10,12 +9,12 @@ const worktreeDefaultStore = getWorktreeDefaultStore();
 
 <div class="w-full">
 	<SettingsSection
-		title={m.settings_worktree_section()}
+		title={"Worktrees"}
 		description="Choose the default behavior for worktree-aware sessions."
 	>
 		<SettingRow
-			label={m.settings_worktree_default_label()}
-			description={m.settings_worktree_default_description()}
+			label={"Use worktrees by default"}
+			description={"New sessions will automatically use git worktrees for branch isolation"}
 		>
 			<Switch
 				checked={worktreeDefaultStore.globalDefault}

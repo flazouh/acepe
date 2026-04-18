@@ -2,7 +2,6 @@
 import { TextShimmer } from "@acepe/ui/text-shimmer";
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { MagnifyingGlass } from "phosphor-svelte";
-import * as m from "$lib/messages.js";
 import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -65,10 +64,10 @@ const toolCount = $derived(matchedTools?.length ?? 0);
 				<span class="font-medium shrink-0">
 					{#if isPending}
 						<TextShimmer class="inline-flex h-4 m-0 items-center text-xs leading-none">
-							{m.tool_tool_search_running()}
+							{"Loading tools"}
 						</TextShimmer>
 					{:else}
-						{m.tool_tool_search_completed()}
+						{"Loaded tools"}
 					{/if}
 				</span>
 			</div>

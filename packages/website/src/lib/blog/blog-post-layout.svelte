@@ -1,5 +1,4 @@
 <script lang="ts">
-import * as m from "$lib/messages.js";
 import Header from "$lib/components/header.svelte";
 import { ArrowLeft } from "@lucide/svelte";
 import type { BlogPostMetadata } from "./types.js";
@@ -66,7 +65,7 @@ const jsonLd = $derived({
 				class="inline-flex items-center gap-2 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<ArrowLeft class="h-3.5 w-3.5" />
-				<span>{m.blog_back_to_index()}</span>
+				<span>{"Back to Blog"}</span>
 			</a>
 		</div>
 
@@ -101,9 +100,9 @@ const jsonLd = $derived({
 		{#if metadata.relatedLinks && metadata.relatedLinks.length > 0}
 			<section class="mt-16 rounded-xl border border-border/50 bg-card/20 p-6 md:p-8">
 				<div class="max-w-2xl">
-					<h2 class="text-2xl font-semibold tracking-tight">{m.blog_related_links_title()}</h2>
+					<h2 class="text-2xl font-semibold tracking-tight">{"Next steps"}</h2>
 					<p class="mt-3 text-sm leading-relaxed text-muted-foreground">
-						{m.blog_related_links_description()}
+						{"Keep moving through the comparison, pricing, and download funnel from the feature you just explored."}
 					</p>
 				</div>
 				<div class="mt-6 grid gap-4 md:grid-cols-2">

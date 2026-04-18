@@ -10,8 +10,6 @@ import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js
 import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import * as m from "$lib/messages.js";
-
 import AgentEnvOverridesDialog from "./agent-env-overrides-dialog.svelte";
 import {
 	applyAgentSelectionChange,
@@ -46,7 +44,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 		checked
 	);
 	if (!result.ok) {
-		toast.error(m.settings_agents_min_one());
+		toast.error("At least one agent must remain selected.");
 		return;
 	}
 	if (!result.changed) {
@@ -303,7 +301,7 @@ function getModelDescription(
 	{#if agentPreferencesStore.customAgentConfigs.length > 0}
 		<div class="pt-1 space-y-2">
 			<SettingsSectionHeader
-				title={m.settings_agents_persisted()}
+				title={"Persisted custom agents"}
 				description="Saved custom agent commands available on this machine."
 			/>
 			<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
