@@ -1,0 +1,119 @@
+//! Provider-owned tool name normalization and classification dispatch (Unit 3).
+//!
+//! Each provider resolves its own tool names to [`ToolKind`]; the result flows into
+//! [`classify_with_provider_name_kind`] which applies the shared fallback heuristics.
+//! No shared `Reconciler` trait — provider logic is a plain match arm here.
+
+use crate::acp::parsers::AgentType;
+use crate::acp::reconciler::{
+    classify_with_provider_name_kind, ClassificationOutput, RawClassificationInput,
+};
+use crate::acp::session_update::ToolKind;
+
+pub mod claude_code;
+pub mod codex;
+pub mod copilot;
+pub mod cursor;
+pub mod open_code;
+pub mod shared_chat;
+
+pub use claude_code::ClaudeCodeAdapter;
+pub use codex::CodexAdapter;
+pub use copilot::CopilotAdapter;
+pub use cursor::CursorAdapter;
+pub use open_code::OpenCodeAdapter;
+
+/// Zero-allocation check: name matches any of the candidates (ASCII case-insensitive).
+pub(crate) fn any_eq(name: &str, candidates: &[&str]) -> bool {
+    candidates.iter().any(|c| name.eq_ignore_ascii_case(c))
+}
+
+fn resolve_provider_kind(name: Option<&str>, normalize: fn(&str) -> ToolKind) -> Option<ToolKind> {
+    let name = name
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .filter(|v| !v.eq_ignore_ascii_case("unknown"))?;
+
+    let kind = normalize(name);
+    if kind == ToolKind::Other {
+        None
+    } else {
+        Some(kind)
+    }
+}
+
+/// Dispatch to the provider's name table, then fall through shared classification heuristics.
+pub(crate) fn classify(agent: AgentType, raw: &RawClassificationInput<'_>) -> ClassificationOutput {
+    let provider_kind = match agent {
+        AgentType::ClaudeCode => resolve_provider_kind(raw.name, ClaudeCodeAdapter::normalize),
+        AgentType::Copilot => resolve_provider_kind(raw.name, CopilotAdapter::normalize),
+        AgentType::Cursor => resolve_provider_kind(raw.name, CursorAdapter::normalize),
+        AgentType::Codex => resolve_provider_kind(raw.name, CodexAdapter::normalize),
+        AgentType::OpenCode => resolve_provider_kind(raw.name, OpenCodeAdapter::normalize),
+    };
+    classify_with_provider_name_kind(provider_kind, raw)
+}
+
+pub(crate) fn detect_tool_kind(agent: AgentType, name: &str) -> ToolKind {
+    classify(
+        agent,
+        &RawClassificationInput {
+            id: "",
+            name: Some(name),
+            title: None,
+            kind_hint: None,
+            arguments: &serde_json::Value::Null,
+        },
+    )
+    .kind
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify, detect_tool_kind};
+    use crate::acp::parsers::AgentType;
+    use crate::acp::reconciler::RawClassificationInput;
+    use crate::acp::session_update::{ToolArguments, ToolKind};
+
+    #[test]
+    fn delegates_provider_name_detection_through_reconciler() {
+        assert_eq!(
+            detect_tool_kind(AgentType::Copilot, "update_todos"),
+            ToolKind::Todo
+        );
+        assert_eq!(
+            detect_tool_kind(AgentType::Cursor, "codebase_search"),
+            ToolKind::Search
+        );
+        assert_eq!(
+            detect_tool_kind(AgentType::Codex, "shell_command"),
+            ToolKind::Execute
+        );
+    }
+
+    #[test]
+    fn uses_argument_shape_when_provider_lookup_misses() {
+        let output = classify(
+            AgentType::Copilot,
+            &RawClassificationInput {
+                id: "tool-sql",
+                name: Some("unknown"),
+                title: Some("Mark all done"),
+                kind_hint: Some("other"),
+                arguments: &serde_json::json!({
+                    "description": "Mark all done",
+                    "query": "UPDATE todos SET status = 'done'"
+                }),
+            },
+        );
+
+        assert_eq!(output.kind, ToolKind::Sql);
+        assert!(matches!(
+            output.arguments,
+            ToolArguments::Sql {
+                query: Some(_),
+                description: Some(_)
+            }
+        ));
+    }
+}

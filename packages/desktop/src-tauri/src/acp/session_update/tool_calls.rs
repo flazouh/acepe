@@ -1,12 +1,11 @@
 use super::deserialize::parser_error_to_de_error;
-use super::normalize::derive_normalized_questions_and_todos;
 use super::types::{
     ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind,
 };
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
-use crate::acp::tool_classification::{
+use crate::acp::reconciler::session_tool::{
     classify_raw_tool_call, resolve_raw_tool_identity, ToolClassificationHints,
 };
 use serde_json::json;
@@ -361,7 +360,10 @@ pub(crate) fn build_tool_call_from_raw(
         },
     );
     let mut arguments = classified.arguments;
-    if let ToolArguments::Read { ref mut file_path } = arguments {
+    if let ToolArguments::Read {
+        ref mut file_path, ..
+    } = arguments
+    {
         if file_path.is_none() && !raw.suppress_title_read_path_hint {
             *file_path = raw.title.as_deref().and_then(extract_file_path_from_title);
         }
@@ -372,12 +374,6 @@ pub(crate) fn build_tool_call_from_raw(
         }
     }
     let status = raw.status;
-
-    let (normalized_questions, normalized_todos) = derive_normalized_questions_and_todos(
-        &classified.name,
-        &raw.arguments,
-        parser.agent_type(),
-    );
 
     ToolCallData {
         id: raw.id.clone(),
@@ -390,8 +386,8 @@ pub(crate) fn build_tool_call_from_raw(
         title: raw.title,
         locations: None,
         skill_meta: None,
-        normalized_questions,
-        normalized_todos,
+        normalized_questions: classified.normalized_questions,
+        normalized_todos: classified.normalized_todos,
         parent_tool_use_id: raw.parent_tool_use_id,
         question_answer: None,
         awaiting_plan_approval: false,
@@ -680,7 +676,7 @@ mod tests {
     fn empty_raw_input_read_with_title_extracts_file_path() {
         let tc = build_with_kind_and_title("read", Some("Read /etc/hosts"));
         match &tc.arguments {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/etc/hosts"));
             }
             other => panic!("Expected Read, got {:?}", other.tool_kind()),
@@ -737,7 +733,7 @@ mod tests {
         let tool_call = build_tool_call_from_raw(parser, raw);
 
         match tool_call.arguments {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/repo/src/lib.rs"));
             }
             other => panic!("expected Read arguments, got {:?}", other),

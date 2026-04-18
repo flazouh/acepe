@@ -1437,7 +1437,7 @@ mod tests {
                 assert_eq!(tool_call.name, "Read");
                 assert_eq!(tool_call.kind, Some(ToolKind::Read));
                 match &tool_call.arguments {
-                    ToolArguments::Read { file_path } => {
+                    ToolArguments::Read { file_path, .. } => {
                         assert_eq!(file_path.as_deref(), Some("/src/main.rs"));
                     }
                     other => panic!("expected Read arguments, got {:?}", other),

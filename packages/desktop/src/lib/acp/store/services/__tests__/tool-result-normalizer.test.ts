@@ -105,6 +105,32 @@ describe("normalizeToolResult", () => {
 		});
 	});
 
+	it("normalizes sql results into an explicit shared contract", () => {
+		const normalized = normalizeToolResult({
+			kind: "sql",
+			arguments: {
+				kind: "sql",
+				query: "SELECT * FROM todos",
+				description: "Load todos",
+			},
+			result: {
+				rows: [{ id: 1, content: "Ship reconciler" }],
+			},
+		});
+
+		expect(normalized).toEqual({
+			kind: "sql",
+			rawText: JSON.stringify(
+				{
+					rows: [{ id: 1, content: "Ship reconciler" }],
+				},
+				null,
+				2
+			),
+			rowCount: 1,
+		});
+	});
+
 	it("returns null for empty results", () => {
 		expect(
 			normalizeToolResult({

@@ -160,9 +160,29 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(callOrder).toEqual(["sendResponseComplete", "updateHotState"]);
 	});
 
-	it("is idempotent when the turn is already completed", () => {
+	it("still completes the session machine when hot state is completed but the machine is still streaming", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
+		});
+		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+			content: "loaded",
+			connection: "streaming",
+		});
+
+		service.handleStreamComplete(sessionId);
+
+		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
+	});
+
+	it("is idempotent when the turn is already completed and the machine is already ready", () => {
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			turnState: "completed",
+		});
+		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+			content: "loaded",
+			connection: "ready",
 		});
 
 		service.handleStreamComplete(sessionId);

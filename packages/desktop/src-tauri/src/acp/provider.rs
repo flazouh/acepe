@@ -78,8 +78,6 @@ impl BackendIdentityPolicy {
     }
 }
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PlanAdapterPolicy {
     pub parses_wrapper_plan_from_text_stream: bool,

@@ -16,6 +16,7 @@
 
 import type { StoredEntry } from "../infrastructure/storage/ThreadStorage.js";
 
+/** Display-only fallbacks for historical stored `name` strings — not used for tool kind routing. */
 const LEGACY_TOOL_NAME_LABELS: Record<string, string> = {
 	Bash: "Run",
 	Execute: "Run",

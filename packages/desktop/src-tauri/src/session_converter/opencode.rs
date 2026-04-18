@@ -1,9 +1,6 @@
 use crate::acp::parsers::{AgentParser, AgentType, ClaudeCodeParser, OpenCodeParser};
-use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
-    ToolCallData,
-};
-use crate::acp::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::session_update::{tool_call_status_from_str, ToolArguments, ToolCallData};
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
@@ -283,10 +280,6 @@ fn convert_opencode_assistant_message(
                         locations: None,
                     },
                 );
-                let normalized_questions =
-                    parse_normalized_questions(&classified.name, input, AgentType::OpenCode);
-                let normalized_todos =
-                    parse_normalized_todos(&classified.name, input, AgentType::OpenCode);
                 let task_children = if name.to_lowercase().contains("task") {
                     parse_task_children_from_metadata(
                         id,
@@ -308,8 +301,8 @@ fn convert_opencode_assistant_message(
                         raw_input: None,
                         skill_meta: None, // OpenCode doesn't support skill meta yet
                         locations: None,
-                        normalized_questions,
-                        normalized_todos,
+                        normalized_questions: classified.normalized_questions,
+                        normalized_todos: classified.normalized_todos,
                         parent_tool_use_id: None,
                         task_children,
                         question_answer: None, // OpenCode question answers not yet supported

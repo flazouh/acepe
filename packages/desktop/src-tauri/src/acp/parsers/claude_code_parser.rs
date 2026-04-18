@@ -1,9 +1,7 @@
 //! Parser for Claude Code agent.
 
-use crate::acp::parsers::adapters::ClaudeCodeAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::claude_code::parse_edit_arguments;
-use crate::acp::parsers::kind::infer_kind_from_payload;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::shared_chat::{
     detect_update_type, infer_tool_kind_from_raw_arguments, parse_tool_call_update,
@@ -13,6 +11,8 @@ use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write, AgentParser,
     AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
+use crate::acp::parsers::ClaudeCodeAdapter;
+use crate::acp::reconciler::kind_payload::infer_kind_from_payload;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, ToolArguments, ToolKind,

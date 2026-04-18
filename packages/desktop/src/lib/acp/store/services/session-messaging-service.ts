@@ -225,7 +225,17 @@ export class SessionMessagingService {
 	 */
 	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
 		const hotState = this.hotStateManager.getHotState(sessionId);
+		const machineState = this.connectionManager.getState(sessionId);
 		if (hotState?.turnState === "completed") {
+			const connectionState = machineState?.connection ?? null;
+			if (
+				connectionState === ConnectionState.AWAITING_RESPONSE ||
+				connectionState === ConnectionState.STREAMING ||
+				connectionState === ConnectionState.PAUSED
+			) {
+				this.connectionManager.sendResponseComplete(sessionId);
+				this.entryManager.finalizeStreamingEntries(sessionId);
+			}
 			return;
 		}
 

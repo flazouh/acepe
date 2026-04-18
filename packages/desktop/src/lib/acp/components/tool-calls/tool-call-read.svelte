@@ -32,9 +32,43 @@ const filePath = $derived.by(() => {
 	if (streamingArgs?.kind === "read" && streamingArgs.file_path) {
 		return streamingArgs.file_path;
 	}
-	return toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null;
+	if (streamingArgs?.kind === "read" && streamingArgs.source_context?.path) {
+		return streamingArgs.source_context.path;
+	}
+	return toolCall.arguments.kind === "read"
+		? (toolCall.arguments.file_path ?? toolCall.arguments.source_context?.path ?? null)
+		: null;
 });
 const fileName = $derived(filePath ? getFileName(filePath) : null);
+const sourceExcerpt = $derived.by(() => {
+	const streamingArgs = sessionStore.getStreamingArguments(toolCall.id);
+	if (streamingArgs?.kind === "read" && streamingArgs.source_context?.excerpt) {
+		return streamingArgs.source_context.excerpt;
+	}
+	return toolCall.arguments.kind === "read" ? (toolCall.arguments.source_context?.excerpt ?? null) : null;
+});
+const sourceRangeLabel = $derived.by(() => {
+	const streamingArgs = sessionStore.getStreamingArguments(toolCall.id);
+	const range =
+		streamingArgs?.kind === "read"
+			? (streamingArgs.source_context?.viewRange ?? null)
+			: toolCall.arguments.kind === "read"
+				? (toolCall.arguments.source_context?.viewRange ?? null)
+				: null;
+	if (!range) {
+		return null;
+	}
+
+	const start = range.startLine;
+	const end = range.endLine;
+	if (start === null || start === undefined) {
+		return end === null || end === undefined ? null : `Lines ${end}`;
+	}
+	if (end === null || end === undefined || end === start) {
+		return `Line ${start}`;
+	}
+	return `Lines ${start}-${end}`;
+});
 
 // Git diff stats state
 let linesAdded = $state(0);
@@ -95,6 +129,8 @@ const agentStatus = $derived.by(() => {
 <AgentToolRead
 	{filePath}
 	{fileName}
+	{sourceExcerpt}
+	{sourceRangeLabel}
 	additions={linesAdded}
 	deletions={linesRemoved}
 	status={agentStatus}

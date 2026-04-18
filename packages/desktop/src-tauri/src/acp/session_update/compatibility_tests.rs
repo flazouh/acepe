@@ -365,7 +365,7 @@ fn test_tool_arguments_read() {
     let raw = json!({"file_path": "/tmp/test.txt"});
     let args = ToolArguments::from_raw(ToolKind::Read, raw);
     match args {
-        ToolArguments::Read { file_path } => {
+        ToolArguments::Read { file_path, .. } => {
             assert_eq!(file_path, Some("/tmp/test.txt".to_string()));
         }
         _ => panic!("Expected Read variant"),
@@ -377,7 +377,7 @@ fn test_tool_arguments_read_aliases() {
     let raw = json!({"filePath": "/tmp/test.txt"});
     let args = ToolArguments::from_raw(ToolKind::Read, raw);
     match args {
-        ToolArguments::Read { file_path } => {
+        ToolArguments::Read { file_path, .. } => {
             assert_eq!(file_path, Some("/tmp/test.txt".to_string()));
         }
         _ => panic!("Expected Read variant"),
@@ -386,7 +386,7 @@ fn test_tool_arguments_read_aliases() {
     let raw = json!({"path": "/tmp/test.txt"});
     let args = ToolArguments::from_raw(ToolKind::Read, raw);
     match args {
-        ToolArguments::Read { file_path } => {
+        ToolArguments::Read { file_path, .. } => {
             assert_eq!(file_path, Some("/tmp/test.txt".to_string()));
         }
         _ => panic!("Expected Read variant"),

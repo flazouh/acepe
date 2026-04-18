@@ -1,6 +1,7 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SessionCold } from "../../application/dto/session.js";
 import type { SessionOpenFound } from "$lib/services/acp-types.js";
 import type { HistoryEntry } from "$lib/services/claude-history-types.js";
 import type { ConvertedSession } from "$lib/services/converted-session-types.js";
@@ -577,7 +578,16 @@ describe("SessionStore title updates", () => {
 				status: "ready",
 				connectionError: null,
 			});
-			return okAsync(undefined);
+			const cold: SessionCold = {
+				id: sessionId,
+				projectPath: "/tmp/project",
+				agentId: "cursor",
+				title: null,
+				createdAt: new Date(0),
+				updatedAt: new Date(0),
+				parentId: null,
+			};
+			return okAsync(cold);
 		});
 		vi.mocked(api.sendPrompt).mockReturnValue(okAsync(undefined));
 

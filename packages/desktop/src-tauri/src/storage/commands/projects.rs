@@ -6,7 +6,9 @@ use tauri::{AppHandle, State};
 
 use super::icon_detection::detect_project_icon;
 use super::shared::{get_db, project_name_from_path, validate_project_path_for_storage, Project};
-use crate::commands::observability::{CommandResult, SerializableCommandError, unexpected_command_result};
+use crate::commands::observability::{
+    unexpected_command_result, CommandResult, SerializableCommandError,
+};
 
 const PROJECT_ICON_BACKFILL_KEY: &str = "project_icon_backfill_v2";
 
@@ -62,24 +64,27 @@ fn classify_missing_project_paths(paths: &[String]) -> Vec<String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_projects(app: AppHandle) -> CommandResult<Vec<Project>>  {
-    unexpected_command_result("get_projects", "Failed to get projects", async {
+pub async fn get_projects(app: AppHandle) -> CommandResult<Vec<Project>> {
+    unexpected_command_result(
+        "get_projects",
+        "Failed to get projects",
+        async {
+            tracing::debug!("Getting all projects");
 
-        tracing::debug!("Getting all projects");
+            let db = get_db(&app);
 
-        let db = get_db(&app);
+            let rows = ProjectRepository::get_all(&db).await.map_err(|e| {
+                tracing::error!(error = %e, "Failed to get projects");
+                e.to_string()
+            })?;
 
-        let rows = ProjectRepository::get_all(&db).await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to get projects");
-            e.to_string()
-        })?;
+            let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
 
-        let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
-
-        tracing::debug!(count = %projects.len(), "Returning projects");
-        Ok(projects)
-
-    }.await)
+            tracing::debug!(count = %projects.len(), "Returning projects");
+            Ok(projects)
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -87,57 +92,63 @@ pub async fn get_projects(app: AppHandle) -> CommandResult<Vec<Project>>  {
 pub async fn get_recent_projects(
     app: AppHandle,
     limit: Option<u64>,
-) -> CommandResult<Vec<Project>>  {
-    unexpected_command_result("get_recent_projects", "Failed to get recent projects", async {
+) -> CommandResult<Vec<Project>> {
+    unexpected_command_result(
+        "get_recent_projects",
+        "Failed to get recent projects",
+        async {
+            let limit = limit.unwrap_or(100);
+            tracing::debug!(limit = %limit, "Getting recent projects");
 
-        let limit = limit.unwrap_or(100);
-        tracing::debug!(limit = %limit, "Getting recent projects");
+            let db = get_db(&app);
 
-        let db = get_db(&app);
+            let rows = ProjectRepository::get_recent(&db, limit)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to get recent projects");
+                    e.to_string()
+                })?;
 
-        let rows = ProjectRepository::get_recent(&db, limit)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to get recent projects");
+            let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
+
+            tracing::debug!(count = %projects.len(), "Returning recent projects");
+            Ok(projects)
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_project_count(app: AppHandle) -> CommandResult<u64> {
+    unexpected_command_result(
+        "get_project_count",
+        "Failed to get project count",
+        async {
+            tracing::debug!("Getting project count");
+
+            let db = get_db(&app);
+
+            let count = ProjectRepository::count(&db).await.map_err(|e| {
+                tracing::error!(error = %e, "Failed to get project count");
                 e.to_string()
             })?;
 
-        let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
-
-        tracing::debug!(count = %projects.len(), "Returning recent projects");
-        Ok(projects)
-
-    }.await)
+            tracing::debug!(count = %count, "Returning project count");
+            Ok(count)
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_project_count(app: AppHandle) -> CommandResult<u64>  {
-    unexpected_command_result("get_project_count", "Failed to get project count", async {
-
-        tracing::debug!("Getting project count");
-
-        let db = get_db(&app);
-
-        let count = ProjectRepository::count(&db).await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to get project count");
-            e.to_string()
-        })?;
-
-        tracing::debug!(count = %count, "Returning project count");
-        Ok(count)
-
-    }.await)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_missing_project_paths(paths: Vec<String>) -> CommandResult<Vec<String>>  {
-    unexpected_command_result("get_missing_project_paths", "Failed to get missing project paths", async {
-
-        Ok(classify_missing_project_paths(&paths))
-
-    }.await)
+pub async fn get_missing_project_paths(paths: Vec<String>) -> CommandResult<Vec<String>> {
+    unexpected_command_result(
+        "get_missing_project_paths",
+        "Failed to get missing project paths",
+        async { Ok(classify_missing_project_paths(&paths)) }.await,
+    )
 }
 
 #[tauri::command]
@@ -147,7 +158,7 @@ pub async fn import_project(
     db: State<'_, DatabaseConnection>,
     path: String,
     name: Option<String>,
-) -> CommandResult<Project>  {
+) -> CommandResult<Project> {
     unexpected_command_result("import_project", "Failed to import project", async {
 
         tracing::info!(path = %path, name = ?name, "Importing project");
@@ -215,33 +226,42 @@ pub async fn import_project(
 #[tauri::command]
 #[specta::specta]
 pub async fn add_project(app: AppHandle, path: String, name: Option<String>) -> CommandResult<()> {
-    unexpected_command_result("add_project", "Failed to add project", async {
-        tracing::info!(path = %path, name = ?name, "Adding project");
+    unexpected_command_result(
+        "add_project",
+        "Failed to add project",
+        async {
+            tracing::info!(path = %path, name = ?name, "Adding project");
 
-        let db = get_db(&app);
-        let canonical_path = validate_project_path_for_storage(&path)?;
-        let canonical_path_str = canonical_path.to_string_lossy().to_string();
+            let db = get_db(&app);
+            let canonical_path = validate_project_path_for_storage(&path)?;
+            let canonical_path_str = canonical_path.to_string_lossy().to_string();
 
-        // Extract name from path if not provided, preserving the path's original casing.
-        let project_name =
-            name.unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
+            // Extract name from path if not provided, preserving the path's original casing.
+            let project_name = name
+                .unwrap_or_else(|| project_name_from_path(&canonical_path, &canonical_path_str));
 
-        // Create or update project (color will be randomly assigned if new)
-        let project_row =
-            ProjectRepository::create_or_update(&db, canonical_path_str.clone(), project_name, None)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Failed to add project");
-                    e.to_string()
-                })?;
+            // Create or update project (color will be randomly assigned if new)
+            let project_row = ProjectRepository::create_or_update(
+                &db,
+                canonical_path_str.clone(),
+                project_name,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to add project");
+                e.to_string()
+            })?;
 
-        // Auto-detect icon if not already set
-        detect_and_persist_icon(&db, project_row).await?;
+            // Auto-detect icon if not already set
+            detect_and_persist_icon(&db, project_row).await?;
 
-        tracing::info!("Project added successfully");
+            tracing::info!("Project added successfully");
 
-        Ok(())
-    }.await)
+            Ok(())
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -250,34 +270,37 @@ pub async fn update_project_color(
     app: AppHandle,
     path: String,
     color: String,
-) -> CommandResult<Project>  {
-    unexpected_command_result("update_project_color", "Failed to update project color", async {
+) -> CommandResult<Project> {
+    unexpected_command_result(
+        "update_project_color",
+        "Failed to update project color",
+        async {
+            tracing::info!(path = %path, color = %color, "Updating project color");
 
-        tracing::info!(path = %path, color = %color, "Updating project color");
+            let db = get_db(&app);
 
-        let db = get_db(&app);
+            // Get existing project first
+            let existing = ProjectRepository::get_by_path(&db, &path)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to get project");
+                    e.to_string()
+                })?
+                .ok_or_else(|| format!("Project not found: {}", path))?;
 
-        // Get existing project first
-        let existing = ProjectRepository::get_by_path(&db, &path)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to get project");
-                e.to_string()
-            })?
-            .ok_or_else(|| format!("Project not found: {}", path))?;
+            // Update project with new color
+            let row = ProjectRepository::create_or_update(&db, path, existing.name, Some(color))
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to update project color");
+                    e.to_string()
+                })?;
 
-        // Update project with new color
-        let row = ProjectRepository::create_or_update(&db, path, existing.name, Some(color))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update project color");
-                e.to_string()
-            })?;
-
-        tracing::info!("Project color updated successfully");
-        Ok(project_from_row(row))
-
-    }.await)
+            tracing::info!("Project color updated successfully");
+            Ok(project_from_row(row))
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -286,7 +309,7 @@ pub async fn update_project_icon(
     app: AppHandle,
     path: String,
     icon_path: Option<String>,
-) -> CommandResult<Project>  {
+) -> CommandResult<Project> {
     if let Some(ref ip) = icon_path {
         let icon = std::path::Path::new(ip);
         if !icon.is_file() {
@@ -308,21 +331,24 @@ pub async fn update_project_icon(
         }
     }
 
-    unexpected_command_result("update_project_icon", "Failed to update project icon", async {
+    unexpected_command_result(
+        "update_project_icon",
+        "Failed to update project icon",
+        async {
+            tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
 
-        tracing::info!(path = %path, icon_path = ?icon_path, "Updating project icon");
+            let db = get_db(&app);
+            let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to update project icon");
+                    e.to_string()
+                })?;
 
-        let db = get_db(&app);
-        let row = ProjectRepository::update_icon_path(&db, &path, icon_path)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update project icon");
-                e.to_string()
-            })?;
-
-        Ok(project_from_row(row))
-
-    }.await)
+            Ok(project_from_row(row))
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -330,203 +356,218 @@ pub async fn update_project_icon(
 pub async fn update_project_order(
     app: AppHandle,
     ordered_paths: Vec<String>,
-) -> CommandResult<Vec<Project>>  {
-    unexpected_command_result("update_project_order", "Failed to update project order", async {
+) -> CommandResult<Vec<Project>> {
+    unexpected_command_result(
+        "update_project_order",
+        "Failed to update project order",
+        async {
+            tracing::info!(count = ordered_paths.len(), "Updating project order");
 
-        tracing::info!(count = ordered_paths.len(), "Updating project order");
+            let db = get_db(&app);
+            let rows = ProjectRepository::reorder(&db, &ordered_paths)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to update project order");
+                    e.to_string()
+                })?;
 
-        let db = get_db(&app);
-        let rows = ProjectRepository::reorder(&db, &ordered_paths)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update project order");
+            Ok(rows.into_iter().map(project_from_row).collect())
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_project(app: AppHandle, path: String) -> CommandResult<()> {
+    unexpected_command_result(
+        "remove_project",
+        "Failed to remove project",
+        async {
+            tracing::info!(path = %path, "Removing project");
+
+            let db = get_db(&app);
+
+            ProjectRepository::delete(&db, &path).await.map_err(|e| {
+                tracing::error!(error = %e, "Failed to remove project");
                 e.to_string()
             })?;
 
-        Ok(rows.into_iter().map(project_from_row).collect())
-
-    }.await)
+            tracing::info!(path = %path, "Project removed successfully");
+            Ok(())
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remove_project(app: AppHandle, path: String) -> CommandResult<()>  {
-    unexpected_command_result("remove_project", "Failed to remove project", async {
+pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
+    unexpected_command_result(
+        "browse_project",
+        "Failed to browse for project",
+        async {
+            use rfd::AsyncFileDialog;
 
-        tracing::info!(path = %path, "Removing project");
+            tracing::debug!("Browsing for project folder");
 
-        let db = get_db(&app);
+            // Open folder picker dialog using rfd
+            let folder = AsyncFileDialog::new()
+                .set_title("Select Project Folder")
+                .pick_folder()
+                .await;
 
-        ProjectRepository::delete(&db, &path).await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to remove project");
-            e.to_string()
-        })?;
+            match folder {
+                Some(folder_path) => {
+                    let path_str = folder_path.path().to_string_lossy().to_string();
+                    let project_name = folder_path.path().to_path_buf();
+                    let project_name = project_name_from_path(&project_name, &path_str);
 
-        tracing::info!(path = %path, "Project removed successfully");
-        Ok(())
+                    tracing::info!(path = %path_str, name = %project_name, "Project selected");
 
-    }.await)
-}
+                    // Assign a random color for the project
+                    let colors = ["red", "orange", "yellow", "green", "cyan", "purple", "pink"];
+                    let mut rng = rand::thread_rng();
+                    let assigned_color = colors[rng.gen_range(0..colors.len())].to_string();
 
-#[tauri::command]
-#[specta::specta]
-pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>>  {
-    unexpected_command_result("browse_project", "Failed to browse for project", async {
-
-        use rfd::AsyncFileDialog;
-
-        tracing::debug!("Browsing for project folder");
-
-        // Open folder picker dialog using rfd
-        let folder = AsyncFileDialog::new()
-            .set_title("Select Project Folder")
-            .pick_folder()
-            .await;
-
-        match folder {
-            Some(folder_path) => {
-                let path_str = folder_path.path().to_string_lossy().to_string();
-                let project_name = folder_path.path().to_path_buf();
-                let project_name = project_name_from_path(&project_name, &path_str);
-
-                tracing::info!(path = %path_str, name = %project_name, "Project selected");
-
-                // Assign a random color for the project
-                let colors = ["red", "orange", "yellow", "green", "cyan", "purple", "pink"];
-                let mut rng = rand::thread_rng();
-                let assigned_color = colors[rng.gen_range(0..colors.len())].to_string();
-
-                Ok(Some(Project {
-                    path: path_str,
-                    name: project_name,
-                    last_opened: Some(chrono::Utc::now().to_rfc3339()),
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    color: assigned_color,
-                    sort_order: 0,
-                    icon_path: None,
-                }))
-            }
-            None => {
-                tracing::debug!("Folder selection cancelled");
-                Ok(None)
+                    Ok(Some(Project {
+                        path: path_str,
+                        name: project_name,
+                        last_opened: Some(chrono::Utc::now().to_rfc3339()),
+                        created_at: chrono::Utc::now().to_rfc3339(),
+                        color: assigned_color,
+                        sort_order: 0,
+                        icon_path: None,
+                    }))
+                }
+                None => {
+                    tracing::debug!("Folder selection cancelled");
+                    Ok(None)
+                }
             }
         }
-
-    }.await)
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn browse_project_icon() -> CommandResult<Option<String>>  {
-    unexpected_command_result("browse_project_icon", "Failed to browse for project icon", async {
+pub async fn browse_project_icon() -> CommandResult<Option<String>> {
+    unexpected_command_result(
+        "browse_project_icon",
+        "Failed to browse for project icon",
+        async {
+            use rfd::AsyncFileDialog;
 
-        use rfd::AsyncFileDialog;
+            tracing::debug!("Browsing for project icon image");
 
-        tracing::debug!("Browsing for project icon image");
+            let file = AsyncFileDialog::new()
+                .set_title("Select Project Icon")
+                .add_filter("Images", &["png", "svg", "ico", "jpg", "jpeg", "webp"])
+                .pick_file()
+                .await;
 
-        let file = AsyncFileDialog::new()
-            .set_title("Select Project Icon")
-            .add_filter("Images", &["png", "svg", "ico", "jpg", "jpeg", "webp"])
-            .pick_file()
-            .await;
-
-        match file {
-            Some(file_handle) => {
-                let path_str = file_handle.path().to_string_lossy().to_string();
-                tracing::info!(path = %path_str, "Project icon selected");
-                Ok(Some(path_str))
-            }
-            None => {
-                tracing::debug!("Icon selection cancelled");
-                Ok(None)
+            match file {
+                Some(file_handle) => {
+                    let path_str = file_handle.path().to_string_lossy().to_string();
+                    tracing::info!(path = %path_str, "Project icon selected");
+                    Ok(Some(path_str))
+                }
+                None => {
+                    tracing::debug!("Icon selection cancelled");
+                    Ok(None)
+                }
             }
         }
-
-    }.await)
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_project_images(project_path: String) -> CommandResult<Vec<String>>  {
-    unexpected_command_result("list_project_images", "Failed to list project images", async {
+pub async fn list_project_images(project_path: String) -> CommandResult<Vec<String>> {
+    unexpected_command_result(
+        "list_project_images",
+        "Failed to list project images",
+        async {
+            use std::path::Path;
 
-        use std::path::Path;
-
-        let dir = Path::new(&project_path);
-        if !dir.is_dir() {
-            return Err(format!("Not a directory: {}", project_path));
-        }
-
-        let image_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
-        let skip_dirs = [
-            "node_modules",
-            ".git",
-            "target",
-            "dist",
-            "build",
-            ".next",
-            "__pycache__",
-            ".venv",
-            "vendor",
-        ];
-        let mut results = Vec::new();
-
-        fn walk(
-            dir: &Path,
-            extensions: &[&str],
-            skip: &[&str],
-            results: &mut Vec<String>,
-            depth: usize,
-        ) {
-            if depth > 4 {
-                return;
+            let dir = Path::new(&project_path);
+            if !dir.is_dir() {
+                return Err(format!("Not a directory: {}", project_path));
             }
 
-            let Ok(entries) = std::fs::read_dir(dir) else {
-                return;
-            };
+            let image_extensions = ["png", "svg", "ico", "jpg", "jpeg", "webp", "gif"];
+            let skip_dirs = [
+                "node_modules",
+                ".git",
+                "target",
+                "dist",
+                "build",
+                ".next",
+                "__pycache__",
+                ".venv",
+                "vendor",
+            ];
+            let mut results = Vec::new();
 
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let file_name = entry.file_name();
-                let name_str = file_name.to_string_lossy();
+            fn walk(
+                dir: &Path,
+                extensions: &[&str],
+                skip: &[&str],
+                results: &mut Vec<String>,
+                depth: usize,
+            ) {
+                if depth > 4 {
+                    return;
+                }
 
-                // Skip symlinks to prevent traversal outside the project root
-                let Ok(metadata) = std::fs::symlink_metadata(&path) else {
-                    continue;
+                let Ok(entries) = std::fs::read_dir(dir) else {
+                    return;
                 };
-                if metadata.file_type().is_symlink() {
-                    continue;
-                }
 
-                if path.is_dir() {
-                    if (!name_str.starts_with('.') || name_str == ".github")
-                        && !skip.contains(&name_str.as_ref())
-                    {
-                        walk(&path, extensions, skip, results, depth + 1);
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let file_name = entry.file_name();
+                    let name_str = file_name.to_string_lossy();
+
+                    // Skip symlinks to prevent traversal outside the project root
+                    let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                        continue;
+                    };
+                    if metadata.file_type().is_symlink() {
+                        continue;
                     }
-                    continue;
-                }
 
-                if let Some(ext) = path.extension() {
-                    let ext_lower = ext.to_string_lossy().to_lowercase();
-                    if extensions.contains(&ext_lower.as_str()) {
-                        results.push(path.to_string_lossy().to_string());
+                    if path.is_dir() {
+                        if (!name_str.starts_with('.') || name_str == ".github")
+                            && !skip.contains(&name_str.as_ref())
+                        {
+                            walk(&path, extensions, skip, results, depth + 1);
+                        }
+                        continue;
+                    }
+
+                    if let Some(ext) = path.extension() {
+                        let ext_lower = ext.to_string_lossy().to_lowercase();
+                        if extensions.contains(&ext_lower.as_str()) {
+                            results.push(path.to_string_lossy().to_string());
+                        }
                     }
                 }
             }
+
+            walk(dir, &image_extensions, &skip_dirs, &mut results, 0);
+            results.sort();
+            Ok(results)
         }
-
-        walk(dir, &image_extensions, &skip_dirs, &mut results, 0);
-        results.sort();
-        Ok(results)
-
-    }.await)
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn backfill_project_icons(app: AppHandle) -> CommandResult<u64>  {
+pub async fn backfill_project_icons(app: AppHandle) -> CommandResult<u64> {
     unexpected_command_result("backfill_project_icons", "Failed to backfill project icons", async {
 
         tracing::info!("Running one-time project icon backfill");

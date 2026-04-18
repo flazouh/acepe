@@ -296,6 +296,7 @@ mod session_metadata_tests {
                     name: "read_file".to_string(),
                     arguments: crate::acp::session_update::ToolArguments::Read {
                         file_path: Some("/Users/test/project/src/main.rs".to_string()),
+                        source_context: None,
                     },
                     raw_input: None,
                     status: crate::acp::session_update::ToolCallStatus::Completed,
@@ -601,6 +602,7 @@ mod session_metadata_tests {
                 name: "Read".to_string(),
                 arguments: crate::acp::session_update::ToolArguments::Read {
                     file_path: Some("/repo/README.md".to_string()),
+                    source_context: None,
                 },
                 raw_input: None,
                 status: crate::acp::session_update::ToolCallStatus::Completed,
@@ -1325,12 +1327,10 @@ mod session_metadata_tests {
         assert!(result.is_ok());
 
         // Verify it's gone
-        assert!(
-            SessionMetadataRepository::get_by_id(&db, "session-123")
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(SessionMetadataRepository::get_by_id(&db, "session-123")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
@@ -1573,12 +1573,10 @@ mod session_metadata_tests {
             "-project-worktrees-feature-a/claude-session.jsonl"
         );
 
-        assert!(
-            SessionMetadataRepository::get_by_id(&db, "claude-session")
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(SessionMetadataRepository::get_by_id(&db, "claude-session")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -1630,12 +1628,10 @@ mod session_metadata_tests {
         .unwrap();
 
         assert_eq!(deleted, 0);
-        assert!(
-            SessionMetadataRepository::get_by_id(&db, "acepe-session")
-                .await
-                .unwrap()
-                .is_some()
-        );
+        assert!(SessionMetadataRepository::get_by_id(&db, "acepe-session")
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test]
@@ -2148,8 +2144,8 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_existing_session_descriptor_uses_persisted_facts_over_compatibility_inputs()
-     {
+    async fn test_resolve_existing_session_descriptor_uses_persisted_facts_over_compatibility_inputs(
+    ) {
         let db = setup_test_db().await;
 
         SessionMetadataRepository::ensure_exists(

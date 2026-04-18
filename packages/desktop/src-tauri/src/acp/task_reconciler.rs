@@ -581,6 +581,7 @@ mod tests {
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
                 file_path: Some("/test/file.rs".to_string()),
+                source_context: None,
             },
             raw_input: None,
             status: ToolCallStatus::Pending,
@@ -605,6 +606,7 @@ mod tests {
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
                 file_path: Some("/test/file.rs".to_string()),
+                source_context: None,
             },
             raw_input: None,
             status: ToolCallStatus::Pending,
@@ -915,7 +917,10 @@ mod tests {
         let initial = ToolCallData {
             id: "tool-1".to_string(),
             name: "Read".to_string(),
-            arguments: ToolArguments::Read { file_path: None },
+            arguments: ToolArguments::Read {
+                file_path: None,
+                source_context: None,
+            },
             raw_input: None,
             status: ToolCallStatus::Pending,
             result: None,
@@ -936,6 +941,7 @@ mod tests {
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
                 file_path: Some("/tmp/example.rs".to_string()),
+                source_context: None,
             },
             raw_input: None,
             status: ToolCallStatus::Pending,
@@ -966,7 +972,7 @@ mod tests {
                 assert_eq!(update.tool_call_id, "tool-1");
                 assert_eq!(update.title.as_deref(), Some("Read `/tmp/example.rs`"));
                 match update.arguments.as_ref() {
-                    Some(ToolArguments::Read { file_path }) => {
+                    Some(ToolArguments::Read { file_path, .. }) => {
                         assert_eq!(file_path.as_deref(), Some("/tmp/example.rs"));
                     }
                     other => panic!("Expected read arguments, got {:?}", other),

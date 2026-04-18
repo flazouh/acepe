@@ -1,8 +1,7 @@
-//! Tool kind inference and canonical naming.
+//! ACP `kind` field inference, browser/search heuristics, and markdown-safe canonical names.
 //!
-//! These functions were previously private methods on `CodexParser` but are
-//! agent-agnostic — they operate on `ToolKind` and ACP payload conventions
-//! shared across all agents.
+//! Lives under `reconciler/` (Unit 3) so parsers remain transport/shape-only — they re-export or call
+//! into here instead of owning semantic policy in `parsers/kind`.
 
 use crate::acp::session_update::ToolKind;
 
@@ -98,6 +97,8 @@ pub fn infer_kind_from_payload(
         "task_output" | "taskoutput" | "task-output" => Some(ToolKind::TaskOutput),
         "tool_search" | "toolsearch" | "tool-search" => Some(ToolKind::ToolSearch),
         "browser" => Some(ToolKind::Browser),
+        "sql" => Some(ToolKind::Sql),
+        "unclassified" => Some(ToolKind::Unclassified),
         _ => None,
     }
 }
@@ -127,6 +128,8 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
         ToolKind::TaskOutput => "Task Output",
         ToolKind::ToolSearch => "Tool Search",
         ToolKind::Browser => "Browser",
+        ToolKind::Sql => "SQL",
+        ToolKind::Unclassified => "Tool",
         ToolKind::Other => "Tool",
     }
 }
@@ -174,8 +177,6 @@ pub fn is_browser_tool_name(name: &str) -> bool {
     let func_segment = if lower.contains("__") {
         lower.rsplit("__").next().unwrap_or(&lower)
     } else if lower.contains('-') {
-        // server-func_name → func_name (take after first hyphen group that looks like a server prefix)
-        // But "webview_screenshot" itself has underscores, so match the suffix
         &lower
     } else {
         &lower
@@ -259,6 +260,10 @@ mod tests {
             infer_kind_from_payload("id", None, Some("execute")),
             Some(ToolKind::Execute)
         );
+        assert_eq!(
+            infer_kind_from_payload("id", None, Some("sql")),
+            Some(ToolKind::Sql)
+        );
         assert_eq!(infer_kind_from_payload("id", None, Some("other")), None);
     }
 
@@ -318,7 +323,6 @@ mod tests {
 
     #[test]
     fn infers_read_delete_execute_search_from_title_when_kind_other_or_missing() {
-        // Read
         assert_eq!(
             infer_kind_from_payload("id", Some("Read File"), Some("other")),
             Some(ToolKind::Read)
@@ -327,12 +331,10 @@ mod tests {
             infer_kind_from_payload("id", Some("view_image"), None),
             Some(ToolKind::Read)
         );
-        // Delete
         assert_eq!(
             infer_kind_from_payload("id", Some("Delete File"), Some("other")),
             Some(ToolKind::Delete)
         );
-        // Execute
         assert_eq!(
             infer_kind_from_payload("id", Some("exec_command"), Some("other")),
             Some(ToolKind::Execute)
@@ -341,7 +343,6 @@ mod tests {
             infer_kind_from_payload("id", Some("write_stdin"), None),
             Some(ToolKind::Execute)
         );
-        // Search
         assert_eq!(
             infer_kind_from_payload("id", Some("Codebase Search"), Some("other")),
             Some(ToolKind::Search)
@@ -365,23 +366,21 @@ mod tests {
         assert_eq!(canonical_name_for_kind(ToolKind::CreatePlan), "Create Plan");
         assert_eq!(canonical_name_for_kind(ToolKind::TaskOutput), "Task Output");
         assert_eq!(canonical_name_for_kind(ToolKind::Browser), "Browser");
+        assert_eq!(canonical_name_for_kind(ToolKind::Sql), "SQL");
+        assert_eq!(canonical_name_for_kind(ToolKind::Unclassified), "Tool");
         assert_eq!(canonical_name_for_kind(ToolKind::Other), "Tool");
     }
 
     #[test]
     fn detects_browser_tool_names() {
-        // MCP naming: mcp__server__func
         assert!(is_browser_tool_name("mcp__tauri__webview_screenshot"));
         assert!(is_browser_tool_name("mcp__tauri__driver_session"));
         assert!(is_browser_tool_name("mcp__tauri__ipc_execute_command"));
         assert!(is_browser_tool_name("mcp__tauri__manage_window"));
         assert!(is_browser_tool_name("mcp__tauri__read_logs"));
-        // Plain func name
         assert!(is_browser_tool_name("webview_execute_js"));
         assert!(is_browser_tool_name("webview_dom_snapshot"));
-        // Hyphenated server prefix
         assert!(is_browser_tool_name("tauri-webview_interact"));
-        // Not browser tools
         assert!(!is_browser_tool_name("read_file"));
         assert!(!is_browser_tool_name("bash"));
         assert!(!is_browser_tool_name("mcp__server__some_tool"));

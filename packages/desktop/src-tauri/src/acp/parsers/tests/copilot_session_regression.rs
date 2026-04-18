@@ -11,8 +11,7 @@ fn copilot_session_fib_c_edit_parses_full_file_content() {
         "fileName": "/Users/alex/Documents/sandbox/fib-c/test_fib.c"
     });
 
-    let result =
-        crate::acp::parsers::edit_normalizers::copilot::parse_edit_arguments(&raw);
+    let result = crate::acp::parsers::edit_normalizers::copilot::parse_edit_arguments(&raw);
 
     match result {
         crate::acp::session_update::ToolArguments::Edit { edits } => {

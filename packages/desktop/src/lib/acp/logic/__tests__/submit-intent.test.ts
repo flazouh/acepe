@@ -5,7 +5,7 @@ import {
 	resolveDefaultSubmitAction,
 	resolveEnterKeyIntent,
 	resolvePrimaryButtonIntent,
-} from "./submit-intent.js";
+} from "../submit-intent.js";
 
 describe("submit intent", () => {
 	it("queues on Enter while agent is busy", () => {
@@ -105,7 +105,7 @@ describe("submit intent", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: true,
-				isSending: false,
+				isComposerDispatching: false,
 				isAgentBusy: true,
 				isSubmitDisabled: true,
 				primaryButtonIntent: "send",
@@ -117,7 +117,7 @@ describe("submit intent", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: false,
-				isSending: false,
+				isComposerDispatching: false,
 				isAgentBusy: true,
 				isSubmitDisabled: true,
 				primaryButtonIntent: "cancel",
@@ -142,12 +142,38 @@ describe("submit intent", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: true,
-				isSending: false,
+				isComposerDispatching: false,
 				isAgentBusy: false,
 				isSubmitDisabled: false,
 				primaryButtonIntent: "send",
-				hasBlockingPendingSessionConfigOperation: true,
+				hasBlockingComposerConfig: true,
 			})
 		).toBe(true);
+	});
+
+	it("suppresses Enter submit while composer config is blocking", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: false,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: false,
+				hasBlockingComposerConfig: true,
+			})
+		).toBe("none");
+	});
+
+	it("suppresses default submit action while composer dispatch is in flight", () => {
+		expect(
+			resolveDefaultSubmitAction({
+				hasDraftInput: true,
+				hasSessionId: true,
+				isAgentBusy: false,
+				isStreaming: false,
+				isSubmitDisabled: false,
+				isComposerDispatching: true,
+			})
+		).toBe("none");
 	});
 });

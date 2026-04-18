@@ -76,7 +76,10 @@ fn initialize_sentry_client() {
         return;
     }
 
-    let dsn_str = match std::env::var("SENTRY_DSN").ok().filter(|value| !value.is_empty()) {
+    let dsn_str = match std::env::var("SENTRY_DSN")
+        .ok()
+        .filter(|value| !value.is_empty())
+    {
         Some(value) => value,
         None => {
             tracing::debug!("SENTRY_DSN not set — Rust Sentry disabled");

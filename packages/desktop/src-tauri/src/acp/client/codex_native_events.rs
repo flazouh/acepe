@@ -232,9 +232,7 @@ fn translate_turn_completed(
     })
 }
 
-fn extract_codex_turn_id(
-    params: Option<&serde_json::Map<String, Value>>,
-) -> Option<String> {
+fn extract_codex_turn_id(params: Option<&serde_json::Map<String, Value>>) -> Option<String> {
     let params = params?;
 
     get_non_empty_string(params.get("turnId"))
@@ -456,6 +454,7 @@ fn extract_tool_fields(item_type: &str, item: &serde_json::Map<String, Value>) -
                 kind: ToolKind::Read,
                 arguments: ToolArguments::Read {
                     file_path: Some(path),
+                    source_context: None,
                 },
                 title,
             }
@@ -1141,7 +1140,7 @@ mod tests {
                 assert_eq!(tool_call.kind, Some(ToolKind::Read));
                 assert_eq!(tool_call.title.as_deref(), Some("Read /tmp/example.rs"));
                 match &tool_call.arguments {
-                    ToolArguments::Read { file_path } => {
+                    ToolArguments::Read { file_path, .. } => {
                         assert_eq!(file_path.as_deref(), Some("/tmp/example.rs"));
                     }
                     other => panic!("Expected Read arguments, got {other:?}"),
@@ -1217,7 +1216,7 @@ mod tests {
                     Some("fn main() {}")
                 );
                 match update.arguments.as_ref() {
-                    Some(ToolArguments::Read { file_path }) => {
+                    Some(ToolArguments::Read { file_path, .. }) => {
                         assert_eq!(file_path.as_deref(), Some("/tmp/example.rs"));
                     }
                     other => panic!("Expected Read arguments, got {other:?}"),

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { ToolCall } from "../../../../types/tool-call.js";
 import { shouldUseDesktopToolRenderer } from "../tool-renderer-routing.js";
 
 function createToolCallEntry(
 	id: string,
-	message: SessionEntry & { type: "tool_call" }["message"]
+	message: ToolCall
 ): Extract<SessionEntry, { type: "tool_call" }> {
 	return {
 		id,

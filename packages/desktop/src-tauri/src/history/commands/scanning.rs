@@ -61,21 +61,24 @@ fn derive_indexed_session_title(session_id: &str, display: &str, title_overridde
 pub async fn scan_project_sessions(
     app: AppHandle,
     project_paths: Vec<String>,
-) -> CommandResult<Vec<HistoryEntry>>  {
-    unexpected_command_result("scan_project_sessions", "Failed to scan project sessions", async {
+) -> CommandResult<Vec<HistoryEntry>> {
+    unexpected_command_result(
+        "scan_project_sessions",
+        "Failed to scan project sessions",
+        async {
+            let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
+            let mut sorted = project_paths.clone();
+            sorted.sort();
+            let key = format!("scan:{}", sorted.join("|"));
 
-        let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-        let mut sorted = project_paths.clone();
-        sorted.sort();
-        let key = format!("scan:{}", sorted.join("|"));
-
-        SCAN_CACHE
-            .get_or_fetch(key, || async {
-                scan_project_sessions_inner(project_paths, db).await
-            })
-            .await
-
-    }.await)
+            SCAN_CACHE
+                .get_or_fetch(key, || async {
+                    scan_project_sessions_inner(project_paths, db).await
+                })
+                .await
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -84,85 +87,91 @@ pub async fn get_startup_sessions(
     app: AppHandle,
     session_ids: Vec<String>,
 ) -> CommandResult<crate::session_jsonl::types::StartupSessionsResponse> {
-    unexpected_command_result("get_startup_sessions", "Failed to get startup sessions", async {
-        let db = app
-            .try_state::<DbConn>()
-            .map(|state| state.inner().clone())
-            .ok_or_else(|| "No DbConn available".to_string())?;
+    unexpected_command_result(
+        "get_startup_sessions",
+        "Failed to get startup sessions",
+        async {
+            let db = app
+                .try_state::<DbConn>()
+                .map(|state| state.inner().clone())
+                .ok_or_else(|| "No DbConn available".to_string())?;
 
-        let mut indexed = SessionMetadataRepository::get_for_session_ids(&db, &session_ids)
-            .await
-            .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
+            let mut indexed = SessionMetadataRepository::get_for_session_ids(&db, &session_ids)
+                .await
+                .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
 
-        // Build a set of requested IDs for O(1) lookup when detecting alias matches.
-        let requested_ids: std::collections::HashSet<String> = session_ids.iter().cloned().collect();
+            // Build a set of requested IDs for O(1) lookup when detecting alias matches.
+            let requested_ids: std::collections::HashSet<String> =
+                session_ids.iter().cloned().collect();
 
-        // Build the ordering map keyed by requested session ID -> original position.
-        let startup_order: std::collections::HashMap<String, usize> = session_ids
-            .into_iter()
-            .enumerate()
-            .map(|(index, session_id)| (session_id, index))
-            .collect();
+            // Build the ordering map keyed by requested session ID -> original position.
+            let startup_order: std::collections::HashMap<String, usize> = session_ids
+                .into_iter()
+                .enumerate()
+                .map(|(index, session_id)| (session_id, index))
+                .collect();
 
-        // Sort respecting alias matches: look up the row's canonical ID first,
-        // then fall back to its provider_session_id (the alias the caller used).
-        indexed.sort_by_key(|row| {
-            startup_order
-                .get(&row.id)
-                .or_else(|| {
-                    row.provider_session_id
-                        .as_ref()
-                        .and_then(|pid| startup_order.get(pid))
-                })
-                .copied()
-                .unwrap_or(usize::MAX)
-        });
+            // Sort respecting alias matches: look up the row's canonical ID first,
+            // then fall back to its provider_session_id (the alias the caller used).
+            indexed.sort_by_key(|row| {
+                startup_order
+                    .get(&row.id)
+                    .or_else(|| {
+                        row.provider_session_id
+                            .as_ref()
+                            .and_then(|pid| startup_order.get(pid))
+                    })
+                    .copied()
+                    .unwrap_or(usize::MAX)
+            });
 
-        // Detect alias matches: rows where the canonical `id` differs from the
-        // requested ID because the DB matched via `provider_session_id`.
-        let mut alias_remaps = std::collections::HashMap::new();
-        for row in &indexed {
-            if !requested_ids.contains(&row.id) {
-                // The canonical ID was not in the request — this row was matched by alias.
-                if let Some(ref pid) = row.provider_session_id {
-                    if requested_ids.contains(pid) {
-                        alias_remaps.insert(pid.clone(), row.id.clone());
+            // Detect alias matches: rows where the canonical `id` differs from the
+            // requested ID because the DB matched via `provider_session_id`.
+            let mut alias_remaps = std::collections::HashMap::new();
+            for row in &indexed {
+                if !requested_ids.contains(&row.id) {
+                    // The canonical ID was not in the request — this row was matched by alias.
+                    if let Some(ref pid) = row.provider_session_id {
+                        if requested_ids.contains(pid) {
+                            alias_remaps.insert(pid.clone(), row.id.clone());
+                        }
                     }
                 }
             }
-        }
 
-        let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
-        for session in indexed {
-            let session_lifecycle_state = session.lifecycle_state();
-            let worktree_deleted = session
-                .worktree_path
-                .as_ref()
-                .map(|path| !Path::new(path).exists());
-            entries.push(HistoryEntry {
-                id: session.id.clone(),
-                display: session.display,
-                timestamp: session.timestamp,
-                project: session.project_path,
-                session_id: session.id,
-                pasted_contents: serde_json::json!({}),
-                agent_id: CanonicalAgentId::parse(&session.agent_id),
-                updated_at: session.timestamp,
-                source_path: indexed_source_path(session.file_path),
-                parent_id: None,
-                worktree_path: session.worktree_path,
-                worktree_deleted,
-                pr_number: session.pr_number.map(|number| number as i64),
-                session_lifecycle_state: Some(session_lifecycle_state),
-                sequence_id: session.sequence_id,
-            });
-        }
+            let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
+            for session in indexed {
+                let session_lifecycle_state = session.lifecycle_state();
+                let worktree_deleted = session
+                    .worktree_path
+                    .as_ref()
+                    .map(|path| !Path::new(path).exists());
+                entries.push(HistoryEntry {
+                    id: session.id.clone(),
+                    display: session.display,
+                    timestamp: session.timestamp,
+                    project: session.project_path,
+                    session_id: session.id,
+                    pasted_contents: serde_json::json!({}),
+                    agent_id: CanonicalAgentId::parse(&session.agent_id),
+                    updated_at: session.timestamp,
+                    source_path: indexed_source_path(session.file_path),
+                    parent_id: None,
+                    worktree_path: session.worktree_path,
+                    worktree_deleted,
+                    pr_number: session.pr_number.map(|number| number as i64),
+                    session_lifecycle_state: Some(session_lifecycle_state),
+                    sequence_id: session.sequence_id,
+                });
+            }
 
-        Ok(crate::session_jsonl::types::StartupSessionsResponse {
-            entries,
-            alias_remaps,
-        })
-    }.await)
+            Ok(crate::session_jsonl::types::StartupSessionsResponse {
+                entries,
+                alias_remaps,
+            })
+        }
+        .await,
+    )
 }
 
 async fn scan_project_sessions_inner(
@@ -421,16 +430,19 @@ mod tests {
 /// Vector of history entries sorted by timestamp (most recent first)
 #[tauri::command]
 #[specta::specta]
-pub async fn discover_all_projects_with_sessions() -> CommandResult<Vec<HistoryEntry>>  {
-    unexpected_command_result("discover_all_projects_with_sessions", "Failed to discover projects with sessions", async {
-
-        SCAN_CACHE
-            .get_or_fetch("discover".to_string(), || async {
-                discover_all_projects_with_sessions_inner().await
-            })
-            .await
-
-    }.await)
+pub async fn discover_all_projects_with_sessions() -> CommandResult<Vec<HistoryEntry>> {
+    unexpected_command_result(
+        "discover_all_projects_with_sessions",
+        "Failed to discover projects with sessions",
+        async {
+            SCAN_CACHE
+                .get_or_fetch("discover".to_string(), || async {
+                    discover_all_projects_with_sessions_inner().await
+                })
+                .await
+        }
+        .await,
+    )
 }
 
 async fn discover_all_projects_with_sessions_inner() -> Result<Vec<HistoryEntry>, String> {

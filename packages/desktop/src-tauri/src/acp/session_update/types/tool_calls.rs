@@ -4,8 +4,10 @@ use specta::Type;
 use super::{QuestionItem, TodoItem};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
+use crate::acp::reconciler::session_tool::{
+    classify_serialized_tool_call, ToolClassificationHints,
+};
 use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
-use crate::acp::tool_classification::{classify_serialized_tool_call, ToolClassificationHints};
 
 /// Tool kind for routing to appropriate UI components.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
@@ -31,6 +33,8 @@ pub enum ToolKind {
     CreatePlan,
     ToolSearch,
     Browser,
+    Sql,
+    Unclassified,
     Other,
 }
 
@@ -58,6 +62,8 @@ impl ToolKind {
             ToolKind::CreatePlan => "create_plan",
             ToolKind::ToolSearch => "tool_search",
             ToolKind::Browser => "browser",
+            ToolKind::Sql => "sql",
+            ToolKind::Unclassified => "unclassified",
             ToolKind::Other => "other",
         }
     }
@@ -74,6 +80,32 @@ impl std::fmt::Display for ToolKind {
 #[serde(rename_all = "camelCase")]
 pub struct ToolCallLocation {
     pub path: String,
+}
+
+/// Optional line range within a source file (read/search excerpts).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolSourceRange {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u32>,
+}
+
+/// Structured provider-supplied read context (path excerpts, ranges, metadata).
+///
+/// Kept separate from [`ToolCallLocation`] (session routing) so read tools can carry
+/// rich source metadata without overloading generic location lists (R13).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolSourceContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub view_range: Option<ToolSourceRange>,
+    /// Line-numbered or plain excerpt text from the provider (not synthesized UI copy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
 }
 
 /// Tool call status.
@@ -100,7 +132,7 @@ pub struct SkillMeta {
 ///
 /// A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
 /// or Codex's multi-entry `changes` map). Each entry represents one file's change.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EditEntry {
     /// Path of the file being edited.
@@ -122,12 +154,14 @@ pub struct EditEntry {
 
 /// Tool arguments discriminated by tool kind.
 /// Each variant contains exactly the fields needed for that tool type.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ToolArguments {
     Read {
         #[serde(skip_serializing_if = "Option::is_none")]
         file_path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_context: Option<ToolSourceContext>,
     },
     /// Edit tool arguments.
     ///
@@ -209,6 +243,22 @@ pub enum ToolArguments {
     Browser {
         raw: serde_json::Value,
     },
+    Sql {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        query: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+    },
+    Unclassified {
+        raw_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        raw_kind_hint: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        arguments_preview: Option<String>,
+        signals_tried: Vec<String>,
+    },
     Other {
         raw: serde_json::Value,
     },
@@ -238,8 +288,62 @@ impl ToolArguments {
             ToolArguments::PlanMode { .. } => ToolKind::Other,
             ToolArguments::ToolSearch { .. } => ToolKind::ToolSearch,
             ToolArguments::Browser { .. } => ToolKind::Browser,
+            ToolArguments::Sql { .. } => ToolKind::Sql,
+            ToolArguments::Unclassified { .. } => ToolKind::Unclassified,
             ToolArguments::Other { .. } => ToolKind::Other,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sql_arguments_round_trip_to_sql_kind() {
+        let arguments = ToolArguments::from_raw(
+            ToolKind::Sql,
+            json!({
+                "query": "SELECT 1",
+                "description": "probe"
+            }),
+        );
+
+        assert!(matches!(
+            arguments,
+            ToolArguments::Sql {
+                query: Some(_),
+                description: Some(_)
+            }
+        ));
+        assert_eq!(arguments.tool_kind(), ToolKind::Sql);
+    }
+
+    #[test]
+    fn unclassified_arguments_round_trip_to_unclassified_kind() {
+        let arguments = ToolArguments::from_raw(
+            ToolKind::Unclassified,
+            json!({
+                "raw_name": "",
+                "raw_kind_hint": "other",
+                "title": "Mark all done",
+                "arguments_preview": "{\"query\":\"UPDATE todos\"}",
+                "signals_tried": ["ProviderNameMap", "ArgumentShape"]
+            }),
+        );
+
+        assert!(matches!(
+            arguments,
+            ToolArguments::Unclassified {
+                ref raw_name,
+                raw_kind_hint: Some(_),
+                title: Some(_),
+                arguments_preview: Some(_),
+                ref signals_tried
+            } if raw_name.is_empty() && signals_tried.len() == 2
+        ));
+        assert_eq!(arguments.tool_kind(), ToolKind::Unclassified);
     }
 }
 

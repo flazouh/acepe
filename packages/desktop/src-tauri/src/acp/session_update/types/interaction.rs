@@ -68,7 +68,7 @@ fn is_false(value: &bool) -> bool {
 }
 
 /// Question option.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionOption {
     pub label: String,
@@ -76,7 +76,7 @@ pub struct QuestionOption {
 }
 
 /// Question item.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionItem {
     pub question: String,
@@ -111,7 +111,7 @@ pub enum TodoStatus {
 }
 
 /// Todo item.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoItem {
     pub content: String,

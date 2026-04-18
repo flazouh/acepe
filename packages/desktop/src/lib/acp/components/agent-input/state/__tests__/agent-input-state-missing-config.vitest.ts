@@ -54,8 +54,9 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 		const result = await resultAsync;
 		expect(result.isErr()).toBe(true);
 		if (result.isErr()) {
-			expect(result.error).toBeInstanceOf(SessionCreationError);
-			expect(result.error.agentId).toBe("unknown");
+			const err = result.error;
+			expect(err).toBeInstanceOf(SessionCreationError);
+			expect(err).toMatchObject({ agentId: "unknown" });
 		}
 	});
 });

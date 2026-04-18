@@ -66,14 +66,17 @@ vi.mock("$lib/utils/tauri-client.js", () => ({
 
 const { default: ToolCallRead } = await import("../tool-call-read.svelte");
 
-function createReadToolCall(filePath: string): ToolCall {
+function createReadToolCall(
+	filePath: string,
+	sourceContext?: { path?: string; excerpt?: string; viewRange?: { startLine?: number; endLine?: number } }
+): ToolCall {
 	return {
 		id: "tool-1",
 		name: "read_file",
 		kind: "read",
 		status: "completed",
 		title: "Read file",
-		arguments: { kind: "read", file_path: filePath },
+		arguments: { kind: "read", file_path: filePath, source_context: sourceContext ?? null },
 		awaitingPlanApproval: false,
 	};
 }
@@ -132,5 +135,24 @@ describe("ToolCallRead", () => {
 
 		expect(getProjectGitStatusMapMock).toHaveBeenCalledWith("/repo");
 		expect(getProjectGitStatusMock).not.toHaveBeenCalled();
+	});
+
+	it("passes rich source context through to the shared read component", async () => {
+		const toolCall = createReadToolCall("/repo/src/file.ts", {
+			path: "/repo/src/file.ts",
+			excerpt: "12| export function project() {}",
+			viewRange: { startLine: 12, endLine: 12 },
+		});
+
+		const view = render(ToolCallRead, {
+			toolCall,
+			projectPath: "/repo",
+			turnState: "completed",
+		});
+
+		await waitFor(() => {
+			expect(view.getByTestId("source-excerpt").textContent).toContain("project()");
+			expect(view.getByTestId("source-range").textContent).toBe("Line 12");
+		});
 	});
 });

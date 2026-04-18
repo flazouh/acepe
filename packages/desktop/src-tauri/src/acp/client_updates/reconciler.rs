@@ -1,5 +1,71 @@
 use super::*;
+use crate::acp::streaming_log::log_debug_event;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
+
+fn log_unclassified_tool_call(
+    session_id: &str,
+    tool_call: &crate::acp::session_update::ToolCallData,
+) {
+    if let crate::acp::session_update::ToolArguments::Unclassified {
+        raw_name,
+        raw_kind_hint,
+        title,
+        arguments_preview,
+        signals_tried,
+    } = &tool_call.arguments
+    {
+        log_debug_event(
+            session_id,
+            "tool_call.unclassified",
+            &serde_json::json!({
+                "toolCallId": tool_call.id,
+                "displayName": tool_call.name,
+                "displayTitle": tool_call.title,
+                "rawName": raw_name,
+                "rawKindHint": raw_kind_hint,
+                "rawTitle": title,
+                "argumentsPreview": arguments_preview,
+                "signalsTried": signals_tried,
+            }),
+        );
+    }
+}
+
+fn log_unclassified_tool_update(
+    session_id: &str,
+    update: &crate::acp::session_update::ToolCallUpdateData,
+) {
+    let Some(arguments) = update
+        .arguments
+        .as_ref()
+        .or(update.streaming_arguments.as_ref())
+    else {
+        return;
+    };
+
+    if let crate::acp::session_update::ToolArguments::Unclassified {
+        raw_name,
+        raw_kind_hint,
+        title,
+        arguments_preview,
+        signals_tried,
+    } = arguments
+    {
+        log_debug_event(
+            session_id,
+            "tool_call_update.unclassified",
+            &serde_json::json!({
+                "toolCallId": update.tool_call_id,
+                "title": update.title,
+                "rawName": raw_name,
+                "rawKindHint": raw_kind_hint,
+                "rawTitle": title,
+                "argumentsPreview": arguments_preview,
+                "signalsTried": signals_tried,
+            }),
+        );
+    }
+}
 
 pub(crate) fn process_through_reconciler(
     update: &SessionUpdate,
@@ -21,6 +87,9 @@ pub(crate) fn process_through_reconciler(
             tool_call,
             session_id,
         } => {
+            if let Some(ref sid) = session_id {
+                log_unclassified_tool_call(sid, tool_call);
+            }
             // Seed tool name for streaming accumulator (streaming deltas lack toolName)
             if let Some(ref sid) = session_id {
                 crate::acp::streaming_accumulator::seed_tool_name(
@@ -55,6 +124,9 @@ pub(crate) fn process_through_reconciler(
             update: tool_update,
             session_id,
         } => {
+            if let Some(ref sid) = session_id {
+                log_unclassified_tool_update(sid, tool_update);
+            }
             // Check for streaming plan data before reconciling
             let streaming_plan = tool_update.streaming_plan.clone();
 
@@ -170,6 +242,7 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Read {
                     file_path: Some("/repo/README.md".to_string()),
+                    source_context: None,
                 },
                 raw_input: None,
                 status: ToolCallStatus::Pending,

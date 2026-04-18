@@ -1,16 +1,17 @@
 //! Parser for Cursor agent.
 
-use crate::acp::parsers::adapters::CursorAdapter;
+use crate::acp::parsers::acp_fields;
 use crate::acp::parsers::argument_enrichment::inject_path_hint;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::cursor::parse_edit_arguments;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
 use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_common_update_type_name,
-    parse_standard_usage_telemetry, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
-    ParsedUsageTelemetry, UpdateType,
+    parse_standard_usage_telemetry, parse_todo_write, AgentParser, AgentType, ParseError,
+    ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
-use crate::acp::parsers::{acp_fields, kind as kind_utils};
+use crate::acp::parsers::CursorAdapter;
+use crate::acp::reconciler::kind_payload as kind_utils;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
@@ -60,8 +61,8 @@ impl AgentParser for CursorParser {
         None
     }
 
-    fn parse_todos(&self, _name: &str, _arguments: &serde_json::Value) -> Option<Vec<ParsedTodo>> {
-        None
+    fn parse_todos(&self, name: &str, arguments: &serde_json::Value) -> Option<Vec<ParsedTodo>> {
+        parse_todo_write(name, arguments)
     }
 
     fn detect_tool_kind(&self, name: &str) -> ToolKind {

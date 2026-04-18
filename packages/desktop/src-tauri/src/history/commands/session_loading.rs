@@ -6,11 +6,11 @@ use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::{SessionJournalEvent, SessionJournalEventPayload};
 use crate::acp::session_open_snapshot::{
-    SessionOpenMissing, SessionOpenResult, assemble_session_open_result,
+    assemble_session_open_result, SessionOpenMissing, SessionOpenResult,
 };
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::commands::observability::{
-    CommandResult, SerializableCommandError, unexpected_command_result,
+    unexpected_command_result, CommandResult, SerializableCommandError,
 };
 use crate::db::repository::{
     SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptSnapshotRepository,
@@ -467,7 +467,7 @@ mod tests {
     use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
-    use crate::acp::session_open_snapshot::{SessionOpenResult, assemble_session_open_result};
+    use crate::acp::session_open_snapshot::{assemble_session_open_result, SessionOpenResult};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;

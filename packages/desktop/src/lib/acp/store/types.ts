@@ -139,6 +139,8 @@ export const DEFAULT_HOT_STATE: SessionHotState = {
 	statusChangedAt: Date.now(),
 };
 
+export type { StoreComposerState } from "../logic/composer-ui-state.js";
+
 // ============================================
 // PANEL TYPES
 // ============================================

@@ -5,7 +5,7 @@
 //! can depend on neutral ownership instead of each other.
 
 use super::any_eq;
-use crate::acp::parsers::kind::is_browser_tool_name;
+use crate::acp::reconciler::kind_payload::is_browser_tool_name;
 use crate::acp::session_update::ToolKind;
 
 pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {

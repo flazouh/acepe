@@ -141,22 +141,18 @@ pub async fn assemble_session_open_result(
     let is_alias = requested_session_id != canonical_session_id;
 
     // --- 1. Determine the proven journal cutoff ---
-    let last_event_seq = match SessionJournalEventRepository::max_event_seq(
-        db,
-        canonical_session_id,
-    )
-    .await
-    {
-        Ok(seq) => seq.unwrap_or(0),
-        Err(err) => {
-            return SessionOpenResult::Error(SessionOpenError {
-                requested_session_id: requested_session_id.to_string(),
-                message: format!(
+    let last_event_seq =
+        match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
                     "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
                 ),
-            });
-        }
-    };
+                });
+            }
+        };
 
     // --- 2. Arm the reservation BEFORE assembling snapshot content ---
     //
@@ -202,23 +198,19 @@ pub async fn assemble_session_open_result(
     };
 
     // --- 4. Resolve thread content ---
-    let transcript_snapshot = match SessionTranscriptSnapshotRepository::get(
-        db,
-        canonical_session_id,
-    )
-    .await
-    {
-        Ok(snapshot) => snapshot,
-        Err(err) => {
-            hub.supersede_reservation(open_token);
-            return SessionOpenResult::Error(SessionOpenError {
-                requested_session_id: requested_session_id.to_string(),
-                message: format!(
+    let transcript_snapshot =
+        match SessionTranscriptSnapshotRepository::get(db, canonical_session_id).await {
+            Ok(snapshot) => snapshot,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
                     "Failed to load transcript snapshot for session {canonical_session_id}: {err}"
                 ),
-            });
-        }
-    };
+                });
+            }
+        };
     let session_metadata =
         match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
             Ok(metadata) => metadata,
@@ -373,6 +365,7 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Read {
                     file_path: Some("/test/file.rs".to_string()),
+                    source_context: None,
                 },
                 raw_input: None,
                 status: ToolCallStatus::Completed,

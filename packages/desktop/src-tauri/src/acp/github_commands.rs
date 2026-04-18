@@ -9,8 +9,8 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 use crate::commands::observability::{
-    CommandResult, SerializableCommandError, capture_unexpected_command_error,
-    unexpected_command_result,
+    capture_unexpected_command_error, unexpected_command_result, CommandResult,
+    SerializableCommandError,
 };
 use crate::path_safety::validate_project_directory_from_str;
 
@@ -495,7 +495,11 @@ fn fetch_commit_diff_via_gh(sha: &str, owner: &str, repo: &str) -> Result<Commit
 #[tauri::command]
 #[specta::specta]
 pub fn get_github_repo_context(project_path: String) -> CommandResult<RepoContext> {
-    unexpected_command_result("get_github_repo_context", "Failed to get GitHub repository context", get_repo_context(Path::new(&project_path)))
+    unexpected_command_result(
+        "get_github_repo_context",
+        "Failed to get GitHub repository context",
+        get_repo_context(Path::new(&project_path)),
+    )
 }
 
 /// Tauri command: Fetch commit diff (tries git first, then gh CLI)
@@ -506,19 +510,23 @@ pub fn fetch_commit_diff(
     project_path: String,
     repo_context: Option<RepoContext>,
 ) -> CommandResult<CommitDiff> {
-    unexpected_command_result("fetch_commit_diff", "Failed to fetch commit diff", (|| {
-        // Try git first
-        if let Ok(diff) = fetch_commit_diff_via_git(&sha, Path::new(&project_path)) {
-            return Ok(diff);
-        }
+    unexpected_command_result(
+        "fetch_commit_diff",
+        "Failed to fetch commit diff",
+        (|| {
+            // Try git first
+            if let Ok(diff) = fetch_commit_diff_via_git(&sha, Path::new(&project_path)) {
+                return Ok(diff);
+            }
 
-        // Fall back to gh CLI if repo context provided
-        if let Some(context) = repo_context {
-            fetch_commit_diff_via_gh(&sha, &context.owner, &context.repo)
-        } else {
-            Err("Could not fetch commit diff with git or gh CLI".to_string())
-        }
-    })())
+            // Fall back to gh CLI if repo context provided
+            if let Some(context) = repo_context {
+                fetch_commit_diff_via_gh(&sha, &context.owner, &context.repo)
+            } else {
+                Err("Could not fetch commit diff with git or gh CLI".to_string())
+            }
+        })(),
+    )
 }
 
 /// Tauri command: Fetch the current working-tree diff for a single file.
@@ -532,18 +540,22 @@ pub fn git_working_file_diff(
     additions: i32,
     deletions: i32,
 ) -> CommandResult<FileDiff> {
-    unexpected_command_result("git_working_file_diff", "Failed to fetch working file diff", (|| {
-        let project_path = validate_project_directory_from_str(&project_path)
-            .map_err(|error| error.message_for(Path::new(&project_path)))?;
-        fetch_working_file_diff_impl(
-            &project_path,
-            &file_path,
-            staged,
-            &status,
-            additions,
-            deletions,
-        )
-    })())
+    unexpected_command_result(
+        "git_working_file_diff",
+        "Failed to fetch working file diff",
+        (|| {
+            let project_path = validate_project_directory_from_str(&project_path)
+                .map_err(|error| error.message_for(Path::new(&project_path)))?;
+            fetch_working_file_diff_impl(
+                &project_path,
+                &file_path,
+                staged,
+                &status,
+                additions,
+                deletions,
+            )
+        })(),
+    )
 }
 
 /// Tauri command: Fetch PR diff
@@ -551,45 +563,48 @@ pub fn git_working_file_diff(
 #[tauri::command]
 #[specta::specta]
 pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResult<PrDiff> {
-    let (pr_output, files_output) =
-        unexpected_command_result("fetch_pr_diff", "Failed to fetch PR diff", (|| {
-        // Spawn both gh API calls in parallel
-        let meta_owner = owner.clone();
-        let meta_repo = repo.clone();
-        let meta_handle = std::thread::spawn(move || {
-            Command::new("gh")
-                .args([
-                    "api",
-                    &format!("repos/{}/{}/pulls/{}", meta_owner, meta_repo, pr_number),
-                ])
-                .output()
-        });
+    let (pr_output, files_output) = unexpected_command_result(
+        "fetch_pr_diff",
+        "Failed to fetch PR diff",
+        (|| {
+            // Spawn both gh API calls in parallel
+            let meta_owner = owner.clone();
+            let meta_repo = repo.clone();
+            let meta_handle = std::thread::spawn(move || {
+                Command::new("gh")
+                    .args([
+                        "api",
+                        &format!("repos/{}/{}/pulls/{}", meta_owner, meta_repo, pr_number),
+                    ])
+                    .output()
+            });
 
-        let files_owner = owner.clone();
-        let files_repo = repo.clone();
-        let files_handle = std::thread::spawn(move || {
-            Command::new("gh")
-                .args([
-                    "api",
-                    &format!(
-                        "repos/{}/{}/pulls/{}/files",
-                        files_owner, files_repo, pr_number
-                    ),
-                ])
-                .output()
-        });
+            let files_owner = owner.clone();
+            let files_repo = repo.clone();
+            let files_handle = std::thread::spawn(move || {
+                Command::new("gh")
+                    .args([
+                        "api",
+                        &format!(
+                            "repos/{}/{}/pulls/{}/files",
+                            files_owner, files_repo, pr_number
+                        ),
+                    ])
+                    .output()
+            });
 
-        let pr_output = meta_handle
-            .join()
-            .map_err(|_| "PR metadata thread panicked".to_string())?
-            .map_err(|e| format!("Failed to fetch PR: {}", e))?;
-        let files_output = files_handle
-            .join()
-            .map_err(|_| "PR files thread panicked".to_string())?
-            .map_err(|e| format!("Failed to fetch PR files: {}", e))?;
+            let pr_output = meta_handle
+                .join()
+                .map_err(|_| "PR metadata thread panicked".to_string())?
+                .map_err(|e| format!("Failed to fetch PR: {}", e))?;
+            let files_output = files_handle
+                .join()
+                .map_err(|_| "PR files thread panicked".to_string())?
+                .map_err(|e| format!("Failed to fetch PR files: {}", e))?;
 
-        Ok((pr_output, files_output))
-    })())?;
+            Ok((pr_output, files_output))
+        })(),
+    )?;
 
     if !pr_output.status.success() {
         if !gh_api_output_is_not_found(&pr_output) {
@@ -606,74 +621,80 @@ pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResu
         ));
     }
 
-    unexpected_command_result("fetch_pr_diff", "Failed to fetch PR diff", (|| {
-        let pr_json: serde_json::Value = serde_json::from_slice(&pr_output.stdout)
-            .map_err(|e| format!("Failed to parse PR response: {}", e))?;
+    unexpected_command_result(
+        "fetch_pr_diff",
+        "Failed to fetch PR diff",
+        (|| {
+            let pr_json: serde_json::Value = serde_json::from_slice(&pr_output.stdout)
+                .map_err(|e| format!("Failed to parse PR response: {}", e))?;
 
-        let title = pr_json["title"]
-            .as_str()
-            .ok_or("Missing PR title")?
-            .to_string();
-        let author = pr_json["user"]["login"]
-            .as_str()
-            .ok_or("Missing PR author")?
-            .to_string();
-        let state = match pr_json["state"].as_str() {
-            Some("open") => "open".to_string(),
-            Some("closed") => {
-                if pr_json["merged"].as_bool().unwrap_or(false) {
-                    "merged".to_string()
-                } else {
-                    "closed".to_string()
+            let title = pr_json["title"]
+                .as_str()
+                .ok_or("Missing PR title")?
+                .to_string();
+            let author = pr_json["user"]["login"]
+                .as_str()
+                .ok_or("Missing PR author")?
+                .to_string();
+            let state = match pr_json["state"].as_str() {
+                Some("open") => "open".to_string(),
+                Some("closed") => {
+                    if pr_json["merged"].as_bool().unwrap_or(false) {
+                        "merged".to_string()
+                    } else {
+                        "closed".to_string()
+                    }
                 }
-            }
-            _ => "closed".to_string(),
-        };
-        let description = pr_json["body"].as_str().map(|s| s.to_string());
+                _ => "closed".to_string(),
+            };
+            let description = pr_json["body"].as_str().map(|s| s.to_string());
 
-        let pr_metadata = PrMetadata {
-            number: pr_number,
-            title,
-            author,
-            state,
-            description,
-        };
+            let pr_metadata = PrMetadata {
+                number: pr_number,
+                title,
+                author,
+                state,
+                description,
+            };
 
-        let files = if files_output.status.success() {
-            if let Ok(files_json) = serde_json::from_slice::<serde_json::Value>(&files_output.stdout) {
-                if let Some(files_array) = files_json.as_array() {
-                    files_array
-                        .iter()
-                        .filter_map(|f| {
-                            Some(FileDiff {
-                                path: f["filename"].as_str()?.to_string(),
-                                status: f["status"].as_str()?.to_string(),
-                                additions: f["additions"].as_i64()? as i32,
-                                deletions: f["deletions"].as_i64()? as i32,
-                                patch: f["patch"].as_str()?.to_string(),
+            let files = if files_output.status.success() {
+                if let Ok(files_json) =
+                    serde_json::from_slice::<serde_json::Value>(&files_output.stdout)
+                {
+                    if let Some(files_array) = files_json.as_array() {
+                        files_array
+                            .iter()
+                            .filter_map(|f| {
+                                Some(FileDiff {
+                                    path: f["filename"].as_str()?.to_string(),
+                                    status: f["status"].as_str()?.to_string(),
+                                    additions: f["additions"].as_i64()? as i32,
+                                    deletions: f["deletions"].as_i64()? as i32,
+                                    patch: f["patch"].as_str()?.to_string(),
+                                })
                             })
-                        })
-                        .collect()
+                            .collect()
+                    } else {
+                        vec![]
+                    }
                 } else {
                     vec![]
                 }
             } else {
                 vec![]
-            }
-        } else {
-            vec![]
-        };
+            };
 
-        Ok(PrDiff {
-            pr: pr_metadata,
-            files,
-            repo_context: RepoContext {
-                owner: owner.clone(),
-                repo: repo.clone(),
-                remote_url: format!("https://github.com/{}/{}", owner, repo),
-            },
-        })
-    })())
+            Ok(PrDiff {
+                pr: pr_metadata,
+                files,
+                repo_context: RepoContext {
+                    owner: owner.clone(),
+                    repo: repo.clone(),
+                    remote_url: format!("https://github.com/{}/{}", owner, repo),
+                },
+            })
+        })(),
+    )
 }
 
 /// Tauri command: List pull requests for a repository via gh CLI
@@ -685,64 +706,68 @@ pub fn list_pull_requests(
     state: String,
     limit: i32,
 ) -> CommandResult<Vec<PrListItem>> {
-    unexpected_command_result("list_pull_requests", "Failed to list pull requests", (|| {
-        let gh_state = match state.as_str() {
-            "open" => "open",
-            "closed" => "closed",
-            "all" => "all",
-            _ => "open",
-        };
+    unexpected_command_result(
+        "list_pull_requests",
+        "Failed to list pull requests",
+        (|| {
+            let gh_state = match state.as_str() {
+                "open" => "open",
+                "closed" => "closed",
+                "all" => "all",
+                _ => "open",
+            };
 
-        let output = Command::new("gh")
-            .args([
-                "api",
-                &format!(
-                    "repos/{}/{}/pulls?state={}&per_page={}&sort=updated&direction=desc",
-                    owner, repo, gh_state, limit
-                ),
-            ])
-            .output()
-            .map_err(|e| format!("Failed to run gh api: {}", e))?;
+            let output = Command::new("gh")
+                .args([
+                    "api",
+                    &format!(
+                        "repos/{}/{}/pulls?state={}&per_page={}&sort=updated&direction=desc",
+                        owner, repo, gh_state, limit
+                    ),
+                ])
+                .output()
+                .map_err(|e| format!("Failed to run gh api: {}", e))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to list pull requests: {}", stderr));
-        }
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("Failed to list pull requests: {}", stderr));
+            }
 
-        let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|e| format!("Failed to parse PR list response: {}", e))?;
+            let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+                .map_err(|e| format!("Failed to parse PR list response: {}", e))?;
 
-        let prs = json
-            .as_array()
-            .ok_or("Expected array response from GitHub API")?;
+            let prs = json
+                .as_array()
+                .ok_or("Expected array response from GitHub API")?;
 
-        let items: Vec<PrListItem> = prs
-            .iter()
-            .filter_map(|pr| {
-                let state_str = match pr["state"].as_str()? {
-                    "open" => "open",
-                    "closed" if pr["merged_at"].is_string() => "merged",
-                    "closed" => "closed",
-                    _ => "closed",
-                };
+            let items: Vec<PrListItem> = prs
+                .iter()
+                .filter_map(|pr| {
+                    let state_str = match pr["state"].as_str()? {
+                        "open" => "open",
+                        "closed" if pr["merged_at"].is_string() => "merged",
+                        "closed" => "closed",
+                        _ => "closed",
+                    };
 
-                Some(PrListItem {
-                    number: pr["number"].as_i64()? as i32,
-                    title: pr["title"].as_str()?.to_string(),
-                    author: pr["user"]["login"].as_str()?.to_string(),
-                    state: state_str.to_string(),
-                    head_ref: pr["head"]["ref"].as_str()?.to_string(),
-                    base_ref: pr["base"]["ref"].as_str()?.to_string(),
-                    updated_at: pr["updated_at"].as_str()?.to_string(),
-                    additions: pr["additions"].as_i64().unwrap_or(0) as i32,
-                    deletions: pr["deletions"].as_i64().unwrap_or(0) as i32,
-                    changed_files: pr["changed_files"].as_i64().unwrap_or(0) as i32,
+                    Some(PrListItem {
+                        number: pr["number"].as_i64()? as i32,
+                        title: pr["title"].as_str()?.to_string(),
+                        author: pr["user"]["login"].as_str()?.to_string(),
+                        state: state_str.to_string(),
+                        head_ref: pr["head"]["ref"].as_str()?.to_string(),
+                        base_ref: pr["base"]["ref"].as_str()?.to_string(),
+                        updated_at: pr["updated_at"].as_str()?.to_string(),
+                        additions: pr["additions"].as_i64().unwrap_or(0) as i32,
+                        deletions: pr["deletions"].as_i64().unwrap_or(0) as i32,
+                        changed_files: pr["changed_files"].as_i64().unwrap_or(0) as i32,
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        Ok(items)
-    })())
+            Ok(items)
+        })(),
+    )
 }
 
 #[cfg(test)]

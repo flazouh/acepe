@@ -1114,22 +1114,6 @@ function openCreateBranchDialog(projectPath: string): void {
 												onclick={(e) => e.stopPropagation()}
 												onkeydown={(e) => e.stopPropagation()}
 											>
-												<ProjectHeaderOverflowMenu
-													projectName={group.projectName}
-													currentColor={group.projectColor}
-													currentViewMode={viewMode}
-													onColorChange={onProjectColorChange
-														? (color) => onProjectColorChange(group.projectPath, color)
-														: undefined}
-													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-													projectIconSrc={group.projectIconSrc}
-													onResetProjectIcon={onResetProjectIcon
-														? () => onResetProjectIcon(group.projectPath)
-														: undefined}
-													onRemoveProject={onRemoveProject
-														? () => onRemoveProject(group.projectPath)
-														: undefined}
-												/>
 												{#if shouldShowProjectUtilityActions() && onOpenTerminal}
 													<Tooltip.Root>
 														<Tooltip.Trigger>
@@ -1170,6 +1154,22 @@ function openCreateBranchDialog(projectPath: string): void {
 														</Tooltip.Content>
 													</Tooltip.Root>
 												{/if}
+												<ProjectHeaderOverflowMenu
+													projectName={group.projectName}
+													currentColor={group.projectColor}
+													currentViewMode={viewMode}
+													onColorChange={onProjectColorChange
+														? (color) => onProjectColorChange(group.projectPath, color)
+														: undefined}
+													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+													projectIconSrc={group.projectIconSrc}
+													onResetProjectIcon={onResetProjectIcon
+														? () => onResetProjectIcon(group.projectPath)
+														: undefined}
+													onRemoveProject={onRemoveProject
+														? () => onRemoveProject(group.projectPath)
+														: undefined}
+												/>
 												{#if shouldShowProjectCreateButton()}
 													<div
 														class="flex items-center"
@@ -1299,22 +1299,6 @@ function openCreateBranchDialog(projectPath: string): void {
 										onclick={(e) => e.stopPropagation()}
 										onkeydown={(e) => e.stopPropagation()}
 									>
-										<ProjectHeaderOverflowMenu
-											projectName={group.projectName}
-											currentColor={group.projectColor}
-											currentViewMode={viewMode}
-											onColorChange={onProjectColorChange
-												? (color) => onProjectColorChange(group.projectPath, color)
-												: undefined}
-											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-											projectIconSrc={group.projectIconSrc}
-											onResetProjectIcon={onResetProjectIcon
-												? () => onResetProjectIcon(group.projectPath)
-												: undefined}
-											onRemoveProject={onRemoveProject
-												? () => onRemoveProject(group.projectPath)
-												: undefined}
-										/>
 										{#if shouldShowProjectUtilityActions() && onOpenTerminal}
 											<Tooltip.Root>
 												<Tooltip.Trigger>
@@ -1355,6 +1339,22 @@ function openCreateBranchDialog(projectPath: string): void {
 												</Tooltip.Content>
 											</Tooltip.Root>
 										{/if}
+										<ProjectHeaderOverflowMenu
+											projectName={group.projectName}
+											currentColor={group.projectColor}
+											currentViewMode={viewMode}
+											onColorChange={onProjectColorChange
+												? (color) => onProjectColorChange(group.projectPath, color)
+												: undefined}
+											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+											projectIconSrc={group.projectIconSrc}
+											onResetProjectIcon={onResetProjectIcon
+												? () => onResetProjectIcon(group.projectPath)
+												: undefined}
+											onRemoveProject={onRemoveProject
+												? () => onRemoveProject(group.projectPath)
+												: undefined}
+										/>
 										{#if shouldShowProjectCreateButton()}
 											<div
 												class="flex shrink-0 items-center"

@@ -358,6 +358,7 @@ mod tests {
                 streaming_plan: None,
                 arguments: Some(ToolArguments::Read {
                     file_path: Some("/tmp/README.md".to_string()),
+                    source_context: None,
                 }),
                 failure_reason: None,
             },
@@ -372,7 +373,10 @@ mod tests {
                 message: ToolCallData {
                     id: "tool-read-1".to_string(),
                     name: "Read".to_string(),
-                    arguments: ToolArguments::Read { file_path: None },
+                    arguments: ToolArguments::Read {
+                        file_path: None,
+                        source_context: None,
+                    },
                     raw_input: None,
                     status: ToolCallStatus::Pending,
                     result: None,
@@ -405,7 +409,7 @@ mod tests {
         assert_eq!(message.status, ToolCallStatus::Completed);
         assert_eq!(message.title.as_deref(), Some("Read README.md"));
         match &message.arguments {
-            ToolArguments::Read { file_path } => {
+            ToolArguments::Read { file_path, .. } => {
                 assert_eq!(file_path.as_deref(), Some("/tmp/README.md"));
             }
             other => panic!("expected read arguments, got {:?}", other),

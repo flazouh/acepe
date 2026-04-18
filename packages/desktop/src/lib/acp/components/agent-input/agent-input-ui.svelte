@@ -84,22 +84,17 @@ import {
 } from "./logic/slash-command-source.js";
 import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
 import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
+import { type SubmitIntent } from "../../logic/submit-intent.js";
 import {
-	isPrimaryButtonDisabled,
-	resolveDefaultSubmitAction,
-	type SubmitIntent,
-	resolveEnterKeyIntent,
-	resolvePrimaryButtonIntent,
-} from "./logic/submit-intent.js";
+	deriveComposerInteractionState,
+	resolveComposerEnterKeyIntent,
+} from "../../logic/composer-ui-state.js";
 import {
 	resolvePendingToolbarSelections,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
 } from "./logic/toolbar-state.js";
-import {
-	resolveModeMenuAction,
-	resolveSelectedModeMenuOptionId,
-} from "./logic/mode-menu-state.js";
+import { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 import { resolveAutonomousSupport } from "./logic/autonomous-support.js";
 import { getToolbarConfigOptions } from "./logic/toolbar-config-options.js";
 import { createPendingUserEntry } from "./logic/pending-user-entry.js";
@@ -221,6 +216,26 @@ const sessionHotState = $derived(
 const sessionRuntimeState = $derived(
 	props.sessionId ? sessionStore.getSessionRuntimeState(props.sessionId) : null
 );
+const storeComposerState = $derived(
+	props.sessionId ? sessionStore.getStoreComposerState(props.sessionId) : null
+);
+
+let previousComposerBindSessionId: string | null = null;
+$effect(() => {
+	const sessionId = props.sessionId;
+	if (!sessionId) {
+		previousComposerBindSessionId = null;
+		return;
+	}
+	if (sessionId === previousComposerBindSessionId) {
+		return;
+	}
+	previousComposerBindSessionId = sessionId;
+	sessionStore.bindComposerSession(sessionId);
+});
+
+let provisionalModeId = $state<string | null>(props.initialModeId ?? null);
+let provisionalModelId = $state<string | null>(null);
 
 // Persisted caches (loaded from SQLite on startup, survives restarts)
 const cachedModes = $derived(
@@ -241,10 +256,17 @@ const effectiveAvailableModes = $derived(
 // Filter to only show Build and Plan modes in the UI
 const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
 
+const effectiveComposerProvisionalModeId = $derived(
+	props.sessionId ? (storeComposerState?.provisionalModeId ?? null) : provisionalModeId
+);
+const effectiveComposerProvisionalModelId = $derived(
+	props.sessionId ? (storeComposerState?.provisionalModelId ?? null) : provisionalModelId
+);
+
 const effectiveCurrentModeId = $derived.by(() =>
 	resolveToolbarModeId({
 		liveCurrentModeId: sessionHotState?.currentMode?.id ?? null,
-		provisionalModeId,
+		provisionalModeId: effectiveComposerProvisionalModeId,
 		visibleModes,
 	})
 );
@@ -258,7 +280,7 @@ const autoModeSupportState = $derived.by(() =>
 	})
 );
 
-const provisionalAutonomousEnabled = $derived.by(() => {
+const panelProvisionalAutonomousEnabled = $derived.by(() => {
 	if (props.panelId) {
 		return panelStore.getHotState(props.panelId).provisionalAutonomousEnabled;
 	}
@@ -266,9 +288,16 @@ const provisionalAutonomousEnabled = $derived.by(() => {
 	return false;
 });
 
-const autonomousToggleActive = $derived(
-	sessionHotState ? sessionHotState.autonomousEnabled : provisionalAutonomousEnabled
-);
+const autonomousToggleActive = $derived.by(() => {
+	if (props.sessionId) {
+		const cs = storeComposerState;
+		if (cs && cs.provisionalAutonomousEnabled !== null) {
+			return cs.provisionalAutonomousEnabled;
+		}
+		return sessionHotState ? sessionHotState.autonomousEnabled : false;
+	}
+	return panelProvisionalAutonomousEnabled;
+});
 
 const autonomousToggleBusy = $derived(
 	sessionHotState ? sessionHotState.autonomousTransition !== "idle" : false
@@ -315,7 +344,7 @@ const preferredDefaultModelId = $derived.by(() => {
 const effectiveCurrentModelId = $derived.by(() =>
 	resolveToolbarModelId({
 		liveCurrentModelId: sessionHotState?.currentModel?.id ?? null,
-		provisionalModelId,
+		provisionalModelId: effectiveComposerProvisionalModelId,
 		availableModels: effectiveAvailableModels,
 		preferredDefaultModelId,
 	})
@@ -435,9 +464,13 @@ $effect(() => {
 		return;
 	}
 
+	const cs = sessionStore.getStoreComposerState(sessionId);
+	const provMode = cs?.provisionalModeId ?? null;
+	const provModel = cs?.provisionalModelId ?? null;
+
 	const resolution = resolvePendingToolbarSelections({
-		provisionalModeId,
-		provisionalModelId,
+		provisionalModeId: provMode,
+		provisionalModelId: provModel,
 		liveCurrentModeId: sessionHotState?.currentMode?.id ?? null,
 		liveCurrentModelId: sessionHotState?.currentModel?.id ?? null,
 		availableModes: visibleModes,
@@ -446,22 +479,6 @@ $effect(() => {
 
 	const liveModeId = sessionHotState?.currentMode?.id ?? null;
 	const liveModelId = sessionHotState?.currentModel?.id ?? null;
-	const nextProvisionalModeId =
-		resolution.nextProvisionalModeId && resolution.nextProvisionalModeId === liveModeId
-			? null
-			: resolution.nextProvisionalModeId;
-	const nextProvisionalModelId =
-		resolution.nextProvisionalModelId && resolution.nextProvisionalModelId === liveModelId
-			? null
-			: resolution.nextProvisionalModelId;
-
-	if (
-		nextProvisionalModeId !== provisionalModeId ||
-		nextProvisionalModelId !== provisionalModelId
-	) {
-		provisionalModeId = nextProvisionalModeId;
-		provisionalModelId = nextProvisionalModelId;
-	}
 
 	if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
 		return;
@@ -470,19 +487,32 @@ $effect(() => {
 	isApplyingProvisionalToolbarSelections = true;
 
 	const run = async () => {
-		if (resolution.modeIdToApply) {
-			const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
-			if (modeResult.isErr()) {
-				provisionalModeId = null;
-			}
-		}
+		const autonomousForBegin =
+			cs?.provisionalAutonomousEnabled ?? sessionHotState?.autonomousEnabled ?? false;
+		await sessionStore.runComposerConfigOperation(
+			sessionId,
+			{
+				provisionalModeId: resolution.modeIdToApply ?? provMode ?? liveModeId,
+				provisionalModelId: resolution.modelIdToApply ?? provModel ?? liveModelId,
+				provisionalAutonomousEnabled: autonomousForBegin,
+			},
+			async () => {
+				if (resolution.modeIdToApply) {
+					const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
+					if (modeResult.isErr()) {
+						return false;
+					}
+				}
 
-		if (resolution.modelIdToApply) {
-			const modelResult = await sessionStore.setModel(sessionId, resolution.modelIdToApply);
-			if (modelResult.isErr()) {
-				provisionalModelId = null;
+				if (resolution.modelIdToApply) {
+					const modelResult = await sessionStore.setModel(sessionId, resolution.modelIdToApply);
+					if (modelResult.isErr()) {
+						return false;
+					}
+				}
+				return true;
 			}
-		}
+		);
 	};
 
 	void run().finally(() => {
@@ -502,6 +532,8 @@ const hasDraftInput = $derived(
 	inputState.message.trim().length > 0 || inputState.attachments.length > 0
 );
 
+const selectorsDisabledByComposer = $derived(storeComposerState?.selectorsDisabled ?? false);
+
 // Track previous message for draft change detection
 let lastDraftValue = "";
 let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -512,57 +544,27 @@ let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  * effect loop (effect writes flag → triggers itself → writes flag → …).
  */
 let editorJustSynced = false;
-let isSending = $state(false);
 let isShiftPressed = $state(false);
 let isApplyingProvisionalToolbarSelections = $state(false);
-let provisionalModeId = $state<string | null>(props.initialModeId ?? null);
-let provisionalModelId = $state<string | null>(null);
-let pendingSessionConfigOperation: Promise<boolean> | null = null;
 let editorRef: HTMLDivElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
 
-function queueSessionConfigOperation(operation: () => Promise<boolean>): Promise<boolean> {
-	const current = pendingSessionConfigOperation ?? Promise.resolve(true);
-	const next = current.then(
-		() => operation(),
-		() => operation()
-	);
-	let wrapped: Promise<boolean>;
-	wrapped = next.finally(() => {
-		if (pendingSessionConfigOperation === wrapped) {
-			pendingSessionConfigOperation = null;
-		}
-	});
-	return wrapped;
-}
-const primaryButtonIntent = $derived.by(() =>
-	resolvePrimaryButtonIntent({
-		hasDraftInput,
-		isAgentBusy,
-		isStreaming,
-		isShiftPressed,
-	})
-);
-const defaultSubmitAction = $derived.by(() =>
-	resolveDefaultSubmitAction({
+const composerInteraction = $derived.by(() => {
+	const hasBlocking = storeComposerState?.isBlocked ?? false;
+	const isDispatching = storeComposerState?.isDispatching ?? false;
+	return deriveComposerInteractionState({
 		hasDraftInput,
 		hasSessionId: !!props.sessionId,
 		isAgentBusy,
 		isStreaming,
+		isShiftPressed,
 		isSubmitDisabled,
-	})
-);
-const primaryButtonDisabled = $derived.by(() =>
-	isPrimaryButtonDisabled({
-		hasDraftInput,
-		isSending,
-		isAgentBusy,
-		isSubmitDisabled,
-		primaryButtonIntent,
-	})
-);
+		hasBlockingComposerConfig: hasBlocking,
+		isComposerDispatching: isDispatching,
+	});
+});
 const HOVER_PREVIEW_MAX_CHARS = 500;
 
 function truncateHoverContent(value: string): string {
@@ -1102,7 +1104,7 @@ function captureAndClearInput(): PreparedMessage | null {
 // Handle send message (or queue when agent is busy)
 async function handleSend() {
 	const t0 = performance.now();
-	if (isSending) return;
+	const defaultSubmitAction = composerInteraction.defaultSubmitAction;
 
 	if (defaultSubmitAction === "none") {
 		return;
@@ -1137,21 +1139,19 @@ async function handleSend() {
 		return;
 	}
 
-	if (pendingSessionConfigOperation) {
-		const readyToSend = await pendingSessionConfigOperation;
-		if (!readyToSend) {
-			return;
-		}
+	const sessionIdForDispatch = props.sessionId;
+	if (sessionIdForDispatch) {
+		sessionStore.composerBeginDispatch(sessionIdForDispatch);
 	}
-
-	isSending = true;
 	const restoreSnapshot = createComposerRestoreSnapshot();
 	const isPreSessionSend = Boolean(props.panelId) && !props.sessionId;
 
 	// Capture and clear input before async work — this is the visual "instant clear"
 	const prepared = captureAndClearInput();
 	if (!prepared) {
-		isSending = false;
+		if (sessionIdForDispatch) {
+			sessionStore.composerEndDispatch(sessionIdForDispatch);
+		}
 		return;
 	}
 	const shouldClearDraftEarly = shouldClearPersistedDraftBeforeAsyncSend({
@@ -1212,7 +1212,9 @@ async function handleSend() {
 			} else {
 				applyComposerRestoreSnapshot(restoreSnapshot);
 			}
-			isSending = false;
+			if (sessionIdForDispatch) {
+				sessionStore.composerEndDispatch(sessionIdForDispatch);
+			}
 			return;
 		}
 		if (preparedWorktreeLaunch) {
@@ -1293,7 +1295,9 @@ async function handleSend() {
 				}
 				props.onWorktreeCreateFailed?.(failureMessage);
 				toast.error(m.worktree_create_failed());
-				isSending = false;
+				if (sessionIdForDispatch) {
+					sessionStore.composerEndDispatch(sessionIdForDispatch);
+				}
 				return;
 			}
 		}
@@ -1302,7 +1306,9 @@ async function handleSend() {
 				panelStore.clearPendingUserEntry(effectivePanelId);
 			}
 			props.onWorktreeCreateFailed?.(m.worktree_create_failed());
-			isSending = false;
+			if (sessionIdForDispatch) {
+				sessionStore.composerEndDispatch(sessionIdForDispatch);
+			}
 			return;
 		}
 	}
@@ -1328,9 +1334,9 @@ async function handleSend() {
 			content: prepared.content,
 			panelId: effectivePanelId,
 			sessionId: props.sessionId,
-			initialAutonomousEnabled: provisionalAutonomousEnabled,
-			initialModeId: provisionalModeId,
-			initialModelId: provisionalModelId,
+			initialAutonomousEnabled: autonomousToggleActive,
+			initialModeId: props.sessionId ? null : provisionalModeId,
+			initialModelId: props.sessionId ? null : provisionalModelId,
 			selectedAgentId: props.selectedAgentId,
 			projectPath: props.projectPath,
 			projectName: props.projectName,
@@ -1383,7 +1389,9 @@ async function handleSend() {
 			() => undefined
 		)
 		.finally(() => {
-			isSending = false;
+			if (sessionIdForDispatch) {
+				sessionStore.composerEndDispatch(sessionIdForDispatch);
+			}
 		});
 }
 
@@ -1391,10 +1399,7 @@ export function retrySend(): void {
 	void handleSend();
 }
 
-export function restoreQueuedMessage(
-	draft: string,
-	attachments: readonly Attachment[]
-): void {
+export function restoreQueuedMessage(draft: string, attachments: readonly Attachment[]): void {
 	const restoredAttachments = attachments.map((attachment) =>
 		cloneAttachmentForRestore(attachment)
 	);
@@ -1419,16 +1424,25 @@ function handleSteer() {
 	if (!prepared) return;
 	clearDraft();
 
+	sessionStore.composerBeginDispatch(sessionId);
 	sessionStore
 		.cancelStreaming(sessionId)
 		.andThen(() => sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments))
 		.mapErr((error) => {
 			console.error("Steer failed:", error);
 			return error;
+		})
+		.match(
+			() => undefined,
+			() => undefined
+		)
+		.finally(() => {
+			sessionStore.composerEndDispatch(sessionId);
 		});
 }
 
 function handlePrimaryButtonClick(): void {
+	const primaryButtonIntent = composerInteraction.primaryButtonIntent;
 	if (primaryButtonIntent === "steer") {
 		handleSteer();
 		return;
@@ -1450,36 +1464,40 @@ function handlePrimaryButtonClick(): void {
 async function handleModeChange(modeId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
-			const shouldAnnounceForcedOff =
-				autonomousToggleActive &&
-				!resolveAutonomousSupport({
-					agentId: capabilitiesAgentId,
-					connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-					currentUiModeId: modeId,
-					agents: agentStore.agents,
-				}).supported;
-			const result = await sessionStore.setMode(sessionId, modeId);
-			if (result.isErr()) {
-				toast.error("Failed to switch mode.");
-				return false;
-			}
+		await sessionStore.runComposerConfigOperation(
+			sessionId,
+			{
+				provisionalModeId: modeId,
+				provisionalModelId: effectiveCurrentModelId,
+				provisionalAutonomousEnabled: autonomousToggleActive,
+			},
+			async () => {
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
+						currentUiModeId: modeId,
+						agents: agentStore.agents,
+					}).supported;
+				const result = await sessionStore.setMode(sessionId, modeId);
+				if (result.isErr()) {
+					toast.error("Failed to switch mode.");
+					return false;
+				}
 
-			if (shouldAnnounceForcedOff) {
-				autonomousStatusMessage =
-					"Autonomous turned off because this mode is unsupported for the current agent.";
+				if (shouldAnnounceForcedOff) {
+					autonomousStatusMessage =
+						"Autonomous turned off because this mode is unsupported for the current agent.";
+				}
+				return true;
 			}
-			return true;
-		});
-		const modeApplied = await pendingSessionConfigOperation;
-		if (!modeApplied) {
-			return;
-		}
+		);
 		return;
 	}
 	provisionalModeId = modeId;
 	if (
-		provisionalAutonomousEnabled &&
+		panelProvisionalAutonomousEnabled &&
 		!resolveAutonomousSupport({
 			agentId: capabilitiesAgentId,
 			connectionPhase: null,
@@ -1495,19 +1513,8 @@ async function handleModeChange(modeId: string) {
 	}
 }
 
-async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
-	if (!props.sessionId) {
-		if (!props.panelId) {
-			return false;
-		}
-		panelStore.setProvisionalAutonomousEnabled(props.panelId, nextEnabled);
-		if (!nextEnabled) {
-			autonomousStatusMessage = "Future actions now require approval again.";
-		}
-		return true;
-	}
-
-	if (!sessionHotState) {
+async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<boolean> {
+	if (!props.sessionId || !sessionHotState) {
 		return false;
 	}
 
@@ -1530,6 +1537,21 @@ async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
 	return true;
 }
 
+async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
+	if (!props.sessionId) {
+		if (!props.panelId) {
+			return false;
+		}
+		panelStore.setProvisionalAutonomousEnabled(props.panelId, nextEnabled);
+		if (!nextEnabled) {
+			autonomousStatusMessage = "Future actions now require approval again.";
+		}
+		return true;
+	}
+
+	return applyAutonomousEnabledToSession(nextEnabled);
+}
+
 async function handleModeMenuChange(optionId: string): Promise<void> {
 	const resolution = resolveModeMenuAction({
 		selectedOptionId: optionId,
@@ -1550,50 +1572,73 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		return;
 	}
 
-	pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
-		if (resolution.modeIdToApply) {
-			const shouldAnnounceForcedOff =
-				autonomousToggleActive &&
-				!resolveAutonomousSupport({
-					agentId: capabilitiesAgentId,
-					connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-					currentUiModeId: resolution.modeIdToApply,
-					agents: agentStore.agents,
-				}).supported;
-			const modeResult = await sessionStore.setMode(props.sessionId!, resolution.modeIdToApply);
-			if (modeResult.isErr()) {
-				toast.error("Failed to switch mode.");
-				return false;
+	const sessionId = props.sessionId;
+	await sessionStore.runComposerConfigOperation(
+		sessionId,
+		{
+			provisionalModeId: resolution.modeIdToApply ?? effectiveCurrentModeId,
+			provisionalModelId: effectiveCurrentModelId,
+			provisionalAutonomousEnabled:
+				resolution.autonomousEnabledToApply !== null
+					? resolution.autonomousEnabledToApply
+					: autonomousToggleActive,
+		},
+		async () => {
+			if (resolution.modeIdToApply) {
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
+						currentUiModeId: resolution.modeIdToApply,
+						agents: agentStore.agents,
+					}).supported;
+				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
+				if (modeResult.isErr()) {
+					toast.error("Failed to switch mode.");
+					return false;
+				}
+
+				if (shouldAnnounceForcedOff) {
+					autonomousStatusMessage =
+						"Autonomous turned off because this mode is unsupported for the current agent.";
+				}
 			}
 
-			if (shouldAnnounceForcedOff) {
-				autonomousStatusMessage =
-					"Autonomous turned off because this mode is unsupported for the current agent.";
+			if (resolution.autonomousEnabledToApply !== null) {
+				const autonomousResult = await applyAutonomousEnabledToSession(
+					resolution.autonomousEnabledToApply
+				);
+				if (!autonomousResult) {
+					return false;
+				}
 			}
+
+			return true;
 		}
-
-		if (resolution.autonomousEnabledToApply !== null) {
-			const autonomousResult = await setAutonomousEnabled(resolution.autonomousEnabledToApply);
-			if (!autonomousResult) {
-				return false;
-			}
-		}
-
-		return true;
-	});
-
-	await pendingSessionConfigOperation;
+	);
 }
 
 // Handle model change
 async function handleModelChange(modelId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		pendingSessionConfigOperation = queueSessionConfigOperation(async () => {
-			const result = await sessionStore.setModel(sessionId, modelId);
-			return result.isOk();
-		});
-		await pendingSessionConfigOperation;
+		await sessionStore.runComposerConfigOperation(
+			sessionId,
+			{
+				provisionalModeId: effectiveCurrentModeId,
+				provisionalModelId: modelId,
+				provisionalAutonomousEnabled: autonomousToggleActive,
+			},
+			async () => {
+				const result = await sessionStore.setModel(sessionId, modelId);
+				if (result.isErr()) {
+					toast.error("Failed to switch model.");
+					return false;
+				}
+				return true;
+			}
+		);
 		return;
 	}
 	provisionalModelId = modelId;
@@ -1604,7 +1649,19 @@ async function handleConfigOptionChange(configId: string, value: string) {
 		return;
 	}
 
-	await sessionStore.setConfigOption(props.sessionId, configId, value);
+	const sessionId = props.sessionId;
+	await sessionStore.runComposerConfigOperation(
+		sessionId,
+		{
+			provisionalModeId: effectiveCurrentModeId,
+			provisionalModelId: effectiveCurrentModelId,
+			provisionalAutonomousEnabled: autonomousToggleActive,
+		},
+		async () => {
+			const result = await sessionStore.setConfigOption(sessionId, configId, value);
+			return result.isOk();
+		}
+	);
 }
 
 function cycleModeOnTab(event: KeyboardEvent): boolean {
@@ -1666,7 +1723,10 @@ function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	if (!voiceEnabled || currentVoiceState === null) {
 		return false;
 	}
-	return canStartVoiceInteraction(currentVoiceState.phase, isSending);
+	return canStartVoiceInteraction(
+		currentVoiceState.phase,
+		storeComposerState?.isDispatching ?? false
+	);
 }
 
 function handleEditorKeyDown(event: KeyboardEvent): void {
@@ -1700,13 +1760,16 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 		return;
 	}
 
-	const submitIntent: SubmitIntent = resolveEnterKeyIntent({
-		hasDraftInput,
-		isAgentBusy,
-		shiftKey: event.shiftKey,
-		metaKey: event.metaKey,
-		ctrlKey: event.ctrlKey,
-	});
+	const submitIntent: SubmitIntent = resolveComposerEnterKeyIntent(
+		{
+			hasDraftInput,
+			isAgentBusy,
+			hasBlockingComposerConfig: storeComposerState?.isBlocked ?? false,
+			isComposerDispatching: storeComposerState?.isDispatching ?? false,
+			isSubmitDisabled,
+		},
+		event
+	);
 
 	if (event.key === "Enter" && submitIntent === "steer") {
 		event.preventDefault();
@@ -2250,10 +2313,10 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 										type="button"
 										size="icon"
 										onclick={handlePrimaryButtonClick}
-										disabled={primaryButtonDisabled}
+										disabled={composerInteraction.primaryButtonDisabled}
 										class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 									>
-										{#if primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
+										{#if composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
 											<Stop weight="fill" class="h-3.5 w-3.5" />
 											<span class="sr-only">{m.agent_input_interrupt()}</span>
 										{:else}
@@ -2344,7 +2407,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 				<div
 					class="flex items-center h-7 transition-opacity duration-200 ease-out"
 					class:opacity-0={isVoiceRecordingUi}
-					class:pointer-events-none={isVoiceRecordingUi}
+					class:pointer-events-none={isVoiceRecordingUi || selectorsDisabledByComposer}
 				>
 					{#if visibleModes.length > 0}
 						<AgentInputModeSelector
@@ -2382,7 +2445,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 									onValueChange={(configId, value) => {
 										void handleConfigOptionChange(configId, value);
 									}}
-									disabled={selectorsLoading}
+									disabled={selectorsLoading || selectorsDisabledByComposer}
 								/>
 							{/each}
 						</div>
@@ -2408,7 +2471,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 								downloadPercent={currentVoiceState.downloadPercent}
 								title={resolveVoiceMicLabel(currentVoiceState)}
 								ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
-								disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
+								disabled={!canStartVoiceInteraction(currentVoiceState.phase, storeComposerState?.isDispatching ?? false) && !canCancelVoiceInteraction(currentVoiceState.phase)}
 								onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
 								onpointerup={() => currentVoiceState.onMicPointerUp()}
 								onpointercancel={() => currentVoiceState.onMicPointerCancel()}
@@ -2468,7 +2531,7 @@ function handleVoiceMicKeyDown(event: KeyboardEvent, currentVoiceState: VoiceInp
 									downloadPercent={currentVoiceState.downloadPercent}
 									title={resolveVoiceMicLabel(currentVoiceState)}
 									ariaLabel={resolveVoiceMicLabel(currentVoiceState)}
-									disabled={!canStartVoiceInteraction(currentVoiceState.phase, isSending) && !canCancelVoiceInteraction(currentVoiceState.phase)}
+									disabled={!canStartVoiceInteraction(currentVoiceState.phase, storeComposerState?.isDispatching ?? false) && !canCancelVoiceInteraction(currentVoiceState.phase)}
 									onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
 									onpointerup={() => currentVoiceState.onMicPointerUp()}
 									onpointercancel={() => currentVoiceState.onMicPointerCancel()}

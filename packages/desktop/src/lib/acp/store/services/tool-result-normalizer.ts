@@ -7,6 +7,7 @@ import { parseBrowserToolResult } from "../../components/tool-calls/browser-tool
 import type {
 	NormalizedExecuteResult,
 	NormalizedSearchResult,
+	NormalizedSqlResult,
 	NormalizedToolResult,
 	NormalizedWebSearchResult,
 } from "../../types/normalized-tool-result.js";
@@ -100,6 +101,10 @@ export function resolveNormalizationKind(
 		return "browser";
 	}
 
+	if (argumentsValue.kind === "sql") {
+		return "sql";
+	}
+
 	return kind;
 }
 
@@ -150,6 +155,46 @@ function normalizeWebSearchResult(result: JsonValue): NormalizedWebSearchResult 
 	};
 }
 
+function normalizeSqlResult(result: JsonValue): NormalizedSqlResult | null {
+	if (typeof result === "string") {
+		return {
+			kind: "sql",
+			rawText: result,
+			rowCount: null,
+		};
+	}
+
+	if (Array.isArray(result)) {
+		return {
+			kind: "sql",
+			rawText: JSON.stringify(result, null, 2),
+			rowCount: result.length,
+		};
+	}
+
+	if (!isJsonObject(result)) {
+		return {
+			kind: "sql",
+			rawText: JSON.stringify(result, null, 2),
+			rowCount: null,
+		};
+	}
+
+	const rows = Array.isArray(result.rows) ? result.rows : null;
+	const rowCount =
+		typeof result.rowCount === "number"
+			? result.rowCount
+			: typeof result.row_count === "number"
+				? result.row_count
+				: rows?.length ?? null;
+
+	return {
+		kind: "sql",
+		rawText: JSON.stringify(result, null, 2),
+		rowCount,
+	};
+}
+
 export function normalizeToolResult(
 	toolCall: Pick<ToolCall, "kind" | "arguments" | "result">
 ): NormalizedToolResult | null {
@@ -182,6 +227,10 @@ export function normalizeToolResult(
 
 	if (resolvedKind === "browser") {
 		return parseBrowserToolResult(result);
+	}
+
+	if (resolvedKind === "sql") {
+		return normalizeSqlResult(result);
 	}
 
 	return null;

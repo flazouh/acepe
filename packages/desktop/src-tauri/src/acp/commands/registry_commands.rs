@@ -23,16 +23,19 @@ pub async fn acp_register_custom_agent(
     app: AppHandle,
     config: CustomAgentConfig,
 ) -> CommandResult<()> {
-    expected_acp_command_result("acp_register_custom_agent", async {
-    tracing::info!(agent_id = %config.id, "acp_register_custom_agent called");
-    let registry = app.state::<Arc<AgentRegistry>>();
+    expected_acp_command_result(
+        "acp_register_custom_agent",
+        async {
+            tracing::info!(agent_id = %config.id, "acp_register_custom_agent called");
+            let registry = app.state::<Arc<AgentRegistry>>();
 
-    registry.register_custom(config).map_err(|e| {
-        tracing::error!(error = %e, "Register custom agent failed");
-        SerializableAcpError::ProtocolError {
-            message: format!("Register custom agent failed: {}", e),
+            registry.register_custom(config).map_err(|e| {
+                tracing::error!(error = %e, "Register custom agent failed");
+                SerializableAcpError::ProtocolError {
+                    message: format!("Register custom agent failed: {}", e),
+                }
+            })
         }
-    })
-    }
-    .await)
+        .await,
+    )
 }

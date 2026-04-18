@@ -1,6 +1,5 @@
 //! Parser for OpenCode agent.
 
-use crate::acp::parsers::adapters::OpenCodeAdapter;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::edit_normalizers::opencode::parse_edit_arguments;
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
@@ -9,6 +8,7 @@ use crate::acp::parsers::types::{
     ParseError, ParsedQuestion, ParsedQuestionOption, ParsedTodo, ParsedTodoStatus,
     ParsedUsageTelemetry, UpdateType,
 };
+use crate::acp::parsers::OpenCodeAdapter;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, RawToolCallInput,
     RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,

@@ -10,7 +10,7 @@ use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptProjectionRegistry, TranscriptSnapshot,
 };
 use crate::acp::types::CanonicalAgentId;
-use crate::commands::observability::{CommandResult, expected_acp_command_result};
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
     SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
     SessionTranscriptSnapshotRepository,

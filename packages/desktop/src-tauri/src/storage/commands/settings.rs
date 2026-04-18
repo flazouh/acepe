@@ -11,19 +11,23 @@ use super::shared::get_db;
 #[tauri::command]
 #[specta::specta]
 pub async fn get_api_key(app: AppHandle, provider_id: String) -> CommandResult<Option<String>> {
-    unexpected_command_result("get_api_key", "Failed to get API key", async {
-        tracing::debug!(provider_id = %provider_id, "Getting API key");
+    unexpected_command_result(
+        "get_api_key",
+        "Failed to get API key",
+        async {
+            tracing::debug!(provider_id = %provider_id, "Getting API key");
 
-        let db = get_db(&app);
+            let db = get_db(&app);
 
-        SettingsRepository::get_api_key(&db, &provider_id)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = e.root_cause(), "Failed to get API key");
-                e.to_string()
-            })
-    }
-    .await)
+            SettingsRepository::get_api_key(&db, &provider_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = e.root_cause(), "Failed to get API key");
+                    e.to_string()
+                })
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -34,43 +38,51 @@ pub async fn save_api_key(
     key_name: String,
     api_key: String,
 ) -> CommandResult<()> {
-    unexpected_command_result("save_api_key", "Failed to save API key", async {
-        tracing::info!(provider_id = %provider_id, key_name = %key_name, "Saving API key");
+    unexpected_command_result(
+        "save_api_key",
+        "Failed to save API key",
+        async {
+            tracing::info!(provider_id = %provider_id, key_name = %key_name, "Saving API key");
 
-        let db = get_db(&app);
+            let db = get_db(&app);
 
-        SettingsRepository::save_api_key(&db, &provider_id, &key_name, &api_key)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = e.root_cause(), "Failed to save API key");
-                e.to_string()
-            })?;
+            SettingsRepository::save_api_key(&db, &provider_id, &key_name, &api_key)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = e.root_cause(), "Failed to save API key");
+                    e.to_string()
+                })?;
 
-        tracing::info!(provider_id = %provider_id, "API key saved successfully");
-        Ok(())
-    }
-    .await)
+            tracing::info!(provider_id = %provider_id, "API key saved successfully");
+            Ok(())
+        }
+        .await,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_api_key(app: AppHandle, provider_id: String) -> CommandResult<()> {
-    unexpected_command_result("delete_api_key", "Failed to delete API key", async {
-        tracing::info!(provider_id = %provider_id, "Deleting API key");
+    unexpected_command_result(
+        "delete_api_key",
+        "Failed to delete API key",
+        async {
+            tracing::info!(provider_id = %provider_id, "Deleting API key");
 
-        let db = get_db(&app);
+            let db = get_db(&app);
 
-        SettingsRepository::delete_api_key(&db, &provider_id)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = e.root_cause(), "Failed to delete API key");
-                e.to_string()
-            })?;
+            SettingsRepository::delete_api_key(&db, &provider_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = e.root_cause(), "Failed to delete API key");
+                    e.to_string()
+                })?;
 
-        tracing::info!(provider_id = %provider_id, "API key deleted successfully");
-        Ok(())
-    }
-    .await)
+            tracing::info!(provider_id = %provider_id, "API key deleted successfully");
+            Ok(())
+        }
+        .await,
+    )
 }
 
 /// Get custom keybindings as a map of command -> key

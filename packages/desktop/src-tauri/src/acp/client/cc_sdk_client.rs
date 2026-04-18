@@ -37,6 +37,7 @@ use crate::acp::projections::{
     SessionProjectionSnapshot,
 };
 use crate::acp::provider::AgentProvider;
+use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
@@ -47,7 +48,6 @@ use crate::acp::session_update::{
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
-use crate::acp::tool_classification::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 use crate::cc_sdk;
@@ -3017,6 +3017,7 @@ mod tests {
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
                 file_path: Some(file_path.to_string()),
+                source_context: None,
             },
             raw_input: Some(serde_json::json!({ "file_path": file_path })),
             status: ToolCallStatus::Pending,
@@ -3046,6 +3047,7 @@ mod tests {
             },
             ToolKind::Read => ToolArguments::Read {
                 file_path: Some("/tmp/project/file.svelte".to_string()),
+                source_context: None,
             },
             _ => panic!("unsupported child kind in test"),
         };
@@ -5978,6 +5980,7 @@ mod tests {
                     name: "Read".to_string(),
                     arguments: ToolArguments::Read {
                         file_path: Some("/tmp/file.rs".to_string()),
+                        source_context: None,
                     },
                     raw_input: None,
                     status: ToolCallStatus::InProgress,
@@ -6028,6 +6031,7 @@ mod tests {
                     name: "Read".to_string(),
                     arguments: ToolArguments::Read {
                         file_path: Some("/tmp/file.rs".to_string()),
+                        source_context: None,
                     },
                     raw_input: None,
                     status: ToolCallStatus::InProgress,

@@ -7,7 +7,9 @@
 use crate::acp::parsers::argument_enrichment::{
     parse_parsed_cmd_move, parse_parsed_cmd_path, parse_parsed_cmd_query,
 };
-use crate::acp::session_update::{EditEntry, ToolArguments, ToolKind};
+use crate::acp::session_update::{
+    EditEntry, ToolArguments, ToolKind, ToolSourceContext, ToolSourceRange,
+};
 
 pub(crate) fn extract_parser_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
@@ -218,16 +220,67 @@ pub(crate) fn parse_parser_skill_shape(
     )
 }
 
+fn parse_view_range(raw: &serde_json::Value) -> Option<ToolSourceRange> {
+    let obj = raw.get("view_range").or_else(|| raw.get("viewRange"))?;
+    let start_line = obj
+        .get("start_line")
+        .or_else(|| obj.get("startLine"))
+        .or_else(|| obj.get("start"))
+        .and_then(|v| v.as_u64())
+        .map(|n| n as u32);
+    let end_line = obj
+        .get("end_line")
+        .or_else(|| obj.get("endLine"))
+        .or_else(|| obj.get("end"))
+        .and_then(|v| v.as_u64())
+        .map(|n| n as u32);
+    if start_line.is_none() && end_line.is_none() {
+        return None;
+    }
+    Some(ToolSourceRange {
+        start_line,
+        end_line,
+    })
+}
+
+/// Structured read metadata (R13): excerpts, line ranges, optional alternate path keys.
+pub(crate) fn parse_read_source_context(
+    file_path: &Option<String>,
+    raw: &serde_json::Value,
+) -> Option<ToolSourceContext> {
+    let view_range = parse_view_range(raw);
+    let excerpt = extract_parser_string(raw, &["excerpt", "lines", "snippet", "text"])
+        .filter(|s| !s.is_empty());
+    let path = extract_parser_string(raw, &["path", "source_path", "sourcePath"])
+        .or_else(|| file_path.clone());
+
+    if view_range.is_none() && excerpt.is_none() {
+        return None;
+    }
+
+    Some(ToolSourceContext {
+        path,
+        view_range,
+        excerpt,
+    })
+}
+
 pub(crate) fn parse_tool_kind_arguments(
     kind: ToolKind,
     raw_arguments: &serde_json::Value,
 ) -> ToolArguments {
     match kind {
-        ToolKind::Read => ToolArguments::Read {
-            file_path: extract_parser_string(raw_arguments, &["file_path", "filePath", "path"])
-                .or_else(|| parse_parser_file_uri_path(raw_arguments))
-                .or_else(|| parse_parsed_cmd_path(raw_arguments, &["read"])),
-        },
+        ToolKind::Read => {
+            let file_path =
+                extract_parser_string(raw_arguments, &["file_path", "filePath", "path"])
+                    .or_else(|| parse_parser_file_uri_path(raw_arguments))
+                    .or_else(|| parse_parsed_cmd_path(raw_arguments, &["read"]));
+            let source_context = parse_read_source_context(&file_path, raw_arguments);
+            ToolArguments::Read {
+                file_path,
+                source_context,
+            }
+        }
         ToolKind::Edit => parse_generic_edit_arguments(raw_arguments),
         ToolKind::Execute => ToolArguments::Execute {
             command: parse_parser_command_string(raw_arguments, &["command", "cmd"]),
@@ -297,6 +350,10 @@ pub(crate) fn parse_tool_kind_arguments(
                 .or_else(|| parse_parser_first_item_string(raw_arguments, "time", &["utc_offset"]))
                 .or_else(|| parse_parser_search_query_from_url_value(raw_arguments)),
         },
+        ToolKind::Sql => ToolArguments::Sql {
+            query: extract_parser_string(raw_arguments, &["query", "sql", "statement"]),
+            description: extract_parser_string(raw_arguments, &["description"]),
+        },
         ToolKind::TaskOutput => ToolArguments::TaskOutput {
             task_id: extract_parser_string(raw_arguments, &["task_id", "taskId"]),
             timeout: raw_arguments.get("timeout").and_then(|v| v.as_u64()),
@@ -351,6 +408,24 @@ pub(crate) fn parse_tool_kind_arguments(
         },
         ToolKind::Browser => ToolArguments::Browser {
             raw: raw_arguments.clone(),
+        },
+        ToolKind::Unclassified => ToolArguments::Unclassified {
+            raw_name: extract_parser_string(raw_arguments, &["raw_name", "rawName", "name"])
+                .unwrap_or_default(),
+            raw_kind_hint: extract_parser_string(
+                raw_arguments,
+                &["raw_kind_hint", "rawKindHint", "kind_hint", "kindHint"],
+            ),
+            title: extract_parser_string(raw_arguments, &["title"]),
+            arguments_preview: parse_parser_string_or_json(
+                raw_arguments,
+                &["arguments_preview", "argumentsPreview"],
+            ),
+            signals_tried: extract_parser_string_list(
+                raw_arguments,
+                &["signals_tried", "signalsTried"],
+            )
+            .unwrap_or_default(),
         },
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),

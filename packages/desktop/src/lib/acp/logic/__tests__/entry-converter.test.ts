@@ -249,6 +249,74 @@ describe("entry-converter", () => {
 				});
 				expect(toolCall.result).toBe("Command output here");
 			});
+
+			// CHARACTERIZATION: remove when projected union is authoritative — entry conversion does not
+			// rewrite tool `kind`; semantic flattening (e.g. to agent-panel buckets) happens elsewhere.
+			it("CHARACTERIZATION: preserves sql tool kind from Rust (remove when projected union is authoritative)", () => {
+				const rustEntry: RustStoredEntry = {
+					type: "tool_call",
+					id: "sql-1",
+					toolCall: {
+						id: "toolu_sql",
+						name: "run_query",
+						status: "completed",
+						kind: "sql",
+						input: { query: "SELECT 1", description: "Smoke" },
+					},
+					timestamp: "2024-01-01T00:00:00Z",
+				};
+
+				const result = convertRustEntryToStoredEntry(rustEntry);
+				const toolCall = result.message as Record<string, unknown>;
+
+				expect(toolCall.kind).toBe("sql");
+				expect(toolCall.arguments).toEqual({ query: "SELECT 1", description: "Smoke" });
+			});
+
+			it("CHARACTERIZATION: preserves unclassified tool kind from Rust (remove when projected union is authoritative)", () => {
+				const rustEntry: RustStoredEntry = {
+					type: "tool_call",
+					id: "un-1",
+					toolCall: {
+						id: "toolu_un",
+						name: "unknown",
+						status: "pending",
+						kind: "unclassified",
+						input: { raw_name: "mcp__x__Thing", raw_kind_hint: "other" },
+					},
+					timestamp: "2024-01-01T00:00:00Z",
+				};
+
+				const result = convertRustEntryToStoredEntry(rustEntry);
+				const toolCall = result.message as Record<string, unknown>;
+
+				expect(toolCall.kind).toBe("unclassified");
+				expect(toolCall.arguments).toEqual({
+					raw_name: "mcp__x__Thing",
+					raw_kind_hint: "other",
+				});
+			});
+
+			it("CHARACTERIZATION: does not promote other+sql-shaped payload to sql kind (remove when projected union is authoritative)", () => {
+				const rustEntry: RustStoredEntry = {
+					type: "tool_call",
+					id: "reg-1",
+					toolCall: {
+						id: "toolu_reg",
+						name: "unknown",
+						status: "completed",
+						kind: "other",
+						input: { query: "UPDATE todos SET done = true" },
+					},
+					timestamp: "2024-01-01T00:00:00Z",
+				};
+
+				const result = convertRustEntryToStoredEntry(rustEntry);
+				const toolCall = result.message as Record<string, unknown>;
+
+				expect(toolCall.kind).toBe("other");
+				expect(toolCall.arguments).toEqual({ query: "UPDATE todos SET done = true" });
+			});
 		});
 
 		describe("timestamp handling", () => {
@@ -550,6 +618,26 @@ describe("entry-converter", () => {
 				new_string: "b",
 			});
 			expect(toolCall.name).toBe("Edit");
+		});
+
+		// CHARACTERIZATION: remove when projected union is authoritative — live entries are passed through unchanged (no kind repair).
+		it("CHARACTERIZATION: live tool_call passes through kind including sql (remove when projected union is authoritative)", () => {
+			const entry: LiveProcessedEntry = {
+				id: "live-sql",
+				type: "tool_call",
+				toolCall: {
+					id: "toolu_live",
+					name: "sql",
+					status: "pending",
+					kind: "sql",
+					arguments: { kind: "sql", query: "SELECT 1" },
+				},
+			};
+
+			const result = convertLiveEntryToStoredEntry(entry);
+			const toolCall = result.message as Record<string, unknown>;
+
+			expect(toolCall.kind).toBe("sql");
 		});
 
 		it("should set current timestamp for all entry types", () => {

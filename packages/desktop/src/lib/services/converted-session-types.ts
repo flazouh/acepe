@@ -135,17 +135,34 @@ newString?: string | null;
 content?: string | null }
 
 /**
+ * Optional line range within a source file (read/search excerpts).
+ */
+export type ToolSourceRange = { startLine?: number | null; endLine?: number | null }
+
+/**
+ * Structured provider-supplied read context (path excerpts, ranges, metadata).
+ * 
+ * Kept separate from [`ToolCallLocation`] (session routing) so read tools can carry
+ * rich source metadata without overloading generic location lists (R13).
+ */
+export type ToolSourceContext = { path?: string | null; viewRange?: ToolSourceRange | null; 
+/**
+ * Line-numbered or plain excerpt text from the provider (not synthesized UI copy).
+ */
+excerpt?: string | null }
+
+/**
  * Tool arguments discriminated by tool kind.
  * Each variant contains exactly the fields needed for that tool type.
  */
-export type ToolArguments = { kind: "read"; file_path?: string | null } | 
+export type ToolArguments = { kind: "read"; file_path?: string | null; source_context?: ToolSourceContext | null } | 
 /**
  * Edit tool arguments.
  * 
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; raw_name: string; raw_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool call update data.
@@ -338,7 +355,7 @@ export type PlanConfidence = "high" | "medium"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "other"
+export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.

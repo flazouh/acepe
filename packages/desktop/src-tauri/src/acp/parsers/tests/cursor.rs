@@ -461,7 +461,7 @@ mod cursor_boundary_edge_cases {
         assert_eq!(result.id, "tool_1");
         assert!(matches!(
             result.arguments,
-            crate::acp::session_update::ToolArguments::Other { .. }
+            crate::acp::session_update::ToolArguments::Unclassified { .. }
         ));
     }
 

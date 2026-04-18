@@ -32,6 +32,12 @@ function isAssistantEntry(entry: SessionEntry): entry is SessionEntry & { type: 
 	return entry.type === "assistant";
 }
 
+function isVirtualizedAssistantEntry(
+	entry: VirtualizedDisplayEntry
+): entry is SessionEntry & { type: "assistant" } {
+	return entry.type === "assistant";
+}
+
 export function isMergedAssistantDisplayEntry(
 	entry: VirtualizedDisplayEntry
 ): entry is MergedAssistantDisplayEntry {
@@ -110,7 +116,7 @@ export function buildVirtualizedDisplayEntries(
 			continue;
 		}
 
-		if (isAssistantEntry(previous)) {
+		if (isVirtualizedAssistantEntry(previous)) {
 			merged[merged.length - 1] = mergeAssistantEntry(
 				createMergedAssistantDisplayEntry(previous),
 				entry

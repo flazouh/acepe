@@ -185,7 +185,7 @@ mod claude_code_parse_tool_call {
         });
 
         let result = parser().parse_tool_call(&data).unwrap();
-        assert_eq!(result.name, "unknown");
+        assert_eq!(result.name, "Tool");
     }
 
     #[test]

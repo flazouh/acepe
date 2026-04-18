@@ -192,8 +192,8 @@ pub(super) async fn resume_or_create_session_client<F, Fut>(
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<
-            Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
-        >,
+        Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
+    >,
 {
     let use_load_session = should_load_session(&agent_id);
     if !force_new_client {

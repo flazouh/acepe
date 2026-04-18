@@ -1,0 +1,8 @@
+{
+  "id": "tool-opencode-edit",
+  "type": "tool-invocation",
+  "name": "apply_patch",
+  "input": {
+    "patch_text": "*** Begin Patch\n*** Add File: note.txt\n+hello\n*** End Patch"
+  }
+}

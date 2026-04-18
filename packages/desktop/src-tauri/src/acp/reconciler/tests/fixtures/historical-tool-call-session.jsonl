@@ -1,0 +1,4 @@
+{"type":"session_update","session_id":"sess-hist-001","sessionUpdate":"tool_call","toolCallId":"call-read-1","kind":"read","status":"pending","title":"Read config","rawInput":{"file_path":"/project/app.toml"}}
+{"type":"session_update","session_id":"sess-hist-001","sessionUpdate":"tool_call_update","toolCallId":"call-read-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"ok"}}]}
+{"type":"session_update","session_id":"sess-hist-001","sessionUpdate":"tool_call","toolCallId":"call-sql-1","kind":"other","status":"pending","title":"Mark done","rawInput":{"description":"Mark done","query":"UPDATE todos SET status='done' WHERE id=1;"}}
+{"type":"session_update","session_id":"sess-hist-001","sessionUpdate":"tool_call_update","toolCallId":"call-sql-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"{\"rows_affected\":1}"}}]}

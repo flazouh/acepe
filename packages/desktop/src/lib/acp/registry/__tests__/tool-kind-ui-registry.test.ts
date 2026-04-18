@@ -5,6 +5,7 @@ import {
 	getToolCompactDisplayText,
 	getToolKindSubtitle,
 	getToolKindTitle,
+	getToolKindUI,
 } from "../tool-kind-ui-registry.js";
 
 describe("getToolKindTitle", () => {
@@ -162,6 +163,44 @@ describe("getToolKindSubtitle", () => {
 		expect(subtitle.length).toBeLessThanOrEqual(43);
 		expect(subtitle).toContain("...");
 	});
+
+	it("shows SQL descriptions as the subtitle", () => {
+		const toolCall: ToolCallData = {
+			id: "test-sql-1",
+			name: "sql",
+			arguments: {
+				kind: "sql",
+				description: "Mark all done",
+				query: "UPDATE todos SET status='done'",
+			},
+			status: "completed",
+			kind: "sql",
+			awaitingPlanApproval: false,
+			title: "Mark all done",
+		};
+
+		const subtitle = getToolKindSubtitle("sql", toolCall);
+		expect(subtitle).toBe("Mark all done");
+	});
+
+	it("formats unclassified raw names instead of showing Unknown", () => {
+		const toolCall: ToolCallData = {
+			id: "test-unclassified-1",
+			name: "",
+			arguments: {
+				kind: "unclassified",
+				raw_name: "mcp__server__CommandPalette",
+				raw_kind_hint: "other",
+				signals_tried: ["provider-name", "kind-hint"],
+			},
+			status: "pending",
+			kind: "unclassified",
+			awaitingPlanApproval: false,
+		};
+
+		const title = getToolKindTitle("unclassified", toolCall, "streaming");
+		expect(title).toBe("Command Palette");
+	});
 });
 
 describe("getToolCompactDisplayText", () => {
@@ -209,5 +248,77 @@ describe("getToolCompactDisplayText", () => {
 
 		const text = getToolCompactDisplayText("other", toolCall, "completed");
 		expect(text).toBe("Custom Tool");
+	});
+});
+
+// CHARACTERIZATION: remove when projected union is authoritative — pins registry routing and labels
+// while some surfaces still collapse kinds (e.g. agent panel via `toAgentToolKind`).
+describe("CHARACTERIZATION: sql / unclassified vs other registry routing (remove when projected union is authoritative)", () => {
+	it("uses sql titles when kind is sql, not generic other formatting", () => {
+		const sqlCall: ToolCallData = {
+			id: "char-sql-1",
+			name: "unknown",
+			arguments: { kind: "sql", query: "SELECT 1" },
+			status: "pending",
+			kind: "sql",
+			awaitingPlanApproval: false,
+		};
+		const otherCall: ToolCallData = {
+			id: "char-other-1",
+			name: "unknown",
+			arguments: { kind: "other", raw: {} },
+			status: "pending",
+			kind: "other",
+			awaitingPlanApproval: false,
+		};
+
+		expect(getToolKindTitle("sql", sqlCall, "streaming")).toBe("Running SQL");
+		expect(getToolKindTitle("other", otherCall, "streaming")).toBe("Unknown");
+	});
+
+	it("routes unclassified through unclassified UI even when arguments discriminant mismatches", () => {
+		const toolCall: ToolCallData = {
+			id: "char-un-1",
+			name: "mcp__srv__MyTool",
+			arguments: { kind: "other", raw: {} },
+			status: "pending",
+			kind: "unclassified",
+			awaitingPlanApproval: false,
+		};
+
+		expect(getToolKindTitle("unclassified", toolCall, "streaming")).toBe("Unclassified Tool");
+		expect(getToolKindSubtitle("unclassified", toolCall)).toBe("");
+	});
+
+	it("exposes distinct ToolKindUI entries for sql and other", () => {
+		const sqlUi = getToolKindUI("sql");
+		const otherUi = getToolKindUI("other");
+		const stub: ToolCallData = {
+			id: "stub",
+			name: "x",
+			arguments: { kind: "sql", query: "SELECT 1" },
+			status: "completed",
+			kind: "sql",
+			awaitingPlanApproval: false,
+		};
+
+		expect(sqlUi.title(stub)).not.toEqual(otherUi.title({ ...stub, kind: "other", arguments: { kind: "other", raw: {} } }));
+	});
+
+	it("compact display prefers sql argument subtitles over the generic other title path", () => {
+		const sqlCall: ToolCallData = {
+			id: "char-sql-2",
+			name: "run_query",
+			arguments: {
+				kind: "sql",
+				description: "Backfill rows",
+				query: "INSERT INTO t VALUES (1)",
+			},
+			status: "completed",
+			kind: "sql",
+			awaitingPlanApproval: false,
+		};
+
+		expect(getToolCompactDisplayText("sql", sqlCall, "completed")).toBe("Backfill rows");
 	});
 });

@@ -61,6 +61,14 @@ function getDeleteSubtitle(toolCall: ToolCall): string {
 	return `${getFileName(filePaths[0])} +${filePaths.length - 1}`;
 }
 
+function getReadSourcePath(toolCall: ToolCall): string | null {
+	if (toolCall.arguments.kind !== "read") {
+		return null;
+	}
+
+	return toolCall.arguments.file_path ?? toolCall.arguments.source_context?.path ?? null;
+}
+
 /**
  * Format raw tool names into readable titles for "other" tool kind.
  */
@@ -135,14 +143,12 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			return status.isPending ? m.tool_read_running() : m.tool_read_completed();
 		},
 		subtitle: (toolCall) => {
-			// Use file_path from arguments, fallback to title (from task children summary)
-			const filePath = toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null;
+			const filePath = getReadSourcePath(toolCall);
 			return filePath ? truncateText(filePath, 50) : (toolCall.title ?? "");
 		},
-		filePath: (toolCall) =>
-			toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null,
+		filePath: (toolCall) => getReadSourcePath(toolCall),
 		tooltipContent: (toolCall) => {
-			const filePath = toolCall.arguments.kind === "read" ? toolCall.arguments.file_path : null;
+			const filePath = getReadSourcePath(toolCall);
 			return filePath ? getDisplayPath(filePath) : "";
 		},
 	},
@@ -431,6 +437,47 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			if (selector) return truncateText(selector, 40);
 			if (script) return truncateText(script.replace(/\s+/g, " "), 40);
 			return "";
+		},
+	},
+
+	sql: {
+		title: (toolCall, turnState) => {
+			if (toolCall.title?.trim()) {
+				return toolCall.title;
+			}
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? "Running SQL" : "SQL";
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "sql") return "";
+			if (toolCall.arguments.description) {
+				return truncateText(toolCall.arguments.description, 50);
+			}
+			if (toolCall.arguments.query) {
+				return truncateText(toolCall.arguments.query.replace(/\s+/g, " "), 50);
+			}
+			return "";
+		},
+	},
+
+	unclassified: {
+		title: (toolCall) => {
+			if (toolCall.title?.trim()) {
+				return toolCall.title;
+			}
+			if (toolCall.arguments.kind !== "unclassified") {
+				return "Unclassified Tool";
+			}
+			return formatOtherToolName(toolCall.arguments.raw_name || toolCall.name || "tool");
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "unclassified") return "";
+			if (toolCall.arguments.arguments_preview) {
+				return truncateText(toolCall.arguments.arguments_preview, 50);
+			}
+			const formatted = formatOtherToolName(toolCall.arguments.raw_name || toolCall.name);
+			const title = toolCall.title?.trim();
+			return title && formatted === title ? "" : formatted;
 		},
 	},
 

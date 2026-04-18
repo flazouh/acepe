@@ -706,7 +706,7 @@ mod tests {
                     assert_eq!(tool_call.locations.as_ref().map(Vec::len), Some(1));
 
                     match &tool_call.arguments {
-                        ToolArguments::Read { file_path } => {
+                        ToolArguments::Read { file_path, .. } => {
                             assert_eq!(file_path.as_deref(), Some("/tmp/read-sequence.rs"));
                         }
                         other => panic!("Expected read tool call arguments, got {:?}", other),
@@ -730,7 +730,7 @@ mod tests {
                     ));
 
                     match update.arguments.as_ref() {
-                        Some(ToolArguments::Read { file_path }) => {
+                        Some(ToolArguments::Read { file_path, .. }) => {
                             assert_eq!(file_path.as_deref(), Some("/tmp/read-sequence.rs"));
                         }
                         other => panic!("Expected read tool update arguments, got {:?}", other),

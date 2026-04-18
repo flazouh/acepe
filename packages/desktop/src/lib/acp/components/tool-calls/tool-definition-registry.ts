@@ -70,7 +70,8 @@ function isNormalizedResultKind(kind: ToolKind | null | undefined): boolean {
 		kind === "search" ||
 		kind === "fetch" ||
 		kind === "web_search" ||
-		kind === "browser"
+		kind === "browser" ||
+		kind === "sql"
 	);
 }
 
