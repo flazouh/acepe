@@ -164,6 +164,10 @@
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
       "default": "./src/components/user-message-container/index.ts"
+    },
+    "./single-agent-empty-state": {
+      "svelte": "./src/components/single-agent-empty-state/index.ts",
+      "default": "./src/components/single-agent-empty-state/index.ts"
     }
   },
   "scripts": {

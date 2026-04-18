@@ -32,6 +32,7 @@ import { AgentSelectorView } from "../components/agent-selector/index.js";
 import { AgentInputView } from "../components/agent-input/index.js";
 import { BranchPickerView } from "../components/branch-picker/index.js";
 import { ProjectSelectorView } from "../components/project-selector/index.js";
+import { SingleAgentEmptyState } from "../components/single-agent-empty-state/index.js";
 
 test("Unit 1 shells import without forbidden dependencies", () => {
 	expect(AppSidebarFooter).toBeDefined();
@@ -47,4 +48,8 @@ test("Unit 3 selector shells import without forbidden dependencies", () => {
 
 test("Unit 4 agent input shell imports without forbidden dependencies", () => {
 	expect(AgentInputView).toBeDefined();
+});
+
+test("Unit 5 single-agent empty state composite imports without forbidden dependencies", () => {
+	expect(SingleAgentEmptyState).toBeDefined();
 });
