@@ -26,6 +26,7 @@
 	import type {
 		AppProjectGroup,
 	} from "@acepe/ui/app-layout";
+	import { ProjectCard } from "@acepe/ui/project-card";
 	import type {
 		AgentPanelSceneModel,
 	} from "@acepe/ui";
@@ -315,7 +316,7 @@
 						</div>
 					{/snippet}
 					{#snippet sessionList()}
-						<div class="flex flex-col gap-1.5 overflow-auto p-1.5">
+						<div class="flex flex-col overflow-auto p-1.5 gap-0.5">
 							{#each sidebarGroups as group (group.name)}
 								<AppSidebarProjectGroup {group} />
 							{/each}
@@ -332,7 +333,20 @@
 				</AppSidebarLayout>
 			{/snippet}
 			{#snippet panels()}
-				<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
+				<div class="flex-1 min-w-0 min-h-0 overflow-hidden p-0.5">
+					<ProjectCard
+						projectName="acepe.dev"
+						projectColor="#9858FF"
+						variant="corner"
+						allProjects={[
+							{ name: "acepe.dev", color: "#9858FF", path: "/Users/dev/acepe" },
+							{ name: "desktop", color: "#4AD0FF", path: "/Users/dev/desktop" },
+							{ name: "api", color: "#FF8D20", path: "/Users/dev/api" },
+						]}
+						activeProjectPath="/Users/dev/acepe"
+						class="h-full"
+					>
+					<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
 					<AgentPanelScene
 						scene={focusedScene}
 						iconBasePath="/svgs/icons"
@@ -405,6 +419,8 @@
 							/>
 						{/snippet}
 					</AgentPanelScene>
+					</div>
+					</ProjectCard>
 				</div>
 			{/snippet}
 		</AppMainLayout>

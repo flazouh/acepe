@@ -13,16 +13,27 @@
 		children?: Snippet;
 		/** Inline style for the card root (desktop uses this for flex sizing) */
 		style?: string;
+		/** Show colored left border accent matching project color */
+		showColorAccent?: boolean;
 	}
 
-	let { group, header, children, style }: Props = $props();
+	let { group, header, children, style, showColorAccent = false }: Props = $props();
+
+	const accentStyle = $derived(
+		showColorAccent && group.color
+			? `border-left: 2px solid ${group.color};`
+			: ''
+	);
+	const combinedStyle = $derived(
+		[accentStyle, style].filter(Boolean).join(' ')
+	);
 </script>
 
 <!--
 	Card wrapper — matches the per-project card in session-list-ui.svelte:
-	  flex flex-col overflow-hidden border border-border rounded-lg bg-card
+	  flex flex-col overflow-hidden rounded-md bg-card/75
 -->
-<div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card" {style}>
+<div class="flex flex-col overflow-hidden rounded-md bg-card/75" style={combinedStyle}>
 	<!-- Header row -->
 	{#if header}
 		{@render header()}
