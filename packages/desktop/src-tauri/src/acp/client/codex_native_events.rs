@@ -339,6 +339,7 @@ fn translate_item_started(
             skill_meta: None,
             normalized_questions: None,
             normalized_todos: None,
+            normalized_todo_update: None,
             parent_tool_use_id: None,
             task_children: None,
             question_answer: None,

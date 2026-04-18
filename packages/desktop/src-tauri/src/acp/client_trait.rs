@@ -19,6 +19,14 @@ pub enum CommunicationMode {
     CodexNative,
 }
 
+/// Which ACP verb should be used when reconnecting a live session client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReconnectSessionMethod {
+    #[default]
+    Resume,
+    Load,
+}
+
 /// Trait for agent client implementations
 /// Enables polymorphism between subprocess-based (ACP) and HTTP-based (OpenCode) clients
 #[async_trait]
@@ -50,6 +58,11 @@ pub trait AgentClient: Send + Sync {
         cwd: String,
     ) -> AcpResult<ResumeSessionResponse> {
         self.resume_session(session_id, cwd).await
+    }
+
+    /// Provider-owned reconnect policy for live session reattachment.
+    fn reconnect_method(&self) -> ReconnectSessionMethod {
+        ReconnectSessionMethod::Resume
     }
 
     /// Fork a session (creates a new session with copied history)

@@ -4,6 +4,7 @@ pub(crate) use parser::{
 };
 
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, TurnErrorData, TurnErrorKind,
 };
@@ -57,6 +58,17 @@ pub async fn load_session(
             Ok(None)
         }
     }
+}
+
+pub async fn load_thread_snapshot(
+    app: &AppHandle,
+    replay_context: &SessionReplayContext,
+    cwd: &str,
+    title: &str,
+) -> Result<Option<SessionThreadSnapshot>, String> {
+    load_session(app, replay_context, cwd, title)
+        .await
+        .map(|session| session.map(Into::into))
 }
 
 fn resolve_transcript_path(
@@ -261,6 +273,9 @@ fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> Tool
             .normalized_questions
             .or(current.normalized_questions),
         normalized_todos: incoming.normalized_todos.or(current.normalized_todos),
+        normalized_todo_update: incoming
+            .normalized_todo_update
+            .or(current.normalized_todo_update),
         parent_tool_use_id: incoming.parent_tool_use_id.or(current.parent_tool_use_id),
         task_children: incoming.task_children.or(current.task_children),
         question_answer: incoming.question_answer.or(current.question_answer),
@@ -615,6 +630,7 @@ mod tests {
                             skill_meta: None,
                             normalized_questions: None,
                             normalized_todos: None,
+                            normalized_todo_update: None,
                             parent_tool_use_id: None,
                             task_children: None,
                             question_answer: None,
@@ -688,6 +704,7 @@ mod tests {
             skill_meta: None,
             normalized_questions: None,
             normalized_todos: None,
+            normalized_todo_update: None,
             parent_tool_use_id: Some("task-1".to_string()),
             task_children: None,
             question_answer: None,
@@ -724,6 +741,7 @@ mod tests {
                             skill_meta: None,
                             normalized_questions: None,
                             normalized_todos: None,
+                            normalized_todo_update: None,
                             parent_tool_use_id: None,
                             task_children: None,
                             question_answer: None,
@@ -758,6 +776,7 @@ mod tests {
                             skill_meta: None,
                             normalized_questions: None,
                             normalized_todos: None,
+                            normalized_todo_update: None,
                             parent_tool_use_id: None,
                             task_children: Some(vec![child_tool.clone()]),
                             question_answer: None,

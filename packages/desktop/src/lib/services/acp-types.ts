@@ -56,7 +56,7 @@ export type ConfigOptionValue = { name: string; value: JsonValue; description?: 
  */
 export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[] }
 
-export type NewSessionResponse = { sessionId: string; sequenceId?: number | null; models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
+export type NewSessionResponse = { sessionId: string; sequenceId?: number | null; sessionOpen?: SessionOpenResult | null; models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 
 export type ResumeSessionResponse = { models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 

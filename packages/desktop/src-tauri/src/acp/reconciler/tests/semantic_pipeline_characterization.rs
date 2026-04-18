@@ -36,7 +36,7 @@ fn copilot_read_fixture_preserves_source_context_fields() {
 }
 
 /// Mirrors `parsers/tests/fixtures/copilot_sql_regression.json` — weak Copilot identity (`kind: other`)
-/// while `query` carries SQL; reconciler must still emit [`ToolKind::Sql`].
+/// while `query` carries SQL; reconciler should emit canonical todo semantics, not SQL transport.
 #[test]
 fn copilot_sql_fixture_shape_matches_parser_regression() {
     const FIXTURE: &str = include_str!("../../parsers/tests/fixtures/copilot_sql_regression.json");
@@ -51,13 +51,10 @@ fn copilot_sql_fixture_shape_matches_parser_regression() {
     };
 
     let out = providers::classify(AgentType::Copilot, &raw);
-    assert_eq!(out.kind, ToolKind::Sql);
+    assert_eq!(out.kind, ToolKind::Todo);
     assert!(matches!(
         out.arguments,
-        ToolArguments::Sql {
-            query: Some(_),
-            description: Some(_)
-        }
+        ToolArguments::Think { raw: Some(_), .. }
     ));
 }
 

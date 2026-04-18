@@ -1,7 +1,7 @@
 use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
-use crate::acp::client_trait::AgentClient;
+use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::commands::session_commands::{
     persist_session_metadata_for_cwd, resolve_requested_agent_id, session_metadata_context_from_cwd,
@@ -370,13 +370,14 @@ async fn resume_or_create_builds_client_when_missing() {
 }
 
 #[tokio::test]
-async fn resume_or_create_uses_load_for_copilot_sessions() {
+async fn resume_or_create_uses_provider_owned_load_reconnect_method() {
     let session_registry = SessionRegistry::new();
     let session_id = "copilot-session".to_string();
     let cwd = "/workspace/a".to_string();
     let agent_id = CanonicalAgentId::Copilot;
 
-    let created_state = MockClientState::new(false);
+    let created_state =
+        MockClientState::new(false).with_reconnect_method(ReconnectSessionMethod::Load);
 
     let result = resume_or_create_session_client(
         &session_registry,
@@ -398,7 +399,7 @@ async fn resume_or_create_uses_load_for_copilot_sessions() {
     )
     .await;
 
-    assert!(result.is_ok(), "copilot reconnect should succeed");
+    assert!(result.is_ok(), "load reconnect should succeed");
     assert_eq!(created_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(created_state.load_calls.load(Ordering::SeqCst), 1);
     assert!(session_registry.contains(&session_id));
@@ -755,6 +756,7 @@ struct MockClientState {
     stop_calls: Arc<AtomicUsize>,
     fail_resume: Arc<AtomicBool>,
     fail_load: Arc<AtomicBool>,
+    reconnect_method: Arc<std::sync::Mutex<ReconnectSessionMethod>>,
     launch_mode_ids: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
@@ -766,8 +768,14 @@ impl MockClientState {
             stop_calls: Arc::new(AtomicUsize::new(0)),
             fail_resume: Arc::new(AtomicBool::new(fail_resume)),
             fail_load: Arc::new(AtomicBool::new(false)),
+            reconnect_method: Arc::new(std::sync::Mutex::new(ReconnectSessionMethod::Resume)),
             launch_mode_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
+    }
+
+    fn with_reconnect_method(self, reconnect_method: ReconnectSessionMethod) -> Self {
+        *self.reconnect_method.lock().expect("reconnect method lock") = reconnect_method;
+        self
     }
 }
 
@@ -863,6 +871,14 @@ impl AgentClient for MockAgentClient {
             available_commands: vec![],
             config_options: vec![],
         })
+    }
+
+    fn reconnect_method(&self) -> ReconnectSessionMethod {
+        *self
+            .state
+            .reconnect_method
+            .lock()
+            .expect("reconnect method lock")
     }
 
     async fn fork_session(

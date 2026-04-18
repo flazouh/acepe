@@ -15,7 +15,7 @@ fn projector_preserves_read_source_context() {
         "lines": "12| pub fn project() {\n13|   Ok(())\n"
     });
     let arguments = parse_tool_kind_arguments(ToolKind::Read, &raw);
-    let record = SemanticToolRecord::new(ToolKind::Read, arguments.clone(), None, None);
+    let record = SemanticToolRecord::new(ToolKind::Read, arguments.clone(), None, None, None);
     let projected = projector::project_semantic_record(&record);
     assert_eq!(projected, arguments);
     assert_eq!(projector::projected_tool_kind(&projected), ToolKind::Read);
@@ -46,6 +46,6 @@ fn projector_sql_round_trip() {
         "description": "probe"
     });
     let arguments = parse_tool_kind_arguments(ToolKind::Sql, &raw);
-    let record = SemanticToolRecord::new(ToolKind::Sql, arguments.clone(), None, None);
+    let record = SemanticToolRecord::new(ToolKind::Sql, arguments.clone(), None, None, None);
     assert_eq!(projector::project_semantic_record(&record), arguments);
 }

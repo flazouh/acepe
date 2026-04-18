@@ -14,9 +14,10 @@ use ignore::WalkBuilder;
 use serde_json::Value;
 
 use crate::acp::parsers::{get_parser, AgentParser, AgentType, CodexParser};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, tool_call_status_from_str, ToolArguments,
-    ToolCallData,
+    parse_normalized_questions, parse_normalized_todo_update, parse_normalized_todos,
+    tool_call_status_from_str, ToolArguments, ToolCallData,
 };
 use crate::session_jsonl::types::{
     ConvertedSession, SessionStats, StoredAssistantChunk, StoredAssistantMessage,
@@ -192,6 +193,8 @@ pub async fn load_session(
                             parse_normalized_questions(&name, &raw_arguments, AgentType::Codex);
                         let normalized_todos =
                             parse_normalized_todos(&name, &raw_arguments, AgentType::Codex);
+                        let normalized_todo_update =
+                            parse_normalized_todo_update(&name, &raw_arguments, AgentType::Codex);
 
                         serial += 1;
                         let entry = StoredEntry::ToolCall {
@@ -215,6 +218,7 @@ pub async fn load_session(
                                 locations: None,
                                 normalized_questions,
                                 normalized_todos,
+                                normalized_todo_update,
                                 parent_tool_use_id: None,
                                 task_children: None,
                                 awaiting_plan_approval: false,
@@ -275,6 +279,16 @@ pub async fn load_session(
         created_at,
         current_mode_id: None,
     }))
+}
+
+pub async fn load_thread_snapshot(
+    session_id: &str,
+    project_path: &str,
+    source_path: Option<&str>,
+) -> Result<Option<SessionThreadSnapshot>> {
+    load_session(session_id, project_path, source_path)
+        .await
+        .map(|session| session.map(Into::into))
 }
 
 fn append_user_message(

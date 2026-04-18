@@ -214,6 +214,7 @@ const sessionOpenHydrator = new SessionOpenHydrator(
 	panelStore,
 	interactionStore
 );
+sessionStore.setSessionOpenHydrator(sessionOpenHydrator);
 
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();

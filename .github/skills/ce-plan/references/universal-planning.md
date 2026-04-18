@@ -93,6 +93,8 @@ Example: A date night plan should present 2-3 restaurant options, 2-3 activity o
 
 After structuring the plan, ask the user how they want to receive it using the platform's question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Otherwise, present numbered options in chat.
 
+**Question:** "Plan ready. How would you like to receive it?"
+
 **Options:**
 
 1. **Save to disk** — Write the plan as a markdown file. Ask where:
@@ -103,8 +105,8 @@ After structuring the plan, ask the user how they want to receive it using the p
    - Use filename convention: `YYYY-MM-DD-<descriptive-name>-plan.md`
    - Start the document with a `# Title` heading, followed by `Created: YYYY-MM-DD` on the next line. No YAML frontmatter.
 
-2. **Share to Proof** — View the plan on the web and get a shareable link. Load the `proof` skill to create and share the document. Useful for sharing with others who aren't in the terminal.
+2. **Open in Proof (web app) — review and comment to iterate with the agent** — Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. Load the `proof` skill to create and open the document.
 
-3. **Both** — Save to disk and share to Proof.
+3. **Save to disk AND open in Proof** — Do both: write the markdown file to disk and open the doc in Proof for review.
 
 Do not offer `/ce:work` (software-only) or issue creation (not applicable to non-software plans).

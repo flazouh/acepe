@@ -11,13 +11,11 @@
  * and reduce the God class anti-pattern.
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { HistoryEntry } from "../../../services/claude-history-types.js";
-import type { StoredEntry } from "../../../services/converted-session-types.js";
+import type { SessionOpenFound } from "../../../services/acp-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
-import { convertStoredEntryToSessionEntry } from "../../converters/stored-entry-converter.js";
-import type { AppError } from "../../errors/app-error.js";
-import { processInChunks } from "../../utils/chunked-processor.js";
+import { AgentError, type AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import {
@@ -79,19 +77,19 @@ function resolveSessionTitle(
 	}
 
 	if (
-		scannedTitle !== null &&
-		scannedTitle !== undefined &&
-		!isReplaceableSessionTitle(scannedTitle)
-	) {
-		return scannedTitle;
-	}
-
-	if (
 		existingTitle !== null &&
 		existingTitle !== undefined &&
 		!isReplaceableSessionTitle(existingTitle)
 	) {
 		return existingTitle;
+	}
+
+	if (
+		scannedTitle !== null &&
+		scannedTitle !== undefined &&
+		!isReplaceableSessionTitle(scannedTitle)
+	) {
+		return scannedTitle;
 	}
 
 	if (scannedTitle !== null && scannedTitle !== undefined && scannedTitle !== "") {
@@ -382,10 +380,10 @@ export class SessionRepository {
 				(result) => {
 					// Update session metadata if title changed
 					if (result.title && result.title !== session.title) {
-						this.stateWriter.updateSession(id, { title: result.title });
+						this.stateWriter.updateSession(result.canonicalSessionId, { title: result.title });
 					}
 
-					return { id, success: true as const };
+					return { id: result.canonicalSessionId, success: true as const };
 				},
 				() => {
 					return { id, success: false as const };
@@ -420,12 +418,12 @@ export class SessionRepository {
 		projectPath: string,
 		agentId: string,
 		sourcePath?: string
-	): ResultAsync<{ entries: SessionEntry[]; title?: string }, AppError> {
+	): ResultAsync<{ entries: SessionEntry[]; title?: string; canonicalSessionId: string }, AppError> {
 		if (this.entryManager.isPreloaded(sessionId)) {
 			const existingSourcePath = this.preloadedSourcePaths.get(sessionId);
 			if (existingSourcePath === sourcePath) {
 				const existing = this.entryManager.getEntries(sessionId);
-				return okAsync({ entries: existing });
+				return okAsync({ entries: existing, canonicalSessionId: sessionId });
 			}
 
 			logger.info("Reloading preloaded session because sourcePath changed", {
@@ -436,39 +434,24 @@ export class SessionRepository {
 		}
 
 		return api
-			.getSession(sessionId, projectPath, agentId, sourcePath)
-			.andThen((converted) => {
-				const title = converted.title || undefined;
-
-				// For small sessions (< 200 entries), process synchronously for speed
-				if (converted.entries.length < 200) {
-					const entries: SessionEntry[] = converted.entries.map((e: StoredEntry) => {
-						const timestamp = e.timestamp ? new Date(e.timestamp) : new Date();
-						return convertStoredEntryToSessionEntry(e, timestamp);
-					});
-
-					this.entryManager.storeEntriesAndBuildIndex(sessionId, entries);
-					this.preloadedSourcePaths.set(sessionId, sourcePath);
-
-					return okAsync({ entries, title });
+			.getSessionOpenResult(sessionId, projectPath, agentId, sourcePath)
+			.andThen((openResult) => {
+				if (openResult.outcome === "missing") {
+					return errAsync(
+						new AgentError(
+							"get_session_open_result",
+							new Error(`Session ${openResult.requestedSessionId} not found`)
+						)
+					);
 				}
 
-				// For large sessions, use chunked async processing to avoid UI freeze
-				return ResultAsync.fromSafePromise(
-					processInChunks(
-						converted.entries,
-						(e: StoredEntry) => {
-							const timestamp = e.timestamp ? new Date(e.timestamp) : new Date();
-							return convertStoredEntryToSessionEntry(e, timestamp);
-						},
-						100 // Process 100 entries per chunk, yielding between chunks
-					)
-				).map((entries) => {
-					this.entryManager.storeEntriesAndBuildIndex(sessionId, entries);
-					this.preloadedSourcePaths.set(sessionId, sourcePath);
+				if (openResult.outcome === "error") {
+					return errAsync(
+						new AgentError("get_session_open_result", new Error(openResult.message))
+					);
+				}
 
-					return { entries, title };
-				});
+				return this.applyPreloadedSnapshot(openResult, sourcePath);
 			})
 			.mapErr((error) => {
 				logger.warn("Failed to load session content", { sessionId, error });
@@ -528,11 +511,15 @@ export class SessionRepository {
 				this.connectionManager.sendContentLoaded(sessionId);
 				setSessionLoaded?.(sessionId);
 
-				// Update session title - use returned title or fallback to "New Thread"
-				const newTitle = result.title || "New Thread";
-				this.stateWriter.updateSession(sessionId, { title: newTitle });
+				const newTitle =
+					result.title && result.title !== ""
+						? result.title
+						: existing?.title && !isReplaceableSessionTitle(existing.title)
+							? existing.title
+							: "New Thread";
+				this.stateWriter.updateSession(result.canonicalSessionId, { title: newTitle });
 
-				return this.stateReader.getSessionCold(sessionId)!;
+				return this.stateReader.getSessionCold(result.canonicalSessionId)!;
 			})
 			.mapErr((error) => {
 				// Content loading failed — remove transient loading shell to prevent ghost sessions
@@ -602,6 +589,20 @@ export class SessionRepository {
 	// ============================================
 	// PRIVATE HELPERS
 	// ============================================
+
+	private applyPreloadedSnapshot(
+		found: SessionOpenFound,
+		requestedSourcePath?: string
+	): ResultAsync<{ entries: SessionEntry[]; title?: string; canonicalSessionId: string }, AppError> {
+		this.stateWriter.replaceSessionOpenSnapshot(found);
+		this.preloadedSourcePaths.set(found.canonicalSessionId, requestedSourcePath);
+		const entries = this.entryManager.getEntries(found.canonicalSessionId);
+		return okAsync({
+			entries,
+			title: found.sessionTitle || undefined,
+			canonicalSessionId: found.canonicalSessionId,
+		});
+	}
 
 	/**
 	 * Merge history entries with existing sessions.

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
 
-import type {
-	ConvertedSession,
-	StoredEntry,
-} from "../../../../services/converted-session-types.js";
+import type { SessionOpenFound } from "../../../../services/acp-types.js";
 import type { SessionCold, SessionEntry } from "../../types.js";
 import type {
 	IConnectionManager,
@@ -13,11 +10,39 @@ import type {
 	ISessionStateWriter,
 } from "../interfaces/index.js";
 
-const getSessionMock = mock(() => okAsync(createConvertedSession()));
+function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): SessionOpenFound {
+	return {
+		requestedSessionId: overrides.requestedSessionId ?? "session-1",
+		canonicalSessionId: overrides.canonicalSessionId ?? "session-1",
+		isAlias: overrides.isAlias ?? false,
+		lastEventSeq: overrides.lastEventSeq ?? 2,
+		openToken: overrides.openToken ?? "open-token",
+		agentId: overrides.agentId ?? "copilot",
+		projectPath: overrides.projectPath ?? "/projects/acepe",
+		worktreePath: overrides.worktreePath ?? null,
+		sourcePath: overrides.sourcePath ?? "/history/events.jsonl",
+		transcriptSnapshot: overrides.transcriptSnapshot ?? {
+			revision: overrides.lastEventSeq ?? 2,
+			entries: [],
+		},
+		sessionTitle: overrides.sessionTitle ?? "History title",
+		operations: overrides.operations ?? [],
+		interactions: overrides.interactions ?? [],
+		turnState: overrides.turnState ?? "Idle",
+		messageCount: overrides.messageCount ?? 1,
+	};
+}
+
+const getSessionOpenResultMock = mock(() =>
+	okAsync({
+		outcome: "found" as const,
+		...createSessionOpenFound(),
+	})
+);
 
 mock.module("../../api.js", () => ({
 	api: {
-		getSession: getSessionMock,
+		getSessionOpenResult: getSessionOpenResultMock,
 	},
 }));
 
@@ -27,43 +52,17 @@ type SessionStoreState = {
 	sessions: SessionCold[];
 };
 
-function createConvertedSession(): ConvertedSession {
-	const entry: StoredEntry = {
-		type: "user",
-		id: "user-1",
-		message: {
-			id: null,
-			content: {
-				type: "text",
-				text: "Ship it",
+function createHydratedEntries(): SessionEntry[] {
+	return [
+		{
+			id: "user-1",
+			type: "user",
+			message: {
+				content: { type: "text", text: "Ship it" },
+				chunks: [{ type: "text", text: "Ship it" }],
 			},
-			chunks: [
-				{
-					type: "text",
-					text: "Ship it",
-				},
-			],
-			sentAt: null,
 		},
-		timestamp: "2026-04-08T00:00:00Z",
-	};
-
-	return {
-		entries: [entry],
-		stats: {
-			total_messages: 1,
-			user_messages: 1,
-			assistant_messages: 0,
-			tool_uses: 0,
-			tool_results: 0,
-			thinking_blocks: 0,
-			total_input_tokens: 0,
-			total_output_tokens: 0,
-		},
-		title: "History title",
-		createdAt: "2026-04-08T00:00:00Z",
-		currentModeId: "plan",
-	};
+	];
 }
 
 function createStateReader(state: SessionStoreState): ISessionStateReader {
@@ -116,6 +115,12 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 					sequenceId: updates.sequenceId ?? session.sequenceId,
 				};
 			});
+		},
+		replaceSessionOpenSnapshot: (snapshot) => {
+			const hydratedEntries = createHydratedEntries();
+			entriesBySession.set(snapshot.canonicalSessionId, hydratedEntries);
+			preloadedSessionIds.add(snapshot.canonicalSessionId);
+			storedEntries.push(hydratedEntries);
 		},
 		removeSession: (sessionId) => {
 			state.sessions = state.sessions.filter((session) => session.id !== sessionId);
@@ -190,14 +195,19 @@ const connectionManager: IConnectionManager = {
 
 describe("SessionRepository.preloadSessionDetails", () => {
 	beforeEach(() => {
-		getSessionMock.mockReset();
-		getSessionMock.mockImplementation(() => okAsync(createConvertedSession()));
+		getSessionOpenResultMock.mockReset();
+		getSessionOpenResultMock.mockImplementation(() =>
+			okAsync({
+				outcome: "found" as const,
+				...createSessionOpenFound(),
+			})
+		);
 		storedEntries.length = 0;
 		entriesBySession.clear();
 		preloadedSessionIds.clear();
 	});
 
-	it("does not read currentModeId from cold-loaded sessions", async () => {
+	it("hydrates entries from canonical session-open snapshots", async () => {
 		const state: SessionStoreState = { sessions: [] };
 		const repository = new SessionRepository(
 			createStateReader(state),
@@ -205,16 +215,6 @@ describe("SessionRepository.preloadSessionDetails", () => {
 			entryManager,
 			connectionManager
 		);
-
-		getSessionMock.mockImplementation(() => {
-			const converted = createConvertedSession();
-			Object.defineProperty(converted, "currentModeId", {
-				get() {
-					throw new Error("currentModeId should not be read during preload");
-				},
-			});
-			return okAsync(converted);
-		});
 
 		const result = await repository.preloadSessionDetails(
 			"session-1",
@@ -251,7 +251,7 @@ describe("SessionRepository.preloadSessionDetails", () => {
 
 		expect(first.isOk()).toBe(true);
 		expect(second.isOk()).toBe(true);
-		expect(getSessionMock).toHaveBeenCalledTimes(1);
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("reloads a preloaded session when a sourcePath appears after an older preload", async () => {
@@ -292,7 +292,7 @@ describe("SessionRepository.preloadSessionDetails", () => {
 		);
 
 		expect(result.isOk()).toBe(true);
-		expect(getSessionMock).toHaveBeenCalledTimes(1);
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(storedEntries).toHaveLength(1);
 		expect(storedEntries[0]?.[0]?.type).toBe("user");
 	});

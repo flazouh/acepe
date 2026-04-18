@@ -10,7 +10,7 @@ const inflightPanelIds = new Set<string>();
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "getSessionCold"
+	"setSessionLoading" | "setSessionLoaded" | "getSessionCold" | "connectSession"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -105,7 +105,21 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 
 					sessionStore.setSessionLoaded(hydration.canonicalSessionId);
 					sessionOpenHydrator.clearAttempt(panelId);
-					return okAsync(undefined);
+					return sessionStore
+						.connectSession(hydration.canonicalSessionId, {
+							openToken: hydration.openToken,
+						})
+						.orElse((error) => {
+							logger.error("Failed to reconnect hydrated session", {
+								source,
+								panelId,
+								requestedSessionId: sessionId,
+								canonicalSessionId: hydration.canonicalSessionId,
+								error,
+							});
+							return okAsync(undefined);
+						})
+						.map(() => undefined);
 				});
 		})
 		.match(

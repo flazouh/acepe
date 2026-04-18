@@ -97,6 +97,10 @@ type ProjectionSessionState = NonNullable<SessionProjectionSnapshot["session"]> 
 	readonly last_terminal_turn_id?: string | null;
 };
 
+type CreatedSessionHydrator = {
+	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError>;
+};
+
 function resolveProjectionSessionId(projection: SessionProjectionSnapshot): string | null {
 	if (projection.session?.session_id !== undefined) {
 		return projection.session.session_id;
@@ -206,6 +210,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	// Entry store (entries + chunk aggregation)
 	private readonly entryStore = new SessionEntryStore(this.operationStore);
+	private sessionOpenHydrator: CreatedSessionHydrator | null = null;
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -854,7 +859,22 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		worktreePath?: string;
 		launchToken?: string;
 	}): ResultAsync<SessionCold, AppError> {
-		return this.connectionMgr.createSession(options, this);
+		return this.connectionMgr.createSession(options, this).andThen((createdSession) => {
+			if (
+				this.sessionOpenHydrator !== null &&
+				createdSession.sessionOpen?.outcome === "found"
+			) {
+				return this.sessionOpenHydrator
+					.hydrateCreated(createdSession.sessionOpen)
+					.map(() => createdSession.session);
+			}
+
+			return okAsync(createdSession.session);
+		});
+	}
+
+	setSessionOpenHydrator(hydrator: CreatedSessionHydrator): void {
+		this.sessionOpenHydrator = hydrator;
 	}
 
 	/**

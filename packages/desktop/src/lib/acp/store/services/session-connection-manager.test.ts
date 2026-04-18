@@ -172,6 +172,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	const stateWriter: ISessionStateWriter = {
 		addSession: vi.fn(),
 		updateSession: vi.fn(),
+		replaceSessionOpenSnapshot: vi.fn(),
 		removeSession: vi.fn(),
 		setSessions: vi.fn(),
 		setLoading: vi.fn(),
@@ -400,7 +401,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			undefined,
+			"build",
 			undefined
 		);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
@@ -411,11 +412,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
-	it("passes the hydrated launch mode when reconnecting a Copilot session", async () => {
-		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
-			...baseSession,
-			agentId: "copilot",
-		} satisfies SessionCold);
+	it("passes the hydrated launch mode when reconnecting a session", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: false,
 			isStreaming: false,
@@ -572,7 +569,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			undefined,
+			"build",
 			undefined
 		);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
@@ -995,6 +992,7 @@ describe("SessionConnectionManager.createSession", () => {
 	const stateWriter: ISessionStateWriter = {
 		addSession: vi.fn(),
 		updateSession: vi.fn(),
+		replaceSessionOpenSnapshot: vi.fn(),
 		removeSession: vi.fn(),
 		setSessions: vi.fn(),
 		setLoading: vi.fn(),
@@ -1508,7 +1506,8 @@ describe("SessionConnectionManager.createSession", () => {
 		});
 
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
-		const session = result._unsafeUnwrap();
+		const created = result._unsafeUnwrap();
+		const session = created.session;
 
 		expect(stateWriter.addSession).toHaveBeenCalled();
 		expect(session).toEqual(
@@ -1518,6 +1517,7 @@ describe("SessionConnectionManager.createSession", () => {
 				agentId,
 			})
 		);
+		expect(created.sessionOpen).toBeNull();
 	});
 
 	it("applies autonomous execution profile on create when requested before first send", async () => {
@@ -1592,6 +1592,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	const stateWriter: ISessionStateWriter = {
 		addSession: vi.fn(),
 		updateSession: vi.fn(),
+		replaceSessionOpenSnapshot: vi.fn(),
 		removeSession: vi.fn(),
 		setSessions: vi.fn(),
 		setLoading: vi.fn(),
@@ -2058,6 +2059,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	const stateWriter: ISessionStateWriter = {
 		addSession: vi.fn(),
 		updateSession: vi.fn(),
+		replaceSessionOpenSnapshot: vi.fn(),
 		removeSession: vi.fn(),
 		setSessions: vi.fn(),
 		setLoading: vi.fn(),
@@ -2210,6 +2212,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		const stateWriter: ISessionStateWriter = {
 			addSession: vi.fn(),
 			updateSession: vi.fn(),
+			replaceSessionOpenSnapshot: vi.fn(),
 			removeSession: vi.fn(),
 			setSessions: vi.fn(),
 			setLoading: vi.fn(),

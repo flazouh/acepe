@@ -837,6 +837,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: None,
                 question_answer: None,
@@ -869,6 +870,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: Some(vec![ToolCallData {
                     id: child_id.to_string(),
@@ -886,6 +888,7 @@ mod tests {
                     skill_meta: None,
                     normalized_questions: None,
                     normalized_todos: None,
+                    normalized_todo_update: None,
                     parent_tool_use_id: Some(parent_id.to_string()),
                     task_children: None,
                     question_answer: None,

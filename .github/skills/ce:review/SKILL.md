@@ -70,6 +70,11 @@ All tokens are optional. Each one present means one less thing to infer. When ab
 - **Never commit, push, or create a PR** from headless mode. The caller owns those decisions.
 - **End with "Review complete" as the terminal signal** so callers can detect completion. If all reviewers fail or time out, emit `Code review degraded (headless mode). Reason: 0 of N reviewers returned results.` followed by "Review complete".
 
+### Interactive mode rules
+
+- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool — its schema is not available at session start. At the start of Interactive-mode work (before Stage 2 intent-ambiguity questions, the After-Review routing question, walk-through per-finding questions, bulk-preview Proceed/Cancel, and tracker-defer failure sub-questions), call `ToolSearch` with query `select:AskUserQuestion` to load the schema. Load it **once, eagerly, at the top of the Interactive flow** — do not wait for the first question site and do not decide it on a per-site basis. On Codex (`request_user_input`) and Gemini (`ask_user`) this step is not required; the tools are loaded by default.
+- **The numbered-list fallback only applies on confirmed load failure.** The skill's fallback pattern — "present the options as a numbered list and wait for the user's reply" — is valid **only** when `ToolSearch` returns no match or the tool call explicitly fails. Rendering a question as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug. A question that calls for a user decision must either fire the tool or fail loudly.
+
 ## Severity Scale
 
 All reviewers use P0-P3:
@@ -316,7 +321,7 @@ Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each 
 
 **When intent is ambiguous:**
 
-- **Interactive mode:** Ask one question using the platform's interactive question tool (AskUserQuestion in Claude Code, request_user_input in Codex): "What is the primary goal of these changes?" Do not spawn reviewers until intent is established.
+- **Interactive mode:** Ask one question using the platform's interactive question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini): "What is the primary goal of these changes?" Do not spawn reviewers until intent is established. **Claude Code only:** if `AskUserQuestion` has not yet been loaded this session (per the Interactive mode rules pre-load), call `ToolSearch` with query `select:AskUserQuestion` first before asking. On Codex (`request_user_input`) and Gemini (`ask_user`) this preload step does not apply — the platform-native question tool is loaded by default.
 - **Autofix/report-only/headless modes:** Infer intent conservatively from the branch name, diff, PR metadata, and caller context. Note the uncertainty in Coverage or Verdict reasoning instead of blocking.
 
 ### Stage 2b: Plan discovery (requirements verification)
@@ -381,7 +386,7 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 Persona sub-agents do focused, scoped work and should use a fast mid-tier model to reduce cost and latency without sacrificing review quality. The orchestrator itself stays on the default (most capable) model.
 
-Use the platform's mid-tier model for all persona and CE sub-agents. When the runtime supports an explicit model override, pass `model: "claude-sonnet-4.6"` in the sub-agent dispatch call (for example, Claude Code's Agent tool). On platforms with different model catalogs, use the equivalent mid-tier (e.g., `gpt-4o` in Codex). If the platform has no model override mechanism or the available model names are unknown, omit the model parameter and let agents inherit the default -- a working review on the parent model is better than a broken dispatch from an unrecognized model name.
+Use the platform's mid-tier model for all persona and CE sub-agents. In Claude Code, pass `model: "sonnet"` in the Agent tool call. On other platforms, use the equivalent mid-tier (e.g., `gpt-4o` in Codex). If the platform has no model override mechanism or the available model names are unknown, omit the model parameter and let agents inherit the default -- a working review on the parent model is better than a broken dispatch from an unrecognized model name.
 
 CE always-on agents (agent-native-reviewer, learnings-researcher) and CE conditional agents (schema-drift-detector, deployment-verification-agent) also use the mid-tier model since they perform scoped, focused work.
 
@@ -469,6 +474,7 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
 5. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.
 6. **Resolve disagreements.** When reviewers flag the same code region but disagree on severity, autofix_class, or owner, annotate the Reviewer column with the disagreement (e.g., "security (P0), correctness (P1) -- kept P0"). This transparency helps the user understand why a finding was routed the way it was.
 7. **Normalize routing.** For each merged finding, set the final `autofix_class`, `owner`, and `requires_verification`. If reviewers disagree, keep the most conservative route. Synthesis may narrow a finding from `safe_auto` to `gated_auto` or `manual`, but must not widen it without new evidence.
+7b. **Tie-break the recommended action.** Interactive mode's walk-through and LFG paths present a per-finding recommended action (Apply / Defer / Skip / Acknowledge) derived from the normalized `autofix_class` and `suggested_fix`. When contributing reviewers implied different actions for the same merged finding, synthesis picks the most conservative using the order `Skip > Defer > Apply > Acknowledge`. This guarantees that identical review artifacts produce the same recommendation deterministically, so LFG results are auditable after the fact and the walk-through's recommendation is stable across re-runs. The user may still override per finding via the walk-through's options; this rule only determines what gets labeled "recommended."
 8. **Partition the work.** Build three sets:
    - in-skill fixer queue: only `safe_auto -> review-fixer`
    - residual actionable queue: unresolved `gated_auto` or `manual` findings whose owner is `downstream-resolver`
@@ -617,26 +623,29 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 **Interactive mode**
 
 - Apply `safe_auto -> review-fixer` findings automatically without asking. These are safe by definition.
-- Ask a policy question **using the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini) only when `gated_auto` or `manual` findings remain after safe fixes. Do not replace with a conversational open-ended question. Adapt the options to match what actually remains:
+- **Zero-remaining case:** if no `gated_auto` or `manual` findings remain after the `safe_auto` pass, skip the routing question entirely. Emit a one-line completion summary phrased so advisory and pre-existing findings (which are not handled by this flow) are not implied to be cleared. When no advisory or pre-existing findings remain in the report, `All findings resolved — N safe_auto fixes applied.` is accurate. When advisory and/or pre-existing findings do remain, use the qualified form `All actionable findings resolved — N safe_auto fixes applied. (K advisory, J pre-existing findings remain in the report.)`, omitting any zero-count clause. Follow the summary with the existing end-of-review verdict, then proceed to Step 5 per the gating rule there.
+- **Tracker pre-detection:** before rendering the routing question, consult `references/tracker-defer.md` for the session's tracker tuple `{ tracker_name, confidence, named_sink_available, any_sink_available }`. The probe runs at most once per session and is cached for the rest of the run. `named_sink_available` drives the option C label (inline tracker name only when the named sink can actually be invoked). `any_sink_available` drives whether option C is offered at all (it can still be offered when the named tracker is unreachable but `gh` or the harness task primitive works).
+- **Verify question-tool pre-load (checklist, Claude Code only).** Before firing the routing question in Claude Code, confirm `AskUserQuestion` is loaded (per Interactive mode rules at the top of this skill). If not yet loaded this session, call `ToolSearch` with query `select:AskUserQuestion` now. Do not proceed to the routing question without this verification. Rendering the question as narrative text is a bug, not a valid fallback. On Codex (`request_user_input`) and Gemini (`ask_user`) this checklist does not apply — the platform-native question tool is loaded by default and there is no `ToolSearch` preload step to perform.
+- **Routing question.** Ask using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Stem: `What should the agent do with the remaining N findings?` — use third-person voice referring to "the agent", not first-person "me" / "I". Options:
 
-  **When `gated_auto` findings are present** (with or without `manual`):
   ```
-  Safe fixes have been applied. What should I do with the remaining findings?
-  1. Review and approve specific gated fixes (Recommended)
-  2. Leave as residual work
-  3. Report only -- no further action
-  ```
-
-  **When only `manual` findings remain** (no `gated_auto`):
-  ```
-  Safe fixes have been applied. The remaining findings need manual resolution. What should I do?
-  1. Leave as residual work (Recommended)
-  2. Report only -- no further action
+  (A) Review each finding one by one — accept the recommendation or choose another action
+  (B) LFG. Apply the agent's best-judgment action per finding
+  (C) File a [TRACKER] ticket per finding without applying fixes
+  (D) Report only — take no further action
   ```
 
-  If no blocking question tool is available, present the applicable numbered options as text and wait for the user's selection before proceeding.
-- If no `gated_auto` or `manual` findings remain after safe fixes, skip the policy question entirely — report what was fixed and proceed to next steps.
-- Only include `gated_auto` findings in the fixer queue after the user explicitly approves the specific items. Do not widen the queue based on severity alone.
+  Render option C per `references/tracker-defer.md`: when `confidence = high` AND `named_sink_available = true`, replace `[TRACKER]` with the concrete name and keep the full label (e.g., `File a Linear ticket per finding without applying fixes`). When `any_sink_available = true` but either `confidence = low` or `named_sink_available = false` (a fallback tier like GitHub Issues or the harness task primitive is working instead), use the generic label `File an issue per finding without applying fixes` — this is a whole-label substitution, not a `[TRACKER]` token swap. When `any_sink_available = false`, **omit option C entirely** and add one line to the stem explaining why (e.g., `Defer unavailable — no tracker or task-tracking primitive detected on this platform.`). The three remaining options (A, B, D) survive.
+
+  The numbered-list text fallback applies only when `ToolSearch` explicitly returns no match for the platform's question tool or the tool call errors. It does not apply when the agent simply hasn't loaded the tool yet — in that case, load it now (see the verification checklist above). On platforms genuinely without a blocking question tool, present the applicable options as a numbered list and wait for the user's reply.
+
+- **Dispatch on selection.** Route by the option letter (A / B / C / D), not by the rendered label string. The option-C label varies by tracker-detection confidence (`File a [TRACKER] ticket per finding without applying fixes` for a named tracker, `File an issue per finding without applying fixes` as the generic fallback, or omitted entirely when no sink is available — see `references/tracker-defer.md`), and options A / B / D have a single canonical label each. The letter is the stable dispatch signal; the canonical labels below are shown for documentation only. A low-confidence run that rendered option C as the generic label routes to the same branch as a high-confidence run that rendered it with the named tracker.
+  - (A) `Review each finding one by one` — load `references/walkthrough.md` and enter the per-finding walk-through loop. The walk-through accumulates Apply decisions in memory; Defer decisions execute inline via `references/tracker-defer.md`; Skip / Acknowledge decisions are recorded as no-action; `LFG the rest` routes through `references/bulk-preview.md`. At end of the loop, dispatch one fixer subagent for the accumulated Apply set (Step 3). Emit the unified completion report.
+  - (B) `LFG. Apply the agent's best-judgment action per finding` — load `references/bulk-preview.md` scoped to every pending `gated_auto` / `manual` finding. On `Proceed`, execute the plan: Apply set → Step 3 fixer dispatch; Defer set → `references/tracker-defer.md`; Skip / Acknowledge → no-op. On `Cancel`, return to this routing question. Emit the unified completion report after execution.
+  - (C) `File a [TRACKER] ticket per finding without applying fixes` (or the generic `File an issue per finding without applying fixes` when the named-tracker label is not used) — load `references/bulk-preview.md` with every pending finding in the file-tickets bucket (regardless of the agent's natural recommendation). On `Proceed`, route every finding through `references/tracker-defer.md`; no fixes are applied. On `Cancel`, return to this routing question. Emit the unified completion report.
+  - (D) `Report only — take no further action` — do not enter any dispatch phase. Emit the completion report, then proceed to Step 5 per its gating rule (`fixes_applied_count > 0` from earlier `safe_auto` passes). If no fixes were applied this run, stop after the report.
+
+- The walk-through's completion report, the LFG / File-tickets completion report, and the zero-remaining completion summary all follow the unified completion-report structure documented in `references/walkthrough.md`. Use the same structure across every terminal path.
 
 **Autofix mode**
 
@@ -678,6 +687,17 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
   - residual actionable work
   - advisory-only outputs
   Per-agent full-detail JSON files (`{reviewer_name}.json`) are already present in this directory from Stage 4 dispatch.
+- Also write `metadata.json` alongside the findings so downstream skills (e.g., `ce:polish-beta`) can verify the artifact matches the current branch and HEAD. Minimum fields:
+  ```json
+  {
+    "run_id": "<run-id>",
+    "branch": "<git branch --show-current at dispatch time>",
+    "head_sha": "<git rev-parse HEAD at dispatch time>",
+    "verdict": "<Ready to merge | Ready with fixes | Not ready>",
+    "completed_at": "<ISO 8601 UTC timestamp>"
+  }
+  ```
+  Capture `branch` and `head_sha` at dispatch time (before any autofixes land), and write the file after the verdict is finalized. This file is additive -- pre-existing artifacts that predate this field are still valid, and downstream skills fall back to file mtime when it is missing.
 - In autofix mode, create durable todo files only for unresolved actionable findings whose final owner is `downstream-resolver`. Load the `todo-create` skill for the canonical directory path, naming convention, YAML frontmatter structure, and template. Each todo should map the finding's severity to the todo priority (`P0`/`P1` -> `p1`, `P2` -> `p2`, `P3` -> `p3`) and set `status: ready` since these findings have already been triaged by synthesis.
 - Do not create todos for `advisory` findings, `owner: human`, `owner: release`, or protected-artifact cleanup suggestions.
 - If only advisory outputs remain, create no todos.
@@ -685,7 +705,18 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 #### Step 5: Final next steps
 
-**Interactive mode only:** after the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
+**Interactive mode only.** After the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
+
+**The gate is total fixes applied this run, not routing option.** Track `fixes_applied_count` across the whole Interactive invocation. This counter includes both the `safe_auto` fixes applied automatically before the routing question (see Step 2 Interactive mode) AND any Apply decisions executed by routing option A (walk-through) or option B (LFG). Routing options C (File tickets) and D (Report only) add zero to this counter; neither does a walk-through that ends with only Skip / Defer / Acknowledge, and neither does an LFG whose recommendations were all Defer / Skip / Acknowledge.
+
+Step 5 runs only when `fixes_applied_count > 0`. If the counter is zero — no `safe_auto` fixes were applied AND the routing path produced no additional Apply — skip Step 5 entirely and exit after the completion report. Asking "push fixes?" when nothing changed in the working tree is incoherent.
+
+Common outcomes:
+
+- `safe_auto` produced fixes AND the user picked any routing option → Step 5 runs (counter > 0 from the safe_auto pass alone).
+- No `safe_auto` fixes AND the user picked option C or D → Step 5 skipped.
+- No `safe_auto` fixes AND walk-through / LFG finished with zero Applies → Step 5 skipped.
+- Zero-remaining case (no `gated_auto` / `manual` after `safe_auto`) with at least one `safe_auto` fix → Step 5 runs; the routing question was never asked but the counter is > 0.
 
 - **PR mode (entered via PR number/URL):**
   - **Push fixes** -- push commits to the existing PR branch

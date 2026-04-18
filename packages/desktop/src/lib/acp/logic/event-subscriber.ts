@@ -18,7 +18,7 @@ import { openAcpEventSource } from "./acp-event-bridge.js";
  */
 export class EventSubscriber {
 	private unlistenFn: (() => void) | null = null;
-	private listeners = new Map<string, (update: SessionUpdate) => void>();
+	private listeners = new Map<string, (update: SessionUpdate, envelopeSeq: number) => void>();
 	private transcriptDeltaListeners = new Map<string, (delta: TranscriptDelta) => void>();
 	private listenerIdCounter = 0;
 	private isInitializing = false;
@@ -35,7 +35,9 @@ export class EventSubscriber {
 	 * @param listener - Callback function to receive session updates
 	 * @returns ResultAsync containing a unique listener ID that can be used to unsubscribe
 	 */
-	subscribe(listener: (update: SessionUpdate) => void): ResultAsync<string, AcpError> {
+	subscribe(
+		listener: (update: SessionUpdate, envelopeSeq: number) => void
+	): ResultAsync<string, AcpError> {
 		const listenerId = `listener-${++this.listenerIdCounter}`;
 		this.listeners.set(listenerId, listener);
 		return this.ensureSubscribed(
@@ -138,7 +140,7 @@ export class EventSubscriber {
 				}
 				for (const [id, cb] of this.listeners.entries()) {
 					try {
-						cb(update);
+						cb(update, envelope.seq);
 					} catch (error) {
 						this.logger.error("Listener threw error", { listenerId: id, error });
 					}

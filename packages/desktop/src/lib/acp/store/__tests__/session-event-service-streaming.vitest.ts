@@ -962,6 +962,53 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(disconnectedHandler.createToolCallEntry).not.toHaveBeenCalled();
 	});
 
+	it("preserves buffered event identity so duplicate disconnected events flush once", () => {
+		const disconnectedHandler = createMockHandler();
+		const session = {
+			id: "session-123",
+			agentId: "claude-code",
+		} as unknown as SessionCold;
+		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "idle",
+		});
+
+		const update: SessionUpdate = {
+			type: "toolCall",
+			session_id: "session-123",
+			tool_call: {
+				id: "tool-buffered-1",
+				name: "WebSearch",
+				status: "in_progress",
+				kind: "search",
+				arguments: {
+					kind: "search",
+					query: "canonical dedupe",
+				},
+				awaitingPlanApproval: false,
+			},
+		};
+
+		service.handleSessionUpdate(update, disconnectedHandler, 303);
+		service.handleSessionUpdate(update, disconnectedHandler, 303);
+		expect(disconnectedHandler.createToolCallEntry).not.toHaveBeenCalled();
+
+		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "streaming",
+			turnState: "streaming",
+		});
+
+		service.flushPendingEvents("session-123", disconnectedHandler);
+
+		expect(disconnectedHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
+		expect(disconnectedHandler.createToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			update.tool_call
+		);
+	});
+
 	it("does not buffer permissionRequest updates for disconnected sessions", () => {
 		const disconnectedHandler = createMockHandler();
 		const onPermissionRequest = vi.fn();
@@ -1213,7 +1260,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
 	});
 
-	it("drops duplicate toolCall events with the same fingerprint", () => {
+	it("drops duplicate toolCall events with the same event envelope sequence", () => {
 		const update: SessionUpdate = {
 			type: "toolCall",
 			session_id: "session-123",
@@ -1227,8 +1274,8 @@ describe("SessionEventService streaming delta handling", () => {
 			},
 		};
 
-		service.handleSessionUpdate(update, handler);
-		service.handleSessionUpdate(update, handler);
+		service.handleSessionUpdate(update, handler, 101);
+		service.handleSessionUpdate(update, handler, 101);
 
 		expect(handler.createToolCallEntry).toHaveBeenCalledTimes(1);
 	});
@@ -1317,7 +1364,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(2);
 	});
 
-	it("drops duplicate long assistant text chunks during replay (non-streaming turn)", () => {
+	it("drops duplicate long assistant text chunks when the same event envelope replays", () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "idle",
@@ -1336,8 +1383,8 @@ describe("SessionEventService streaming delta handling", () => {
 			},
 		};
 
-		service.handleSessionUpdate(update, handler);
-		service.handleSessionUpdate(update, handler);
+		service.handleSessionUpdate(update, handler, 202);
+		service.handleSessionUpdate(update, handler, 202);
 
 		// During replay (non-streaming), drop duplicates within the window
 		expect(handler.aggregateAssistantChunk).toHaveBeenCalledTimes(1);
@@ -1368,15 +1415,12 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.ensureStreamingState).not.toHaveBeenCalled();
 	});
 
-	it("does not drop assistant chunks repeated outside the replay duplicate window", async () => {
+	it("does not drop repeated assistant chunks when they are separate events", async () => {
 		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: true,
 			status: "streaming",
 			turnState: "streaming",
 		});
-		const nowSpy = vi.spyOn(service as unknown as { nowMs: () => number }, "nowMs");
-		nowSpy.mockReturnValueOnce(1_000).mockReturnValueOnce(6_500).mockReturnValue(6_500);
-
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -1384,7 +1428,7 @@ describe("SessionEventService streaming delta handling", () => {
 			chunk: {
 				content: {
 					type: "text",
-					text: "This chunk is intentionally repeated after the duplicate replay window.",
+					text: "This chunk is intentionally repeated as a separate event.",
 				},
 			},
 		};
@@ -1497,7 +1541,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("applies repeated parent task tool calls when later child growth happens beyond the fingerprint prefix", () => {
+	it("applies repeated parent task tool calls when later child growth adds another child", () => {
 		markHandlerTurnAsStreaming(handler);
 		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
 			createTaskReplayEntry("task-parent-2"),
@@ -1649,7 +1693,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("applies repeated tool calls when top-level arguments only change after the preview cutoff", () => {
+	it("applies repeated tool calls when top-level arguments get richer", () => {
 		markHandlerTurnAsStreaming(handler);
 		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
 			createTaskReplayEntry("tool-long-args-1"),
@@ -1827,7 +1871,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("applies distinct toolCallUpdate events when long raw output changes after the preview cutoff", () => {
+	it("applies distinct toolCallUpdate events when long raw output gets richer", () => {
 		const sharedPrefix = "x".repeat(220);
 		const initialUpdate: Extract<SessionUpdate, { type: "toolCallUpdate" }> = {
 			type: "toolCallUpdate",
@@ -1864,7 +1908,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("drops replayed identical pending toolCall events once the tool already exists", () => {
+	it("drops replayed identical pending toolCall events when the same envelope replays", () => {
 		const liveHandler = createMockHandler();
 		const entriesBySession = new Map<string, SessionEntry[]>();
 		(liveHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -1905,8 +1949,8 @@ describe("SessionEventService streaming delta handling", () => {
 			},
 		};
 
-		service.handleSessionUpdate(update, liveHandler);
-		service.handleSessionUpdate(update, liveHandler);
+		service.handleSessionUpdate(update, liveHandler, 404);
+		service.handleSessionUpdate(update, liveHandler, 404);
 
 		expect(liveHandler.createToolCallEntry).toHaveBeenCalledTimes(1);
 	});

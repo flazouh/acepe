@@ -125,6 +125,29 @@ pub struct TodoItem {
     pub duration: Option<i64>,
 }
 
+/// Semantic todo update operation derived from provider tool calls.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoUpdateOperation {
+    Replace,
+    Upsert,
+    SetStatus,
+    SetStatusByFilter,
+}
+
+/// Canonical todo update payload, independent from provider transport details.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoUpdate {
+    pub operation: TodoUpdateOperation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub items: Option<Vec<TodoItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_statuses: Option<Vec<TodoStatus>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_status: Option<TodoStatus>,
+}
+
 /// Turn error severity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]

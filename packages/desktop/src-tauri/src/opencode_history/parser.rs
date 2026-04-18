@@ -12,6 +12,7 @@ use super::types::{
     OpenCodeApiModel, OpenCodeApiPart, OpenCodeMessage, OpenCodeMessagePart, OpenCodeProject,
     OpenCodeSession,
 };
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::constants::{MAX_PROJECTS_TO_SCAN, MAX_SESSIONS_PER_PROJECT};
 use crate::session_jsonl::types::{ConvertedSession, HistoryEntry};
@@ -543,6 +544,15 @@ pub async fn load_session_from_disk(
     }
 
     Ok(Some(converted))
+}
+
+pub async fn load_thread_snapshot_from_disk(
+    session_id: &str,
+    source_path: Option<&str>,
+) -> Result<Option<SessionThreadSnapshot>> {
+    load_session_from_disk(session_id, source_path)
+        .await
+        .map(|session| session.map(Into::into))
 }
 
 /// Read the session title from the session metadata file on disk.

@@ -4,7 +4,7 @@
 //! streaming paths should prefer [`crate::acp::reconciler::semantic_transition`] over calling
 //! `providers::classify` and the projector separately so semantics stay single-sourced.
 
-use crate::acp::session_update::{QuestionItem, TodoItem, ToolArguments, ToolKind};
+use crate::acp::session_update::{QuestionItem, TodoItem, TodoUpdate, ToolArguments, ToolKind};
 
 use super::SignalName;
 
@@ -15,6 +15,7 @@ pub struct SemanticToolRecord {
     pub arguments: ToolArguments,
     pub normalized_questions: Option<Vec<QuestionItem>>,
     pub normalized_todos: Option<Vec<TodoItem>>,
+    pub normalized_todo_update: Option<TodoUpdate>,
 }
 
 impl SemanticToolRecord {
@@ -23,12 +24,14 @@ impl SemanticToolRecord {
         arguments: ToolArguments,
         normalized_questions: Option<Vec<QuestionItem>>,
         normalized_todos: Option<Vec<TodoItem>>,
+        normalized_todo_update: Option<TodoUpdate>,
     ) -> Self {
         Self {
             kind,
             arguments,
             normalized_questions,
             normalized_todos,
+            normalized_todo_update,
         }
     }
 }

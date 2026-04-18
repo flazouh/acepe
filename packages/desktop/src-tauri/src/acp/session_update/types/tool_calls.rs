@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use super::{QuestionItem, TodoItem};
+use super::{QuestionItem, TodoItem, TodoUpdate};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
 use crate::acp::reconciler::session_tool::{
@@ -375,6 +375,9 @@ pub struct ToolCallData {
     /// This provides a unified format for todos across all agents.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalized_todos: Option<Vec<TodoItem>>,
+    /// Semantic todo update derived from provider tool calls while preserving transport provenance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_todo_update: Option<TodoUpdate>,
     /// Parent task ID for nested tool calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_use_id: Option<String>,
@@ -432,6 +435,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             skill_meta: Option<SkillMeta>,
             normalized_questions: Option<Vec<QuestionItem>>,
             normalized_todos: Option<Vec<TodoItem>>,
+            normalized_todo_update: Option<TodoUpdate>,
             parent_tool_use_id: Option<String>,
             task_children: Option<Vec<ToolCallData>>,
             question_answer: Option<crate::session_jsonl::types::QuestionAnswer>,
@@ -474,10 +478,11 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             normalized_arguments
         };
 
-        let (derived_questions, derived_todos) =
+        let (derived_questions, derived_todos, derived_todo_update) =
             derive_normalized_questions_and_todos(&name, &normalized_source, agent);
         let normalized_questions = raw.normalized_questions.or(derived_questions);
         let normalized_todos = raw.normalized_todos.or(derived_todos);
+        let normalized_todo_update = raw.normalized_todo_update.or(derived_todo_update);
 
         Ok(ToolCallData {
             id: raw.id,
@@ -492,6 +497,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             skill_meta: raw.skill_meta,
             normalized_questions,
             normalized_todos,
+            normalized_todo_update,
             parent_tool_use_id: raw.parent_tool_use_id,
             task_children: raw.task_children,
             question_answer: raw.question_answer,

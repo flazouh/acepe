@@ -234,20 +234,18 @@ impl AgentProvider for CursorProvider {
                 .await
                 {
                     Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_entries(
+                        crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
                             &full_session,
-                        )
-                        .into(),
+                        ),
                     )),
                     Ok(None) => {
                         match crate::cursor_history::parser::find_session_by_id(lookup_session_id)
                             .await
                         {
                             Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_entries(
+                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
                                     &full_session,
-                                )
-                                .into(),
+                                ),
                             )),
                             Ok(None) => Ok(None),
                             Err(error) => {
@@ -271,10 +269,9 @@ impl AgentProvider for CursorProvider {
                             .await
                         {
                             Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_entries(
+                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
                                     &full_session,
-                                )
-                                .into(),
+                                ),
                             )),
                             Ok(None) => Ok(None),
                             Err(error) => {
@@ -291,10 +288,9 @@ impl AgentProvider for CursorProvider {
             } else {
                 match crate::cursor_history::parser::find_session_by_id(lookup_session_id).await {
                     Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_entries(
+                        crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
                             &full_session,
-                        )
-                        .into(),
+                        ),
                     )),
                     Ok(None) => Ok(None),
                     Err(error) => {

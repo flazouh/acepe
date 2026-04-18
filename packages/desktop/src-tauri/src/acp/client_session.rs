@@ -1,5 +1,6 @@
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::provider::{AgentProvider, FrontendProviderProjection};
+use crate::acp::session_open_snapshot::SessionOpenResult;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::ConfigOptionData;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,8 @@ pub struct NewSessionResponse {
     pub session_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sequence_id: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_open: Option<SessionOpenResult>,
     #[serde(default = "default_session_model_state")]
     pub models: SessionModelState,
     #[serde(

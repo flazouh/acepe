@@ -14,10 +14,6 @@ enum ExpectedArguments {
         from: &'static str,
         to: &'static str,
     },
-    Sql {
-        query: &'static str,
-        description: &'static str,
-    },
     NoAssertion,
 }
 
@@ -94,16 +90,6 @@ fn assert_expected_arguments(expected: &ExpectedArguments, arguments: &ToolArgum
                 assert_eq!(actual_to.as_deref(), Some(*to));
             }
             other => panic!("Expected move arguments, got {other:?}"),
-        },
-        ExpectedArguments::Sql { query, description } => match arguments {
-            ToolArguments::Sql {
-                query: actual_query,
-                description: actual_description,
-            } => {
-                assert_eq!(actual_query.as_deref(), Some(*query));
-                assert_eq!(actual_description.as_deref(), Some(*description));
-            }
-            other => panic!("Expected sql arguments, got {other:?}"),
         },
         ExpectedArguments::NoAssertion => {}
     }
@@ -227,11 +213,8 @@ fn provider_tool_call_corpus_preserves_current_head_shapes() {
             label: "copilot sql weak identity (regression shape)",
             agent: AgentType::Copilot,
             payload: FIXTURE_COPILOT_SQL,
-            expected_kind: ToolKind::Sql,
-            expected_arguments: ExpectedArguments::Sql {
-                query: "UPDATE todos SET status='done' WHERE status IN ('pending','in_progress');",
-                description: "Mark all done",
-            },
+            expected_kind: ToolKind::Todo,
+            expected_arguments: ExpectedArguments::NoAssertion,
             expected_todo: None,
             expected_question: None,
         },
@@ -239,7 +222,7 @@ fn provider_tool_call_corpus_preserves_current_head_shapes() {
             label: "copilot sql insert todos",
             agent: AgentType::Copilot,
             payload: FIXTURE_COPILOT_SQL_INSERT_TODOS,
-            expected_kind: ToolKind::Sql,
+            expected_kind: ToolKind::Todo,
             expected_arguments: ExpectedArguments::NoAssertion,
             expected_todo: Some(ExpectedTodo {
                 content: "Add execute parser tests",

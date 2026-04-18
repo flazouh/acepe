@@ -23,7 +23,7 @@ use crate::acp::client_session::{
     apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
     SessionModelState,
 };
-use crate::acp::client_trait::AgentClient;
+use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
@@ -2407,6 +2407,7 @@ impl AgentClient for ClaudeCcSdkClient {
         Ok(NewSessionResponse {
             session_id,
             sequence_id: None,
+            session_open: None,
             models,
             modes: default_modes(),
             available_commands: vec![],
@@ -2480,6 +2481,10 @@ impl AgentClient for ClaudeCcSdkClient {
         })
     }
 
+    fn reconnect_method(&self) -> ReconnectSessionMethod {
+        self.provider.reconnect_method()
+    }
+
     async fn fork_session(
         &mut self,
         session_id: String,
@@ -2510,6 +2515,7 @@ impl AgentClient for ClaudeCcSdkClient {
         Ok(NewSessionResponse {
             session_id: new_session_id,
             sequence_id: None,
+            session_open: None,
             models,
             modes: default_modes(),
             available_commands: vec![],
@@ -2931,6 +2937,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: None,
                 question_answer: None,
@@ -2971,6 +2978,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: None,
                 question_answer: None,
@@ -3028,6 +3036,7 @@ mod tests {
             skill_meta: None,
             normalized_questions: None,
             normalized_todos: None,
+            normalized_todo_update: None,
             parent_tool_use_id: Some(parent_id.to_string()),
             task_children: None,
             question_answer: None,
@@ -3066,6 +3075,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: Some("toolu_task_parent".to_string()),
                 task_children: None,
                 question_answer: None,
@@ -3912,6 +3922,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: None,
                 question_answer: None,
@@ -5991,6 +6002,7 @@ mod tests {
                     skill_meta: None,
                     normalized_questions: None,
                     normalized_todos: None,
+                    normalized_todo_update: None,
                     parent_tool_use_id: None,
                     task_children: None,
                     question_answer: None,
@@ -6042,6 +6054,7 @@ mod tests {
                     skill_meta: None,
                     normalized_questions: None,
                     normalized_todos: None,
+                    normalized_todo_update: None,
                     parent_tool_use_id: None,
                     task_children: None,
                     question_answer: None,

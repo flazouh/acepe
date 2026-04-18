@@ -165,8 +165,36 @@ fn apply_post_classification_promotions(
     base_kind: ToolKind,
     raw: &RawClassificationInput<'_>,
 ) -> ToolKind {
-    let web_search_promoted = apply_web_search_promotion(base_kind, raw);
+    let todo_promoted = apply_todo_sql_promotion(base_kind, raw);
+    let web_search_promoted = apply_web_search_promotion(todo_promoted, raw);
     apply_browser_promotion(web_search_promoted, raw)
+}
+
+fn apply_todo_sql_promotion(base_kind: ToolKind, raw: &RawClassificationInput<'_>) -> ToolKind {
+    if base_kind != ToolKind::Sql {
+        return base_kind;
+    }
+
+    let sql = raw
+        .arguments
+        .as_object()
+        .and_then(|object| {
+            object
+                .get("query")
+                .or_else(|| object.get("sql"))
+                .or_else(|| object.get("statement"))
+        })
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_ascii_lowercase());
+
+    if sql
+        .as_deref()
+        .is_some_and(|query| query.contains("todos") || query.contains("todo_deps"))
+    {
+        ToolKind::Todo
+    } else {
+        base_kind
+    }
 }
 
 fn apply_web_search_promotion(base_kind: ToolKind, raw: &RawClassificationInput<'_>) -> ToolKind {

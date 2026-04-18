@@ -22,7 +22,7 @@ fn provider_name_kind_has_highest_priority() {
 }
 
 #[test]
-fn sql_argument_shape_wins_before_task_like_description() {
+fn todo_sql_argument_shape_wins_before_task_like_description() {
     let output = classify_with_provider_name_kind(
         None,
         &RawClassificationInput {
@@ -37,14 +37,21 @@ fn sql_argument_shape_wins_before_task_like_description() {
         },
     );
 
-    assert_eq!(output.kind, ToolKind::Sql);
+    assert_eq!(output.kind, ToolKind::Todo);
     assert_eq!(output.signals_tried, vec![SignalName::ProviderName]);
     match output.arguments {
-        ToolArguments::Sql { query, description } => {
-            assert_eq!(query.as_deref(), Some("UPDATE todos SET status = 'done'"));
-            assert_eq!(description.as_deref(), Some("Mark all done"));
+        ToolArguments::Think { raw, .. } => {
+            let raw = raw.expect("raw todo payload");
+            assert_eq!(
+                raw.get("query").and_then(serde_json::Value::as_str),
+                Some("UPDATE todos SET status = 'done'")
+            );
+            assert_eq!(
+                raw.get("description").and_then(serde_json::Value::as_str),
+                Some("Mark all done")
+            );
         }
-        other => panic!("expected sql arguments, got {other:?}"),
+        other => panic!("expected todo arguments, got {other:?}"),
     }
 }
 

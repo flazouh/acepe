@@ -103,6 +103,20 @@ export class SessionOpenHydrator {
 		return ResultAsync.fromPromise(queued, toAppError);
 	}
 
+	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError> {
+		return ResultAsync.fromPromise(
+			Promise.resolve().then(() => {
+				this.applySnapshot(found);
+			}),
+			toAppError
+		);
+	}
+
+	private applySnapshot(found: SessionOpenFound): void {
+		this.sessionStore.replaceSessionOpenSnapshot(found);
+		this.projectionConsumer.replaceSessionProjection(toProjectionSnapshot(found));
+	}
+
 	private async applyFound(
 		panelId: string,
 		requestToken: string,
@@ -129,9 +143,8 @@ export class SessionOpenHydrator {
 			};
 		}
 
-		this.sessionStore.replaceSessionOpenSnapshot(found);
+		this.applySnapshot(found);
 		this.panelStore.updatePanelSession(panelId, found.canonicalSessionId);
-		this.projectionConsumer.replaceSessionProjection(toProjectionSnapshot(found));
 		this.appliedSnapshotRevisions.set(panelId, {
 			canonicalSessionId: found.canonicalSessionId,
 			lastEventSeq: found.lastEventSeq,

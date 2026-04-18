@@ -1,6 +1,7 @@
 import type { SessionId } from "./session-id.js";
 import type { SessionModelState } from "./session-model-state.js";
 import type { SessionModes } from "./session-modes.js";
+import type { SessionOpenResult } from "../../services/acp-types.js";
 
 /**
  * Response from the session/new ACP protocol method.
@@ -16,6 +17,7 @@ export type NewSessionResponse = {
 	 */
 	sessionId: SessionId;
 	sequenceId?: number | null;
+	sessionOpen?: SessionOpenResult | null;
 
 	/**
 	 * Model state for this session.

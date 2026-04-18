@@ -21,9 +21,9 @@ fn semantic_transition_matches_provider_classify_for_streaming_shape() {
 
     assert_eq!(direct.kind, transition.record.kind);
     assert_eq!(direct.arguments, transition.projected_arguments);
-    assert_eq!(transition.record.kind, ToolKind::Sql);
+    assert_eq!(transition.record.kind, ToolKind::Todo);
     assert!(matches!(
         transition.projected_arguments,
-        ToolArguments::Sql { query: Some(_), .. }
+        ToolArguments::Think { raw: Some(_), .. }
     ));
 }

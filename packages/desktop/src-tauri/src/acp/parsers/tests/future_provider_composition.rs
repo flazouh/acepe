@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::client_trait::ReconnectSessionMethod;
 use crate::acp::model_display::{ModelDisplayFamily, UsageMetricsPresentation};
 use crate::acp::parsers::provider_capabilities::{
     find_provider_capabilities_by_id, EditNormalization, InvocationEnrichment,
@@ -33,6 +34,8 @@ static FUTURE_PROVIDER_CAPABILITIES: [ProviderCapabilities; 1] = [ProviderCapabi
     history_replay_policy: HistoryReplayPolicy {
         family: HistoryReplayFamily::SharedCanonical,
     },
+    live_reconnect_method: ReconnectSessionMethod::Resume,
+    seeds_resume_launch_mode: false,
     frontend_projection: FrontendProviderProjection {
         provider_brand: "future-shared-chat",
         display_name: "Future Shared Chat",

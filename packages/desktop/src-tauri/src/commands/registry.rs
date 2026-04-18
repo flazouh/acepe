@@ -252,7 +252,6 @@ macro_rules! history_command_entries {
             reset_cache_stats: reset_cache_stats,
             get_index_status: get_index_status,
             reindex_sessions: reindex_sessions,
-            get_unified_session: get_unified_session,
             get_session_open_result: get_session_open_result,
             audit_session_load_timing: audit_session_load_timing,
             set_session_worktree_path: set_session_worktree_path,

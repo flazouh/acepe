@@ -5,6 +5,7 @@
  * Extracted services use this to modify session data.
  */
 
+import type { SessionOpenFound } from "../../../../services/acp-types.js";
 import type { SessionCold } from "../../types.js";
 
 /**
@@ -20,6 +21,11 @@ export interface ISessionStateWriter {
 	 * Update a session's cold metadata.
 	 */
 	updateSession(id: string, updates: Partial<SessionCold>): void;
+
+	/**
+	 * Apply a canonical session-open snapshot to the store.
+	 */
+	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void;
 
 	/**
 	 * Remove a session from the store.

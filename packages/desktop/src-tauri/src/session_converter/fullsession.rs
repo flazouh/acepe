@@ -1,5 +1,6 @@
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{tool_call_status_from_str, SkillMeta, ToolCallData};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
@@ -99,6 +100,19 @@ pub(crate) fn parse_skill_meta_from_content(content: &str) -> SkillMeta {
 
 pub(crate) fn convert_full_session_to_entries(session: &FullSession) -> ConvertedSession {
     convert_full_session_to_entries_with_agent(session, AgentType::ClaudeCode)
+}
+
+pub(crate) fn convert_full_session_to_thread_snapshot_with_agent(
+    session: &FullSession,
+    agent_type: AgentType,
+) -> SessionThreadSnapshot {
+    let converted = convert_full_session_to_entries_with_agent(session, agent_type);
+    SessionThreadSnapshot {
+        entries: converted.entries,
+        title: converted.title,
+        created_at: converted.created_at,
+        current_mode_id: converted.current_mode_id,
+    }
 }
 
 pub(crate) fn convert_full_session_to_entries_with_agent(
@@ -432,6 +446,7 @@ fn convert_assistant_message(
                         locations: None,
                         normalized_questions: classified.normalized_questions,
                         normalized_todos: classified.normalized_todos,
+                        normalized_todo_update: classified.normalized_todo_update,
                         parent_tool_use_id: None,
                         task_children: None,
                         question_answer,

@@ -184,7 +184,7 @@ impl AgentProvider for CopilotProvider {
                 None => format!("Session {}", &session_id[..8.min(session_id.len())]),
             };
 
-            match crate::copilot_history::load_session(
+            match crate::copilot_history::load_thread_snapshot(
                 app,
                 replay_context,
                 &context.effective_project_path,
@@ -192,7 +192,7 @@ impl AgentProvider for CopilotProvider {
             )
             .await
             {
-                Ok(session) => Ok(session.map(Into::into)),
+                Ok(session) => Ok(session),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

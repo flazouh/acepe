@@ -18,7 +18,10 @@ import {
 	type ProviderMetadataProjection,
 	resolveProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
-import type { SessionModelState as AcpSessionModelState } from "../../../services/acp-types.js";
+import type {
+	SessionModelState as AcpSessionModelState,
+	SessionOpenResult,
+} from "../../../services/acp-types.js";
 import type {
 } from "../../../services/converted-session-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
@@ -59,6 +62,11 @@ let nextAttemptId = 1;
 interface ConnectSessionOptions {
 	agentOverrideId?: string;
 	openToken?: string;
+}
+
+export interface CreatedSessionResult {
+	readonly session: SessionCold;
+	readonly sessionOpen: SessionOpenResult | null;
 }
 
 type ProviderAwareSessionModelState = AcpSessionModelState & {
@@ -111,17 +119,6 @@ export class SessionConnectionManager {
 
 	private supportsAutonomousMode(modeId: string | undefined): boolean {
 		return modeId === CanonicalModeId.BUILD;
-	}
-
-	private resolveResumeLaunchModeId(
-		agentId: string,
-		modeId: string | undefined
-	): string | undefined {
-		if (agentId !== "copilot") {
-			return undefined;
-		}
-
-		return modeId;
 	}
 
 	private resolveProviderMetadata(
@@ -272,7 +269,7 @@ export class SessionConnectionManager {
 			launchToken?: string;
 		},
 		eventHandler: SessionEventHandler
-	): ResultAsync<SessionCold, AppError> {
+	): ResultAsync<CreatedSessionResult, AppError> {
 		const sessionCwd = options.worktreePath ? options.worktreePath : options.projectPath;
 		logger.info("[first-send-trace] connection manager createSession", {
 			projectPath: options.projectPath,
@@ -557,7 +554,10 @@ export class SessionConnectionManager {
 								sessionId,
 							});
 
-							return sessionCold;
+							return {
+								session: sessionCold,
+								sessionOpen: result.sessionOpen ?? null,
+							};
 						});
 					});
 			})
@@ -635,10 +635,9 @@ export class SessionConnectionManager {
 		const resumeCwd = session.projectPath;
 		const attemptId = nextAttemptId++;
 		const reconnectHotState = this.stateReader.getHotState(sessionId);
-		const resumeLaunchModeId = this.resolveResumeLaunchModeId(
-			effectiveAgentId,
-			reconnectHotState.currentMode ? reconnectHotState.currentMode.id : undefined
-		);
+		const resumeLaunchModeId = reconnectHotState.currentMode
+			? reconnectHotState.currentMode.id
+			: undefined;
 
 		const lifecycleWaiter = this.eventService.waitForLifecycleEvent(
 			sessionId,

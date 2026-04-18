@@ -13,8 +13,8 @@ use super::providers;
 use super::{RawClassificationInput, SignalName};
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
 use crate::acp::session_update::{
-    derive_normalized_questions_and_todos, QuestionItem, TodoItem, ToolArguments, ToolCallLocation,
-    ToolKind,
+    derive_normalized_questions_and_todos, QuestionItem, TodoItem, TodoUpdate, ToolArguments,
+    ToolCallLocation, ToolKind,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -39,6 +39,8 @@ pub(crate) struct ClassifiedToolData {
     pub arguments: ToolArguments,
     /// Parsed todo items when the tool is a TodoWrite-family tool (e.g. Copilot `update_todos`).
     pub normalized_todos: Option<Vec<TodoItem>>,
+    /// Semantic todo update payload when a tool mutates todo state.
+    pub normalized_todo_update: Option<TodoUpdate>,
     /// Parsed question items when the tool is a question-type tool.
     pub normalized_questions: Option<Vec<QuestionItem>>,
 }
@@ -313,7 +315,7 @@ pub(crate) fn classify_raw_tool_call(
         identity.name
     };
 
-    let (normalized_questions, normalized_todos) =
+    let (normalized_questions, normalized_todos, normalized_todo_update) =
         derive_normalized_questions_and_todos(&name, raw_arguments, parser.agent_type());
 
     ClassifiedToolData {
@@ -321,6 +323,7 @@ pub(crate) fn classify_raw_tool_call(
         kind,
         arguments,
         normalized_todos,
+        normalized_todo_update,
         normalized_questions,
     }
 }
@@ -350,7 +353,7 @@ pub(crate) fn classify_serialized_tool_call(
         identity.name
     };
 
-    let (normalized_questions, normalized_todos) =
+    let (normalized_questions, normalized_todos, normalized_todo_update) =
         derive_normalized_questions_and_todos(&name, raw_arguments, agent);
 
     ClassifiedToolData {
@@ -358,6 +361,7 @@ pub(crate) fn classify_serialized_tool_call(
         kind,
         arguments,
         normalized_todos,
+        normalized_todo_update,
         normalized_questions,
     }
 }
@@ -548,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn serialized_description_and_query_do_not_promote_to_task() {
+    fn serialized_todo_sql_does_not_promote_to_task() {
         let classified = classify_serialized_tool_call(
             AgentType::Copilot,
             "tool-sql",
@@ -566,13 +570,10 @@ mod tests {
         );
 
         assert_ne!(classified.kind, ToolKind::Task);
-        assert_eq!(classified.kind, ToolKind::Sql);
+        assert_eq!(classified.kind, ToolKind::Todo);
         assert!(matches!(
             classified.arguments,
-            ToolArguments::Sql {
-                query: Some(_),
-                description: Some(_)
-            }
+            ToolArguments::Think { raw: Some(_), .. }
         ));
     }
 

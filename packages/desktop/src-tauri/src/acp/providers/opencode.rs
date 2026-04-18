@@ -175,18 +175,18 @@ impl AgentProvider for OpenCodeProvider {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
 
-            let disk_result = crate::opencode_history::parser::load_session_from_disk(
+            let disk_result = crate::opencode_history::parser::load_thread_snapshot_from_disk(
                 lookup_session_id,
                 context.source_path.as_deref(),
             )
             .await;
 
-            if let Ok(Some(converted)) = disk_result {
+            if let Ok(Some(snapshot)) = disk_result {
                 tracing::info!(
                     session_id = %session_id,
                     "Loaded OpenCode session from local disk"
                 );
-                return Ok(Some(converted.into()));
+                return Ok(Some(snapshot));
             }
 
             match &disk_result {

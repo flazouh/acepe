@@ -97,8 +97,9 @@ fn streamed_sql_matches_direct_classify() {
         .accumulate_delta("tool-sql-parity", "unknown", payload, agent)
         .expect("streamed sql");
 
+    assert_eq!(direct.kind, ToolKind::Todo);
     assert_eq!(
-        direct.kind,
+        direct.arguments.tool_kind(),
         streamed.streaming_arguments.as_ref().unwrap().tool_kind()
     );
     assert_tool_arguments_equal(

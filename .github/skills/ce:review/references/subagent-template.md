@@ -48,6 +48,30 @@ Confidence rubric (0.0-1.0 scale):
 
 Suppress threshold: 0.60. Do not emit findings below 0.60 confidence (except P0 at 0.50+).
 
+Writing `why_it_matters` (required field, every finding):
+
+The `why_it_matters` field is how the reader — a developer triaging findings, a ticket-body reader months later, or a downstream automated surface — understands the problem without re-reading the file. Treat it as the most important prose field in your output; every downstream surface (walk-through questions, bulk-action previews, ticket bodies, headless output) depends on it being good.
+
+- **Lead with observable behavior.** Describe what the bug does from the outside — what a user, attacker, operator, or downstream caller experiences. Do not lead with code structure ("The function X does Y..."). Start with the effect ("Any signed-in user can read another user's orders..."). Function and variable names appear later, only when the reader needs them to locate the issue.
+- **Explain why the fix resolves the problem.** If you include a `suggested_fix`, the `why_it_matters` should make clear why that specific fix addresses the root cause. When a similar pattern exists elsewhere in the codebase (an existing guard, an established convention, a parallel handler), reference it so the recommendation is grounded in the project's own conventions rather than theoretical best practice.
+- **Keep it tight.** Approximately 2-4 sentences plus the minimum code quoted inline to ground the point. Longer framings are a regression — downstream surfaces have narrow display budgets, and verbose `why_it_matters` content gets truncated or skimmed.
+- **Always produce substantive content.** `why_it_matters` is required by the schema. Empty strings, nulls, and single-phrase entries are validation failures. If you found something worth flagging (confidence >= 0.60), you can explain it — the field exists because every finding needs a reason.
+
+Illustrative pair — same finding, weak vs. strong framing:
+
+```
+WEAK (code-citation first; fails the observable-behavior rule):
+  orders_controller.rb:42 has a missing authorization check.
+  Add current_user.owns?(account) guard before the query.
+
+STRONG (observable behavior first, grounded fix reasoning):
+  Any signed-in user can read another user's orders by pasting the
+  target account ID into the URL. The controller looks up the account
+  and returns its orders without verifying the current user owns it.
+  Adding a one-line ownership guard before the lookup matches the
+  pattern already used in the shipments controller for the same attack.
+```
+
 False-positive categories to actively suppress:
 - Pre-existing issues unrelated to this diff (mark pre_existing: true for unchanged code the diff does not interact with; if the diff makes it newly relevant, it is secondary, not pre-existing)
 - Pedantic style nitpicks that a linter/formatter would catch

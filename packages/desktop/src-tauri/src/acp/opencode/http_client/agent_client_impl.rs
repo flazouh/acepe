@@ -79,6 +79,7 @@ impl AgentClient for OpenCodeHttpClient {
         let mut response = NewSessionResponse {
             session_id: session.id,
             sequence_id: None,
+            session_open: None,
             models: SessionModelState {
                 available_models,
                 current_model_id,

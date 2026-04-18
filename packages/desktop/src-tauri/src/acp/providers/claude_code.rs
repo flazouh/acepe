@@ -161,8 +161,9 @@ impl AgentProvider for ClaudeCodeProvider {
             .await
             {
                 Ok(full_session) => Ok(Some(
-                    crate::session_converter::convert_claude_full_session_to_entries(&full_session)
-                        .into(),
+                    crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                        &full_session,
+                    ),
                 )),
                 Err(_) if context.effective_project_path != context.project_path => {
                     match crate::session_jsonl::parser::parse_full_session(
@@ -172,10 +173,9 @@ impl AgentProvider for ClaudeCodeProvider {
                     .await
                     {
                         Ok(full_session) => Ok(Some(
-                            crate::session_converter::convert_claude_full_session_to_entries(
+                            crate::session_converter::convert_claude_full_session_to_thread_snapshot(
                                 &full_session,
-                            )
-                            .into(),
+                            ),
                         )),
                         Err(error) => {
                             tracing::warn!(

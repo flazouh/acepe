@@ -2,9 +2,9 @@ import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionCold } from "../../application/dto/session.js";
+import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { SessionOpenFound } from "$lib/services/acp-types.js";
 import type { HistoryEntry } from "$lib/services/claude-history-types.js";
-import type { ConvertedSession } from "$lib/services/converted-session-types.js";
 
 vi.mock("$lib/analytics.js", () => ({
 	captureException: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("$lib/analytics.js", () => ({
 // Mock the api module
 vi.mock("../api.js", () => ({
 	api: {
-		getSession: vi.fn(),
+		getSessionOpenResult: vi.fn(),
 		scanSessions: vi.fn(),
 		sendPrompt: vi.fn(),
 	},
@@ -23,30 +23,6 @@ vi.mock("../api.js", () => ({
 
 import { api } from "../api.js";
 import { SessionStore } from "../session-store.svelte.js";
-
-const defaultStats: ConvertedSession["stats"] = {
-	total_messages: 0,
-	user_messages: 0,
-	assistant_messages: 0,
-	tool_uses: 0,
-	tool_results: 0,
-	thinking_blocks: 0,
-	total_input_tokens: 0,
-	total_output_tokens: 0,
-};
-
-/** Minimal session for tests. */
-function mockSession(
-	overrides: Partial<ConvertedSession> & { entries?: ConvertedSession["entries"] } = {}
-): ConvertedSession {
-	return {
-		title: "Session Title",
-		entries: overrides.entries ?? [],
-		stats: overrides.stats ?? defaultStats,
-		createdAt: overrides.createdAt ?? new Date().toISOString(),
-		...overrides,
-	};
-}
 
 /** Single history entry for scan mocks. */
 function mockHistoryEntry(overrides: Partial<HistoryEntry>): HistoryEntry {
@@ -87,6 +63,15 @@ function mockSessionOpenFound(
 	};
 }
 
+function mockSessionOpenResult(
+	overrides: Partial<SessionOpenFound> = {}
+): SessionOpenResult {
+	return {
+		outcome: "found",
+		...mockSessionOpenFound(overrides),
+	};
+}
+
 describe("SessionStore loadSessionById title update", () => {
 	let store: SessionStore;
 
@@ -96,9 +81,15 @@ describe("SessionStore loadSessionById title update", () => {
 	});
 
 	it("updates session title from 'Loading...' to actual title after load", async () => {
-		// Arrange: Mock API to return a session with a real title
-		const session = mockSession({ title: "My Actual Session Title" });
-		vi.mocked(api.getSession).mockReturnValue(okAsync(session));
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-123",
+					canonicalSessionId: "session-123",
+					sessionTitle: "My Actual Session Title",
+				})
+			)
+		);
 
 		// Act: Load the session
 		const result = await store.loadSessionById("session-123", "/test/path", "claude-code").match(
@@ -116,12 +107,17 @@ describe("SessionStore loadSessionById title update", () => {
 		expect(storedSession?.title).toBe("My Actual Session Title");
 	});
 
-	it("hydrates current mode from canonical session load data", async () => {
-		const session = {
-			...mockSession({ title: "Plan Session" }),
-			currentModeId: "plan",
-		} as ConvertedSession;
-		vi.mocked(api.getSession).mockReturnValue(okAsync(session));
+	it("hydrates turn state from canonical session load data", async () => {
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-123",
+					canonicalSessionId: "session-123",
+					sessionTitle: "Plan Session",
+					turnState: "Running",
+				})
+			)
+		);
 
 		await store.loadSessionById("session-123", "/test/path", "claude-code").match(
 			(loadedSession) => loadedSession,
@@ -131,15 +127,19 @@ describe("SessionStore loadSessionById title update", () => {
 		);
 
 		const hotState = store.getHotState("session-123");
-		expect(hotState.currentMode?.id).toBe("plan");
-		expect(hotState.currentMode?.name).toBe("Plan");
+		expect(hotState.turnState).toBe("streaming");
 	});
 
 	it("uses fallback title when API returns no title", async () => {
-		// Arrange: Mock API returning session without title (e.g. legacy backend)
-		const session = mockSession({ title: "", entries: [] });
-		const response = { ...session, title: undefined } as unknown as ConvertedSession;
-		vi.mocked(api.getSession).mockReturnValue(okAsync(response));
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-123",
+					canonicalSessionId: "session-123",
+					sessionTitle: "",
+				})
+			)
+		);
 
 		// Act: Load the session
 		await store.loadSessionById("session-123", "/test/path", "claude-code");
@@ -150,23 +150,15 @@ describe("SessionStore loadSessionById title update", () => {
 	});
 
 	it("uses fallback title when API returns empty string title", async () => {
-		// Arrange: Mock API to return a session with empty title
-		const mockSession = {
-			title: "",
-			entries: [],
-			stats: {
-				total_messages: 0,
-				user_messages: 0,
-				assistant_messages: 0,
-				tool_uses: 0,
-				tool_results: 0,
-				thinking_blocks: 0,
-				total_input_tokens: 0,
-				total_output_tokens: 0,
-			},
-			createdAt: new Date().toISOString(),
-		};
-		vi.mocked(api.getSession).mockReturnValue(okAsync(mockSession));
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-123",
+					canonicalSessionId: "session-123",
+					sessionTitle: "",
+				})
+			)
+		);
 
 		// Act: Load the session
 		await store.loadSessionById("session-123", "/test/path", "claude-code");
@@ -193,23 +185,14 @@ describe("SessionStore loadSessionById title update", () => {
 			parentId: null,
 		});
 
-		// Mock converter returning empty title (OpenCode fallback scenario)
-		vi.mocked(api.getSession).mockReturnValue(
-			okAsync({
-				title: "",
-				entries: [],
-				stats: {
-					total_messages: 0,
-					user_messages: 0,
-					assistant_messages: 0,
-					tool_uses: 0,
-					tool_results: 0,
-					thinking_blocks: 0,
-					total_input_tokens: 0,
-					total_output_tokens: 0,
-				},
-				createdAt: new Date().toISOString(),
-			})
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-oc",
+					canonicalSessionId: "session-oc",
+					sessionTitle: "",
+				})
+			)
 		);
 
 		await store.loadSessionById("session-oc", "/project", "opencode");
@@ -230,22 +213,14 @@ describe("SessionStore loadSessionById title update", () => {
 			parentId: null,
 		});
 
-		vi.mocked(api.getSession).mockReturnValue(
-			okAsync({
-				title: "Better Title From Converter",
-				entries: [],
-				stats: {
-					total_messages: 0,
-					user_messages: 0,
-					assistant_messages: 0,
-					tool_uses: 0,
-					tool_results: 0,
-					thinking_blocks: 0,
-					total_input_tokens: 0,
-					total_output_tokens: 0,
-				},
-				createdAt: new Date().toISOString(),
-			})
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-oc2",
+					canonicalSessionId: "session-oc2",
+					sessionTitle: "Better Title From Converter",
+				})
+			)
 		);
 
 		await store.loadSessionById("session-oc2", "/project", "opencode");
@@ -368,27 +343,25 @@ describe("SessionStore loadSessionById title update", () => {
 	});
 
 	it("loads codex sessions from disk and applies returned title", async () => {
-		vi.mocked(api.getSession).mockReturnValue(
-			okAsync({
-				title: "Codex Loaded From Disk",
-				entries: [],
-				stats: {
-					total_messages: 0,
-					user_messages: 0,
-					assistant_messages: 0,
-					tool_uses: 0,
-					tool_results: 0,
-					thinking_blocks: 0,
-					total_input_tokens: 0,
-					total_output_tokens: 0,
-				},
-				createdAt: new Date().toISOString(),
-			})
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-codex",
+					canonicalSessionId: "session-codex",
+					agentId: "codex",
+					sessionTitle: "Codex Loaded From Disk",
+				})
+			)
 		);
 
 		await store.loadSessionById("session-codex", "/test/path", "codex");
 
-		expect(api.getSession).toHaveBeenCalledWith("session-codex", "/test/path", "codex", undefined);
+		expect(api.getSessionOpenResult).toHaveBeenCalledWith(
+			"session-codex",
+			"/test/path",
+			"codex",
+			undefined
+		);
 		expect(store.getSessionCold("session-codex")?.title).toBe("Codex Loaded From Disk");
 	});
 });
@@ -409,22 +382,16 @@ describe("SessionStore loadSessions preserves existing loaded state", () => {
 		// We expect the title from loadSessionById to be preserved
 
 		// Arrange: First load a session via loadSessionById
-		const mockSessionDetails = {
-			title: "Real Title From Content",
-			entries: [],
-			stats: {
-				total_messages: 0,
-				user_messages: 0,
-				assistant_messages: 0,
-				tool_uses: 0,
-				tool_results: 0,
-				thinking_blocks: 0,
-				total_input_tokens: 0,
-				total_output_tokens: 0,
-			},
-			createdAt: new Date().toISOString(),
-		};
-		vi.mocked(api.getSession).mockReturnValue(okAsync(mockSessionDetails));
+		vi.mocked(api.getSessionOpenResult).mockReturnValue(
+			okAsync(
+				mockSessionOpenResult({
+					requestedSessionId: "session-123",
+					canonicalSessionId: "session-123",
+					agentId: "cursor",
+					sessionTitle: "Real Title From Content",
+				})
+			)
+		);
 
 		// Load session by ID first
 		await store.loadSessionById("session-123", "/test/path", "cursor");

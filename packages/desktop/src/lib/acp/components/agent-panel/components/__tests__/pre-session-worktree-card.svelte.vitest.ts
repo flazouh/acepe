@@ -74,7 +74,7 @@ describe("PreSessionWorktreeCard desktop wrapper", () => {
 		expect(screen.getByText("Yes")).toBeTruthy();
 	});
 
-	it("calls onDismiss when X is clicked", async () => {
+	it("does not render a dismiss button in the standard card", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
 		const onAlways = vi.fn();
@@ -88,7 +88,6 @@ describe("PreSessionWorktreeCard desktop wrapper", () => {
 			onDismiss,
 		});
 
-		await fireEvent.click(screen.getByLabelText("Dismiss"));
-		expect(onDismiss).toHaveBeenCalled();
+		expect(screen.queryByLabelText("Dismiss")).toBeNull();
 	});
 });

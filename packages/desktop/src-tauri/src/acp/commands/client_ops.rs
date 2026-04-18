@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::client_trait::ReconnectSessionMethod;
 use crate::acp::session_registry::redact_session_id;
 
 fn agent_display_name(agent_id: &CanonicalAgentId) -> &str {
@@ -139,22 +140,20 @@ async fn load_client_session(
     })
 }
 
-fn should_load_session(agent_id: &CanonicalAgentId) -> bool {
-    matches!(agent_id, CanonicalAgentId::Copilot)
-}
-
 async fn reconnect_client_session(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
     session_id: &str,
     cwd: &str,
-    agent_id: &CanonicalAgentId,
     operation: &str,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
-    if should_load_session(agent_id) {
-        return load_client_session(client, session_id, cwd, operation).await;
+    match client.reconnect_method() {
+        ReconnectSessionMethod::Load => {
+            load_client_session(client, session_id, cwd, operation).await
+        }
+        ReconnectSessionMethod::Resume => {
+            resume_client_session(client, session_id, cwd, operation).await
+        }
     }
-
-    resume_client_session(client, session_id, cwd, operation).await
 }
 
 async fn seed_client_launch_mode(
@@ -195,7 +194,6 @@ where
         Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
     >,
 {
-    let use_load_session = should_load_session(&agent_id);
     if !force_new_client {
         if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
             let existing_resume_result = {
@@ -208,7 +206,6 @@ where
                     existing_client.as_mut(),
                     &session_id,
                     &cwd,
-                    &agent_id,
                     "resume existing session client",
                 )
                 .await
@@ -235,6 +232,7 @@ where
     }
 
     let mut client = create_client_fn().await?;
+    let use_load_session = matches!(client.reconnect_method(), ReconnectSessionMethod::Load);
     if let Some(mode_id) = launch_mode_id {
         seed_client_launch_mode(
             client.as_mut(),
@@ -248,7 +246,6 @@ where
         client.as_mut(),
         &session_id,
         &cwd,
-        &agent_id,
         "resume newly created session client",
     )
     .await

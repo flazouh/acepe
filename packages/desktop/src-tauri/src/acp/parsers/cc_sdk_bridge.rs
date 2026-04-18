@@ -395,6 +395,7 @@ fn translate_stream_event(
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id,
                 task_children: None,
                 question_answer: None,

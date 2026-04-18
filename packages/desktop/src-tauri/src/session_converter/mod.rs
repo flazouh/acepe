@@ -5,6 +5,7 @@
 //! - opencode uses OpenCode message conversion
 
 use crate::acp::session_update::{TodoStatus, ToolCallData, ToolCallStatus, ToolCallUpdateData};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::opencode_history::types::OpenCodeMessage;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, StoredEntry};
 use std::collections::HashMap;
@@ -22,13 +23,32 @@ pub fn convert_claude_full_session_to_entries(session: &FullSession) -> Converte
     claude::convert_claude_full_session_to_entries(session)
 }
 
+pub fn convert_claude_full_session_to_thread_snapshot(
+    session: &FullSession,
+) -> SessionThreadSnapshot {
+    claude::convert_claude_full_session_to_thread_snapshot(session)
+}
+
 pub fn convert_cursor_full_session_to_entries(session: &FullSession) -> ConvertedSession {
     cursor::convert_cursor_full_session_to_entries(session)
+}
+
+pub fn convert_cursor_full_session_to_thread_snapshot(
+    session: &FullSession,
+) -> SessionThreadSnapshot {
+    cursor::convert_cursor_full_session_to_thread_snapshot(session)
 }
 
 #[allow(dead_code)]
 pub fn convert_codex_full_session_to_entries(session: &FullSession) -> ConvertedSession {
     codex::convert_codex_full_session_to_entries(session)
+}
+
+#[allow(dead_code)]
+pub fn convert_codex_full_session_to_thread_snapshot(
+    session: &FullSession,
+) -> SessionThreadSnapshot {
+    codex::convert_codex_full_session_to_thread_snapshot(session)
 }
 
 pub fn convert_opencode_messages_to_session(

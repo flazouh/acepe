@@ -6,7 +6,6 @@
 		Terminal,
 		Tree,
 		WarningCircle,
-		X,
 		XCircle,
 	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
@@ -176,15 +175,6 @@
 					<span class="text-[0.625rem] text-muted-foreground">{alwaysLabel}</span>
 				</label>
 			</div>
-
-			<button
-				type="button"
-				class="ml-auto flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
-				onclick={onDismiss}
-				aria-label="Dismiss"
-			>
-				<X size={12} />
-			</button>
 		</div>
 
 		{#if showExpanded && expandedContent}

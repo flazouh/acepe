@@ -329,6 +329,9 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
             .normalized_questions
             .or(current.normalized_questions),
         normalized_todos: incoming.normalized_todos.or(current.normalized_todos),
+        normalized_todo_update: incoming
+            .normalized_todo_update
+            .or(current.normalized_todo_update),
         parent_tool_use_id: incoming.parent_tool_use_id.or(current.parent_tool_use_id),
         task_children: incoming.task_children.or(current.task_children),
         question_answer: incoming.question_answer.or(current.question_answer),

@@ -1,9 +1,11 @@
 use super::*;
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
+use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::session_descriptor::{
     ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput,
 };
 use crate::acp::session_journal::load_stored_projection;
+use crate::acp::session_open_snapshot::{session_open_result_for_new_session, SessionOpenResult};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::redact_session_id;
 use crate::acp::transcript_projection::{
@@ -17,6 +19,7 @@ use crate::db::repository::{
 };
 use sea_orm::DbConn;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use std::sync::Arc;
 
 pub(crate) fn session_metadata_context_from_cwd(cwd: &std::path::Path) -> (String, Option<String>) {
     // Use the runtime root resolver to walk up from cwd and find the
@@ -94,17 +97,13 @@ fn resolve_resume_launch_mode_id(
     agent_id: &CanonicalAgentId,
     launch_mode_id: Option<&str>,
 ) -> Result<Option<String>, SerializableAcpError> {
-    let Some(launch_mode_id) = launch_mode_id else {
-        return Ok(None);
-    };
-
     let provider = registry
         .get(agent_id)
         .ok_or_else(|| SerializableAcpError::AgentNotFound {
             agent_id: agent_id.as_str().to_string(),
         })?;
 
-    Ok(Some(provider.map_outbound_mode_id(launch_mode_id)))
+    Ok(provider.resolve_resume_launch_mode_id(launch_mode_id))
 }
 
 pub(crate) fn resolve_requested_agent_id(
@@ -141,6 +140,43 @@ async fn resolve_fork_session_target(
         explicit_agent_id.map(CanonicalAgentId::parse),
     )
     .map_err(SerializableAcpError::from)
+}
+
+async fn build_new_session_open_result(
+    app: &AppHandle,
+    session_id: &str,
+    fallback_agent_id: &CanonicalAgentId,
+) -> Result<SessionOpenResult, SerializableAcpError> {
+    let db = app.state::<DbConn>();
+    let hub = app.state::<Arc<AcpEventHubState>>();
+    let metadata = SessionMetadataRepository::get_by_id(db.inner(), session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load persisted metadata for new session {session_id}: {error}"
+            ),
+        })?
+        .ok_or_else(|| SerializableAcpError::SessionNotFound {
+            session_id: session_id.to_string(),
+        })?;
+    let descriptor = metadata.descriptor_facts();
+    let agent_id = descriptor
+        .agent_id
+        .unwrap_or_else(|| fallback_agent_id.clone());
+    let project_path = descriptor.project_path.unwrap_or_default();
+
+    Ok(
+        session_open_result_for_new_session(
+            db.inner(),
+            hub.inner(),
+            session_id,
+            agent_id,
+            project_path,
+            descriptor.worktree_path,
+            descriptor.source_path,
+        )
+        .await,
+    )
 }
 
 /// Initialize the ACP connection.
@@ -424,9 +460,12 @@ pub async fn acp_new_session(
             "New session created with dedicated client"
         );
         projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+        let session_open =
+            build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
 
         Ok(NewSessionResponse {
             sequence_id,
+            session_open: Some(session_open),
             ..result
         })
     }
@@ -950,8 +989,11 @@ pub async fn acp_fork_session(
         let sequence_id =
             persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
                 .await?;
+        let session_open =
+            build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
         Ok(NewSessionResponse {
             sequence_id,
+            session_open: Some(session_open),
             ..result
         })
     }
@@ -1444,6 +1486,21 @@ mod tests {
             Some("https://agentclientprotocol.com/protocol/session-modes#plan".to_string())
         );
         assert_eq!(no_mode, None);
+    }
+
+    #[test]
+    fn resume_launch_mode_resolution_ignores_providers_that_do_not_seed_on_reconnect() {
+        let registry = Arc::new(AgentRegistry::new());
+
+        let build_mode =
+            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Cursor, Some("build"))
+                .expect("cursor build launch mode");
+        let plan_mode =
+            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::ClaudeCode, Some("plan"))
+                .expect("claude plan launch mode");
+
+        assert_eq!(build_mode, None);
+        assert_eq!(plan_mode, None);
     }
 
     #[test]

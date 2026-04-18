@@ -200,6 +200,7 @@ pub fn build_codex_native_new_session_response_with_state(
     NewSessionResponse {
         session_id,
         sequence_id: None,
+        session_open: None,
         models: build_codex_native_session_model_state_with_state(state),
         modes: default_modes(),
         available_commands: vec![],

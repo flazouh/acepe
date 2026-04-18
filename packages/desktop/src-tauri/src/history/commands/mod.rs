@@ -17,7 +17,7 @@ use crate::history::scan_cache::ScanCache;
 use crate::opencode_history::parser as opencode_parser;
 use crate::session_jsonl::parser as session_jsonl_parser;
 use crate::session_jsonl::plan_loader as session_jsonl_plan_loader;
-use crate::session_jsonl::types::{ConvertedSession, HistoryEntry, SessionPlanResponse};
+use crate::session_jsonl::types::{HistoryEntry, SessionPlanResponse};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -34,7 +34,7 @@ pub use scanning::{
 };
 pub use session_loading::{
     audit_session_load_timing, audit_session_load_timing_cli, get_session_open_result,
-    get_unified_session, set_session_pr_number, set_session_title, set_session_worktree_path,
+    set_session_pr_number, set_session_title, set_session_worktree_path,
 };
 
 /// Information about a project with session counts per agent.

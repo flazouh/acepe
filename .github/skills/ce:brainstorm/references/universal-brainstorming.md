@@ -45,8 +45,11 @@ When the conversation has enough material to narrow — reflect back what you've
 
 **Always synthesize a summary in the chat.** Before offering any next steps, reflect back what emerged: key decisions, the direction chosen, open threads, and any assumptions made. This is the primary output of the brainstorm — the user should be able to read the summary and know what they landed on.
 
-**Then offer next steps** using the platform's question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini):
+**Then offer next steps** using the platform's question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the numbered options in chat and wait for the user's reply before proceeding.
+
+**Question:** "Brainstorm wrapped. What would you like to do next?"
+
 - **Create a plan** → hand off to `/ce:plan` with the decided goal and constraints
 - **Save summary to disk** → write the summary as a markdown file in the current working directory
-- **Share to Proof** → load the `proof` skill to create a shareable web link for others to review
+- **Open in Proof (web app) — review and comment to iterate with the agent** → load the `proof` skill to open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others
 - **Done** → the conversation was the value, no artifact needed

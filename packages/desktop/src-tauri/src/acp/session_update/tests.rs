@@ -937,7 +937,7 @@ mod parse_tool_call_from_acp {
             ("EnterPlanMode", ToolKind::EnterPlanMode),
             ("ExitPlanMode", ToolKind::ExitPlanMode),
             ("TaskOutput", ToolKind::TaskOutput),
-            ("UnknownTool", ToolKind::Other),
+            ("UnknownTool", ToolKind::Unclassified),
         ];
 
         for (tool_name, expected_kind) in test_cases {

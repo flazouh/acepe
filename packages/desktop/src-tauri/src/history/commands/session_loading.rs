@@ -50,13 +50,6 @@ fn apply_session_title_metadata(
     session
 }
 
-fn build_empty_session_with_metadata(
-    session_id: &str,
-    metadata: Option<&crate::db::repository::SessionMetadataRow>,
-) -> SessionThreadSnapshot {
-    apply_session_title_metadata(SessionThreadSnapshot::empty(session_id), metadata)
-}
-
 fn derive_current_mode_id_from_entries(
     entries: &[crate::session_jsonl::types::StoredEntry],
 ) -> Option<String> {
@@ -148,27 +141,6 @@ async fn load_unified_session_content_with_context(
     Ok(result
         .map(apply_derived_current_mode_metadata)
         .map(|session| apply_session_title_metadata(session, context.session_metadata.as_ref())))
-}
-
-async fn load_unified_session_with_context(
-    app: AppHandle,
-    context: crate::history::session_context::SessionContext,
-) -> Result<Option<ConvertedSession>, String> {
-    let fallback_session_id = context.local_session_id.clone();
-    let session_metadata = context.session_metadata.clone();
-    let result = load_unified_session_content_with_context(app, context).await?;
-    let normalized = result.or_else(|| {
-        Some(build_empty_session_with_metadata(
-            &fallback_session_id,
-            session_metadata.as_ref(),
-        ))
-    });
-    tracing::info!(
-        session_id = %fallback_session_id,
-        found = normalized.is_some(),
-        "Unified session loaded"
-    );
-    Ok(normalized.map(SessionThreadSnapshot::into_converted_session))
 }
 
 fn build_transcript_snapshot(
@@ -378,34 +350,6 @@ pub async fn ensure_canonical_session_materialized(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_unified_session(
-    app: AppHandle,
-    session_id: String,
-    project_path: String,
-    agent_id: String,
-    source_path: Option<String>,
-) -> CommandResult<Option<ConvertedSession>> {
-    unexpected_command_result(
-        "get_unified_session",
-        "Failed to get unified session",
-        async {
-            let db = app.try_state::<DbConn>().map(|s| s.inner().clone());
-            let context = crate::history::session_context::resolve_session_context(
-                db.as_ref(),
-                &session_id,
-                &project_path,
-                &agent_id,
-                source_path.as_deref(),
-            )
-            .await;
-            load_unified_session_with_context(app, context).await
-        }
-        .await,
-    )
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn get_session_open_result(
     app: AppHandle,
     session_id: String,
@@ -460,10 +404,7 @@ pub async fn get_session_open_result(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        apply_session_title_metadata, build_empty_session_with_metadata, history_replay_family,
-        persist_canonical_materialization,
-    };
+    use super::{apply_session_title_metadata, history_replay_family, persist_canonical_materialization};
     use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
@@ -475,7 +416,7 @@ mod tests {
         SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
         SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
     };
-    use crate::session_jsonl::types::{ConvertedSession, SessionStats, StoredEntry};
+    use crate::session_jsonl::types::StoredEntry;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use std::sync::Arc;
@@ -517,6 +458,7 @@ mod tests {
                 skill_meta: None,
                 normalized_questions: None,
                 normalized_todos: None,
+                normalized_todo_update: None,
                 parent_tool_use_id: None,
                 task_children: None,
                 question_answer: None,
@@ -569,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_session_fallback_applies_title_override_metadata() {
+    fn empty_snapshot_applies_title_override_metadata() {
         let row = SessionMetadataRow {
             id: "session-1".to_string(),
             display: "Autonomous Mode".to_string(),
@@ -587,20 +529,20 @@ mod tests {
             sequence_id: Some(1),
         };
 
-        let converted = build_empty_session_with_metadata("session-1", Some(&row));
+        let converted =
+            apply_session_title_metadata(SessionThreadSnapshot::empty("session-1"), Some(&row));
 
         assert_eq!(converted.title, "Autonomous Mode");
     }
 
     #[test]
     fn derives_plan_mode_from_enter_plan_mode_entries() {
-        let session = ConvertedSession {
+        let session = SessionThreadSnapshot {
             entries: vec![make_tool_call_entry(
                 "tool-enter-plan-1",
                 ToolKind::EnterPlanMode,
                 ToolCallStatus::Completed,
             )],
-            stats: SessionStats::default(),
             title: "Plan session".to_string(),
             created_at: "2026-04-06T00:00:00Z".to_string(),
             current_mode_id: None,
@@ -614,7 +556,7 @@ mod tests {
 
     #[test]
     fn keeps_plan_mode_when_exit_plan_mode_is_not_completed() {
-        let session = ConvertedSession {
+        let session = SessionThreadSnapshot {
             entries: vec![
                 make_tool_call_entry(
                     "tool-enter-plan-1",
@@ -627,7 +569,6 @@ mod tests {
                     ToolCallStatus::Pending,
                 ),
             ],
-            stats: SessionStats::default(),
             title: "Pending exit".to_string(),
             created_at: "2026-04-06T00:00:00Z".to_string(),
             current_mode_id: None,

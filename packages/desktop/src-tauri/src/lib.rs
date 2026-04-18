@@ -95,9 +95,8 @@ use git::worktree::{
 use git::worktree_config::{load_worktree_config, run_worktree_setup, save_worktree_config};
 use history::commands::{
     audit_session_load_timing, count_sessions_for_project, discover_all_projects_with_sessions,
-    get_session_open_result, get_startup_sessions, get_unified_plan, get_unified_session,
-    list_all_project_paths, scan_project_sessions, set_session_pr_number, set_session_title,
-    set_session_worktree_path,
+    get_session_open_result, get_startup_sessions, get_unified_plan, list_all_project_paths,
+    scan_project_sessions, set_session_pr_number, set_session_title, set_session_worktree_path,
 };
 use history::indexer::IndexerActor;
 use opencode_history::commands::{

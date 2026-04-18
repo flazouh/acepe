@@ -182,6 +182,7 @@ fn convert_assistant_message(
                         locations: None,
                         normalized_questions: classified.normalized_questions,
                         normalized_todos: classified.normalized_todos,
+                        normalized_todo_update: classified.normalized_todo_update,
                         parent_tool_use_id: None,
                         task_children: None,
                         question_answer: None, // Question answers are populated by session_converter

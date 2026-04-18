@@ -35,13 +35,14 @@ pub fn transition_from_classification(
         arguments,
         signals_tried,
     } = output;
-    let (normalized_questions, normalized_todos) =
+    let (normalized_questions, normalized_todos, normalized_todo_update) =
         derive_normalized_questions_and_todos(normalization_name, raw_arguments, agent);
     let record = SemanticToolRecord::new(
         kind,
         arguments.clone(),
         normalized_questions,
         normalized_todos,
+        normalized_todo_update,
     );
     let projected_arguments = project_semantic_record(&record);
     SemanticTransition {

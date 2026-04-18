@@ -3,14 +3,7 @@ import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
 import { createLogger } from "../acp/utils/logger.js";
 import { tauriClient } from "../utils/tauri-client.js";
 import type { HistoryEntry } from "./claude-history-types.js";
-import type {
-	ConvertedSession,
-	FullSession,
-	SessionPlanResponse,
-} from "./converted-session-types.js";
-
-// Re-export ConvertedSession as RustConvertedSession for backward compatibility
-export type RustConvertedSession = ConvertedSession;
+import type { FullSession, SessionPlanResponse } from "./converted-session-types.js";
 
 export type SessionMessage = {
 	type: string;
@@ -95,36 +88,6 @@ export class SessionHistoryService {
 					"tool calls,",
 					result.stats.thinking_blocks,
 					"thinking blocks"
-				);
-				return result;
-			});
-	}
-
-	/**
-	 * Get converted session data with pre-converted entries.
-	 * This is the optimized version that moves conversion from JavaScript to Rust.
-	 * Returns entries ready for display without further client-side processing.
-	 *
-	 * @param sessionId - The session ID to load
-	 * @param projectPath - The project path for this session
-	 * @returns Converted session with entries ready for UI
-	 */
-	getConvertedSession(
-		sessionId: string,
-		projectPath: string
-	): ResultAsync<RustConvertedSession, Error> {
-		this.logger.debug("Loading converted session:", sessionId, "from", projectPath);
-
-		return tauriClient.history
-			.getConvertedSession(sessionId, projectPath)
-			.mapErr((e) => new Error(`Failed to get converted session: ${e}`))
-			.map((result) => {
-				this.logger.info(
-					"Loaded converted session:",
-					sessionId,
-					"with",
-					result.entries.length,
-					"entries"
 				);
 				return result;
 			});

@@ -3,7 +3,7 @@ use crate::acp::client::{InitializeResponse, NewSessionResponse, ResumeSessionRe
 use crate::acp::client_factory::create_client;
 use crate::acp::client_trait::AgentClient;
 use crate::acp::error::SerializableAcpError;
-use crate::acp::event_hub::{AcpEventBridgeInfo, AcpEventHubState};
+use crate::acp::event_hub::AcpEventBridgeInfo;
 use crate::acp::opencode::OpenCodeManagerRegistry;
 use crate::acp::providers::CustomAgentConfig;
 use crate::acp::registry::{AgentInfo, AgentRegistry};

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { okAsync, ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
@@ -11,7 +11,7 @@ let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-se
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "getSessionCold"
+	"setSessionLoading" | "setSessionLoaded" | "getSessionCold" | "connectSession"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -35,6 +35,7 @@ describe("openPersistedSession", () => {
 		sessionStore = {
 			setSessionLoading: mock(() => {}),
 			setSessionLoaded: mock(() => {}),
+			connectSession: mock(() => okAsync({} as any)),
 			getSessionCold: mock(() => ({
 				id: "session-1",
 				title: "Session 1",
@@ -117,6 +118,65 @@ describe("openPersistedSession", () => {
 		);
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+		});
+	});
+
+	it("reconnects hydrated sessions even when the snapshot was already current", async () => {
+		sessionOpenHydrator = {
+			beginAttempt: mock(() => "request-1"),
+			clearAttempt: mock(() => {}),
+			hydrateFound: mock(() =>
+				okAsync({
+					canonicalSessionId: "session-1",
+					openToken: "open-token-1",
+					applied: false,
+				})
+			),
+			isCurrentAttempt: mock(() => true),
+		};
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+		});
+	});
+
+	it("swallows reconnect failures after hydration", async () => {
+		sessionStore.connectSession = mock(() =>
+			errAsync(new Error("resume failed")) as unknown as ReturnType<
+				SessionOpenStore["connectSession"]
+			>
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+		});
 	});
 
 	it("marks the session loaded without connecting when the result is missing", async () => {

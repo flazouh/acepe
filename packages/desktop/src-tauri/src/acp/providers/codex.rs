@@ -98,14 +98,14 @@ impl AgentProvider for CodexProvider {
         Box::pin(async move {
             let session_id = &context.local_session_id;
 
-            match crate::codex_history::parser::load_session(
+            match crate::codex_history::parser::load_thread_snapshot(
                 &context.history_session_id,
                 &context.effective_project_path,
                 context.source_path.as_deref(),
             )
             .await
             {
-                Ok(session) => Ok(session.map(Into::into)),
+                Ok(session) => Ok(session),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

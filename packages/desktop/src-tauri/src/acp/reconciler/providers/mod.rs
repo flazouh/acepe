@@ -107,13 +107,10 @@ mod tests {
             },
         );
 
-        assert_eq!(output.kind, ToolKind::Sql);
+        assert_eq!(output.kind, ToolKind::Todo);
         assert!(matches!(
             output.arguments,
-            ToolArguments::Sql {
-                query: Some(_),
-                description: Some(_)
-            }
+            ToolArguments::Think { raw: Some(_), .. }
         ));
     }
 }

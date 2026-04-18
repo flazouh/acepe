@@ -91,6 +91,7 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 				session.id === id ? { ...session, ...updates } : session
 			);
 		},
+		replaceSessionOpenSnapshot: () => {},
 		removeSession: (sessionId) => {
 			state.sessions = state.sessions.filter((session) => session.id !== sessionId);
 		},

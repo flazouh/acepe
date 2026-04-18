@@ -141,4 +141,13 @@ describe("SessionOpenHydrator", () => {
 		});
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
 	});
+
+	it("hydrates created sessions without rebinding a panel", async () => {
+		const result = await hydrator.hydrateCreated(createFoundResult());
+
+		expect(result.isOk()).toBe(true);
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+		expect(updatePanelSession).not.toHaveBeenCalled();
+	});
 });
