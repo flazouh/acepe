@@ -29,6 +29,7 @@ use tokio::time::{timeout, Duration};
 
 mod auth;
 pub mod cc_sdk_client;
+pub(crate) mod claude_client;
 pub mod codex_native_client;
 pub mod codex_native_config;
 pub mod codex_native_events;

@@ -4,18 +4,25 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::Value;
 use tokio::sync::{oneshot, Mutex};
 
-use super::{extract_question_answer_map, response_outcome_allows, selected_option_id};
+use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::projections::{
+    InteractionPayload, InteractionResponse, InteractionState, SessionProjectionSnapshot,
+};
+use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::session_policy::SessionPolicyRegistry;
+use crate::acp::session_update::{SessionUpdate, ToolKind, ToolReference};
+use crate::acp::task_reconciler::TaskReconciler;
 use crate::cc_sdk;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum PermissionUiDispatch {
+pub(crate) enum PermissionUiDispatch {
     Emit,
     JoinExisting,
     ResolvedFromCache,
 }
 
 impl PermissionUiDispatch {
-    pub(super) fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             Self::Emit => "emit",
             Self::JoinExisting => "join_existing",
@@ -25,15 +32,15 @@ impl PermissionUiDispatch {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct ToolPermissionRequest {
-    pub(super) tool_call_id: String,
-    pub(super) tool_name: String,
-    pub(super) reusable_approval_key: Option<String>,
-    pub(super) permission_suggestions: Vec<cc_sdk::PermissionUpdate>,
+pub(crate) struct ToolPermissionRequest {
+    pub(crate) tool_call_id: String,
+    pub(crate) tool_name: String,
+    pub(crate) reusable_approval_key: Option<String>,
+    pub(crate) permission_suggestions: Vec<cc_sdk::PermissionUpdate>,
 }
 
 impl ToolPermissionRequest {
-    pub(super) fn has_always_option(&self) -> bool {
+    pub(crate) fn has_always_option(&self) -> bool {
         self.permission_suggestions
             .iter()
             .any(permission_suggestion_supports_always)
@@ -41,22 +48,22 @@ impl ToolPermissionRequest {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct QuestionPermissionRequest {
-    pub(super) tool_call_id: String,
-    pub(super) original_input: Value,
+pub(crate) struct QuestionPermissionRequest {
+    pub(crate) tool_call_id: String,
+    pub(crate) original_input: Value,
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct HookPermissionRequest {
-    pub(super) tool_call_id: String,
-    pub(super) tool_name: String,
-    pub(super) reusable_approval_key: Option<String>,
-    pub(super) original_input: Value,
-    pub(super) permission_suggestions: Vec<cc_sdk::PermissionUpdate>,
+pub(crate) struct HookPermissionRequest {
+    pub(crate) tool_call_id: String,
+    pub(crate) tool_name: String,
+    pub(crate) reusable_approval_key: Option<String>,
+    pub(crate) original_input: Value,
+    pub(crate) permission_suggestions: Vec<cc_sdk::PermissionUpdate>,
 }
 
 impl HookPermissionRequest {
-    pub(super) fn has_always_option(&self) -> bool {
+    pub(crate) fn has_always_option(&self) -> bool {
         self.permission_suggestions
             .iter()
             .any(permission_suggestion_supports_always)
@@ -64,7 +71,7 @@ impl HookPermissionRequest {
 }
 
 #[derive(Debug, Clone)]
-pub(super) enum PendingPermissionKind {
+pub(crate) enum PendingPermissionKind {
     Tool {
         tool_call_id: String,
         tool_name: String,
@@ -85,7 +92,7 @@ pub(super) enum PendingPermissionKind {
 }
 
 impl PendingPermissionKind {
-    pub(super) fn tool_call_id(&self) -> &str {
+    pub(crate) fn tool_call_id(&self) -> &str {
         match self {
             Self::Tool { tool_call_id, .. }
             | Self::Question { tool_call_id, .. }
@@ -116,11 +123,11 @@ impl PendingPermissionKind {
         }
     }
 
-    pub(super) fn is_question(&self) -> bool {
+    pub(crate) fn is_question(&self) -> bool {
         matches!(self, Self::Question { .. })
     }
 
-    pub(super) fn label(&self) -> &'static str {
+    pub(crate) fn label(&self) -> &'static str {
         match self {
             Self::Tool { .. } => "tool",
             Self::Question { .. } => "question",
@@ -185,29 +192,29 @@ struct PermissionBridgeState {
 }
 
 #[derive(Debug)]
-pub(super) struct PendingPermissionRegistration<T> {
-    pub(super) receiver: oneshot::Receiver<T>,
-    pub(super) ui_dispatch: PermissionUiDispatch,
+pub(crate) struct PendingPermissionRegistration<T> {
+    pub(crate) receiver: oneshot::Receiver<T>,
+    pub(crate) ui_dispatch: PermissionUiDispatch,
 }
 
-pub(super) struct PermissionBridge {
+pub(crate) struct PermissionBridge {
     state: Mutex<PermissionBridgeState>,
     counter: AtomicU64,
 }
 
 impl PermissionBridge {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: Mutex::new(PermissionBridgeState::default()),
             counter: AtomicU64::new(1),
         }
     }
 
-    pub(super) fn next_id(&self) -> u64 {
+    pub(crate) fn next_id(&self) -> u64 {
         self.counter.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub(super) async fn register(
+    pub(crate) async fn register(
         &self,
         id: u64,
         request: impl Into<PendingPermissionKind>,
@@ -227,7 +234,7 @@ impl PermissionBridge {
         .await
     }
 
-    pub(super) async fn register_tool(
+    pub(crate) async fn register_tool(
         &self,
         id: u64,
         request: ToolPermissionRequest,
@@ -235,7 +242,7 @@ impl PermissionBridge {
         self.register(id, request).await
     }
 
-    pub(super) async fn register_question(
+    pub(crate) async fn register_question(
         &self,
         id: u64,
         request: QuestionPermissionRequest,
@@ -243,7 +250,7 @@ impl PermissionBridge {
         self.register(id, request).await
     }
 
-    pub(super) async fn register_hook(
+    pub(crate) async fn register_hook(
         &self,
         id: u64,
         request: impl Into<PendingPermissionKind>,
@@ -393,7 +400,7 @@ impl PermissionBridge {
     }
 
     #[cfg(test)]
-    pub(super) async fn resolve(&self, id: u64, result: cc_sdk::PermissionResult) {
+    pub(crate) async fn resolve(&self, id: u64, result: cc_sdk::PermissionResult) {
         let pending = {
             let mut state = self.state.lock().await;
             Self::take_request_bundle(&mut state, id)
@@ -407,7 +414,7 @@ impl PermissionBridge {
         }
     }
 
-    pub(super) async fn resolve_from_ui_result(
+    pub(crate) async fn resolve_from_ui_result(
         &self,
         id: u64,
         result: &Value,
@@ -443,7 +450,7 @@ impl PermissionBridge {
         Some(kind)
     }
 
-    pub(super) async fn request_id_for_question_tool_call(
+    pub(crate) async fn request_id_for_question_tool_call(
         &self,
         tool_call_id: &str,
     ) -> Option<u64> {
@@ -457,7 +464,7 @@ impl PermissionBridge {
         })
     }
 
-    pub(super) async fn clear_request(&self, id: u64, message: &str) -> Vec<u64> {
+    pub(crate) async fn clear_request(&self, id: u64, message: &str) -> Vec<u64> {
         let pending_requests = {
             let mut state = self.state.lock().await;
             let pending_requests = Self::take_request_bundle(&mut state, id);
@@ -500,7 +507,7 @@ impl PermissionBridge {
         cleared_request_ids
     }
 
-    pub(super) async fn drain_all_as_denied(&self) -> Vec<u64> {
+    pub(crate) async fn drain_all_as_denied(&self) -> Vec<u64> {
         let pending_requests = {
             let mut state = self.state.lock().await;
             let had_terminal_permission = state
@@ -542,17 +549,17 @@ impl PermissionBridge {
         cleared_request_ids
     }
 
-    pub(super) async fn take_terminal_deny_message(&self) -> Option<String> {
+    pub(crate) async fn take_terminal_deny_message(&self) -> Option<String> {
         let mut state = self.state.lock().await;
         state.terminal_deny_message.take()
     }
 
-    pub(super) async fn clear_terminal_deny_message(&self) {
+    pub(crate) async fn clear_terminal_deny_message(&self) {
         let mut state = self.state.lock().await;
         state.terminal_deny_message = None;
     }
 
-    pub(super) async fn replace_reusable_approval_results(
+    pub(crate) async fn replace_reusable_approval_results(
         &self,
         approvals: impl IntoIterator<Item = (String, Value)>,
     ) {
@@ -564,7 +571,7 @@ impl PermissionBridge {
     }
 
     #[cfg(test)]
-    pub(super) async fn cached_reusable_approval_keys(&self) -> Vec<String> {
+    pub(crate) async fn cached_reusable_approval_keys(&self) -> Vec<String> {
         let state = self.state.lock().await;
         state
             .resolved_reusable_approval_results
@@ -574,7 +581,7 @@ impl PermissionBridge {
     }
 }
 
-pub(super) fn build_denied_hook_output(
+pub(crate) fn build_denied_hook_output(
     request: &HookPermissionRequest,
     message: &str,
 ) -> cc_sdk::HookJSONOutput {
@@ -779,6 +786,216 @@ fn choose_always_permission_updates(
         directories: None,
         destination: Some(cc_sdk::PermissionUpdateDestination::Session),
     }]
+}
+
+pub(crate) fn response_outcome_allows(result: &Value) -> bool {
+    matches!(
+        result
+            .get("outcome")
+            .and_then(|outcome| outcome.get("outcome"))
+            .and_then(Value::as_str),
+        Some("selected") | Some("allowed")
+    )
+}
+
+pub(crate) fn selected_option_id(result: &Value) -> Option<&str> {
+    result
+        .get("outcome")
+        .and_then(|outcome| outcome.get("optionId"))
+        .and_then(Value::as_str)
+}
+
+fn extract_question_answer_map(result: &Value) -> serde_json::Map<String, Value> {
+    result
+        .pointer("/_meta/answers")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default()
+}
+
+pub(crate) fn parse_permission_suggestions(
+    suggestions: &Option<Vec<Value>>,
+) -> Vec<cc_sdk::PermissionUpdate> {
+    suggestions
+        .iter()
+        .flatten()
+        .filter_map(|value| serde_json::from_value::<cc_sdk::PermissionUpdate>(value.clone()).ok())
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_permission_request_update(
+    session_id: &str,
+    tool_call_id: &str,
+    request_id: u64,
+    tool_name: &str,
+    raw_input: &Value,
+    has_always_option: bool,
+    agent_type: AgentType,
+    auto_accepted: bool,
+) -> SessionUpdate {
+    SessionUpdate::PermissionRequest {
+        permission: crate::acp::session_update::PermissionData {
+            id: request_id.to_string(),
+            session_id: session_id.to_string(),
+            json_rpc_request_id: Some(request_id),
+            reply_handler: Some(
+                crate::acp::session_update::InteractionReplyHandler::json_rpc(request_id),
+            ),
+            permission: tool_name.to_string(),
+            patterns: build_permission_patterns(raw_input),
+            metadata: build_permission_metadata(tool_name, raw_input, agent_type),
+            always: if has_always_option {
+                vec!["allow_always".to_string()]
+            } else {
+                Vec::new()
+            },
+            auto_accepted,
+            tool: Some(ToolReference {
+                message_id: String::new(),
+                call_id: tool_call_id.to_string(),
+            }),
+        },
+        session_id: Some(session_id.to_string()),
+    }
+}
+
+pub(crate) fn allow_permission_result() -> cc_sdk::PermissionResult {
+    cc_sdk::PermissionResult::Allow(cc_sdk::PermissionResultAllow {
+        updated_input: None,
+        updated_permissions: None,
+    })
+}
+
+pub(crate) fn auto_accept_reason(
+    session_id: &str,
+    agent_type: AgentType,
+    session_policy: &SessionPolicyRegistry,
+    task_reconciler: &std::sync::Mutex<TaskReconciler>,
+    tool_name: &str,
+    tool_call_id: &str,
+) -> Option<&'static str> {
+    if is_exit_plan_permission(tool_name, agent_type) {
+        return None;
+    }
+
+    if session_policy.is_autonomous(session_id) {
+        return Some("autonomous");
+    }
+
+    let task_reconciler = task_reconciler
+        .lock()
+        .expect("task reconciler lock should not be poisoned");
+    task_reconciler
+        .parent_for_child(tool_call_id)
+        .map(|_| "child_tool_call")
+}
+
+fn is_exit_plan_permission(tool_name: &str, agent_type: AgentType) -> bool {
+    get_parser(agent_type).detect_tool_kind(tool_name) == ToolKind::ExitPlanMode
+}
+
+pub(crate) fn build_permission_patterns(raw_input: &Value) -> Vec<String> {
+    ["command", "file_path", "filePath", "path", "query"]
+        .into_iter()
+        .filter_map(|key| raw_input.get(key).and_then(Value::as_str))
+        .map(ToString::to_string)
+        .collect()
+}
+
+pub(crate) fn build_reusable_permission_key_from_patterns(
+    permission_name: &str,
+    patterns: &[String],
+) -> Option<String> {
+    if patterns.is_empty() {
+        return None;
+    }
+
+    let mut patterns = patterns.to_vec();
+    patterns.sort();
+    Some(format!("{permission_name}::{}", patterns.join("||")))
+}
+
+pub(crate) fn build_reusable_permission_key(tool_name: &str, raw_input: &Value) -> Option<String> {
+    build_reusable_permission_key_from_patterns(tool_name, &build_permission_patterns(raw_input))
+}
+
+fn reusable_permission_result_from_response(response: &InteractionResponse) -> Option<Value> {
+    let InteractionResponse::Permission {
+        accepted: true,
+        option_id,
+        ..
+    } = response
+    else {
+        return None;
+    };
+
+    Some(serde_json::json!({
+        "outcome": {
+            "outcome": "selected",
+            "optionId": option_id.clone().unwrap_or_else(|| "allow".to_string())
+        }
+    }))
+}
+
+pub(crate) fn build_reusable_permission_approval_entries(
+    projection: &SessionProjectionSnapshot,
+) -> Vec<(String, Value)> {
+    projection
+        .interactions
+        .iter()
+        .filter_map(|interaction| {
+            if interaction.state != InteractionState::Approved {
+                return None;
+            }
+
+            let InteractionPayload::Permission(permission) = &interaction.payload else {
+                return None;
+            };
+            let response = interaction.response.as_ref()?;
+            let reusable_key = build_reusable_permission_key_from_patterns(
+                &permission.permission,
+                &permission.patterns,
+            )?;
+            let reusable_result = reusable_permission_result_from_response(response)?;
+            Some((reusable_key, reusable_result))
+        })
+        .collect()
+}
+
+pub(crate) fn build_permission_metadata(
+    tool_name: &str,
+    raw_input: &Value,
+    agent_type: AgentType,
+) -> Value {
+    let parser = get_parser(agent_type);
+    let parsed_arguments = serde_json::to_value(
+        classify_raw_tool_call(
+            parser,
+            tool_name,
+            raw_input,
+            ToolClassificationHints {
+                name: Some(tool_name),
+                title: Some(tool_name),
+                kind: Some(parser.detect_tool_kind(tool_name)),
+                kind_hint: None,
+                locations: None,
+            },
+        )
+        .arguments,
+    )
+    .ok();
+
+    let mut metadata = serde_json::Map::from_iter([
+        ("rawInput".to_string(), raw_input.clone()),
+        ("options".to_string(), Value::Array(Vec::new())),
+    ]);
+
+    if let Some(parsed_arguments) = parsed_arguments {
+        metadata.insert("parsedArguments".to_string(), parsed_arguments);
+    }
+
+    Value::Object(metadata)
 }
 
 #[cfg(test)]
