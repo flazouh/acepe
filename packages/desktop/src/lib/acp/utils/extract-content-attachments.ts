@@ -17,7 +17,7 @@ import {
 
 function extensionFromName(name: string): string {
 	const lastDot = name.lastIndexOf(".");
-	if (lastDot <= 0 || lastDot >= name.length - 1) return "";
+	if (lastDot < 0 || lastDot >= name.length - 1) return "";
 	return name.slice(lastDot + 1).toLowerCase();
 }
 

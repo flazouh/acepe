@@ -47,7 +47,8 @@ pub async fn load_saved_agent_env_overrides(
 }
 
 pub fn is_protected_agent_env_override_key(key: &str) -> bool {
-    key == "PATH" || crate::shell_env::is_denied_env_key(key)
+    ((cfg!(windows) && key.eq_ignore_ascii_case("PATH")) || key == "PATH")
+        || crate::shell_env::is_denied_env_key(key)
 }
 
 pub fn apply_saved_agent_env_overrides(

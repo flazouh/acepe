@@ -11,7 +11,7 @@ use crate::acp::session_update::{
 };
 use crate::db::repository::{
     SerializedSessionJournalEventRow, SessionJournalEventRepository,
-    SessionThreadSnapshotRepository,
+    SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
 };
 use chrono::Utc;
 use sea_orm::DbConn;
@@ -374,13 +374,15 @@ pub async fn load_stored_projection(
     )
     .await?;
 
-    Ok(thread_snapshot.map(|snapshot| {
-        ProjectionRegistry::project_thread_snapshot(
+    if let Some(snapshot) = thread_snapshot {
+        return Ok(Some(ProjectionRegistry::project_thread_snapshot(
             &replay_context.local_session_id,
             Some(replay_context.agent_id.clone()),
             &snapshot,
-        )
-    }))
+        )));
+    }
+
+    SessionProjectionSnapshotRepository::get(db, &replay_context.local_session_id).await
 }
 
 #[cfg(test)]

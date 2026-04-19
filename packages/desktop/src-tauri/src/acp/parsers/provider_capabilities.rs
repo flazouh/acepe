@@ -371,6 +371,9 @@ mod tests {
 
         let cursor = provider_capabilities(AgentType::Cursor);
         assert_eq!(cursor.live_reconnect_method, ReconnectSessionMethod::Load);
+
+        let opencode = provider_capabilities(AgentType::OpenCode);
+        assert_eq!(opencode.live_reconnect_method, ReconnectSessionMethod::Load);
     }
 
     #[test]

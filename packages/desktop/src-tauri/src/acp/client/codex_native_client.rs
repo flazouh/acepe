@@ -247,12 +247,22 @@ impl AgentClient for CodexNativeClient {
         } else {
             None
         };
-        let runtime = resolve_effective_runtime(
-            self.provider.id(),
-            &self.cwd,
-            &spawn_config,
-            saved_overrides.as_ref(),
-        );
+        let provider_id = self.provider.id().to_string();
+        let runtime_cwd = self.cwd.clone();
+        let runtime_spawn_config = spawn_config.clone();
+        let runtime_saved_overrides = saved_overrides.clone();
+        let runtime = tokio::task::spawn_blocking(move || {
+            resolve_effective_runtime(
+                &provider_id,
+                &runtime_cwd,
+                &runtime_spawn_config,
+                runtime_saved_overrides.as_ref(),
+            )
+        })
+        .await
+        .map_err(|error| {
+            AcpError::InvalidState(format!("Failed to resolve Codex runtime: {error}"))
+        })?;
         let runtime_identity = detect_codex_runtime_identity(&runtime.command);
         if let Some(identity) = runtime_identity.clone() {
             tracing::info!(

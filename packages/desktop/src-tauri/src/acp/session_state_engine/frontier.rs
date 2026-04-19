@@ -38,7 +38,7 @@ pub fn decide_frontier_transition(
         };
     };
 
-    if candidate.last_event_seq < retained_event_floor {
+    if current_frontier.last_event_seq < retained_event_floor {
         return SessionFrontierDecision::RequireSnapshot {
             reason: FrontierFallbackReason::StaleDeltaWindow,
             frontier: Some(current_frontier),
@@ -105,9 +105,9 @@ mod tests {
     }
 
     #[test]
-    fn frontier_requires_snapshot_when_candidate_predates_retained_window() {
-        let frontier = SessionGraphRevision::new(8, 12);
-        let candidate = SessionGraphRevision::new(13, 3);
+    fn frontier_requires_snapshot_when_current_frontier_predates_retained_window() {
+        let frontier = SessionGraphRevision::new(8, 4);
+        let candidate = SessionGraphRevision::new(13, 12);
         let decision = decide_frontier_transition(Some(frontier), candidate, 5);
 
         assert_eq!(

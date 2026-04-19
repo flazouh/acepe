@@ -242,7 +242,16 @@ impl OpenCodeManager {
         spawn_config.args.push("--port".to_string());
         spawn_config.args.push(desired_port.to_string());
         let saved_overrides = if let Some(app_handle) = &self.app_handle {
-            load_saved_agent_env_overrides(app_handle).await.ok()
+            match load_saved_agent_env_overrides(app_handle).await {
+                Ok(saved_overrides) => Some(saved_overrides),
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        "Failed to load saved agent env overrides for OpenCode"
+                    );
+                    None
+                }
+            }
         } else {
             None
         };

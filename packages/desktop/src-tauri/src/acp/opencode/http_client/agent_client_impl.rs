@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::client_trait::ReconnectSessionMethod;
 use crate::acp::model_display::{build_models_for_display, ModelPresentationMetadata};
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
 use std::path::Path;
@@ -181,6 +182,10 @@ impl AgentClient for OpenCodeHttpClient {
         self.seed_current_model(&response.models.current_model_id)?;
 
         Ok(response)
+    }
+
+    fn reconnect_method(&self) -> ReconnectSessionMethod {
+        self.provider.reconnect_method()
     }
 
     async fn fork_session(

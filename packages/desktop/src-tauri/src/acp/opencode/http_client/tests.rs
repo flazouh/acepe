@@ -1,5 +1,6 @@
 use super::types::{Provider, ProviderModel};
 use super::*;
+use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
 use crate::acp::providers::OpenCodeProvider;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1138,4 +1139,16 @@ async fn test_validate_session_binding_still_rejects_directory_mismatch() {
         error.to_string(),
         "Invalid state: OpenCode session binding mismatch: expected directory /tmp/project, got /tmp/other-project"
     );
+}
+
+#[test]
+fn test_reconnect_method_follows_provider_policy() {
+    let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
+        "/tmp/project",
+    ))));
+    let provider = Arc::new(OpenCodeProvider);
+    let client =
+        OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
+
+    assert_eq!(AgentClient::reconnect_method(&client), ReconnectSessionMethod::Load);
 }

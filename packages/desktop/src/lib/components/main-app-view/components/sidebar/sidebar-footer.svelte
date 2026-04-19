@@ -1,6 +1,7 @@
 <script lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { DiscordLogo, GithubLogo } from "phosphor-svelte";
+import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
@@ -13,18 +14,22 @@ interface Props {
 
 let { state: appState, projectManager, onOpenGitPanel }: Props = $props();
 
-	let appVersion = $state<string | null>(null);
-	$effect(() => {
-		void import("@tauri-apps/api/app")
-			.then((mod) => mod.getVersion())
-			.then((v) => {
-				appVersion = v;
-			});
-	});
+let appVersion = $state<string | null>(null);
 
-	const releaseUrl = $derived(
-		appVersion ? `https://github.com/flazouh/acepe/releases/tag/v${appVersion}` : null
-	);
+onMount(() => {
+	void import("@tauri-apps/api/app")
+		.then((mod) => mod.getVersion())
+		.then((v) => {
+			appVersion = v;
+		})
+		.catch(() => {
+			appVersion = null;
+		});
+});
+
+const releaseUrl = $derived(
+	appVersion ? `https://github.com/flazouh/acepe/releases/tag/v${appVersion}` : null
+);
 </script>
 
 <div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">

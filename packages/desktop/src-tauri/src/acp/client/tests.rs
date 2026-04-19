@@ -9,7 +9,9 @@ use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_update::PlanSource;
 use crate::acp::session_update::{PermissionData, SessionUpdate};
 use crate::db::migrations::Migrator;
-use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
+};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use std::collections::HashMap;
@@ -327,6 +329,25 @@ fn merge_saved_agent_env_overrides_blocks_protected_keys() {
     assert_eq!(merged.get("PATH"), Some(&"/usr/bin".to_string()));
     assert!(!merged.contains_key("NODE_OPTIONS"));
     assert_eq!(merged.get("AZURE_API_KEY"), Some(&"secret".to_string()));
+}
+
+#[cfg(windows)]
+#[test]
+fn merge_saved_agent_env_overrides_blocks_case_variants_of_path() {
+    let base = HashMap::from([("PATH".to_string(), "C:\\Windows\\System32".to_string())]);
+    let overrides = HashMap::from([(
+        "codex".to_string(),
+        HashMap::from([("Path".to_string(), "C:\\Temp\\bin".to_string())]),
+    )]);
+
+    let merged =
+        crate::acp::runtime_resolver::apply_saved_agent_env_overrides("codex", base, &overrides);
+
+    assert_eq!(
+        merged.get("PATH"),
+        Some(&"C:\\Windows\\System32".to_string())
+    );
+    assert!(!merged.contains_key("Path"));
 }
 
 #[test]
@@ -1020,4 +1041,46 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
         .into_iter()
         .any(|interaction| interaction.id == "permission-1"
             && interaction.state == InteractionState::Approved));
+}
+
+#[tokio::test]
+async fn load_stored_projection_falls_back_to_legacy_projection_snapshot() {
+    let db = setup_test_db().await;
+    SessionMetadataRepository::upsert(
+        &db,
+        "session-legacy".to_string(),
+        "Legacy projection session".to_string(),
+        1704067200000,
+        "/Users/alex/Documents/acepe".to_string(),
+        "codex".to_string(),
+        "-Users-alex-Documents-acepe/session-legacy.jsonl".to_string(),
+        1704067200,
+        1024,
+    )
+    .await
+    .expect("persist session metadata");
+
+    let registry = ProjectionRegistry::new();
+    registry.register_session(
+        "session-legacy".to_string(),
+        crate::acp::types::CanonicalAgentId::Codex,
+    );
+    let snapshot = registry.session_projection("session-legacy");
+    SessionProjectionSnapshotRepository::set(&db, "session-legacy", &snapshot)
+        .await
+        .expect("persist legacy projection snapshot");
+
+    let replay_context = replay_context_for_session(&db, "session-legacy").await;
+    let stored_projection = load_stored_projection(&db, &replay_context)
+        .await
+        .expect("load stored projection")
+        .expect("legacy snapshot should be returned");
+
+    assert_eq!(
+        stored_projection
+            .session
+            .expect("session snapshot should be present")
+            .session_id,
+        "session-legacy"
+    );
 }
