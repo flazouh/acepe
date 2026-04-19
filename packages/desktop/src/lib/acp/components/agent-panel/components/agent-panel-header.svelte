@@ -13,6 +13,7 @@ import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import AgentSelector from "../../agent-selector.svelte";
+import AttachmentChip from "../../shared/attachment-chip.svelte";
 
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
 
@@ -44,11 +45,13 @@ let {
 	onExportJson,
 	onAgentChange,
 	onScrollToTop,
+	firstMessageAttachments = [],
 	// Debug props
 	debugPanelState,
 }: AgentPanelHeaderProps = $props();
 
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
+const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 </script>
 
 	<AgentPanelHeaderLayout
@@ -173,5 +176,15 @@ const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != nu
 				titleExit={"Exit Fullscreen"}
 			/>
 			<CloseAction {onClose} title={"Close"} />
+		{/snippet}
+
+		{#snippet expansion()}
+			{#if hasAttachments}
+				<div class="flex flex-wrap items-center gap-1">
+					{#each firstMessageAttachments as attachment, i (`${attachment.type}-${attachment.path}-${i}`)}
+						<AttachmentChip {attachment} />
+					{/each}
+				</div>
+			{/if}
 		{/snippet}
 	</AgentPanelHeaderLayout>

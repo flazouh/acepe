@@ -1,5 +1,5 @@
 use super::super::provider::{command_exists, AgentProvider, AgentUiVisibility, SpawnConfig};
-use std::collections::HashMap;
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 
 /// Hidden Forge provider backed by the user's PATH.
 pub struct ForgeProvider;
@@ -17,7 +17,8 @@ impl AgentProvider for ForgeProvider {
         SpawnConfig {
             command: "forge".to_string(),
             args: vec!["machine".to_string(), "--stdio".to_string()],
-            env: forge_env(),
+            env: std::collections::HashMap::new(),
+            env_strategy: Some(forge_env_strategy()),
         }
     }
 
@@ -30,8 +31,8 @@ impl AgentProvider for ForgeProvider {
     }
 }
 
-fn forge_env() -> HashMap<String, String> {
-    crate::shell_env::build_env(crate::shell_env::EnvStrategy::FullInherit)
+fn forge_env_strategy() -> SpawnEnvStrategy {
+    SpawnEnvStrategy::FullInherit
 }
 
 #[cfg(test)]

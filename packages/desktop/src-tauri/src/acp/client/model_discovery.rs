@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::runtime_resolver::resolve_effective_runtime;
 
 impl AcpClient {
     pub(super) async fn discover_models_from_provider_cli(&self) -> Vec<AvailableModel> {
@@ -12,15 +13,16 @@ impl AcpClient {
         }
 
         for attempt in attempts {
-            let mut command = Command::new(&attempt.command);
-            command.args(&attempt.args);
+            let runtime = resolve_effective_runtime(provider.id(), &self.cwd, &attempt, None);
+            let mut command = Command::new(&runtime.command);
+            command.args(&runtime.args);
             command.stdin(Stdio::null());
             command.stdout(Stdio::piped());
             command.stderr(Stdio::piped());
 
-            command.current_dir(&self.cwd);
+            command.current_dir(&runtime.cwd);
 
-            for (key, value) in &attempt.env {
+            for (key, value) in &runtime.env {
                 command.env(key, value);
             }
 
@@ -28,8 +30,8 @@ impl AcpClient {
                 Ok(Ok(output)) => output,
                 Ok(Err(error)) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         error = %error,
                         "Failed to execute provider model discovery command"
                     );
@@ -37,8 +39,8 @@ impl AcpClient {
                 }
                 Err(_) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         "Provider model discovery command timed out"
                     );
                     continue;
@@ -51,7 +53,7 @@ impl AcpClient {
             if !models.is_empty() {
                 tracing::info!(
                     provider = provider.id(),
-                    args = ?attempt.args,
+                    args = ?runtime.args,
                     models_count = models.len(),
                     "Discovered models from provider CLI"
                 );
@@ -63,7 +65,7 @@ impl AcpClient {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 tracing::debug!(
                     provider = provider.id(),
-                    args = ?attempt.args,
+                    args = ?runtime.args,
                     status = ?output.status.code(),
                     stderr = %truncate_for_log(&stderr, MAX_LOGGED_SUBPROCESS_LINE_BYTES),
                     "Provider model discovery returned non-zero status"

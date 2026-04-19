@@ -9,6 +9,7 @@ use serde_json::Value;
 
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
+use crate::acp::cursor_extensions::is_cursor_extension_pre_tool;
 use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::InteractionKind;
@@ -98,6 +99,10 @@ fn parse_session_update_notification_for_agent(agent: AgentType, json: &Value) -
 
     // Only handle session update methods
     if !is_session_update_method(method) {
+        return ParseResult::NotSessionUpdate;
+    }
+
+    if agent == AgentType::Cursor && is_cursor_extension_pre_tool(json) {
         return ParseResult::NotSessionUpdate;
     }
 
@@ -220,15 +225,13 @@ pub fn session_update_to_domain_event(
         }
 
         // ── tool execution ─────────────────────────────────────────────────
-        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => {
-            Some((
-                SessionDomainEventKind::InteractionUpserted,
-                Some(SessionDomainEventPayload::InteractionUpserted {
-                    interaction_id: tool_call.id.clone(),
-                    interaction_kind: InteractionKind::PlanApproval,
-                }),
-            ))
-        }
+        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => Some((
+            SessionDomainEventKind::InteractionUpserted,
+            Some(SessionDomainEventPayload::InteractionUpserted {
+                interaction_id: tool_call.id.clone(),
+                interaction_kind: InteractionKind::PlanApproval,
+            }),
+        )),
         SessionUpdate::ToolCall { tool_call, .. } => {
             let status = tool_call.status.clone();
             Some((
@@ -284,9 +287,7 @@ pub fn session_update_to_domain_event(
         SessionUpdate::TurnError { error, turn_id, .. } => {
             let error_message = match error {
                 TurnErrorData::Legacy(msg) => msg.clone(),
-                TurnErrorData::Structured(info) => {
-                    info.message.clone()
-                }
+                TurnErrorData::Structured(info) => info.message.clone(),
             };
             Some((
                 SessionDomainEventKind::TurnFailed,
@@ -300,9 +301,7 @@ pub fn session_update_to_domain_event(
         // ── usage / telemetry ──────────────────────────────────────────────
         SessionUpdate::UsageTelemetryUpdate { data } => Some((
             SessionDomainEventKind::UsageTelemetryUpdated,
-            Some(SessionDomainEventPayload::UsageTelemetryUpdated {
-                data: data.clone(),
-            }),
+            Some(SessionDomainEventPayload::UsageTelemetryUpdated { data: data.clone() }),
         )),
 
         // ── connection lifecycle (handled via enqueue_session_domain_event) ─

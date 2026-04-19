@@ -2,8 +2,9 @@ import { ResultAsync } from "neverthrow";
 
 import type {
 	SessionOpenFound,
-	SessionProjectionSnapshot,
+	SessionStateGraph,
 } from "../../../services/acp-types.js";
+import { materializeSessionOpenState } from "../../session-state/session-state-query-service.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 
 interface SessionOpenStore {
@@ -14,8 +15,8 @@ interface PanelSessionBinder {
 	updatePanelSession(panelId: string, sessionId: string | null): void;
 }
 
-interface SessionProjectionConsumer {
-	replaceSessionProjection(projection: SessionProjectionSnapshot): void;
+interface SessionStateConsumer {
+	replaceSessionStateGraph(graph: SessionStateGraph): void;
 }
 
 interface AppliedSnapshotRevision {
@@ -27,23 +28,6 @@ export interface SessionOpenHydrationResult {
 	readonly canonicalSessionId: string;
 	readonly openToken: string;
 	readonly applied: boolean;
-}
-
-function toProjectionSnapshot(found: SessionOpenFound): SessionProjectionSnapshot {
-	return {
-		session: {
-			session_id: found.canonicalSessionId,
-			agent_id: found.agentId,
-			last_event_seq: found.lastEventSeq,
-			turn_state: found.turnState,
-			message_count: found.messageCount,
-			last_agent_message_id: null,
-			active_tool_call_ids: [],
-			completed_tool_call_ids: [],
-		},
-		operations: found.operations,
-		interactions: found.interactions,
-	};
 }
 
 function toAppError(error: Error | AppError | unknown): AppError {
@@ -65,7 +49,7 @@ export class SessionOpenHydrator {
 	constructor(
 		private readonly sessionStore: SessionOpenStore,
 		private readonly panelStore: PanelSessionBinder,
-		private readonly projectionConsumer: SessionProjectionConsumer
+		private readonly stateConsumer: SessionStateConsumer
 	) {}
 
 	beginAttempt(panelId: string): string {
@@ -113,8 +97,9 @@ export class SessionOpenHydrator {
 	}
 
 	private applySnapshot(found: SessionOpenFound): void {
+		const snapshotMaterialization = materializeSessionOpenState(found);
 		this.sessionStore.replaceSessionOpenSnapshot(found);
-		this.projectionConsumer.replaceSessionProjection(toProjectionSnapshot(found));
+		this.stateConsumer.replaceSessionStateGraph(snapshotMaterialization.graph);
 	}
 
 	private async applyFound(

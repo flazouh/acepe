@@ -21,6 +21,10 @@ import type {
 import type { AppError } from "../../errors/app-error.js";
 import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
+import {
+	resolveCanonicalToolCallCreate,
+	resolveCanonicalToolCallUpdate,
+} from "../../session-state/session-state-query-service.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
@@ -45,25 +49,6 @@ function isTerminalStatus(status: ToolCallStatus | null | undefined): boolean {
 
 function nowMs(): number {
 	return Date.now();
-}
-
-/**
- * Prevent status regressions when replayed historical events arrive out-of-order.
- * A terminal tool call should never be downgraded back to pending/in_progress.
- */
-function resolveNextStatus(
-	currentStatus: ToolCallStatus | null | undefined,
-	nextStatus: ToolCallStatus | null | undefined
-): ToolCallStatus | null | undefined {
-	if (!nextStatus) {
-		return currentStatus;
-	}
-
-	if (isTerminalStatus(currentStatus) && !isTerminalStatus(nextStatus)) {
-		return currentStatus;
-	}
-
-	return nextStatus;
 }
 
 /**
@@ -92,192 +77,6 @@ export function extractResultFromContent(
 	}
 
 	return textParts.length > 0 ? textParts.join("\n") : null;
-}
-
-function mergeEditEntries(
-	currentEdits: Extract<ToolArguments, { kind: "edit" }>["edits"],
-	incomingEdits: Extract<ToolArguments, { kind: "edit" }>["edits"]
-): Extract<ToolArguments, { kind: "edit" }>["edits"] {
-	const maxLength = Math.max(currentEdits.length, incomingEdits.length);
-	const merged: Extract<ToolArguments, { kind: "edit" }>["edits"] = [];
-
-	for (let index = 0; index < maxLength; index += 1) {
-		const currentEdit = currentEdits[index];
-		const incomingEdit = incomingEdits[index];
-
-		if (currentEdit && incomingEdit) {
-			merged.push({
-				filePath: incomingEdit.filePath ?? currentEdit.filePath,
-				moveFrom: incomingEdit.moveFrom ?? currentEdit.moveFrom,
-				oldString: incomingEdit.oldString ?? currentEdit.oldString,
-				newString: incomingEdit.newString ?? currentEdit.newString,
-				content: incomingEdit.content ?? currentEdit.content,
-			});
-			continue;
-		}
-
-		if (incomingEdit) {
-			merged.push(incomingEdit);
-			continue;
-		}
-
-		if (currentEdit) {
-			merged.push(currentEdit);
-		}
-	}
-
-	return merged;
-}
-
-function mergeOptionalField<T>(
-	currentValue: T | null | undefined,
-	incomingValue: T | null | undefined
-): T | null | undefined {
-	return incomingValue ?? currentValue;
-}
-
-function mergeStringList(currentValues: string[], incomingValues: string[]): string[] {
-	const merged: string[] = [];
-
-	for (const value of currentValues) {
-		if (!merged.includes(value)) {
-			merged.push(value);
-		}
-	}
-
-	for (const value of incomingValues) {
-		if (!merged.includes(value)) {
-			merged.push(value);
-		}
-	}
-
-	return merged;
-}
-
-function mergeToolArguments(currentArgs: ToolArguments, nextArgs: ToolArguments): ToolArguments {
-	if (currentArgs.kind !== nextArgs.kind) {
-		return nextArgs;
-	}
-
-	switch (currentArgs.kind) {
-		case "read":
-			if (nextArgs.kind !== "read") return nextArgs;
-			return {
-				kind: "read",
-				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
-				source_context: mergeOptionalField(
-					currentArgs.source_context ?? null,
-					nextArgs.source_context ?? null
-				),
-			};
-		case "edit":
-			if (nextArgs.kind !== "edit") return nextArgs;
-			return {
-				kind: "edit",
-				edits: mergeEditEntries(currentArgs.edits, nextArgs.edits),
-			};
-		case "execute":
-			if (nextArgs.kind !== "execute") return nextArgs;
-			return {
-				kind: "execute",
-				command: mergeOptionalField(currentArgs.command, nextArgs.command),
-			};
-		case "search":
-			if (nextArgs.kind !== "search") return nextArgs;
-			return {
-				kind: "search",
-				query: mergeOptionalField(currentArgs.query, nextArgs.query),
-				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
-			};
-		case "glob":
-			if (nextArgs.kind !== "glob") return nextArgs;
-			return {
-				kind: "glob",
-				pattern: mergeOptionalField(currentArgs.pattern, nextArgs.pattern),
-				path: mergeOptionalField(currentArgs.path, nextArgs.path),
-			};
-		case "fetch":
-			if (nextArgs.kind !== "fetch") return nextArgs;
-			return {
-				kind: "fetch",
-				url: mergeOptionalField(currentArgs.url, nextArgs.url),
-			};
-		case "webSearch":
-			if (nextArgs.kind !== "webSearch") return nextArgs;
-			return {
-				kind: "webSearch",
-				query: mergeOptionalField(currentArgs.query, nextArgs.query),
-			};
-		case "think":
-			if (nextArgs.kind !== "think") return nextArgs;
-			return {
-				kind: "think",
-				description: mergeOptionalField(currentArgs.description, nextArgs.description),
-				prompt: mergeOptionalField(currentArgs.prompt, nextArgs.prompt),
-				subagent_type: mergeOptionalField(currentArgs.subagent_type, nextArgs.subagent_type),
-				skill: mergeOptionalField(currentArgs.skill, nextArgs.skill),
-				skill_args: mergeOptionalField(currentArgs.skill_args, nextArgs.skill_args),
-				raw: mergeOptionalField(currentArgs.raw, nextArgs.raw),
-			};
-		case "taskOutput":
-			if (nextArgs.kind !== "taskOutput") return nextArgs;
-			return {
-				kind: "taskOutput",
-				task_id: mergeOptionalField(currentArgs.task_id, nextArgs.task_id),
-				timeout: mergeOptionalField(currentArgs.timeout, nextArgs.timeout),
-			};
-		case "move":
-			if (nextArgs.kind !== "move") return nextArgs;
-			return {
-				kind: "move",
-				from: mergeOptionalField(currentArgs.from, nextArgs.from),
-				to: mergeOptionalField(currentArgs.to, nextArgs.to),
-			};
-		case "delete":
-			if (nextArgs.kind !== "delete") return nextArgs;
-			return {
-				kind: "delete",
-				file_path: mergeOptionalField(currentArgs.file_path, nextArgs.file_path),
-				file_paths: mergeOptionalField(currentArgs.file_paths, nextArgs.file_paths),
-			};
-		case "planMode":
-			if (nextArgs.kind !== "planMode") return nextArgs;
-			return {
-				kind: "planMode",
-				mode: mergeOptionalField(currentArgs.mode, nextArgs.mode),
-			};
-		case "toolSearch":
-			if (nextArgs.kind !== "toolSearch") return nextArgs;
-			return {
-				kind: "toolSearch",
-				query: mergeOptionalField(currentArgs.query, nextArgs.query),
-				max_results: mergeOptionalField(currentArgs.max_results, nextArgs.max_results),
-			};
-		case "browser":
-			return nextArgs;
-		case "sql":
-			if (nextArgs.kind !== "sql") return nextArgs;
-			return {
-				kind: "sql",
-				query: mergeOptionalField(currentArgs.query, nextArgs.query),
-				description: mergeOptionalField(currentArgs.description, nextArgs.description),
-			};
-		case "unclassified":
-			if (nextArgs.kind !== "unclassified") return nextArgs;
-			return {
-				kind: "unclassified",
-				raw_name: nextArgs.raw_name.length > 0 ? nextArgs.raw_name : currentArgs.raw_name,
-				raw_kind_hint: mergeOptionalField(currentArgs.raw_kind_hint, nextArgs.raw_kind_hint),
-				title: mergeOptionalField(currentArgs.title, nextArgs.title),
-				arguments_preview: mergeOptionalField(
-					currentArgs.arguments_preview,
-					nextArgs.arguments_preview
-				),
-				signals_tried: mergeStringList(currentArgs.signals_tried, nextArgs.signals_tried),
-			};
-		case "other":
-			return nextArgs;
-	}
 }
 
 function hasMaterializedToolUpdateFields(update: ToolCallUpdate): boolean {
@@ -389,24 +188,12 @@ export class ToolCallManager implements IToolCallManager {
 			if (!isToolCallEntry(entry)) return ok(undefined);
 
 			const existingToolCall = entry.message;
-			const nextStatus = resolveNextStatus(existingToolCall.status, data.status);
-			const startedAtMs = existingToolCall.startedAtMs ?? entry.timestamp?.getTime() ?? nowMs();
-			const completedAtMs =
-				existingToolCall.completedAtMs ??
-				(isTerminalStatus(nextStatus ?? data.status) ? nowMs() : undefined);
-			const shouldPromoteTaskToQuestion =
-				existingToolCall.kind === "task" &&
-				data.kind === "question" &&
-				(data.normalizedQuestions?.length ?? 0) > 0;
-			const shouldUpgradeGenericKind =
-				(existingToolCall.kind === undefined || existingToolCall.kind === "other") &&
-				data.kind !== undefined &&
-				data.kind !== "other";
-			const nextKind = shouldPromoteTaskToQuestion
-				? data.kind
-				: shouldUpgradeGenericKind
-					? data.kind
-					: (existingToolCall.kind ?? data.kind);
+			const createResolution = resolveCanonicalToolCallCreate(
+				existingToolCall,
+				data,
+				entry.timestamp?.getTime() ?? nowMs(),
+				nowMs()
+			);
 			if (
 				existingToolCall.kind !== data.kind &&
 				(existingToolCall.kind === "other" || data.kind === "skill")
@@ -416,57 +203,46 @@ export class ToolCallManager implements IToolCallManager {
 					toolCallId: data.id,
 					existingKind: existingToolCall.kind,
 					incomingKind: data.kind,
-					resolvedKind: nextKind,
-					shouldPromoteTaskToQuestion,
-					shouldUpgradeGenericKind,
+					resolvedKind: createResolution.nextKind,
 					existingArgumentsKind: existingToolCall.arguments.kind,
 					incomingArgumentsKind: data.arguments.kind,
 					title: data.title ?? existingToolCall.title,
 					name: data.name,
 				});
 			}
-			const nextAwaitingPlanApproval = data.awaitingPlanApproval;
-			const nextPlanApprovalRequestId = nextAwaitingPlanApproval
-				? (data.planApprovalRequestId ?? existingToolCall.planApprovalRequestId)
-				: null;
-			const nextProgressiveArguments = isTerminalStatus(nextStatus ?? data.status)
-				? undefined
-				: existingToolCall.progressiveArguments;
-			const nextArguments = mergeToolArguments(existingToolCall.arguments, data.arguments);
-			const nextResult = data.result ?? existingToolCall.result;
 			const updatedToolCall: ToolCall = {
 				...existingToolCall,
 				name: data.name,
-				arguments: nextArguments,
-				rawInput: data.rawInput ?? existingToolCall.rawInput,
-				status: nextStatus ?? existingToolCall.status,
-				result: nextResult,
-				kind: nextKind,
+				arguments: createResolution.nextArguments,
+				rawInput: createResolution.nextRawInput,
+				status: createResolution.nextStatus ?? existingToolCall.status,
+				result: createResolution.nextResult,
+				kind: createResolution.nextKind,
 				title: data.title ?? existingToolCall.title,
 				locations: data.locations ?? existingToolCall.locations,
 				skillMeta: data.skillMeta ?? existingToolCall.skillMeta,
 				normalizedQuestions: data.normalizedQuestions ?? existingToolCall.normalizedQuestions,
 				normalizedTodos: data.normalizedTodos ?? existingToolCall.normalizedTodos,
 				normalizedResult: normalizeToolResult({
-					kind: nextKind,
-					arguments: nextArguments,
-					result: nextResult,
+					kind: createResolution.nextKind,
+					arguments: createResolution.nextArguments,
+					result: createResolution.nextResult,
 				}),
 				parentToolUseId: data.parentToolUseId ?? existingToolCall.parentToolUseId,
 				// Backend sends pre-assembled taskChildren - use incoming if present, else keep existing
 				taskChildren: data.taskChildren ?? existingToolCall.taskChildren,
 				questionAnswer: data.questionAnswer ?? existingToolCall.questionAnswer,
-				awaitingPlanApproval: nextAwaitingPlanApproval,
-				planApprovalRequestId: nextPlanApprovalRequestId,
-				progressiveArguments: nextProgressiveArguments,
-				startedAtMs,
-				completedAtMs,
+				awaitingPlanApproval: createResolution.nextAwaitingPlanApproval,
+				planApprovalRequestId: createResolution.nextPlanApprovalRequestId,
+				progressiveArguments: createResolution.nextProgressiveArguments,
+				startedAtMs: createResolution.startedAtMs,
+				completedAtMs: createResolution.completedAtMs,
 			};
 
 			const updatedEntry: SessionEntry = {
 				...entry,
 				message: updatedToolCall,
-				isStreaming: isToolCallStreaming(nextStatus),
+				isStreaming: createResolution.isStreaming,
 			};
 
 			this.updateToolCallEntryRef(sessionId, existingRef, updatedEntry);
@@ -578,63 +354,41 @@ export class ToolCallManager implements IToolCallManager {
 		// - If toolCall.result is a structured object (e.g., {numFiles: 4}) and extractedResult
 		//   is just a string (text from content), preserve the structured result
 		// - Otherwise, use extractedResult
-		const isStructuredResult =
-			toolCall.result !== null &&
-			typeof toolCall.result === "object" &&
-			!Array.isArray(toolCall.result);
-		const isTextExtracted = typeof extractedResult === "string";
-		const shouldPreserveStructuredResult = isStructuredResult && isTextExtracted;
-		const incomingStatus = update.status ?? toolCall.status;
-		const newStatus = resolveNextStatus(toolCall.status, incomingStatus);
-		const startedAtMs = toolCall.startedAtMs ?? entry.timestamp?.getTime() ?? nowMs();
-		const completedAtMs =
-			toolCall.completedAtMs ?? (isTerminalStatus(newStatus) ? nowMs() : undefined);
-		const rawNextArguments = update.arguments ?? update.streamingArguments ?? toolCall.arguments;
-		const nextArguments =
-			rawNextArguments === toolCall.arguments
-				? toolCall.arguments
-				: mergeToolArguments(toolCall.arguments, rawNextArguments);
-		const nextProgressiveArguments = isTerminalStatus(newStatus)
-			? undefined
-			: (update.arguments ?? null) != null
-				? undefined
-				: (update.streamingArguments ?? toolCall.progressiveArguments);
-		const nextResult = shouldPreserveStructuredResult
-			? toolCall.result
-			: (extractedResult ?? toolCall.result);
-		const argumentsChanged = nextArguments !== toolCall.arguments;
-		const shouldRefreshNormalizedResult =
-			(!shouldPreserveStructuredResult && extractedResult !== null) ||
-			toolCall.normalizedResult === undefined ||
-			(argumentsChanged && nextResult !== null && nextResult !== undefined);
+		const updateResolution = resolveCanonicalToolCallUpdate(
+			toolCall,
+			update,
+			extractedResult,
+			entry.timestamp?.getTime() ?? nowMs(),
+			nowMs()
+		);
 
 		const updatedToolCall: ToolCall = {
 			...toolCall,
-			status: newStatus ?? toolCall.status,
-			result: nextResult,
+			status: updateResolution.nextStatus ?? toolCall.status,
+			result: updateResolution.nextResult,
 			title: update.title ?? toolCall.title,
 			locations: update.locations ?? toolCall.locations,
-			arguments: nextArguments,
+			arguments: updateResolution.nextArguments,
 			// Progressive normalized data from streaming accumulator
 			normalizedTodos: update.normalizedTodos ?? toolCall.normalizedTodos,
 			normalizedQuestions: update.normalizedQuestions ?? toolCall.normalizedQuestions,
-			normalizedResult: shouldRefreshNormalizedResult
+			normalizedResult: updateResolution.shouldRefreshNormalizedResult
 				? normalizeToolResult({
 					kind: toolCall.kind,
-					arguments: nextArguments,
-					result: nextResult,
+					arguments: updateResolution.nextArguments,
+					result: updateResolution.nextResult,
 				})
 				: toolCall.normalizedResult,
-			progressiveArguments: nextProgressiveArguments,
-			startedAtMs,
-			completedAtMs,
+			progressiveArguments: updateResolution.nextProgressiveArguments,
+			startedAtMs: updateResolution.startedAtMs,
+			completedAtMs: updateResolution.completedAtMs,
 		};
 
 		// Determine streaming state from status after regression protection
 		const updatedEntry: SessionEntry = {
 			...entry,
 			message: updatedToolCall,
-			isStreaming: isToolCallStreaming(newStatus),
+			isStreaming: updateResolution.isStreaming,
 		};
 
 		this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
@@ -642,7 +396,7 @@ export class ToolCallManager implements IToolCallManager {
 
 		// Clean up streaming arguments when tool reaches a terminal status.
 		// At this point the entry has authoritative data and streaming args are redundant.
-		if (newStatus === "completed" || newStatus === "failed") {
+		if (updateResolution.nextStatus === "completed" || updateResolution.nextStatus === "failed") {
 			this.clearStreamingArguments(update.toolCallId);
 		}
 

@@ -321,7 +321,7 @@ lastEventSeq: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -345,6 +345,24 @@ export type SessionOpenResult =
  * `Missing` and `Error` payloads.
  */
 ({ outcome: "found" } & SessionOpenFound) | ({ outcome: "missing" } & SessionOpenMissing) | ({ outcome: "error" } & SessionOpenError)
+
+export type SessionGraphRevision = { graphRevision: number; lastEventSeq: number }
+
+export type SessionGraphLifecycleStatus = "idle" | "connecting" | "ready" | "error"
+
+export type SessionGraphLifecycle = { status: SessionGraphLifecycleStatus; errorMessage?: string | null; canReconnect: boolean }
+
+export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
+
+export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities }
+
+export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
+
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations?: TranscriptDeltaOperation[]; changedFields?: string[] }
+
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision }
+
+export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
 
 export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
@@ -497,4 +515,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-

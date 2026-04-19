@@ -46,13 +46,13 @@ function createFoundResult(
 describe("SessionOpenHydrator", () => {
 	let replaceSessionOpenSnapshot: ReturnType<typeof mock>;
 	let updatePanelSession: ReturnType<typeof mock>;
-	let replaceSessionProjection: ReturnType<typeof mock>;
+	let replaceSessionStateGraph: ReturnType<typeof mock>;
 	let hydrator: SessionOpenHydrator;
 
 	beforeEach(() => {
 		replaceSessionOpenSnapshot = mock(() => {});
 		updatePanelSession = mock(() => {});
-		replaceSessionProjection = mock(() => {});
+		replaceSessionStateGraph = mock(() => {});
 		hydrator = new SessionOpenHydrator(
 			{
 				replaceSessionOpenSnapshot,
@@ -61,7 +61,7 @@ describe("SessionOpenHydrator", () => {
 				updatePanelSession,
 			},
 			{
-				replaceSessionProjection,
+				replaceSessionStateGraph,
 			}
 		);
 	});
@@ -79,7 +79,7 @@ describe("SessionOpenHydrator", () => {
 		});
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
 		expect(updatePanelSession).toHaveBeenCalledWith("panel-1", "canonical-session");
-		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 	});
 
 	it("ignores stale request tokens", async () => {
@@ -101,7 +101,7 @@ describe("SessionOpenHydrator", () => {
 		expect(activeToken).toBe("session-open-2");
 		expect(replaceSessionOpenSnapshot).not.toHaveBeenCalled();
 		expect(updatePanelSession).not.toHaveBeenCalled();
-		expect(replaceSessionProjection).not.toHaveBeenCalled();
+		expect(replaceSessionStateGraph).not.toHaveBeenCalled();
 	});
 
 	it("ignores equal revisions for the same canonical session", async () => {
@@ -147,7 +147,7 @@ describe("SessionOpenHydrator", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
-		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 		expect(updatePanelSession).not.toHaveBeenCalled();
 	});
 
@@ -177,7 +177,7 @@ describe("SessionOpenHydrator", () => {
 		const applied = result._unsafeUnwrap();
 		expect(applied.applied).toBe(true);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
-		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 	});
 
 	// ==========================================================================
@@ -225,14 +225,14 @@ describe("SessionOpenHydrator", () => {
 		expect(snapshotArg?.canonicalSessionId).toBe("canonical-id");
 	});
 
-	it("[E2E] replaceSessionProjection is called exactly once per hydrateFound — no double-hydration", async () => {
-		// Regression guard: open-time projection must be applied exactly once.
+	it("[E2E] replaceSessionStateGraph is called exactly once per hydrateFound — no double-hydration", async () => {
+		// Regression guard: open-time graph snapshot must be applied exactly once.
 		// A double-hydrate would leave the UI in a partially-reset state.
 		const requestToken = hydrator.beginAttempt("panel-e2e-single");
 
 		await hydrator.hydrateFound("panel-e2e-single", requestToken, createFoundResult());
 
-		expect(replaceSessionProjection).toHaveBeenCalledTimes(1);
+		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
 	});
 

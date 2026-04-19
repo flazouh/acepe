@@ -1,6 +1,7 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProtocolError } from "../../errors/index.js";
+import type { AcpEventEnvelope } from "../acp-event-bridge.js";
 import { EventSubscriber } from "../event-subscriber.js";
 
 const mockOpenAcpEventSource = vi.fn();
@@ -24,6 +25,22 @@ describe("EventSubscriber", () => {
 			reject = rej;
 		});
 		return { promise, resolve, reject };
+	}
+
+	function emit(
+		onEnvelope: (envelope: AcpEventEnvelope) => void,
+		eventName: string,
+		payload: AcpEventEnvelope["payload"]
+	): void {
+		onEnvelope({
+			seq: 1,
+			eventName,
+			sessionId: "session-1",
+			payload,
+			priority: "normal",
+			droppable: false,
+			emittedAtMs: 1234,
+		});
 	}
 
 	describe("subscription management", () => {
@@ -113,6 +130,52 @@ describe("EventSubscriber", () => {
 			expect(first.isErr()).toBe(true);
 			expect(second.isErr()).toBe(true);
 			expect(subscriber.listenerCount).toBe(0);
+		});
+
+		it("routes acp-session-state envelopes to session-state listeners only", async () => {
+			let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
+			mockOpenAcpEventSource.mockImplementationOnce(
+				(handler: (envelope: AcpEventEnvelope) => void) => {
+					onEnvelope = handler;
+					return okAsync(() => {});
+				}
+			);
+
+			const subscriber = new EventSubscriber();
+			const sessionUpdateListener = vi.fn();
+			const sessionStateListener = vi.fn();
+
+			await subscriber.subscribe(sessionUpdateListener);
+			await subscriber.subscribeSessionState(sessionStateListener);
+
+			if (!onEnvelope) {
+				throw new Error("Expected ACP event bridge handler");
+			}
+
+			emit(onEnvelope, "acp-session-state", {
+				sessionId: "session-1",
+				graphRevision: 4,
+				lastEventSeq: 9,
+				payload: {
+					kind: "delta",
+					delta: {
+						fromRevision: { graphRevision: 3, lastEventSeq: 8 },
+						toRevision: { graphRevision: 4, lastEventSeq: 9 },
+						transcriptOperations: [],
+						changedFields: ["transcriptSnapshot"],
+					},
+				},
+			});
+
+			expect(sessionUpdateListener).not.toHaveBeenCalled();
+			expect(sessionStateListener).toHaveBeenCalledTimes(1);
+			expect(sessionStateListener).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: "session-1",
+					graphRevision: 4,
+					lastEventSeq: 9,
+				})
+			);
 		});
 	});
 

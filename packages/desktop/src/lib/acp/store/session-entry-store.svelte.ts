@@ -110,6 +110,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		return this.preloadedIds.has(sessionId);
 	}
 
+	getTranscriptRevision(sessionId: string): number | undefined {
+		return this.transcriptRevisionBySession.get(sessionId);
+	}
+
 	/**
 	 * Mark session as preloaded.
 	 */

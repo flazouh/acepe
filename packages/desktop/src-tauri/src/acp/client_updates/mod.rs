@@ -2,14 +2,14 @@ use crate::acp::client_loop::BatcherWithGuard;
 use crate::acp::client_message_ids::normalize_message_id;
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
 use crate::acp::parsers::AgentType;
-use crate::acp::provider::AgentProvider;
-use crate::acp::session_update::{PlanConfidence, PlanData, PlanSource, SessionUpdate};
+use crate::acp::provider::{prepare_session_updates_for_dispatch, AgentProvider};
+use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::{
     parse_session_update_notification_with_agent, ParseResult,
 };
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::{ReconcilerOutput, TaskReconciler};
-use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, AcpUiEventPriority};
+use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc as StdArc;
@@ -17,7 +17,6 @@ use std::sync::Arc as StdArc;
 mod plan;
 mod reconciler;
 
-use plan::{enrich_plan_data, enrich_plan_update, extract_streaming_plan};
 pub(crate) use reconciler::process_through_reconciler;
 
 #[allow(clippy::too_many_arguments)]
@@ -34,79 +33,65 @@ pub(crate) async fn handle_session_update_notification(
 ) {
     match parse_session_update_notification_with_agent(agent_type, json) {
         ParseResult::Typed(update) => {
-            let update = match provider {
-                Some(provider) => provider.enrich_session_update(*update).await,
-                None => *update,
-            };
+            let updates_to_emit = prepare_session_updates_for_dispatch(
+                provider,
+                agent_type,
+                *update,
+                task_reconciler,
+            )
+            .await;
+
             // Log raw streaming data for debugging (dev only)
-            if let Some(session_id) = update.session_id() {
+            if let Some(session_id) = updates_to_emit
+                .first()
+                .and_then(crate::acp::session_update::SessionUpdate::session_id)
+            {
                 log_streaming_event(session_id, json);
             }
 
-            // Route AvailableCommandsUpdate through non-streaming batcher to prevent
-            // JS event loop saturation from large command payloads (~19KB with 80+ commands)
-            if matches!(&update, SessionUpdate::AvailableCommandsUpdate { .. }) {
-                let session_key = update.session_id().unwrap_or("unknown").to_string();
-                for batched_update in non_streaming_batcher.process(&session_key, update) {
-                    log_emitted_event(&session_key, &batched_update);
-                    dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
-                }
-                return;
-            }
-
-            // Route through TaskReconciler when provider requires tool-call graph assembly.
-            if provider.is_some_and(|provider| provider.uses_task_reconciler()) {
-                let updates_to_emit =
-                    process_through_reconciler(&update, task_reconciler, agent_type, provider);
-                for reconciled_update in updates_to_emit {
-                    let sid = reconciled_update
+            for normalized_update in updates_to_emit {
+                // Route AvailableCommandsUpdate through non-streaming batcher to prevent
+                // JS event loop saturation from large command payloads (~19KB with 80+ commands)
+                if matches!(
+                    &normalized_update,
+                    SessionUpdate::AvailableCommandsUpdate { .. }
+                ) {
+                    let session_key = normalized_update
                         .session_id()
                         .unwrap_or("unknown")
                         .to_string();
-                    // Use batcher for streaming deltas to coalesce rapid updates
-                    for batched_update in streaming_batcher.process(reconciled_update) {
-                        log_emitted_event(&sid, &batched_update);
+                    for batched_update in
+                        non_streaming_batcher.process(&session_key, normalized_update)
+                    {
+                        log_emitted_event(&session_key, &batched_update);
                         dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
                     }
+                    continue;
                 }
-                return;
-            }
 
-            // Normalize message IDs and dedup replayed assistant messages
-            let normalized_update = match (message_id_tracker.lock(), assistant_text_tracker.lock())
-            {
-                (Ok(mut tracker), Ok(mut assistant_tracker)) => {
-                    match normalize_message_id(
-                        agent_type,
-                        update,
-                        &mut tracker,
-                        &mut assistant_tracker,
-                    ) {
-                        Some(u) => u,
-                        None => return, // Replayed chunk — drop it
-                    }
+                // Normalize message IDs and dedup replayed assistant messages
+                let normalized_update =
+                    match (message_id_tracker.lock(), assistant_text_tracker.lock()) {
+                        (Ok(mut tracker), Ok(mut assistant_tracker)) => {
+                            match normalize_message_id(
+                                agent_type,
+                                normalized_update,
+                                &mut tracker,
+                                &mut assistant_tracker,
+                            ) {
+                                Some(u) => u,
+                                None => continue, // Replayed chunk — drop it
+                            }
+                        }
+                        _ => normalized_update,
+                    };
+
+                // Use batcher for streaming deltas
+                for batched_update in streaming_batcher.process(normalized_update) {
+                    let sid = batched_update.session_id().unwrap_or("unknown").to_string();
+                    log_emitted_event(&sid, &batched_update);
+                    dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
                 }
-                _ => update,
-            };
-
-            let normalized_update = enrich_plan_update(normalized_update, agent_type, provider);
-
-            // Extract streaming plan before batching (it won't survive serialization)
-            let streaming_plan = extract_streaming_plan(&normalized_update, agent_type, provider);
-
-            // Use batcher for streaming deltas
-            for batched_update in streaming_batcher.process(normalized_update) {
-                let sid = batched_update.session_id().unwrap_or("unknown").to_string();
-                log_emitted_event(&sid, &batched_update);
-                dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
-            }
-
-            // Emit Plan event if streaming plan data was present
-            if let Some((plan, session_id)) = streaming_plan {
-                let update = SessionUpdate::Plan { plan, session_id };
-                let sid = update.session_id().unwrap_or("unknown").to_string();
-                log_emitted_event(&sid, &update);
-                dispatcher.enqueue(AcpUiEvent::session_update(update));
             }
         }
         ParseResult::Raw {
@@ -128,15 +113,8 @@ pub(crate) async fn handle_session_update_notification(
                 update_type = %update_type,
                 error = %error,
                 top_level_keys = ?keys,
-                "Failed to parse session update, falling back to raw emission"
+                "Failed to parse session update; dropping raw transport payload"
             );
-            dispatcher.enqueue(AcpUiEvent::json_event(
-                "acp-session-update",
-                params,
-                Some(session_id),
-                AcpUiEventPriority::Normal,
-                true, // droppable: prevents event loop saturation on parse-failure cascades
-            ));
         }
         ParseResult::NotSessionUpdate => {
             // Not a session update - nothing to do
@@ -159,8 +137,51 @@ mod tests {
         let source = include_str!("mod.rs");
         let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
 
-        assert!(production_source.contains(".enrich_session_update("));
-        assert!(!production_source.contains("cursor_tool_enrichment"));
+        assert!(production_source.contains("prepare_session_updates_for_dispatch("));
+        assert!(!production_source.contains(".enrich_session_update("));
+        assert!(!production_source.contains(".uses_task_reconciler("));
+        assert!(!production_source.contains("None => process_through_reconciler("));
+    }
+
+    #[tokio::test]
+    async fn malformed_session_update_does_not_emit_raw_transport_payload() {
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
+        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "sessionId": "session-raw",
+                "update": {
+                    "sessionUpdate": "toolCall",
+                    "toolCallId": 42
+                }
+            }
+        });
+
+        handle_session_update_notification(
+            &dispatcher,
+            AgentType::ClaudeCode,
+            None,
+            &message_id_tracker,
+            &assistant_text_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &notification,
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert!(captured.is_empty());
     }
 
     #[tokio::test]
@@ -170,7 +191,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let notification = json!({
@@ -235,7 +259,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let notification = json!({
@@ -318,7 +345,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let notification = json!({
@@ -404,7 +434,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let notification = json!({
@@ -493,7 +526,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let tool_call_notification = json!({
@@ -637,7 +673,10 @@ mod tests {
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(dispatcher.clone());
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let tool_call_notification = json!({

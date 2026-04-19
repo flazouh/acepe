@@ -125,8 +125,9 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 6. **Headless review for automation.** When reviewing non-interactively: `/document-review mode:headless docs/plans/<plan>.md`.
 7. **Implementation plan requests must use `/ce:plan` first.** When asked to create an implementation plan for Acepe, always use the `ce-plan` skill first. Session `plan.md` may mirror or summarize the CE plan, but it must not replace the `/ce:plan` workflow, even when the request explicitly asks for a session plan file or uses `[[PLAN]]`.
 8. **Acepe `/ce:plan` uses Deep plan posture.** For Acepe software work, treat `/ce:plan` as a request for a **Deep** plan by default. This is plan-depth guidance, not an automatic trigger for the separate "deepen an existing plan" fast path unless the user explicitly asks to deepen an existing plan, for example with `/ce:plan deepen` or `/ce:plan deepen docs/plans/<plan>.md`.
-9. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
-10. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
+9. **Do not normalize partial implementation as an acceptable endpoint.** While executing `/ce:work`, continue until the planned slice is actually wired end-to-end and verified. Do not frame "still in progress" as a valid completion state when the requested implementation has not yet been delivered.
+10. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
+11. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
 
 ### TDD Protocol
 

@@ -27,7 +27,6 @@ use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
-use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::model_display::{build_models_for_display, ModelPresentationMetadata};
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
@@ -36,8 +35,9 @@ use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
     SessionProjectionSnapshot,
 };
-use crate::acp::provider::AgentProvider;
+use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::runtime_resolver::resolve_effective_runtime;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
@@ -1425,26 +1425,27 @@ impl ClaudeCcSdkClient {
         }
 
         for attempt in attempts {
+            let cwd = self
+                .pending_options
+                .as_ref()
+                .and_then(|options| options.cwd.clone())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let runtime = resolve_effective_runtime(self.provider.id(), &cwd, &attempt, None);
             tracing::info!(
                 provider = %self.provider.id(),
-                command = %attempt.command,
-                args = ?attempt.args,
+                command = %runtime.command,
+                args = ?runtime.args,
                 "cc-sdk running provider model discovery command"
             );
 
-            let mut command = tokio::process::Command::new(&attempt.command);
-            command.args(&attempt.args);
+            let mut command = tokio::process::Command::new(&runtime.command);
+            command.args(&runtime.args);
             command.stdin(std::process::Stdio::null());
             command.stdout(std::process::Stdio::piped());
             command.stderr(std::process::Stdio::piped());
-            command.current_dir(
-                self.pending_options
-                    .as_ref()
-                    .and_then(|options| options.cwd.clone())
-                    .unwrap_or_else(|| PathBuf::from(".")),
-            );
+            command.current_dir(&runtime.cwd);
 
-            for (key, value) in &attempt.env {
+            for (key, value) in &runtime.env {
                 command.env(key, value);
             }
 
@@ -1452,8 +1453,8 @@ impl ClaudeCcSdkClient {
                 Ok(Ok(output)) => output,
                 Ok(Err(error)) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         error = %error,
                         "Claude model discovery command failed"
                     );
@@ -1461,8 +1462,8 @@ impl ClaudeCcSdkClient {
                 }
                 Err(_) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         "Claude model discovery command timed out"
                     );
                     continue;
@@ -2335,10 +2336,14 @@ async fn persist_provider_session_id_alias(
 fn collect_cc_sdk_updates_for_dispatch(
     update: &SessionUpdate,
     task_reconciler: &Arc<std::sync::Mutex<TaskReconciler>>,
-    agent_type: AgentType,
-    provider: Option<&dyn AgentProvider>,
+    provider: &dyn AgentProvider,
 ) -> Vec<SessionUpdate> {
-    process_through_reconciler(update, task_reconciler, agent_type, provider)
+    normalize_session_updates_for_runtime(
+        Some(provider),
+        provider.parser_agent_type(),
+        update,
+        task_reconciler,
+    )
 }
 
 fn dispatch_cc_sdk_update(
@@ -2347,12 +2352,7 @@ fn dispatch_cc_sdk_update(
     provider: &dyn AgentProvider,
     update: SessionUpdate,
 ) {
-    let updates_to_emit = collect_cc_sdk_updates_for_dispatch(
-        &update,
-        task_reconciler,
-        provider.parser_agent_type(),
-        Some(provider),
-    );
+    let updates_to_emit = collect_cc_sdk_updates_for_dispatch(&update, task_reconciler, provider);
 
     for emitted_update in updates_to_emit {
         let sid = emitted_update.session_id().unwrap_or("unknown").to_string();
@@ -2888,6 +2888,7 @@ mod tests {
                 command: "unused".to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
 
@@ -2901,6 +2902,7 @@ mod tests {
                 command: "unused".to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                env_strategy: None,
             }]
         }
 
@@ -5905,32 +5907,27 @@ mod tests {
         let parent_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_task_tool_call("toolu_task_parent"),
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
         let enriched_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_enriched_task_tool_call("toolu_task_parent"),
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
         let bash_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_child_tool_call("toolu_child_bash", "Bash", ToolKind::Execute),
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
         let glob_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_child_tool_call("toolu_child_glob", "Glob", ToolKind::Glob),
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
         let read_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_child_tool_call("toolu_child_read", "Read", ToolKind::Read),
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
 
         assert_eq!(parent_outputs.len(), 1);
@@ -6012,8 +6009,7 @@ mod tests {
                 session_id: Some("session-1".to_string()),
             },
             &task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
 
         assert_eq!(outputs.len(), 1);
@@ -6107,14 +6103,12 @@ mod tests {
         let _ = collect_cc_sdk_updates_for_dispatch(
             &make_task_tool_call("toolu_task_parent"),
             &client.task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
         let child_outputs = collect_cc_sdk_updates_for_dispatch(
             &make_child_tool_call("toolu_child_orphan", "Bash", ToolKind::Execute),
             &client.task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
 
         assert!(matches!(
@@ -6153,8 +6147,7 @@ mod tests {
                 session_id: Some("session-1".to_string()),
             },
             &client.task_reconciler,
-            provider.parser_agent_type(),
-            Some(&provider),
+            &provider,
         );
 
         assert_eq!(outputs_after_reset.len(), 1);

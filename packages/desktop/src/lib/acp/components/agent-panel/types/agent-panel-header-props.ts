@@ -1,3 +1,4 @@
+import type { ParsedAttachment } from "$lib/acp/utils/attachment-token-parser.js";
 import type { SessionStatusUI } from "./session-status-ui";
 
 /**
@@ -66,4 +67,9 @@ export interface AgentPanelHeaderProps {
 	readonly onExportJson?: () => Promise<void>;
 	readonly onAgentChange?: (agentId: string) => void;
 	readonly onScrollToTop?: () => void;
+	/**
+	 * Attachment chips for the first user message of this session. Shown inside
+	 * the header's hover expansion. Extracted via `extractAttachmentsFromChunks`.
+	 */
+	readonly firstMessageAttachments?: readonly ParsedAttachment[];
 }

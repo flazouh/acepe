@@ -3,9 +3,7 @@
 //! These commands are exposed to the TypeScript frontend for
 //! loading Cursor conversation history.
 
-use crate::commands::observability::{
-    unexpected_command_result, CommandResult,
-};
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::cursor_history::parser;
 use crate::session_jsonl::types::{FullSession, HistoryEntry};
 use uuid::Uuid;
@@ -109,7 +107,6 @@ pub async fn get_cursor_session(
     )
 }
 
-
 /// Check if a project has Cursor history available.
 ///
 /// Returns true if Cursor history exists for the given project path.
@@ -142,7 +139,6 @@ pub async fn has_cursor_history(project_path: String) -> CommandResult<bool> {
         .await,
     )
 }
-
 
 /// Check if Cursor is installed on the system.
 #[tauri::command]

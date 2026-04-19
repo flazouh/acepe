@@ -22,6 +22,7 @@ import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
 import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
+import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
@@ -196,6 +197,12 @@ const sessionEntries = $derived.by(() => {
 	if (!pending) return real;
 	if (real.length > 0 && real[0]?.type === "user") return real;
 	return [pending, ...real];
+});
+
+const firstMessageAttachments = $derived.by(() => {
+	const firstUserEntry = sessionEntries.find((entry) => entry.type === "user");
+	if (!firstUserEntry || firstUserEntry.type !== "user") return [];
+	return extractAttachmentsFromChunks(firstUserEntry.message.chunks ?? []);
 });
 
 // Hot state: status, isStreaming (changes during activity)
@@ -1716,6 +1723,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onClose={handleClose}
 			{onToggleFullscreen}
 			onScrollToTop={scrollToTop}
+			{firstMessageAttachments}
 			onCopyContent={handleCopyContent}
 			onOpenInFinder={handleOpenInFinder}
 			onCopyStreamingLogPath={handleCopyStreamingLogPath}

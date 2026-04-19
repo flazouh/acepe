@@ -276,13 +276,8 @@ export interface AgentPanelHeaderModel {
 	agentLabel?: string | null;
 	projectLabel?: string | null;
 	projectColor?: string | null;
-	projectIconSrc?: string | null;
 	sequenceId?: number | null;
 	branchLabel?: string | null;
-	sessionId?: string | null;
-	isConnecting?: boolean;
-	pendingProjectSelection?: boolean;
-	showTrailingBorder?: boolean;
 	badges?: readonly AgentPanelBadge[];
 	actions: readonly AgentPanelActionDescriptor[];
 }

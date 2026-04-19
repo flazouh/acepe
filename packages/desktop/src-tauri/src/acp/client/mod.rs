@@ -15,7 +15,6 @@ use crate::acp::provider_extensions::InboundResponseAdapter;
 use crate::acp::session_update::{SessionUpdate, ToolCallStatus, ToolCallUpdateData};
 use crate::acp::types::PromptRequest;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
-use crate::db::repository::AppSettingsRepository;
 use sea_orm::DbConn;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -59,9 +58,7 @@ use replay_guard::ReplayGuard;
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 /// Max bytes we include from subprocess output in logs.
 const MAX_LOGGED_SUBPROCESS_LINE_BYTES: usize = 512;
-const AGENT_ENV_OVERRIDES_KEY: &str = "agent_env_overrides";
-
-type AgentEnvOverrides = HashMap<String, HashMap<String, String>>;
+type AgentEnvOverrides = crate::acp::runtime_resolver::AgentEnvOverrides;
 
 pub(crate) struct PendingRequestEntry {
     pub generation: u64,
@@ -73,43 +70,10 @@ pub(crate) struct PromptRequestSession {
     pub session_id: String,
 }
 
-fn is_protected_agent_env_override_key(key: &str) -> bool {
-    key == "PATH" || crate::shell_env::is_denied_env_key(key)
-}
-
 async fn load_saved_agent_env_overrides(
     app_handle: &AppHandle,
 ) -> Result<AgentEnvOverrides, String> {
-    let db = app_handle.state::<DbConn>();
-    let raw = AppSettingsRepository::get(db.inner(), AGENT_ENV_OVERRIDES_KEY)
-        .await
-        .map_err(|error| error.to_string())?;
-
-    match raw {
-        Some(json) => {
-            serde_json::from_str::<AgentEnvOverrides>(&json).map_err(|error| error.to_string())
-        }
-        None => Ok(HashMap::new()),
-    }
-}
-
-fn apply_saved_agent_env_overrides(
-    agent_id: &str,
-    mut base_env: HashMap<String, String>,
-    overrides: &AgentEnvOverrides,
-) -> HashMap<String, String> {
-    let Some(agent_overrides) = overrides.get(agent_id) else {
-        return base_env;
-    };
-
-    for (key, value) in agent_overrides {
-        if is_protected_agent_env_override_key(key) {
-            continue;
-        }
-        base_env.insert(key.clone(), value.clone());
-    }
-
-    base_env
+    crate::acp::runtime_resolver::load_saved_agent_env_overrides(app_handle).await
 }
 
 /// ACP Protocol method names

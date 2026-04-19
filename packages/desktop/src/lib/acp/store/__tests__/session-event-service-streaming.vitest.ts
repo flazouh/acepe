@@ -19,7 +19,7 @@ vi.mock("../utils/logger.js", () => ({
 	}),
 }));
 
-import type { TranscriptDelta } from "../../../services/acp-types.js";
+import type { SessionStateEnvelope, TranscriptDelta } from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -52,7 +52,7 @@ function createMockHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
-		applyTranscriptDelta: vi.fn(),
+		applySessionStateEnvelope: vi.fn(),
 	};
 }
 
@@ -216,7 +216,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateToolCallEntry).toHaveBeenCalledWith("session-123", update.update);
 	});
 
-	it("drops queued assistant fallback chunks when a transcript delta arrives first", async () => {
+	it("drops queued assistant fallback chunks when a canonical delta envelope arrives first", async () => {
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -250,14 +250,78 @@ describe("SessionEventService streaming delta handling", () => {
 			],
 		};
 
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 6, lastEventSeq: 6 },
+					toRevision: { graphRevision: 7, lastEventSeq: 7 },
+					transcriptOperations: delta.operations,
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		};
+
 		service.handleSessionUpdate(update, handler);
-		service.handleTranscriptDelta(delta, handler);
+		service.handleSessionStateEnvelope(envelope, handler);
 		await new Promise((resolve) => {
 			setTimeout(resolve, 0);
 		});
 
 		expect(handler.aggregateAssistantChunk).not.toHaveBeenCalled();
-		expect(handler.applyTranscriptDelta).toHaveBeenCalledWith("session-123", delta);
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-123",
+			expect.objectContaining({
+				sessionId: "session-123",
+				graphRevision: 7,
+				lastEventSeq: 7,
+			})
+		);
+	});
+
+	it("routes session-state delta envelopes through the canonical transcript path", () => {
+		const delta: TranscriptDelta = {
+			eventSeq: 7,
+			sessionId: "session-123",
+			snapshotRevision: 7,
+			operations: [
+				{
+					kind: "appendEntry",
+					entry: {
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:7",
+								text: "hello",
+							},
+						],
+					},
+				},
+			],
+		};
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 6, lastEventSeq: 6 },
+					toRevision: { graphRevision: 7, lastEventSeq: 7 },
+					transcriptOperations: delta.operations,
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(envelope, handler);
+
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledWith("session-123", envelope);
 	});
 
 	it("falls back to assistant chunk aggregation when no transcript delta arrives", async () => {
@@ -284,7 +348,7 @@ describe("SessionEventService streaming delta handling", () => {
 			"assistant-1",
 			false
 		);
-		expect(handler.applyTranscriptDelta).not.toHaveBeenCalled();
+		expect(handler.applySessionStateEnvelope).not.toHaveBeenCalled();
 	});
 
 	it("routes non-empty streaming deltas through canonical tool updates", () => {
@@ -862,7 +926,7 @@ describe("SessionEventService streaming delta handling", () => {
 			updateCurrentMode: vi.fn(),
 			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
-			applyTranscriptDelta: vi.fn(),
+			applySessionStateEnvelope: vi.fn(),
 		};
 
 		service.handleSessionUpdate(
@@ -1134,7 +1198,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("[regression] suppresses raw session updates during snapshot reconnect while connecting", () => {
+	it("[regression] does not suppress raw session updates while connecting", () => {
 		const reconnectingHandler = createMockHandler();
 		const session = {
 			id: "session-123",
@@ -1145,8 +1209,6 @@ describe("SessionEventService streaming delta handling", () => {
 			isConnected: false,
 			status: "connecting",
 		});
-
-		service.beginSnapshotReconnect("session-123");
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -1165,18 +1227,14 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, reconnectingHandler, 500);
-		service.endSnapshotReconnect("session-123");
-		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
-		service.flushPendingEvents("session-123", reconnectingHandler);
 
-		expect(reconnectingHandler.createToolCallEntry).not.toHaveBeenCalled();
+		expect(reconnectingHandler.createToolCallEntry).toHaveBeenCalledWith(
+			"session-123",
+			update.tool_call
+		);
 	});
 
-	it("[regression] buffers transcript deltas during snapshot reconnect and flushes them after connect", () => {
+	it("[regression] does not buffer transcript deltas while connecting", () => {
 		const reconnectingHandler = createMockHandler();
 		const session = {
 			id: "session-123",
@@ -1187,8 +1245,6 @@ describe("SessionEventService streaming delta handling", () => {
 			isConnected: false,
 			status: "connecting",
 		});
-
-		service.beginSnapshotReconnect("session-123");
 
 		const delta: TranscriptDelta = {
 			sessionId: "session-123",
@@ -1212,19 +1268,32 @@ describe("SessionEventService streaming delta handling", () => {
 			],
 		};
 
-		service.handleTranscriptDelta(delta, reconnectingHandler);
-		expect(reconnectingHandler.applyTranscriptDelta).not.toHaveBeenCalled();
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 42,
+			lastEventSeq: 42,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 41, lastEventSeq: 41 },
+					toRevision: { graphRevision: 42, lastEventSeq: 42 },
+					transcriptOperations: delta.operations,
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		};
 
-		service.endSnapshotReconnect("session-123");
-		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
-		service.flushPendingEvents("session-123", reconnectingHandler);
+		service.handleSessionStateEnvelope(envelope, reconnectingHandler);
 
-		expect(reconnectingHandler.applyTranscriptDelta).toHaveBeenCalledTimes(1);
-		expect(reconnectingHandler.applyTranscriptDelta).toHaveBeenCalledWith("session-123", delta);
+		expect(reconnectingHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(reconnectingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-123",
+			expect.objectContaining({
+				sessionId: "session-123",
+				graphRevision: 42,
+				lastEventSeq: 42,
+			})
+		);
 	});
 
 	it("does not infer plan mode from enter_plan_mode tool calls", () => {

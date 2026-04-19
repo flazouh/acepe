@@ -183,9 +183,9 @@ pub struct AgentConfig {
 pub struct PluginInfo {
     /// Unique plugin ID (marketplace::name)
     pub id: String,
-    /// Marketplace name (e.g., "superpowers-marketplace")
+    /// Marketplace name (e.g., "example-marketplace")
     pub marketplace: String,
-    /// Plugin name (e.g., "superpowers")
+    /// Plugin name (e.g., "example-plugin")
     pub name: String,
     /// Installed version (latest)
     pub version: String,

@@ -18,7 +18,8 @@ use crate::acp::session_update::{
     tool_call_status_from_str, ToolArguments, ToolCallData,
 };
 use crate::session_jsonl::types::{
-    StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+    StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
+    StoredUserMessage,
 };
 
 /// Load a Codex session from local rollout files.
@@ -486,7 +487,6 @@ fn infer_tool_status_from_output(output: &str) -> String {
 
     "completed".to_string()
 }
-
 
 #[cfg(test)]
 mod tests {

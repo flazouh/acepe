@@ -3,6 +3,7 @@ use super::copilot_settings::apply_copilot_session_defaults;
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
@@ -67,7 +68,8 @@ impl AgentProvider for CopilotProvider {
                     .iter()
                     .map(|arg| (*arg).to_string())
                     .collect(),
-                env: filtered_env(),
+                env: HashMap::new(),
+                env_strategy: Some(filtered_env_strategy()),
             })
     }
 
@@ -89,10 +91,6 @@ impl AgentProvider for CopilotProvider {
 
     fn parser_agent_type(&self) -> AgentType {
         AgentType::Copilot
-    }
-
-    fn uses_task_reconciler(&self) -> bool {
-        self.task_reconciliation_policy().uses_task_reconciler()
     }
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
@@ -206,8 +204,8 @@ impl AgentProvider for CopilotProvider {
     }
 }
 
-fn filtered_env() -> HashMap<String, String> {
-    crate::shell_env::build_env(crate::shell_env::EnvStrategy::Allowlist(ALLOWED_ENV_KEYS))
+fn filtered_env_strategy() -> SpawnEnvStrategy {
+    SpawnEnvStrategy::allowlist(ALLOWED_ENV_KEYS)
 }
 
 async fn load_copilot_preconnection_commands(
@@ -282,7 +280,6 @@ fn resolve_copilot_spawn_configs(
     debug_override_command: Option<String>,
 ) -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
-    let env = filtered_env();
     let args: Vec<String> = ACP_STDIO_ARGS
         .iter()
         .map(|arg| (*arg).to_string())
@@ -294,13 +291,22 @@ fn resolve_copilot_spawn_configs(
             SpawnConfig {
                 command,
                 args: args.clone(),
-                env: env.clone(),
+                env: HashMap::new(),
+                env_strategy: Some(filtered_env_strategy()),
             },
         );
     }
 
     if let Some(command) = debug_override_command {
-        push_unique_spawn_config(&mut configs, SpawnConfig { command, args, env });
+        push_unique_spawn_config(
+            &mut configs,
+            SpawnConfig {
+                command,
+                args,
+                env: HashMap::new(),
+                env_strategy: Some(filtered_env_strategy()),
+            },
+        );
     }
 
     configs
@@ -361,7 +367,10 @@ mod tests {
     fn provider_uses_task_reconciler_for_subagent_tool_graphs() {
         let provider = CopilotProvider;
 
-        assert!(provider.uses_task_reconciler());
+        assert_eq!(
+            provider.task_reconciliation_policy(),
+            TaskReconciliationPolicy::ImplicitSingleActiveParent
+        );
     }
 
     #[test]

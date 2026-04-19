@@ -1,24 +1,7 @@
-use super::*;
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
-
-pub(super) fn extract_streaming_plan(
-    update: &SessionUpdate,
-    agent_type: AgentType,
-    provider: Option<&dyn AgentProvider>,
-) -> Option<(PlanData, Option<String>)> {
-    match update {
-        SessionUpdate::ToolCallUpdate {
-            update: tool_update,
-            session_id,
-        } => tool_update.streaming_plan.clone().map(|plan| {
-            (
-                enrich_plan_data(plan, agent_type, provider),
-                session_id.clone(),
-            )
-        }),
-        _ => None,
-    }
-}
+use crate::acp::parsers::AgentType;
+use crate::acp::provider::AgentProvider;
+use crate::acp::session_update::{PlanConfidence, PlanData, PlanSource, SessionUpdate};
 
 pub(super) fn enrich_plan_update(
     update: SessionUpdate,

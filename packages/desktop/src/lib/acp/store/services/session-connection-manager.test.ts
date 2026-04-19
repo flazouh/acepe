@@ -86,7 +86,7 @@ function createMockEventHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
-		applyTranscriptDelta: vi.fn(),
+		applySessionStateEnvelope: vi.fn(),
 	};
 }
 
@@ -991,16 +991,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
-	it("[regression] open-token reconnect brackets resume with snapshot replay suppression", async () => {
+	it("[regression] open-token reconnect leaves replay suppression to Rust", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
-		const beginSnapshotReconnect = vi.spyOn(
-			SessionEventService.prototype,
-			"beginSnapshotReconnect"
-		);
-		const endSnapshotReconnect = vi.spyOn(
-			SessionEventService.prototype,
-			"endSnapshotReconnect"
-		);
 
 		const manager = createManager({
 			stateReader,
@@ -1016,8 +1008,14 @@ describe("SessionConnectionManager.connectSession", () => {
 		});
 		result._unsafeUnwrap();
 
-		expect(beginSnapshotReconnect).toHaveBeenCalledWith(sessionId);
-		expect(endSnapshotReconnect).toHaveBeenCalledWith(sessionId);
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined,
+			"open-token-suppress-replay"
+		);
 	});
 });
 

@@ -1,6 +1,7 @@
 use super::CopilotListedSession;
 use crate::acp::commands::session_metadata_context_from_cwd;
 use crate::acp::parsers::{CopilotParser, ParseError};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, RawToolCallInput,
     RawToolCallUpdateInput, SessionUpdate, ToolCallStatus, ToolKind,
@@ -8,7 +9,6 @@ use crate::acp::session_update::{
 use crate::acp::types::ContentBlock;
 use crate::history::constants::MAX_SESSIONS_PER_PROJECT;
 use crate::history::title_utils::normalize_display_title;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};

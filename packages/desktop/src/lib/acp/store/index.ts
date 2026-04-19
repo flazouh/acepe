@@ -93,10 +93,7 @@ export {
 	getReviewPreferenceStore,
 	ReviewPreferenceStore,
 } from "./review-preference-store.svelte.js";
-export { LiveInteractionProjectionSync } from "./services/live-interaction-projection-sync.js";
-export { LiveOperationProjectionSync } from "./services/live-operation-projection-sync.js";
 export { SessionOpenHydrator } from "./services/session-open-hydrator.js";
-export { SessionProjectionHydrator } from "./services/session-projection-hydrator.js";
 // Session state model
 export type {
 	ActivityState,

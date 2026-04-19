@@ -16,7 +16,6 @@ import { useAdvancedCommandPalette } from "$lib/acp/hooks/use-advanced-command-p
 import { InboundRequestHandler } from "$lib/acp/logic/inbound-request-handler.js";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import { SessionDomainEventSubscriber } from "$lib/acp/logic/index.js";
 import { setSelectorRegistryContext } from "$lib/acp/logic/selector-registry.svelte.js";
 import {
 	agentModelPreferencesStore,
@@ -34,10 +33,7 @@ import {
 	createQueueStore,
 	createReviewPreferenceStore,
 	createSessionStore,
-	LiveInteractionProjectionSync,
-	LiveOperationProjectionSync,
 	SessionOpenHydrator,
-	SessionProjectionHydrator,
 	createTabBarStore,
 	createUnseenStore,
 	createUrgencyTabsStore,
@@ -48,7 +44,7 @@ import {
 import { enrichExistingToolCallFromPermission } from "$lib/acp/store/services/permission-tool-call-enricher.js";
 import { createQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
-import { buildPlanApprovalInteractionId } from "$lib/acp/types/interaction.js";
+import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
@@ -149,33 +145,6 @@ const agentStore = createAgentStore();
 const agentPreferencesStore = createAgentPreferencesStore();
 const sessionStore = createSessionStore();
 const interactionStore = createInteractionStore();
-const sessionProjectionHydrator = new SessionProjectionHydrator({
-	replaceSessionProjection(projection) {
-		interactionStore.replaceSessionProjection(projection);
-		sessionStore.applySessionProjection(projection);
-		const projectionSessionId =
-			projection.session?.session_id ?? projection.operations[0]?.session_id ?? null;
-		if (projectionSessionId !== null) {
-			sessionStore.getOperationStore().replaceSessionOperations(
-				projectionSessionId,
-				projection.operations
-			);
-		}
-	},
-	clearSession(sessionId) {
-		interactionStore.clearSession(sessionId);
-		sessionStore.clearSessionProjection(sessionId);
-	},
-});
-const sessionDomainEventSubscriber = new SessionDomainEventSubscriber();
-const liveInteractionProjectionSync = new LiveInteractionProjectionSync(
-	sessionDomainEventSubscriber,
-	sessionProjectionHydrator
-);
-const liveOperationProjectionSync = new LiveOperationProjectionSync(
-	sessionDomainEventSubscriber,
-	sessionProjectionHydrator
-);
 const permissionStore = createPermissionStore(interactionStore);
 const questionStore = createQuestionStore(interactionStore);
 // QuestionSelectionStore is accessed via getQuestionSelectionStore() context, no direct reference needed
@@ -188,7 +157,8 @@ const planStore = createPlanStore();
 sessionStore.onSessionRemoved((id) => {
 	planStore.clear(id);
 	messageQueueStore.removeForSession(id);
-	sessionProjectionHydrator.clearSession(id);
+	interactionStore.clearSession(id);
+	sessionStore.clearSessionProjection(id);
 });
 // UnseenStore tracks panels with unseen agent completions (yellow dot indicator)
 const unseenStore = createUnseenStore();
@@ -224,10 +194,13 @@ const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore
 const sessionOpenHydrator = new SessionOpenHydrator(
 	sessionStore,
 	panelStore,
-	interactionStore
+	{
+		replaceSessionStateGraph(graph) {
+			interactionStore.replaceSessionStateGraph(graph);
+		},
+	}
 );
 sessionStore.setSessionOpenHydrator(sessionOpenHydrator);
-
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
 const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
@@ -257,76 +230,139 @@ function focusOrOpenSessionPanel(sessionId: string, acknowledgeCompletion = fals
 	}
 }
 
-function hydrateInteractionProjection(
-	sessionId: string,
-	source: string,
-	onHydrated?: () => void
-): void {
-	void sessionProjectionHydrator.hydrateSession(sessionId).match(
-		() => {
-			onHydrated?.();
+function showPermissionNotification(permission: import("$lib/acp/types/permission.js").PermissionRequest): void {
+	showNotification(
+		{
+			id: permission.id,
+			type: "permission",
+			title: permission.permission,
+			body: permission.patterns.join(", "),
+			actions: PERMISSION_ACTIONS,
+			sessionId: permission.sessionId,
+			sourceId: permission.id,
 		},
-		(error) => {
-			logger.error("Failed to hydrate interaction projection", {
-				sessionId,
-				source,
-				error,
-			});
+		(actionId) => {
+			if (!interactionStore.permissionsPending.has(permission.id)) return;
+			if (actionId === "allow") {
+				permissionStore.reply(permission.id, "once");
+			} else if (actionId === "allow-always") {
+				permissionStore.reply(permission.id, "always");
+			} else if (actionId === "deny") {
+				permissionStore.reply(permission.id, "reject");
+			} else if (actionId === "view") {
+				focusOrOpenSessionPanel(permission.sessionId);
+			}
+		},
+		{
+			windowFocused: windowFocusStore.isFocused,
+			categoryEnabled: notificationPrefsStore.questionsEnabled,
 		}
 	);
 }
 
-function buildPlanApprovalIdFromQuestion(
-	question: QuestionRequest & {
-		jsonRpcRequestId: number;
-		tool: NonNullable<QuestionRequest["tool"]>;
-	}
-): string {
-	return buildPlanApprovalInteractionId(
-		question.sessionId,
-		question.tool.callID,
-		question.jsonRpcRequestId
+function showQuestionNotification(question: QuestionRequest): void {
+	const questionText =
+		question.questions[0]?.question ?? question.questions[0]?.header ?? "Agent question";
+	showNotification(
+		{
+			id: question.id,
+			type: "question",
+			title: "Agent Question",
+			body: questionText,
+			actions: QUESTION_ACTIONS,
+			sessionId: question.sessionId,
+			sourceId: question.id,
+		},
+		(actionId) => {
+			if (!interactionStore.questionsPending.has(question.id)) return;
+			if (actionId === "view") {
+				focusOrOpenSessionPanel(question.sessionId);
+			}
+		},
+		{
+			windowFocused: windowFocusStore.isFocused,
+			categoryEnabled: notificationPrefsStore.questionsEnabled,
+		}
 	);
 }
 
-function isPlanApprovalQuestion(question: QuestionRequest): question is QuestionRequest & {
-	jsonRpcRequestId: number;
-	tool: NonNullable<QuestionRequest["tool"]>;
-} {
-	if (question.jsonRpcRequestId === undefined || question.tool === undefined) {
-		return false;
-	}
-
-	if (question.questions.length !== 1) {
-		return false;
-	}
-
-	const options = question.questions[0]?.options;
-	if (!options || options.length !== 2) {
-		return false;
-	}
-
-	return options[0]?.label === "Approve" && options[1]?.label === "Reject";
-}
-
-function getQuestionNotificationId(question: QuestionRequest): string {
-	if (!isPlanApprovalQuestion(question)) {
-		return question.id;
-	}
-
-	return buildPlanApprovalIdFromQuestion(question);
-}
-
-function hasPendingQuestionNotificationTarget(question: QuestionRequest): boolean {
-	if (!isPlanApprovalQuestion(question)) {
-		return interactionStore.questionsPending.has(question.id);
-	}
-
-	const approval = interactionStore.planApprovalsPending.get(
-		buildPlanApprovalIdFromQuestion(question)
+function showPlanApprovalNotification(approval: PlanApprovalInteraction): void {
+	const body =
+		approval.source === "exit_plan_mode"
+			? "Approve exiting plan mode"
+			: "Approve generated plan";
+	showNotification(
+		{
+			id: approval.id,
+			type: "question",
+			title: "Plan Approval",
+			body,
+			actions: QUESTION_ACTIONS,
+			sessionId: approval.sessionId,
+			sourceId: approval.id,
+		},
+		(actionId) => {
+			if (interactionStore.planApprovalsPending.get(approval.id)?.status !== "pending") return;
+			if (actionId === "view") {
+				focusOrOpenSessionPanel(approval.sessionId);
+			}
+		},
+		{
+			windowFocused: windowFocusStore.isFocused,
+			categoryEnabled: notificationPrefsStore.questionsEnabled,
+		}
 	);
-	return approval?.status === "pending";
 }
+
+function applyLiveInteractionGraph(graph: import("$lib/services/acp-types.js").SessionStateGraph): void {
+	const previousPermissionIds = new Set<string>();
+	const previousQuestionIds = new Set<string>();
+	const previousPlanApprovalIds = new Set<string>();
+
+	for (const [id, permission] of interactionStore.permissionsPending) {
+		if (permission.sessionId === graph.canonicalSessionId) {
+			previousPermissionIds.add(id);
+		}
+	}
+	for (const [id, question] of interactionStore.questionsPending) {
+		if (question.sessionId === graph.canonicalSessionId) {
+			previousQuestionIds.add(id);
+		}
+	}
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (approval.sessionId === graph.canonicalSessionId && approval.status === "pending") {
+			previousPlanApprovalIds.add(id);
+		}
+	}
+
+	interactionStore.replaceSessionStateGraph(graph);
+
+	for (const [id, permission] of interactionStore.permissionsPending) {
+		if (permission.sessionId === graph.canonicalSessionId && !previousPermissionIds.has(id)) {
+			showPermissionNotification(permission);
+		}
+	}
+	for (const [id, question] of interactionStore.questionsPending) {
+		if (question.sessionId === graph.canonicalSessionId && !previousQuestionIds.has(id)) {
+			showQuestionNotification(question);
+		}
+	}
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (
+			approval.sessionId === graph.canonicalSessionId &&
+			approval.status === "pending" &&
+			!previousPlanApprovalIds.has(id)
+		) {
+			showPlanApprovalNotification(approval);
+		}
+	}
+}
+
+sessionStore.setLiveSessionStateGraphConsumer({
+	replaceSessionStateGraph(graph) {
+		applyLiveInteractionGraph(graph);
+	},
+});
 
 function collectPendingTurnInputNotificationIds(sessionId: string): Set<string> {
 	const staleIds = new Set<string>();
@@ -392,72 +428,6 @@ function removePlanApprovalsForSession(sessionId: string): void {
 
 // Set up SessionStore callbacks for permission/question/plan routing
 sessionStore.setCallbacks({
-	onPermissionRequest: (permission) => {
-		hydrateInteractionProjection(permission.sessionId, "session-update-permission", () => {
-			const currentPermission = permissionStore.getForToolCall(
-				permission.sessionId,
-				permission.tool?.callID ?? permission.id
-			);
-			if (!currentPermission || currentPermission.id !== permission.id) {
-				return;
-			}
-			showNotification(
-				{
-					id: currentPermission.id,
-					type: "permission",
-					title: currentPermission.permission,
-					body: currentPermission.patterns.join(", "),
-					actions: PERMISSION_ACTIONS,
-					sessionId: currentPermission.sessionId,
-					sourceId: currentPermission.id,
-				},
-				(actionId) => {
-					if (!interactionStore.permissionsPending.has(currentPermission.id)) return;
-					if (actionId === "allow") {
-						permissionStore.reply(currentPermission.id, "once");
-					} else if (actionId === "allow-always") {
-						permissionStore.reply(currentPermission.id, "always");
-					} else if (actionId === "deny") {
-						permissionStore.reply(currentPermission.id, "reject");
-					} else if (actionId === "view") {
-						focusOrOpenSessionPanel(currentPermission.sessionId);
-					}
-				},
-				{
-					windowFocused: windowFocusStore.isFocused,
-					categoryEnabled: notificationPrefsStore.questionsEnabled,
-				}
-			);
-		});
-	},
-	onQuestionRequest: (question) => {
-		hydrateInteractionProjection(question.sessionId, "session-update-question", () => {
-			const notificationId = getQuestionNotificationId(question);
-			const questionText =
-				question.questions[0]?.question ?? question.questions[0]?.header ?? "Agent question";
-			showNotification(
-				{
-					id: notificationId,
-					type: "question",
-					title: "Agent Question",
-					body: questionText,
-					actions: QUESTION_ACTIONS,
-					sessionId: question.sessionId,
-					sourceId: notificationId,
-				},
-				(actionId) => {
-					if (!hasPendingQuestionNotificationTarget(question)) return;
-					if (actionId === "view") {
-						focusOrOpenSessionPanel(question.sessionId);
-					}
-				},
-				{
-					windowFocused: windowFocusStore.isFocused,
-					categoryEnabled: notificationPrefsStore.questionsEnabled,
-				}
-			);
-		});
-	},
 	onPlanUpdate: (sessionId: string, planData: PlanData) => {
 		// Update plan store with streaming content
 		planStore.updateFromEvent(sessionId, planData);
@@ -940,30 +910,18 @@ onMount(async () => {
 	attemptStartupMaximize();
 
 	logger.info("main-app-view onMount: Starting InboundRequestHandler");
-	const liveSyncResult = await liveInteractionProjectionSync.start();
-	if (liveSyncResult.isErr()) {
-		logger.error("Failed to start live interaction projection sync", {
-			error: liveSyncResult.error,
-		});
-	}
-
-	const liveOpSyncResult = await liveOperationProjectionSync.start();
-	if (liveOpSyncResult.isErr()) {
-		logger.error("Failed to start live operation projection sync", {
-			error: liveOpSyncResult.error,
-		});
-	}
-
 	// Initialize inbound request handler for ACP permission and question requests
 	const handlerResult = await inboundRequestHandler.start(
 		(permission) => {
 			logger.debug("Permission callback invoked", { permissionId: permission.id });
 			enrichExistingToolCallFromPermission(sessionStore, permission);
-			hydrateInteractionProjection(permission.sessionId, "inbound-permission");
+			permissionStore.add(permission);
+			showPermissionNotification(permission);
 		},
 		(question) => {
 			logger.debug("Question callback invoked", { questionId: question.id });
-			hydrateInteractionProjection(question.sessionId, "inbound-question");
+			questionStore.add(question);
+			showQuestionNotification(question);
 		}
 	);
 	if (handlerResult.isErr()) {
@@ -1133,8 +1091,6 @@ onDestroy(() => {
 	viewState.cleanup();
 	// Cleanup inbound request handler
 	inboundRequestHandler.stop();
-	liveInteractionProjectionSync.stop();
-	liveOperationProjectionSync.stop();
 	// Cleanup session update subscription (removes Tauri event listener)
 	sessionStore.cleanupSessionUpdates();
 	// Unregister global keyboard handler

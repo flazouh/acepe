@@ -37,16 +37,9 @@ export interface DesktopAgentPanelHeaderInput {
 	title: string;
 	subtitle?: string | null;
 	agentLabel?: string | null;
-	agentIconSrc?: string | null;
 	projectLabel?: string | null;
 	projectColor?: string | null;
-	projectIconSrc?: string | null;
-	sequenceId?: number | null;
 	branchLabel?: string | null;
-	sessionId?: string | null;
-	isConnecting?: boolean;
-	pendingProjectSelection?: boolean;
-	showTrailingBorder?: boolean;
 	badges?: readonly { id: string; label: string; tone?: "neutral" | "info" | "success" | "warning" | "danger" }[];
 	actions?: readonly AgentPanelActionDescriptor[];
 }
@@ -1383,16 +1376,9 @@ export function buildDesktopAgentPanelScene(
 			subtitle: options.header.subtitle ?? null,
 			status,
 			agentLabel: options.header.agentLabel ?? null,
-			agentIconSrc: options.header.agentIconSrc ?? null,
 			projectLabel: options.header.projectLabel ?? null,
 			projectColor: options.header.projectColor ?? null,
-			projectIconSrc: options.header.projectIconSrc ?? null,
-			sequenceId: options.header.sequenceId ?? null,
 			branchLabel: options.header.branchLabel ?? null,
-			sessionId: options.header.sessionId ?? null,
-			isConnecting: options.header.isConnecting ?? false,
-			pendingProjectSelection: options.header.pendingProjectSelection ?? false,
-			showTrailingBorder: options.header.showTrailingBorder ?? false,
 			badges: options.header.badges ?? [],
 			actions:
 				options.header.actions ??

@@ -16,7 +16,9 @@
 //! `last_event_seq` at claim time (Unit 3) ensures it is not delivered twice.
 
 use crate::acp::event_hub::AcpEventHubState;
-use crate::acp::projections::{InteractionSnapshot, OperationSnapshot, SessionTurnState};
+use crate::acp::projections::{
+    InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
+};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::transcript_projection::TranscriptSnapshot;
@@ -100,6 +102,10 @@ pub struct SessionOpenFound {
     pub interactions: Vec<InteractionSnapshot>,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_turn_failure: Option<TurnFailureSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_terminal_turn_id: Option<String>,
 }
 
 // ============================================================================
@@ -182,7 +188,14 @@ pub async fn assemble_session_open_result(
         }
     };
 
-    let (operations, interactions, turn_state, message_count) = match projection {
+    let (
+        operations,
+        interactions,
+        turn_state,
+        message_count,
+        active_turn_failure,
+        last_terminal_turn_id,
+    ) = match projection {
         Some(proj) => {
             let session_snap = proj.session.as_ref();
             (
@@ -192,9 +205,11 @@ pub async fn assemble_session_open_result(
                     .map(|s| s.turn_state.clone())
                     .unwrap_or(SessionTurnState::Idle),
                 session_snap.map(|s| s.message_count).unwrap_or(0),
+                session_snap.and_then(|s| s.active_turn_failure.clone()),
+                session_snap.and_then(|s| s.last_terminal_turn_id.clone()),
             )
         }
-        None => (vec![], vec![], SessionTurnState::Idle, 0),
+        None => (vec![], vec![], SessionTurnState::Idle, 0, None, None),
     };
 
     // --- 4. Resolve thread content ---
@@ -245,6 +260,8 @@ pub async fn assemble_session_open_result(
         interactions,
         turn_state,
         message_count,
+        active_turn_failure,
+        last_terminal_turn_id,
     }))
 }
 
@@ -294,6 +311,8 @@ pub async fn session_open_result_for_new_session(
         interactions: vec![],
         turn_state: SessionTurnState::Idle,
         message_count: 0,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
     }))
 }
 

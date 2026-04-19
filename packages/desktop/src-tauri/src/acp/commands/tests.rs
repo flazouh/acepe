@@ -1,12 +1,19 @@
 use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
+use crate::acp::client_session::default_session_model_state;
 use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::commands::session_commands::{
-    persist_session_metadata_for_cwd, resolve_requested_agent_id, session_metadata_context_from_cwd,
+    build_live_session_state_envelopes, persist_session_metadata_for_cwd,
+    resolve_requested_agent_id, session_metadata_context_from_cwd,
 };
 use crate::acp::error::{AcpError, AcpResult};
+use crate::acp::session_state_engine::{
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
+    SessionGraphRevision, SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
+};
+use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
 use crate::db::repository::SessionMetadataRepository;
@@ -367,6 +374,166 @@ async fn resume_or_create_builds_client_when_missing() {
     assert_eq!(created_state.resume_calls.load(Ordering::SeqCst), 1);
     assert_eq!(created_state.load_calls.load(Ordering::SeqCst), 0);
     assert!(session_registry.contains(&session_id));
+}
+
+#[test]
+fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
+    let graph = SessionStateGraph {
+        requested_session_id: "requested-1".to_string(),
+        canonical_session_id: "canonical-1".to_string(),
+        is_alias: false,
+        agent_id: CanonicalAgentId::Cursor,
+        project_path: "/workspace/a".to_string(),
+        worktree_path: None,
+        source_path: None,
+        revision: SessionGraphRevision::new(3, 11),
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 3,
+            entries: Vec::new(),
+        },
+        operations: Vec::new(),
+        interactions: Vec::new(),
+        turn_state: crate::acp::projections::SessionTurnState::Idle,
+        message_count: 0,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+        lifecycle: SessionGraphLifecycle {
+            status: SessionGraphLifecycleStatus::Ready,
+            error_message: None,
+            can_reconnect: true,
+        },
+        capabilities: SessionGraphCapabilities::empty(),
+    };
+
+    let envelope = SessionStateEnvelope {
+        session_id: "canonical-1".to_string(),
+        graph_revision: graph.revision.graph_revision,
+        last_event_seq: graph.revision.last_event_seq,
+        payload: SessionStatePayload::Snapshot {
+            graph: graph.clone(),
+        },
+    };
+
+    assert_eq!(envelope.session_id, "canonical-1");
+    assert_eq!(envelope.graph_revision, 3);
+    assert_eq!(envelope.last_event_seq, 11);
+    match envelope.payload {
+        SessionStatePayload::Snapshot {
+            graph: payload_graph,
+        } => {
+            assert_eq!(
+                payload_graph.canonical_session_id,
+                graph.canonical_session_id
+            );
+            assert_eq!(
+                payload_graph.revision.graph_revision,
+                graph.revision.graph_revision
+            );
+        }
+        _ => panic!("expected snapshot payload"),
+    }
+}
+
+#[test]
+fn connection_complete_builds_graph_native_capabilities_and_lifecycle_envelopes() {
+    let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
+        session_id: "session-1".to_string(),
+        attempt_id: 42,
+        models: SessionModelState {
+            available_models: vec![AvailableModel {
+                model_id: "gpt-5".to_string(),
+                name: "GPT-5".to_string(),
+                description: None,
+            }],
+            current_model_id: "gpt-5".to_string(),
+            ..default_session_model_state()
+        },
+        modes: SessionModes {
+            current_mode_id: "plan".to_string(),
+            available_modes: vec![crate::acp::client::AvailableMode {
+                id: "plan".to_string(),
+                name: "Plan".to_string(),
+                description: None,
+            }],
+        },
+        available_commands: vec![crate::acp::session_update::AvailableCommand {
+            name: "edit".to_string(),
+            description: "Edit files".to_string(),
+            input: None,
+        }],
+        config_options: vec![crate::acp::session_update::ConfigOptionData {
+            id: "sandbox".to_string(),
+            name: "sandbox".to_string(),
+            category: "runtime".to_string(),
+            option_type: "string".to_string(),
+            description: None,
+            current_value: Some(json!("workspace-write")),
+            options: Vec::new(),
+        }],
+        autonomous_enabled: false,
+    };
+
+    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(7, 7));
+
+    assert_eq!(envelopes.len(), 2);
+    match &envelopes[0].payload {
+        SessionStatePayload::Capabilities {
+            capabilities,
+            revision,
+        } => {
+            assert_eq!(revision.graph_revision, 7);
+            assert_eq!(
+                capabilities
+                    .models
+                    .as_ref()
+                    .expect("models")
+                    .current_model_id,
+                "gpt-5"
+            );
+            assert_eq!(capabilities.available_commands.len(), 1);
+            assert_eq!(capabilities.config_options.len(), 1);
+        }
+        payload => panic!("expected capabilities payload, got {payload:?}"),
+    }
+    match &envelopes[1].payload {
+        SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        } => {
+            assert_eq!(revision.last_event_seq, 7);
+            assert_eq!(lifecycle.status, SessionGraphLifecycleStatus::Ready);
+            assert_eq!(lifecycle.error_message, None);
+        }
+        payload => panic!("expected lifecycle payload, got {payload:?}"),
+    }
+}
+
+#[test]
+fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
+    let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+        session_id: "session-1".to_string(),
+        attempt_id: 42,
+        error: "connection dropped".to_string(),
+    };
+
+    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(9, 9));
+
+    assert_eq!(envelopes.len(), 1);
+    match &envelopes[0].payload {
+        SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        } => {
+            assert_eq!(revision.graph_revision, 9);
+            assert_eq!(lifecycle.status, SessionGraphLifecycleStatus::Error);
+            assert_eq!(
+                lifecycle.error_message.as_deref(),
+                Some("connection dropped")
+            );
+            assert!(lifecycle.can_reconnect);
+        }
+        payload => panic!("expected lifecycle payload, got {payload:?}"),
+    }
 }
 
 #[tokio::test]

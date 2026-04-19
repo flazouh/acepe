@@ -1147,7 +1147,7 @@ mod parse_tool_call_from_acp {
                 "id": "tool-2",
                 "name": "Read SKILL.md",
                 "input": {
-                    "command": ["/bin/zsh", "-lc", "cat /Users/example/.codex/skills/using-superpowers/SKILL.md"]
+                    "command": ["/bin/zsh", "-lc", "cat /Users/example/.codex/skills/agent-browser/SKILL.md"]
                 }
             });
 
@@ -1160,10 +1160,7 @@ mod parse_tool_call_from_acp {
                 ToolArguments::Execute { command } => {
                     assert_eq!(
                         command,
-                        Some(
-                            "cat /Users/example/.codex/skills/using-superpowers/SKILL.md"
-                                .to_string()
-                        )
+                        Some("cat /Users/example/.codex/skills/agent-browser/SKILL.md".to_string())
                     );
                 }
                 _ => panic!("Expected execute tool arguments"),
@@ -1181,7 +1178,7 @@ mod parse_tool_call_from_acp {
                 "input": {
                     "arguments": {
                         "server": "filesystem",
-                        "uri": "file:///Users/example/.codex/skills/using-superpowers/SKILL.md"
+                        "uri": "file:///Users/example/.codex/skills/agent-browser/SKILL.md"
                     },
                     "server": "filesystem",
                     "tool": "read_mcp_resource"
@@ -1197,7 +1194,7 @@ mod parse_tool_call_from_acp {
                 ToolArguments::Read { file_path, .. } => {
                     assert_eq!(
                         file_path,
-                        Some("/Users/example/.codex/skills/using-superpowers/SKILL.md".to_string())
+                        Some("/Users/example/.codex/skills/agent-browser/SKILL.md".to_string())
                     );
                 }
                 _ => panic!("Expected read tool arguments"),
@@ -1761,7 +1758,7 @@ mod parse_tool_call_from_acp {
                 }
             },
             "rawInput": {
-                "name": "using-superpowers",
+                "name": "agent-browser",
                 "args": "focus=high"
             },
             "status": "pending"
@@ -1776,7 +1773,7 @@ mod parse_tool_call_from_acp {
             ToolArguments::Think {
                 skill, skill_args, ..
             } => {
-                assert_eq!(skill.as_deref(), Some("using-superpowers"));
+                assert_eq!(skill.as_deref(), Some("agent-browser"));
                 assert_eq!(skill_args.as_deref(), Some("focus=high"));
             }
             other => panic!("Expected Think arguments for skill tool, got {:?}", other),
@@ -1793,7 +1790,7 @@ mod parse_tool_call_from_acp {
                 }
             },
             "rawInput": {
-                "skill": "using-superpowers",
+                "skill": "agent-browser",
                 "skill_args": "focus=high"
             },
             "status": "pending"
@@ -1808,7 +1805,7 @@ mod parse_tool_call_from_acp {
             ToolArguments::Think {
                 skill, skill_args, ..
             } => {
-                assert_eq!(skill.as_deref(), Some("using-superpowers"));
+                assert_eq!(skill.as_deref(), Some("agent-browser"));
                 assert_eq!(skill_args.as_deref(), Some("focus=high"));
             }
             other => panic!("Expected Think arguments for skill tool, got {:?}", other),
@@ -1825,7 +1822,7 @@ mod parse_tool_call_from_acp {
                 }
             },
             "rawInput": {
-                "name": "using-superpowers",
+                "name": "agent-browser",
                 "args": { "mode": "quick", "count": 2 }
             },
             "status": "pending"

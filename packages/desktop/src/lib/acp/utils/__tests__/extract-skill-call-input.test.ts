@@ -11,12 +11,12 @@ describe("extractSkillCallInput", () => {
 			skill: null,
 			skill_args: null,
 			raw: {
-				name: "using-superpowers",
+				name: "agent-browser",
 			},
 		};
 
 		const result = extractSkillCallInput(args);
-		expect(result.skill).toBe("using-superpowers");
+		expect(result.skill).toBe("agent-browser");
 		expect(result.args).toBeNull();
 	});
 
@@ -26,7 +26,7 @@ describe("extractSkillCallInput", () => {
 			skill: "fallback-skill",
 			skill_args: "fallback-args",
 			raw: {
-				name: "using-superpowers",
+				name: "agent-browser",
 				args: {
 					mode: "quick",
 					count: 2,
@@ -35,7 +35,7 @@ describe("extractSkillCallInput", () => {
 		};
 
 		const result = extractSkillCallInput(args);
-		expect(result.skill).toBe("using-superpowers");
+		expect(result.skill).toBe("agent-browser");
 		expect(result.args).toBe('{"mode":"quick","count":2}');
 	});
 

@@ -1,20 +1,29 @@
 use super::*;
-use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
-    ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput,
+    ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput, SessionReplayContext,
 };
 use crate::acp::session_journal::load_stored_projection;
-use crate::acp::session_open_snapshot::{session_open_result_for_new_session, SessionOpenResult};
+use crate::acp::session_open_snapshot::{
+    resolve_canonical_session_title, session_open_result_for_new_session, SessionOpenFound,
+    SessionOpenResult,
+};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::redact_session_id;
-use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptProjectionRegistry, TranscriptSnapshot,
+use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
+use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
+use crate::acp::session_state_engine::protocol::SessionStatePayload;
+use crate::acp::session_state_engine::revision::SessionGraphRevision;
+use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
+use crate::acp::session_state_engine::selectors::{
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
 };
+use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
     SessionTranscriptSnapshotRepository,
 };
 use sea_orm::DbConn;
@@ -165,18 +174,16 @@ async fn build_new_session_open_result(
         .unwrap_or_else(|| fallback_agent_id.clone());
     let project_path = descriptor.project_path.unwrap_or_default();
 
-    Ok(
-        session_open_result_for_new_session(
-            db.inner(),
-            hub.inner(),
-            session_id,
-            agent_id,
-            project_path,
-            descriptor.worktree_path,
-            descriptor.source_path,
-        )
-        .await,
+    Ok(session_open_result_for_new_session(
+        db.inner(),
+        hub.inner(),
+        session_id,
+        agent_id,
+        project_path,
+        descriptor.worktree_path,
+        descriptor.source_path,
     )
+    .await)
 }
 
 /// Initialize the ACP connection.
@@ -248,19 +255,128 @@ pub async fn acp_set_session_autonomous(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn acp_get_session_projection(
+pub async fn acp_get_session_state(
     app: AppHandle,
     session_id: String,
-) -> CommandResult<SessionProjectionSnapshot> {
-    expected_acp_command_result("acp_get_session_projection", async {
-    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
-    let runtime_projection = projection_registry.session_projection(&session_id);
-    if projection_has_runtime_state(&runtime_projection) {
-        return Ok(runtime_projection);
-    }
+) -> CommandResult<SessionStateEnvelope> {
+    expected_acp_command_result("acp_get_session_state", async {
+        let lookup = load_session_projection_lookup(&app, &session_id).await?;
+        let db = app.state::<DbConn>();
+        let transcript_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+        let canonical_session_id = lookup
+            .replay_context
+            .as_ref()
+            .map(|context| context.local_session_id.clone())
+            .unwrap_or_else(|| session_id.clone());
+        let canonical_metadata = if canonical_session_id == session_id {
+            lookup.metadata.clone()
+        } else {
+            SessionMetadataRepository::get_by_id(db.inner(), &canonical_session_id)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to load session metadata for state lookup {canonical_session_id}: {error}"
+                    ),
+                })?
+        };
+        let descriptor = canonical_metadata.as_ref().map(SessionMetadataRow::descriptor_facts);
+        let SessionProjectionSnapshot {
+            session,
+            operations,
+            interactions,
+        } = lookup.projection;
+        let projection_session = session.as_ref();
+        let last_event_seq = projection_session
+            .map(|session| session.last_event_seq)
+            .unwrap_or(0);
+        let transcript_snapshot = transcript_registry
+            .snapshot_for_session(&canonical_session_id)
+            .or_else(|| transcript_registry.snapshot_for_session(&session_id))
+            .or(
+                SessionTranscriptSnapshotRepository::get(db.inner(), &canonical_session_id)
+                    .await
+                    .map_err(|error| SerializableAcpError::InvalidState {
+                        message: format!(
+                            "Failed to load transcript snapshot for state lookup {canonical_session_id}: {error}"
+                        ),
+                    })?,
+            )
+            .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
+        let agent_id = lookup
+            .replay_context
+            .as_ref()
+            .map(|context| context.agent_id.clone())
+            .or_else(|| descriptor.as_ref().and_then(|facts| facts.agent_id.clone()))
+            .or_else(|| projection_session.and_then(|session| session.agent_id.clone()))
+            .unwrap_or(CanonicalAgentId::ClaudeCode);
+        let project_path = lookup
+            .replay_context
+            .as_ref()
+            .map(|context| context.project_path.clone())
+            .or_else(|| descriptor.as_ref().and_then(|facts| facts.project_path.clone()))
+            .unwrap_or_default();
+        let worktree_path = lookup
+            .replay_context
+            .as_ref()
+            .and_then(|context| context.worktree_path.clone())
+            .or_else(|| descriptor.as_ref().and_then(|facts| facts.worktree_path.clone()));
+        let source_path = lookup
+            .replay_context
+            .as_ref()
+            .and_then(|context| context.source_path.clone())
+            .or_else(|| descriptor.as_ref().and_then(|facts| facts.source_path.clone()));
+        let found = SessionOpenFound {
+            requested_session_id: session_id.clone(),
+            canonical_session_id: canonical_session_id.clone(),
+            is_alias: session_id != canonical_session_id,
+            last_event_seq,
+            open_token: String::new(),
+            agent_id,
+            project_path,
+            worktree_path,
+            source_path,
+            transcript_snapshot,
+            session_title: resolve_canonical_session_title(
+                canonical_metadata.as_ref(),
+                &canonical_session_id,
+            ),
+            operations,
+            interactions,
+            turn_state: projection_session
+                .map(|session| session.turn_state.clone())
+                .unwrap_or(crate::acp::projections::SessionTurnState::Idle),
+            message_count: projection_session
+                .map(|session| session.message_count)
+                .unwrap_or(0),
+            active_turn_failure: projection_session.and_then(|session| session.active_turn_failure.clone()),
+            last_terminal_turn_id: projection_session
+                .and_then(|session| session.last_terminal_turn_id.clone()),
+        };
 
+        Ok(build_snapshot_envelope(
+            &found,
+            SessionGraphLifecycle::idle(),
+            SessionGraphCapabilities::empty(),
+        ))
+    }
+    .await)
+}
+
+#[derive(Debug, Clone)]
+struct SessionProjectionLookup {
+    projection: SessionProjectionSnapshot,
+    metadata: Option<SessionMetadataRow>,
+    replay_context: Option<SessionReplayContext>,
+}
+
+async fn load_session_projection_lookup(
+    app: &AppHandle,
+    session_id: &str,
+) -> Result<SessionProjectionLookup, SerializableAcpError> {
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let runtime_projection = projection_registry.session_projection(session_id);
     let db = app.state::<DbConn>();
-    let metadata = SessionMetadataRepository::get_by_id(db.inner(), &session_id)
+    let metadata = SessionMetadataRepository::get_by_id(db.inner(), session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
@@ -271,7 +387,7 @@ pub async fn acp_get_session_projection(
         .as_ref()
         .map(|row| {
             SessionMetadataRepository::resolve_existing_session_replay_context_from_metadata(
-                &session_id,
+                session_id,
                 Some(row),
                 SessionCompatibilityInput::default(),
             )
@@ -280,6 +396,15 @@ pub async fn acp_get_session_projection(
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!("Failed to resolve replay context for session {session_id}: {error}"),
         })?;
+
+    if projection_has_runtime_state(&runtime_projection) {
+        return Ok(SessionProjectionLookup {
+            projection: runtime_projection,
+            metadata,
+            replay_context,
+        });
+    }
+
     let stored_projection = if let Some(replay_context) = replay_context.as_ref() {
         load_stored_projection(db.inner(), replay_context)
             .await
@@ -292,32 +417,19 @@ pub async fn acp_get_session_projection(
         None
     };
     if let Some(stored_projection) = stored_projection {
-        if projection_has_runtime_state(&stored_projection) {
-            SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &stored_projection)
-                .await
-                .map_err(|error| SerializableAcpError::InvalidState {
-                    message: format!(
-                        "Failed to persist journal-backed session projection for session {session_id}: {error}"
-                    ),
-                })?;
-        }
-        return Ok(stored_projection);
+        return Ok(SessionProjectionLookup {
+            projection: stored_projection,
+            metadata,
+            replay_context,
+        });
     }
 
-    if let Some(persisted_projection) =
-        SessionProjectionSnapshotRepository::get(db.inner(), &session_id)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to load persisted session projection for session {session_id}: {error}"
-                ),
-            })?
-    {
-        return Ok(persisted_projection);
-    }
-
-    let Some(_metadata) = metadata else {
-        return Ok(runtime_projection);
+    let Some(_metadata) = metadata.as_ref() else {
+        return Ok(SessionProjectionLookup {
+            projection: runtime_projection,
+            metadata,
+            replay_context,
+        });
     };
 
     let imported_thread_snapshot =
@@ -335,11 +447,15 @@ pub async fn acp_get_session_projection(
         })?;
 
     let Some(imported_thread_snapshot) = imported_thread_snapshot else {
-        return Ok(runtime_projection);
+        return Ok(SessionProjectionLookup {
+            projection: runtime_projection,
+            metadata,
+            replay_context,
+        });
     };
 
     let imported_projection = ProjectionRegistry::project_thread_snapshot(
-        &session_id,
+        session_id,
         Some(
             replay_context
                 .as_ref()
@@ -350,19 +466,11 @@ pub async fn acp_get_session_projection(
         &imported_thread_snapshot,
     );
 
-    if projection_has_runtime_state(&imported_projection) {
-        SessionProjectionSnapshotRepository::set(db.inner(), &session_id, &imported_projection)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to persist imported projection snapshot for session {session_id}: {error}"
-                ),
-            })?;
-    }
-
-    Ok(imported_projection)
-    }
-    .await)
+    Ok(SessionProjectionLookup {
+        projection: imported_projection,
+        metadata,
+        replay_context,
+    })
 }
 
 /// Create a new ACP session.
@@ -548,7 +656,7 @@ pub async fn acp_resume_session(
                         config_options: response.config_options,
                         autonomous_enabled,
                     };
-                    emit_lifecycle_event(&hub, update, &session_id);
+                    emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::info!(
                         session_id = %session_id,
                         attempt_id,
@@ -561,7 +669,7 @@ pub async fn acp_resume_session(
                         attempt_id,
                         error: error.to_string(),
                     };
-                    emit_lifecycle_event(&hub, update, &session_id);
+                    emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::error!(
                         session_id = %session_id,
                         attempt_id,
@@ -578,7 +686,7 @@ pub async fn acp_resume_session(
                             RESUME_SESSION_TIMEOUT.as_secs()
                         ),
                     };
-                    emit_lifecycle_event(&hub, update, &session_id);
+                    emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::error!(
                         session_id = %session_id,
                         attempt_id,
@@ -607,7 +715,7 @@ pub async fn acp_resume_session(
                     attempt_id,
                     error: format!("Internal error: resume task panicked: {join_error}"),
                 };
-                emit_lifecycle_event(&hub, update, &session_id_panic);
+                emit_lifecycle_event(&app_panic, &hub, update, &session_id_panic).await;
             }
         });
 
@@ -617,7 +725,8 @@ pub async fn acp_resume_session(
 }
 
 /// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
-fn emit_lifecycle_event(
+async fn emit_lifecycle_event(
+    app: &AppHandle,
     hub: &Option<Arc<AcpEventHubState>>,
     update: crate::acp::session_update::SessionUpdate,
     session_id: &str,
@@ -626,30 +735,189 @@ fn emit_lifecycle_event(
         tracing::warn!(session_id = %session_id, "Event hub unavailable, lifecycle event dropped");
         return;
     };
-    let event = crate::acp::ui_event_dispatcher::AcpUiEvent::session_update(update);
+    if let Some(runtime_registry) = app.try_state::<Arc<SessionGraphRuntimeRegistry>>() {
+        runtime_registry
+            .inner()
+            .apply_session_update(session_id, &update);
+    }
+    let session_state_envelopes =
+        build_live_session_state_envelopes(&update, revision_placeholder());
+    let event = crate::acp::ui_event_dispatcher::AcpUiEvent::session_update(update.clone());
     if let Err(err) = event.publish_direct(hub) {
         tracing::error!(session_id = %session_id, error = %err, "Failed to publish lifecycle event");
     }
+
+    let revision =
+        match load_live_session_graph_revision(app.state::<DbConn>().inner(), session_id).await {
+            Ok(revision) => revision,
+            Err(error) => {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Failed to determine live session graph revision for lifecycle envelope"
+                );
+                return;
+            }
+        };
+    for envelope in session_state_envelopes
+        .into_iter()
+        .map(|envelope| rewrite_session_state_revision(envelope, revision))
+    {
+        publish_session_state_envelope(hub, envelope);
+    }
 }
 
-fn replay_buffered_transcript_events(
-    hub: &AcpEventHubState,
-    transcript_projection_registry: &TranscriptProjectionRegistry,
+async fn load_live_session_graph_revision(
+    db: &DbConn,
     session_id: &str,
+) -> Result<SessionGraphRevision, SerializableAcpError> {
+    let last_event_seq = SessionJournalEventRepository::max_event_seq(db, session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to determine live session graph revision for session {session_id}: {error}"
+            ),
+        })?
+        .unwrap_or(0);
+    Ok(SessionGraphRevision::new(last_event_seq, last_event_seq))
+}
+
+pub(crate) fn build_live_session_state_envelopes(
+    update: &crate::acp::session_update::SessionUpdate,
+    revision: SessionGraphRevision,
+) -> Vec<SessionStateEnvelope> {
+    match update {
+        crate::acp::session_update::SessionUpdate::ConnectionComplete {
+            session_id,
+            models,
+            modes,
+            available_commands,
+            config_options,
+            ..
+        } => {
+            let capabilities = SessionGraphCapabilities {
+                models: Some(models.clone()),
+                modes: Some(modes.clone()),
+                available_commands: available_commands.clone(),
+                config_options: config_options.clone(),
+            };
+            vec![
+                SessionStateEnvelope {
+                    session_id: session_id.clone(),
+                    graph_revision: revision.graph_revision,
+                    last_event_seq: revision.last_event_seq,
+                    payload: SessionStatePayload::Capabilities {
+                        capabilities,
+                        revision,
+                    },
+                },
+                SessionStateEnvelope {
+                    session_id: session_id.clone(),
+                    graph_revision: revision.graph_revision,
+                    last_event_seq: revision.last_event_seq,
+                    payload: SessionStatePayload::Lifecycle {
+                        lifecycle: SessionGraphLifecycle {
+                            status: SessionGraphLifecycleStatus::Ready,
+                            error_message: None,
+                            can_reconnect: true,
+                        },
+                        revision,
+                    },
+                },
+            ]
+        }
+        crate::acp::session_update::SessionUpdate::ConnectionFailed {
+            session_id, error, ..
+        } => vec![SessionStateEnvelope {
+            session_id: session_id.clone(),
+            graph_revision: revision.graph_revision,
+            last_event_seq: revision.last_event_seq,
+            payload: SessionStatePayload::Lifecycle {
+                lifecycle: SessionGraphLifecycle {
+                    status: SessionGraphLifecycleStatus::Error,
+                    error_message: Some(error.clone()),
+                    can_reconnect: true,
+                },
+                revision,
+            },
+        }],
+        _ => Vec::new(),
+    }
+}
+
+const fn revision_placeholder() -> SessionGraphRevision {
+    SessionGraphRevision::new(0, 0)
+}
+
+fn rewrite_session_state_revision(
+    mut envelope: SessionStateEnvelope,
+    revision: SessionGraphRevision,
+) -> SessionStateEnvelope {
+    envelope.graph_revision = revision.graph_revision;
+    envelope.last_event_seq = revision.last_event_seq;
+    envelope.payload = match envelope.payload {
+        SessionStatePayload::Capabilities { capabilities, .. } => {
+            SessionStatePayload::Capabilities {
+                capabilities,
+                revision,
+            }
+        }
+        SessionStatePayload::Lifecycle { lifecycle, .. } => SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        },
+        payload => payload,
+    };
+    envelope
+}
+
+fn publish_session_state_envelope(hub: &Arc<AcpEventHubState>, envelope: SessionStateEnvelope) {
+    let session_state_payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
+        tracing::error!(
+            %error,
+            session_id = %envelope.session_id,
+            graph_revision = envelope.graph_revision,
+            last_event_seq = envelope.last_event_seq,
+            "Failed to serialize ACP session state envelope"
+        );
+        Value::Null
+    });
+    let session_state_event = crate::acp::ui_event_dispatcher::AcpUiEvent::json_event(
+        "acp-session-state",
+        session_state_payload,
+        Some(envelope.session_id.clone()),
+        crate::acp::ui_event_dispatcher::AcpUiEventPriority::Normal,
+        false,
+    );
+    if let Err(error) = session_state_event.publish_direct(hub) {
+        tracing::error!(
+            error = %error,
+            session_id = %envelope.session_id,
+            graph_revision = envelope.graph_revision,
+            last_event_seq = envelope.last_event_seq,
+            "Failed to publish direct ACP session state envelope"
+        );
+    }
+}
+
+fn replay_buffered_session_state_events(
+    hub: &AcpEventHubState,
+    session_id: &str,
+    frontier_last_event_seq: i64,
     buffered_events: Vec<crate::acp::event_hub::AcpEventEnvelope>,
 ) {
     let replayable = buffered_events
         .into_iter()
-        .filter(|event| event.event_name == "acp-transcript-delta")
+        .filter(|event| event.event_name == "acp-session-state")
         .filter(|event| event.session_id.as_deref() == Some(session_id))
+        .filter(|event| {
+            serde_json::from_value::<SessionStateEnvelope>(event.payload.clone())
+                .map(|envelope| envelope.last_event_seq > frontier_last_event_seq)
+                .unwrap_or(false)
+        })
         .collect::<Vec<_>>();
     if replayable.is_empty() {
         return;
-    }
-    for event in &replayable {
-        if let Ok(delta) = serde_json::from_value::<TranscriptDelta>(event.payload.clone()) {
-            let _ = transcript_projection_registry.apply_delta(&delta);
-        }
     }
     hub.replay_buffered_events(replayable);
 }
@@ -802,20 +1070,18 @@ async fn async_resume_session_work(
 
     if let Some(open_token) = parsed_open_token {
         let hub = app.state::<Arc<AcpEventHubState>>();
-        let buffered_events = if let Some(events) =
-            hub.claim_reservation_for_session(open_token, session_id)
-        {
-            events
+        let claim = if let Some(claim) = hub.claim_reservation_for_session(open_token, session_id) {
+            claim
         } else {
             return Err(SerializableAcpError::InvalidState {
                 message: format!("Session open token is no longer valid for session {session_id}"),
             });
         };
-        replay_buffered_transcript_events(
+        replay_buffered_session_state_events(
             hub.inner(),
-            transcript_projection_registry.inner().as_ref(),
             session_id,
-            buffered_events,
+            claim.last_event_seq,
+            claim.buffered_events,
         );
     }
 
@@ -837,78 +1103,92 @@ async fn async_resume_session_work(
 
 #[cfg(test)]
 mod transcript_buffer_tests {
-    use super::replay_buffered_transcript_events;
+    use super::replay_buffered_session_state_events;
     use crate::acp::event_hub::{AcpEventEnvelope, AcpEventHubState};
-    use crate::acp::transcript_projection::{
-        TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
-        TranscriptProjectionRegistry, TranscriptSegment,
-    };
+    use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
+    use crate::acp::session_state_engine::revision::SessionGraphRevision;
+    use crate::acp::session_state_engine::SessionStateEnvelope;
     use serde_json::{json, to_value};
 
     #[test]
-    fn replay_buffered_transcript_events_replays_only_matching_transcript_deltas() {
+    fn replay_buffered_session_state_events_replays_only_matching_post_frontier_envelopes() {
         let hub = AcpEventHubState::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let mut receiver = hub.subscribe();
 
-        replay_buffered_transcript_events(
+        replay_buffered_session_state_events(
             &hub,
-            &transcript_projection_registry,
             "session-1",
+            7,
             vec![
                 AcpEventEnvelope {
                     seq: 7,
-                    event_name: "acp-transcript-delta".to_string(),
+                    event_name: "acp-session-state".to_string(),
                     session_id: Some("session-1".to_string()),
-                    payload: to_value(TranscriptDelta {
-                        event_seq: 7,
+                    payload: to_value(SessionStateEnvelope {
                         session_id: "session-1".to_string(),
-                        snapshot_revision: 7,
-                        operations: vec![TranscriptDeltaOperation::AppendEntry {
-                            entry: TranscriptEntry {
-                                entry_id: "assistant-1".to_string(),
-                                role: TranscriptEntryRole::Assistant,
-                                segments: vec![TranscriptSegment::Text {
-                                    segment_id: "assistant-1:segment:7".to_string(),
-                                    text: "hello".to_string(),
-                                }],
+                        graph_revision: 7,
+                        last_event_seq: 7,
+                        payload: SessionStatePayload::Delta {
+                            delta: SessionStateDelta {
+                                from_revision: SessionGraphRevision::new(6, 6),
+                                to_revision: SessionGraphRevision::new(7, 7),
+                                transcript_operations: vec![],
+                                changed_fields: vec!["transcriptSnapshot".to_string()],
                             },
-                        }],
+                        },
                     })
-                    .expect("serialize delta"),
+                    .expect("serialize envelope"),
                     priority: "normal".to_string(),
                     droppable: false,
                     emitted_at_ms: 1,
                 },
                 AcpEventEnvelope {
                     seq: 8,
+                    event_name: "acp-session-state".to_string(),
+                    session_id: Some("session-1".to_string()),
+                    payload: to_value(SessionStateEnvelope {
+                        session_id: "session-1".to_string(),
+                        graph_revision: 8,
+                        last_event_seq: 8,
+                        payload: SessionStatePayload::Delta {
+                            delta: SessionStateDelta {
+                                from_revision: SessionGraphRevision::new(7, 7),
+                                to_revision: SessionGraphRevision::new(8, 8),
+                                transcript_operations: vec![],
+                                changed_fields: vec!["transcriptSnapshot".to_string()],
+                            },
+                        },
+                    })
+                    .expect("serialize envelope"),
+                    priority: "normal".to_string(),
+                    droppable: false,
+                    emitted_at_ms: 2,
+                },
+                AcpEventEnvelope {
+                    seq: 9,
                     event_name: "acp-session-update".to_string(),
                     session_id: Some("session-1".to_string()),
                     payload: json!({ "type": "agentMessageChunk" }),
                     priority: "normal".to_string(),
                     droppable: true,
-                    emitted_at_ms: 2,
+                    emitted_at_ms: 3,
                 },
                 AcpEventEnvelope {
-                    seq: 9,
-                    event_name: "acp-transcript-delta".to_string(),
+                    seq: 10,
+                    event_name: "acp-session-state".to_string(),
                     session_id: Some("session-2".to_string()),
-                    payload: json!({ "eventSeq": 9 }),
+                    payload: json!({ "lastEventSeq": 9 }),
                     priority: "normal".to_string(),
                     droppable: false,
-                    emitted_at_ms: 3,
+                    emitted_at_ms: 4,
                 },
             ],
         );
 
         let replayed = receiver
             .try_recv()
-            .expect("matching transcript delta should replay");
-        assert_eq!(replayed.seq, 7);
-        let runtime_snapshot = transcript_projection_registry
-            .snapshot_for_session("session-1")
-            .expect("runtime snapshot");
-        assert_eq!(runtime_snapshot.entries.len(), 1);
+            .expect("matching post-frontier envelope should replay");
+        assert_eq!(replayed.seq, 8);
         assert!(
             receiver.try_recv().is_err(),
             "non-matching events must not replay"
@@ -1040,19 +1320,7 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
             // Clean up streaming accumulator state for this session
             crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
             let runtime_projection = projection_registry.session_projection(&session_id);
-            if projection_has_runtime_state(&runtime_projection) {
-                SessionProjectionSnapshotRepository::set(
-                    db.inner(),
-                    &session_id,
-                    &runtime_projection,
-                )
-                .await
-                .map_err(|error| SerializableAcpError::InvalidState {
-                    message: format!(
-                        "Failed to persist projection snapshot for session {session_id}: {error}"
-                    ),
-                })?;
-            }
+            let _ = runtime_projection;
             projection_registry.remove_session(&session_id);
             if let Some(transcript_snapshot) =
                 transcript_projection_registry.snapshot_for_session(&session_id)
@@ -1091,10 +1359,7 @@ mod tests {
         resolve_resume_session_target,
     };
     use crate::acp::error::SerializableAcpError;
-    use crate::acp::projections::{
-        InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
-        SessionSnapshot, SessionTurnState,
-    };
+    use crate::acp::projections::{InteractionResponse, InteractionState};
     use crate::acp::registry::AgentRegistry;
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
@@ -1106,7 +1371,7 @@ mod tests {
     use crate::db::migrations::Migrator;
     use crate::db::repository::{
         SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+        SessionTranscriptSnapshotRepository,
     };
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
@@ -1137,7 +1402,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_stored_projection_prefers_journal_over_stale_snapshot() {
+    async fn load_stored_projection_rebuilds_from_journal_events() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -1152,52 +1417,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        let stale_snapshot = SessionProjectionSnapshot {
-            session: Some(SessionSnapshot {
-                session_id: "session-priority".to_string(),
-                agent_id: Some(CanonicalAgentId::ClaudeCode),
-                last_event_seq: 1,
-                turn_state: SessionTurnState::Completed,
-                message_count: 0,
-                last_agent_message_id: None,
-                active_tool_call_ids: vec![],
-                completed_tool_call_ids: vec![],
-                active_turn_failure: None,
-                last_terminal_turn_id: None,
-            }),
-            operations: vec![],
-            interactions: vec![InteractionSnapshot {
-                id: "permission-1".to_string(),
-                session_id: "session-priority".to_string(),
-                kind: crate::acp::projections::InteractionKind::Permission,
-                state: InteractionState::Pending,
-                json_rpc_request_id: Some(7),
-                reply_handler: Some(
-                    crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                ),
-                tool_reference: None,
-                responded_at_event_seq: None,
-                response: None,
-                payload: crate::acp::projections::InteractionPayload::Permission(PermissionData {
-                    id: "permission-1".to_string(),
-                    session_id: "session-priority".to_string(),
-                    json_rpc_request_id: Some(7),
-                    reply_handler: Some(
-                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                    ),
-                    permission: "Execute".to_string(),
-                    patterns: vec![],
-                    metadata: json!({ "command": "bun test" }),
-                    always: vec![],
-                    auto_accepted: false,
-                    tool: None,
-                }),
-            }],
-        };
-        SessionProjectionSnapshotRepository::set(&db, "session-priority", &stale_snapshot)
-            .await
-            .unwrap();
 
         let permission_update = SessionUpdate::PermissionRequest {
             permission: PermissionData {

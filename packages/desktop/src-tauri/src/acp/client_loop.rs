@@ -65,6 +65,7 @@ pub(crate) fn read_stderr_buffer(buffer: &StderrBuffer) -> Option<String> {
 async fn send_auto_response_and_emit_updates(
     stdin_writer: &StdArc<Mutex<Option<ChildStdin>>>,
     dispatcher: &AcpUiEventDispatcher,
+    is_replay_active: &StdArc<std::sync::atomic::AtomicBool>,
     id: u64,
     method: &str,
     result: Value,
@@ -88,12 +89,12 @@ async fn send_auto_response_and_emit_updates(
                 tool_call: synthetic_ctx.tool_call_data,
                 session_id: Some(session_id),
             };
-            dispatcher.enqueue(AcpUiEvent::session_update(synthetic));
+            enqueue_session_update(dispatcher, is_replay_active, synthetic);
         }
     }
 
     if let Some(interaction_update) = canonical_interaction {
-        dispatcher.enqueue(AcpUiEvent::session_update(interaction_update));
+        enqueue_session_update(dispatcher, is_replay_active, interaction_update);
     }
 
     tracing::debug!(
@@ -103,24 +104,58 @@ async fn send_auto_response_and_emit_updates(
     );
 }
 
+fn enqueue_session_update(
+    dispatcher: &AcpUiEventDispatcher,
+    is_replay_active: &StdArc<std::sync::atomic::AtomicBool>,
+    update: SessionUpdate,
+) {
+    if is_replay_active.load(std::sync::atomic::Ordering::Acquire) {
+        tracing::debug!(
+            session_id = update.session_id(),
+            "Dropping provider session update during replay"
+        );
+        return;
+    }
+
+    dispatcher.enqueue(AcpUiEvent::session_update(update));
+}
+
+fn enqueue_session_updates(
+    dispatcher: &AcpUiEventDispatcher,
+    is_replay_active: &StdArc<std::sync::atomic::AtomicBool>,
+    updates: impl IntoIterator<Item = SessionUpdate>,
+) {
+    for update in updates {
+        enqueue_session_update(dispatcher, is_replay_active, update);
+    }
+}
+
 /// Wrapper that flushes the StreamingDeltaBatcher on drop.
 /// Ensures buffered deltas are emitted even if the task panics or is cancelled.
 pub(crate) struct BatcherWithGuard {
     batcher: StreamingDeltaBatcher,
     dispatcher: AcpUiEventDispatcher,
+    is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
 }
 
 impl BatcherWithGuard {
-    fn new(dispatcher: AcpUiEventDispatcher) -> Self {
+    fn new(
+        dispatcher: AcpUiEventDispatcher,
+        is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         Self {
             batcher: StreamingDeltaBatcher::new(),
             dispatcher,
+            is_replay_active,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn new_for_tests(dispatcher: AcpUiEventDispatcher) -> Self {
-        Self::new(dispatcher)
+    pub(crate) fn new_for_tests(
+        dispatcher: AcpUiEventDispatcher,
+        is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
+        Self::new(dispatcher, is_replay_active)
     }
 
     pub(crate) fn process(&mut self, update: SessionUpdate) -> Vec<SessionUpdate> {
@@ -176,6 +211,7 @@ async fn drain_prompt_sessions_as_turn_errors(
     process_generation: u64,
     streaming_batcher: &mut BatcherWithGuard,
     dispatcher: &AcpUiEventDispatcher,
+    is_replay_active: &StdArc<std::sync::atomic::AtomicBool>,
     reason: &str,
 ) {
     let mut locked: tokio::sync::MutexGuard<'_, HashMap<u64, PromptRequestSession>> =
@@ -216,9 +252,7 @@ async fn drain_prompt_sessions_as_turn_errors(
             Some(request_id.to_string()),
             error,
         );
-        for update in updates {
-            dispatcher.enqueue(AcpUiEvent::session_update(update));
-        }
+        enqueue_session_updates(dispatcher, is_replay_active, updates);
     }
 }
 
@@ -227,9 +261,7 @@ impl Drop for BatcherWithGuard {
         let updates = self.batcher.flush_all();
         if !updates.is_empty() {
             tracing::info!(count = updates.len(), "BatcherWithGuard flushing on drop");
-            for update in updates {
-                self.dispatcher.enqueue(AcpUiEvent::session_update(update));
-            }
+            enqueue_session_updates(&self.dispatcher, &self.is_replay_active, updates);
         }
     }
 }
@@ -302,7 +334,8 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
-        let mut streaming_batcher = BatcherWithGuard::new(ctx.dispatcher.clone());
+        let mut streaming_batcher =
+            BatcherWithGuard::new(ctx.dispatcher.clone(), ctx.is_replay_active.clone());
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let message_id_tracker: StdArc<std::sync::Mutex<HashMap<String, String>>> =
@@ -348,8 +381,12 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 None => "Agent process exited unexpectedly".to_string(),
                             };
                             drain_prompt_sessions_as_turn_errors(
-                                &ctx.prompt_sessions, ctx.process_generation, &mut streaming_batcher, &ctx.dispatcher,
-                                &reason
+                                &ctx.prompt_sessions,
+                                ctx.process_generation,
+                                &mut streaming_batcher,
+                                &ctx.dispatcher,
+                                &ctx.is_replay_active,
+                                &reason,
                             ).await;
                             fail_pending_requests(&ctx.pending, ctx.process_generation, &reason).await;
                             drain_permissions_as_failed(&ctx.permission_tracker, &ctx.dispatcher);
@@ -368,7 +405,12 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             };
                             tracing::error!(error = %e, "Error reading from subprocess stdout");
                             drain_prompt_sessions_as_turn_errors(
-                                &ctx.prompt_sessions, ctx.process_generation, &mut streaming_batcher, &ctx.dispatcher, &reason
+                                &ctx.prompt_sessions,
+                                ctx.process_generation,
+                                &mut streaming_batcher,
+                                &ctx.dispatcher,
+                                &ctx.is_replay_active,
+                                &reason,
                             ).await;
                             fail_pending_requests(&ctx.pending, ctx.process_generation, &reason).await;
                             drain_permissions_as_failed(&ctx.permission_tracker, &ctx.dispatcher);
@@ -419,7 +461,11 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                             }
                                             for update in event.updates {
                                                 log_emitted_event(session_id_for_log, &update);
-                                                ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
+                                                enqueue_session_update(
+                                                    &ctx.dispatcher,
+                                                    &ctx.is_replay_active,
+                                                    update,
+                                                );
                                             }
                                             tracing::debug!(provider = %provider.id(), id = id, method = %method, "Normalized provider extension request in backend");
                                             continue;
@@ -462,6 +508,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                         send_auto_response_and_emit_updates(
                                             &ctx.stdin_writer,
                                             &ctx.dispatcher,
+                                            &ctx.is_replay_active,
                                             id,
                                             method,
                                             result,
@@ -517,7 +564,11 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                                     tool_call: synthetic_ctx.tool_call_data.clone(),
                                                     session_id: Some(sid.clone()),
                                                 };
-                                                ctx.dispatcher.enqueue(AcpUiEvent::session_update(synthetic));
+                                                enqueue_session_update(
+                                                    &ctx.dispatcher,
+                                                    &ctx.is_replay_active,
+                                                    synthetic,
+                                                );
 
                                                 match ctx.permission_tracker.lock() {
                                                     Ok(mut tracker) => {
@@ -534,7 +585,11 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                         }
 
                                         if let Some(interaction_update) = canonical_interaction {
-                                            ctx.dispatcher.enqueue(AcpUiEvent::session_update(interaction_update));
+                                            enqueue_session_update(
+                                                &ctx.dispatcher,
+                                                &ctx.is_replay_active,
+                                                interaction_update,
+                                            );
                                         }
 
                                         if let Some(session_id) = forwarded.session_id() {
@@ -592,9 +647,11 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                         )
                                     };
 
-                                    for update in updates {
-                                        ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-                                    }
+                                    enqueue_session_updates(
+                                        &ctx.dispatcher,
+                                        &ctx.is_replay_active,
+                                        updates,
+                                    );
                                 } else if let Some(entry) = ctx.pending.lock().await.remove(&id) {
                                     let _ = entry.sender.send(json);
                                 } else {
@@ -613,7 +670,11 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                         log_streaming_event(session_id_for_log, &json);
                                         for update in event.updates {
                                             log_emitted_event(session_id_for_log, &update);
-                                            ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
+                                            enqueue_session_update(
+                                                &ctx.dispatcher,
+                                                &ctx.is_replay_active,
+                                                update,
+                                            );
                                         }
                                         continue;
                                     }
@@ -650,15 +711,8 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     }
                                 }
                             }
-                            // Skip provider-owned notifications that should be hidden from
-                            // generic UI handling because a provider-specific adapter will
-                            // replace them with richer events.
-                            if ctx
-                                .provider
-                                .as_ref()
-                                .is_some_and(|provider| provider.should_suppress_notification(&json))
-                            {
-                                tracing::debug!("Suppressing provider-owned notification");
+                            if ctx.is_replay_active.load(std::sync::atomic::Ordering::Acquire) {
+                                tracing::debug!("Dropping provider notification during replay");
                                 continue;
                             }
 
@@ -693,11 +747,18 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 consecutive_parse_failures
                             );
                             tracing::error!(%reason, "Treating subprocess stdout as broken");
-                            for update in streaming_batcher.flush_all() {
-                                ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-                            }
+                            enqueue_session_updates(
+                                &ctx.dispatcher,
+                                &ctx.is_replay_active,
+                                streaming_batcher.flush_all(),
+                            );
                             drain_prompt_sessions_as_turn_errors(
-                                &ctx.prompt_sessions, ctx.process_generation, &mut streaming_batcher, &ctx.dispatcher, &reason
+                                &ctx.prompt_sessions,
+                                ctx.process_generation,
+                                &mut streaming_batcher,
+                                &ctx.dispatcher,
+                                &ctx.is_replay_active,
+                                &reason,
                             ).await;
                             fail_pending_requests(&ctx.pending, ctx.process_generation, &reason).await;
                             drain_permissions_as_failed(&ctx.permission_tracker, &ctx.dispatcher);
@@ -710,31 +771,35 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                 }
                 _ = tokio::time::sleep(non_streaming_flush_timeout), if non_streaming_batcher.has_pending() => {
                     tracing::debug!(count = non_streaming_batcher.pending_count(), "Flushing non-streaming updates on timer");
-                    for update in non_streaming_batcher.flush_all() {
-                        ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-                    }
+                    enqueue_session_updates(
+                        &ctx.dispatcher,
+                        &ctx.is_replay_active,
+                        non_streaming_batcher.flush_all(),
+                    );
                 }
                 _ = tokio::time::sleep(streaming_flush_timeout), if streaming_batcher.has_pending() => {
                     let updates = streaming_batcher.flush_ready();
                     if !updates.is_empty() {
                         tracing::debug!(count = updates.len(), "Flushing streaming updates on timer");
-                        for update in updates {
-                            ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-                        }
+                        enqueue_session_updates(&ctx.dispatcher, &ctx.is_replay_active, updates);
                     }
                 }
             }
         }
 
         if streaming_batcher.has_pending() {
-            for update in streaming_batcher.flush_all() {
-                ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-            }
+            enqueue_session_updates(
+                &ctx.dispatcher,
+                &ctx.is_replay_active,
+                streaming_batcher.flush_all(),
+            );
         }
         if non_streaming_batcher.has_pending() {
-            for update in non_streaming_batcher.flush_all() {
-                ctx.dispatcher.enqueue(AcpUiEvent::session_update(update));
-            }
+            enqueue_session_updates(
+                &ctx.dispatcher,
+                &ctx.is_replay_active,
+                non_streaming_batcher.flush_all(),
+            );
         }
         tracing::info!("Subprocess stdout reader task ended");
     });
@@ -834,6 +899,7 @@ mod tests {
                 command: "true".to_string(),
                 args: Vec::new(),
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
     }
@@ -860,6 +926,7 @@ mod tests {
         notification: Value,
         provider: Option<StdArc<dyn AgentProvider>>,
         agent_type: AgentType,
+        replay_active: bool,
     ) -> Vec<crate::acp::ui_event_dispatcher::AcpUiEvent> {
         let notification_line = notification.to_string();
         let mut child = Command::new("python3")
@@ -890,7 +957,7 @@ mod tests {
                 web_search_dedup: StdArc::new(std::sync::Mutex::new(WebSearchDedup::new())),
                 active_session_id: StdArc::new(std::sync::Mutex::new(None)),
                 inbound_response_adapters: StdArc::new(std::sync::Mutex::new(HashMap::new())),
-                is_replay_active: StdArc::new(AtomicBool::new(false)),
+                is_replay_active: StdArc::new(AtomicBool::new(replay_active)),
                 provider,
                 agent_type,
                 max_logged_line_bytes: 512,
@@ -995,11 +1062,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cursor_pre_tool_notifications_are_not_suppressed_by_provider_id_alone() {
+    async fn cursor_pre_tool_notifications_are_not_suppressed_for_non_cursor_agent_types() {
         let events = capture_stdout_events(
             cursor_pre_tool_notification(),
             Some(StdArc::new(CursorNamedTestProvider)),
-            AgentType::Cursor,
+            AgentType::Codex,
+            false,
         )
         .await;
 
@@ -1018,11 +1086,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cursor_provider_still_suppresses_cursor_pre_tool_notifications() {
+    async fn cursor_pre_tool_notifications_are_filtered_at_parse_boundary() {
         let events = capture_stdout_events(
             cursor_pre_tool_notification(),
             Some(StdArc::new(CursorProvider)),
             AgentType::Cursor,
+            false,
         )
         .await;
 
@@ -1056,6 +1125,7 @@ mod tests {
             }),
             None,
             AgentType::Copilot,
+            false,
         )
         .await;
 
@@ -1087,6 +1157,7 @@ mod tests {
         send_auto_response_and_emit_updates(
             &StdArc::new(Mutex::new(None)),
             &dispatcher,
+            &StdArc::new(AtomicBool::new(false)),
             7,
             "session/request_permission",
             json!({ "outcome": "allow" }),
@@ -1100,6 +1171,19 @@ mod tests {
         .await;
 
         let events = captured.lock().expect("captured events lock");
+        assert!(events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn replay_active_drops_provider_session_updates_before_dispatch() {
+        let events = capture_stdout_events(
+            cursor_pre_tool_notification(),
+            Some(StdArc::new(CursorNamedTestProvider)),
+            AgentType::Cursor,
+            true,
+        )
+        .await;
+
         assert!(events.is_empty());
     }
 }

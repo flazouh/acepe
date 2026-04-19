@@ -9,7 +9,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconArrowUp } from "@tabler/icons-svelte";
 	import { Stop } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
@@ -125,13 +124,12 @@
 		{:else}
 			<Button
 				type="button"
-				size="icon"
+				size="sm"
 				onclick={onSubmit}
 				disabled={submitDisabled}
-				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+				class="h-7 cursor-pointer shrink-0 rounded-full bg-muted-foreground text-background hover:bg-muted-foreground/80 px-3 text-xs font-medium"
 			>
-				<IconArrowUp class="h-3.5 w-3.5" />
-				<span class="sr-only">{submitAriaLabel}</span>
+				Send
 			</Button>
 		{/if}
 	</div>

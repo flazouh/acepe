@@ -330,8 +330,8 @@ mod tests {
         derive_indexed_session_title, derive_title_from_converted_session, indexed_source_path,
         resolve_indexed_session_title,
     };
-    use crate::db::repository::SessionMetadataRow;
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+    use crate::db::repository::SessionMetadataRow;
     use crate::session_jsonl::types::{StoredContentBlock, StoredEntry, StoredUserMessage};
 
     fn make_session(title: &str, user_text: &str) -> SessionThreadSnapshot {

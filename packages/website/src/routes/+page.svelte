@@ -395,7 +395,7 @@ const features = [
 
 	<main class="pt-20">
 		<!-- Hero Section -->
-		<section class="flex justify-center px-4 pt-16 pb-20 md:px-6 md:pt-24 md:pb-28">
+		<section class="flex justify-center px-4 pt-16 pb-12 md:px-6 md:pt-24 md:pb-16">
 			<div class="text-center">
 				<AgentIconsRow size={24} class="mb-6" />
 

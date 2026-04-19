@@ -30,7 +30,6 @@ import {
 	AgentPanelTodoHeader,
 	AgentPanelWorktreeSetupCard,
 } from "@acepe/ui";
-import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import type {
 	AgentPanelModifiedFileItem,
 	AgentPanelModifiedFilesTrailingModel,
@@ -39,7 +38,6 @@ import type {
 	AgentPanelSceneModel,
 	AgentTodoItem,
 } from "@acepe/ui/agent-panel";
-import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -56,8 +54,6 @@ type DemoConfigOption = {
 	currentValue: string;
 	options: { value: string; name: string }[];
 };
-
-const noop = () => {};
 
 type DemoModelItem = {
 	id: string;
@@ -509,7 +505,6 @@ function buildScene(panel: DemoPanel, currentTheme: string): AgentPanelSceneMode
 			agentIconSrc: resolveAgentIcon(panel.agentKey, currentTheme),
 			projectLabel: panel.projectLabel,
 			projectColor: panel.projectColor,
-			projectIconSrc: null,
 			sequenceId: panel.sequenceId,
 			actions: [],
 		},
@@ -520,15 +515,11 @@ function buildScene(panel: DemoPanel, currentTheme: string): AgentPanelSceneMode
 	};
 }
 
-function getPanelStatus(panel: DemoPanel): DemoPanel["status"] {
-	return panel.status;
-}
-
 let panels = $state<DemoPanel[]>([
 	{
 		id: "composer-primary",
 		title: "Unblock review queue",
-		status: "connected",
+		status: "running",
 		subtitle: null,
 		agentLabel: null,
 		agentKey: "claude",
@@ -616,7 +607,7 @@ let panels = $state<DemoPanel[]>([
 	{
 		id: "composer-polish",
 		title: "Polish release notes flow",
-		status: "connected",
+		status: "idle",
 		subtitle: null,
 		agentLabel: null,
 		agentKey: "cursor",
@@ -826,7 +817,7 @@ function handleSubmit(panel: DemoPanel): void {
 					<AgentPanelComposer
 						class="border-t-0 p-0"
 						inputClass="flex-shrink-0 border border-border bg-input/30"
-						contentClass="p-3"
+						contentClass="p-2"
 					>
 						{#snippet content()}
 							<AgentInputEditor
@@ -913,12 +904,6 @@ function handleSubmit(panel: DemoPanel): void {
 						iconBasePath="/svgs/icons"
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
-						{#snippet headerControls()}
-							<AgentPanelStatusIcon status={getPanelStatus(panel)} />
-							<OverflowMenuTriggerAction title="More actions" />
-							<FullscreenAction isFullscreen={false} onToggle={noop} />
-							<CloseAction onClose={noop} />
-						{/snippet}
 						{#snippet topBarOverride()}
 							{#if panel.id === "composer-polish"}
 								<AgentPanelPlanHeader

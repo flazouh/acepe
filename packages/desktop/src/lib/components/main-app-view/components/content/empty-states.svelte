@@ -26,7 +26,6 @@ import {
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
 import { toast } from "svelte-sonner";
-import { SingleAgentEmptyState } from "@acepe/ui/single-agent-empty-state";
 
 import {
 	attachSessionToEmptyStatePanel,
@@ -418,127 +417,69 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 }
 </script>
 
-<SingleAgentEmptyState
-	canShowInput={canShowInput}
-	emptyMessage={m.empty_panel_description()}
-	showAgentSelector={false}
-	showProjectSelector={false}
-	showBranchPicker={false}
->
-	{#snippet errorCardOverride()}
-		{#if projectImportError}
-			<div class="mb-3">
-				<AgentErrorCard
-					title={projectImportError.title}
-					summary={projectImportError.summary}
-					details={projectImportError.details}
-					referenceId={projectImportError.referenceId}
-					referenceSearchable={projectImportError.referenceSearchable}
-					onDismiss={() => {
-						projectImportError = null;
-					}}
-					onCopyReferenceId={copyProjectImportReferenceId}
-					issueActionLabel={projectImportIssueDraft
-						? resolveIssueActionLabel(projectImportIssueDraft)
-						: "Create issue"}
-					onIssueAction={projectImportIssueDraft ? handleProjectImportIssueAction : undefined}
-				/>
-			</div>
-		{/if}
-	{/snippet}
-	{#snippet worktreeCardOverride()}
-		{#if projectPath}
-			<div class="mb-2">
-				<PreSessionWorktreeCard
-					pendingWorktreeEnabled={effectiveWorktreePending}
-					alwaysEnabled={globalWorktreeDefault}
-					{projectPath}
-					onYes={() => {
-						const store = getWorktreeDefaultStore();
-						if (store.globalDefault) {
-							void store.set(false);
-						}
-						preparedWorktreeLaunch = null;
-						worktreePending = true;
-					}}
-					onNo={() => {
-						const store = getWorktreeDefaultStore();
-						if (store.globalDefault) {
-							void store.set(false);
-						}
-						preparedWorktreeLaunch = null;
-						worktreePending = false;
-					}}
-					onAlways={() => {
-						const store = getWorktreeDefaultStore();
-						const toggled = !store.globalDefault;
-						void store.set(toggled);
-						if (!toggled) {
-							preparedWorktreeLaunch = null;
-						}
-						worktreePending = toggled;
-					}}
-					onDismiss={() => {
-						preparedWorktreeLaunch = null;
-						worktreePending = false;
-					}}
-				/>
-			</div>
-		{/if}
-	{/snippet}
-	{#snippet composerOverride()}
-		<AgentInput
-			panelId={EMPTY_STATE_PANEL_ID}
-			projectPath={projectPath ?? undefined}
-			projectName={projectName ?? undefined}
-			selectedAgentId={effectiveAgentId}
-			voiceSessionId={EMPTY_STATE_PANEL_ID}
-			disableSend={!canSendFromEmptyState}
-			{availableAgents}
-			onAgentChange={handleAgentChange}
-			onSessionCreated={handleEmptyStateSessionCreated}
-			onWillSend={handleWillSend}
-			worktreePath={activeWorktreePath ?? undefined}
-			worktreePending={effectiveWorktreePending}
-			{preparedWorktreeLaunch}
-			onWorktreeCreated={(path) => {
-				activeWorktreePath = path;
-				worktreePending = false;
-			}}
-			onPreparedWorktreeLaunch={(launch) => {
-				preparedWorktreeLaunch = launch;
-			}}
-		>
-			{#snippet agentProjectPicker()}
-				<AgentSelector
-					{availableAgents}
-					currentAgentId={effectiveAgentId}
-					onAgentChange={handleAgentChange}
-				/>
-				{#if showProjectPicker}
-					<div class="h-full w-px bg-border/50"></div>
-					<ProjectSelector
-						selectedProject={effectiveProject}
-						recentProjects={projects}
-						onProjectChange={handleProjectChange}
-						onBrowse={handleBrowseProject}
+<div class="flex flex-col items-center justify-center h-full w-full py-6">
+	<h1 class="mb-4 text-center font-sans text-[1.9rem] font-semibold tracking-tight text-foreground sm:text-4xl">
+		What do you want to build?
+	</h1>
+
+	<div class="flex w-full max-w-[44rem] flex-col px-6">
+	{#if canShowInput}
+		<!-- Agent Input -->
+		<div class="w-full [&_[contenteditable=true]]:min-h-20">
+			{#if projectImportError}
+				<div class="mb-3">
+					<AgentErrorCard
+						title={projectImportError.title}
+						summary={projectImportError.summary}
+						details={projectImportError.details}
+						referenceId={projectImportError.referenceId}
+						referenceSearchable={projectImportError.referenceSearchable}
+						onDismiss={() => {
+							projectImportError = null;
+						}}
+						onCopyReferenceId={copyProjectImportReferenceId}
+						issueActionLabel={projectImportIssueDraft
+							? resolveIssueActionLabel(projectImportIssueDraft)
+							: "Create issue"}
+						onIssueAction={projectImportIssueDraft ? handleProjectImportIssueAction : undefined}
 					/>
-				{/if}
-			{/snippet}
-		</AgentInput>
-	{/snippet}
-	{#snippet branchPickerOverride()}
-		{#if projectPath}
-			<div class="mt-2 flex h-7 items-center">
-				<div class="ml-auto h-full min-w-0 w-fit max-w-[12rem]">
-					<BranchPicker
+				</div>
+			{/if}
+			{#if projectPath}
+				<div class="mb-2">
+					<PreSessionWorktreeCard
+						pendingWorktreeEnabled={effectiveWorktreePending}
+						alwaysEnabled={globalWorktreeDefault}
 						{projectPath}
-						{currentBranch}
-						{diffStats}
-						{isGitRepo}
-						variant="minimal"
-						onBranchSelected={handleBranchSelected}
-						onInitGitRepo={handleInitGitRepo}
+						onYes={() => {
+							const store = getWorktreeDefaultStore();
+							if (store.globalDefault) {
+								void store.set(false);
+							}
+							preparedWorktreeLaunch = null;
+							worktreePending = true;
+						}}
+						onNo={() => {
+							const store = getWorktreeDefaultStore();
+							if (store.globalDefault) {
+								void store.set(false);
+							}
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
+						onAlways={() => {
+							const store = getWorktreeDefaultStore();
+							const toggled = !store.globalDefault;
+							void store.set(toggled);
+							if (!toggled) {
+								preparedWorktreeLaunch = null;
+							}
+							worktreePending = toggled;
+						}}
+						onDismiss={() => {
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
 					/>
 				</div>
 			{/if}

@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
+
 static SHELL_ENV_CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
+const SHELL_ENV_CAPTURE_MARKER: &[u8] = b"__ACEPE_ENV_START__\0";
+const SHELL_ENV_CAPTURE_COMMAND: &str = "printf '__ACEPE_ENV_START__\\0'; env -0";
 
 /// Strategy for building agent subprocess environment.
 pub enum EnvStrategy<'a> {
@@ -14,8 +18,18 @@ pub enum EnvStrategy<'a> {
 /// Build a complete environment map for spawning an agent subprocess.
 pub fn build_env(strategy: EnvStrategy) -> HashMap<String, String> {
     let process_env: HashMap<String, String> = std::env::vars().collect();
-    let shell_env = SHELL_ENV_CACHE.get();
+    let shell_env = get_or_capture_shell_env();
     build_env_from(strategy, process_env, shell_env)
+}
+
+pub fn build_env_for_strategy(strategy: &SpawnEnvStrategy) -> HashMap<String, String> {
+    match strategy {
+        SpawnEnvStrategy::FullInherit => build_env(EnvStrategy::FullInherit),
+        SpawnEnvStrategy::Allowlist(keys) => {
+            let allowed = keys.iter().map(String::as_str).collect::<Vec<_>>();
+            build_env(EnvStrategy::Allowlist(allowed.as_slice()))
+        }
+    }
 }
 
 /// Get the PATH string to pass to subprocesses.
@@ -49,7 +63,7 @@ fn capture_login_shell_env() -> Result<HashMap<String, String>, String> {
     }
 
     let output = std::process::Command::new(&shell)
-        .args(["-lc", "env -0"])
+        .args(shell_capture_args(&shell))
         .env("DISABLE_AUTO_UPDATE", "true")
         .env("HOMEBREW_NO_AUTO_UPDATE", "1")
         .output()
@@ -64,7 +78,7 @@ fn capture_login_shell_env() -> Result<HashMap<String, String>, String> {
         return Err(format!("Shell exited with {}", output.status));
     }
 
-    Ok(parse_env_output(&output.stdout))
+    Ok(parse_env_output(shell_env_payload(&output.stdout)))
 }
 
 fn parse_env_output(bytes: &[u8]) -> HashMap<String, String> {
@@ -80,6 +94,47 @@ fn parse_env_output(bytes: &[u8]) -> HashMap<String, String> {
             Some((key.to_string(), value.to_string()))
         })
         .collect()
+}
+
+fn get_or_capture_shell_env() -> Option<&'static HashMap<String, String>> {
+    if let Some(env) = SHELL_ENV_CACHE.get() {
+        return Some(env);
+    }
+
+    match capture_login_shell_env() {
+        Ok(env) => {
+            tracing::info!(entries = env.len(), "Shell environment captured on demand");
+            Some(SHELL_ENV_CACHE.get_or_init(|| env))
+        }
+        Err(error) => {
+            tracing::warn!("Shell env capture failed on demand: {error}");
+            None
+        }
+    }
+}
+
+fn shell_capture_args(shell: &str) -> [&'static str; 2] {
+    if is_zsh_shell(shell) {
+        // zsh only reads ~/.zshrc for interactive shells.
+        ["-ilc", SHELL_ENV_CAPTURE_COMMAND]
+    } else {
+        ["-lc", SHELL_ENV_CAPTURE_COMMAND]
+    }
+}
+
+fn is_zsh_shell(shell: &str) -> bool {
+    std::path::Path::new(shell)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("zsh"))
+}
+
+fn shell_env_payload(bytes: &[u8]) -> &[u8] {
+    bytes
+        .windows(SHELL_ENV_CAPTURE_MARKER.len())
+        .position(|window| window == SHELL_ENV_CAPTURE_MARKER)
+        .map(|index| &bytes[index + SHELL_ENV_CAPTURE_MARKER.len()..])
+        .unwrap_or(bytes)
 }
 
 /// Exact-match vars that are NEVER forwarded to agent subprocesses.
@@ -125,7 +180,7 @@ fn build_env_from(
                     if is_denied(key) {
                         continue;
                     }
-                    env.entry(key.clone()).or_insert_with(|| value.clone());
+                    env.insert(key.clone(), value.clone());
                 }
             }
             env
@@ -189,8 +244,36 @@ mod tests {
     }
 
     #[test]
-    fn build_full_inherit_fills_missing_from_shell() {
-        let process = HashMap::from([("HOME".into(), "/Users/test".into())]);
+    fn shell_env_payload_discards_shell_noise_before_marker() {
+        let output = b"loading plugin...\n__ACEPE_ENV_START__\0AZURE_API_KEY=secret\0";
+
+        let parsed = parse_env_output(shell_env_payload(output));
+
+        assert_eq!(parsed.get("AZURE_API_KEY"), Some(&"secret".to_string()));
+    }
+
+    #[test]
+    fn zsh_shell_capture_is_interactive() {
+        assert_eq!(
+            shell_capture_args("/bin/zsh"),
+            ["-ilc", SHELL_ENV_CAPTURE_COMMAND]
+        );
+        assert_eq!(
+            shell_capture_args("/opt/homebrew/bin/zsh"),
+            ["-ilc", SHELL_ENV_CAPTURE_COMMAND]
+        );
+        assert_eq!(
+            shell_capture_args("/bin/bash"),
+            ["-lc", SHELL_ENV_CAPTURE_COMMAND]
+        );
+    }
+
+    #[test]
+    fn build_full_inherit_prefers_shell_values() {
+        let process = HashMap::from([
+            ("AZURE_API_KEY".into(), "stale".into()),
+            ("HOME".into(), "/Users/test".into()),
+        ]);
         let shell = HashMap::from([
             ("AZURE_API_KEY".into(), "secret".into()),
             ("HOME".into(), "/shell/home".into()),
@@ -199,8 +282,7 @@ mod tests {
         let env = build_env_from(EnvStrategy::FullInherit, process, Some(&shell));
 
         assert_eq!(env.get("AZURE_API_KEY"), Some(&"secret".to_string()));
-        // Process env takes precedence
-        assert_eq!(env.get("HOME"), Some(&"/Users/test".to_string()));
+        assert_eq!(env.get("HOME"), Some(&"/shell/home".to_string()));
     }
 
     #[test]

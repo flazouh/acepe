@@ -54,6 +54,11 @@ pub struct OpenTokenReservation {
     pub last_activity: Instant,
 }
 
+pub struct OpenTokenClaim {
+    pub last_event_seq: i64,
+    pub buffered_events: Vec<AcpEventEnvelope>,
+}
+
 pub struct AcpEventHubState {
     sender: broadcast::Sender<AcpEventEnvelope>,
     next_seq: AtomicU64,
@@ -201,7 +206,7 @@ impl AcpEventHubState {
         &self,
         token: Uuid,
         canonical_session_id: &str,
-    ) -> Option<Vec<AcpEventEnvelope>> {
+    ) -> Option<OpenTokenClaim> {
         if let Ok(mut map) = self.reservations.write() {
             let matches_session = map
                 .get(&token)
@@ -210,8 +215,10 @@ impl AcpEventHubState {
             if !matches_session {
                 return None;
             }
-            map.remove(&token)
-                .map(|reservation| reservation.delta_buffer.into_iter().collect())
+            map.remove(&token).map(|reservation| OpenTokenClaim {
+                last_event_seq: reservation.last_event_seq,
+                buffered_events: reservation.delta_buffer.into_iter().collect(),
+            })
         } else {
             None
         }
@@ -344,9 +351,13 @@ mod tests {
             .claim_reservation_for_session(token, "session-1")
             .expect("claim should succeed for matching session");
 
-        assert_eq!(claimed.len(), 1);
-        assert_eq!(claimed[0].event_name, "session_update");
-        assert_eq!(claimed[0].session_id.as_deref(), Some("session-1"));
+        assert_eq!(claimed.last_event_seq, 4);
+        assert_eq!(claimed.buffered_events.len(), 1);
+        assert_eq!(claimed.buffered_events[0].event_name, "session_update");
+        assert_eq!(
+            claimed.buffered_events[0].session_id.as_deref(),
+            Some("session-1")
+        );
         assert!(
             !hub.has_reservation(token),
             "successful claim must retire the token"

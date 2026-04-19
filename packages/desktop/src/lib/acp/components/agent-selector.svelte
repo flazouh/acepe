@@ -1,99 +1,93 @@
 <script lang="ts">
-	import { AgentSelectorView, type AgentSelectorViewItem, type ButtonVariant } from "@acepe/ui";
+import { Colors } from "@acepe/ui/colors";
+import { Selector } from "@acepe/ui";
+import type { ButtonVariant } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 	import { useTheme } from "$lib/components/theme/context.svelte.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { Heart } from "phosphor-svelte";
 	import { getAgentIcon } from "../constants/thread-list-constants.js";
 	import type { AgentInfo } from "../logic/agent-manager.js";
 	import { getAgentPreferencesStore } from "../store/index.js";
-	import { capitalizeName } from "../utils/index.js";
-	import { createLogger } from "../utils/logger.js";
+import { capitalizeName } from "../utils/index.js";
+import { createLogger } from "../utils/logger.js";
+import SelectorCheck from "./selector-check.svelte";
 
-	interface AgentSelectorProps {
-		availableAgents: AgentInfo[];
-		currentAgentId: string | null;
-		onAgentChange: (agentId: string) => void;
-		isLoading?: boolean;
-		ontoggle?: (isOpen: boolean) => void;
-		class?: string;
-		buttonClass?: string;
-		contentClass?: string;
-		showChevron?: boolean;
-		variant?: ButtonVariant;
-	}
+interface AgentSelectorProps {
+	availableAgents: AgentInfo[];
+	currentAgentId: string | null;
+	onAgentChange: (agentId: string) => void;
+	isLoading?: boolean;
+	ontoggle?: (isOpen: boolean) => void;
+	class?: string;
+	buttonClass?: string;
+	contentClass?: string;
+	showChevron?: boolean;
+	variant?: ButtonVariant;
+}
 
-	let {
-		availableAgents,
+let {
+	availableAgents,
+	currentAgentId,
+	onAgentChange,
+	isLoading = false,
+	ontoggle,
+	class: className = "",
+	buttonClass = "",
+	contentClass = "",
+	showChevron = true,
+	variant = "outline",
+}: AgentSelectorProps = $props();
+
+let selectorRef: { toggle: () => void } | undefined = $state();
+let isDropdownOpen = $state(false);
+
+const logger = createLogger({
+	id: "agent-selector" as const,
+	name: "Agent Selector",
+});
+
+const themeState = useTheme();
+const agentPreferencesStore = getAgentPreferencesStore();
+const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
+
+function handleAgentSelect(agentId: string) {
+	logger.debug("handleAgentSelect() called", {
+		agentId,
 		currentAgentId,
-		onAgentChange,
-		isLoading = false,
-		ontoggle,
-		class: className = "",
-		buttonClass = "",
-		contentClass = "",
-		showChevron = true,
-		variant = "outline",
-	}: AgentSelectorProps = $props();
-
-	let viewRef: { toggle: () => void } | undefined = $state();
-	let isDropdownOpen = $state(false);
-
-	const logger = createLogger({
-		id: "agent-selector" as const,
-		name: "Agent Selector",
+		isDifferent: agentId !== currentAgentId,
 	});
 
-	const themeState = useTheme();
-	const agentPreferencesStore = getAgentPreferencesStore();
-	const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
-
-	const agentItems = $derived<readonly AgentSelectorViewItem[]>(
-		availableAgents.map((agent) => ({
-			id: agent.id,
-			name: capitalizeName(agent.name),
-			iconSrc: getAgentIcon(agent.id, themeState.effectiveTheme) ?? null,
-			isFavorite: agent.id === defaultAgentId,
-		}))
-	);
-
-	function handleAgentSelect(agentId: string) {
-		logger.debug("handleAgentSelect() called", {
-			agentId,
-			currentAgentId,
-			isDifferent: agentId !== currentAgentId,
-		});
-
-		if (agentId !== currentAgentId) {
-			logger.info("Changing agent", { from: currentAgentId, to: agentId });
-			onAgentChange(agentId);
-		}
-		isDropdownOpen = false;
+	if (agentId !== currentAgentId) {
+		logger.info("Changing agent", { from: currentAgentId, to: agentId });
+		onAgentChange(agentId);
 	}
+	isDropdownOpen = false;
+}
 
-	function handleToggleFavorite(agentId: string, nextFavorite: boolean) {
-		void agentPreferencesStore.setDefaultAgentId(nextFavorite ? agentId : null);
-	}
+export function toggle() {
+	selectorRef?.toggle();
+}
 
-	export function toggle() {
-		viewRef?.toggle();
-	}
+function handleOpenChange(open: boolean) {
+	isDropdownOpen = open;
+	ontoggle?.(open);
+}
 
-	function handleOpenChange(open: boolean) {
-		isDropdownOpen = open;
-		ontoggle?.(open);
-	}
+const currentAgent = $derived(
+	currentAgentId ? (availableAgents.find((a) => a.id === currentAgentId) ?? null) : null
+);
+const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 </script>
 
-<AgentSelectorView
-	bind:this={viewRef}
+<Selector
+	bind:this={selectorRef}
 	bind:open={isDropdownOpen}
-	agents={agentItems}
-	selectedAgentId={currentAgentId}
-	disabled={availableAgents.length === 0}
-	{isLoading}
+	disabled={isLoading || availableAgents.length === 0}
+	onOpenChange={handleOpenChange}
 	class={className}
-	{buttonClass}
-	{contentClass}
+	buttonClass={buttonClass}
+	contentClass={contentClass}
 	{showChevron}
 	{variant}
 >

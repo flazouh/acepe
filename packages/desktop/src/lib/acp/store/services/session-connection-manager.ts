@@ -606,10 +606,6 @@ export class SessionConnectionManager {
 		this.connectionManager.setConnecting(sessionId, true);
 		// Start connection in state machine
 		this.connectionManager.sendConnectionConnect(sessionId);
-		if (options?.openToken) {
-			this.eventService.beginSnapshotReconnect(sessionId);
-		}
-
 		this.hotStateManager.updateHotState(sessionId, {
 			status: "connecting",
 			connectionError: null,
@@ -654,7 +650,6 @@ export class SessionConnectionManager {
 			)
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
-				this.eventService.endSnapshotReconnect(sessionId);
 				this.eventService.flushPendingEvents(sessionId, eventHandler);
 				const cold = this.stateReader.getSessionCold(sessionId);
 				if (!cold) {
@@ -670,7 +665,6 @@ export class SessionConnectionManager {
 				this.pendingConnections.delete(sessionId);
 				this.connectionManager.setConnecting(sessionId, false);
 				lifecycleWaiter.cancel();
-				this.eventService.endSnapshotReconnect(sessionId);
 
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				const isMethodNotFound =

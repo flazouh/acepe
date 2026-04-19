@@ -10,18 +10,49 @@ use tauri::AppHandle;
 
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::{CommunicationMode, ReconnectSessionMethod};
+use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
 use crate::acp::parsers::provider_capabilities::{
     all_provider_capabilities, find_provider_capabilities_by_id, provider_capabilities,
 };
 use crate::acp::parsers::AgentType;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
+use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
+
+pub(crate) fn normalize_session_updates_for_runtime(
+    provider: Option<&dyn AgentProvider>,
+    agent_type: AgentType,
+    update: &SessionUpdate,
+    task_reconciler: &std::sync::Arc<std::sync::Mutex<TaskReconciler>>,
+) -> Vec<SessionUpdate> {
+    process_through_reconciler(
+        update,
+        task_reconciler,
+        provider.map_or(agent_type, AgentProvider::parser_agent_type),
+        provider,
+    )
+}
+
+pub(crate) async fn prepare_session_updates_for_dispatch(
+    provider: Option<&dyn AgentProvider>,
+    agent_type: AgentType,
+    update: SessionUpdate,
+    task_reconciler: &std::sync::Arc<std::sync::Mutex<TaskReconciler>>,
+) -> Vec<SessionUpdate> {
+    let enriched_update = match provider {
+        Some(provider) => provider.enrich_session_update(update).await,
+        None => update,
+    };
+
+    normalize_session_updates_for_runtime(provider, agent_type, &enriched_update, task_reconciler)
+}
 
 #[derive(Debug, Clone)]
 pub struct ModelFallbackCandidate {
@@ -180,6 +211,8 @@ pub struct SpawnConfig {
     pub command: String,
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_strategy: Option<SpawnEnvStrategy>,
 }
 
 /// Whether a provider should appear in user-visible built-in lists.
@@ -448,19 +481,9 @@ pub trait AgentProvider: Send + Sync {
         None
     }
 
-    /// Whether a raw ACP notification should be suppressed before generic handling.
-    fn should_suppress_notification(&self, _json: &Value) -> bool {
-        false
-    }
-
     /// Whether this provider requires TaskReconciler pass for tool call graph assembly.
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
         TaskReconciliationPolicy::Disabled
-    }
-
-    /// Whether this provider requires TaskReconciler pass for tool call graph assembly.
-    fn uses_task_reconciler(&self) -> bool {
-        self.task_reconciliation_policy().uses_task_reconciler()
     }
 
     /// Whether wrapper-based plan extraction from text chunks is enabled.
