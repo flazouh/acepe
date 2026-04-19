@@ -487,11 +487,19 @@ mod tests {
         let contents = fs::read_to_string(&converted_path)
             .expect("Failed to read generated converted-session-types.ts");
 
+        // Verify both types appear in the acp-types import line (order-independent).
+        let acp_import_line = contents
+            .lines()
+            .find(|line| line.contains("from \"./acp-types.js\""))
+            .expect("expected an import from acp-types.js in converted-session-types.ts");
+
         assert!(
-            contents.contains(
-                "import type { SessionModelState, SessionModes } from \"./acp-types.js\";"
-            ),
-            "expected converted-session-types.ts to import SessionModelState and SessionModes"
+            acp_import_line.contains("SessionModelState"),
+            "expected SessionModelState in acp-types import, got: {acp_import_line}"
+        );
+        assert!(
+            acp_import_line.contains("SessionModes"),
+            "expected SessionModes in acp-types import, got: {acp_import_line}"
         );
     }
 

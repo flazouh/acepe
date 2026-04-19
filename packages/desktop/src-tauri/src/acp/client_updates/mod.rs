@@ -351,9 +351,13 @@ mod tests {
         .await;
 
         let captured = captured_events.lock().expect("captured events lock");
-        assert_eq!(captured.len(), 1);
+        let session_updates: Vec<_> = captured
+            .iter()
+            .filter(|e| matches!(e.payload, AcpUiEventPayload::SessionUpdate(_)))
+            .collect();
+        assert_eq!(session_updates.len(), 1);
 
-        match &captured[0].payload {
+        match &session_updates[0].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCallUpdate { update, session_id } => {
                     assert_eq!(session_id.as_deref(), Some(expected_session_id));
@@ -433,9 +437,13 @@ mod tests {
         .await;
 
         let captured = captured_events.lock().expect("captured events lock");
-        assert_eq!(captured.len(), 1);
+        let session_updates: Vec<_> = captured
+            .iter()
+            .filter(|e| matches!(e.payload, AcpUiEventPayload::SessionUpdate(_)))
+            .collect();
+        assert_eq!(session_updates.len(), 1);
 
-        match &captured[0].payload {
+        match &session_updates[0].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCallUpdate { update, session_id } => {
                     assert_eq!(session_id.as_deref(), Some(expected_session_id));
@@ -547,9 +555,13 @@ mod tests {
         .await;
 
         let captured = captured_events.lock().expect("captured events lock");
-        assert_eq!(captured.len(), 2);
+        let session_updates: Vec<_> = captured
+            .iter()
+            .filter(|e| matches!(e.payload, AcpUiEventPayload::SessionUpdate(_)))
+            .collect();
+        assert_eq!(session_updates.len(), 2);
 
-        match &captured[0].payload {
+        match &session_updates[0].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCall {
                     tool_call,
@@ -575,7 +587,7 @@ mod tests {
             other => panic!("Expected session update payload, got {:?}", other),
         }
 
-        match &captured[1].payload {
+        match &session_updates[1].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCallUpdate { update, session_id } => {
                     assert_eq!(session_id.as_deref(), Some(expected_session_id));
@@ -689,9 +701,13 @@ mod tests {
         .await;
 
         let captured = captured_events.lock().expect("captured events lock");
-        assert_eq!(captured.len(), 2);
+        let session_updates: Vec<_> = captured
+            .iter()
+            .filter(|e| matches!(e.payload, AcpUiEventPayload::SessionUpdate(_)))
+            .collect();
+        assert_eq!(session_updates.len(), 2);
 
-        match &captured[0].payload {
+        match &session_updates[0].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCall {
                     tool_call,
@@ -717,7 +733,7 @@ mod tests {
             other => panic!("Expected session update payload, got {:?}", other),
         }
 
-        match &captured[1].payload {
+        match &session_updates[1].payload {
             AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
                 SessionUpdate::ToolCallUpdate { update, session_id } => {
                     assert_eq!(session_id.as_deref(), Some(expected_session_id));

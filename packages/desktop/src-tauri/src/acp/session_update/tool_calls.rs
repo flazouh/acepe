@@ -665,10 +665,12 @@ mod tests {
 
     #[test]
     fn empty_raw_input_other_produces_other_arguments() {
+        // "other" kind hint now normalizes to Unclassified (Other is an internal sentinel
+        // that gets promoted to Unclassified at the identity-resolution boundary).
         let tc = build_with_kind_and_title("other", None);
         assert!(
-            matches!(tc.arguments, ToolArguments::Other { .. }),
-            "Expected Other variant, got {:?}",
+            matches!(tc.arguments, ToolArguments::Unclassified { .. }),
+            "Expected Unclassified variant, got {:?}",
             tc.arguments.tool_kind()
         );
     }

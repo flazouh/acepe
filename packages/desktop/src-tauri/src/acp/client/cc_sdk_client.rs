@@ -6066,8 +6066,17 @@ mod tests {
         );
 
         let captured = sink.lock().expect("sink lock");
-        assert_eq!(captured.len(), 1);
-        let event = &captured[0];
+        let session_updates: Vec<_> = captured
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.payload,
+                    crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(_)
+                )
+            })
+            .collect();
+        assert_eq!(session_updates.len(), 1);
+        let event = session_updates[0];
         let update = match &event.payload {
             crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => update,
             other => panic!("expected session update payload, got {:?}", other),

@@ -877,6 +877,7 @@ mod tests {
 
     #[test]
     fn streams_sql_arguments_as_sql() {
+        // Use a query that touches a non-todo table so it is not promoted to Todo kind.
         let state = SessionStreamingState::new();
 
         std::thread::sleep(std::time::Duration::from_millis(160));
@@ -884,7 +885,7 @@ mod tests {
             .accumulate_delta(
                 "tool-sql-1",
                 "unknown",
-                r#"{"description":"Mark all done","query":"UPDATE todos SET status = 'done'"}"#,
+                r#"{"description":"Fetch active sessions","query":"SELECT id, created_at FROM sessions WHERE active = true"}"#,
                 AgentType::Copilot,
             )
             .expect("sql delta should parse");
@@ -894,8 +895,11 @@ mod tests {
             .expect("streaming args expected")
         {
             ToolArguments::Sql { query, description } => {
-                assert_eq!(query.as_deref(), Some("UPDATE todos SET status = 'done'"));
-                assert_eq!(description.as_deref(), Some("Mark all done"));
+                assert_eq!(
+                    query.as_deref(),
+                    Some("SELECT id, created_at FROM sessions WHERE active = true")
+                );
+                assert_eq!(description.as_deref(), Some("Fetch active sessions"));
             }
             other => panic!("Expected Sql variant, got {:?}", other),
         }

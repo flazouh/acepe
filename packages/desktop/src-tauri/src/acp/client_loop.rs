@@ -1003,7 +1003,18 @@ mod tests {
         )
         .await;
 
-        assert_eq!(events.len(), 1);
+        // At least one session update must be emitted (Unit 1 also emits a domain event
+        // alongside each session update, so the total may be > 1).
+        let session_updates = events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.payload,
+                    crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(_)
+                )
+            })
+            .count();
+        assert_eq!(session_updates, 1);
     }
 
     #[tokio::test]
