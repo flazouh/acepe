@@ -263,12 +263,19 @@ export class SessionRepository {
 			}
 		}
 
-		// Keep any existing sessions that weren't in the scan results
+		// Keep any existing sessions that weren't in the scan results.
+		// Pruning only applies to sessions whose project was rescanned, since the
+		// backend scan can return partial results when an individual agent scanner
+		// fails. We additionally preserve transient sessions and any session the
+		// user has actively preloaded — dropping a loaded session out from under
+		// the user would be worse than leaving a stale entry around until the next
+		// successful scan.
 		for (const existingSession of existingSessionsMap.values()) {
 			const rescannedProject = rescannedProjects.has(existingSession.projectPath);
 			const preserveTransientSession =
 				existingSession.sessionLifecycleState === "created";
-			if (!rescannedProject || preserveTransientSession) {
+			const preservePreloadedSession = this.entryManager.isPreloaded(existingSession.id);
+			if (!rescannedProject || preserveTransientSession || preservePreloadedSession) {
 				mergedSessions.push(existingSession);
 			}
 		}
