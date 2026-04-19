@@ -411,16 +411,6 @@ export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled"
 export type TodoItem = { content: string; activeForm: string; status: TodoStatus; startedAt?: number | null; completedAt?: number | null; duration?: number | null }
 
 /**
- * Statistics about the session
- */
-export type SessionStats = { total_messages: number; user_messages: number; assistant_messages: number; tool_uses: number; tool_results: number; thinking_blocks: number; total_input_tokens: number; total_output_tokens: number }
-
-/**
- * Token usage statistics from API response
- */
-export type TokenUsage = { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
-
-/**
  * Content block types per ACP protocol specification.
  * 
  * @see https://agentclientprotocol.com/protocol/schema#contentblock
@@ -448,59 +438,6 @@ export type ContentBlock =
 { type: "resource_link"; uri: string; name: string; title?: string | null; description?: string | null; mimeType?: string | null; size?: number | null }
 
 /**
- * A message with ordering and full content
- */
-export type OrderedMessage = { uuid: string; parent_uuid: string | null; role: string; timestamp: string; content_blocks: ContentBlock[]; model?: string | null; usage?: TokenUsage | null; request_id?: string | null; is_meta: boolean; 
-/**
- * ID of the tool use this meta message is associated with (for skill content)
- */
-source_tool_use_id?: string | null; 
-/**
- * Tool use result data (for user messages that are tool results)
- * Contains questions and answers for AskUserQuestion tool
- */
-tool_use_result?: JsonValue | null; 
-/**
- * UUID of the assistant message containing the tool use that this result is for
- */
-source_tool_assistant_uuid?: string | null }
-
-/**
- * Full session data with ordered messages and metadata
- */
-export type FullSession = { session_id: string; project_path: string; title: string; created_at: string; messages: OrderedMessage[]; stats: SessionStats }
-
-/**
- * A content block in a user or assistant message.
- * Simplified version for storage/display.
- */
-export type StoredContentBlock = { type: string; text?: string | null }
-
-/**
- * A chunk of assistant message content (text or thought).
- */
-export type StoredAssistantChunk = { type: string; block: StoredContentBlock }
-
-/**
- * User message in a thread (simplified for storage).
- */
-export type StoredUserMessage = { id?: string | null; content: StoredContentBlock; chunks: StoredContentBlock[]; sentAt?: string | null }
-
-/**
- * Assistant message in a thread (simplified for storage).
- */
-export type StoredAssistantMessage = { chunks: StoredAssistantChunk[]; model?: string | null; 
-/**
- * User-friendly display name for the model (e.g., "Opus 4.5" instead of "claude-opus-4-5-20251101")
- */
-displayModel?: string | null; receivedAt?: string | null }
-
-/**
- * Error entry stored in replayed session history.
- */
-export type StoredErrorMessage = { content: string; code?: string | null; kind: TurnErrorKind; source?: TurnErrorSource | null }
-
-/**
  * Skill metadata for skill tool calls.
  */
 export type SkillMeta = { description?: string | null; filePath?: string | null }
@@ -518,12 +455,6 @@ questions: QuestionItem[];
  * Map of question text to answer(s) - value is string for single-select, array for multi-select
  */
 answers: Partial<{ [key in string]: JsonValue }> }
-
-/**
- * A single entry in the thread.
- * Discriminated union tagged by "type".
- */
-export type StoredEntry = { type: "user"; id: string; message: StoredUserMessage; timestamp?: string | null } | { type: "assistant"; id: string; message: StoredAssistantMessage; timestamp?: string | null } | { type: "tool_call"; id: string; message: ToolCallData; timestamp?: string | null } | { type: "error"; id: string; message: StoredErrorMessage; timestamp?: string | null }
 
 /**
  * Response for session plan request.

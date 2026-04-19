@@ -102,7 +102,7 @@ use history::indexer::IndexerActor;
 use opencode_history::commands::{get_opencode_history, get_opencode_sessions_for_project};
 use pty::commands::get_default_shell;
 use session_jsonl::commands::{
-    get_cache_stats, get_full_session, get_index_status, get_session_history, get_session_messages,
+    get_cache_stats, get_index_status,
     invalidate_history_cache, reindex_sessions, reset_cache_stats,
 };
 use skills::commands::{

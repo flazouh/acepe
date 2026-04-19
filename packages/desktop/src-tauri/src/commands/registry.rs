@@ -243,9 +243,6 @@ macro_rules! fs_command_entries {
 macro_rules! history_command_entries {
     ($callback:ident $(, $args:tt)*) => {
         $callback!($($args,)*
-            get_session_history: get_session_history,
-            get_session_messages: get_session_messages,
-            get_full_session: get_full_session,
             get_cache_stats: get_cache_stats,
             invalidate_history_cache: invalidate_history_cache,
             reset_cache_stats: reset_cache_stats,

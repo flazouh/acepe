@@ -6,7 +6,6 @@ import type { SessionPlanResponse } from "../../services/converted-session-types
 import type { SessionOpenResult } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
-	HistorySessionMessage,
 	ProjectInfo,
 	ProjectSessionCounts,
 	SessionLoadTiming,
@@ -73,32 +72,6 @@ export const history = {
 
 	countSessionsForProject: (projectPath: string): ResultAsync<ProjectSessionCounts, AppError> => {
 		return historyCommands.count_sessions_for_project.invoke<ProjectSessionCounts>({ projectPath });
-	},
-
-	getSessionHistory: (): ResultAsync<HistoryEntry[], AppError> => {
-		return historyCommands.get_session_history.invoke<HistoryEntry[]>();
-	},
-
-	getSessionMessages: (
-		sessionId: string,
-		projectPath: string
-	): ResultAsync<HistorySessionMessage[], AppError> => {
-		return historyCommands.get_session_messages.invoke<HistorySessionMessage[]>({
-			sessionId,
-			projectPath,
-		});
-	},
-
-	getFullSession: (
-		sessionId: string,
-		projectPath: string
-	): ResultAsync<import("../../services/converted-session-types.js").FullSession, AppError> => {
-		return historyCommands.get_full_session.invoke<
-			import("../../services/converted-session-types.js").FullSession
-		>({
-			sessionId,
-			projectPath,
-		});
 	},
 
 	setSessionPrNumber: (sessionId: string, prNumber: number | null): ResultAsync<void, AppError> => {

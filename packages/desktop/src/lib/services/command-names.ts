@@ -30,9 +30,6 @@ export const COMMANDS = {
     "write_text_file": "acp_write_text_file"
   },
   "history": {
-    "get_session_history": "get_session_history",
-    "get_session_messages": "get_session_messages",
-    "get_full_session": "get_full_session",
     "get_cache_stats": "get_cache_stats",
     "invalidate_history_cache": "invalidate_history_cache",
     "reset_cache_stats": "reset_cache_stats",

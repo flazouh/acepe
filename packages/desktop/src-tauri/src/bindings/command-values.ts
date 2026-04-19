@@ -15,9 +15,6 @@ export const ACP_COMMANDS = {
 } as const;
 
 export const SESSION_HISTORY_COMMANDS = {
-	get_session_history: "get_session_history",
-	get_session_messages: "get_session_messages",
-	get_full_session: "get_full_session",
 	get_converted_session: "get_converted_session",
 	sync_project_threads: "sync_project_threads",
 	sync_all_threads: "sync_all_threads",
@@ -85,9 +82,6 @@ export const COMMANDS = {
 		get_capabilities: "acp_get_capabilities",
 	},
 	session_history: {
-		get_session_history: "get_session_history",
-		get_session_messages: "get_session_messages",
-		get_full_session: "get_full_session",
 		get_converted_session: "get_converted_session",
 		sync_project_threads: "sync_project_threads",
 		sync_all_threads: "sync_all_threads",

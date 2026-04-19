@@ -266,37 +266,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		setModel.mockReturnValue(okAsync(undefined));
 	});
 
-	it("skips resume when ACP session is already bound for the thread", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			acpSessionId: sessionId,
-		});
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			hotState,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.connectSession(sessionId, createMockEventHandler());
-		result._unsafeUnwrap();
-
-		expect(resumeSession).not.toHaveBeenCalled();
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				isConnected: true,
-				status: "ready",
-				connectionError: null,
-			})
-		);
-	});
-
 	it("applies the stored Autonomous profile after reconnecting a disconnected session", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: false,

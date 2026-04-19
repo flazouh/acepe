@@ -295,19 +295,9 @@ pub fn export_all_types() {
     export_type!(TodoItem);
     // SkillMeta is included in ToolCallData, so we don't export it separately
 
-    export_type!(SessionStats);
-    export_type!(TokenUsage);
     export_type!(ContentBlock);
-    export_type!(OrderedMessage);
-    export_type!(FullSession);
-    export_type!(StoredContentBlock);
-    export_type!(StoredAssistantChunk);
-    export_type!(StoredUserMessage);
-    export_type!(StoredAssistantMessage);
-    export_type!(StoredErrorMessage);
     export_type!(SkillMeta);
     export_type!(QuestionAnswer);
-    export_type!(StoredEntry);
     export_type!(SessionPlanResponse);
     export_type!(UserSettingKey);
 
