@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::acp::projections::InteractionKind;
-use crate::acp::session_update::{ToolCallStatus, ToolKind, TodoUpdate, UsageTelemetryData};
+use crate::acp::session_update::{TodoUpdate, ToolCallStatus, ToolKind, UsageTelemetryData};
 
 /// Marker enum identifying the domain event kind.
 ///

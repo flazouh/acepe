@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
-import type { SessionProjectionSnapshot } from "../../../../services/acp-types.js";
+import type { SessionProjectionSnapshot, SessionStateEnvelope } from "../../../../services/acp-types.js";
 import { InteractionStore } from "../../interaction-store.svelte.js";
 
-const getSessionProjectionMock = mock(() => okAsync(createProjectionSnapshot()));
+const getSessionStateMock = mock(() => okAsync(createSessionStateEnvelope()));
 
 mock.module("../../api.js", () => ({
 	api: {
-		getSessionProjection: getSessionProjectionMock,
+		getSessionState: getSessionStateMock,
 	},
 }));
 
@@ -15,8 +15,8 @@ import { SessionProjectionHydrator } from "../session-projection-hydrator.js";
 
 describe("SessionProjectionHydrator", () => {
 	beforeEach(() => {
-		getSessionProjectionMock.mockClear();
-		getSessionProjectionMock.mockImplementation(() => okAsync(createProjectionSnapshot()));
+		getSessionStateMock.mockClear();
+		getSessionStateMock.mockImplementation(() => okAsync(createSessionStateEnvelope()));
 	});
 
 	it("hydrates pending, answered, and plan approval interactions from the backend projection", async () => {
@@ -26,7 +26,7 @@ describe("SessionProjectionHydrator", () => {
 		const result = await hydrator.hydrateSession("session-1");
 
 		expect(result.isOk()).toBe(true);
-		expect(getSessionProjectionMock).toHaveBeenCalledWith("session-1");
+		expect(getSessionStateMock).toHaveBeenCalledWith("session-1");
 		expect(interactions.permissionsPending.get("permission-1")?.tool?.callID).toBe(
 			"tool-permission"
 		);
@@ -110,44 +110,46 @@ describe("SessionProjectionHydrator", () => {
 	});
 
 	it("hydrates plan approvals from canonical reply handlers even without jsonRpcRequestId", async () => {
-		getSessionProjectionMock.mockImplementation(() =>
-			okAsync({
-				session: {
-					session_id: "session-1",
-					agent_id: "copilot",
-					last_event_seq: 1,
-					turn_state: "Idle",
-					message_count: 0,
-					last_agent_message_id: null,
-					active_tool_call_ids: [],
-					completed_tool_call_ids: [],
-				},
-				operations: [],
-				interactions: [
-					{
-						id: "plan-approval-http",
+		getSessionStateMock.mockImplementation(() =>
+			okAsync(
+				createSessionStateEnvelope({
+					session: {
 						session_id: "session-1",
-						kind: "PlanApproval",
-						state: "Pending",
-						json_rpc_request_id: null,
-						reply_handler: {
-							kind: "http",
-							requestId: "plan-approval-http-route",
-						},
-						tool_reference: {
-							messageId: "message-plan",
-							callId: "tool-plan",
-						},
-						responded_at_event_seq: null,
-						response: null,
-						payload: {
-							PlanApproval: {
-								source: "CreatePlan",
+						agent_id: "copilot",
+						last_event_seq: 1,
+						turn_state: "Idle",
+						message_count: 0,
+						last_agent_message_id: null,
+						active_tool_call_ids: [],
+						completed_tool_call_ids: [],
+					},
+					operations: [],
+					interactions: [
+						{
+							id: "plan-approval-http",
+							session_id: "session-1",
+							kind: "PlanApproval",
+							state: "Pending",
+							json_rpc_request_id: null,
+							reply_handler: {
+								kind: "http",
+								requestId: "plan-approval-http-route",
+							},
+							tool_reference: {
+								messageId: "message-plan",
+								callId: "tool-plan",
+							},
+							responded_at_event_seq: null,
+							response: null,
+							payload: {
+								PlanApproval: {
+									source: "CreatePlan",
+								},
 							},
 						},
-					},
-				],
-			})
+					],
+				})
+			)
 		);
 		const interactions = new InteractionStore();
 		const hydrator = new SessionProjectionHydrator(interactions);
@@ -174,88 +176,90 @@ describe("SessionProjectionHydrator", () => {
 	});
 
 	it("groups multiple pending permissions for the same tool call into one interaction", async () => {
-		getSessionProjectionMock.mockImplementation(() =>
-			okAsync({
-				session: {
-					session_id: "session-1",
-					agent_id: "copilot",
-					last_event_seq: 2,
-					turn_state: "Idle",
-					message_count: 0,
-					last_agent_message_id: null,
-					active_tool_call_ids: [],
-					completed_tool_call_ids: [],
-				},
-				operations: [],
-				interactions: [
-					{
-						id: "permission-1",
+		getSessionStateMock.mockImplementation(() =>
+			okAsync(
+				createSessionStateEnvelope({
+					session: {
 						session_id: "session-1",
-						kind: "Permission",
-						state: "Pending",
-						json_rpc_request_id: 55,
-						reply_handler: {
-							kind: "json_rpc",
-							requestId: "55",
-						},
-						tool_reference: {
-							messageId: "message-permission",
-							callId: "tool-permission",
-						},
-						responded_at_event_seq: null,
-						response: null,
-						payload: {
-							Permission: {
-								id: "permission-1",
-								sessionId: "session-1",
-								jsonRpcRequestId: 55,
-								permission: "Edit",
-								patterns: ["README.md"],
-								metadata: {},
-								always: ["allow_always"],
-								autoAccepted: false,
-								tool: {
-									messageId: "message-permission",
-									callId: "tool-permission",
+						agent_id: "copilot",
+						last_event_seq: 2,
+						turn_state: "Idle",
+						message_count: 0,
+						last_agent_message_id: null,
+						active_tool_call_ids: [],
+						completed_tool_call_ids: [],
+					},
+					operations: [],
+					interactions: [
+						{
+							id: "permission-1",
+							session_id: "session-1",
+							kind: "Permission",
+							state: "Pending",
+							json_rpc_request_id: 55,
+							reply_handler: {
+								kind: "json_rpc",
+								requestId: "55",
+							},
+							tool_reference: {
+								messageId: "message-permission",
+								callId: "tool-permission",
+							},
+							responded_at_event_seq: null,
+							response: null,
+							payload: {
+								Permission: {
+									id: "permission-1",
+									sessionId: "session-1",
+									jsonRpcRequestId: 55,
+									permission: "Edit",
+									patterns: ["README.md"],
+									metadata: {},
+									always: ["allow_always"],
+									autoAccepted: false,
+									tool: {
+										messageId: "message-permission",
+										callId: "tool-permission",
+									},
 								},
 							},
 						},
-					},
-					{
-						id: "permission-2",
-						session_id: "session-1",
-						kind: "Permission",
-						state: "Pending",
-						json_rpc_request_id: 56,
-						reply_handler: {
-							kind: "json_rpc",
-							requestId: "56",
-						},
-						tool_reference: {
-							messageId: "message-permission",
-							callId: "tool-permission",
-						},
-						responded_at_event_seq: null,
-						response: null,
-						payload: {
-							Permission: {
-								id: "permission-2",
-								sessionId: "session-1",
-								jsonRpcRequestId: 56,
-								permission: "Edit",
-								patterns: ["AGENTS.md"],
-								metadata: {},
-								always: ["allow_always"],
-								autoAccepted: false,
-								tool: {
-									messageId: "message-permission",
-									callId: "tool-permission",
+						{
+							id: "permission-2",
+							session_id: "session-1",
+							kind: "Permission",
+							state: "Pending",
+							json_rpc_request_id: 56,
+							reply_handler: {
+								kind: "json_rpc",
+								requestId: "56",
+							},
+							tool_reference: {
+								messageId: "message-permission",
+								callId: "tool-permission",
+							},
+							responded_at_event_seq: null,
+							response: null,
+							payload: {
+								Permission: {
+									id: "permission-2",
+									sessionId: "session-1",
+									jsonRpcRequestId: 56,
+									permission: "Edit",
+									patterns: ["AGENTS.md"],
+									metadata: {},
+									always: ["allow_always"],
+									autoAccepted: false,
+									tool: {
+										messageId: "message-permission",
+										callId: "tool-permission",
+									},
 								},
 							},
 						},
-					},
-				],
-			})
+					],
+				})
+			)
 		);
 		const interactions = new InteractionStore();
 		const hydrator = new SessionProjectionHydrator(interactions);
@@ -270,60 +274,62 @@ describe("SessionProjectionHydrator", () => {
 	});
 
 	it("does not surface auto-accepted permissions as pending interactions", async () => {
-		getSessionProjectionMock.mockImplementation(() =>
-			okAsync({
-				session: {
-					session_id: "session-1",
-					agent_id: "codex",
-					last_event_seq: 2,
-					turn_state: "Idle",
-					message_count: 0,
-					last_agent_message_id: null,
-					active_tool_call_ids: [],
-					completed_tool_call_ids: ["tool-permission"],
-				},
-				operations: [],
-				interactions: [
-					{
-						id: "permission-auto",
+		getSessionStateMock.mockImplementation(() =>
+			okAsync(
+				createSessionStateEnvelope({
+					session: {
 						session_id: "session-1",
-						kind: "Permission",
-						state: "Approved",
-						json_rpc_request_id: 77,
-						reply_handler: {
-							kind: "json_rpc",
-							requestId: "77",
-						},
-						tool_reference: {
-							messageId: "message-permission",
-							callId: "tool-permission",
-						},
-						responded_at_event_seq: 2,
-						response: {
-							kind: "permission",
-							accepted: true,
-							option_id: "allow",
-							reply: "once",
-						},
-						payload: {
-							Permission: {
-								id: "permission-auto",
-								sessionId: "session-1",
-								jsonRpcRequestId: 77,
-								permission: "Read",
-								patterns: ["README.md"],
-								metadata: {},
-								always: ["allow_always"],
-								autoAccepted: true,
-								tool: {
-									messageId: "message-permission",
-									callId: "tool-permission",
+						agent_id: "codex",
+						last_event_seq: 2,
+						turn_state: "Idle",
+						message_count: 0,
+						last_agent_message_id: null,
+						active_tool_call_ids: [],
+						completed_tool_call_ids: ["tool-permission"],
+					},
+					operations: [],
+					interactions: [
+						{
+							id: "permission-auto",
+							session_id: "session-1",
+							kind: "Permission",
+							state: "Approved",
+							json_rpc_request_id: 77,
+							reply_handler: {
+								kind: "json_rpc",
+								requestId: "77",
+							},
+							tool_reference: {
+								messageId: "message-permission",
+								callId: "tool-permission",
+							},
+							responded_at_event_seq: 2,
+							response: {
+								kind: "permission",
+								accepted: true,
+								option_id: "allow",
+								reply: "once",
+							},
+							payload: {
+								Permission: {
+									id: "permission-auto",
+									sessionId: "session-1",
+									jsonRpcRequestId: 77,
+									permission: "Read",
+									patterns: ["README.md"],
+									metadata: {},
+									always: ["allow_always"],
+									autoAccepted: true,
+									tool: {
+										messageId: "message-permission",
+										callId: "tool-permission",
+									},
 								},
 							},
 						},
-					},
-				],
-			})
+					],
+				})
+			)
 		);
 		const interactions = new InteractionStore();
 		const hydrator = new SessionProjectionHydrator(interactions);
@@ -483,5 +489,50 @@ function createProjectionSnapshot(): SessionProjectionSnapshot {
 				},
 			},
 		],
+	};
+}
+
+function createSessionStateEnvelope(
+	projection: SessionProjectionSnapshot = createProjectionSnapshot()
+): SessionStateEnvelope {
+	return {
+		sessionId: projection.session?.session_id ?? "session-1",
+		graphRevision: projection.session?.last_event_seq ?? 0,
+		lastEventSeq: projection.session?.last_event_seq ?? 0,
+		payload: {
+			kind: "snapshot",
+			graph: {
+				requestedSessionId: projection.session?.session_id ?? "session-1",
+				canonicalSessionId: projection.session?.session_id ?? "session-1",
+				isAlias: false,
+				agentId: projection.session?.agent_id ?? "claude-code",
+				projectPath: "/workspace/acepe",
+				worktreePath: null,
+				sourcePath: null,
+				revision: {
+					graphRevision: projection.session?.last_event_seq ?? 0,
+					lastEventSeq: projection.session?.last_event_seq ?? 0,
+				},
+				transcriptSnapshot: {
+					revision: projection.session?.last_event_seq ?? 0,
+					entries: [],
+				},
+				operations: projection.operations,
+				interactions: projection.interactions,
+				turnState: projection.session?.turn_state ?? "Idle",
+				messageCount: projection.session?.message_count ?? 0,
+				lifecycle: {
+					status: "idle",
+					errorMessage: null,
+					canReconnect: true,
+				},
+				capabilities: {
+					models: null,
+					modes: null,
+					availableCommands: [],
+					configOptions: [],
+				},
+			},
+		},
 	};
 }

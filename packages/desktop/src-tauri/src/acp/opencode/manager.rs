@@ -1,7 +1,7 @@
 use super::sse;
 use crate::acp::providers::opencode::resolve_opencode_spawn_configs;
+use crate::acp::runtime_resolver::{load_saved_agent_env_overrides, resolve_effective_runtime};
 use crate::acp::types::CanonicalAgentId;
-use crate::shell_env::get_enhanced_path_string;
 use anyhow::{anyhow, Context, Result};
 use dashmap::DashMap;
 use regex::Regex;
@@ -241,13 +241,24 @@ impl OpenCodeManager {
         let desired_port = 0u16;
         spawn_config.args.push("--port".to_string());
         spawn_config.args.push(desired_port.to_string());
+        let saved_overrides = if let Some(app_handle) = &self.app_handle {
+            load_saved_agent_env_overrides(app_handle).await.ok()
+        } else {
+            None
+        };
+        let runtime = resolve_effective_runtime(
+            "opencode",
+            &self.project_root,
+            &spawn_config,
+            saved_overrides.as_ref(),
+        );
 
         // Spawn the process with the provider-resolved launcher
-        let mut cmd = Command::new(&spawn_config.command);
-        cmd.args(&spawn_config.args)
+        let mut cmd = Command::new(&runtime.command);
+        cmd.args(&runtime.args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .current_dir(&self.project_root)
+            .current_dir(&runtime.cwd)
             .kill_on_drop(false); // We handle cleanup manually
 
         #[cfg(unix)]
@@ -255,12 +266,9 @@ impl OpenCodeManager {
 
         // Preserve the provider env contract for downloaded OpenCode binaries.
         cmd.env_clear();
-        for (key, value) in &spawn_config.env {
+        for (key, value) in &runtime.env {
             cmd.env(key, value);
         }
-
-        // PATH should stay enhanced even when the cached launcher was resolved earlier.
-        cmd.env("PATH", get_enhanced_path_string());
 
         let mut child = cmd
             .spawn()

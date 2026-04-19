@@ -26,6 +26,7 @@ impl AgentProvider for CustomAgentConfig {
             command: self.command.clone(),
             args: self.args.clone(),
             env: self.env.clone(),
+            env_strategy: None,
         }
     }
 

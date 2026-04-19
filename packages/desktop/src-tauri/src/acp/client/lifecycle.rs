@@ -1,5 +1,6 @@
 use super::*;
 use crate::acp::client_loop::read_stderr_buffer;
+use crate::acp::runtime_resolver::resolve_effective_runtime;
 use tokio_util::sync::CancellationToken;
 
 impl AcpClient {
@@ -77,39 +78,38 @@ impl AcpClient {
                 )));
             }
             let total_spawn_configs = spawn_configs.len();
-            let Some(mut spawn_config) = spawn_configs.get(self.spawn_config_index).cloned() else {
+            let Some(spawn_config) = spawn_configs.get(self.spawn_config_index).cloned() else {
                 return Err(AcpError::InvalidState(format!(
                     "Spawn config index {} out of range for provider {}",
                     self.spawn_config_index, provider_id
                 )));
             };
 
-            if let Some(saved_overrides) = &saved_overrides {
-                spawn_config.env = apply_saved_agent_env_overrides(
-                    &provider_id,
-                    spawn_config.env,
-                    saved_overrides,
-                );
-            }
+            let runtime = resolve_effective_runtime(
+                &provider_id,
+                &cwd,
+                &spawn_config,
+                saved_overrides.as_ref(),
+            );
 
             tracing::info!(
-                command = %spawn_config.command,
-                args = ?spawn_config.args,
+                command = %runtime.command,
+                args = ?runtime.args,
                 cwd = %cwd.display(),
                 attempt = self.spawn_config_index + 1,
                 total_attempts = total_spawn_configs,
                 "Spawning agent subprocess"
             );
 
-            let mut cmd = Command::new(&spawn_config.command);
-            cmd.args(&spawn_config.args);
-            cmd.current_dir(&cwd);
+            let mut cmd = Command::new(&runtime.command);
+            cmd.args(&runtime.args);
+            cmd.current_dir(&runtime.cwd);
 
             // Clear inherited env and set only what the provider explicitly provides.
             // Without env_clear(), subprocess inherits full process env, making
             // allowlist-based providers (Cursor, OpenCode) ineffective.
             cmd.env_clear();
-            for (key, value) in &spawn_config.env {
+            for (key, value) in &runtime.env {
                 cmd.env(key, value);
             }
 
@@ -124,7 +124,7 @@ impl AcpClient {
                 });
             }
 
-            let command_str = spawn_config.command.clone();
+            let command_str = runtime.command.clone();
             let mut child = match cmd
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())

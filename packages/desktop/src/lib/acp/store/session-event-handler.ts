@@ -12,7 +12,7 @@ import type {
 	ContentBlock,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
-import type { TranscriptDelta } from "../../services/acp-types.js";
+import type { SessionStateEnvelope, TranscriptDelta } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
@@ -128,6 +128,8 @@ export interface SessionEventHandler {
 		sessionId: string,
 		telemetry: import("./types.js").SessionUsageTelemetry
 	): void;
+
+	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void;
 
 	applyTranscriptDelta(sessionId: string, delta: TranscriptDelta): void;
 }

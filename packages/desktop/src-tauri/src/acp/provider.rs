@@ -16,6 +16,7 @@ use crate::acp::parsers::provider_capabilities::{
 };
 use crate::acp::parsers::AgentType;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
@@ -180,6 +181,8 @@ pub struct SpawnConfig {
     pub command: String,
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_strategy: Option<SpawnEnvStrategy>,
 }
 
 /// Whether a provider should appear in user-visible built-in lists.

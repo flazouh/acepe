@@ -6,6 +6,7 @@ use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
@@ -38,8 +39,8 @@ const ALLOWED_ENV_KEYS: &[&str] = &[
     "OPENCODE_API_KEY",
 ];
 
-fn filtered_env() -> HashMap<String, String> {
-    crate::shell_env::build_env(crate::shell_env::EnvStrategy::Allowlist(ALLOWED_ENV_KEYS))
+fn filtered_env_strategy() -> SpawnEnvStrategy {
+    SpawnEnvStrategy::allowlist(ALLOWED_ENV_KEYS)
 }
 
 fn normalize_opencode_serve_args(cached_args: Vec<String>) -> Vec<String> {
@@ -59,7 +60,6 @@ pub(crate) fn resolve_opencode_spawn_configs(
     cached_args: Vec<String>,
 ) -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
-    let env = filtered_env();
 
     if let Some(command) = cached_command {
         push_unique_spawn_config(
@@ -67,7 +67,8 @@ pub(crate) fn resolve_opencode_spawn_configs(
             SpawnConfig {
                 command,
                 args: normalize_opencode_serve_args(cached_args),
-                env,
+                env: HashMap::new(),
+                env_strategy: Some(filtered_env_strategy()),
             },
         );
     }
@@ -103,7 +104,8 @@ impl AgentProvider for OpenCodeProvider {
             SpawnConfig {
                 command: "__acepe_missing_opencode_binary__".to_string(),
                 args: vec!["serve".to_string()],
-                env: filtered_env(),
+                env: HashMap::new(),
+                env_strategy: Some(filtered_env_strategy()),
             }
         })
     }

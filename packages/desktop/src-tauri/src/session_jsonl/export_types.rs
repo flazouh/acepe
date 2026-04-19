@@ -5,14 +5,12 @@ use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
 };
-use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload};
+use crate::acp::domain_events::{
+    SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
+};
 use crate::acp::model_display::{
     DisplayModelGroup, DisplayableModel, ModelDisplayFamily, ModelPresentationMetadata,
     ModelsForDisplay, UsageMetricsPresentation,
-};
-use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
-    TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::projections::{
     InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
@@ -21,6 +19,11 @@ use crate::acp::projections::{
 };
 use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenFound, SessionOpenMissing, SessionOpenResult,
+};
+use crate::acp::session_state_engine::{
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
+    SessionGraphRevision, SessionStateDelta, SessionStateEnvelope, SessionStateGraph,
+    SessionStatePayload, SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -31,6 +34,10 @@ use crate::acp::session_update::{
     ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
     ToolSourceContext, ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind,
     TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+};
+use crate::acp::transcript_projection::{
+    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+    TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -298,6 +305,7 @@ pub fn export_all_types() {
     export_type!(ContentBlock);
     export_type!(SkillMeta);
     export_type!(QuestionAnswer);
+    export_type!(StoredErrorMessage);
     export_type!(SessionPlanResponse);
     export_type!(UserSettingKey);
 
@@ -397,6 +405,15 @@ pub fn export_all_types() {
     export_acp_type!(SessionOpenFound);
     export_acp_type!(SessionOpenMissing);
     export_acp_type!(SessionOpenResult);
+    export_acp_type!(SessionGraphRevision);
+    export_acp_type!(SessionGraphLifecycleStatus);
+    export_acp_type!(SessionGraphLifecycle);
+    export_acp_type!(SessionGraphCapabilities);
+    export_acp_type!(SessionStateGraph);
+    export_acp_type!(SessionStateSnapshotMaterialization);
+    export_acp_type!(SessionStateDelta);
+    export_acp_type!(SessionStatePayload);
+    export_acp_type!(SessionStateEnvelope);
 
     acp_types = acp_types.replace(
         "export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usageMetrics: UsageMetricsPresentation }",

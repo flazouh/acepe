@@ -441,6 +441,7 @@ mod tests {
                 command: "forge".to_string(),
                 args: vec!["machine".to_string(), "--stdio".to_string()],
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
 
@@ -469,6 +470,7 @@ mod tests {
                 command: "forge".to_string(),
                 args: vec!["machine".to_string(), "--stdio".to_string()],
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
 

@@ -103,7 +103,7 @@ libc = "0.2"
 objc2 = { version = "0.6", features = ["catch-all"] }
 
 [features]
-default = ["whisper-metal"]
+default = ["whisper-metal", "auto-download"]
 auto-download = []
 manual-test-targets = []
 websocket = []

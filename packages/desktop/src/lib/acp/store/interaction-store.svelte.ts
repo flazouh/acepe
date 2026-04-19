@@ -7,7 +7,7 @@ import type {
 	PermissionData,
 	QuestionData,
 	QuestionItem,
-	SessionProjectionSnapshot,
+	SessionStateGraph,
 	ToolReference,
 } from "../../services/acp-types.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
@@ -80,14 +80,9 @@ export class InteractionStore {
 		}
 	}
 
-	replaceSessionProjection(projection: SessionProjectionSnapshot): void {
-		const sessionId = projection.session?.session_id ?? projection.interactions[0]?.session_id;
-		if (sessionId === undefined) {
-			return;
-		}
-
-		this.clearSession(sessionId);
-		for (const interaction of projection.interactions) {
+	replaceSessionStateGraph(graph: SessionStateGraph): void {
+		this.clearSession(graph.canonicalSessionId);
+		for (const interaction of graph.interactions) {
 			this.applyProjectionInteraction(interaction);
 		}
 	}

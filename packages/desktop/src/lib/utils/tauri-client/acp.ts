@@ -5,7 +5,7 @@ import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-import type { SessionProjectionSnapshot } from "../../services/acp-types.js";
+import type { SessionStateEnvelope } from "../../services/acp-types.js";
 import { ACP_PREFIX } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 import type { CustomAgentConfig } from "./types.js";
@@ -153,8 +153,8 @@ export const acp = {
 		return acpCommands.get_event_bridge_info.invoke<{ eventsUrl: string }>();
 	},
 
-	getSessionProjection: (sessionId: string): ResultAsync<SessionProjectionSnapshot, AppError> => {
-		return acpCommands.get_session_projection.invoke<SessionProjectionSnapshot>({ sessionId });
+	getSessionState: (sessionId: string): ResultAsync<SessionStateEnvelope, AppError> => {
+		return acpCommands.get_session_state.invoke<SessionStateEnvelope>({ sessionId });
 	},
 
 	rpcCall(method: string, params: Record<string, unknown>): ResultAsync<unknown, AppError> {

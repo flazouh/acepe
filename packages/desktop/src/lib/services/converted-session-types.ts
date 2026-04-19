@@ -457,6 +457,11 @@ questions: QuestionItem[];
 answers: Partial<{ [key in string]: JsonValue }> }
 
 /**
+ * Error entry stored in replayed session history.
+ */
+export type StoredErrorMessage = { content: string; code?: string | null; kind: TurnErrorKind; source?: TurnErrorSource | null }
+
+/**
  * Response for session plan request.
  * Returned by get_session_plan, get_plan_by_slug, list_plans commands.
  */

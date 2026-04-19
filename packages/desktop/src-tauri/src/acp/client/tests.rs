@@ -46,6 +46,7 @@ fn failing_spawn_config() -> SpawnConfig {
             "echo 'error: An unknown error occurred (Unexpected)' >&2; exit 1".to_string(),
         ],
         env: HashMap::new(),
+        env_strategy: None,
     }
 }
 
@@ -58,6 +59,7 @@ fn successful_spawn_config() -> SpawnConfig {
             "import json, sys; req = json.loads(sys.stdin.readline()); print(json.dumps({'jsonrpc': '2.0', 'id': req['id'], 'result': {'protocolVersion': 1, 'agentCapabilities': {}, 'agentInfo': {}, 'authMethods': []}}), flush=True)".to_string(),
         ],
         env: HashMap::new(),
+        env_strategy: None,
     }
 }
 
@@ -75,6 +77,7 @@ impl AgentProvider for TestProvider {
             command: "true".to_string(),
             args: Vec::new(),
             env: HashMap::new(),
+            env_strategy: None,
         }
     }
 
@@ -211,6 +214,7 @@ impl AgentProvider for NoLauncherProvider {
             command: "agent".to_string(),
             args: vec!["acp".to_string()],
             env: HashMap::new(),
+            env_strategy: None,
         }
     }
 
@@ -276,7 +280,8 @@ fn merge_saved_agent_env_overrides_prefers_saved_values() {
         HashMap::from([("AZURE_API_KEY".to_string(), "from-acepe".to_string())]),
     )]);
 
-    let merged = apply_saved_agent_env_overrides("codex", base, &overrides);
+    let merged =
+        crate::acp::runtime_resolver::apply_saved_agent_env_overrides("codex", base, &overrides);
 
     assert_eq!(merged.get("AZURE_API_KEY"), Some(&"from-acepe".to_string()));
 }
@@ -292,7 +297,11 @@ fn merge_saved_agent_env_overrides_ignores_missing_agent_entry() {
         )]),
     )]);
 
-    let merged = apply_saved_agent_env_overrides("codex", base.clone(), &overrides);
+    let merged = crate::acp::runtime_resolver::apply_saved_agent_env_overrides(
+        "codex",
+        base.clone(),
+        &overrides,
+    );
 
     assert_eq!(merged, base);
 }
@@ -312,7 +321,8 @@ fn merge_saved_agent_env_overrides_blocks_protected_keys() {
         ]),
     )]);
 
-    let merged = apply_saved_agent_env_overrides("codex", base, &overrides);
+    let merged =
+        crate::acp::runtime_resolver::apply_saved_agent_env_overrides("codex", base, &overrides);
 
     assert_eq!(merged.get("PATH"), Some(&"/usr/bin".to_string()));
     assert!(!merged.contains_key("NODE_OPTIONS"));
