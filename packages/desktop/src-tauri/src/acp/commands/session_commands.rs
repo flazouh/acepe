@@ -291,19 +291,25 @@ pub async fn acp_get_session_state(
         let last_event_seq = projection_session
             .map(|session| session.last_event_seq)
             .unwrap_or(0);
-        let transcript_snapshot = transcript_registry
+        let transcript_snapshot = if let Some(snapshot) = transcript_registry
             .snapshot_for_session(&canonical_session_id)
             .or_else(|| transcript_registry.snapshot_for_session(&session_id))
-            .or(
-                SessionTranscriptSnapshotRepository::get(db.inner(), &canonical_session_id)
-                    .await
-                    .map_err(|error| SerializableAcpError::InvalidState {
-                        message: format!(
-                            "Failed to load transcript snapshot for state lookup {canonical_session_id}: {error}"
-                        ),
-                    })?,
-            )
-            .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
+        {
+            snapshot
+        } else {
+            SessionTranscriptSnapshotRepository::get(db.inner(), &canonical_session_id)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to load transcript snapshot for state lookup {canonical_session_id}: {error}"
+                    ),
+                })?
+                .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]))
+        };
+        let runtime_snapshot = app
+            .try_state::<Arc<SessionGraphRuntimeRegistry>>()
+            .map(|registry| registry.inner().snapshot_for_session(&canonical_session_id))
+            .unwrap_or_default();
         let agent_id = lookup
             .replay_context
             .as_ref()
@@ -357,8 +363,8 @@ pub async fn acp_get_session_state(
 
         Ok(build_snapshot_envelope(
             &found,
-            SessionGraphLifecycle::idle(),
-            SessionGraphCapabilities::empty(),
+            runtime_snapshot.lifecycle,
+            runtime_snapshot.capabilities,
         ))
     }
     .await)
@@ -1359,6 +1365,9 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
                 })?;
             }
             projection_registry.remove_session(&session_id);
+            if let Some(runtime_registry) = app.try_state::<Arc<SessionGraphRuntimeRegistry>>() {
+                runtime_registry.inner().remove_session(&session_id);
+            }
             if let Some(transcript_snapshot) =
                 transcript_projection_registry.snapshot_for_session(&session_id)
             {

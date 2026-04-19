@@ -114,23 +114,6 @@ type LiveSessionStateGraphConsumer = {
 	replaceSessionStateGraph(graph: SessionStateGraph): void;
 };
 
-function mapProjectionTurnState(turnState: SessionTurnState):
-	| "idle"
-	| "streaming"
-	| "completed"
-	| "error" {
-	switch (turnState) {
-		case "Idle":
-			return "idle";
-		case "Running":
-			return "streaming";
-		case "Completed":
-			return "completed";
-		case "Failed":
-			return "error";
-	}
-}
-
 function mapProjectionTurnFailure(
 	failure: ProjectionTurnFailure | null | undefined
 ): ActiveTurnFailure | null {
@@ -651,7 +634,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			isConnected: graph.lifecycle.status === "ready",
 			acpSessionId:
 				graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
-			turnState: mapProjectionTurnState(graph.turnState),
+			turnState: toFrontendTurnState(graph.turnState),
 			activeTurnFailure,
 			lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 			connectionError: connectionErrorFromGraphState(graph.lifecycle, activeTurnFailure),

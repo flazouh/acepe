@@ -4,8 +4,8 @@ use crate::acp::domain_events::{
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::{
-    build_delta_envelope, SessionGraphRevision, SessionGraphRuntimeRegistry,
-    SessionStateEnvelope, SessionStateGraph,
+    build_delta_envelope, SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
+    SessionStateGraph,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
@@ -589,15 +589,14 @@ impl DispatcherState {
                 self.tokens -= 1.0;
                 self.global_backlog = self.global_backlog.saturating_sub(1);
 
-                let dispatch_effects =
-                    persist_dispatch_event(
-                        db,
-                        &event,
-                        projection_registry,
-                        runtime_graph_registry,
-                        transcript_projection_registry,
-                    )
-                    .await;
+                let dispatch_effects = persist_dispatch_event(
+                    db,
+                    &event,
+                    projection_registry,
+                    runtime_graph_registry,
+                    transcript_projection_registry,
+                )
+                .await;
 
                 if let Err(error) = event.publish(hub) {
                     tracing::error!(
@@ -804,9 +803,7 @@ fn build_persisted_session_state_delta_envelope(delta: &TranscriptDelta) -> Sess
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
     matches!(
         update,
-        SessionUpdate::ToolCall { .. }
-            | SessionUpdate::ToolCallUpdate { .. }
-            | SessionUpdate::PermissionRequest { .. }
+        SessionUpdate::PermissionRequest { .. }
             | SessionUpdate::QuestionRequest { .. }
             | SessionUpdate::TurnComplete { .. }
             | SessionUpdate::TurnError { .. }
@@ -1060,15 +1057,14 @@ mod tests {
         }
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
-        let effects =
-            persist_dispatch_event(
-                Some(&db),
-                &event,
-                &projection_registry,
-                &runtime_graph_registry,
-                &transcript_projection_registry,
-            )
-            .await;
+        let effects = persist_dispatch_event(
+            Some(&db),
+            &event,
+            &projection_registry,
+            &runtime_graph_registry,
+            &transcript_projection_registry,
+        )
+        .await;
         let delta = effects.transcript_delta.expect("transcript delta");
 
         assert_eq!(delta.event_seq, 1);
@@ -1122,12 +1118,17 @@ mod tests {
         .await;
 
         assert!(effects.transcript_delta.is_none());
-        let envelope = effects.session_state_envelope.expect("session state envelope");
+        let envelope = effects
+            .session_state_envelope
+            .expect("session state envelope");
         match envelope.payload {
             crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.revision.graph_revision, 1);
                 assert_eq!(graph.interactions.len(), 1);
-                assert_eq!(graph.lifecycle.status, crate::acp::session_state_engine::SessionGraphLifecycleStatus::Idle);
+                assert_eq!(
+                    graph.lifecycle.status,
+                    crate::acp::session_state_engine::SessionGraphLifecycleStatus::Idle
+                );
             }
             other => panic!("expected snapshot payload, got {:?}", other),
         }
@@ -1154,6 +1155,29 @@ mod tests {
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn tool_call_updates_do_not_force_session_state_snapshots() {
+        assert!(!should_emit_session_state_snapshot(&SessionUpdate::ToolCallUpdate {
+            update: crate::acp::session_update::ToolCallUpdateData {
+                tool_call_id: "tool-1".to_string(),
+                status: None,
+                result: None,
+                content: None,
+                raw_output: None,
+                title: None,
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }));
     }
 
     #[tokio::test]

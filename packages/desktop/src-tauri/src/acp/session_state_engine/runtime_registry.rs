@@ -10,6 +10,7 @@ use std::sync::Arc;
 pub struct SessionGraphRuntimeSnapshot {
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
+    last_attempt_id: Option<u64>,
 }
 
 impl Default for SessionGraphRuntimeSnapshot {
@@ -17,6 +18,7 @@ impl Default for SessionGraphRuntimeSnapshot {
         Self {
             lifecycle: SessionGraphLifecycle::idle(),
             capabilities: SessionGraphCapabilities::empty(),
+            last_attempt_id: None,
         }
     }
 }
@@ -53,6 +55,7 @@ impl SessionGraphRuntimeRegistry {
             SessionGraphRuntimeSnapshot {
                 lifecycle,
                 capabilities,
+                last_attempt_id: None,
             },
         );
     }
@@ -69,12 +72,19 @@ impl SessionGraphRuntimeRegistry {
 
         match update {
             SessionUpdate::ConnectionComplete {
+                attempt_id,
                 models,
                 modes,
                 available_commands,
                 config_options,
                 ..
             } => {
+                if state
+                    .last_attempt_id
+                    .is_some_and(|current_attempt_id| *attempt_id < current_attempt_id)
+                {
+                    return;
+                }
                 state.lifecycle = SessionGraphLifecycle {
                     status: SessionGraphLifecycleStatus::Ready,
                     error_message: None,
@@ -86,13 +96,23 @@ impl SessionGraphRuntimeRegistry {
                     available_commands: available_commands.clone(),
                     config_options: config_options.clone(),
                 };
+                state.last_attempt_id = Some(*attempt_id);
             }
-            SessionUpdate::ConnectionFailed { error, .. } => {
+            SessionUpdate::ConnectionFailed {
+                attempt_id, error, ..
+            } => {
+                if state
+                    .last_attempt_id
+                    .is_some_and(|current_attempt_id| *attempt_id < current_attempt_id)
+                {
+                    return;
+                }
                 state.lifecycle = SessionGraphLifecycle {
                     status: SessionGraphLifecycleStatus::Error,
                     error_message: Some(error.clone()),
                     can_reconnect: true,
                 };
+                state.last_attempt_id = Some(*attempt_id);
             }
             SessionUpdate::AvailableCommandsUpdate { update, .. } => {
                 state.capabilities.available_commands = update.available_commands.clone();
@@ -118,7 +138,7 @@ impl SessionGraphRuntimeRegistry {
 #[cfg(test)]
 mod tests {
     use super::SessionGraphRuntimeRegistry;
-    use crate::acp::client_session::{default_session_model_state, default_modes};
+    use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::session_state_engine::selectors::SessionGraphLifecycleStatus;
     use crate::acp::session_update::{
         AvailableCommandsData, ConfigOptionData, CurrentModeData, SessionUpdate,
@@ -182,7 +202,10 @@ mod tests {
         );
 
         let snapshot = registry.snapshot_for_session(session_id);
-        assert_eq!(snapshot.lifecycle.status, SessionGraphLifecycleStatus::Ready);
+        assert_eq!(
+            snapshot.lifecycle.status,
+            SessionGraphLifecycleStatus::Ready
+        );
         assert_eq!(
             snapshot
                 .capabilities
@@ -194,5 +217,39 @@ mod tests {
         );
         assert_eq!(snapshot.capabilities.available_commands.len(), 1);
         assert_eq!(snapshot.capabilities.config_options.len(), 1);
+    }
+
+    #[test]
+    fn registry_ignores_stale_connection_attempts() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "session-1";
+
+        registry.apply_session_update(
+            session_id,
+            &SessionUpdate::ConnectionComplete {
+                session_id: session_id.to_string(),
+                attempt_id: 2,
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: Vec::new(),
+                config_options: Vec::new(),
+                autonomous_enabled: false,
+            },
+        );
+        registry.apply_session_update(
+            session_id,
+            &SessionUpdate::ConnectionFailed {
+                session_id: session_id.to_string(),
+                attempt_id: 1,
+                error: "stale".to_string(),
+            },
+        );
+
+        let snapshot = registry.snapshot_for_session(session_id);
+        assert_eq!(
+            snapshot.lifecycle.status,
+            SessionGraphLifecycleStatus::Ready
+        );
+        assert_eq!(snapshot.lifecycle.error_message, None);
     }
 }

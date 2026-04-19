@@ -38,7 +38,7 @@ pub fn decide_frontier_transition(
         };
     };
 
-    if candidate.last_event_seq < retained_event_floor {
+    if current_frontier.last_event_seq < retained_event_floor {
         return SessionFrontierDecision::RequireSnapshot {
             reason: FrontierFallbackReason::StaleDeltaWindow,
             frontier: Some(current_frontier),
@@ -106,9 +106,40 @@ mod tests {
 
     #[test]
     fn frontier_requires_snapshot_when_candidate_predates_retained_window() {
+        let frontier = SessionGraphRevision::new(4, 4);
+        let candidate = SessionGraphRevision::new(13, 8);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 5);
+
+        assert_eq!(
+            decision,
+            SessionFrontierDecision::RequireSnapshot {
+                reason: FrontierFallbackReason::StaleDeltaWindow,
+                frontier: Some(frontier),
+                candidate,
+            }
+        );
+    }
+
+    #[test]
+    fn frontier_accepts_candidate_when_frontier_is_within_retained_window() {
+        let frontier = SessionGraphRevision::new(8, 12);
+        let candidate = SessionGraphRevision::new(13, 12);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 5);
+
+        assert_eq!(
+            decision,
+            SessionFrontierDecision::AcceptDelta {
+                from_revision: frontier,
+                to_revision: candidate,
+            }
+        );
+    }
+
+    #[test]
+    fn frontier_requires_snapshot_when_candidate_event_seq_regresses() {
         let frontier = SessionGraphRevision::new(8, 12);
         let candidate = SessionGraphRevision::new(13, 3);
-        let decision = decide_frontier_transition(Some(frontier), candidate, 5);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 13);
 
         assert_eq!(
             decision,

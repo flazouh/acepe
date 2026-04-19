@@ -1285,6 +1285,73 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	it("[regression] buffers session-state deltas during snapshot reconnect and flushes them after connect", () => {
+		const reconnectingHandler = createMockHandler();
+		const session = {
+			id: "session-123",
+			agentId: "claude-code"
+		} as unknown as SessionCold;
+		(reconnectingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
+		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: false,
+			status: "connecting"
+		});
+
+		service.beginSnapshotReconnect("session-123");
+
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 42,
+			lastEventSeq: 42,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 41, lastEventSeq: 41 },
+					toRevision: { graphRevision: 42, lastEventSeq: 42 },
+					transcriptDelta: {
+						sessionId: "session-123",
+						eventSeq: 42,
+						snapshotRevision: 42,
+						operations: [
+							{
+								kind: "appendEntry",
+								entry: {
+									entryId: "assistant-42",
+									role: "assistant",
+									segments: [
+										{
+											kind: "text",
+											segmentId: "assistant-42:segment:42",
+											text: "post-snapshot delta"
+										}
+									]
+								}
+							}
+						]
+					},
+					changedFields: ["transcriptSnapshot"]
+				}
+			}
+		};
+
+		service.handleSessionStateEnvelope(envelope, reconnectingHandler);
+		expect(reconnectingHandler.applySessionStateEnvelope).not.toHaveBeenCalled();
+
+		service.endSnapshotReconnect("session-123");
+		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "idle",
+			turnState: "idle"
+		});
+		service.flushPendingEvents("session-123", reconnectingHandler);
+
+		expect(reconnectingHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(reconnectingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-123",
+			envelope
+		);
+	});
+
 	it("does not infer plan mode from enter_plan_mode tool calls", () => {
 		const update: SessionUpdate = {
 			type: "toolCall",

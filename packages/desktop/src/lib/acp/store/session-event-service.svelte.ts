@@ -755,12 +755,46 @@ export class SessionEventService {
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
 		const transcriptDelta =
 			envelope.payload.kind === "delta" ? envelope.payload.delta.transcriptDelta : null;
+		const sessionId = envelope.sessionId;
+		const session = handler.getSessionCold(sessionId);
+		const hotState = session ? handler.getHotState(sessionId) : null;
+		const isDisconnectedSession = hotState?.isConnected === false;
+		const isConnectingSession = hotState?.status === "connecting";
+		const isSnapshotReconnect =
+			isConnectingSession && this.snapshotReconnectSessions.has(sessionId);
 		if (transcriptDelta !== null && transcriptDelta !== undefined) {
-			if (this.deltaHasAssistantMutation(transcriptDelta)) {
-				this.clearPendingAssistantFallback(envelope.sessionId);
+			if (isSnapshotReconnect) {
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
+			}
+
+			if (isDisconnectedSession && !isConnectingSession) {
+				this.telemetryDisconnectedDrops++;
+				this.warnWithCooldown(
+					"disconnected",
+					"Buffered session-state delta while disconnected",
+					{
+						sessionId,
+						snapshotRevision: envelope.graphRevision,
+						agentId: session?.agentId,
+						status: hotState?.status
+					}
+				);
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
+			}
+
+			if (!this.hasKnownSession(handler, sessionId)) {
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
 			}
 		}
-		handler.applySessionStateEnvelope(envelope.sessionId, envelope);
+		if (transcriptDelta !== null && transcriptDelta !== undefined) {
+			if (this.deltaHasAssistantMutation(transcriptDelta)) {
+				this.clearPendingAssistantFallback(sessionId);
+			}
+		}
+		handler.applySessionStateEnvelope(sessionId, envelope);
 	}
 
 	private shouldTreatPlanAsTurnComplete(
