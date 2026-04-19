@@ -101,20 +101,6 @@ async fn resolve_resume_session_target(
     .map_err(SerializableAcpError::from)
 }
 
-fn resolve_resume_launch_mode_id(
-    registry: &Arc<AgentRegistry>,
-    agent_id: &CanonicalAgentId,
-    launch_mode_id: Option<&str>,
-) -> Result<Option<String>, SerializableAcpError> {
-    let provider = registry
-        .get(agent_id)
-        .ok_or_else(|| SerializableAcpError::AgentNotFound {
-            agent_id: agent_id.as_str().to_string(),
-        })?;
-
-    Ok(provider.resolve_resume_launch_mode_id(launch_mode_id))
-}
-
 pub(crate) fn resolve_requested_agent_id(
     explicit_agent_id: Option<&str>,
     active_agent_id: Option<CanonicalAgentId>,
@@ -608,11 +594,7 @@ pub async fn acp_resume_session(
             &resume_target.launch_cwd,
             ProjectAccessReason::SessionResume,
         )?;
-        let registry = app.state::<Arc<AgentRegistry>>();
-
         let agent_id_enum = resume_target.descriptor.agent_id.clone();
-        let resolved_launch_mode_id =
-            resolve_resume_launch_mode_id(&registry, &agent_id_enum, launch_mode_id.as_deref())?;
 
         // Clone values needed for the async task
         let app_clone = app.clone();
@@ -631,7 +613,7 @@ pub async fn acp_resume_session(
                     &session_id,
                     cwd,
                     agent_id_enum,
-                    resolved_launch_mode_id,
+                    launch_mode_id,
                     &resume_descriptor,
                     open_token,
                 ),
@@ -989,7 +971,7 @@ async fn async_resume_session_work(
     session_id: &str,
     cwd: PathBuf,
     agent_id_enum: CanonicalAgentId,
-    resolved_launch_mode_id: Option<String>,
+    launch_mode_id: Option<String>,
     resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
     open_token: Option<String>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
@@ -1023,8 +1005,7 @@ async fn async_resume_session_work(
         session_id.to_string(),
         cwd_str,
         agent_id_enum.clone(),
-        resolved_launch_mode_id.is_some(),
-        resolved_launch_mode_id,
+        launch_mode_id,
         || {
             let app = app.clone();
             let registry = registry.inner().clone();
@@ -1355,7 +1336,7 @@ fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
 mod tests {
     use super::{
         load_transcript_snapshot_for_resume, persist_session_metadata_for_cwd,
-        resolve_fork_session_target, resolve_requested_agent_id, resolve_resume_launch_mode_id,
+        resolve_fork_session_target, resolve_requested_agent_id,
         resolve_resume_session_target,
     };
     use crate::acp::error::SerializableAcpError;
@@ -1681,45 +1662,6 @@ mod tests {
             }
             other => panic!("expected protocol error, got {:?}", other),
         }
-    }
-
-    #[test]
-    fn resume_launch_mode_resolution_maps_copilot_modes_to_protocol_uris() {
-        let registry = Arc::new(AgentRegistry::new());
-
-        let build_mode =
-            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, Some("build"))
-                .expect("build launch mode");
-        let plan_mode =
-            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, Some("plan"))
-                .expect("plan launch mode");
-        let no_mode = resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Copilot, None)
-            .expect("missing launch mode");
-
-        assert_eq!(
-            build_mode,
-            Some("https://agentclientprotocol.com/protocol/session-modes#agent".to_string())
-        );
-        assert_eq!(
-            plan_mode,
-            Some("https://agentclientprotocol.com/protocol/session-modes#plan".to_string())
-        );
-        assert_eq!(no_mode, None);
-    }
-
-    #[test]
-    fn resume_launch_mode_resolution_ignores_providers_that_do_not_seed_on_reconnect() {
-        let registry = Arc::new(AgentRegistry::new());
-
-        let build_mode =
-            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::Cursor, Some("build"))
-                .expect("cursor build launch mode");
-        let plan_mode =
-            resolve_resume_launch_mode_id(&registry, &CanonicalAgentId::ClaudeCode, Some("plan"))
-                .expect("claude plan launch mode");
-
-        assert_eq!(build_mode, None);
-        assert_eq!(plan_mode, None);
     }
 
     #[test]

@@ -13,7 +13,7 @@ use crate::acp::client::{
 use crate::acp::client_loop::{
     new_stderr_buffer, read_stderr_buffer, spawn_stderr_reader, StderrBuffer,
 };
-use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
+use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::write_serialized_line;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::projections::ProjectionRegistry;
@@ -496,8 +496,13 @@ impl AgentClient for CodexNativeClient {
         Ok(self.build_resume_session_response().await)
     }
 
-    fn reconnect_method(&self) -> ReconnectSessionMethod {
-        self.provider.reconnect_method()
+    async fn reconnect_session(
+        &mut self,
+        session_id: String,
+        cwd: String,
+        _launch_mode_id: Option<String>,
+    ) -> AcpResult<ResumeSessionResponse> {
+        self.resume_session(session_id, cwd).await
     }
 
     async fn fork_session(

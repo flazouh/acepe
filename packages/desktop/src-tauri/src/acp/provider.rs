@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 use tauri::AppHandle;
 
 use crate::acp::client_session::{SessionModelState, SessionModes};
-use crate::acp::client_trait::{CommunicationMode, ReconnectSessionMethod};
+use crate::acp::client_trait::CommunicationMode;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
 use crate::acp::parsers::provider_capabilities::{
@@ -383,27 +383,6 @@ pub trait AgentProvider: Send + Sync {
         builtin_capabilities_for_provider_id(self.id())
             .map(|capabilities| capabilities.history_replay_policy)
             .unwrap_or_default()
-    }
-
-    /// Provider-owned policy for choosing the live reconnect verb.
-    fn reconnect_method(&self) -> ReconnectSessionMethod {
-        builtin_capabilities_for_provider_id(self.id())
-            .map(|capabilities| capabilities.live_reconnect_method)
-            .unwrap_or_default()
-    }
-
-    /// Provider-owned policy for whether reconnect should seed the prior launch mode.
-    fn seeds_resume_launch_mode(&self) -> bool {
-        builtin_capabilities_for_provider_id(self.id())
-            .map(|capabilities| capabilities.seeds_resume_launch_mode)
-            .unwrap_or(false)
-    }
-
-    /// Provider-owned launch mode mapping for reconnect.
-    fn resolve_resume_launch_mode_id(&self, mode_id: Option<&str>) -> Option<String> {
-        mode_id
-            .filter(|_| self.seeds_resume_launch_mode())
-            .map(|mode_id| self.map_outbound_mode_id(mode_id))
     }
 
     /// Provider-owned history loading for replay families that cannot use the shared canonical path.

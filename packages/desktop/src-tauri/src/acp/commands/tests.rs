@@ -2,7 +2,7 @@ use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
 use crate::acp::client_session::default_session_model_state;
-use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
+use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::commands::session_commands::{
     build_live_session_state_envelopes, persist_session_metadata_for_cwd,
@@ -47,6 +47,12 @@ async fn setup_test_db() -> DbConn {
         .expect("Failed to run migrations");
 
     db
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MockReconnectBehavior {
+    Resume,
+    Load,
 }
 
 #[test]
@@ -310,7 +316,6 @@ async fn resume_or_create_reuses_existing_client() {
         session_id.clone(),
         cwd,
         agent_id,
-        false,
         None,
         {
             let factory_calls = Arc::clone(&factory_calls);
@@ -351,7 +356,6 @@ async fn resume_or_create_builds_client_when_missing() {
         session_id.clone(),
         cwd,
         agent_id,
-        false,
         None,
         {
             let created_state = created_state.clone();
@@ -537,21 +541,20 @@ fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
 }
 
 #[tokio::test]
-async fn resume_or_create_uses_provider_owned_load_reconnect_method() {
+async fn resume_or_create_uses_provider_owned_load_reconnect_behavior() {
     let session_registry = SessionRegistry::new();
     let session_id = "copilot-session".to_string();
     let cwd = "/workspace/a".to_string();
     let agent_id = CanonicalAgentId::Copilot;
 
     let created_state =
-        MockClientState::new(false).with_reconnect_method(ReconnectSessionMethod::Load);
+        MockClientState::new(false).with_reconnect_behavior(MockReconnectBehavior::Load);
 
     let result = resume_or_create_session_client(
         &session_registry,
         session_id.clone(),
         cwd,
         agent_id,
-        false,
         None,
         {
             let created_state = created_state.clone();
@@ -587,7 +590,6 @@ async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
         session_id.clone(),
         cwd,
         agent_id,
-        false,
         None,
         {
             let created_state = created_state.clone();
@@ -777,7 +779,6 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
         session_id.clone(),
         cwd,
         agent_id,
-        false,
         None,
         {
             let replacement_state = replacement_state.clone();
@@ -808,7 +809,7 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
 }
 
 #[tokio::test]
-async fn resume_or_create_forces_replacement_client_and_seeds_launch_mode() {
+async fn resume_or_create_passes_launch_mode_through_provider_owned_reconnect() {
     let session_registry = SessionRegistry::new();
     let session_id = "launch-profile-session".to_string();
     let cwd = "/workspace/a".to_string();
@@ -827,7 +828,6 @@ async fn resume_or_create_forces_replacement_client_and_seeds_launch_mode() {
         session_id.clone(),
         cwd,
         agent_id,
-        true,
         Some("bypassPermissions".to_string()),
         {
             let replacement_state = replacement_state.clone();
@@ -842,15 +842,15 @@ async fn resume_or_create_forces_replacement_client_and_seeds_launch_mode() {
     )
     .await;
 
-    assert!(result.is_ok(), "forced replacement resume should succeed");
-    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(existing_state.stop_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(replacement_state.resume_calls.load(Ordering::SeqCst), 1);
+    assert!(result.is_ok(), "provider-owned reconnect should succeed");
+    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(existing_state.stop_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(replacement_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(
-        replacement_state
-            .launch_mode_ids
+        existing_state
+            .reconnect_launch_mode_ids
             .lock()
-            .expect("launch mode ids lock")
+            .expect("reconnect launch mode ids lock")
             .as_slice(),
         ["bypassPermissions"]
     );
@@ -923,8 +923,8 @@ struct MockClientState {
     stop_calls: Arc<AtomicUsize>,
     fail_resume: Arc<AtomicBool>,
     fail_load: Arc<AtomicBool>,
-    reconnect_method: Arc<std::sync::Mutex<ReconnectSessionMethod>>,
-    launch_mode_ids: Arc<std::sync::Mutex<Vec<String>>>,
+    reconnect_behavior: Arc<std::sync::Mutex<MockReconnectBehavior>>,
+    reconnect_launch_mode_ids: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 impl MockClientState {
@@ -935,13 +935,16 @@ impl MockClientState {
             stop_calls: Arc::new(AtomicUsize::new(0)),
             fail_resume: Arc::new(AtomicBool::new(fail_resume)),
             fail_load: Arc::new(AtomicBool::new(false)),
-            reconnect_method: Arc::new(std::sync::Mutex::new(ReconnectSessionMethod::Resume)),
-            launch_mode_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
+            reconnect_behavior: Arc::new(std::sync::Mutex::new(MockReconnectBehavior::Resume)),
+            reconnect_launch_mode_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 
-    fn with_reconnect_method(self, reconnect_method: ReconnectSessionMethod) -> Self {
-        *self.reconnect_method.lock().expect("reconnect method lock") = reconnect_method;
+    fn with_reconnect_behavior(self, reconnect_behavior: MockReconnectBehavior) -> Self {
+        *self
+            .reconnect_behavior
+            .lock()
+            .expect("reconnect behavior lock") = reconnect_behavior;
         self
     }
 }
@@ -1040,12 +1043,29 @@ impl AgentClient for MockAgentClient {
         })
     }
 
-    fn reconnect_method(&self) -> ReconnectSessionMethod {
-        *self
+    async fn reconnect_session(
+        &mut self,
+        session_id: String,
+        cwd: String,
+        launch_mode_id: Option<String>,
+    ) -> AcpResult<ResumeSessionResponse> {
+        if let Some(mode_id) = launch_mode_id {
+            self.state
+                .reconnect_launch_mode_ids
+                .lock()
+                .expect("reconnect launch mode ids lock")
+                .push(mode_id);
+        }
+
+        match *self
             .state
-            .reconnect_method
+            .reconnect_behavior
             .lock()
-            .expect("reconnect method lock")
+            .expect("reconnect behavior lock")
+        {
+            MockReconnectBehavior::Resume => self.resume_session(session_id, cwd).await,
+            MockReconnectBehavior::Load => self.load_session(session_id, cwd).await,
+        }
     }
 
     async fn fork_session(
@@ -1063,11 +1083,6 @@ impl AgentClient for MockAgentClient {
     }
 
     async fn set_session_mode(&mut self, _session_id: String, _mode_id: String) -> AcpResult<()> {
-        self.state
-            .launch_mode_ids
-            .lock()
-            .expect("launch mode ids lock")
-            .push(_mode_id);
         Ok(())
     }
 

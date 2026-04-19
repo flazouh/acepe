@@ -1,6 +1,5 @@
 //! Authoritative provider -> capability composition registry.
 
-use crate::acp::client_trait::ReconnectSessionMethod;
 use crate::acp::model_display::{ModelDisplayFamily, UsageMetricsPresentation};
 use crate::acp::parsers::types::{AgentParser, AgentType};
 use crate::acp::parsers::{
@@ -59,8 +58,6 @@ pub struct ProviderCapabilities {
     pub backend_identity_policy: BackendIdentityPolicy,
     pub plan_adapter_policy: PlanAdapterPolicy,
     pub history_replay_policy: HistoryReplayPolicy,
-    pub live_reconnect_method: ReconnectSessionMethod,
-    pub seeds_resume_launch_mode: bool,
     pub frontend_projection: FrontendProviderProjection,
     pub transport_family: TransportFamily,
     pub tool_vocabulary: ToolVocabulary,
@@ -127,8 +124,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: CLAUDE_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Resume,
-        seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "claude-code",
             display_name: "Claude Code",
@@ -155,8 +150,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Resume,
-        seeds_resume_launch_mode: true,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "copilot",
             display_name: "GitHub Copilot",
@@ -183,8 +176,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Load,
-        seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "opencode",
             display_name: "OpenCode",
@@ -211,8 +202,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Load,
-        seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "cursor",
             display_name: "Cursor",
@@ -239,8 +228,6 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: CODEX_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Resume,
-        seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "codex",
             display_name: "Codex",
@@ -359,21 +346,6 @@ mod tests {
                 .backend_identity_policy
                 .requires_persisted_provider_session_id
         );
-    }
-
-    #[test]
-    fn provider_capabilities_capture_live_reconnect_method() {
-        let copilot = provider_capabilities(AgentType::Copilot);
-        assert_eq!(
-            copilot.live_reconnect_method,
-            ReconnectSessionMethod::Resume
-        );
-
-        let cursor = provider_capabilities(AgentType::Cursor);
-        assert_eq!(cursor.live_reconnect_method, ReconnectSessionMethod::Load);
-
-        let opencode = provider_capabilities(AgentType::OpenCode);
-        assert_eq!(opencode.live_reconnect_method, ReconnectSessionMethod::Load);
     }
 
     #[test]

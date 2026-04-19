@@ -667,28 +667,9 @@ export class SessionConnectionManager {
 				lifecycleWaiter.cancel();
 
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				const isMethodNotFound =
-					errorMessage.includes("Method not found") || errorMessage.includes("-32601");
 
 				// Connection failed in state machine
 				this.connectionManager.sendConnectionError(sessionId);
-
-				if (isMethodNotFound) {
-					logger.debug("Agent does not support session resume, session is read-only", {
-						sessionId,
-						agentId: session.agentId,
-					});
-					this.hotStateManager.updateHotState(sessionId, {
-						status: "idle",
-						isConnected: false,
-						availableCommands: [],
-						connectionError: "Session is read-only (agent does not support resume)",
-					});
-					return new ConnectionError(
-						`Session is read-only (agent does not support resume)`,
-						error instanceof Error ? error : undefined
-					);
-				}
 
 				this.hotStateManager.updateHotState(sessionId, {
 					status: "error",

@@ -347,6 +347,15 @@ mod tests {
             unreachable!()
         }
 
+        async fn reconnect_session(
+            &mut self,
+            _session_id: String,
+            _cwd: String,
+            _launch_mode_id: Option<String>,
+        ) -> AcpResult<ResumeSessionResponse> {
+            unreachable!()
+        }
+
         async fn fork_session(
             &mut self,
             _session_id: String,

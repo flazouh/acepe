@@ -1,5 +1,4 @@
 use super::*;
-use crate::acp::client_trait::ReconnectSessionMethod;
 use crate::acp::session_registry::redact_session_id;
 
 fn agent_display_name(agent_id: &CanonicalAgentId) -> &str {
@@ -94,88 +93,52 @@ pub(super) async fn lock_session_client<'a>(
         })
 }
 
-async fn resume_client_session(
-    client: &mut (dyn AgentClient + Send + Sync + 'static),
-    session_id: &str,
-    cwd: &str,
-    operation: &str,
-) -> Result<ResumeSessionResponse, SerializableAcpError> {
-    timeout(
-        SESSION_CLIENT_OPERATION_TIMEOUT,
-        client.resume_session(session_id.to_string(), cwd.to_string()),
-    )
-    .await
-    .map_err(|_| {
-        tracing::error!(operation = %operation, "Resume session timed out");
-        SerializableAcpError::Timeout {
-            operation: operation.to_string(),
+fn canonicalize_reconnect_error(error: SerializableAcpError) -> SerializableAcpError {
+    match error {
+        SerializableAcpError::SessionNotFound { .. } => SerializableAcpError::ProtocolError {
+            message: "This saved session is no longer available to reopen.".to_string(),
+        },
+        SerializableAcpError::JsonRpcError { message }
+            if message.contains("Method not found") || message.contains("-32601") =>
+        {
+            SerializableAcpError::ProtocolError {
+                message: "This saved session cannot be reopened by the selected agent."
+                    .to_string(),
+            }
         }
-    })?
-    .map_err(|e| {
-        tracing::error!(operation = %operation, error = %e, "Resume session failed");
-        SerializableAcpError::from(e)
-    })
-}
-
-async fn load_client_session(
-    client: &mut (dyn AgentClient + Send + Sync + 'static),
-    session_id: &str,
-    cwd: &str,
-    operation: &str,
-) -> Result<ResumeSessionResponse, SerializableAcpError> {
-    timeout(
-        SESSION_CLIENT_OPERATION_TIMEOUT,
-        client.load_session(session_id.to_string(), cwd.to_string()),
-    )
-    .await
-    .map_err(|_| {
-        tracing::error!(operation = %operation, "Load session timed out");
-        SerializableAcpError::Timeout {
-            operation: operation.to_string(),
+        SerializableAcpError::ProtocolError { message }
+            if message.contains("Method not found") || message.contains("-32601") =>
+        {
+            SerializableAcpError::ProtocolError {
+                message: "This saved session cannot be reopened by the selected agent."
+                    .to_string(),
+            }
         }
-    })?
-    .map_err(|e| {
-        tracing::error!(operation = %operation, error = %e, "Load session failed");
-        SerializableAcpError::from(e)
-    })
+        other => other,
+    }
 }
 
 async fn reconnect_client_session(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
     session_id: &str,
     cwd: &str,
+    launch_mode_id: Option<String>,
     operation: &str,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
-    match client.reconnect_method() {
-        ReconnectSessionMethod::Load => {
-            load_client_session(client, session_id, cwd, operation).await
-        }
-        ReconnectSessionMethod::Resume => {
-            resume_client_session(client, session_id, cwd, operation).await
-        }
-    }
-}
-
-async fn seed_client_launch_mode(
-    client: &mut (dyn AgentClient + Send + Sync + 'static),
-    session_id: &str,
-    mode_id: String,
-    operation: &str,
-) -> Result<(), SerializableAcpError> {
     timeout(
         SESSION_CLIENT_OPERATION_TIMEOUT,
-        client.set_session_mode(session_id.to_string(), mode_id),
+        client.reconnect_session(session_id.to_string(), cwd.to_string(), launch_mode_id),
     )
     .await
     .map_err(|_| {
-        tracing::error!(operation = %operation, "Seed launch mode timed out");
+        tracing::error!(operation = %operation, "Reconnect session timed out");
         SerializableAcpError::Timeout {
             operation: operation.to_string(),
         }
     })?
     .map_err(|error| {
-        tracing::error!(operation = %operation, error = %error, "Seed launch mode failed");
-        SerializableAcpError::from(error)
+        tracing::error!(operation = %operation, error = %error, "Reconnect session failed");
+        canonicalize_reconnect_error(SerializableAcpError::from(error))
     })
 }
 
@@ -184,7 +147,6 @@ pub(super) async fn resume_or_create_session_client<F, Fut>(
     session_id: String,
     cwd: String,
     agent_id: CanonicalAgentId,
-    force_new_client: bool,
     launch_mode_id: Option<String>,
     create_client_fn: F,
 ) -> Result<ResumeSessionResponse, SerializableAcpError>
@@ -194,58 +156,43 @@ where
         Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
     >,
 {
-    if !force_new_client {
-        if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
-            let existing_resume_result = {
-                let mut existing_client = lock_session_client(
-                    &existing_client_mutex,
-                    "acp_resume_session: existing client lock",
-                )
-                .await?;
-                reconnect_client_session(
-                    existing_client.as_mut(),
-                    &session_id,
-                    &cwd,
-                    "resume existing session client",
-                )
-                .await
-            };
+    if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
+        let existing_resume_result = {
+            let mut existing_client = lock_session_client(
+                &existing_client_mutex,
+                "acp_resume_session: existing client lock",
+            )
+            .await?;
+            reconnect_client_session(
+                existing_client.as_mut(),
+                &session_id,
+                &cwd,
+                launch_mode_id.clone(),
+                "resume existing session client",
+            )
+            .await
+        };
 
-            if let Ok(response) = existing_resume_result {
-                tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
-                return Ok(response);
-            }
-
-            if let Err(error) = existing_resume_result {
-                tracing::warn!(
-                    session_id = %session_id,
-                    error = %error,
-                    "Existing session client resume failed, creating replacement client"
-                );
-            }
+        if let Ok(response) = existing_resume_result {
+            tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
+            return Ok(response);
         }
-    } else if session_registry.get(&session_id).is_ok() {
-        tracing::info!(
-            session_id = %session_id,
-            "Skipping existing session client reuse because launch mode requires a fresh client"
-        );
+
+        if let Err(error) = existing_resume_result {
+            tracing::warn!(
+                session_id = %session_id,
+                error = %error,
+                "Existing session client resume failed, creating replacement client"
+            );
+        }
     }
 
     let mut client = create_client_fn().await?;
-    let use_load_session = matches!(client.reconnect_method(), ReconnectSessionMethod::Load);
-    if let Some(mode_id) = launch_mode_id {
-        seed_client_launch_mode(
-            client.as_mut(),
-            &session_id,
-            mode_id,
-            "resume newly created session client: seed launch mode",
-        )
-        .await?;
-    }
     let result = reconnect_client_session(
         client.as_mut(),
         &session_id,
         &cwd,
+        launch_mode_id,
         "resume newly created session client",
     )
     .await
@@ -253,7 +200,6 @@ where
         tracing::error!(
             session_id = %session_id,
             error = %error,
-            use_load_session,
             "Session reconnect failed"
         );
         error

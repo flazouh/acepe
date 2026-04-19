@@ -23,7 +23,7 @@ use crate::acp::client_session::{
     apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
     SessionModelState,
 };
-use crate::acp::client_trait::{AgentClient, ReconnectSessionMethod};
+use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
@@ -2481,8 +2481,13 @@ impl AgentClient for ClaudeCcSdkClient {
         })
     }
 
-    fn reconnect_method(&self) -> ReconnectSessionMethod {
-        self.provider.reconnect_method()
+    async fn reconnect_session(
+        &mut self,
+        session_id: String,
+        cwd: String,
+        _launch_mode_id: Option<String>,
+    ) -> AcpResult<ResumeSessionResponse> {
+        self.resume_session(session_id, cwd).await
     }
 
     async fn fork_session(

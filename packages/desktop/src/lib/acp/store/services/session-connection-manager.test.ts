@@ -1017,6 +1017,35 @@ describe("SessionConnectionManager.connectSession", () => {
 			"open-token-suppress-replay"
 		);
 	});
+
+	it("surfaces reconnect failures without translating them into resume-specific read-only copy", async () => {
+		getSessionModelForMode.mockReturnValue(undefined);
+		resumeSession.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+		vi.spyOn(lastEventService, "waitForLifecycleEvent").mockImplementationOnce(() => ({
+			promise: Promise.reject(new Error("Method not found: session/load")),
+			cancel: vi.fn(),
+		}));
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+
+		expect(result.isErr()).toBe(true);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "error",
+			isConnected: false,
+			availableCommands: [],
+			connectionError: "Method not found: session/load",
+		});
+		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
+	});
 });
 
 describe("SessionConnectionManager.createSession", () => {
