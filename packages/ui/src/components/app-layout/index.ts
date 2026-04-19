@@ -8,6 +8,7 @@ export { default as AppSearchButton } from "./app-search-button.svelte";
 export { default as AppSessionItem } from "./app-session-item.svelte";
 export { default as AppSidebarProjectGroup } from "./app-sidebar-project-group.svelte";
 export { default as AppSidebarLayout } from "./app-sidebar-layout.svelte";
+export { default as AppSidebarFooter } from "./app-sidebar-footer.svelte";
 export type {
   AppTab,
   AppTabGroup,
