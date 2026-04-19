@@ -8,7 +8,7 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { SessionEntry } from "../../../application/dto/session";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
-import type { PrGenerationConfig } from "../../modified-files/modified-files-header.svelte";
+import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
 import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agent-panel";

@@ -4,7 +4,7 @@
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "svelte-sonner";
-import type { PrGenerationConfig } from "../../modified-files/modified-files-header.svelte";
+import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";

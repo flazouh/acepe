@@ -28,7 +28,7 @@ import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/fir
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import { aggregateFileEdits } from "../../modified-files/logic/aggregate-file-edits.js";
-import type { PrGenerationConfig } from "../../modified-files/modified-files-header.svelte";
+import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,

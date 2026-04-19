@@ -6,7 +6,7 @@ import { toast } from "svelte-sonner";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createLogger } from "../../../utils/logger.js";
-import { runWorktreeSetup } from "../worktree/worktree-setup-orchestrator.js";
+import { runWorktreeSetup } from "../../worktree/worktree-setup-orchestrator.js";
 
 const logger = createLogger({
 	id: "agent-input-worktree-send-workflow",
