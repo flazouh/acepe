@@ -1336,8 +1336,7 @@ fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
 mod tests {
     use super::{
         load_transcript_snapshot_for_resume, persist_session_metadata_for_cwd,
-        resolve_fork_session_target, resolve_requested_agent_id,
-        resolve_resume_session_target,
+        resolve_fork_session_target, resolve_requested_agent_id, resolve_resume_session_target,
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::projections::{InteractionResponse, InteractionState};
