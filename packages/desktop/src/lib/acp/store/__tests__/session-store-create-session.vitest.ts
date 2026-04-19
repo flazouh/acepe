@@ -125,4 +125,96 @@ describe("SessionStore.createSession", () => {
 		// Must not partially hydrate when the connection itself failed
 		expect(hydrateCreated).not.toHaveBeenCalled();
 	});
+
+	// ==========================================================================
+	// Unit 6: No duplicate authority — canonical snapshot hydrator is the sole
+	// authority for session open, regardless of provider.
+	// ==========================================================================
+
+	it("[U6] snapshot hydrator receives operations from the session-open result", async () => {
+		// Operations must reach the hydrator so projection consumers (OperationStore)
+		// are authoritative from first open — no secondary path should be needed.
+		const session = createSession();
+		const sessionOpen = createSessionOpenFound({
+			operations: [
+				{
+					id: "op-1",
+					session_id: "session-1",
+					tool_call_id: "tc-1",
+					name: "Read",
+					kind: "read",
+					status: "completed",
+					title: "Read file.ts",
+					arguments: { kind: "read", file_path: "file.ts" },
+					progressive_arguments: null,
+					result: null,
+					command: null,
+					parent_tool_call_id: null,
+					parent_operation_id: null,
+					child_tool_call_ids: [],
+					child_operation_ids: [],
+				},
+			],
+		});
+
+		const hydrateCreated = vi.fn(() => okAsync(undefined));
+		const storeWithInternals = store as unknown as {
+			connectionMgr: { createSession: ReturnType<typeof vi.fn> };
+		};
+
+		store.setSessionOpenHydrator({ hydrateCreated });
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync({
+					session,
+					sessionOpen: { outcome: "found" as const, ...sessionOpen },
+				})
+			),
+		};
+
+		await store.createSession({ projectPath: "/repo", agentId: "copilot" });
+
+		// The hydrator must receive the full snapshot including operations
+		expect(hydrateCreated).toHaveBeenCalledWith(
+			expect.objectContaining({
+				outcome: "found",
+				operations: expect.arrayContaining([
+					expect.objectContaining({ id: "op-1", name: "Read" }),
+				]),
+			})
+		);
+	});
+
+	it("[U6] any provider agentId goes through the same canonical createSession path", async () => {
+		// Prove there is no provider-name branch gating the hydrator call.
+		// copilot, opencode, codex, cursor, claude-code must all hydrate via hydrateCreated.
+		const providers = ["copilot", "opencode", "codex", "cursor", "claude-code"] as const;
+
+		for (const agentId of providers) {
+			const session = createSession({ agentId });
+			const sessionOpen = createSessionOpenFound({ agentId });
+			const hydrateCreated = vi.fn(() => okAsync(undefined));
+			const storeForProvider = new (store.constructor as new () => typeof store)();
+			const storeWithInternals = storeForProvider as unknown as {
+				connectionMgr: { createSession: ReturnType<typeof vi.fn> };
+			};
+
+			storeForProvider.setSessionOpenHydrator({ hydrateCreated });
+			storeWithInternals.connectionMgr = {
+				createSession: vi.fn(() =>
+					okAsync({
+						session,
+						sessionOpen: { outcome: "found" as const, ...sessionOpen },
+					})
+				),
+			};
+
+			const result = await storeForProvider.createSession({ projectPath: "/repo", agentId });
+			expect(result.isOk(), `createSession failed for agentId=${agentId}`).toBe(true);
+			expect(
+				hydrateCreated,
+				`hydrateCreated not called for agentId=${agentId}`
+			).toHaveBeenCalledTimes(1);
+		}
+	});
 });

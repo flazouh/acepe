@@ -393,9 +393,11 @@ impl ProjectionRegistry {
     /// **Ordering**: after a successful application the session's `last_event_seq` is advanced
     /// to `event.seq` so subsequent duplicate delivery is rejected.
     ///
-    /// The `raw_update` bridge parameter is retained until Unit 6 cleans up the projection
-    /// reducers — at that point it will be replaced by projection logic driven solely from the
-    /// typed `SessionDomainEventPayload`.
+    /// **Projection bridge**: projection state is applied through `apply_session_update` using
+    /// the paired raw `SessionUpdate`. This is intentional: the canonical domain event payload
+    /// is a sequenced notification (lean identity + status only), not a full snapshot. The raw
+    /// update carries the data needed by the low-level projection reducers (tool arguments,
+    /// title, result, children). The canonical event provides the idempotency/ordering wrapper.
     pub fn apply_canonical_event(
         &self,
         session_id: &str,
