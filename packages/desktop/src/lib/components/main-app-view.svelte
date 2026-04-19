@@ -578,8 +578,7 @@ const viewState = new MainAppViewState(
 	selectorRegistry,
 	worktreeDefaultStore,
 	preconnectionAgentSkillsStore,
-	sessionOpenHydrator,
-	sessionProjectionHydrator
+	sessionOpenHydrator
 );
 
 // Add repository dialog (unified import/clone/browse modal)

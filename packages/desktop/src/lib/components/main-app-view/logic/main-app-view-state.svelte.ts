@@ -25,7 +25,6 @@ import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
-import type { SessionProjectionHydrator } from "$lib/acp/store/services/session-projection-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type {
 	Panel,
@@ -302,10 +301,6 @@ export class MainAppViewState {
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
-		>,
-		private readonly projectionHydrator: Pick<
-			SessionProjectionHydrator,
-			"hydrateSession" | "clearSession"
 		>
 	) {
 		// Initialize managers

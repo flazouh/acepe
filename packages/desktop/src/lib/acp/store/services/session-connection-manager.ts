@@ -22,8 +22,6 @@ import type {
 	SessionModelState as AcpSessionModelState,
 	SessionOpenResult,
 } from "../../../services/acp-types.js";
-import type {
-} from "../../../services/converted-session-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
