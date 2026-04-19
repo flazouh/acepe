@@ -29,6 +29,13 @@ struct SessionToolUseCache {
 static CURSOR_TOOL_USE_CACHE: LazyLock<DashMap<String, SessionToolUseCache>> =
     LazyLock::new(DashMap::new);
 
+fn raw_input_needs_enrichment(raw_input: Option<&serde_json::Value>) -> bool {
+    match raw_input {
+        None => true,
+        Some(value) => value.as_object().is_some_and(|object| object.is_empty()),
+    }
+}
+
 fn build_persisted_tool_use_index(
     session: &FullSession,
 ) -> std::collections::HashMap<String, PersistedToolUse> {
@@ -175,7 +182,8 @@ fn strip_thought_prefix(text: &str) -> String {
 }
 
 fn tool_call_needs_enrichment(tool_call: &ToolCallData) -> bool {
-    title_is_placeholder(tool_call.title.as_deref())
+    raw_input_needs_enrichment(tool_call.raw_input.as_ref())
+        || title_is_placeholder(tool_call.title.as_deref())
         || tool_call.locations.is_none()
         || tool_arguments_need_enrichment(&tool_call.arguments)
 }
@@ -257,7 +265,7 @@ fn enrich_tool_call_data(
         tool_call.arguments = merged_arguments;
     }
 
-    if tool_call.raw_input.is_none() {
+    if raw_input_needs_enrichment(tool_call.raw_input.as_ref()) {
         tool_call.raw_input = Some(persisted.input.clone());
     }
 
@@ -639,6 +647,55 @@ mod tests {
                     }
                     other => panic!("Expected read arguments, got {:?}", other),
                 }
+            }
+            other => panic!("Expected ToolCall, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn enriches_cursor_tool_call_when_raw_input_is_empty_object() {
+        let index = build_persisted_tool_use_index(&make_session_with_tool_use());
+        let update = SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: "call-1".to_string(),
+                name: "Read File".to_string(),
+                arguments: ToolArguments::Read {
+                    file_path: Some("/tmp/example.rs".to_string()),
+                    source_context: None,
+                },
+                raw_input: Some(json!({})),
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Read),
+                title: Some("Read /tmp/example.rs".to_string()),
+                locations: Some(vec![crate::acp::session_update::ToolCallLocation {
+                    path: "/tmp/example.rs".to_string(),
+                }]),
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-123".to_string()),
+        };
+
+        let enriched = enrich_tool_call_from_index(update, &index);
+
+        match enriched {
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                assert_eq!(
+                    tool_call.raw_input,
+                    Some(json!({
+                        "path": "/tmp/example.rs",
+                        "offset": 1,
+                        "limit": 20
+                    }))
+                );
             }
             other => panic!("Expected ToolCall, got {:?}", other),
         }
