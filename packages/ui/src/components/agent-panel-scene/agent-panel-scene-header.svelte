@@ -15,9 +15,22 @@
 		actionCallbacks?: AgentPanelActionCallbacks;
 		isFullscreen?: boolean;
 		controls?: Snippet;
+		dropdownMenu?: Snippet;
+		onClose?: () => void;
+		onToggleFullscreen?: () => void;
+		onScrollToTop?: () => void;
 	}
 
-	let { header, actionCallbacks = {}, isFullscreen = false, controls }: Props = $props();
+	let {
+		header,
+		actionCallbacks = {},
+		isFullscreen = false,
+		controls,
+		dropdownMenu,
+		onClose,
+		onToggleFullscreen,
+		onScrollToTop,
+	}: Props = $props();
 
 	const visibleActions = $derived((header.actions ?? []).filter((action) => action.state !== "hidden"));
 
@@ -41,17 +54,27 @@
 		agentIconSrc={header.agentIconSrc ?? undefined}
 		sessionStatus={header.status}
 		isFullscreen={isFullscreen}
+		isConnecting={header.isConnecting ?? false}
+		pendingProjectSelection={header.pendingProjectSelection ?? false}
 		projectName={header.projectLabel ?? undefined}
 		projectColor={header.projectColor ?? undefined}
+		projectIconSrc={header.projectIconSrc ?? undefined}
 		sequenceId={header.sequenceId ?? undefined}
 		subtitle={header.subtitle ?? undefined}
 		agentLabel={header.agentLabel ?? undefined}
 		branchLabel={header.branchLabel ?? undefined}
 		badges={header.badges}
+		showTrailingBorder={header.showTrailingBorder ?? false}
+		onClose={onClose}
+		onToggleFullscreen={onToggleFullscreen}
+		onScrollToTop={onScrollToTop}
 		{controls}
+		{dropdownMenu}
 	>
 		{#snippet statusIndicator()}
-			<AgentPanelStatusIcon status={header.status} />
+			{#if !controls}
+				<AgentPanelStatusIcon status={header.status} />
+			{/if}
 		{/snippet}
 
 		{#snippet trailingActions()}

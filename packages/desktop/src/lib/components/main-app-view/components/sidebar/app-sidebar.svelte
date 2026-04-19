@@ -482,7 +482,7 @@ const visibleSessions = $derived.by(() => {
 	{/snippet}
 
 	{#snippet footer()}
-		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
+		<SidebarFooter />
 	{/snippet}
 </AppSidebarLayout>
 

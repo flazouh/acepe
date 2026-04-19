@@ -906,6 +906,72 @@ describe("desktop agent panel scene adapter", () => {
 		expect(scene.strips?.some((strip) => strip.kind === "plan_header")).toBe(true);
 	});
 
+	it("maps the full set of header fields when supplied", () => {
+		const scene = buildDesktopAgentPanelScene({
+			panelId: "agent-panel-1",
+			sessionStatus: "ready",
+			entries: [],
+			turnState: "idle",
+			header: {
+				title: "Migrate auth to JWT",
+				subtitle: "Session 42",
+				agentLabel: "Claude Code",
+				agentIconSrc: "/icons/claude.svg",
+				projectLabel: "acepe",
+				projectColor: "#7C3AED",
+				projectIconSrc: "/icons/project.svg",
+				sequenceId: 7,
+				branchLabel: "feat/jwt",
+				sessionId: "sess_123",
+				isConnecting: true,
+				pendingProjectSelection: false,
+				showTrailingBorder: true,
+				badges: [{ id: "b1", label: "draft", tone: "info" }],
+			},
+		});
+
+		expect(scene.header.title).toBe("Migrate auth to JWT");
+		expect(scene.header.subtitle).toBe("Session 42");
+		expect(scene.header.agentLabel).toBe("Claude Code");
+		expect(scene.header.agentIconSrc).toBe("/icons/claude.svg");
+		expect(scene.header.projectLabel).toBe("acepe");
+		expect(scene.header.projectColor).toBe("#7C3AED");
+		expect(scene.header.projectIconSrc).toBe("/icons/project.svg");
+		expect(scene.header.sequenceId).toBe(7);
+		expect(scene.header.branchLabel).toBe("feat/jwt");
+		expect(scene.header.sessionId).toBe("sess_123");
+		expect(scene.header.isConnecting).toBe(true);
+		expect(scene.header.pendingProjectSelection).toBe(false);
+		expect(scene.header.showTrailingBorder).toBe(true);
+		expect(scene.header.badges).toEqual([{ id: "b1", label: "draft", tone: "info" }]);
+	});
+
+	it("defaults optional header fields to null/false when omitted", () => {
+		const scene = buildDesktopAgentPanelScene({
+			panelId: "agent-panel-1",
+			sessionStatus: "ready",
+			entries: [],
+			turnState: "idle",
+			header: {
+				title: "Bare header",
+			},
+		});
+
+		expect(scene.header.subtitle).toBeNull();
+		expect(scene.header.agentLabel).toBeNull();
+		expect(scene.header.agentIconSrc).toBeNull();
+		expect(scene.header.projectLabel).toBeNull();
+		expect(scene.header.projectColor).toBeNull();
+		expect(scene.header.projectIconSrc).toBeNull();
+		expect(scene.header.sequenceId).toBeNull();
+		expect(scene.header.branchLabel).toBeNull();
+		expect(scene.header.sessionId).toBeNull();
+		expect(scene.header.isConnecting).toBe(false);
+		expect(scene.header.pendingProjectSelection).toBe(false);
+		expect(scene.header.showTrailingBorder).toBe(false);
+		expect(scene.header.badges).toEqual([]);
+	});
+
 	it("derives plan sidebar items from markdown content", () => {
 		const planSidebar = buildDesktopPlanSidebar({
 			slug: "test-plan",

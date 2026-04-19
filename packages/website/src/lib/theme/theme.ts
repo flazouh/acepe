@@ -2,31 +2,25 @@ import { writable } from "svelte/store";
 
 export const THEME_STORAGE_KEY = "acepe-theme";
 
-export const websiteThemes = ["dark", "light"] as const;
+export const websiteThemes = ["dark"] as const;
 
-export type WebsiteTheme = (typeof websiteThemes)[number];
+export type WebsiteTheme = "dark";
 
-function getInitialStoreValue(): WebsiteTheme {
-	if (typeof document === "undefined") return "dark";
-	const t = document.documentElement.dataset.theme;
-	return t === "light" || t === "dark" ? t : "dark";
-}
-
-export const websiteThemeStore = writable<WebsiteTheme>(getInitialStoreValue());
+export const websiteThemeStore = writable<WebsiteTheme>("dark");
 
 export function isWebsiteTheme(value: string | null): value is WebsiteTheme {
-	return value === "dark" || value === "light";
+	return value === "dark";
 }
 
-export function getInitialTheme(storedTheme: string | null): WebsiteTheme {
-	return isWebsiteTheme(storedTheme) ? storedTheme : "dark";
+export function getInitialTheme(_storedTheme: string | null): WebsiteTheme {
+	return "dark";
 }
 
-export function getToggledTheme(currentTheme: WebsiteTheme): WebsiteTheme {
-	return currentTheme === "dark" ? "light" : "dark";
+export function getToggledTheme(_currentTheme: WebsiteTheme): WebsiteTheme {
+	return "dark";
 }
 
-export function applyThemeToDocument(theme: WebsiteTheme, rootElement: HTMLElement): void {
-	rootElement.dataset.theme = theme;
-	rootElement.style.colorScheme = theme;
+export function applyThemeToDocument(_theme: WebsiteTheme, rootElement: HTMLElement): void {
+	rootElement.dataset.theme = "dark";
+	rootElement.style.colorScheme = "dark";
 }

@@ -51,8 +51,8 @@ const theme = $derived($websiteThemeStore);
 <div class={cn('flex items-center justify-center gap-2', className)}>
 	{#each AGENTS as agent, index (agent.id)}
 		<div
-			class="agent-icon-pulse flex shrink-0 items-center justify-center"
-			style="width: {size}px; height: {size}px; animation-delay: {index}s"
+			class="flex shrink-0 items-center justify-center"
+			style="width: {size}px; height: {size}px;"
 		>
 			<img
 				src={agent.iconPath(theme)}
@@ -65,19 +65,4 @@ const theme = $derived($websiteThemeStore);
 	{/each}
 </div>
 
-<style>
-	.agent-icon-pulse {
-		animation: icon-pulse 4s ease-in-out infinite;
-	}
 
-	@keyframes icon-pulse {
-		0%,
-		50%,
-		100% {
-			opacity: 0.6;
-		}
-		25% {
-			opacity: 1;
-		}
-	}
-</style>

@@ -20,6 +20,10 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		widthStyle?: string;
 		centerColumnStyle?: string;
 		headerControls?: Snippet;
+		headerDropdownMenu?: Snippet;
+		onHeaderClose?: () => void;
+		onHeaderToggleFullscreen?: () => void;
+		onHeaderScrollToTop?: () => void;
 		topBarOverride?: Snippet;
 		conversationBody?: Snippet;
 		preComposerOverride?: Snippet;
@@ -38,6 +42,10 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		widthStyle = "",
 		centerColumnStyle = "",
 		headerControls,
+		headerDropdownMenu,
+		onHeaderClose,
+		onHeaderToggleFullscreen,
+		onHeaderScrollToTop,
 		topBarOverride,
 		conversationBody,
 		preComposerOverride,
@@ -60,7 +68,16 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 
 <AgentPanelShell {widthStyle} {centerColumnStyle} isFullscreen={isFullscreen}>
 	{#snippet header()}
-		<AgentPanelSceneHeader header={scene.header} {actionCallbacks} {isFullscreen} controls={headerControls} />
+		<AgentPanelSceneHeader
+			header={scene.header}
+			{actionCallbacks}
+			{isFullscreen}
+			controls={headerControls}
+			dropdownMenu={headerDropdownMenu}
+			onClose={onHeaderClose}
+			onToggleFullscreen={onHeaderToggleFullscreen}
+			onScrollToTop={onHeaderScrollToTop}
+		/>
 	{/snippet}
 
 	{#if leadingPane}

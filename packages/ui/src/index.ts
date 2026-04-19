@@ -371,6 +371,15 @@ export { RichTokenText } from "./components/rich-token-text/index.js";
 export { SegmentedProgress } from "./components/segmented-progress/index.js";
 // Selector
 export { Selector } from "./components/selector/index.js";
+export { ProjectSelectorView } from "./components/project-selector/index.js";
+export type { ProjectSelectorViewItem } from "./components/project-selector/index.js";
+export { BranchPickerView } from "./components/branch-picker/index.js";
+export type {
+	BranchPickerDiffStats,
+	BranchPickerVariant,
+} from "./components/branch-picker/index.js";
+export { AgentSelectorView } from "./components/agent-selector/index.js";
+export type { AgentSelectorViewItem } from "./components/agent-selector/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
 export {
 	Tooltip,
