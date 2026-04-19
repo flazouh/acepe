@@ -12,6 +12,46 @@ fn should_retry_initialize_with_fallback(error: &AcpError) -> bool {
 }
 
 impl AcpClient {
+    async fn reconnect_with_plan(
+        &mut self,
+        session_id: String,
+        cwd: String,
+        launch_mode_id: Option<String>,
+    ) -> AcpResult<ResumeSessionResponse> {
+        let (uses_load_reconnect, reconnect_mode_id) = self
+            .provider
+            .as_ref()
+            .map(|provider| {
+                let provider_kind = provider.parser_agent_type();
+                let uses_load_reconnect = matches!(
+                    provider_kind,
+                    crate::acp::parsers::AgentType::Copilot
+                        | crate::acp::parsers::AgentType::Cursor
+                );
+                let reconnect_mode_id = if provider_kind == crate::acp::parsers::AgentType::Copilot
+                {
+                    launch_mode_id
+                        .as_deref()
+                        .map(|mode_id| provider.map_outbound_mode_id(mode_id))
+                } else {
+                    None
+                };
+
+                (uses_load_reconnect, reconnect_mode_id)
+            })
+            .unwrap_or((false, None));
+
+        if let Some(mode_id) = reconnect_mode_id {
+            self.set_session_mode(session_id.clone(), mode_id).await?;
+        }
+
+        if uses_load_reconnect {
+            self.load_session(session_id, cwd).await
+        } else {
+            self.resume_session(session_id, cwd).await
+        }
+    }
+
     /// Initialize the ACP connection
     pub async fn initialize(&mut self) -> AcpResult<InitializeResponse> {
         loop {
@@ -190,6 +230,16 @@ impl AcpClient {
         };
 
         self.finalize_resume_response(session_id, result, "load", &cwd)
+            .await
+    }
+
+    pub async fn reconnect_live_session(
+        &mut self,
+        session_id: String,
+        cwd: String,
+        launch_mode_id: Option<String>,
+    ) -> AcpResult<ResumeSessionResponse> {
+        self.reconnect_with_plan(session_id, cwd, launch_mode_id)
             .await
     }
 

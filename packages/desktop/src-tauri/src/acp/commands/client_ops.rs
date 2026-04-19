@@ -99,13 +99,7 @@ fn canonicalize_reconnect_error(error: SerializableAcpError) -> SerializableAcpE
             message: "This saved session is no longer available to reopen.".to_string(),
         },
         SerializableAcpError::JsonRpcError { message }
-            if message.contains("Method not found") || message.contains("-32601") =>
-        {
-            SerializableAcpError::ProtocolError {
-                message: "This saved session cannot be reopened by the selected agent.".to_string(),
-            }
-        }
-        SerializableAcpError::ProtocolError { message }
+        | SerializableAcpError::ProtocolError { message }
             if message.contains("Method not found") || message.contains("-32601") =>
         {
             SerializableAcpError::ProtocolError {

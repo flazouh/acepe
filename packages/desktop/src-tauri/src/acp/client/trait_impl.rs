@@ -51,33 +51,8 @@ impl AgentClient for AcpClient {
         cwd: String,
         launch_mode_id: Option<String>,
     ) -> AcpResult<ResumeSessionResponse> {
-        let (uses_load_reconnect, reconnect_mode_id) = self
-            .provider
-            .as_ref()
-            .map(|provider| {
-                let provider_id = provider.id();
-                let uses_load_reconnect = matches!(provider_id, "copilot" | "cursor");
-                let reconnect_mode_id = if provider_id == "copilot" {
-                    launch_mode_id
-                        .as_deref()
-                        .map(|mode_id| provider.map_outbound_mode_id(mode_id))
-                } else {
-                    None
-                };
-
-                (uses_load_reconnect, reconnect_mode_id)
-            })
-            .unwrap_or((false, None));
-
-        if let Some(mode_id) = reconnect_mode_id {
-            self.set_session_mode(session_id.clone(), mode_id).await?;
-        }
-
-        if uses_load_reconnect {
-            self.load_session(session_id, cwd).await
-        } else {
-            self.resume_session(session_id, cwd).await
-        }
+        self.reconnect_live_session(session_id, cwd, launch_mode_id)
+            .await
     }
 
     async fn fork_session(
