@@ -834,6 +834,7 @@ mod tests {
                 command: "true".to_string(),
                 args: Vec::new(),
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
     }

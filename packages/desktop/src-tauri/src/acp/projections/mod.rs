@@ -1053,11 +1053,11 @@ fn mark_tool_call_completed(snapshot: &mut SessionSnapshot, tool_call_id: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
         ContentChunk, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
     };
     use crate::acp::types::ContentBlock;
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::session_jsonl::types::{
         QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock,
         StoredEntry, StoredUserMessage,
@@ -1962,7 +1962,10 @@ mod tests {
 
     // --- Unit 3: canonical entrypoint idempotency and ordering ---
 
-    fn make_domain_event(seq: i64, session_id: &str) -> crate::acp::domain_events::SessionDomainEvent {
+    fn make_domain_event(
+        seq: i64,
+        session_id: &str,
+    ) -> crate::acp::domain_events::SessionDomainEvent {
         use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
         SessionDomainEvent {
             event_id: format!("evt-{seq}"),
@@ -2003,8 +2006,14 @@ mod tests {
         registry.apply_canonical_event("s1", &event2, &agent_chunk_update("msg-2"));
 
         let snapshot = registry.snapshots.get("s1").unwrap();
-        assert_eq!(snapshot.last_event_seq, 2, "seq must advance to canonical event seq");
-        assert_eq!(snapshot.message_count, 2, "two message chunks must be projected");
+        assert_eq!(
+            snapshot.last_event_seq, 2,
+            "seq must advance to canonical event seq"
+        );
+        assert_eq!(
+            snapshot.message_count, 2,
+            "two message chunks must be projected"
+        );
     }
 
     /// Edge case: replaying the same canonical event is idempotent — applying it twice
@@ -2020,8 +2029,14 @@ mod tests {
         registry.apply_canonical_event("s1", &event, &agent_chunk_update("msg-2"));
 
         let snapshot = registry.snapshots.get("s1").unwrap();
-        assert_eq!(snapshot.message_count, 1, "duplicate delivery must be dropped");
-        assert_eq!(snapshot.last_event_seq, 5, "seq must remain at first-applied value");
+        assert_eq!(
+            snapshot.message_count, 1,
+            "duplicate delivery must be dropped"
+        );
+        assert_eq!(
+            snapshot.last_event_seq, 5,
+            "seq must remain at first-applied value"
+        );
     }
 
     /// Edge case: a stale (out-of-order) canonical event with a seq below the current
@@ -2040,7 +2055,10 @@ mod tests {
         registry.apply_canonical_event("s1", &stale, &agent_chunk_update("msg-stale"));
 
         let snapshot = registry.snapshots.get("s1").unwrap();
-        assert_eq!(snapshot.message_count, 1, "stale event must not add to projection");
+        assert_eq!(
+            snapshot.message_count, 1,
+            "stale event must not add to projection"
+        );
         assert_eq!(snapshot.last_event_seq, 10, "frontier must stay at seq=10");
     }
 

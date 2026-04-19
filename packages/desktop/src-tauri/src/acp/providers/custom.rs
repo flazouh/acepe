@@ -1,4 +1,5 @@
 use super::super::provider::{command_exists, AgentProvider, SpawnConfig};
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -26,6 +27,7 @@ impl AgentProvider for CustomAgentConfig {
             command: self.command.clone(),
             args: self.args.clone(),
             env: self.env.clone(),
+            env_strategy: Some(SpawnEnvStrategy::FullInherit),
         }
     }
 

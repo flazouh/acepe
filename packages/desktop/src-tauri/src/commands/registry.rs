@@ -218,7 +218,7 @@ macro_rules! acp_command_entries {
             reply_question: acp_reply_question,
             respond_inbound_request: acp_respond_inbound_request,
             get_event_bridge_info: acp_get_event_bridge_info,
-            get_session_projection: acp_get_session_projection,
+            get_session_state: acp_get_session_state,
             list_agents: acp_list_agents,
             list_preconnection_commands: acp_list_preconnection_commands,
             install_agent: acp_install_agent,

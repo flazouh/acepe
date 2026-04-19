@@ -1,6 +1,6 @@
 import { okAsync, ResultAsync } from "neverthrow";
 
-import type { TranscriptDelta } from "../../services/acp-types.js";
+import type { SessionStateEnvelope } from "../../services/acp-types.js";
 import type { JsonValue, SessionUpdate } from "../../services/converted-session-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { type AcpError, ProtocolError } from "../errors/index.js";
@@ -19,7 +19,7 @@ import { openAcpEventSource } from "./acp-event-bridge.js";
 export class EventSubscriber {
 	private unlistenFn: (() => void) | null = null;
 	private listeners = new Map<string, (update: SessionUpdate, envelopeSeq: number) => void>();
-	private transcriptDeltaListeners = new Map<string, (delta: TranscriptDelta) => void>();
+	private sessionStateListeners = new Map<string, (envelope: SessionStateEnvelope) => void>();
 	private listenerIdCounter = 0;
 	private isInitializing = false;
 	private initPromise: Promise<void> | null = null;
@@ -50,18 +50,18 @@ export class EventSubscriber {
 		);
 	}
 
-	subscribeTranscriptDeltas(
-		listener: (delta: TranscriptDelta) => void
+	subscribeSessionState(
+		listener: (envelope: SessionStateEnvelope) => void
 	): ResultAsync<string, AcpError> {
 		const listenerId = `listener-${++this.listenerIdCounter}`;
-		this.transcriptDeltaListeners.set(listenerId, listener);
+		this.sessionStateListeners.set(listenerId, listener);
 		return this.ensureSubscribed(
 			listenerId,
-			() => this.transcriptDeltaListeners.has(listenerId),
+			() => this.sessionStateListeners.has(listenerId),
 			() => {
-				this.transcriptDeltaListeners.delete(listenerId);
+				this.sessionStateListeners.delete(listenerId);
 			},
-			"transcript deltas"
+			"session state envelopes"
 		);
 	}
 
@@ -73,10 +73,10 @@ export class EventSubscriber {
 	 */
 	unsubscribeById(listenerId: string): void {
 		this.listeners.delete(listenerId);
-		this.transcriptDeltaListeners.delete(listenerId);
+		this.sessionStateListeners.delete(listenerId);
 
 		// If no more listeners, clean up the Tauri listener
-		if (this.listeners.size === 0 && this.transcriptDeltaListeners.size === 0 && this.unlistenFn) {
+		if (this.listeners.size === 0 && this.sessionStateListeners.size === 0 && this.unlistenFn) {
 			this.unlistenFn();
 			this.unlistenFn = null;
 		}
@@ -88,7 +88,7 @@ export class EventSubscriber {
 	 */
 	unsubscribe(): void {
 		this.listeners.clear();
-		this.transcriptDeltaListeners.clear();
+		this.sessionStateListeners.clear();
 		if (this.unlistenFn) {
 			this.unlistenFn();
 			this.unlistenFn = null;
@@ -99,7 +99,7 @@ export class EventSubscriber {
 	 * Get the number of active listeners.
 	 */
 	get listenerCount(): number {
-		return this.listeners.size + this.transcriptDeltaListeners.size;
+		return this.listeners.size + this.sessionStateListeners.size;
 	}
 
 	private ensureSubscribed(
@@ -148,20 +148,20 @@ export class EventSubscriber {
 				return;
 			}
 
-			if (envelope.eventName !== "acp-transcript-delta") {
+			if (envelope.eventName !== "acp-session-state") {
 				return;
 			}
-			const delta = parseTranscriptDeltaPayload(envelope.payload);
-			if (!delta) {
-				this.logger.warn("Discarding invalid acp-transcript-delta payload", {
+			const sessionStateEnvelope = parseSessionStateEnvelopePayload(envelope.payload);
+			if (!sessionStateEnvelope) {
+				this.logger.warn("Discarding invalid acp-session-state payload", {
 					seq: envelope.seq,
 					eventName: envelope.eventName,
 				});
 				return;
 			}
-			for (const [id, cb] of this.transcriptDeltaListeners.entries()) {
+			for (const [id, cb] of this.sessionStateListeners.entries()) {
 				try {
-					cb(delta);
+					cb(sessionStateEnvelope);
 				} catch (error) {
 					this.logger.error("Listener threw error", { listenerId: id, error });
 				}
@@ -169,7 +169,7 @@ export class EventSubscriber {
 		})
 			.map((unlisten) => {
 				this.isInitializing = false;
-				if (this.listeners.size === 0 && this.transcriptDeltaListeners.size === 0) {
+				if (this.listeners.size === 0 && this.sessionStateListeners.size === 0) {
 					unlisten();
 					this.unlistenFn = null;
 				} else {
@@ -215,21 +215,24 @@ function parseSessionUpdatePayload(payload: JsonValue): SessionUpdate | null {
 	return payload as SessionUpdate;
 }
 
-function parseTranscriptDeltaPayload(payload: JsonValue): TranscriptDelta | null {
+function parseSessionStateEnvelopePayload(payload: JsonValue): SessionStateEnvelope | null {
 	if (!isJsonObject(payload)) {
-		return null;
-	}
-	if (typeof payload.eventSeq !== "number") {
 		return null;
 	}
 	if (typeof payload.sessionId !== "string") {
 		return null;
 	}
-	if (typeof payload.snapshotRevision !== "number") {
+	if (typeof payload.graphRevision !== "number") {
 		return null;
 	}
-	if (!Array.isArray(payload.operations)) {
+	if (typeof payload.lastEventSeq !== "number") {
 		return null;
 	}
-	return payload as TranscriptDelta;
+	if (!isJsonObject(payload.payload)) {
+		return null;
+	}
+	if (typeof payload.payload.kind !== "string") {
+		return null;
+	}
+	return payload as SessionStateEnvelope;
 }

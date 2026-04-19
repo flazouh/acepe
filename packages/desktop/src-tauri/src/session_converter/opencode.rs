@@ -1,6 +1,6 @@
 use crate::acp::parsers::{AgentParser, ClaudeCodeParser, OpenCodeParser};
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{tool_call_status_from_str, ToolArguments, ToolCallData};
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 use crate::session_jsonl::display_names::format_model_display_name;

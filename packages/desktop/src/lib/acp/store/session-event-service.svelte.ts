@@ -19,7 +19,11 @@ import type {
 	SessionUpdate,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
-import type { SessionModelState, TranscriptDelta } from "../../services/acp-types.js";
+import type {
+	SessionModelState,
+	SessionStateEnvelope,
+	TranscriptDelta,
+} from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
@@ -39,7 +43,7 @@ const logger = createLogger({ id: "session-event-service", name: "SessionEventSe
 
 type PendingSessionEvent =
 	| { kind: "sessionUpdate"; update: SessionUpdate; envelopeSeq: number | null }
-	| { kind: "transcriptDelta"; delta: TranscriptDelta };
+	| { kind: "sessionState"; envelope: SessionStateEnvelope };
 
 function isJsonObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -79,6 +83,29 @@ function getAssistantAggregationKey(
 	update: Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>
 ): string | undefined {
 	return update.message_id ?? undefined;
+}
+
+function sessionStateEnvelopeFromTranscriptDelta(delta: TranscriptDelta): SessionStateEnvelope {
+	return {
+		sessionId: delta.sessionId,
+		graphRevision: delta.snapshotRevision,
+		lastEventSeq: delta.eventSeq,
+		payload: {
+			kind: "delta",
+			delta: {
+				fromRevision: {
+					graphRevision: Math.max(0, delta.snapshotRevision - 1),
+					lastEventSeq: Math.max(0, delta.eventSeq - 1),
+				},
+				toRevision: {
+					graphRevision: delta.snapshotRevision,
+					lastEventSeq: delta.eventSeq,
+				},
+				transcriptDelta: delta,
+				changedFields: ["transcriptSnapshot"],
+			},
+		},
+	};
 }
 
 function resolveContextBudget(
@@ -153,10 +180,10 @@ export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
 	private sessionUpdateSubscriptionId: string | null = null;
-	private transcriptDeltaSubscriptionId: string | null = null;
+	private sessionStateSubscriptionId: string | null = null;
 	// Sessions reopened from a canonical snapshot. During the reconnect handoff,
-	// transcript deltas remain authoritative and raw provider replay must not be
-	// re-applied through the live sessionUpdate path.
+	// canonical session-state deltas remain authoritative and raw provider replay
+	// must not be re-applied through the live sessionUpdate path.
 	private snapshotReconnectSessions = new Set<string>();
 	// Pending events buffer for sessions being created (race condition handling)
 	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
@@ -303,14 +330,14 @@ export class SessionEventService {
 		if (
 			this.eventSubscriber &&
 			this.sessionUpdateSubscriptionId &&
-			this.transcriptDeltaSubscriptionId
+			this.sessionStateSubscriptionId
 		) {
 			return okAsync(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
 		if (
 			this.eventSubscriber &&
-			(!this.sessionUpdateSubscriptionId || !this.transcriptDeltaSubscriptionId)
+			(!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)
 		) {
 			this.eventSubscriber = null;
 		}
@@ -322,17 +349,17 @@ export class SessionEventService {
 			})
 			.andThen((sessionUpdateId) => {
 				this.sessionUpdateSubscriptionId = sessionUpdateId;
-				return subscriber.subscribeTranscriptDeltas((delta: TranscriptDelta) => {
-					this.handleTranscriptDelta(delta, handler);
+				return subscriber.subscribeSessionState((envelope: SessionStateEnvelope) => {
+					this.handleSessionStateEnvelope(envelope, handler);
 				});
 			})
-			.map((deltaSubscriptionId) => {
+			.map((sessionStateSubscriptionId) => {
 				this.eventSubscriber = subscriber;
-				this.transcriptDeltaSubscriptionId = deltaSubscriptionId;
+				this.sessionStateSubscriptionId = sessionStateSubscriptionId;
 				this.startTelemetryReporter();
 				logger.debug("Session update subscription initialized", {
 					sessionSubscriptionId: this.sessionUpdateSubscriptionId,
-					transcriptSubscriptionId: deltaSubscriptionId,
+					sessionStateSubscriptionId,
 				});
 				return undefined;
 			})
@@ -340,7 +367,7 @@ export class SessionEventService {
 				subscriber.unsubscribe();
 				this.eventSubscriber = null;
 				this.sessionUpdateSubscriptionId = null;
-				this.transcriptDeltaSubscriptionId = null;
+				this.sessionStateSubscriptionId = null;
 				logger.error("Failed to initialize session update subscription", { error });
 				return new AgentError(
 					"initializeSessionUpdates",
@@ -369,7 +396,7 @@ export class SessionEventService {
 			this.eventSubscriber = null;
 		}
 		this.sessionUpdateSubscriptionId = null;
-		this.transcriptDeltaSubscriptionId = null;
+		this.sessionStateSubscriptionId = null;
 	}
 
 	/**
@@ -722,7 +749,52 @@ export class SessionEventService {
 		if (this.deltaHasAssistantMutation(delta)) {
 			this.clearPendingAssistantFallback(sessionId);
 		}
-		handler.applyTranscriptDelta(sessionId, delta);
+		handler.applySessionStateEnvelope(sessionId, sessionStateEnvelopeFromTranscriptDelta(delta));
+	}
+
+	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
+		const transcriptDelta =
+			envelope.payload.kind === "delta" ? envelope.payload.delta.transcriptDelta : null;
+		const sessionId = envelope.sessionId;
+		const session = handler.getSessionCold(sessionId);
+		const hotState = session ? handler.getHotState(sessionId) : null;
+		const isDisconnectedSession = hotState?.isConnected === false;
+		const isConnectingSession = hotState?.status === "connecting";
+		const isSnapshotReconnect =
+			isConnectingSession && this.snapshotReconnectSessions.has(sessionId);
+		if (transcriptDelta !== null && transcriptDelta !== undefined) {
+			if (isSnapshotReconnect) {
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
+			}
+
+			if (isDisconnectedSession && !isConnectingSession) {
+				this.telemetryDisconnectedDrops++;
+				this.warnWithCooldown(
+					"disconnected",
+					"Buffered session-state delta while disconnected",
+					{
+						sessionId,
+						snapshotRevision: envelope.graphRevision,
+						agentId: session?.agentId,
+						status: hotState?.status
+					}
+				);
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
+			}
+
+			if (!this.hasKnownSession(handler, sessionId)) {
+				this.bufferPendingSessionState(sessionId, envelope);
+				return;
+			}
+		}
+		if (transcriptDelta !== null && transcriptDelta !== undefined) {
+			if (this.deltaHasAssistantMutation(transcriptDelta)) {
+				this.clearPendingAssistantFallback(sessionId);
+			}
+		}
+		handler.applySessionStateEnvelope(sessionId, envelope);
 	}
 
 	private shouldTreatPlanAsTurnComplete(
@@ -820,7 +892,7 @@ export class SessionEventService {
 				);
 				continue;
 			}
-			this.handleTranscriptDelta(pendingEvent.delta, handler);
+			this.handleSessionStateEnvelope(pendingEvent.envelope, handler);
 		}
 		const chunkDuration = this.nowMs() - chunkStart;
 		this.telemetryMaxReplayChunkDurationMs = Math.max(
@@ -978,11 +1050,15 @@ export class SessionEventService {
 		});
 	}
 
-	private bufferPendingTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
+	private bufferPendingSessionState(sessionId: string, envelope: SessionStateEnvelope): void {
 		this.bufferPending(sessionId, {
-			kind: "transcriptDelta",
-			delta,
+			kind: "sessionState",
+			envelope,
 		});
+	}
+
+	private bufferPendingTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
+		this.bufferPendingSessionState(sessionId, sessionStateEnvelopeFromTranscriptDelta(delta));
 	}
 
 	private bufferPending(sessionId: string, pendingEvent: PendingSessionEvent): void {
@@ -1020,7 +1096,7 @@ export class SessionEventService {
 			type:
 				pendingEvent.kind === "sessionUpdate"
 					? pendingEvent.update.type
-					: "transcriptDelta",
+					: "sessionState",
 			bufferSize: pending.length,
 		});
 	}

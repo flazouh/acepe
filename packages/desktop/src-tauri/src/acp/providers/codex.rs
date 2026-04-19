@@ -2,6 +2,7 @@ use super::super::provider::{
     command_exists, AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
@@ -42,7 +43,8 @@ impl AgentProvider for CodexProvider {
                 SpawnConfig {
                     command: cached.to_string_lossy().to_string(),
                     args: vec!["app-server".to_string()],
-                    env: codex_env(),
+                    env: std::collections::HashMap::new(),
+                    env_strategy: Some(codex_env_strategy()),
                 },
             );
         }
@@ -52,7 +54,8 @@ impl AgentProvider for CodexProvider {
             SpawnConfig {
                 command: "codex".to_string(),
                 args: vec!["app-server".to_string()],
-                env: codex_env(),
+                env: std::collections::HashMap::new(),
+                env_strategy: Some(codex_env_strategy()),
             },
         );
 
@@ -177,8 +180,8 @@ pub(crate) fn adapt_codex_wrapper_plan_update(update: &SessionUpdate) -> Option<
     }
 }
 
-fn codex_env() -> std::collections::HashMap<String, String> {
-    crate::shell_env::build_env(crate::shell_env::EnvStrategy::FullInherit)
+fn codex_env_strategy() -> SpawnEnvStrategy {
+    SpawnEnvStrategy::FullInherit
 }
 
 fn codex_skills_root() -> Option<PathBuf> {

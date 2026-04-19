@@ -1,10 +1,14 @@
 import { ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
-import type { InteractionSnapshot, SessionProjectionSnapshot } from "../../../services/acp-types.js";
+import type {
+	InteractionSnapshot,
+	SessionStateEnvelope,
+	SessionStateGraph,
+} from "../../../services/acp-types.js";
 import { AgentError, AppError } from "../../errors/app-error.js";
 import { api } from "../api.js";
 
 interface SessionProjectionConsumer {
-	replaceSessionProjection(projection: SessionProjectionSnapshot): void;
+	replaceSessionStateGraph(graph: SessionStateGraph): void;
 	clearSession(sessionId: string): void;
 }
 
@@ -70,10 +74,11 @@ export class SessionProjectionHydrator {
 		let currentIncludePendingTurnInputs = includePendingTurnInputs;
 		while (true) {
 			this.inflightPendingTurnInputs.set(sessionId, currentIncludePendingTurnInputs);
-			const result = await api.getSessionProjection(sessionId).match(
-				(projection) => {
-					this.interactions.replaceSessionProjection(
-						currentIncludePendingTurnInputs ? projection : stripPendingTurnInputs(projection)
+			const result = await api.getSessionState(sessionId).match(
+				(envelope) => {
+					const graph = graphFromSnapshotEnvelope(envelope);
+					this.interactions.replaceSessionStateGraph(
+						currentIncludePendingTurnInputs ? graph : stripPendingTurnInputs(graph)
 					);
 					return { ok: true as const };
 				},
@@ -99,14 +104,29 @@ export class SessionProjectionHydrator {
 }
 
 function stripPendingTurnInputs(
-	projection: SessionProjectionSnapshot
-): SessionProjectionSnapshot {
+	graph: SessionStateGraph
+): SessionStateGraph {
+	const filteredInteractions = graph.interactions.filter(
+		(interaction) => !isPendingTurnInputInteraction(interaction)
+	);
 	return {
-		session: projection.session,
-		operations: projection.operations,
-		interactions: projection.interactions.filter(
-			(interaction) => !isPendingTurnInputInteraction(interaction)
-		),
+		requestedSessionId: graph.requestedSessionId,
+		canonicalSessionId: graph.canonicalSessionId,
+		isAlias: graph.isAlias,
+		agentId: graph.agentId,
+		projectPath: graph.projectPath,
+		worktreePath: graph.worktreePath,
+		sourcePath: graph.sourcePath,
+		revision: graph.revision,
+		transcriptSnapshot: graph.transcriptSnapshot,
+		operations: graph.operations,
+		interactions: filteredInteractions,
+		turnState: graph.turnState,
+		messageCount: graph.messageCount,
+		activeTurnFailure: graph.activeTurnFailure ?? null,
+		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
+		lifecycle: graph.lifecycle,
+		capabilities: graph.capabilities,
 	};
 }
 
@@ -128,7 +148,18 @@ function toAppError(error: AppError | Error | unknown): AppError {
 	}
 
 	return new AgentError(
-		"getSessionProjection",
+		"getSessionState",
 		error instanceof Error ? error : new Error(String(error))
 	);
+}
+
+function graphFromSnapshotEnvelope(envelope: SessionStateEnvelope): SessionStateGraph {
+	if (envelope.payload.kind !== "snapshot") {
+		throw new AgentError(
+			"getSessionState",
+			new Error(`Expected session-state snapshot, received ${envelope.payload.kind}`)
+		);
+	}
+
+	return envelope.payload.graph;
 }

@@ -155,7 +155,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Load,
+        live_reconnect_method: ReconnectSessionMethod::Resume,
         seeds_resume_launch_mode: true,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "copilot",
@@ -183,7 +183,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Resume,
+        live_reconnect_method: ReconnectSessionMethod::Load,
         seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "opencode",
@@ -211,7 +211,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
         backend_identity_policy: GENERIC_BACKEND_IDENTITY_POLICY,
         plan_adapter_policy: DEFAULT_PLAN_ADAPTER_POLICY,
         history_replay_policy: PROVIDER_OWNED_HISTORY_REPLAY_POLICY,
-        live_reconnect_method: ReconnectSessionMethod::Resume,
+        live_reconnect_method: ReconnectSessionMethod::Load,
         seeds_resume_launch_mode: false,
         frontend_projection: FrontendProviderProjection {
             provider_brand: "cursor",
@@ -359,6 +359,18 @@ mod tests {
                 .backend_identity_policy
                 .requires_persisted_provider_session_id
         );
+    }
+
+    #[test]
+    fn provider_capabilities_capture_live_reconnect_method() {
+        let copilot = provider_capabilities(AgentType::Copilot);
+        assert_eq!(
+            copilot.live_reconnect_method,
+            ReconnectSessionMethod::Resume
+        );
+
+        let cursor = provider_capabilities(AgentType::Cursor);
+        assert_eq!(cursor.live_reconnect_method, ReconnectSessionMethod::Load);
     }
 
     #[test]

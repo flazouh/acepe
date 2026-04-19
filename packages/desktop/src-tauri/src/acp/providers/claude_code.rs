@@ -4,6 +4,7 @@ use super::super::provider::{
 };
 use super::claude_code_settings::resolve_claude_runtime_mode_id;
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
@@ -42,7 +43,8 @@ impl AgentProvider for ClaudeCodeProvider {
                     .map(|path| path.to_string_lossy().to_string())
                     .unwrap_or_else(|_| "acepe-managed-claude-missing".to_string()),
                 args: vec![],
-                env: claude_env(),
+                env: std::collections::HashMap::new(),
+                env_strategy: Some(claude_env_strategy()),
             })
     }
 
@@ -79,6 +81,7 @@ impl AgentProvider for ClaudeCodeProvider {
             command: primary.command,
             args,
             env: primary.env,
+            env_strategy: primary.env_strategy,
         }]
     }
 
@@ -228,7 +231,8 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
             SpawnConfig {
                 command: cached.to_string_lossy().to_string(),
                 args: vec![],
-                env: claude_env(),
+                env: std::collections::HashMap::new(),
+                env_strategy: Some(claude_env_strategy()),
             },
         );
     }
@@ -236,8 +240,8 @@ fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
     configs
 }
 
-fn claude_env() -> std::collections::HashMap<String, String> {
-    crate::shell_env::build_env(crate::shell_env::EnvStrategy::FullInherit)
+fn claude_env_strategy() -> SpawnEnvStrategy {
+    SpawnEnvStrategy::FullInherit
 }
 
 fn claude_skills_root() -> Option<PathBuf> {

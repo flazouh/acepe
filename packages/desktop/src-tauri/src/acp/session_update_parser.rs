@@ -220,15 +220,13 @@ pub fn session_update_to_domain_event(
         }
 
         // ── tool execution ─────────────────────────────────────────────────
-        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => {
-            Some((
-                SessionDomainEventKind::InteractionUpserted,
-                Some(SessionDomainEventPayload::InteractionUpserted {
-                    interaction_id: tool_call.id.clone(),
-                    interaction_kind: InteractionKind::PlanApproval,
-                }),
-            ))
-        }
+        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => Some((
+            SessionDomainEventKind::InteractionUpserted,
+            Some(SessionDomainEventPayload::InteractionUpserted {
+                interaction_id: tool_call.id.clone(),
+                interaction_kind: InteractionKind::PlanApproval,
+            }),
+        )),
         SessionUpdate::ToolCall { tool_call, .. } => {
             let status = tool_call.status.clone();
             Some((
@@ -284,9 +282,7 @@ pub fn session_update_to_domain_event(
         SessionUpdate::TurnError { error, turn_id, .. } => {
             let error_message = match error {
                 TurnErrorData::Legacy(msg) => msg.clone(),
-                TurnErrorData::Structured(info) => {
-                    info.message.clone()
-                }
+                TurnErrorData::Structured(info) => info.message.clone(),
             };
             Some((
                 SessionDomainEventKind::TurnFailed,
@@ -300,9 +296,7 @@ pub fn session_update_to_domain_event(
         // ── usage / telemetry ──────────────────────────────────────────────
         SessionUpdate::UsageTelemetryUpdate { data } => Some((
             SessionDomainEventKind::UsageTelemetryUpdated,
-            Some(SessionDomainEventPayload::UsageTelemetryUpdated {
-                data: data.clone(),
-            }),
+            Some(SessionDomainEventPayload::UsageTelemetryUpdated { data: data.clone() }),
         )),
 
         // ── connection lifecycle (handled via enqueue_session_domain_event) ─

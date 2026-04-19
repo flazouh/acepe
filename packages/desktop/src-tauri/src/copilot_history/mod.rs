@@ -481,7 +481,6 @@ impl ReplayAccumulator {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{convert_replay_updates_to_session, resolve_transcript_path};

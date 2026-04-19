@@ -143,10 +143,10 @@ fn normalize_cursor_tool_call_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::streaming_log::{clear_session_log, log_emitted_event};
 
     #[test]

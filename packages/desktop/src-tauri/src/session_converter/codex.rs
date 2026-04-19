@@ -1,5 +1,5 @@
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::parsers::AgentType;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::session_jsonl::types::FullSession;
 
 pub(crate) fn convert_codex_full_session_to_thread_snapshot(

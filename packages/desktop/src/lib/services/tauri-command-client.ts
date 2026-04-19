@@ -9,7 +9,7 @@ export const TAURI_COMMAND_CLIENT = {
     close_session: createGeneratedCommand(COMMANDS.acp.close_session),
     fork_session: createGeneratedCommand(COMMANDS.acp.fork_session),
     get_event_bridge_info: createGeneratedCommand(COMMANDS.acp.get_event_bridge_info),
-    get_session_projection: createGeneratedCommand(COMMANDS.acp.get_session_projection),
+    get_session_state: createGeneratedCommand(COMMANDS.acp.get_session_state),
     initialize: createGeneratedCommand(COMMANDS.acp.initialize),
     install_agent: createGeneratedCommand(COMMANDS.acp.install_agent),
     list_agents: createGeneratedCommand(COMMANDS.acp.list_agents),

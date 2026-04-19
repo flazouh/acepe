@@ -38,6 +38,7 @@ use crate::acp::projections::{
 };
 use crate::acp::provider::AgentProvider;
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::runtime_resolver::resolve_effective_runtime;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
@@ -1425,26 +1426,27 @@ impl ClaudeCcSdkClient {
         }
 
         for attempt in attempts {
+            let cwd = self
+                .pending_options
+                .as_ref()
+                .and_then(|options| options.cwd.clone())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let runtime = resolve_effective_runtime(self.provider.id(), &cwd, &attempt, None);
             tracing::info!(
                 provider = %self.provider.id(),
-                command = %attempt.command,
-                args = ?attempt.args,
+                command = %runtime.command,
+                args = ?runtime.args,
                 "cc-sdk running provider model discovery command"
             );
 
-            let mut command = tokio::process::Command::new(&attempt.command);
-            command.args(&attempt.args);
+            let mut command = tokio::process::Command::new(&runtime.command);
+            command.args(&runtime.args);
             command.stdin(std::process::Stdio::null());
             command.stdout(std::process::Stdio::piped());
             command.stderr(std::process::Stdio::piped());
-            command.current_dir(
-                self.pending_options
-                    .as_ref()
-                    .and_then(|options| options.cwd.clone())
-                    .unwrap_or_else(|| PathBuf::from(".")),
-            );
+            command.current_dir(&runtime.cwd);
 
-            for (key, value) in &attempt.env {
+            for (key, value) in &runtime.env {
                 command.env(key, value);
             }
 
@@ -1452,8 +1454,8 @@ impl ClaudeCcSdkClient {
                 Ok(Ok(output)) => output,
                 Ok(Err(error)) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         error = %error,
                         "Claude model discovery command failed"
                     );
@@ -1461,8 +1463,8 @@ impl ClaudeCcSdkClient {
                 }
                 Err(_) => {
                     tracing::debug!(
-                        command = %attempt.command,
-                        args = ?attempt.args,
+                        command = %runtime.command,
+                        args = ?runtime.args,
                         "Claude model discovery command timed out"
                     );
                     continue;
@@ -2888,6 +2890,7 @@ mod tests {
                 command: "unused".to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                env_strategy: None,
             }
         }
 
@@ -2901,6 +2904,7 @@ mod tests {
                 command: "unused".to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                env_strategy: None,
             }]
         }
 
