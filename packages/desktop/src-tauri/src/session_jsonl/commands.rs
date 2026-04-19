@@ -2,8 +2,9 @@ use std::cmp::Reverse;
 
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
-use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
+use crate::db::repository::{ProjectRepository, SessionMetadataRepository, SessionMetadataRow};
 use crate::history::indexer::{IndexStatus, IndexerHandle};
+use crate::history::visibility::load_external_hidden_paths_or_empty;
 use crate::session_jsonl::cache;
 use crate::session_jsonl::parser;
 use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry, SessionMessage};
@@ -19,6 +20,18 @@ fn get_logger_id() -> String {
 /// Get database connection from app state
 fn get_db(app: &AppHandle) -> State<'_, DbConn> {
     app.state::<DbConn>()
+}
+
+async fn load_indexed_sessions_for_projects(
+    db: &DbConn,
+    project_paths: &[String],
+) -> Result<Vec<SessionMetadataRow>, String> {
+    let external_hidden_paths =
+        load_external_hidden_paths_or_empty(db, project_paths, "get_session_history:index").await;
+
+    SessionMetadataRepository::get_for_projects(db, project_paths, &external_hidden_paths)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Get session history entries from SQLite index (jsonl-backed).
@@ -57,13 +70,7 @@ pub async fn get_session_history(app: AppHandle) -> CommandResult<Vec<HistoryEnt
         }
 
         // Query from SQLite index (fast path)
-        let indexed_sessions = SessionMetadataRepository::get_for_projects(
-            &db,
-            &project_paths,
-            &std::collections::HashSet::new(),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+        let indexed_sessions = load_indexed_sessions_for_projects(&db, &project_paths).await?;
 
         if indexed_sessions.is_empty() {
             // Index might be empty (first run or corrupted)
@@ -85,6 +92,13 @@ pub async fn get_session_history(app: AppHandle) -> CommandResult<Vec<HistoryEnt
             let mut all_entries = parser::scan_projects(&project_paths)
                 .await
                 .map_err(|e| e.to_string())?;
+            let external_hidden_paths = load_external_hidden_paths_or_empty(
+                &db,
+                &project_paths,
+                "get_session_history:files",
+            )
+            .await;
+            all_entries.retain(|entry| !external_hidden_paths.contains(&entry.project));
             all_entries.sort_by_key(|entry| Reverse(entry.timestamp));
 
             let duration_ms = start.elapsed().as_millis();
@@ -199,8 +213,70 @@ pub async fn reindex_sessions(app: AppHandle) -> CommandResult<()> {
 
 #[cfg(test)]
 mod tests {
-    // Note: test_get_session_history removed - requires AppHandle which is complex to mock
-    // Use integration tests or test parser functions directly instead
+    use super::load_indexed_sessions_for_projects;
+    use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory SQLite");
+
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("Failed to run migrations");
+
+        db
+    }
+
+    #[tokio::test]
+    async fn load_indexed_sessions_for_projects_honors_hidden_external_settings() {
+        let db = setup_test_db().await;
+        let project = "/Users/example/Documents/acepe".to_string();
+
+        ProjectRepository::create_or_update(&db, project.clone(), "acepe".to_string(), None)
+            .await
+            .expect("create project");
+        ProjectRepository::update_show_external_cli_sessions(&db, &project, false)
+            .await
+            .expect("hide external sessions");
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "external-1".to_string(),
+            "External thread".to_string(),
+            1704067200000,
+            project.clone(),
+            "claude-code".to_string(),
+            format!("{project}/external-1.jsonl"),
+            1704067200,
+            100,
+        )
+        .await
+        .expect("insert external session");
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "acepe-1".to_string(),
+            "Acepe thread".to_string(),
+            1704067300000,
+            project.clone(),
+            "claude-code".to_string(),
+            "__session_registry__/acepe-1.jsonl".to_string(),
+            1704067300,
+            100,
+        )
+        .await
+        .expect("insert acepe-managed session");
+
+        let sessions = load_indexed_sessions_for_projects(&db, &[project])
+            .await
+            .expect("load indexed sessions");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "acepe-1");
+    }
 }
 
 #[tauri::command]

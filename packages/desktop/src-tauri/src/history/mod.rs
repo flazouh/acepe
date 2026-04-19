@@ -12,6 +12,7 @@ pub mod scan_cache;
 pub mod session_context;
 pub(crate) mod tag_utils;
 pub(crate) mod title_utils;
+pub(crate) mod visibility;
 
 // Re-export commonly used types
 pub use commands::{

@@ -1,5 +1,5 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
-use crate::db::repository::ProjectRepository;
+use crate::history::visibility::load_external_hidden_paths_or_empty;
 use std::cmp::Reverse;
 use std::path::Path;
 
@@ -185,9 +185,12 @@ async fn scan_project_sessions_inner(
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let external_hidden_paths = ProjectRepository::get_external_hidden_paths(db, &project_paths)
-                .await
-                .map_err(|error| format!("Failed to load project session visibility settings: {error}"))?;
+            let external_hidden_paths = load_external_hidden_paths_or_empty(
+                db,
+                &project_paths,
+                "scan_project_sessions:index",
+            )
+            .await;
             let result = SessionMetadataRepository::get_for_projects(
                 db,
                 &project_paths,
@@ -268,9 +271,10 @@ async fn scan_project_sessions_inner(
     let file_scan_ms = file_scan_start.elapsed().as_millis();
     let mut entries = Vec::new();
     let external_hidden_paths = match &db {
-        Some(db) => ProjectRepository::get_external_hidden_paths(db, &project_paths)
-            .await
-            .map_err(|error| format!("Failed to load project session visibility settings: {error}"))?,
+        Some(db) => {
+            load_external_hidden_paths_or_empty(db, &project_paths, "scan_project_sessions:files")
+                .await
+        }
         None => std::collections::HashSet::new(),
     };
 
