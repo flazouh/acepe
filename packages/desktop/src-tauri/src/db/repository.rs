@@ -42,6 +42,7 @@ pub struct ProjectRow {
     pub color: String,
     pub sort_order: i32,
     pub icon_path: Option<String>,
+    pub show_external_cli_sessions: bool,
 }
 
 pub struct ProjectRepository;
@@ -68,6 +69,7 @@ impl ProjectRepository {
             color: model.color,
             sort_order: model.sort_order,
             icon_path: model.icon_path,
+            show_external_cli_sessions: model.show_external_cli_sessions,
         }
     }
 
@@ -103,6 +105,7 @@ impl ProjectRepository {
             let existing_color = active.color.as_ref().clone();
             let sort_order = *active.sort_order.as_ref();
             let icon_path = active.icon_path.as_ref().clone();
+            let show_external_cli_sessions = *active.show_external_cli_sessions.as_ref();
             active.name = Set(name.clone());
             active.last_opened = Set(now);
             // Update color if provided, otherwise keep existing
@@ -124,6 +127,7 @@ impl ProjectRepository {
                 color: final_color,
                 sort_order,
                 icon_path,
+                show_external_cli_sessions,
             }
         } else {
             // Create new project - assign random color if not provided
@@ -147,6 +151,7 @@ impl ProjectRepository {
                 color: Set(assigned_color.clone()),
                 sort_order: Set(0),
                 icon_path: Set(None),
+                show_external_cli_sessions: Set(true),
             };
 
             Project::insert(project).exec(&txn).await?;
@@ -168,6 +173,7 @@ impl ProjectRepository {
                 color: assigned_color,
                 sort_order: 0,
                 icon_path: None,
+                show_external_cli_sessions: true,
             }
         };
 
@@ -262,6 +268,27 @@ impl ProjectRepository {
         Ok(Self::row_from_model(updated))
     }
 
+    pub async fn update_show_external_cli_sessions(
+        db: &DbConn,
+        path: &str,
+        value: bool,
+    ) -> Result<ProjectRow> {
+        let existing = Project::find()
+            .filter(crate::db::entities::project::Column::Path.eq(path))
+            .one(db)
+            .await?;
+
+        let Some(existing_model) = existing else {
+            anyhow::bail!("Project not found: {}", path);
+        };
+
+        let mut active: crate::db::entities::project::ActiveModel = existing_model.into();
+        active.show_external_cli_sessions = Set(value);
+
+        let updated = active.update(db).await?;
+        Ok(Self::row_from_model(updated))
+    }
+
     pub async fn reorder(db: &DbConn, ordered_paths: &[String]) -> Result<Vec<ProjectRow>> {
         let txn = db.begin().await?;
         let existing = Project::find().all(&txn).await?;
@@ -299,6 +326,26 @@ impl ProjectRepository {
         txn.commit().await?;
 
         Self::get_all(db).await
+    }
+
+    pub async fn get_external_hidden_paths(
+        db: &DbConn,
+        project_paths: &[String],
+    ) -> Result<std::collections::HashSet<String>> {
+        if project_paths.is_empty() {
+            return Ok(std::collections::HashSet::new());
+        }
+
+        let models = Project::find()
+            .filter(crate::db::entities::project::Column::Path.is_in(project_paths.to_vec()))
+            .all(db)
+            .await?;
+
+        Ok(models
+            .into_iter()
+            .filter(|model| !model.show_external_cli_sessions)
+            .map(|model| model.path)
+            .collect())
     }
 
     /// Delete a project by path.
@@ -1931,9 +1978,14 @@ impl SessionMetadataRepository {
     }
 
     /// Get all sessions for given project paths, ordered by timestamp DESC.
+    ///
+    /// `external_hidden_paths` lists project paths whose externally-discovered
+    /// sessions (rows with `is_acepe_managed = 0`) should be excluded. Pass an
+    /// empty set for legacy behavior (return everything).
     pub async fn get_for_projects(
         db: &DbConn,
         project_paths: &[String],
+        external_hidden_paths: &std::collections::HashSet<String>,
     ) -> Result<Vec<SessionMetadataRow>> {
         if project_paths.is_empty() {
             return Ok(Vec::new());
@@ -1941,6 +1993,7 @@ impl SessionMetadataRepository {
 
         tracing::debug!(
             project_count = project_paths.len(),
+            external_hidden_count = external_hidden_paths.len(),
             "Loading session metadata for projects"
         );
 
@@ -1965,6 +2018,17 @@ impl SessionMetadataRepository {
                         AcepeSessionRelationship::from_str(&state.relationship).is_visible()
                     })
                     .unwrap_or(true)
+            })
+            .filter(|model| {
+                // Hide externally-discovered sessions for projects opted in.
+                if model.is_acepe_managed != 0 {
+                    return true;
+                }
+                let effective_project = state_map
+                    .get(&model.id)
+                    .map(|state| state.project_path.as_str())
+                    .unwrap_or(model.project_path.as_str());
+                !external_hidden_paths.contains(effective_project)
             })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect())

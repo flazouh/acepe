@@ -81,6 +81,7 @@ describe("AgentPanel Component - Click Handler Interference", () => {
 			lastOpened: new Date(),
 			createdAt: new Date(),
 			color: "#3b82f6",
+			showExternalCliSessions: true,
 		};
 
 		// Create mock callbacks

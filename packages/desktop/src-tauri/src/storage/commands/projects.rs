@@ -21,6 +21,7 @@ fn project_from_row(row: crate::db::repository::ProjectRow) -> Project {
         color: row.color,
         sort_order: row.sort_order,
         icon_path: row.icon_path,
+        show_external_cli_sessions: row.show_external_cli_sessions,
     }
 }
 
@@ -353,6 +354,34 @@ pub async fn update_project_icon(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn update_project_show_external_cli_sessions(
+    app: AppHandle,
+    path: String,
+    value: bool,
+) -> CommandResult<Project> {
+    unexpected_command_result(
+        "update_project_show_external_cli_sessions",
+        "Failed to update project external session visibility",
+        async {
+            tracing::info!(path = %path, value = value, "Updating project external session visibility");
+
+            let db = get_db(&app);
+            let row = ProjectRepository::update_show_external_cli_sessions(&db, &path, value)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Failed to update project external session visibility");
+                    e.to_string()
+                })?;
+            crate::history::commands::invalidate_scan_cache().await;
+
+            Ok(project_from_row(row))
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn update_project_order(
     app: AppHandle,
     ordered_paths: Vec<String>,
@@ -438,6 +467,7 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                         color: assigned_color,
                         sort_order: 0,
                         icon_path: None,
+                        show_external_cli_sessions: true,
                     }))
                 }
                 None => {

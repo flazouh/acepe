@@ -192,7 +192,7 @@ export class SessionRepository {
 			.map((entries) => {
 				// Read fresh sessions to avoid stale snapshot overwrites from concurrent scans
 				const freshSessions = this.stateReader.getAllSessions();
-				this.refreshSessionsFromScan(freshSessions, entries);
+				this.refreshSessionsFromScan(freshSessions, entries, projectPaths);
 				this.stateWriter.removeScanningProjects(projectPaths);
 				logger.debug("Scan complete", { total: entries.length });
 			})
@@ -206,12 +206,22 @@ export class SessionRepository {
 	/**
 	 * Refresh sessions from a batch scan result.
 	 */
-	refreshSessionsFromScan(existingSessions: SessionCold[], entries: HistoryEntry[]): void {
-		if (entries.length === 0) {
+	refreshSessionsFromScan(
+		existingSessions: SessionCold[],
+		entries: HistoryEntry[],
+		scannedProjectPaths?: readonly string[]
+	): void {
+		const rescannedProjects = new Set(
+			scannedProjectPaths ?? entries.map((entry) => entry.project)
+		);
+		if (entries.length === 0 && rescannedProjects.size === 0) {
 			return;
 		}
 
-		logger.debug("Refreshing sessions from scan", { count: entries.length });
+		logger.debug("Refreshing sessions from scan", {
+			count: entries.length,
+			rescannedProjects: Array.from(rescannedProjects),
+		});
 
 		// Deduplicate entries by sessionId (keep the one with latest updatedAt)
 		const deduplicatedEntries = this.deduplicateEntries(entries);
@@ -255,7 +265,12 @@ export class SessionRepository {
 
 		// Keep any existing sessions that weren't in the scan results
 		for (const existingSession of existingSessionsMap.values()) {
-			mergedSessions.push(existingSession);
+			const rescannedProject = rescannedProjects.has(existingSession.projectPath);
+			const preserveTransientSession =
+				existingSession.sessionLifecycleState === "created";
+			if (!rescannedProject || preserveTransientSession) {
+				mergedSessions.push(existingSession);
+			}
 		}
 
 		// Sort by updatedAt DESC

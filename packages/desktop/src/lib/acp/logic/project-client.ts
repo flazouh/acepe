@@ -44,6 +44,7 @@ export class ProjectClient {
 		color: string;
 		sort_order: number;
 		icon_path?: string | null;
+		show_external_cli_sessions: boolean;
 	}): Project {
 		return {
 			path: project.path,
@@ -53,6 +54,7 @@ export class ProjectClient {
 			color: resolveProjectColor(project.color),
 			sortOrder: project.sort_order,
 			iconPath: convertIconPath(project.icon_path ?? null),
+			showExternalCliSessions: project.show_external_cli_sessions,
 		};
 	}
 
@@ -156,6 +158,22 @@ export class ProjectClient {
 			.mapErr((error) =>
 				new ProjectError(
 					`Failed to update project icon: ${error.message}`,
+					"STORAGE_ERROR",
+					error instanceof Error ? error : undefined
+				)
+			)
+			.map((project) => this.mapProject(project));
+	}
+
+	updateProjectShowExternalCliSessions(
+		path: string,
+		value: boolean
+	): ResultAsync<Project, ProjectError> {
+		return tauriClient.projects
+			.updateProjectShowExternalCliSessions(path, value)
+			.mapErr((error) =>
+				new ProjectError(
+					`Failed to update project external session visibility: ${error.message}`,
 					"STORAGE_ERROR",
 					error instanceof Error ? error : undefined
 				)

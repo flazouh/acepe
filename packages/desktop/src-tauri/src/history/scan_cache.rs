@@ -132,6 +132,12 @@ where
             }
         }
     }
+
+    /// Clear all cached and in-flight entries.
+    pub async fn clear(&self) {
+        self.entries.lock().await.clear();
+        self.in_flight.lock().await.clear();
+    }
 }
 
 #[cfg(test)]

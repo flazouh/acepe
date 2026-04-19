@@ -40,6 +40,7 @@ interface Props {
 	onProjectColorChange?: (projectPath: string, color: string) => void;
 	onChangeProjectIcon?: (projectPath: string) => void;
 	onResetProjectIcon?: (projectPath: string) => void;
+	onProjectShowExternalCliSessionsChange?: (projectPath: string, value: boolean) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when file tree expansion state changes */
@@ -90,6 +91,7 @@ let {
 	onProjectColorChange,
 	onChangeProjectIcon,
 	onResetProjectIcon,
+	onProjectShowExternalCliSessionsChange,
 	onRemoveProject,
 	onSelectFile,
 	onFileTreeExpansionChange,
@@ -191,6 +193,7 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onProjectColorChange}
 	{onChangeProjectIcon}
 	{onResetProjectIcon}
+	{onProjectShowExternalCliSessionsChange}
 	{onRemoveProject}
 	{sessionGroups}
 	{hasResults}

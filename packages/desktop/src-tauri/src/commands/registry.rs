@@ -295,6 +295,7 @@ macro_rules! storage_command_entries {
             add_project: add_project,
             update_project_color: update_project_color,
             update_project_icon: update_project_icon,
+            update_project_show_external_cli_sessions: update_project_show_external_cli_sessions,
             update_project_order: update_project_order,
             remove_project: remove_project,
             browse_project: browse_project,

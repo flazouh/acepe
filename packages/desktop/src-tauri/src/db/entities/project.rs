@@ -15,6 +15,7 @@ pub struct Model {
     pub color: String,
     pub sort_order: i32,
     pub icon_path: Option<String>,
+    pub show_external_cli_sessions: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

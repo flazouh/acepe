@@ -1,4 +1,5 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::db::repository::ProjectRepository;
 use std::cmp::Reverse;
 use std::path::Path;
 
@@ -184,7 +185,15 @@ async fn scan_project_sessions_inner(
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let result = SessionMetadataRepository::get_for_projects(db, &project_paths).await;
+            let external_hidden_paths = ProjectRepository::get_external_hidden_paths(db, &project_paths)
+                .await
+                .map_err(|error| format!("Failed to load project session visibility settings: {error}"))?;
+            let result = SessionMetadataRepository::get_for_projects(
+                db,
+                &project_paths,
+                &external_hidden_paths,
+            )
+            .await;
             let idx_ms = idx_start.elapsed().as_millis();
             match &result {
                 Ok(entries) => tracing::info!(
@@ -258,11 +267,21 @@ async fn scan_project_sessions_inner(
 
     let file_scan_ms = file_scan_start.elapsed().as_millis();
     let mut entries = Vec::new();
+    let external_hidden_paths = match &db {
+        Some(db) => ProjectRepository::get_external_hidden_paths(db, &project_paths)
+            .await
+            .map_err(|error| format!("Failed to load project session visibility settings: {error}"))?,
+        None => std::collections::HashSet::new(),
+    };
 
     let claude_count = match claude_result {
         Ok(claude_entries) => {
-            let count = claude_entries.len();
-            entries.extend(claude_entries);
+            let filtered_entries: Vec<HistoryEntry> = claude_entries
+                .into_iter()
+                .filter(|entry| !external_hidden_paths.contains(&entry.project))
+                .collect();
+            let count = filtered_entries.len();
+            entries.extend(filtered_entries);
             count
         }
         Err(e) => {
@@ -273,8 +292,13 @@ async fn scan_project_sessions_inner(
 
     let cursor_count = match cursor_result {
         Ok(cursor_entries) => {
-            let count = cursor_entries.len();
-            entries.extend(cursor_entries.iter().map(cursor_parser::to_history_entry));
+            let filtered_entries: Vec<HistoryEntry> = cursor_entries
+                .iter()
+                .map(cursor_parser::to_history_entry)
+                .filter(|entry| !external_hidden_paths.contains(&entry.project))
+                .collect();
+            let count = filtered_entries.len();
+            entries.extend(filtered_entries);
             count
         }
         Err(e) => {
@@ -285,8 +309,12 @@ async fn scan_project_sessions_inner(
 
     let opencode_count = match opencode_result {
         Ok(opencode_entries) => {
-            let count = opencode_entries.len();
-            entries.extend(opencode_entries);
+            let filtered_entries: Vec<HistoryEntry> = opencode_entries
+                .into_iter()
+                .filter(|entry| !external_hidden_paths.contains(&entry.project))
+                .collect();
+            let count = filtered_entries.len();
+            entries.extend(filtered_entries);
             count
         }
         Err(e) => {
@@ -297,8 +325,12 @@ async fn scan_project_sessions_inner(
 
     let codex_count = match codex_result {
         Ok(codex_entries) => {
-            let count = codex_entries.len();
-            entries.extend(codex_entries);
+            let filtered_entries: Vec<HistoryEntry> = codex_entries
+                .into_iter()
+                .filter(|entry| !external_hidden_paths.contains(&entry.project))
+                .collect();
+            let count = filtered_entries.len();
+            entries.extend(filtered_entries);
             count
         }
         Err(e) => {

@@ -16,6 +16,7 @@ import { BookOpen } from "phosphor-svelte";
 import { Browser } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
+import { EyeSlash } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { ImageSquare } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
@@ -82,6 +83,7 @@ interface Props {
 	onProjectColorChange?: (projectPath: string, color: string) => void;
 	onChangeProjectIcon?: (projectPath: string) => void;
 	onResetProjectIcon?: (projectPath: string) => void;
+	onProjectShowExternalCliSessionsChange?: (projectPath: string, value: boolean) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectSession: (item: SessionListItem) => void;
 	onCreateSession?: () => void;
@@ -137,6 +139,7 @@ let {
 	onProjectColorChange,
 	onChangeProjectIcon,
 	onResetProjectIcon,
+	onProjectShowExternalCliSessionsChange,
 	onRemoveProject,
 	onSelectSession,
 	onCreateSession: _onCreateSession,
@@ -1106,6 +1109,26 @@ function openCreateBranchDialog(projectPath: string): void {
 												onclick={(e) => e.stopPropagation()}
 												onkeydown={(e) => e.stopPropagation()}
 											>
+												{#if !group.showExternalCliSessions && onProjectShowExternalCliSessionsChange}
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															<button
+																type="button"
+																class="flex items-center justify-center size-5 rounded text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+																onclick={(event) => {
+																	event.stopPropagation();
+																	onProjectShowExternalCliSessionsChange(group.projectPath, true);
+																}}
+																aria-label={m.project_external_sessions_hidden_tooltip()}
+															>
+																<EyeSlash class="h-3 w-3" weight="fill" />
+															</button>
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															{m.project_external_sessions_hidden_tooltip()}
+														</Tooltip.Content>
+													</Tooltip.Root>
+												{/if}
 												{#if shouldShowProjectUtilityActions() && onOpenTerminal}
 													<Tooltip.Root>
 														<Tooltip.Trigger>
@@ -1150,8 +1173,13 @@ function openCreateBranchDialog(projectPath: string): void {
 													projectName={group.projectName}
 													currentColor={group.projectColor}
 													currentViewMode={viewMode}
+													currentShowExternalCliSessions={group.showExternalCliSessions}
 													onColorChange={onProjectColorChange
 														? (color) => onProjectColorChange(group.projectPath, color)
+														: undefined}
+													onShowExternalCliSessionsChange={onProjectShowExternalCliSessionsChange
+														? (value) =>
+																onProjectShowExternalCliSessionsChange(group.projectPath, value)
 														: undefined}
 													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
 													projectIconSrc={group.projectIconSrc}
@@ -1335,8 +1363,13 @@ function openCreateBranchDialog(projectPath: string): void {
 											projectName={group.projectName}
 											currentColor={group.projectColor}
 											currentViewMode={viewMode}
+											currentShowExternalCliSessions={group.showExternalCliSessions}
 											onColorChange={onProjectColorChange
 												? (color) => onProjectColorChange(group.projectPath, color)
+												: undefined}
+											onShowExternalCliSessionsChange={onProjectShowExternalCliSessionsChange
+												? (value) =>
+														onProjectShowExternalCliSessionsChange(group.projectPath, value)
 												: undefined}
 											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
 											projectIconSrc={group.projectIconSrc}
@@ -1436,6 +1469,11 @@ function openCreateBranchDialog(projectPath: string): void {
 										{onExportMarkdown}
 										{onExportJson}
 									/>
+									{#if sidebarSessions.length === 0 && !group.showExternalCliSessions}
+										<div class="px-2.5 py-1.5 text-[11px] text-muted-foreground/60 italic">
+											{m.project_external_sessions_hidden_hint()}
+										</div>
+									{/if}
 								{/if}
 							</div>
 						{:else}

@@ -38,6 +38,16 @@ export const projects = {
 		return storageCommands.update_project_icon.invoke<ProjectData>({ path, iconPath });
 	},
 
+	updateProjectShowExternalCliSessions: (
+		path: string,
+		value: boolean
+	): ResultAsync<ProjectData, AppError> => {
+		return storageCommands.update_project_show_external_cli_sessions.invoke<ProjectData>({
+			path,
+			value,
+		});
+	},
+
 	updateProjectOrder: (orderedPaths: string[]): ResultAsync<ProjectData[], AppError> => {
 		return storageCommands.update_project_order.invoke<ProjectData[]>({ orderedPaths });
 	},

@@ -153,7 +153,7 @@ use storage::commands::{
     import_project, list_project_images, open_in_finder, open_streaming_log, remove_project,
     reset_database, save_api_key, save_custom_keybindings, save_session_review_state,
     save_thread_list_settings, save_user_setting, update_project_color, update_project_icon,
-    update_project_order,
+    update_project_order, update_project_show_external_cli_sessions,
 };
 use tauri::Manager;
 use terminal::commands::{

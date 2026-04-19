@@ -196,4 +196,37 @@ describe("SessionRepository.refreshSessionsFromScan", () => {
 
 		expect(state.sessions[0]?.prNumber).toBe(456);
 	});
+
+	it("removes persisted sessions that disappear from a rescanned project", () => {
+		const state: SessionStoreState = {
+			sessions: [createSession({ sessionLifecycleState: "persisted" })],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		repository.refreshSessionsFromScan(state.sessions, [], ["/projects/acepe"]);
+
+		expect(state.sessions).toHaveLength(0);
+	});
+
+	it("preserves created sessions that disappear from a rescanned project", () => {
+		const state: SessionStoreState = {
+			sessions: [createSession({ sessionLifecycleState: "created" })],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		repository.refreshSessionsFromScan(state.sessions, [], ["/projects/acepe"]);
+
+		expect(state.sessions).toHaveLength(1);
+		expect(state.sessions[0]?.id).toBe("session-123");
+	});
 });

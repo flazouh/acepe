@@ -234,6 +234,7 @@ describe("createSessionGroups", () => {
 			color: "#000000",
 			sortOrder,
 			iconPath: null,
+			showExternalCliSessions: true,
 		};
 	}
 

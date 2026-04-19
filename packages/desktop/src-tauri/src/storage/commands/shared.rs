@@ -37,4 +37,5 @@ pub struct Project {
     pub sort_order: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_path: Option<String>,
+    pub show_external_cli_sessions: bool,
 }
