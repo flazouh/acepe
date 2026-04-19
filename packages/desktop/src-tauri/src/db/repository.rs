@@ -1141,6 +1141,19 @@ pub struct SessionMetadataRow {
     pub sequence_id: Option<i32>,
 }
 
+/// Result of a project session metadata lookup.
+///
+/// `db_row_count` is the unfiltered number of rows the SQLite query found for
+/// the requested projects; callers use it to distinguish "index has no
+/// knowledge of these projects" (zero rows → fall back to a file scan) from
+/// "index has rows but visibility filters hid them all" (non-zero rows → no
+/// fallback needed). `entries` is the post-filter set returned to the UI.
+#[derive(Debug, Clone)]
+pub struct ProjectSessionsLookup {
+    pub db_row_count: usize,
+    pub entries: Vec<SessionMetadataRow>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReservedWorktreeLaunchRow {
     pub launch_token: String,
@@ -1986,9 +1999,12 @@ impl SessionMetadataRepository {
         db: &DbConn,
         project_paths: &[String],
         external_hidden_paths: &std::collections::HashSet<String>,
-    ) -> Result<Vec<SessionMetadataRow>> {
+    ) -> Result<ProjectSessionsLookup> {
         if project_paths.is_empty() {
-            return Ok(Vec::new());
+            return Ok(ProjectSessionsLookup {
+                db_row_count: 0,
+                entries: Vec::new(),
+            });
         }
 
         tracing::debug!(
@@ -2003,13 +2019,13 @@ impl SessionMetadataRepository {
             .all(db)
             .await?;
 
-        let count = models.len();
-        tracing::debug!(count = count, "Loaded session metadata");
+        let db_row_count = models.len();
+        tracing::debug!(count = db_row_count, "Loaded session metadata");
 
         let session_ids: Vec<String> = models.iter().map(|model| model.id.clone()).collect();
         let state_map = Self::load_state_map(db, &session_ids).await?;
 
-        Ok(models
+        let entries = models
             .into_iter()
             .filter(|model| {
                 state_map
@@ -2031,7 +2047,12 @@ impl SessionMetadataRepository {
                 !external_hidden_paths.contains(effective_project)
             })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
-            .collect())
+            .collect();
+
+        Ok(ProjectSessionsLookup {
+            db_row_count,
+            entries,
+        })
     }
 
     /// Get startup sessions for specific session IDs.

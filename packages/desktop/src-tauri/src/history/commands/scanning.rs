@@ -62,7 +62,7 @@ fn derive_indexed_session_title(session_id: &str, display: &str, title_overridde
 pub async fn scan_project_sessions(
     app: AppHandle,
     project_paths: Vec<String>,
-) -> CommandResult<Vec<HistoryEntry>> {
+) -> CommandResult<ScanProjectSessionsResponse> {
     unexpected_command_result(
         "scan_project_sessions",
         "Failed to scan project sessions",
@@ -178,7 +178,7 @@ pub async fn get_startup_sessions(
 async fn scan_project_sessions_inner(
     project_paths: Vec<String>,
     db: Option<DbConn>,
-) -> Result<Vec<HistoryEntry>, String> {
+) -> Result<ScanProjectSessionsResponse, String> {
     let scan_start = Instant::now();
 
     // Try SQLite index for ALL agents (fast path: ~10-50ms)
@@ -199,9 +199,10 @@ async fn scan_project_sessions_inner(
             .await;
             let idx_ms = idx_start.elapsed().as_millis();
             match &result {
-                Ok(entries) => tracing::info!(
+                Ok(lookup) => tracing::info!(
                     elapsed_ms = idx_ms,
-                    count = entries.len(),
+                    db_row_count = lookup.db_row_count,
+                    visible_count = lookup.entries.len(),
                     "SQLite index query completed"
                 ),
                 Err(e) => tracing::warn!(
@@ -210,7 +211,15 @@ async fn scan_project_sessions_inner(
                     "SQLite index query failed"
                 ),
             }
-            result.ok().filter(|entries| !entries.is_empty())
+            // Fall back to file scan only when the DB has no rows for the
+            // requested projects. If rows exist but visibility filters hid
+            // them all (e.g. user disabled "Show external CLI sessions"),
+            // the empty result is authoritative — re-scanning the filesystem
+            // would just produce the same empty set after ~800ms.
+            result
+                .ok()
+                .filter(|lookup| lookup.db_row_count > 0)
+                .map(|lookup| lookup.entries)
         }
         None => {
             tracing::warn!("No DbConn available — skipping index fast path");
@@ -253,7 +262,10 @@ async fn scan_project_sessions_inner(
             source = "index",
             "Session scan complete (from index)"
         );
-        return Ok(entries);
+        return Ok(ScanProjectSessionsResponse {
+            entries,
+            failed_agents: Vec::new(),
+        });
     }
 
     // Index empty — full scan all agents in parallel
@@ -270,6 +282,7 @@ async fn scan_project_sessions_inner(
 
     let file_scan_ms = file_scan_start.elapsed().as_millis();
     let mut entries = Vec::new();
+    let mut failed_agents: Vec<String> = Vec::new();
     let external_hidden_paths = match &db {
         Some(db) => {
             load_external_hidden_paths_or_empty(db, &project_paths, "scan_project_sessions:files")
@@ -290,6 +303,7 @@ async fn scan_project_sessions_inner(
         }
         Err(e) => {
             tracing::warn!(error = %e, "Claude scanner failed");
+            failed_agents.push(CanonicalAgentId::ClaudeCode.as_str().to_string());
             0
         }
     };
@@ -307,6 +321,7 @@ async fn scan_project_sessions_inner(
         }
         Err(e) => {
             tracing::warn!(error = %e, "Cursor scanner failed");
+            failed_agents.push(CanonicalAgentId::Cursor.as_str().to_string());
             0
         }
     };
@@ -323,6 +338,7 @@ async fn scan_project_sessions_inner(
         }
         Err(e) => {
             tracing::warn!(error = %e, "OpenCode scanner failed");
+            failed_agents.push(CanonicalAgentId::OpenCode.as_str().to_string());
             0
         }
     };
@@ -339,6 +355,7 @@ async fn scan_project_sessions_inner(
         }
         Err(e) => {
             tracing::warn!(error = %e, "Codex scanner failed");
+            failed_agents.push(CanonicalAgentId::Codex.as_str().to_string());
             0
         }
     };
@@ -349,6 +366,7 @@ async fn scan_project_sessions_inner(
         opencode_count,
         codex_count,
         total_entries = entries.len(),
+        failed_agents = ?failed_agents,
         file_scan_ms,
         total_ms = scan_start.elapsed().as_millis(),
         source = "files",
@@ -357,7 +375,10 @@ async fn scan_project_sessions_inner(
 
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
 
-    Ok(entries)
+    Ok(ScanProjectSessionsResponse {
+        entries,
+        failed_agents,
+    })
 }
 
 #[cfg(test)]
@@ -469,7 +490,7 @@ pub async fn discover_all_projects_with_sessions() -> CommandResult<Vec<HistoryE
         "discover_all_projects_with_sessions",
         "Failed to discover projects with sessions",
         async {
-            SCAN_CACHE
+            DISCOVER_CACHE
                 .get_or_fetch("discover".to_string(), || async {
                     discover_all_projects_with_sessions_inner().await
                 })

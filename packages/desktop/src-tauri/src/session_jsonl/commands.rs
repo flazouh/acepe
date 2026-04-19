@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
-use crate::db::repository::{ProjectRepository, SessionMetadataRepository, SessionMetadataRow};
+use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
 use crate::history::indexer::{IndexStatus, IndexerHandle};
 use crate::history::visibility::load_external_hidden_paths_or_empty;
 use crate::session_jsonl::cache;
@@ -25,7 +25,7 @@ fn get_db(app: &AppHandle) -> State<'_, DbConn> {
 async fn load_indexed_sessions_for_projects(
     db: &DbConn,
     project_paths: &[String],
-) -> Result<Vec<SessionMetadataRow>, String> {
+) -> Result<crate::db::repository::ProjectSessionsLookup, String> {
     let external_hidden_paths =
         load_external_hidden_paths_or_empty(db, project_paths, "get_session_history:index").await;
 
@@ -70,9 +70,9 @@ pub async fn get_session_history(app: AppHandle) -> CommandResult<Vec<HistoryEnt
         }
 
         // Query from SQLite index (fast path)
-        let indexed_sessions = load_indexed_sessions_for_projects(&db, &project_paths).await?;
+        let indexed_lookup = load_indexed_sessions_for_projects(&db, &project_paths).await?;
 
-        if indexed_sessions.is_empty() {
+        if indexed_lookup.db_row_count == 0 {
             // Index might be empty (first run or corrupted)
             // Trigger background indexing and fall back to file scan
             tracing::info!(logger_id = %logger_id, "Index empty, triggering background indexing and falling back to file scan");
@@ -114,7 +114,8 @@ pub async fn get_session_history(app: AppHandle) -> CommandResult<Vec<HistoryEnt
         }
 
         // Convert indexed sessions to HistoryEntry (already sorted by timestamp DESC)
-        let entries: Vec<HistoryEntry> = indexed_sessions
+        let entries: Vec<HistoryEntry> = indexed_lookup
+            .entries
             .into_iter()
             .map(|s| {
                 let session_lifecycle_state = s.lifecycle_state();
@@ -270,12 +271,13 @@ mod tests {
         .await
         .expect("insert acepe-managed session");
 
-        let sessions = load_indexed_sessions_for_projects(&db, &[project])
+        let lookup = load_indexed_sessions_for_projects(&db, &[project])
             .await
             .expect("load indexed sessions");
 
-        assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].id, "acepe-1");
+        assert_eq!(lookup.db_row_count, 2);
+        assert_eq!(lookup.entries.len(), 1);
+        assert_eq!(lookup.entries[0].id, "acepe-1");
     }
 }
 

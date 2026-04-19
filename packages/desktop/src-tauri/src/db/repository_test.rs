@@ -1021,10 +1021,10 @@ mod session_metadata_tests {
         .await;
 
         assert!(result.is_ok());
-        let sessions = result.unwrap();
-        assert_eq!(sessions.len(), 2, "Should return 2 sessions for project-a");
+        let lookup = result.unwrap();
+        assert_eq!(lookup.entries.len(), 2, "Should return 2 sessions for project-a");
 
-        for session in &sessions {
+        for session in &lookup.entries {
             assert_eq!(session.project_path, "/project-a");
         }
     }
@@ -1055,7 +1055,9 @@ mod session_metadata_tests {
         .await;
 
         assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
+        let lookup = result.unwrap();
+        assert_eq!(lookup.db_row_count, 0);
+        assert!(lookup.entries.is_empty());
     }
 
     #[tokio::test]
@@ -1165,7 +1167,8 @@ mod session_metadata_tests {
             &std::collections::HashSet::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .entries;
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "session-1");
@@ -1217,18 +1220,20 @@ mod session_metadata_tests {
             &HashSet::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .entries;
         assert_eq!(baseline.len(), 2, "baseline should return both sessions");
 
         // With project in external-hidden set: only the acepe-managed session remains.
         let mut hidden = HashSet::new();
         hidden.insert(project.to_string());
-        let filtered =
+        let lookup =
             SessionMetadataRepository::get_for_projects(&db, &[project.to_string()], &hidden)
                 .await
                 .unwrap();
-        assert_eq!(filtered.len(), 1, "external session should be hidden");
-        assert_eq!(filtered[0].id, "acepe-1");
+        assert_eq!(lookup.db_row_count, 2, "DB still has both rows");
+        assert_eq!(lookup.entries.len(), 1, "external session should be hidden");
+        assert_eq!(lookup.entries[0].id, "acepe-1");
     }
 
     #[tokio::test]
@@ -1275,7 +1280,8 @@ mod session_metadata_tests {
             &hidden,
         )
         .await
-        .unwrap();
+        .unwrap()
+        .entries;
 
         assert_eq!(
             result.len(),

@@ -2,6 +2,8 @@
  * Shared types for Tauri command client.
  */
 
+import type { HistoryEntry } from "../../services/claude-history-types.js";
+
 /**
  * Information about a project discovered from an agent.
  */
@@ -37,6 +39,17 @@ export interface ProjectSessionCounts {
 	path: string;
 	/** Session counts per agent ID */
 	counts: Record<string, number>;
+}
+
+/**
+ * Result of `scan_project_sessions`. `failedAgents` lists canonical agent IDs
+ * whose individual scanner failed during the file-scan fallback so callers can
+ * avoid pruning persisted sessions whose agent's scan returned no results due
+ * to an error rather than a real deletion.
+ */
+export interface ScanProjectSessionsResponse {
+	entries: HistoryEntry[];
+	failedAgents: string[];
 }
 
 export interface CustomAgentConfig {

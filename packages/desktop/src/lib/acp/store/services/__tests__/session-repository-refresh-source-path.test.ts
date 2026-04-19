@@ -229,4 +229,35 @@ describe("SessionRepository.refreshSessionsFromScan", () => {
 		expect(state.sessions).toHaveLength(1);
 		expect(state.sessions[0]?.id).toBe("session-123");
 	});
+
+	it("preserves persisted sessions belonging to an agent whose scanner failed", () => {
+		const state: SessionStoreState = {
+			sessions: [
+				createSession({
+					id: "opencode-session",
+					agentId: "opencode",
+					sessionLifecycleState: "persisted",
+				}),
+				createSession({
+					id: "claude-session",
+					agentId: "claude-code",
+					sessionLifecycleState: "persisted",
+				}),
+			],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		// File-scan partial result: opencode scanner failed, claude succeeded with no entries.
+		// Without failedAgents, both persisted sessions would be pruned. With it, the
+		// opencode session must survive because its scanner did not authoritatively confirm
+		// the absence; only the claude session — whose scanner succeeded — gets pruned.
+		repository.refreshSessionsFromScan(state.sessions, [], ["/projects/acepe"], ["opencode"]);
+
+		expect(state.sessions.map((session) => session.id)).toEqual(["opencode-session"]);
+	});
 });
