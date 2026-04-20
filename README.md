@@ -117,6 +117,8 @@ cd packages/desktop && bun run tauri
 
 Acepe combines a native desktop shell with agent integrations, local project context, review tooling, and git workflows so you can keep the entire loop, from prompt to PR, in one place.
 
+For the core product-state model and architecture vocabulary, see [`docs/concepts/`](docs/concepts/README.md).
+
 ```
 ┌──────────────────────────────────┐
 │  Frontend (SvelteKit + Svelte 5) │
