@@ -45,12 +45,7 @@ const inline = usePlanInline({
 	getAwaitingPlanApproval: () => false,
 });
 
-const pendingPermission = $derived.by(() => {
-	const sessionId = sessionContext?.sessionId;
-	if (!sessionId) {
-		return null;
-	}
-
+function resolvePendingPermission(sessionId: string) {
 	const operationStore = sessionStore.getOperationStore();
 	const operation = operationStore.getByToolCallId(sessionId, toolCall.id);
 	if (operation != null) {
@@ -65,6 +60,15 @@ const pendingPermission = $derived.by(() => {
 		permissionStore.getForToolCall(sessionId, toolCall.id) ??
 		findExitPlanPermission(toolCall, permissionStore.getForSession(sessionId))
 	);
+}
+
+const pendingPermission = $derived.by(() => {
+	const sessionId = sessionContext?.sessionId;
+	if (!sessionId) {
+		return null;
+	}
+
+	return resolvePendingPermission(sessionId);
 });
 
 const displayPlan = $derived.by(() => {
@@ -132,7 +136,8 @@ $effect(() => {
 	const handleKeyDown = (e: KeyboardEvent) => {
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 			e.preventDefault();
-			const current = permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id);
+			const sessionId = sessionContext?.sessionId;
+			const current = sessionId ? resolvePendingPermission(sessionId) : null;
 			if (current?.id === currentPermissionId) {
 				handleBuildManual();
 			}
