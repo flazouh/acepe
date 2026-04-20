@@ -323,7 +323,10 @@ fn script_preview(script: &str) -> Option<String> {
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty())?;
-    let preview = first_line.chars().take(SCRIPT_PREVIEW_MAX_CHARS).collect::<String>();
+    let preview = first_line
+        .chars()
+        .take(SCRIPT_PREVIEW_MAX_CHARS)
+        .collect::<String>();
     if first_line.chars().count() > SCRIPT_PREVIEW_MAX_CHARS {
         return Some(format!("{}...", preview));
     }
@@ -368,7 +371,11 @@ fn build_setup_command(
         .arg(script)
         .current_dir(worktree_path)
         .env_clear()
-        .envs(sanitised_env.iter().map(|(key, value)| (key.as_str(), value.as_str())))
+        .envs(
+            sanitised_env
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str())),
+        )
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -430,9 +437,8 @@ pub async fn run_setup_script(
         tracing::warn!("PATH not found in sanitised environment");
     }
 
-    let mut child = spawn_setup_script(worktree_path, &sanitised_env, script).map_err(|error| {
-        format!("Failed to execute setup script '{}': {}", preview, error)
-    })?;
+    let mut child = spawn_setup_script(worktree_path, &sanitised_env, script)
+        .map_err(|error| format!("Failed to execute setup script '{}': {}", preview, error))?;
 
     let stdout = child
         .stdout
@@ -576,7 +582,10 @@ pub async fn run_setup_script(
             })
         }
         Ok(Err(error)) => {
-            let message = format!("Failed while waiting for setup script '{}': {}", preview, error);
+            let message = format!(
+                "Failed while waiting for setup script '{}': {}",
+                preview, error
+            );
             emit_worktree_setup_event(
                 app,
                 WorktreeSetupEventPayload::finished(
@@ -743,7 +752,10 @@ fn validate_setup_script(script: &str) -> Result<(), String> {
             MAX_SETUP_SCRIPT_LENGTH
         ));
     }
-    if script.bytes().any(|byte| byte < 0x20 && byte != b'\t' && byte != b'\n' && byte != b'\r') {
+    if script
+        .bytes()
+        .any(|byte| byte < 0x20 && byte != b'\t' && byte != b'\n' && byte != b'\r')
+    {
         return Err("Setup script must not contain null bytes or control characters".into());
     }
     Ok(())

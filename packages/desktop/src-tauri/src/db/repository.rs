@@ -364,7 +364,11 @@ impl ProjectRepository {
 
         Ok(models
             .into_iter()
-            .filter(|model| !acepe_config::read_or_default(Path::new(&model.path)).external_cli_sessions.show)
+            .filter(|model| {
+                !acepe_config::read_or_default(Path::new(&model.path))
+                    .external_cli_sessions
+                    .show
+            })
             .map(|model| model.path)
             .collect())
     }

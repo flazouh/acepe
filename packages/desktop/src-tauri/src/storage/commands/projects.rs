@@ -569,6 +569,10 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                     let path_str = folder_path.path().to_string_lossy().to_string();
                     let project_name = folder_path.path().to_path_buf();
                     let project_name = project_name_from_path(&project_name, &path_str);
+                    let show_external_cli_sessions =
+                        acepe_config::read_or_default(folder_path.path())
+                            .external_cli_sessions
+                            .show;
 
                     tracing::info!(path = %path_str, name = %project_name, "Project selected");
 
@@ -585,7 +589,7 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                         color: assigned_color,
                         sort_order: 0,
                         icon_path: None,
-                        show_external_cli_sessions: false,
+                        show_external_cli_sessions,
                     }))
                 }
                 None => {

@@ -61,21 +61,19 @@ impl MigrationTrait for Migration {
                 .try_get::<bool>("", "show_external_cli_sessions")
                 .unwrap_or(true);
 
-            insert_project_setting(
-                manager,
-                backend,
-                &project_id,
-                SETTING_KEY_COLOR,
-                &color,
-            )
-            .await?;
+            insert_project_setting(manager, backend, &project_id, SETTING_KEY_COLOR, &color)
+                .await?;
 
             insert_project_setting(
                 manager,
                 backend,
                 &project_id,
                 SETTING_KEY_SHOW_NON_ACEPE_SESSIONS,
-                if show_external_cli_sessions { "true" } else { "false" },
+                if show_external_cli_sessions {
+                    "true"
+                } else {
+                    "false"
+                },
             )
             .await?;
 

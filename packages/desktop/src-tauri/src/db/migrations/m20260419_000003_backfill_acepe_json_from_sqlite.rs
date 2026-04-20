@@ -62,7 +62,9 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
-        Err(DbErr::Migration("m20260419_000003 is not reversible".to_string()))
+        Err(DbErr::Migration(
+            "m20260419_000003 is not reversible".to_string(),
+        ))
     }
 }
 
@@ -138,7 +140,10 @@ async fn load_project_settings(
         let project_id: String = row.try_get("", "project_id")?;
         let key: String = row.try_get("", "key")?;
         let value: String = row.try_get("", "value")?;
-        settings.entry(project_id).or_insert_with(HashMap::new).insert(key, value);
+        settings
+            .entry(project_id)
+            .or_insert_with(HashMap::new)
+            .insert(key, value);
     }
 
     Ok(settings)

@@ -15,7 +15,6 @@ mod session_metadata_tests {
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
-    use crate::storage::acepe_config;
     use crate::acp::transcript_projection::{
         TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
@@ -23,8 +22,10 @@ mod session_metadata_tests {
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
+        SessionTranscriptSnapshotRepository,
     };
+    use crate::storage::acepe_config;
     use chrono::Utc;
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Set, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -194,6 +195,24 @@ mod session_metadata_tests {
             .expect("load project")
             .expect("project row");
         assert!(!loaded.show_external_cli_sessions);
+    }
+
+    #[tokio::test]
+    async fn project_repository_creates_acepe_json_for_project_directories() {
+        let db = setup_test_db().await;
+        let project_dir = tempdir().expect("tempdir");
+
+        let project = ProjectRepository::create_or_update(
+            &db,
+            project_dir.path().to_string_lossy().to_string(),
+            "Delta".to_string(),
+            Some("orange".to_string()),
+        )
+        .await
+        .expect("create project");
+
+        assert_eq!(project.path, project_dir.path().to_string_lossy());
+        assert!(project_dir.path().join(".acepe.json").exists());
     }
 
     #[tokio::test]

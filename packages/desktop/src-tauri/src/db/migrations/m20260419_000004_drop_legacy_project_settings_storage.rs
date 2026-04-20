@@ -13,7 +13,9 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
-        Err(DbErr::Migration("m20260419_000004 is not reversible".to_string()))
+        Err(DbErr::Migration(
+            "m20260419_000004 is not reversible".to_string(),
+        ))
     }
 }
 

@@ -242,6 +242,17 @@ pub fn read_or_default(project_root: &Path) -> AcepeConfig {
     }
 }
 
+pub fn ensure_exists(project_root: &Path) -> Result<AcepeConfig, AcepeConfigError> {
+    let path = config_path(project_root)?;
+    if path.exists() {
+        return read(project_root);
+    }
+
+    let config = AcepeConfig::default();
+    write(project_root, &config)?;
+    Ok(config)
+}
+
 pub fn write(project_root: &Path, config: &AcepeConfig) -> Result<(), AcepeConfigError> {
     let path = config_path(project_root)?;
     let temp = temp_path(project_root)?;
@@ -273,8 +284,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        read, update, write, AcepeConfig, AcepeConfigError, ExternalCliSessionsSection,
-        ScriptsSection,
+        ensure_exists, read, update, write, AcepeConfig, AcepeConfigError,
+        ExternalCliSessionsSection, ScriptsSection,
     };
     use serde_json::json;
     use tempfile::tempdir;
@@ -333,7 +344,10 @@ mod tests {
         assert_eq!(loaded.scripts.setup, "bun install\nbun test");
         assert_eq!(loaded.scripts.run, "bun run dev");
         assert_eq!(loaded.extras.get("futureTopLevel"), Some(&json!(7)));
-        assert_eq!(loaded.scripts.extras.get("futureScript"), Some(&json!(true)));
+        assert_eq!(
+            loaded.scripts.extras.get("futureScript"),
+            Some(&json!(true))
+        );
         assert_eq!(
             loaded.external_cli_sessions.extras.get("futureVisibility"),
             Some(&json!("keep"))
@@ -360,8 +374,11 @@ mod tests {
     #[test]
     fn unsupported_version_returns_error() {
         let directory = tempdir().expect("tempdir");
-        std::fs::write(directory.path().join(".acepe.json"), "{\n  \"version\": 2\n}\n")
-            .expect("write unsupported config");
+        std::fs::write(
+            directory.path().join(".acepe.json"),
+            "{\n  \"version\": 2\n}\n",
+        )
+        .expect("write unsupported config");
 
         let error = read(directory.path()).expect_err("expected version error");
         assert!(matches!(error, AcepeConfigError::UnsupportedVersion(2)));
@@ -408,5 +425,15 @@ mod tests {
         assert!(!updated.external_cli_sessions.show);
         let reloaded = read(directory.path()).expect("reload updated config");
         assert_eq!(reloaded, updated);
+    }
+
+    #[test]
+    fn ensure_exists_creates_default_file_when_missing() {
+        let directory = tempdir().expect("tempdir");
+
+        let config = ensure_exists(directory.path()).expect("ensure config");
+
+        assert!(directory.path().join(".acepe.json").exists());
+        assert_eq!(config, AcepeConfig::default());
     }
 }
