@@ -1340,7 +1340,6 @@ mod tests {
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::projections::{InteractionResponse, InteractionState};
-    use crate::acp::registry::AgentRegistry;
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
     };
@@ -1356,7 +1355,6 @@ mod tests {
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
-    use std::sync::Arc;
     use tempfile::tempdir;
 
     async fn setup_test_db() -> DbConn {

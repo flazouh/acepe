@@ -572,7 +572,7 @@ fn parse_sql_todo_statement(statement: &str) -> Option<Vec<ParsedTodo>> {
             ParsedTodo {
                 content: content.clone(),
                 active_form: content,
-                status: status.clone(),
+                status,
             }
         })
         .collect::<Vec<_>>();

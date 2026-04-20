@@ -4,6 +4,7 @@
 use serde_json::Value;
 
 /// Minimal frame for tool identity + raw JSON arguments from a parser.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RawToolCallFrame<'a> {
     pub tool_call_id: &'a str,

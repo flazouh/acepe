@@ -1057,12 +1057,13 @@ impl AgentClient for MockAgentClient {
                 .push(mode_id);
         }
 
-        match *self
+        let reconnect_behavior = *self
             .state
             .reconnect_behavior
             .lock()
-            .expect("reconnect behavior lock")
-        {
+            .expect("reconnect behavior lock");
+
+        match reconnect_behavior {
             MockReconnectBehavior::Resume => self.resume_session(session_id, cwd).await,
             MockReconnectBehavior::Load => self.load_session(session_id, cwd).await,
         }

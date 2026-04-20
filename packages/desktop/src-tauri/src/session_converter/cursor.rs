@@ -27,7 +27,7 @@ fn overlay_streaming_tool_updates(session_id: &str, snapshot: &mut SessionThread
     overlay_streaming_tool_updates_for_entries(session_id, &mut snapshot.entries);
 }
 
-fn overlay_streaming_tool_updates_for_entries(session_id: &str, entries: &mut Vec<StoredEntry>) {
+fn overlay_streaming_tool_updates_for_entries(session_id: &str, entries: &mut [StoredEntry]) {
     let Some(log_path) = crate::acp::streaming_log::get_log_file_path(session_id) else {
         return;
     };

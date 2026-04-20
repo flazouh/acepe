@@ -145,7 +145,7 @@ fn parse_bulk_status_filter_update(query: &str) -> Option<TodoUpdate> {
 fn split_sql_status_list(segment: &str) -> Vec<TodoStatus> {
     segment
         .split(',')
-        .filter_map(|token| parse_sql_literal(token))
+        .filter_map(parse_sql_literal)
         .filter_map(|status| parse_todo_status(&status))
         .collect()
 }

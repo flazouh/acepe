@@ -176,8 +176,6 @@ pub fn is_browser_tool_name(name: &str) -> bool {
     // Extract the function segment from MCP naming: mcp__server__func → func, server-func → func
     let func_segment = if lower.contains("__") {
         lower.rsplit("__").next().unwrap_or(&lower)
-    } else if lower.contains('-') {
-        &lower
     } else {
         &lower
     };

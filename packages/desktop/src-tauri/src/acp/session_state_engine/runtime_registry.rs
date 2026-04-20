@@ -73,7 +73,7 @@ impl SessionGraphRuntimeRegistry {
         let mut state = self
             .sessions
             .entry(session_id.to_string())
-            .or_insert_with(SessionGraphRuntimeSnapshot::default);
+            .or_default();
 
         match update {
             SessionUpdate::ConnectionComplete {
@@ -122,6 +122,10 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "This envelope builder is the shared boundary between runtime state, projections, and transcript deltas."
+    )]
     pub async fn build_live_session_state_envelope(
         &self,
         db: &DbConn,
