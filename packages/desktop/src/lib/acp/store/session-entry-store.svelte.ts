@@ -73,7 +73,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
-		this.toolCallManager = new ToolCallManager(this, this.entryIndex, this.operationStore);
+		this.toolCallManager = new ToolCallManager(this, this.entryIndex);
 	}
 
 	// ============================================
@@ -137,28 +137,22 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 */
 	storeEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
-		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
-		this.entriesById.set(sessionId, normalizedEntries);
-
-		// Build indices for O(1) lookups
-		this.entryIndex.rebuildEntryIdIndex(sessionId, normalizedEntries);
-		this.entryIndex.rebuildMessageIdIndex(sessionId, normalizedEntries);
-		this.entryIndex.rebuildToolCallIdIndex(sessionId, normalizedEntries);
-		this.operationStore.clearSession(sessionId);
-		for (const entry of normalizedEntries) {
-			if (!isToolCallEntry(entry)) {
-				continue;
-			}
-
-			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
-		}
-
+		this.replaceEntriesAndBuildIndex(sessionId, normalizedEntries, { syncOperations: true });
 		this.preloadedIds.add(sessionId);
 	}
 
-	replaceTranscriptSnapshot(sessionId: string, snapshot: TranscriptSnapshot, timestamp: Date): void {
+	replaceTranscriptSnapshot(
+		sessionId: string,
+		snapshot: TranscriptSnapshot,
+		timestamp: Date,
+		options?: { syncOperations?: boolean }
+	): void {
 		const entries = convertTranscriptSnapshotToSessionEntries(snapshot, timestamp);
-		this.storeEntriesAndBuildIndex(sessionId, entries);
+		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
+		this.replaceEntriesAndBuildIndex(sessionId, normalizedEntries, {
+			syncOperations: options?.syncOperations ?? true,
+		});
+		this.preloadedIds.add(sessionId);
 		this.transcriptRevisionBySession.set(sessionId, snapshot.revision);
 	}
 
@@ -170,7 +164,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 		for (const operation of delta.operations) {
 			if (operation.kind === "replaceSnapshot") {
-				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp);
+				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp, {
+					syncOperations: false,
+				});
 				continue;
 			}
 
@@ -248,12 +244,31 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		};
 	}
 
-	private syncOperationStoreForEntry(sessionId: string, entry: SessionEntry): void {
-		if (!isToolCallEntry(entry)) {
+	private replaceEntriesAndBuildIndex(
+		sessionId: string,
+		entries: SessionEntry[],
+		options: { syncOperations: boolean }
+	): void {
+		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
+		this.entriesById.set(sessionId, entries);
+
+		// Build indices for O(1) lookups
+		this.entryIndex.rebuildEntryIdIndex(sessionId, entries);
+		this.entryIndex.rebuildMessageIdIndex(sessionId, entries);
+		this.entryIndex.rebuildToolCallIdIndex(sessionId, entries);
+
+		if (!options.syncOperations) {
 			return;
 		}
 
-		this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
+		this.operationStore.clearSession(sessionId);
+		for (const entry of entries) {
+			if (!isToolCallEntry(entry)) {
+				continue;
+			}
+
+			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
+		}
 	}
 
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
@@ -312,7 +327,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (isToolCallEntry(normalizedEntry)) {
 			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
 		}
-		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 		logger.debug("addEntry: appended entry", {
 			sessionId,
 			entryId: normalizedEntry.id,
@@ -386,7 +400,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
 			this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 		}
-		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 	}
 
 	/**

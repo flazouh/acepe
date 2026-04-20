@@ -10,7 +10,6 @@ import {
 	findOperationForQuestion,
 } from "../operation-association.js";
 import { OperationStore } from "../operation-store.svelte.js";
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function createExecuteToolCall(
 	id: string,
@@ -61,8 +60,11 @@ function createExecutePermission(
 describe("operation association", () => {
 	it("prefers explicit tool references over semantic fallback", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "git status"));
+		operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "git status")
+		);
 
 		const permission = createExecutePermission("session-1", "tool-1", "different command");
 		const operation = findOperationForPermission(operationStore, permission);
@@ -72,8 +74,11 @@ describe("operation association", () => {
 
 	it("resolves execute permissions by command when the transport anchor differs", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "mkdir demo"));
+		operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "mkdir demo")
+		);
 
 		const permission = createExecutePermission("session-1", "shell-permission", "mkdir demo");
 		const operation = findOperationForPermission(operationStore, permission);
@@ -84,9 +89,16 @@ describe("operation association", () => {
 
 	it("fails closed when no operation command matches a fallback permission", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "git status"));
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-2", "git diff"));
+		operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "git status")
+		);
+		operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-2",
+			createExecuteToolCall("tool-2", "git diff")
+		);
 
 		const permission = createExecutePermission("session-1", "shell-permission", "npm test");
 		expect(findOperationForPermission(operationStore, permission)).toBeNull();
@@ -94,8 +106,11 @@ describe("operation association", () => {
 
 	it("resolves question and plan approval interactions by explicit tool reference", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "plan"));
+		operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "plan")
+		);
 
 		const question: QuestionRequest = {
 			id: "question-1",

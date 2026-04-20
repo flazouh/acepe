@@ -1,5 +1,5 @@
 use crate::acp::client::PendingRequestEntry;
-use crate::acp::domain_events::SessionDomainEventKind;
+use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::permission_tracker::PermissionTracker;
 use crate::acp::projections::{
@@ -348,7 +348,33 @@ pub(crate) async fn persist_interaction_transition(
     }
 
     if let Some(dispatcher) = dispatcher {
-        dispatcher.enqueue_session_domain_event(session_id, domain_event_kind);
+        let payload = match domain_event_kind {
+            SessionDomainEventKind::InteractionResolved => {
+                Some(SessionDomainEventPayload::InteractionResolved {
+                    interaction_id: interaction_id.to_string(),
+                    operation_id: None,
+                    interaction: None,
+                })
+            }
+            SessionDomainEventKind::InteractionCancelled => {
+                Some(SessionDomainEventPayload::InteractionCancelled {
+                    interaction_id: interaction_id.to_string(),
+                    operation_id: None,
+                    interaction: None,
+                })
+            }
+            _ => None,
+        };
+
+        if let Some(payload) = payload {
+            dispatcher.enqueue_session_domain_event_with_payload(
+                session_id,
+                domain_event_kind,
+                Some(payload),
+            );
+        } else {
+            dispatcher.enqueue_session_domain_event(session_id, domain_event_kind);
+        }
     }
 }
 

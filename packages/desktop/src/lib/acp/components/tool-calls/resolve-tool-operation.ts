@@ -4,6 +4,7 @@ import type { PermissionRequest } from "../../types/permission.js";
 import type { Operation } from "../../types/operation.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
+import { resolveOperationDisplayTitle } from "../../session-state/session-state-query-service.js";
 
 export type ToolRouteKey = ToolKind | "read_lints";
 
@@ -16,12 +17,25 @@ export interface ResolvedToolOperation {
 
 type OperationLookup = Pick<OperationStore, "getById" | "getByToolCallId">;
 
+function permissionMatchesToolCall(
+	pendingPermission: PermissionRequest | null | undefined,
+	toolCall: ToolCall
+): boolean {
+	return pendingPermission?.tool?.callID === toolCall.id;
+}
+
 export function resolveToolOperation(
 	toolCall: ToolCall,
-	pendingPermission: PermissionRequest | null | undefined
+	pendingPermission: PermissionRequest | null | undefined,
+	operation?: Operation | null,
+	operationStore?: Pick<OperationStore, "isBlockedByPermission">
 ): ResolvedToolOperation {
 	const resolvedKind = toolCall.kind ?? "other";
 	const routeKey = resolveToolRouteKey(toolCall, resolvedKind);
+	const isPermissionBlockedOperation =
+		operation != null && operationStore != null
+			? operationStore.isBlockedByPermission(operation)
+			: false;
 
 	return {
 		resolvedKind,
@@ -30,6 +44,9 @@ export function resolveToolOperation(
 		shouldShowInlinePermissionActionBar:
 			pendingPermission !== null &&
 			pendingPermission !== undefined &&
+			(isPermissionBlockedOperation ||
+				operation == null ||
+				permissionMatchesToolCall(pendingPermission, toolCall)) &&
 			resolvedKind !== "exit_plan_mode",
 	};
 }
@@ -93,6 +110,11 @@ function createToolCallFromOperation(
 	operation: Operation,
 	taskChildren: ToolCall[] | null
 ): ToolCall {
+	const title = resolveOperationDisplayTitle({
+		title: operation.title ?? null,
+		arguments: operation.arguments,
+		name: operation.name,
+	});
 	const toolCall: ToolCall = {
 		id: operation.toolCallId,
 		name: operation.name,
@@ -106,7 +128,7 @@ function createToolCallFromOperation(
 			result: operation.result,
 		}),
 		kind: operation.kind,
-		title: operation.title,
+		title,
 		locations: operation.locations,
 		skillMeta: operation.skillMeta,
 		normalizedQuestions: operation.normalizedQuestions,

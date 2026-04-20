@@ -27,10 +27,8 @@ import {
 	mergePermissionRequests,
 	type PermissionRequest,
 } from "../types/permission.js";
-import type { ToolCall } from "../types/tool-call.js";
 import { isExitPlanPermission } from "../utils/exit-plan-permission.js";
 import { createLogger } from "../utils/logger.js";
-import { permissionMatchesToolCall } from "../utils/permission-tool-match.js";
 import { InteractionStore } from "./interaction-store.svelte.js";
 import { findOperationForPermission, permissionMatchesOperation } from "./operation-association.js";
 import type { OperationStore } from "./operation-store.svelte.js";
@@ -189,25 +187,19 @@ export class PermissionStore {
 	 */
 	getForToolCall(
 		sessionId: string | undefined,
-		toolCallOrId: string | ToolCall
+		toolCallId: string
 	): PermissionRequest | undefined {
 		if (!sessionId) {
 			return undefined;
 		}
 
-		const toolCallId = typeof toolCallOrId === "string" ? toolCallOrId : toolCallOrId.id;
 		let latest: PermissionRequest | undefined;
 		for (const permission of this.pending.values()) {
 			const permissionToolCallId = this.getToolCallId(permission);
 			if (permission.sessionId !== sessionId) {
 				continue;
 			}
-			const isDirectMatch = permissionToolCallId === toolCallId;
-			const isSemanticMatch =
-				!isDirectMatch &&
-				typeof toolCallOrId !== "string" &&
-				permissionMatchesToolCall(permission, toolCallOrId);
-			if (!isDirectMatch && !isSemanticMatch) {
+			if (permissionToolCallId !== toolCallId) {
 				continue;
 			}
 			if (this.shouldPreferPermission(permission, latest)) {

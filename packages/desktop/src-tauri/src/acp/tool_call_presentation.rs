@@ -10,6 +10,10 @@ pub(crate) fn title_is_placeholder(title: Option<&str>) -> bool {
             | Some("View Image")
             | Some("Terminal")
             | Some("Apply Patch")
+            | Some("Read")
+            | Some("Edit")
+            | Some("Delete")
+            | Some("Bash")
     )
 }
 
@@ -136,6 +140,10 @@ mod tests {
         assert!(title_is_placeholder(Some("View Image")));
         assert!(title_is_placeholder(Some("Terminal")));
         assert!(title_is_placeholder(Some("Apply Patch")));
+        assert!(title_is_placeholder(Some("Read")));
+        assert!(title_is_placeholder(Some("Edit")));
+        assert!(title_is_placeholder(Some("Delete")));
+        assert!(title_is_placeholder(Some("Bash")));
         assert!(title_is_placeholder(None));
     }
 

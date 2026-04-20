@@ -65,6 +65,19 @@ export class QuestionStore {
 		return this.interactions.answeredQuestions;
 	}
 
+	getForToolCall(sessionId: string, toolCallId: string): QuestionRequest | undefined {
+		for (const question of this.pending.values()) {
+			if (question.sessionId !== sessionId) {
+				continue;
+			}
+			if (question.tool?.callID === toolCallId || question.id === toolCallId) {
+				return question;
+			}
+		}
+
+		return undefined;
+	}
+
 	getForOperation(operation: Operation): QuestionRequest | undefined {
 		for (const question of this.pending.values()) {
 			if (question.sessionId !== operation.sessionId) {

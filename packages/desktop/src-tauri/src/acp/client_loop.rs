@@ -15,7 +15,7 @@ use crate::acp::parsers::AgentType;
 use crate::acp::pending_prompt_registry::{
     consume_matching_user_echo, discard_pending_prompt_echo,
 };
-use crate::acp::permission_tracker::{PermissionContext, PermissionTracker, WebSearchDedup};
+use crate::acp::permission_tracker::{PermissionTracker, WebSearchDedup};
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::AgentProvider;
 use crate::acp::provider_extensions::InboundResponseAdapter;
@@ -71,8 +71,6 @@ async fn send_auto_response_and_emit_updates(
     id: u64,
     method: &str,
     result: Value,
-    session_id: Option<String>,
-    synthetic_tool_call: Option<Box<crate::acp::inbound_request_router::SyntheticToolCallContext>>,
     canonical_interaction: Option<SessionUpdate>,
 ) {
     if let Err(error) = send_inbound_response(stdin_writer, id, result).await {
@@ -83,16 +81,6 @@ async fn send_auto_response_and_emit_updates(
             "Failed to send backend auto-response"
         );
         return;
-    }
-
-    if let Some(synthetic_ctx) = synthetic_tool_call {
-        if let Some(session_id) = session_id.clone() {
-            let synthetic = SessionUpdate::ToolCall {
-                tool_call: synthetic_ctx.tool_call_data,
-                session_id: Some(session_id),
-            };
-            enqueue_session_update(dispatcher, is_replay_active, synthetic);
-        }
     }
 
     if let Some(interaction_update) = canonical_interaction {
@@ -147,6 +135,26 @@ fn enqueue_session_updates(
 ) {
     for update in updates {
         enqueue_session_update(dispatcher, is_replay_active, update);
+    }
+}
+
+fn remap_interaction_tool_call_id(update: &mut Option<SessionUpdate>, canonical_id: &str) {
+    let Some(update) = update.as_mut() else {
+        return;
+    };
+
+    match update {
+        SessionUpdate::PermissionRequest { permission, .. } => {
+            if let Some(tool) = permission.tool.as_mut() {
+                tool.call_id = canonical_id.to_string();
+            }
+        }
+        SessionUpdate::QuestionRequest { question, .. } => {
+            if let Some(tool) = question.tool.as_mut() {
+                tool.call_id = canonical_id.to_string();
+            }
+        }
+        _ => {}
     }
 }
 
@@ -521,9 +529,8 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     }
                                     InboundRoutingDecision::AutoRespond {
                                         result,
-                                        session_id,
-                                        synthetic_tool_call,
                                         canonical_interaction,
+                                        ..
                                     } => {
                                         send_auto_response_and_emit_updates(
                                             &ctx.stdin_writer,
@@ -532,16 +539,14 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                             id,
                                             method,
                                             result,
-                                            session_id,
-                                            synthetic_tool_call,
                                             canonical_interaction,
                                         )
                                         .await;
                                     }
                                     InboundRoutingDecision::ForwardToUi {
                                         parsed_arguments,
-                                        mut synthetic_tool_call,
-                                        canonical_interaction,
+                                        mut permission_context,
+                                        mut canonical_interaction,
                                         forward_legacy_event,
                                     } => {
                                         let mut forwarded = ForwardedPermissionRequest::new(json.clone());
@@ -566,41 +571,19 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                                 &mut forwarded,
                                                 ctx.provider.as_deref(),
                                                 &parsed_arguments,
-                                                &mut synthetic_tool_call,
                                                 &mut dedup,
                                             ) {
+                                                if let Some(permission_ctx) = permission_context.as_mut() {
+                                                    permission_ctx.tool_call_id = canonical_id.clone();
+                                                }
+                                                remap_interaction_tool_call_id(
+                                                    &mut canonical_interaction,
+                                                    &canonical_id,
+                                                );
                                                 tracing::debug!(
                                                     canonical_id = %canonical_id,
                                                     "Remapped web search permission ID to notification canonical ID"
                                                 );
-                                            }
-                                        }
-
-                                        if let Some(synthetic_ctx) = &synthetic_tool_call {
-                                            let session_id = forwarded.session_id();
-
-                                            if let Some(ref sid) = session_id {
-                                                let synthetic = SessionUpdate::ToolCall {
-                                                    tool_call: synthetic_ctx.tool_call_data.clone(),
-                                                    session_id: Some(sid.clone()),
-                                                };
-                                                enqueue_session_update(
-                                                    &ctx.dispatcher,
-                                                    &ctx.is_replay_active,
-                                                    synthetic,
-                                                );
-
-                                                match ctx.permission_tracker.lock() {
-                                                    Ok(mut tracker) => {
-                                                        tracker.track(id, PermissionContext {
-                                                            session_id: sid.clone(),
-                                                            tool_call_id: synthetic_ctx.tool_call_data.id.clone(),
-                                                        });
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("Permission tracker mutex poisoned in track: {e}");
-                                                    }
-                                                }
                                             }
                                         }
 
@@ -610,6 +593,19 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                                 &ctx.is_replay_active,
                                                 interaction_update,
                                             );
+                                        }
+
+                                        if let Some(permission_ctx) = permission_context {
+                                            match ctx.permission_tracker.lock() {
+                                                Ok(mut tracker) => {
+                                                    tracker.track(id, permission_ctx);
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "Permission tracker mutex poisoned in track: {e}"
+                                                    );
+                                                }
+                                            }
                                         }
 
                                         if let Some(session_id) = forwarded.session_id() {
@@ -1002,6 +998,37 @@ mod tests {
         events
     }
 
+    #[test]
+    fn remapping_question_tool_call_keeps_question_identity() {
+        let mut update = Some(SessionUpdate::QuestionRequest {
+            question: crate::acp::session_update::QuestionData {
+                id: "question-1".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(7),
+                reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::json_rpc(
+                    7,
+                )),
+                questions: Vec::new(),
+                tool: Some(crate::acp::session_update::ToolReference {
+                    message_id: "message-1".to_string(),
+                    call_id: "provider-tool-1".to_string(),
+                }),
+            },
+            session_id: Some("session-1".to_string()),
+        });
+
+        remap_interaction_tool_call_id(&mut update, "canonical-tool-1");
+
+        let Some(SessionUpdate::QuestionRequest { question, .. }) = update else {
+            panic!("expected question request");
+        };
+        assert_eq!(question.id, "question-1");
+        assert_eq!(
+            question.tool.as_ref().map(|tool| tool.call_id.as_str()),
+            Some("canonical-tool-1")
+        );
+    }
+
     #[tokio::test]
     async fn cancelled_stdout_reader_does_not_drain_pending_requests_on_eof() {
         let mut child = Command::new("/bin/sh")
@@ -1190,8 +1217,6 @@ mod tests {
             7,
             "session/request_permission",
             json!({ "outcome": "allow" }),
-            Some("session-1".to_string()),
-            None,
             Some(SessionUpdate::TurnComplete {
                 session_id: Some("session-1".to_string()),
                 turn_id: None,

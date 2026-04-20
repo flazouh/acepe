@@ -434,7 +434,7 @@ impl AcpUiEventDispatcher {
 
     pub fn enqueue(&self, event: AcpUiEvent) {
         // Build the canonical domain event first so we have the seq for idempotency.
-        let derived_domain_event = session_domain_event_from_update(&event.payload)
+        let mut derived_domain_event = session_domain_event_from_update(&event.payload)
             .map(|e| self.create_session_domain_event(&e.session_id, e.kind, e.payload));
 
         if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
@@ -455,6 +455,15 @@ impl AcpUiEventDispatcher {
                     self.projection_registry
                         .apply_session_update(session_id, update.as_ref());
                 }
+            }
+        }
+
+        if let Some(canonical) = derived_domain_event.as_mut() {
+            if let AcpUiEventPayload::SessionDomainEvent(domain_event) = &mut canonical.payload {
+                enrich_session_domain_event_from_projection(
+                    &self.projection_registry,
+                    domain_event,
+                );
             }
         }
 
@@ -495,7 +504,10 @@ impl AcpUiEventDispatcher {
         kind: SessionDomainEventKind,
         payload: Option<SessionDomainEventPayload>,
     ) {
-        let event = self.create_session_domain_event(session_id, kind, payload);
+        let mut event = self.create_session_domain_event(session_id, kind, payload);
+        if let AcpUiEventPayload::SessionDomainEvent(domain_event) = &mut event.payload {
+            enrich_session_domain_event_from_projection(&self.projection_registry, domain_event);
+        }
 
         #[cfg(test)]
         if let Some(sink) = &self.test_sink {
@@ -553,6 +565,55 @@ fn session_domain_event_from_update(payload: &AcpUiEventPayload) -> Option<Sessi
         kind,
         payload: event_payload,
     })
+}
+
+fn enrich_session_domain_event_from_projection(
+    projection_registry: &ProjectionRegistry,
+    event: &mut SessionDomainEvent,
+) {
+    let Some(payload) = event.payload.as_mut() else {
+        return;
+    };
+
+    match payload {
+        SessionDomainEventPayload::OperationUpserted {
+            tool_call_id,
+            operation_id,
+            operation,
+            ..
+        } => {
+            let Some(snapshot) =
+                projection_registry.operation_for_tool_call(&event.session_id, tool_call_id)
+            else {
+                return;
+            };
+            *operation_id = snapshot.id.clone();
+            *operation = Some(snapshot);
+        }
+        SessionDomainEventPayload::InteractionUpserted {
+            interaction_id,
+            operation_id,
+            interaction,
+            ..
+        }
+        | SessionDomainEventPayload::InteractionResolved {
+            interaction_id,
+            operation_id,
+            interaction,
+        }
+        | SessionDomainEventPayload::InteractionCancelled {
+            interaction_id,
+            operation_id,
+            interaction,
+        } => {
+            let Some(snapshot) = projection_registry.interaction(interaction_id) else {
+                return;
+            };
+            *operation_id = snapshot.operation_id.clone();
+            *interaction = Some(snapshot);
+        }
+        _ => {}
+    }
 }
 
 async fn run_dispatch_loop(
@@ -881,8 +942,12 @@ struct DispatchPersistenceEffects {
     session_state_envelope: Option<SessionStateEnvelope>,
 }
 
-fn projection_has_runtime_state(snapshot: &crate::acp::projections::SessionProjectionSnapshot) -> bool {
-    snapshot.session.is_some() || !snapshot.operations.is_empty() || !snapshot.interactions.is_empty()
+fn projection_has_runtime_state(
+    snapshot: &crate::acp::projections::SessionProjectionSnapshot,
+) -> bool {
+    snapshot.session.is_some()
+        || !snapshot.operations.is_empty()
+        || !snapshot.interactions.is_empty()
 }
 
 async fn checkpoint_session_snapshots(
@@ -891,7 +956,9 @@ async fn checkpoint_session_snapshots(
     projection_registry: &ProjectionRegistry,
     transcript_projection_registry: &TranscriptProjectionRegistry,
 ) {
-    if let Some(transcript_snapshot) = transcript_projection_registry.snapshot_for_session(session_id) {
+    if let Some(transcript_snapshot) =
+        transcript_projection_registry.snapshot_for_session(session_id)
+    {
         if let Err(error) =
             SessionTranscriptSnapshotRepository::set(db, session_id, &transcript_snapshot).await
         {
@@ -994,10 +1061,13 @@ async fn persist_dispatch_event(
 mod tests {
     use super::*;
     use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
-    use crate::acp::projections::SessionTurnState;
+    use crate::acp::projections::{
+        InteractionKind, InteractionResponse, InteractionState, ProjectionRegistry,
+        SessionTurnState,
+    };
     use crate::acp::session_update::{
         ContentChunk, PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
-        ToolKind,
+        ToolKind, ToolReference,
     };
     use crate::acp::transcript_projection::TranscriptDelta;
     use crate::acp::types::CanonicalAgentId;
@@ -1516,7 +1586,131 @@ mod tests {
                     event.kind,
                     SessionDomainEventKind::InteractionUpserted
                 ));
+                match &event.payload {
+                    Some(SessionDomainEventPayload::InteractionUpserted {
+                        interaction_id,
+                        interaction_kind,
+                        operation_id,
+                        interaction,
+                    }) => {
+                        assert_eq!(interaction_id, "permission-1");
+                        assert_eq!(interaction_kind, &InteractionKind::Permission);
+                        assert_eq!(operation_id, &None);
+                        assert_eq!(
+                            interaction.as_ref().map(|snapshot| snapshot.id.as_str()),
+                            Some("permission-1")
+                        );
+                    }
+                    other => panic!(
+                        "Expected enriched InteractionUpserted payload, got {:?}",
+                        other
+                    ),
+                }
             }
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn dispatcher_enriches_resolved_interaction_domain_events_from_projection() {
+        let projection_registry = Arc::new(ProjectionRegistry::new());
+        projection_registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "tool-1".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/example.txt".to_string()),
+                        source_context: None,
+                    },
+                    raw_input: None,
+                    kind: Some(ToolKind::Read),
+                    title: Some("Read /tmp/example.txt".to_string()),
+                    status: ToolCallStatus::Pending,
+                    result: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        projection_registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-1".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(7),
+                    reply_handler: Some(
+                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                    ),
+                    permission: "read".to_string(),
+                    patterns: vec![],
+                    metadata: json!({ "filePath": "/tmp/example.txt" }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: Some(ToolReference {
+                        message_id: "message-1".to_string(),
+                        call_id: "tool-1".to_string(),
+                    }),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        projection_registry.resolve_interaction(
+            "session-1",
+            "permission-1",
+            InteractionState::Approved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: None,
+                reply: None,
+            },
+        );
+
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(projection_registry);
+        dispatcher.enqueue_session_domain_event_with_payload(
+            "session-1",
+            SessionDomainEventKind::InteractionResolved,
+            Some(SessionDomainEventPayload::InteractionResolved {
+                interaction_id: "permission-1".to_string(),
+                operation_id: None,
+                interaction: None,
+            }),
+        );
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 1);
+
+        match &captured[0].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => match &event.payload {
+                Some(SessionDomainEventPayload::InteractionResolved {
+                    interaction_id,
+                    operation_id,
+                    interaction,
+                }) => {
+                    assert_eq!(interaction_id, "permission-1");
+                    assert_eq!(operation_id.as_deref(), Some("session-1:tool-1"));
+                    assert_eq!(
+                        interaction.as_ref().map(|snapshot| snapshot.state.clone()),
+                        Some(InteractionState::Approved)
+                    );
+                }
+                other => panic!(
+                    "Expected enriched InteractionResolved payload, got {:?}",
+                    other
+                ),
+            },
             other => panic!("Expected session domain event payload, got {:?}", other),
         }
     }
@@ -1632,10 +1826,17 @@ mod tests {
                     Some(SessionDomainEventPayload::OperationUpserted {
                         operation_id,
                         tool_name,
+                        operation,
                         ..
                     }) => {
-                        assert_eq!(operation_id, "tool-read-1");
+                        assert_eq!(operation_id, "session-e2e:tool-read-1");
                         assert_eq!(tool_name, "Read");
+                        assert_eq!(
+                            operation
+                                .as_ref()
+                                .map(|snapshot| snapshot.tool_call_id.as_str()),
+                            Some("tool-read-1")
+                        );
                     }
                     other => panic!("Expected OperationUpserted payload, got {:?}", other),
                 }

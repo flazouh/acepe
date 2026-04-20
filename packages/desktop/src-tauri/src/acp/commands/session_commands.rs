@@ -1020,8 +1020,7 @@ async fn load_transcript_snapshot_for_resume(
             message: format!(
                 "Failed to load session metadata for resumed session {session_id}: {error}"
             ),
-        })?
-        ;
+        })?;
     let has_metadata = metadata.is_some();
     if has_metadata && journal_max == Some(1) {
         let first_event = crate::db::entities::session_journal_event::Entity::find()
@@ -1089,12 +1088,13 @@ async fn rebuild_transcript_snapshot_from_journal(
                 "Failed to load journal rows for resumed session {session_id}: {error}"
             ),
         })?;
-    let events =
-        decode_serialized_events(&replay_context, rows).map_err(|error| SerializableAcpError::InvalidState {
+    let events = decode_serialized_events(&replay_context, rows).map_err(|error| {
+        SerializableAcpError::InvalidState {
             message: format!(
                 "Failed to decode journal rows for resumed session {session_id}: {error}"
             ),
-        })?;
+        }
+    })?;
     let transcript_registry = TranscriptProjectionRegistry::new();
     let mut saw_projection_update = false;
 

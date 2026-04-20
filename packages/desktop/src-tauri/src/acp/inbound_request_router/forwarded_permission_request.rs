@@ -1,4 +1,3 @@
-use super::SyntheticToolCallContext;
 use crate::acp::permission_tracker::WebSearchDedup;
 use crate::acp::provider::AgentProvider;
 use serde_json::Value;
@@ -71,6 +70,13 @@ impl ForwardedPermissionRequest {
         true
     }
 
+    pub fn tool_call_id(&self) -> Option<String> {
+        self.value
+            .pointer("/params/toolCall/toolCallId")
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+    }
+
     fn params_object_mut(&mut self) -> Option<&mut serde_json::Map<String, Value>> {
         self.value
             .pointer_mut("/params")
@@ -88,12 +94,11 @@ pub(crate) fn remap_forwarded_web_search_tool_call_id(
     forwarded: &mut ForwardedPermissionRequest,
     provider: Option<&dyn AgentProvider>,
     parsed_arguments: &Option<Value>,
-    synthetic_tool_call: &mut Option<Box<SyntheticToolCallContext>>,
     web_search_dedup: &mut WebSearchDedup,
 ) -> Option<String> {
     let provider = provider?;
-    let synthetic_ctx = synthetic_tool_call.as_mut()?;
-    if !provider.is_web_search_tool_call_id(&synthetic_ctx.tool_call_data.id) {
+    let forwarded_tool_call_id = forwarded.tool_call_id()?;
+    if !provider.is_web_search_tool_call_id(&forwarded_tool_call_id) {
         return None;
     }
 
@@ -101,7 +106,6 @@ pub(crate) fn remap_forwarded_web_search_tool_call_id(
     let session_id = forwarded.session_id()?;
     let canonical_id = web_search_dedup.take(&session_id, &query)?;
 
-    synthetic_ctx.tool_call_data.id = canonical_id.clone();
     forwarded.remap_tool_call_id(&canonical_id);
     Some(canonical_id)
 }

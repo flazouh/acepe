@@ -86,6 +86,7 @@ function createMockEventHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
+		applySessionDomainEvent: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
 }

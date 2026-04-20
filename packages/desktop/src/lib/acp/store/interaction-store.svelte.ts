@@ -53,6 +53,38 @@ export class InteractionStore {
 		});
 	}
 
+	getPlanApproval(interactionId: string): PlanApprovalInteraction | undefined {
+		return this.planApprovalsPending.get(interactionId);
+	}
+
+	getPlanApprovalForToolCall(
+		sessionId: string,
+		toolCallId: string
+	): PlanApprovalInteraction | null {
+		let latestApproval: PlanApprovalInteraction | null = null;
+		for (const approval of this.planApprovalsPending.values()) {
+			if (approval.sessionId !== sessionId) {
+				continue;
+			}
+			if (approval.tool.callID !== toolCallId) {
+				continue;
+			}
+
+			if (latestApproval == null) {
+				latestApproval = approval;
+				continue;
+			}
+
+			const nextRequestId = approval.jsonRpcRequestId ?? -1;
+			const latestRequestId = latestApproval.jsonRpcRequestId ?? -1;
+			if (nextRequestId >= latestRequestId) {
+				latestApproval = approval;
+			}
+		}
+
+		return latestApproval;
+	}
+
 	clearSession(sessionId: string): void {
 		for (const [interactionId, permission] of this.permissionsPending) {
 			if (permission.sessionId === sessionId) {

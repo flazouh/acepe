@@ -5,7 +5,6 @@ import type { QuestionRequest } from "../../types/question.js";
 
 import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => okAsync(undefined));
 
@@ -69,18 +68,29 @@ describe("QuestionStore", () => {
 
 		it("returns the pending question for a canonical operation", () => {
 			const operationStore = new OperationStore();
-			const entryStore = new SessionEntryStore(operationStore);
-			entryStore.createToolCallEntry("session-1", {
-				id: "tool-question",
+			operationStore.upsertOperationSnapshot({
+				id: "op-question",
+				session_id: "session-1",
+				tool_call_id: "tool-question",
 				name: "question_tool",
-				arguments: { kind: "other", raw: {} },
-				status: "pending",
-				result: null,
 				kind: "question",
+				status: "pending",
+				lifecycle: "blocked",
+				blocked_reason: "question",
 				title: null,
+				arguments: { kind: "other", raw: {} },
+				progressive_arguments: null,
+				result: null,
+				command: null,
 				locations: null,
-				skillMeta: null,
-				awaitingPlanApproval: false,
+				skill_meta: null,
+				normalized_todos: null,
+				started_at_ms: null,
+				completed_at_ms: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
 			});
 
 			store.add({
@@ -97,6 +107,20 @@ describe("QuestionStore", () => {
 			const matched = operation ? store.getForOperation(operation) : undefined;
 
 			expect(matched?.id).toBe("q-tool");
+		});
+
+		it("returns the pending question for a direct tool-call lookup", () => {
+			store.add({
+				id: "q-tool-direct",
+				sessionId: "session-1",
+				questions: [],
+				tool: {
+					messageID: "",
+					callID: "tool-question",
+				},
+			});
+
+			expect(store.getForToolCall("session-1", "tool-question")?.id).toBe("q-tool-direct");
 		});
 	});
 

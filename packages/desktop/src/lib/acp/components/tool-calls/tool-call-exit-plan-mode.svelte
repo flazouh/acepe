@@ -18,6 +18,7 @@ import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore } from "../../store/panel-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getPlanPreferenceStore } from "../../store/plan-preference-store.svelte.js";
+import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { findExitPlanPermission, getExitPlanDisplayPlan } from "./exit-plan-helpers.js";
@@ -36,6 +37,7 @@ let localOutcome = $state<"building" | "rejected" | null>(null);
 const permissionStore = getPermissionStore();
 const panelStore = getPanelStore();
 const planPrefs = getPlanPreferenceStore();
+const sessionStore = getSessionStore();
 const sessionContext = useSessionContext();
 
 const inline = usePlanInline({
@@ -49,7 +51,17 @@ const pendingPermission = $derived.by(() => {
 		return null;
 	}
 
-	return findExitPlanPermission(toolCall, permissionStore.getForSession(sessionId));
+	const operationStore = sessionStore.getOperationStore();
+	const operation = operationStore.getByToolCallId(sessionId, toolCall.id);
+	if (operation != null) {
+		return (
+			permissionStore.getForOperation(operation, operationStore) ??
+			permissionStore.getForToolCall(sessionId, toolCall.id) ??
+			findExitPlanPermission(toolCall, permissionStore.getForSession(sessionId))
+		);
+	}
+
+	return permissionStore.getForToolCall(sessionId, toolCall.id) ?? null;
 });
 
 const displayPlan = $derived.by(() => {

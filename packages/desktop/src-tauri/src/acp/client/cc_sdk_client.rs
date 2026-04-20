@@ -3335,6 +3335,7 @@ mod tests {
                 interactions: vec![InteractionSnapshot {
                     id: "permission-1".to_string(),
                     session_id: "session-1".to_string(),
+                    operation_id: None,
                     kind: InteractionKind::Permission,
                     state: InteractionState::Approved,
                     json_rpc_request_id: Some(7),

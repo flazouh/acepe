@@ -52,6 +52,7 @@ function createMockHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
+		applySessionDomainEvent: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
 }
@@ -913,6 +914,7 @@ describe("SessionEventService streaming delta handling", () => {
 			updateCurrentMode: vi.fn(),
 			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
+			applySessionDomainEvent: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};
 

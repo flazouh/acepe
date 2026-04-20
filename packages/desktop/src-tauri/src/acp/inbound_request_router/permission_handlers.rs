@@ -1,11 +1,12 @@
 use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::permission_tracker::PermissionContext;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::reconciler::providers;
 use crate::acp::reconciler::session_tool::{resolve_raw_tool_identity, ToolClassificationHints};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_update::{
-    build_tool_call_from_raw, InteractionReplyHandler, PermissionData, QuestionData, QuestionItem,
-    QuestionOption, RawToolCallInput, SessionUpdate, ToolCallStatus, ToolKind, ToolReference,
+    InteractionReplyHandler, PermissionData, QuestionData, QuestionItem, QuestionOption,
+    SessionUpdate, ToolKind, ToolReference,
 };
 use crate::acp::streaming_log::log_streaming_event;
 use serde_json::{json, Value};
@@ -18,7 +19,7 @@ use super::types::{
     InboundQuestionItemRaw, PermissionOptionRaw, PermissionRequestMetaRaw, PermissionToolCallRaw,
     RawInputWithQuestionsRaw, SessionRequestPermissionParamsRaw,
 };
-use super::{InboundRoutingDecision, SyntheticToolCallContext};
+use super::InboundRoutingDecision;
 
 pub(super) async fn handle_session_request_permission(
     app_handle: Option<&AppHandle>,
@@ -57,7 +58,7 @@ async fn handle_session_request_permission_with_state(
         Err(_) => {
             return InboundRoutingDecision::ForwardToUi {
                 parsed_arguments: None,
-                synthetic_tool_call: None,
+                permission_context: None,
                 canonical_interaction: None,
                 forward_legacy_event: true,
             };
@@ -76,7 +77,7 @@ async fn handle_session_request_permission_with_state(
         None => {
             return InboundRoutingDecision::ForwardToUi {
                 parsed_arguments: None,
-                synthetic_tool_call: None,
+                permission_context: None,
                 canonical_interaction: None,
                 forward_legacy_event: true,
             };
@@ -132,26 +133,6 @@ async fn handle_session_request_permission_with_state(
         )
     });
 
-    // Build ToolCallData via the same pipeline as normal tool_call events.
-    let synthetic_tool_call = match session_id.as_deref() {
-        Some(_) => {
-            let raw = RawToolCallInput {
-                id: tool_call_id.clone(),
-                name: identity.name.clone(),
-                arguments: tool_call.raw_input.clone(),
-                status: ToolCallStatus::InProgress,
-                kind: Some(identity.kind),
-                title: tool_call.title.clone(),
-                suppress_title_read_path_hint: false,
-                parent_tool_use_id: None,
-                task_children: None,
-            };
-            let tool_call_data = build_tool_call_from_raw(parser, raw);
-            Some(Box::new(SyntheticToolCallContext { tool_call_data }))
-        }
-        None => None,
-    };
-
     let canonical_interaction = session_id.as_deref().and_then(|session_id| {
         build_canonical_interaction(
             session_id,
@@ -164,19 +145,22 @@ async fn handle_session_request_permission_with_state(
             auto_accept_reason.is_some(),
         )
     });
+    let permission_context = session_id.as_deref().map(|session_id| PermissionContext {
+        session_id: session_id.to_string(),
+        tool_call_id: tool_call_id.clone(),
+    });
 
     if auto_accept_reason.is_some() {
         return InboundRoutingDecision::AutoRespond {
             result: allow_permission_response(&options),
             session_id,
-            synthetic_tool_call,
             canonical_interaction,
         };
     }
 
     InboundRoutingDecision::ForwardToUi {
         parsed_arguments,
-        synthetic_tool_call,
+        permission_context,
         canonical_interaction,
         forward_legacy_event: false,
     }
@@ -425,14 +409,16 @@ mod tests {
             InboundRoutingDecision::AutoRespond {
                 result,
                 session_id: Some(session_id),
-                synthetic_tool_call: Some(synthetic_tool_call),
                 canonical_interaction: Some(SessionUpdate::PermissionRequest { permission, .. }),
                 ..
             } => {
                 assert_eq!(session_id, "session-1");
                 assert_eq!(result["outcome"]["optionId"], "allow_once");
-                assert_eq!(synthetic_tool_call.tool_call_data.id, "tc-1");
                 assert!(permission.auto_accepted);
+                assert_eq!(
+                    permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("tc-1")
+                );
             }
             other => panic!("expected auto-respond decision, got {:?}", other),
         }

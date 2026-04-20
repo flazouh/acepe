@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::acp::projections::InteractionKind;
+use crate::acp::projections::{InteractionKind, InteractionSnapshot, OperationSnapshot};
 use crate::acp::session_update::{TodoUpdate, ToolCallStatus, ToolKind, UsageTelemetryData};
 
 /// Marker enum identifying the domain event kind.
@@ -82,6 +82,8 @@ pub enum SessionDomainEventPayload {
         tool_kind: ToolKind,
         status: ToolCallStatus,
         parent_operation_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        operation: Option<OperationSnapshot>,
     },
     OperationChildLinked {
         parent_operation_id: String,
@@ -95,12 +97,24 @@ pub enum SessionDomainEventPayload {
     InteractionUpserted {
         interaction_id: String,
         interaction_kind: InteractionKind,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        operation_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        interaction: Option<InteractionSnapshot>,
     },
     InteractionResolved {
         interaction_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        operation_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        interaction: Option<InteractionSnapshot>,
     },
     InteractionCancelled {
         interaction_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        operation_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        interaction: Option<InteractionSnapshot>,
     },
     UsageTelemetryUpdated {
         data: UsageTelemetryData,

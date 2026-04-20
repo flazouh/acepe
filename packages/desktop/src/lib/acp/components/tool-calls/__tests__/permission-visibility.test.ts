@@ -28,7 +28,8 @@ function createPermission(toolCallId: string, command = "git status"): Permissio
 
 function createEntriesWithOperations(
 	toolCallId: string,
-	command = "git status"
+	command = "git status",
+	overrides?: { lifecycle?: "pending" | "blocked" | "running" | "completed" | "failed"; blockedReason?: "permission" | "question" | "plan_approval" | "other" | null }
 ): { operationStore: OperationStore; entries: ReturnType<SessionEntryStore["getEntries"]> } {
 	const operationStore = new OperationStore();
 	const entryStore = new SessionEntryStore(operationStore);
@@ -53,6 +54,35 @@ function createEntriesWithOperations(
 		awaitingPlanApproval: false,
 		planApprovalRequestId: null,
 	});
+	operationStore.replaceSessionOperations("session-1", [
+		{
+			id: `session-1:${toolCallId}`,
+			session_id: "session-1",
+			tool_call_id: toolCallId,
+			name: "Execute",
+			kind: "execute",
+			status: "pending",
+			lifecycle: overrides?.lifecycle ?? "blocked",
+			blocked_reason: overrides?.blockedReason ?? "permission",
+			title: "Execute",
+			arguments: {
+				kind: "execute",
+				command,
+			},
+			progressive_arguments: null,
+			result: null,
+			command,
+			locations: null,
+			skill_meta: null,
+			normalized_todos: null,
+			started_at_ms: 1,
+			completed_at_ms: null,
+			parent_tool_call_id: null,
+			parent_operation_id: null,
+			child_tool_call_ids: [],
+			child_operation_ids: [],
+		},
+	]);
 	return {
 		operationStore,
 		entries: entryStore.getEntries("session-1"),
@@ -96,5 +126,17 @@ describe("permission visibility", () => {
 		expect(
 			visiblePermissionsForSessionBar([anchoredPermission, orphanPermission], entries)
 		).toEqual([anchoredPermission, orphanPermission]);
+	});
+
+	it("keeps a matched permission anchored even before the blocked lifecycle patch lands", () => {
+		const permission = createPermission("tool-1");
+		const { operationStore, entries } = createEntriesWithOperations("tool-1", "git status", {
+			lifecycle: "running",
+			blockedReason: null,
+		});
+
+		expect(
+			isPermissionRepresentedByToolCall(permission, "session-1", operationStore, entries)
+		).toBe(true);
 	});
 });

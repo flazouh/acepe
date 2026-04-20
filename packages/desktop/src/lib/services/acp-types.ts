@@ -82,6 +82,16 @@ export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch"
  */
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed"
 
+/**
+ * Tool call location.
+ */
+export type ToolCallLocation = { path: string }
+
+/**
+ * Skill metadata for skill tool calls.
+ */
+export type SkillMeta = { description?: string | null; filePath?: string | null }
+
 export type ChunkAggregationHint = "boundaryCarryover"
 
 /**
@@ -244,7 +254,7 @@ export type SessionDomainEventKind = "session_identity_resolved" | "session_conn
  * can switch on `event.kind` for quick discrimination and access the typed
  * payload via `event.payload` when richer data is required.
  */
-export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
+export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null; operation?: OperationSnapshot | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind; operation_id?: string | null; interaction?: InteractionSnapshot | null } | { kind: "interaction_resolved"; interaction_id: string; operation_id?: string | null; interaction?: InteractionSnapshot | null } | { kind: "interaction_cancelled"; interaction_id: string; operation_id?: string | null; interaction?: InteractionSnapshot | null } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
 
 /**
  * Canonical domain event envelope.
@@ -259,7 +269,11 @@ export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
 
 export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
+export type OperationLifecycle = "pending" | "blocked" | "running" | "completed" | "failed"
+
+export type OperationBlockedReason = "permission" | "question" | "plan_approval" | "other"
+
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; lifecycle?: OperationLifecycle; blocked_reason?: OperationBlockedReason | null; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_todos?: TodoItem[] | null; started_at_ms?: number | null; completed_at_ms?: number | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 
@@ -271,7 +285,7 @@ export type InteractionPayload = { Permission: PermissionData } | { Question: Qu
 
 export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean }
 
-export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
+export type InteractionSnapshot = { id: string; session_id: string; operation_id?: string | null; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
 
 /**
  * Turn error severity.
@@ -358,7 +372,7 @@ export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
-export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations?: TranscriptDeltaOperation[]; changedFields?: string[] }
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations: TranscriptDeltaOperation[]; changedFields?: string[] }
 
 export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision }
 
@@ -515,3 +529,4 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
+

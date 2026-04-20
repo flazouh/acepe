@@ -20,6 +20,7 @@ import type {
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
 import type {
+	SessionDomainEvent,
 	SessionModelState,
 	SessionStateDelta,
 	SessionStateEnvelope,
@@ -29,6 +30,7 @@ import { sessionStateDeltaHasAssistantMutation } from "../session-state/session-
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
+import { SessionDomainEventSubscriber } from "../logic/session-domain-event-subscriber.js";
 import { createPermissionRequest, type PermissionRequest } from "../types/permission";
 import type { QuestionRequest } from "../types/question";
 import {
@@ -148,8 +150,10 @@ interface LifecycleWaiter {
 export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
+	private domainEventSubscriber: SessionDomainEventSubscriber | null = null;
 	private sessionUpdateSubscriptionId: string | null = null;
 	private sessionStateSubscriptionId: string | null = null;
+	private domainEventSubscriptionId: string | null = null;
 	// Pending events buffer for sessions being created (race condition handling)
 	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
 	private pendingEventTimestamps = new SvelteMap<string, number>();
@@ -287,19 +291,25 @@ export class SessionEventService {
 		if (
 			this.eventSubscriber &&
 			this.sessionUpdateSubscriptionId &&
-			this.sessionStateSubscriptionId
+			this.sessionStateSubscriptionId &&
+			this.domainEventSubscriber &&
+			this.domainEventSubscriptionId
 		) {
 			return okAsync(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
 		if (
-			this.eventSubscriber &&
-			(!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)
+			this.eventSubscriber ||
+			this.domainEventSubscriber ||
+			this.sessionUpdateSubscriptionId ||
+			this.sessionStateSubscriptionId ||
+			this.domainEventSubscriptionId
 		) {
-			this.eventSubscriber = null;
+			this.cleanupSessionUpdates();
 		}
 
 		const subscriber = new EventSubscriber();
+		const domainSubscriber = new SessionDomainEventSubscriber();
 		return subscriber
 			.subscribe((update: SessionUpdate, envelopeSeq: number) => {
 				this.handleSessionUpdate(update, handler, envelopeSeq);
@@ -310,21 +320,37 @@ export class SessionEventService {
 					this.handleSessionStateEnvelope(envelope, handler);
 				});
 			})
-			.map((sessionStateSubscriptionId) => {
+			.andThen((sessionStateSubscriptionId) =>
+				domainSubscriber
+					.subscribe((event) => {
+						this.handleSessionDomainEvent(event, handler);
+					})
+					.map((domainEventSubscriptionId) => ({
+						sessionStateSubscriptionId,
+						domainEventSubscriptionId,
+					}))
+			)
+			.map(({ sessionStateSubscriptionId, domainEventSubscriptionId }) => {
 				this.eventSubscriber = subscriber;
+				this.domainEventSubscriber = domainSubscriber;
 				this.sessionStateSubscriptionId = sessionStateSubscriptionId;
+				this.domainEventSubscriptionId = domainEventSubscriptionId;
 				this.startTelemetryReporter();
 				logger.debug("Session update subscription initialized", {
 					sessionSubscriptionId: this.sessionUpdateSubscriptionId,
 					sessionStateSubscriptionId,
+					domainEventSubscriptionId,
 				});
 				return undefined;
 			})
 			.mapErr((error) => {
 				subscriber.unsubscribe();
+				domainSubscriber.unsubscribe();
 				this.eventSubscriber = null;
+				this.domainEventSubscriber = null;
 				this.sessionUpdateSubscriptionId = null;
 				this.sessionStateSubscriptionId = null;
+				this.domainEventSubscriptionId = null;
 				logger.error("Failed to initialize session update subscription", { error });
 				return new AgentError(
 					"initializeSessionUpdates",
@@ -352,8 +378,13 @@ export class SessionEventService {
 			this.eventSubscriber.unsubscribe();
 			this.eventSubscriber = null;
 		}
+		if (this.domainEventSubscriber) {
+			this.domainEventSubscriber.unsubscribe();
+			this.domainEventSubscriber = null;
+		}
 		this.sessionUpdateSubscriptionId = null;
 		this.sessionStateSubscriptionId = null;
+		this.domainEventSubscriptionId = null;
 	}
 
 	/**
@@ -632,6 +663,10 @@ export class SessionEventService {
 			this.clearPendingAssistantFallback(envelope.sessionId);
 		}
 		handler.applySessionStateEnvelope(envelope.sessionId, envelope);
+	}
+
+	handleSessionDomainEvent(event: SessionDomainEvent, handler: SessionEventHandler): void {
+		handler.applySessionDomainEvent(event);
 	}
 
 	private shouldDropProcessedSessionUpdate(

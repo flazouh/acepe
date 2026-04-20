@@ -25,7 +25,8 @@ mod session_metadata_tests {
         SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
         SessionTranscriptSnapshotRepository,
     };
-    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
+    use chrono::Utc;
+    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Set, Statement};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
     use tempfile::tempdir;
@@ -191,6 +192,7 @@ mod session_metadata_tests {
             interactions: vec![InteractionSnapshot {
                 id: "interaction-1".to_string(),
                 session_id: "session-projection".to_string(),
+                operation_id: None,
                 kind: crate::acp::projections::InteractionKind::Question,
                 state: crate::acp::projections::InteractionState::Answered,
                 json_rpc_request_id: Some(7),
@@ -228,6 +230,92 @@ mod session_metadata_tests {
         assert_eq!(loaded.session.expect("session").last_event_seq, 3);
         assert_eq!(loaded.interactions.len(), 1);
         assert_eq!(loaded.interactions[0].id, "interaction-1");
+    }
+
+    #[tokio::test]
+    async fn test_session_projection_snapshot_defaults_missing_operation_lifecycle() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-legacy".to_string(),
+            "Legacy projection session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "codex".to_string(),
+            "-Users-test-project/session-legacy.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .expect("persist session metadata");
+        let snapshot = SessionProjectionSnapshot {
+            session: Some(SessionSnapshot {
+                session_id: "session-legacy".to_string(),
+                agent_id: Some(CanonicalAgentId::Codex),
+                last_event_seq: 1,
+                turn_state: SessionTurnState::Idle,
+                message_count: 0,
+                last_agent_message_id: None,
+                active_tool_call_ids: vec!["tool-legacy".to_string()],
+                completed_tool_call_ids: Vec::new(),
+                active_turn_failure: None,
+                last_terminal_turn_id: None,
+            }),
+            operations: vec![crate::acp::projections::OperationSnapshot {
+                id: "op-legacy".to_string(),
+                session_id: "session-legacy".to_string(),
+                tool_call_id: "tool-legacy".to_string(),
+                name: "bash".to_string(),
+                kind: Some(crate::acp::session_update::ToolKind::Execute),
+                status: crate::acp::session_update::ToolCallStatus::Pending,
+                lifecycle: crate::acp::projections::OperationLifecycle::Pending,
+                blocked_reason: None,
+                title: Some("Run command".to_string()),
+                arguments: crate::acp::session_update::ToolArguments::Execute {
+                    command: Some("pwd".to_string()),
+                },
+                progressive_arguments: None,
+                result: None,
+                command: Some("pwd".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_todos: None,
+                started_at_ms: Some(1),
+                completed_at_ms: None,
+                parent_tool_call_id: None,
+                parent_operation_id: None,
+                child_tool_call_ids: Vec::new(),
+                child_operation_ids: Vec::new(),
+            }],
+            interactions: Vec::new(),
+        };
+        let mut snapshot_json = serde_json::to_value(&snapshot).expect("serialize legacy snapshot");
+        snapshot_json["operations"][0]
+            .as_object_mut()
+            .expect("operation should be an object")
+            .remove("lifecycle");
+
+        crate::db::entities::session_projection_snapshot::Entity::insert(
+            crate::db::entities::session_projection_snapshot::ActiveModel {
+                session_id: Set("session-legacy".to_string()),
+                snapshot_json: Set(snapshot_json.to_string()),
+                updated_at: Set(Utc::now()),
+            },
+        )
+        .exec(&db)
+        .await
+        .expect("insert legacy projection snapshot");
+
+        let loaded = SessionProjectionSnapshotRepository::get(&db, "session-legacy")
+            .await
+            .expect("load legacy snapshot")
+            .expect("legacy snapshot should exist");
+
+        assert_eq!(loaded.operations.len(), 1);
+        assert_eq!(
+            loaded.operations[0].lifecycle,
+            crate::acp::projections::OperationLifecycle::Pending
+        );
     }
 
     #[tokio::test]
