@@ -6,27 +6,27 @@ It is the durable structure that the rest of the architecture should look to whe
 
 ## Shape
 
+## Shape
+
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TB
-    session["Session graph"] --> transcript["Transcript entries"]
-    session --> operations["Operations"]
-    session --> interactions["Interactions"]
-    session --> runtime["Runtime lifecycle"]
-    session --> capabilities["Capabilities / config"]
-    session --> telemetry["Telemetry / budget"]
+    n_session("Session graph") --> n_transcript("Transcript entries")
+    n_session --> n_operations("Operations")
+    n_session --> n_interactions("Interactions")
+    n_session --> n_runtime("Runtime lifecycle")
+    n_session --> n_capabilities("Capabilities / config")
+    n_session --> n_telemetry("Telemetry / budget")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
+    classDef gray fill:#DCDCE1,stroke:#A6A6AD,color:#1f2937,stroke-width:1px;
 
-    class session purple;
-    class transcript gray;
-    class operations,interactions green;
-    class runtime,capabilities,telemetry blue;
+    class n_session purple;
+    class n_transcript gray;
+    class n_operations,n_interactions green;
+    class n_runtime,n_capabilities,n_telemetry blue;
 ```
 
 ## Ownership table
@@ -80,29 +80,29 @@ Acepe should have **one durable authority path** for session truth:
 `provider signal -> backend projection -> canonical session graph -> desktop stores -> UI selectors`
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 28, 'rankSpacing': 34}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TD
-    adapter["Provider adapter"] --> reducer["Backend reducer / projector"]
-    reducer --> envelope["SessionStateEnvelope"]
-    envelope --> store["Desktop session store"]
-    store --> entry["SessionEntryStore"]
-    store --> operation["OperationStore"]
-    store --> interaction["Interaction stores"]
-    store --> selector["Rendering selectors"]
+    n_adapter("Provider adapter") --> n_reducer("Reducer / projector")
+    n_reducer --> n_envelope("SessionStateEnvelope")
+    n_envelope --> n_store("Desktop session store")
+    n_store --> n_entry("SessionEntryStore")
+    n_store --> n_operation("OperationStore")
+    n_store --> n_interaction("Interaction stores")
+    n_store --> n_selector("Rendering selectors")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
+    classDef gray fill:#DCDCE1,stroke:#A6A6AD,color:#1f2937,stroke-width:1px;
 
-    class adapter,reducer blue;
-    class envelope purple;
-    class store yellow;
-    class entry gray;
-    class operation,interaction green;
-    class selector orange;
+    class n_adapter,n_reducer blue;
+    class n_envelope purple;
+    class n_store yellow;
+    class n_entry gray;
+    class n_operation,n_interaction green;
+    class n_selector orange;
 ```
 
 If a feature needs to answer "what is the current tool?", "is this blocked on permission?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.

@@ -12,24 +12,23 @@ If Acepe has split authority, reconnect/resume will usually show it through:
 
 ## Restore pipeline
 
+## Restore pipeline
+
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TD
-    snapshot["Stored canonical snapshot"] --> runtime["Restore runtime from projection snapshot"]
-    runtime --> register["Register session locally"]
-    register --> envelopes["Apply buffered revisioned envelopes"]
-    envelopes --> live["Accept live updates as freshness, not authority"]
+    n_snapshot("Stored canonical snapshot") --> n_runtime("Restore runtime from projection snapshot")
+    n_runtime --> n_register("Register session locally")
+    n_register --> n_envelopes("Apply buffered revisioned envelopes")
+    n_envelopes --> n_live("Live updates as freshness")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
 
-    class snapshot,runtime blue;
-    class register,envelopes purple;
-    class live yellow;
+    class n_snapshot,n_runtime blue;
+    class n_register,n_envelopes purple;
+    class n_live yellow;
 ```
 
 ## Principle
@@ -92,23 +91,22 @@ Reconnect/resume should not require:
 ## Anti-pattern map
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 22, 'rankSpacing': 28}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart LR
-    raw1["Raw event"] --> local["Component state"] --> patchup["Reconnect patch-up logic"]
-    raw2["Raw event"] --> projection["Projection"] --> graph["Canonical graph"] --> store["Store"] --> selector["Selector"] --> component["Component"]
+    n_rawBad("Raw event") --> n_local("Component state") --> n_patchup("Reconnect patch-up logic")
+    n_rawGood("Raw event") --> n_projection("Projection") --> n_graph("Canonical graph") --> n_store("Store") --> n_selector("Selector") --> n_component("Component")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
 
-    class raw1,local,patchup orange;
-    class raw2,projection blue;
-    class graph purple;
-    class store yellow;
-    class selector,component green;
+    class n_rawBad,n_local,n_patchup orange;
+    class n_rawGood,n_projection blue;
+    class n_graph purple;
+    class n_store yellow;
+    class n_selector,n_component green;
 ```
 
 ## Agent-agnostic rule

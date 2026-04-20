@@ -11,24 +11,23 @@ In Acepe, interactions are the durable state behind things like:
 
 ## Interaction in one picture
 
+## Interaction in one picture
+
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TD
-    operation["Operation"] --> interaction["Interaction"]
-    interaction --> permission["Permission UI"]
-    interaction --> question["Question UI"]
-    interaction --> approval["Approval UI"]
+    n_operation("Operation") --> n_interaction("Interaction")
+    n_interaction --> n_permission("Permission UI")
+    n_interaction --> n_question("Question UI")
+    n_interaction --> n_approval("Approval UI")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
 
-    class operation green;
-    class interaction purple;
-    class permission,question,approval yellow;
+    class n_operation green;
+    class n_interaction purple;
+    class n_permission,n_question,n_approval yellow;
 ```
 
 ## Why interactions matter
@@ -90,22 +89,18 @@ Interactions should own:
 ## Association hierarchy
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 22, 'rankSpacing': 28}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TB
-    best["Best match"] --> op["Canonical operation link"]
-    op --> session["Stable session + tool-call identity"]
-    session --> provider["Provider-projected request identity"]
-    provider --> bad["Visible text / timing / local guesses"]
+    n_best("Best match") --> n_operationLink("Canonical operation link")
+    n_operationLink --> n_sessionIdentity("Stable session + tool-call identity")
+    n_sessionIdentity --> n_providerIdentity("Provider-projected request identity")
+    n_providerIdentity --> n_bad("Local guesses")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
 
-    class best,op,session,provider green;
-    class bad orange;
+    class n_best,n_operationLink,n_sessionIdentity,n_providerIdentity green;
+    class n_bad orange;
 ```
 
 ## What the UI should not do

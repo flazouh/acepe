@@ -3,28 +3,27 @@
 This section is the **architecture reference** for Acepe's core product concepts.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 28, 'rankSpacing': 34}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TD
-    provider["Provider signal"] --> projection["Backend projection"]
-    projection --> graph["Canonical session graph"]
-    graph --> operations["Operations"]
-    graph --> interactions["Interactions"]
-    operations --> stores["Desktop stores"]
-    interactions --> stores
-    stores --> views["UI selectors / views"]
+    n_provider("Provider signal") --> n_projection("Backend projection")
+    n_projection --> n_sessionGraph("Canonical session graph")
+    n_sessionGraph --> n_operations("Operations")
+    n_sessionGraph --> n_interactions("Interactions")
+    n_operations --> n_stores("Desktop stores")
+    n_interactions --> n_stores
+    n_stores --> n_views("UI selectors / views")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
 
-    class provider,projection blue;
-    class graph purple;
-    class operations,interactions green;
-    class stores yellow;
-    class views orange;
+    class n_provider,n_projection blue;
+    class n_sessionGraph purple;
+    class n_operations,n_interactions green;
+    class n_stores yellow;
+    class n_views orange;
 ```
 
 Use it when you need to answer questions like:

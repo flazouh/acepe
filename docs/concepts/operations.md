@@ -6,25 +6,25 @@ Operations exist so Acepe can represent tool execution as durable product state 
 
 ## Operation in one picture
 
+## Operation in one picture
+
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
 flowchart TD
-    signals["Provider tool signals"] --> projected["Projected operation"]
-    projected --> store["OperationStore"]
-    store --> selectors["Selectors"]
-    selectors --> ui["Tool UI"]
+    n_signals("Provider tool signals") --> n_projected("Projected operation")
+    n_projected --> n_store("OperationStore")
+    n_store --> n_selectors("Selectors")
+    n_selectors --> n_ui("Tool UI")
 
-    classDef blue fill:#B4D2F0,stroke:#6b7280,color:#1f2937;
-    classDef green fill:#B4E6C8,stroke:#6b7280,color:#1f2937;
-    classDef yellow fill:#FFEBB4,stroke:#6b7280,color:#1f2937;
-    classDef orange fill:#FFD2AA,stroke:#6b7280,color:#1f2937;
-    classDef purple fill:#D2BEF0,stroke:#6b7280,color:#1f2937;
-    classDef gray fill:#DCDCE1,stroke:#6b7280,color:#1f2937;
+    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
+    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
+    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
+    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
 
-    class signals blue;
-    class projected purple;
-    class store yellow;
-    class selectors,ui orange;
+    class n_signals blue;
+    class n_projected purple;
+    class n_store yellow;
+    class n_selectors,n_ui orange;
 ```
 
 ## Why operations exist
@@ -104,7 +104,7 @@ That boundary matters because transcript replacement can legally degrade tool ro
 ## Lifecycle
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryTextColor':'#1f2937','primaryBorderColor':'#9ca3af','lineColor':'#6b7280','tertiaryColor':'#ffffff','background':'#ffffff'}}}%%
+%%{init: {'theme':'base','themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'lineColor': '#6b7280', 'background': '#ffffff'}}}%%
 stateDiagram-v2
     [*] --> Pending
     Pending --> Running
