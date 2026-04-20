@@ -1,7 +1,6 @@
 use super::SyntheticToolCallContext;
 use crate::acp::permission_tracker::WebSearchDedup;
 use crate::acp::provider::AgentProvider;
-use crate::acp::reconciler::kind_payload::is_web_search_id;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -92,13 +91,13 @@ pub(crate) fn remap_forwarded_web_search_tool_call_id(
     synthetic_tool_call: &mut Option<Box<SyntheticToolCallContext>>,
     web_search_dedup: &mut WebSearchDedup,
 ) -> Option<String> {
+    let provider = provider?;
     let synthetic_ctx = synthetic_tool_call.as_mut()?;
-    if !is_web_search_id(&synthetic_ctx.tool_call_data.id) {
+    if !provider.is_web_search_tool_call_id(&synthetic_ctx.tool_call_data.id) {
         return None;
     }
 
-    let query =
-        provider?.extract_synthetic_permission_query(parsed_arguments, forwarded.value())?;
+    let query = provider.extract_synthetic_permission_query(parsed_arguments, forwarded.value())?;
     let session_id = forwarded.session_id()?;
     let canonical_id = web_search_dedup.take(&session_id, &query)?;
 

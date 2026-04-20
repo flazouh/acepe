@@ -1,4 +1,8 @@
 use super::*;
+use crate::acp::pending_prompt_registry::{
+    remember_synthetic_user_prompt, synthetic_user_message_update,
+};
+use crate::acp::ui_event_dispatcher::publish_direct_session_update;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 
 /// Set the model for a session
@@ -165,6 +169,8 @@ pub async fn acp_send_prompt(
 
             let mut client_guard =
                 lock_session_client(&client_mutex, "acp_send_prompt: lock").await?;
+            let synthetic_user_update =
+                synthetic_user_message_update(&session_id, &prompt_request.prompt);
             let result = timeout(
                 SESSION_CLIENT_OPERATION_TIMEOUT,
                 client_guard.send_prompt_fire_and_forget(prompt_request),
@@ -177,6 +183,15 @@ pub async fn acp_send_prompt(
                 }
             })?
             .map_err(SerializableAcpError::from);
+
+            if result.is_ok() {
+                if let Some(update) = synthetic_user_update {
+                    let published = publish_direct_session_update(&app, update.clone()).await;
+                    if published {
+                        remember_synthetic_user_prompt(&update);
+                    }
+                }
+            }
 
             result
         }

@@ -13,7 +13,6 @@ import {
 	createSnapshotEnvelope,
 	graphFromSessionOpenFound,
 	materializeSnapshotFromOpenFound,
-	projectionSnapshotFromMaterialization,
 } from "../acp/session-state/session-state-protocol.js";
 
 describe("session-state protocol graph contract", () => {
@@ -65,7 +64,7 @@ describe("session-state protocol graph contract", () => {
 
 		expect(envelope).toEqual({
 			sessionId: "canonical-1",
-			graphRevision: 3,
+			graphRevision: 11,
 			lastEventSeq: 11,
 			payload: {
 				kind: "snapshot",
@@ -74,45 +73,62 @@ describe("session-state protocol graph contract", () => {
 		} satisfies SessionStateEnvelope);
 	});
 
-	it("derives projection materialization from the graph snapshot contract", () => {
-		const projection = projectionSnapshotFromMaterialization(
-			materializeSnapshotFromOpenFound({
-				requestedSessionId: "requested-1",
-				canonicalSessionId: "canonical-1",
-				isAlias: false,
-				lastEventSeq: 11,
-				openToken: "open-token-1",
-				agentId: "cursor" satisfies CanonicalAgentId,
-				projectPath: "/repo",
-				worktreePath: null,
-				sourcePath: null,
-				transcriptSnapshot: {
-					revision: 3,
-					entries: [],
-				},
-				sessionTitle: "Session 1",
-				operations: [],
-				interactions: [],
-				turnState: "Idle" satisfies SessionTurnState,
-				messageCount: 0,
-			})
-		);
+	it("materializes graph snapshots without constructing legacy projection snapshots", () => {
+		const materialization = materializeSnapshotFromOpenFound({
+			requestedSessionId: "requested-1",
+			canonicalSessionId: "canonical-1",
+			isAlias: false,
+			lastEventSeq: 11,
+			openToken: "open-token-1",
+			agentId: "cursor" satisfies CanonicalAgentId,
+			projectPath: "/repo",
+			worktreePath: null,
+			sourcePath: null,
+			transcriptSnapshot: {
+				revision: 3,
+				entries: [],
+			},
+			sessionTitle: "Session 1",
+			operations: [],
+			interactions: [],
+			turnState: "Idle" satisfies SessionTurnState,
+			messageCount: 0,
+		});
 
-		expect(projection).toEqual({
-			session: {
-				session_id: "canonical-1",
-				agent_id: "cursor",
-				last_event_seq: 11,
-				turn_state: "Idle",
-				message_count: 0,
-				last_agent_message_id: null,
-				active_tool_call_ids: [],
-				completed_tool_call_ids: [],
-				active_turn_failure: null,
-				last_terminal_turn_id: null,
+		expect(materialization.graph).toEqual({
+			requestedSessionId: "requested-1",
+			canonicalSessionId: "canonical-1",
+			isAlias: false,
+			agentId: "cursor",
+			projectPath: "/repo",
+			worktreePath: null,
+			sourcePath: null,
+			revision: {
+				graphRevision: 11,
+				transcriptRevision: 3,
+				lastEventSeq: 11,
+			},
+			transcriptSnapshot: {
+				revision: 3,
+				entries: [],
 			},
 			operations: [],
 			interactions: [],
-		} satisfies SessionProjectionSnapshot);
+			turnState: "Idle",
+			messageCount: 0,
+			activeTurnFailure: undefined,
+			lastTerminalTurnId: undefined,
+			lifecycle: {
+				status: "idle",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			capabilities: {
+				models: null,
+				modes: null,
+				availableCommands: [],
+				configOptions: [],
+			},
+		} satisfies SessionStateGraph);
 	});
 });

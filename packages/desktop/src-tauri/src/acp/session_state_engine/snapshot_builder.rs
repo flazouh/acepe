@@ -19,6 +19,7 @@ pub fn build_graph_from_open_found(
         worktree_path: found.worktree_path.clone(),
         source_path: found.source_path.clone(),
         revision: SessionGraphRevision::new(
+            found.last_event_seq,
             found.transcript_snapshot.revision,
             found.last_event_seq,
         ),
@@ -79,7 +80,8 @@ mod tests {
 
         assert_eq!(graph.canonical_session_id, "canonical-1");
         assert!(graph.is_alias);
-        assert_eq!(graph.revision.graph_revision, 3);
+        assert_eq!(graph.revision.graph_revision, 11);
+        assert_eq!(graph.revision.transcript_revision, 3);
         assert_eq!(graph.revision.last_event_seq, 11);
     }
 }

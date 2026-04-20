@@ -5,7 +5,7 @@ use crate::acp::parsers::AgentType;
 use crate::acp::provider::{prepare_session_updates_for_dispatch, AgentProvider};
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::{
-    parse_session_update_notification_with_agent, ParseResult,
+    parse_session_update_notification_with_provider, ParseResult,
 };
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::{ReconcilerOutput, TaskReconciler};
@@ -31,7 +31,7 @@ pub(crate) async fn handle_session_update_notification(
     non_streaming_batcher: &mut NonStreamingEventBatcher,
     json: &Value,
 ) {
-    match parse_session_update_notification_with_agent(agent_type, json) {
+    match parse_session_update_notification_with_provider(agent_type, provider, json) {
         ParseResult::Typed(update) => {
             let updates_to_emit = prepare_session_updates_for_dispatch(
                 provider,

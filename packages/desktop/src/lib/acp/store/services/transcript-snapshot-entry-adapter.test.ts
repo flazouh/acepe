@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { convertTranscriptSnapshotToSessionEntries } from "./transcript-snapshot-entry-adapter.js";
+import {
+	appendTranscriptSegmentToSessionEntry,
+	convertTranscriptSnapshotToSessionEntries,
+} from "./transcript-snapshot-entry-adapter.js";
 
 describe("convertTranscriptSnapshotToSessionEntries", () => {
 	it("converts transcript roles into session entries", () => {
@@ -84,6 +87,67 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 				content: "boom",
 			},
 			timestamp,
+		});
+	});
+
+	it("appends transcript segments to tool entries", () => {
+		const timestamp = new Date("2026-04-16T00:00:00Z");
+		const updatedEntry = appendTranscriptSegmentToSessionEntry(
+			{
+				id: "tool-1",
+				type: "tool_call",
+				message: {
+					id: "tool-1",
+					name: "Read file",
+					arguments: { kind: "other", raw: null },
+					progressiveArguments: undefined,
+					rawInput: null,
+					status: "completed",
+					result: null,
+					kind: "other",
+					title: "Read file",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+					normalizedResult: null,
+				},
+				timestamp,
+			},
+			{ kind: "text", segmentId: "tool-1:tool:1", text: "stdout ready" }
+		);
+
+		expect(updatedEntry).toEqual({
+			id: "tool-1",
+			type: "tool_call",
+			message: {
+				id: "tool-1",
+				name: "Read file\nstdout ready",
+				arguments: { kind: "other", raw: null },
+				progressiveArguments: undefined,
+				rawInput: null,
+				status: "completed",
+				result: null,
+				kind: "other",
+				title: "Read file\nstdout ready",
+				locations: null,
+				skillMeta: null,
+				normalizedQuestions: null,
+				normalizedTodos: null,
+				parentToolUseId: null,
+				taskChildren: null,
+				questionAnswer: null,
+				awaitingPlanApproval: false,
+				planApprovalRequestId: null,
+				normalizedResult: null,
+			},
+			timestamp,
+			isStreaming: undefined,
 		});
 	});
 });

@@ -59,17 +59,12 @@ impl AcpClient {
             None
         };
 
-        let agent_type = self
-            .provider
-            .as_ref()
-            .map(|provider| provider.parser_agent_type())
-            .unwrap_or(AgentType::ClaudeCode);
-
         loop {
             let provider = self
                 .provider
                 .as_ref()
                 .ok_or(AcpError::NoProviderConfigured)?;
+            let agent_type = provider.parser_agent_type();
             let spawn_configs = provider.spawn_configs();
             if spawn_configs.is_empty() {
                 return Err(AcpError::InvalidState(format!(

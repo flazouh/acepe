@@ -16,6 +16,8 @@ pub use graph::SessionStateGraph;
 pub use protocol::{SessionStateDelta, SessionStatePayload, SessionStateSnapshotMaterialization};
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;
-pub use runtime_registry::{SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot};
+pub use runtime_registry::{
+    LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
+};
 pub use selectors::{SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus};
 pub use snapshot_builder::build_graph_from_open_found;

@@ -34,6 +34,16 @@ pub struct SessionGraphRuntimeRegistry {
     sessions: Arc<DashMap<String, SessionGraphRuntimeSnapshot>>,
 }
 
+pub struct LiveSessionStateEnvelopeRequest<'a> {
+    pub db: &'a DbConn,
+    pub session_id: &'a str,
+    pub update: &'a SessionUpdate,
+    pub revision: SessionGraphRevision,
+    pub projection_registry: &'a ProjectionRegistry,
+    pub transcript_projection_registry: &'a TranscriptProjectionRegistry,
+    pub transcript_delta: Option<&'a TranscriptDelta>,
+}
+
 impl SessionGraphRuntimeRegistry {
     #[must_use]
     pub fn new() -> Self {
@@ -70,10 +80,7 @@ impl SessionGraphRuntimeRegistry {
     }
 
     pub fn apply_session_update(&self, session_id: &str, update: &SessionUpdate) {
-        let mut state = self
-            .sessions
-            .entry(session_id.to_string())
-            .or_insert_with(SessionGraphRuntimeSnapshot::default);
+        let mut state = self.sessions.entry(session_id.to_string()).or_default();
 
         match update {
             SessionUpdate::ConnectionComplete {
@@ -124,27 +131,23 @@ impl SessionGraphRuntimeRegistry {
 
     pub async fn build_live_session_state_envelope(
         &self,
-        db: &DbConn,
-        session_id: &str,
-        update: &SessionUpdate,
-        revision: SessionGraphRevision,
-        projection_registry: &ProjectionRegistry,
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        transcript_delta: Option<&TranscriptDelta>,
+        request: LiveSessionStateEnvelopeRequest<'_>,
     ) -> Option<SessionStateEnvelope> {
-        if should_emit_session_state_snapshot(update) {
+        if should_emit_session_state_snapshot(request.update) {
             return self
                 .build_snapshot_envelope(
-                    db,
-                    session_id,
-                    revision,
-                    projection_registry,
-                    transcript_projection_registry,
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
                 )
                 .await;
         }
 
-        transcript_delta.map(build_live_session_state_delta_envelope)
+        request
+            .transcript_delta
+            .map(|delta| build_live_session_state_delta_envelope(delta, request.revision))
     }
 
     async fn build_snapshot_envelope(
@@ -165,7 +168,7 @@ impl SessionGraphRuntimeRegistry {
         let transcript_snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
             .unwrap_or_else(|| crate::acp::transcript_projection::TranscriptSnapshot {
-                revision: revision.graph_revision,
+                revision: revision.transcript_revision,
                 entries: Vec::new(),
             });
         let projection_snapshot = projection_registry.session_projection(session_id);
@@ -179,7 +182,7 @@ impl SessionGraphRuntimeRegistry {
             graph_revision: revision.graph_revision,
             last_event_seq: revision.last_event_seq,
             payload: SessionStatePayload::Snapshot {
-                graph: crate::acp::session_state_engine::SessionStateGraph {
+                graph: Box::new(crate::acp::session_state_engine::SessionStateGraph {
                     requested_session_id: session_id.to_string(),
                     canonical_session_id: session_id.to_string(),
                     is_alias: false,
@@ -199,21 +202,25 @@ impl SessionGraphRuntimeRegistry {
                     last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
                     lifecycle: runtime_snapshot.lifecycle,
                     capabilities: runtime_snapshot.capabilities,
-                },
+                }),
             },
         })
     }
 }
 
-fn build_live_session_state_delta_envelope(delta: &TranscriptDelta) -> SessionStateEnvelope {
+fn build_live_session_state_delta_envelope(
+    delta: &TranscriptDelta,
+    revision: SessionGraphRevision,
+) -> SessionStateEnvelope {
     let from_revision = SessionGraphRevision::new(
+        revision.graph_revision.saturating_sub(1),
         delta.snapshot_revision.saturating_sub(1),
         delta.event_seq.saturating_sub(1),
     );
     build_delta_envelope(
         &delta.session_id,
         from_revision,
-        SessionGraphRevision::new(delta.snapshot_revision, delta.event_seq),
+        revision,
         delta.operations.clone(),
         vec!["transcriptSnapshot".to_string()],
     )

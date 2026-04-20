@@ -1,7 +1,6 @@
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
-	SessionProjectionSnapshot,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,
@@ -40,7 +39,8 @@ export function graphFromSessionOpenFound(
 		worktreePath: found.worktreePath,
 		sourcePath: found.sourcePath,
 		revision: {
-			graphRevision: found.transcriptSnapshot.revision,
+			graphRevision: found.lastEventSeq,
+			transcriptRevision: found.transcriptSnapshot.revision,
 			lastEventSeq: found.lastEventSeq,
 		},
 		transcriptSnapshot: found.transcriptSnapshot,
@@ -98,28 +98,6 @@ export function materializeSnapshotFromOpenFound(
 	return materializeSnapshotGraph(
 		graphFromSessionOpenFound(found, defaultSnapshotLifecycle(), defaultSnapshotCapabilities())
 	);
-}
-
-export function projectionSnapshotFromMaterialization(
-	materialization: SessionStateSnapshotMaterialization
-): SessionProjectionSnapshot {
-	const graph = materialization.graph;
-	return {
-		session: {
-			session_id: graph.canonicalSessionId,
-			agent_id: graph.agentId,
-			last_event_seq: graph.revision.lastEventSeq,
-			turn_state: graph.turnState,
-			message_count: graph.messageCount,
-			last_agent_message_id: null,
-			active_tool_call_ids: [],
-			completed_tool_call_ids: [],
-			active_turn_failure: graph.activeTurnFailure ?? null,
-			last_terminal_turn_id: graph.lastTerminalTurnId ?? null,
-		},
-		operations: graph.operations,
-		interactions: graph.interactions,
-	};
 }
 
 export function listGraphAuthorityIds(graph: SessionStateGraph): {

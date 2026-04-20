@@ -456,6 +456,23 @@ pub trait AgentProvider: Send + Sync {
         Box::pin(async move { update })
     }
 
+    /// Provider-owned parse-boundary filter for raw session/update notifications that
+    /// should never enter the shared typed session-update path.
+    fn should_filter_session_update_notification(&self, _json: &Value) -> bool {
+        false
+    }
+
+    /// Provider-owned policy for whether shared stdout handling should record raw
+    /// web-search notification IDs for permission dedup remapping.
+    fn records_web_search_notification_dedup(&self) -> bool {
+        false
+    }
+
+    /// Provider-owned classifier for raw tool-call IDs that encode web-search semantics.
+    fn is_web_search_tool_call_id(&self, _id: &str) -> bool {
+        false
+    }
+
     /// Provider extension normalizer hook (for custom notification/request methods).
     fn normalize_extension_method(
         &self,

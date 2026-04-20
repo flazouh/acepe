@@ -12,7 +12,7 @@ use crate::acp::parsers::types::{
     AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::parsers::CopilotAdapter;
-use crate::acp::reconciler::kind_payload::infer_kind_from_payload;
+use crate::acp::reconciler::kind_payload::infer_kind_from_payload_for_agent;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
@@ -87,7 +87,9 @@ impl AgentParser for CopilotParser {
         {
             kind
         } else if let Some(kind) = kind_hint
-            .and_then(|hint| infer_kind_from_payload("", None, Some(hint)))
+            .and_then(|hint| {
+                infer_kind_from_payload_for_agent(AgentType::Copilot, "", None, Some(hint))
+            })
             .filter(|kind| *kind != ToolKind::Other)
         {
             if matches!(kind, ToolKind::Think) {
@@ -163,7 +165,14 @@ impl CopilotParser {
             .as_deref()
             .map(CopilotAdapter::normalize)
             .filter(|kind| *kind != ToolKind::Other)
-            .or_else(|| infer_kind_from_payload(&id, title.as_deref(), kind_hint))
+            .or_else(|| {
+                infer_kind_from_payload_for_agent(
+                    AgentType::Copilot,
+                    &id,
+                    title.as_deref(),
+                    kind_hint,
+                )
+            })
             .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
             .unwrap_or(ToolKind::Other);
 

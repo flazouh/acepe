@@ -109,6 +109,10 @@ impl CursorAdapter {
 
         normalize_shared_chat_tool_name(name)
     }
+
+    pub fn is_web_search_tool_call_id(id: &str) -> bool {
+        id.starts_with("web_search_") || id.starts_with("ws_")
+    }
 }
 
 #[cfg(test)]

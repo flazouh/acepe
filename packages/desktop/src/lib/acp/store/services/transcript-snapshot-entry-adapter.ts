@@ -165,6 +165,39 @@ export function appendTranscriptSegmentToSessionEntry(
 		};
 	}
 
+	if (entry.type === "tool_call") {
+		const previousTitle = entry.message.title ?? entry.message.name;
+		const nextTitle =
+			previousTitle.length > 0 ? `${previousTitle}\n${segment.text}` : segment.text;
+		return {
+			id: entry.id,
+			type: "tool_call",
+			message: {
+				id: entry.message.id,
+				name: nextTitle.length > 0 ? nextTitle : entry.message.name,
+				arguments: entry.message.arguments,
+				progressiveArguments: entry.message.progressiveArguments,
+				rawInput: entry.message.rawInput,
+				status: entry.message.status,
+				result: entry.message.result,
+				kind: entry.message.kind,
+				title: nextTitle.length > 0 ? nextTitle : entry.message.title,
+				locations: entry.message.locations,
+				skillMeta: entry.message.skillMeta,
+				normalizedQuestions: entry.message.normalizedQuestions,
+				normalizedTodos: entry.message.normalizedTodos,
+				parentToolUseId: entry.message.parentToolUseId,
+				taskChildren: entry.message.taskChildren,
+				questionAnswer: entry.message.questionAnswer,
+				awaitingPlanApproval: entry.message.awaitingPlanApproval,
+				planApprovalRequestId: entry.message.planApprovalRequestId,
+				normalizedResult: entry.message.normalizedResult,
+			},
+			timestamp: entry.timestamp,
+			isStreaming: entry.isStreaming,
+		};
+	}
+
 	return null;
 }
 

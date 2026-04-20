@@ -4,12 +4,16 @@ use crate::acp::domain_events::{
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_state_engine::{
-    SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
+    LiveSessionStateEnvelopeRequest, SessionGraphRevision, SessionGraphRuntimeRegistry,
+    SessionStateEnvelope,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::db::repository::SessionJournalEventRepository;
+use crate::db::repository::{
+    SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+};
 use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -66,9 +70,9 @@ impl AcpUiEvent {
         };
 
         let droppable = match &update {
-            SessionUpdate::AgentMessageChunk { .. }
-            | SessionUpdate::AgentThoughtChunk { .. }
-            | SessionUpdate::UserMessageChunk { .. } => true,
+            SessionUpdate::AgentMessageChunk { .. } | SessionUpdate::AgentThoughtChunk { .. } => {
+                true
+            }
             SessionUpdate::ToolCallUpdate { update, .. } => update.streaming_input_delta.is_some(),
             _ => false,
         };
@@ -159,6 +163,99 @@ impl AcpUiEvent {
     pub fn publish_direct(&self, hub: &AcpEventHubState) -> Result<(), serde_json::Error> {
         self.publish(hub)
     }
+}
+
+pub(crate) async fn publish_direct_session_update(app: &AppHandle, update: SessionUpdate) -> bool {
+    let Some(hub_state) = app.try_state::<Arc<AcpEventHubState>>() else {
+        tracing::warn!(
+            session_id = update.session_id(),
+            "ACP event hub unavailable; direct session update dropped"
+        );
+        return false;
+    };
+
+    let Some(projection_registry) = app.try_state::<Arc<ProjectionRegistry>>() else {
+        tracing::warn!(
+            session_id = update.session_id(),
+            "Projection registry unavailable; direct session update dropped"
+        );
+        return false;
+    };
+    let Some(runtime_graph_registry) = app.try_state::<Arc<SessionGraphRuntimeRegistry>>() else {
+        tracing::warn!(
+            session_id = update.session_id(),
+            "Runtime graph registry unavailable; direct session update dropped"
+        );
+        return false;
+    };
+    let Some(transcript_projection_registry) = app.try_state::<Arc<TranscriptProjectionRegistry>>()
+    else {
+        tracing::warn!(
+            session_id = update.session_id(),
+            "Transcript projection registry unavailable; direct session update dropped"
+        );
+        return false;
+    };
+
+    if let Some(session_id) = update.session_id() {
+        projection_registry
+            .inner()
+            .apply_session_update(session_id, &update);
+    }
+
+    let hub = hub_state.inner().clone();
+    let db = app.try_state::<DbConn>().map(|state| state.inner().clone());
+    let event = AcpUiEvent::session_update(update);
+    let dispatch_effects = persist_dispatch_event(
+        db.as_ref(),
+        &event,
+        projection_registry.inner(),
+        runtime_graph_registry.inner(),
+        transcript_projection_registry.inner(),
+    )
+    .await;
+
+    if let Err(error) = event.publish_direct(&hub) {
+        tracing::error!(
+            error = %error,
+            session_id = ?event.session_id,
+            event_name = event.event_name,
+            "Failed to publish direct ACP session update"
+        );
+        return false;
+    }
+
+    if let Some(envelope) = dispatch_effects.session_state_envelope {
+        let session_state_payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
+            tracing::error!(
+                %error,
+                session_id = %envelope.session_id,
+                graph_revision = envelope.graph_revision,
+                last_event_seq = envelope.last_event_seq,
+                "Failed to serialize direct ACP session state envelope"
+            );
+            Value::Null
+        });
+        let session_state_event = AcpUiEvent::json_event(
+            "acp-session-state",
+            session_state_payload,
+            Some(envelope.session_id.clone()),
+            AcpUiEventPriority::Normal,
+            false,
+        );
+        if let Err(error) = session_state_event.publish_direct(&hub) {
+            tracing::error!(
+                error = %error,
+                session_id = %envelope.session_id,
+                graph_revision = envelope.graph_revision,
+                last_event_seq = envelope.last_event_seq,
+                "Failed to publish direct ACP session state envelope"
+            );
+            return false;
+        }
+    }
+
+    true
 }
 
 #[derive(Debug, Clone)]
@@ -784,6 +881,44 @@ struct DispatchPersistenceEffects {
     session_state_envelope: Option<SessionStateEnvelope>,
 }
 
+fn projection_has_runtime_state(snapshot: &crate::acp::projections::SessionProjectionSnapshot) -> bool {
+    snapshot.session.is_some() || !snapshot.operations.is_empty() || !snapshot.interactions.is_empty()
+}
+
+async fn checkpoint_session_snapshots(
+    db: &DbConn,
+    session_id: &str,
+    projection_registry: &ProjectionRegistry,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+) {
+    if let Some(transcript_snapshot) = transcript_projection_registry.snapshot_for_session(session_id) {
+        if let Err(error) =
+            SessionTranscriptSnapshotRepository::set(db, session_id, &transcript_snapshot).await
+        {
+            tracing::error!(
+                error = %error,
+                session_id,
+                "Failed to checkpoint transcript snapshot after terminal session update"
+            );
+        }
+    }
+
+    let projection_snapshot = projection_registry.session_projection(session_id);
+    if !projection_has_runtime_state(&projection_snapshot) {
+        return;
+    }
+
+    if let Err(error) =
+        SessionProjectionSnapshotRepository::set(db, session_id, &projection_snapshot).await
+    {
+        tracing::error!(
+            error = %error,
+            session_id,
+            "Failed to checkpoint projection snapshot after terminal session update"
+        );
+    }
+}
+
 async fn persist_dispatch_event(
     db: Option<&DbConn>,
     event: &AcpUiEvent,
@@ -808,18 +943,35 @@ async fn persist_dispatch_event(
             runtime_graph_registry.apply_session_update(session_id, update.as_ref());
             let transcript_delta = transcript_projection_registry
                 .apply_session_update(record.event_seq, update.as_ref());
-            let revision = SessionGraphRevision::new(record.event_seq, record.event_seq);
+            let transcript_revision = transcript_projection_registry
+                .snapshot_for_session(session_id)
+                .map(|snapshot| snapshot.revision)
+                .unwrap_or(0);
+            let revision =
+                SessionGraphRevision::new(record.event_seq, transcript_revision, record.event_seq);
             let session_state_envelope = runtime_graph_registry
-                .build_live_session_state_envelope(
+                .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
                     db,
                     session_id,
-                    update.as_ref(),
+                    update: update.as_ref(),
                     revision,
                     projection_registry,
                     transcript_projection_registry,
-                    transcript_delta.as_ref(),
+                    transcript_delta: transcript_delta.as_ref(),
+                })
+                .await;
+            if matches!(
+                update.as_ref(),
+                SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
+            ) {
+                checkpoint_session_snapshots(
+                    db,
+                    session_id,
+                    projection_registry,
+                    transcript_projection_registry,
                 )
                 .await;
+            }
             let _ = transcript_delta;
             DispatchPersistenceEffects {
                 session_state_envelope,
@@ -961,8 +1113,8 @@ mod tests {
         assert_eq!(envelope.last_event_seq, 1);
         match envelope.payload {
             crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
-                assert_eq!(delta.from_revision, SessionGraphRevision::new(0, 0));
-                assert_eq!(delta.to_revision, SessionGraphRevision::new(1, 1));
+                assert_eq!(delta.from_revision, SessionGraphRevision::new(0, 0, 0));
+                assert_eq!(delta.to_revision, SessionGraphRevision::new(1, 1, 1));
                 assert_eq!(delta.changed_fields, vec!["transcriptSnapshot".to_string()]);
             }
             other => panic!("expected delta payload, got {:?}", other),
@@ -1020,6 +1172,7 @@ mod tests {
         match envelope.payload {
             crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.revision.graph_revision, 1);
+                assert_eq!(graph.revision.transcript_revision, 1);
                 assert_eq!(graph.interactions.len(), 1);
                 assert_eq!(
                     graph.lifecycle.status,
@@ -1035,20 +1188,20 @@ mod tests {
         let db = setup_test_db().await;
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
         let envelope = runtime_graph_registry
-            .build_live_session_state_envelope(
-                &db,
-                "session-1",
-                &chunk_update("session-1", "hello"),
-                SessionGraphRevision::new(7, 7),
-                &ProjectionRegistry::new(),
-                &TranscriptProjectionRegistry::new(),
-                Some(&TranscriptDelta {
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &chunk_update("session-1", "hello"),
+                revision: SessionGraphRevision::new(7, 7, 7),
+                projection_registry: &ProjectionRegistry::new(),
+                transcript_projection_registry: &TranscriptProjectionRegistry::new(),
+                transcript_delta: Some(&TranscriptDelta {
                     event_seq: 7,
                     session_id: "session-1".to_string(),
                     snapshot_revision: 7,
                     operations: Vec::new(),
                 }),
-            )
+            })
             .await
             .expect("session state envelope");
 
@@ -1058,8 +1211,8 @@ mod tests {
 
         match envelope.payload {
             crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
-                assert_eq!(delta.from_revision, SessionGraphRevision::new(6, 6));
-                assert_eq!(delta.to_revision, SessionGraphRevision::new(7, 7));
+                assert_eq!(delta.from_revision, SessionGraphRevision::new(6, 6, 6));
+                assert_eq!(delta.to_revision, SessionGraphRevision::new(7, 7, 7));
                 assert_eq!(delta.changed_fields, vec!["transcriptSnapshot".to_string()]);
             }
             other => panic!("expected delta payload, got {:?}", other),

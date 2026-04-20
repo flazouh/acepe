@@ -62,6 +62,7 @@ fn copilot_sql_fixture_shape_matches_parser_regression() {
 #[test]
 fn unmatched_payloads_are_unclassified_not_other() {
     let out = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         None,
         &RawClassificationInput {
             id: "tool-unmatched",
@@ -79,6 +80,7 @@ fn unmatched_payloads_are_unclassified_not_other() {
 #[test]
 fn provider_name_kind_short_circuit_skips_argument_shape() {
     let out = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         Some(ToolKind::Read),
         &RawClassificationInput {
             id: "id",

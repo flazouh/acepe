@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn frontier_requires_snapshot_when_missing() {
-        let candidate = SessionGraphRevision::new(7, 9);
+        let candidate = SessionGraphRevision::new(7, 5, 9);
         let decision = decide_frontier_transition(None, candidate, 0);
 
         assert_eq!(
@@ -90,8 +90,8 @@ mod tests {
 
     #[test]
     fn frontier_requires_snapshot_when_event_seq_regresses() {
-        let frontier = SessionGraphRevision::new(8, 12);
-        let candidate = SessionGraphRevision::new(9, 11);
+        let frontier = SessionGraphRevision::new(8, 6, 12);
+        let candidate = SessionGraphRevision::new(9, 6, 11);
         let decision = decide_frontier_transition(Some(frontier), candidate, 0);
 
         assert_eq!(
@@ -106,8 +106,8 @@ mod tests {
 
     #[test]
     fn frontier_requires_snapshot_when_current_frontier_predates_retained_window() {
-        let frontier = SessionGraphRevision::new(8, 4);
-        let candidate = SessionGraphRevision::new(13, 12);
+        let frontier = SessionGraphRevision::new(8, 3, 4);
+        let candidate = SessionGraphRevision::new(13, 9, 12);
         let decision = decide_frontier_transition(Some(frontier), candidate, 5);
 
         assert_eq!(
@@ -122,8 +122,8 @@ mod tests {
 
     #[test]
     fn frontier_accepts_monotonic_delta() {
-        let frontier = SessionGraphRevision::new(8, 12);
-        let candidate = SessionGraphRevision::new(9, 13);
+        let frontier = SessionGraphRevision::new(8, 8, 12);
+        let candidate = SessionGraphRevision::new(9, 9, 13);
         let decision = decide_frontier_transition(Some(frontier), candidate, 4);
 
         assert_eq!(

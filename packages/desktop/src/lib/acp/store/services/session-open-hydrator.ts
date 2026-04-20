@@ -4,7 +4,7 @@ import type {
 	SessionOpenFound,
 	SessionStateGraph,
 } from "../../../services/acp-types.js";
-import { materializeSessionOpenState } from "../../session-state/session-state-query-service.js";
+import { materializeSnapshotFromOpenFound } from "../../session-state/session-state-protocol.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 
 interface SessionOpenStore {
@@ -97,7 +97,7 @@ export class SessionOpenHydrator {
 	}
 
 	private applySnapshot(found: SessionOpenFound): void {
-		const snapshotMaterialization = materializeSessionOpenState(found);
+		const snapshotMaterialization = materializeSnapshotFromOpenFound(found);
 		this.sessionStore.replaceSessionOpenSnapshot(found);
 		this.stateConsumer.replaceSessionStateGraph(snapshotMaterialization.graph);
 	}

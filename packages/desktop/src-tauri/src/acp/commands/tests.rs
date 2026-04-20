@@ -17,6 +17,9 @@ use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
 use crate::db::repository::SessionMetadataRepository;
+use crate::db::repository::{
+    SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+};
 use async_trait::async_trait;
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
@@ -231,6 +234,28 @@ async fn persist_session_metadata_for_cwd_inserts_created_worktree_session() {
     );
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_transcript_pending());
+
+    let transcript_snapshot = SessionTranscriptSnapshotRepository::get(&db, "session-worktree")
+        .await
+        .expect("load transcript snapshot")
+        .expect("transcript snapshot should exist");
+    assert_eq!(transcript_snapshot.revision, 0);
+    assert!(transcript_snapshot.entries.is_empty());
+
+    let projection_snapshot = SessionProjectionSnapshotRepository::get(&db, "session-worktree")
+        .await
+        .expect("load projection snapshot")
+        .expect("projection snapshot should exist");
+    let session_snapshot = projection_snapshot
+        .session
+        .expect("session projection anchor should exist");
+    assert_eq!(session_snapshot.session_id, "session-worktree");
+    assert_eq!(
+        session_snapshot.agent_id,
+        Some(CanonicalAgentId::ClaudeCode)
+    );
+    assert_eq!(session_snapshot.message_count, 0);
+    assert_eq!(session_snapshot.last_event_seq, 0);
 }
 
 #[tokio::test]
@@ -259,6 +284,19 @@ async fn persist_session_metadata_for_cwd_inserts_created_plain_project_session(
     assert_eq!(row.worktree_path, None);
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_transcript_pending());
+
+    assert!(
+        SessionTranscriptSnapshotRepository::get(&db, "session-project")
+            .await
+            .expect("load transcript snapshot")
+            .is_some()
+    );
+    assert!(
+        SessionProjectionSnapshotRepository::get(&db, "session-project")
+            .await
+            .expect("load projection snapshot")
+            .is_some()
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -386,7 +424,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         project_path: "/workspace/a".to_string(),
         worktree_path: None,
         source_path: None,
-        revision: SessionGraphRevision::new(3, 11),
+        revision: SessionGraphRevision::new(11, 3, 11),
         transcript_snapshot: TranscriptSnapshot {
             revision: 3,
             entries: Vec::new(),
@@ -410,12 +448,12 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         graph_revision: graph.revision.graph_revision,
         last_event_seq: graph.revision.last_event_seq,
         payload: SessionStatePayload::Snapshot {
-            graph: graph.clone(),
+            graph: Box::new(graph.clone()),
         },
     };
 
     assert_eq!(envelope.session_id, "canonical-1");
-    assert_eq!(envelope.graph_revision, 3);
+    assert_eq!(envelope.graph_revision, 11);
     assert_eq!(envelope.last_event_seq, 11);
     match envelope.payload {
         SessionStatePayload::Snapshot {
@@ -473,7 +511,7 @@ fn connection_complete_builds_graph_native_capabilities_and_lifecycle_envelopes(
         autonomous_enabled: false,
     };
 
-    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(7, 7));
+    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(7, 5, 7));
 
     assert_eq!(envelopes.len(), 2);
     match &envelopes[0].payload {
@@ -482,6 +520,7 @@ fn connection_complete_builds_graph_native_capabilities_and_lifecycle_envelopes(
             revision,
         } => {
             assert_eq!(revision.graph_revision, 7);
+            assert_eq!(revision.transcript_revision, 5);
             assert_eq!(
                 capabilities
                     .models
@@ -516,7 +555,7 @@ fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
         error: "connection dropped".to_string(),
     };
 
-    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(9, 9));
+    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(9, 4, 9));
 
     assert_eq!(envelopes.len(), 1);
     match &envelopes[0].payload {
@@ -525,6 +564,7 @@ fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
             revision,
         } => {
             assert_eq!(revision.graph_revision, 9);
+            assert_eq!(revision.transcript_revision, 4);
             assert_eq!(lifecycle.status, SessionGraphLifecycleStatus::Error);
             assert_eq!(
                 lifecycle.error_message.as_deref(),

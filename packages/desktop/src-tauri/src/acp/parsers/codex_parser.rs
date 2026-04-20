@@ -141,7 +141,7 @@ impl CodexParser {
         };
 
         if matches!(base, ToolKind::Fetch | ToolKind::Search)
-            && (kind_utils::is_web_search_id(id)
+            && (id.starts_with("web_search_")
                 || title.map(kind_utils::is_web_search_title).unwrap_or(false)
                 || arguments
                     .map(kind_utils::looks_like_web_search_arguments)
@@ -405,7 +405,8 @@ impl CodexParser {
             .get("title")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        let payload_kind = kind_utils::infer_kind_from_payload(
+        let payload_kind = kind_utils::infer_kind_from_payload_for_agent(
+            AgentType::Codex,
             &id,
             title.as_deref(),
             data.get("kind").and_then(|value| value.as_str()),
@@ -535,7 +536,8 @@ impl CodexParser {
             .map(|value| Self::merge_outer_arguments(&value));
 
         let explicit_name = data.get("name").and_then(|value| value.as_str());
-        let payload_kind = kind_utils::infer_kind_from_payload(
+        let payload_kind = kind_utils::infer_kind_from_payload_for_agent(
+            AgentType::Codex,
             &id,
             title.as_deref(),
             data.get("kind").and_then(|value| value.as_str()),

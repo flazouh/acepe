@@ -51,7 +51,7 @@ pub(crate) fn classify(agent: AgentType, raw: &RawClassificationInput<'_>) -> Cl
         AgentType::Codex => resolve_provider_kind(raw.name, CodexAdapter::normalize),
         AgentType::OpenCode => resolve_provider_kind(raw.name, OpenCodeAdapter::normalize),
     };
-    classify_with_provider_name_kind(provider_kind, raw)
+    classify_with_provider_name_kind(agent, provider_kind, raw)
 }
 
 pub(crate) fn detect_tool_kind(agent: AgentType, name: &str) -> ToolKind {
@@ -66,6 +66,15 @@ pub(crate) fn detect_tool_kind(agent: AgentType, name: &str) -> ToolKind {
         },
     )
     .kind
+}
+
+pub(crate) fn is_web_search_tool_call_id(agent: AgentType, id: &str) -> bool {
+    match agent {
+        AgentType::Cursor => CursorAdapter::is_web_search_tool_call_id(id),
+        AgentType::ClaudeCode | AgentType::Copilot | AgentType::Codex | AgentType::OpenCode => {
+            false
+        }
+    }
 }
 
 #[cfg(test)]

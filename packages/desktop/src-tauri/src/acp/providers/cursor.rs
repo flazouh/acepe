@@ -8,7 +8,8 @@ use super::super::provider::{
 };
 use super::cursor_session_update_enrichment::enrich_cursor_session_update;
 use crate::acp::cursor_extensions::{
-    adapt_cursor_response, cursor_extension_kind, normalize_cursor_extension,
+    adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
+    normalize_cursor_extension,
 };
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
@@ -176,6 +177,18 @@ impl AgentProvider for CursorProvider {
         update: SessionUpdate,
     ) -> Pin<Box<dyn Future<Output = SessionUpdate> + Send + 'a>> {
         Box::pin(async move { enrich_cursor_session_update(update).await })
+    }
+
+    fn should_filter_session_update_notification(&self, json: &Value) -> bool {
+        is_cursor_extension_pre_tool(json)
+    }
+
+    fn records_web_search_notification_dedup(&self) -> bool {
+        true
+    }
+
+    fn is_web_search_tool_call_id(&self, id: &str) -> bool {
+        id.starts_with("web_search_") || id.starts_with("ws_")
     }
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {

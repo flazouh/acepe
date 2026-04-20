@@ -27,7 +27,7 @@ pub struct SessionStateDelta {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionStatePayload {
     Snapshot {
-        graph: SessionStateGraph,
+        graph: Box<SessionStateGraph>,
     },
     Delta {
         delta: SessionStateDelta,
@@ -37,7 +37,7 @@ pub enum SessionStatePayload {
         revision: SessionGraphRevision,
     },
     Capabilities {
-        capabilities: SessionGraphCapabilities,
+        capabilities: Box<SessionGraphCapabilities>,
         revision: SessionGraphRevision,
     },
 }

@@ -18,7 +18,9 @@ pub fn build_snapshot_envelope(
         session_id: graph.canonical_session_id.clone(),
         graph_revision: graph.revision.graph_revision,
         last_event_seq: graph.revision.last_event_seq,
-        payload: SessionStatePayload::Snapshot { graph },
+        payload: SessionStatePayload::Snapshot {
+            graph: Box::new(graph),
+        },
     }
 }
 
@@ -90,7 +92,7 @@ mod tests {
         );
 
         assert_eq!(envelope.session_id, "canonical-1");
-        assert_eq!(envelope.graph_revision, 3);
+        assert_eq!(envelope.graph_revision, 11);
         match envelope.payload {
             SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.requested_session_id, "requested-1");
@@ -104,8 +106,8 @@ mod tests {
     fn bridge_builds_delta_envelope_from_transcript_operations() {
         let envelope = build_delta_envelope(
             "canonical-1",
-            SessionGraphRevision::new(3, 11),
-            SessionGraphRevision::new(4, 12),
+            SessionGraphRevision::new(11, 3, 11),
+            SessionGraphRevision::new(12, 4, 12),
             vec![TranscriptDeltaOperation::ReplaceSnapshot {
                 snapshot: TranscriptSnapshot {
                     revision: 4,
@@ -115,12 +117,12 @@ mod tests {
             vec!["transcriptSnapshot".to_string()],
         );
 
-        assert_eq!(envelope.graph_revision, 4);
+        assert_eq!(envelope.graph_revision, 12);
         assert_eq!(envelope.last_event_seq, 12);
         match envelope.payload {
             SessionStatePayload::Delta { delta } => {
-                assert_eq!(delta.from_revision, SessionGraphRevision::new(3, 11));
-                assert_eq!(delta.to_revision, SessionGraphRevision::new(4, 12));
+                assert_eq!(delta.from_revision, SessionGraphRevision::new(11, 3, 11));
+                assert_eq!(delta.to_revision, SessionGraphRevision::new(12, 4, 12));
                 assert_eq!(delta.transcript_operations.len(), 1);
             }
             _ => panic!("expected delta payload"),

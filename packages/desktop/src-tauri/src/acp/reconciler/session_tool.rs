@@ -6,7 +6,7 @@
 use super::classify_signals::build_unclassified;
 use super::classify_signals::classify_argument_shape;
 use super::kind_payload::{
-    canonical_name_for_kind, is_browser_tool_name, is_web_search_id, is_web_search_title,
+    canonical_name_for_kind, is_browser_tool_name, is_web_search_title,
     looks_like_web_search_arguments,
 };
 use super::providers;
@@ -68,6 +68,7 @@ fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option
 }
 
 fn apply_web_search_promotion(
+    agent: AgentType,
     kind: ToolKind,
     id: &str,
     title: Option<&str>,
@@ -78,7 +79,7 @@ fn apply_web_search_promotion(
             .map(looks_like_web_search_arguments)
             .unwrap_or(false);
     if matches!(kind, ToolKind::Fetch | ToolKind::Search | ToolKind::Other)
-        && (is_web_search_id(id)
+        && (providers::is_web_search_tool_call_id(agent, id)
             || title.map(is_web_search_title).unwrap_or(false)
             || argument_implied_web_search)
     {
@@ -165,7 +166,8 @@ fn resolve_identity_impl(
         .or(location_kind)
         .or(title_read_kind)
         .unwrap_or(base_output.kind);
-    let kind = apply_web_search_promotion(kind, id, hints.title, raw_arguments);
+    let kind =
+        apply_web_search_promotion(parser.agent_type(), kind, id, hints.title, raw_arguments);
 
     let name_is_browser = explicit_name.map(is_browser_tool_name).unwrap_or(false);
     let title_is_browser = hints.title.map(is_browser_tool_name).unwrap_or(false);

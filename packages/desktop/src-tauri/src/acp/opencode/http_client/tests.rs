@@ -1150,5 +1150,8 @@ fn test_reconnect_method_follows_provider_policy() {
     let client =
         OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
 
-    assert_eq!(AgentClient::reconnect_method(&client), ReconnectSessionMethod::Load);
+    assert_eq!(
+        AgentClient::reconnect_method(&client),
+        ReconnectSessionMethod::Load
+    );
 }

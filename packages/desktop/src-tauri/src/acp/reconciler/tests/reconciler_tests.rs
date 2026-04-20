@@ -1,3 +1,4 @@
+use crate::acp::parsers::AgentType;
 use crate::acp::reconciler::{
     classify_with_provider_name_kind, RawClassificationInput, SignalName,
 };
@@ -6,6 +7,7 @@ use crate::acp::session_update::{ToolArguments, ToolKind};
 #[test]
 fn provider_name_kind_has_highest_priority() {
     let output = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         Some(ToolKind::Read),
         &RawClassificationInput {
             id: "tool-read",
@@ -24,6 +26,7 @@ fn provider_name_kind_has_highest_priority() {
 #[test]
 fn todo_sql_argument_shape_wins_before_task_like_description() {
     let output = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         None,
         &RawClassificationInput {
             id: "tool-sql",
@@ -58,6 +61,7 @@ fn todo_sql_argument_shape_wins_before_task_like_description() {
 #[test]
 fn empty_inputs_become_unclassified_with_all_failed_signals() {
     let output = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         None,
         &RawClassificationInput {
             id: "tool-empty",
@@ -95,8 +99,9 @@ fn empty_inputs_become_unclassified_with_all_failed_signals() {
 }
 
 #[test]
-fn promotes_fetch_to_web_search_from_search_id() {
+fn cursor_promotes_fetch_to_web_search_from_search_id() {
     let output = classify_with_provider_name_kind(
+        AgentType::Cursor,
         None,
         &RawClassificationInput {
             id: "ws_123",
@@ -113,6 +118,7 @@ fn promotes_fetch_to_web_search_from_search_id() {
 #[test]
 fn promotes_browser_title_even_when_otherwise_unclassified() {
     let output = classify_with_provider_name_kind(
+        AgentType::ClaudeCode,
         None,
         &RawClassificationInput {
             id: "tool-browser",

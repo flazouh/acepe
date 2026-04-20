@@ -159,8 +159,8 @@ describe("EventSubscriber", () => {
 				payload: {
 					kind: "delta",
 					delta: {
-						fromRevision: { graphRevision: 3, lastEventSeq: 8 },
-						toRevision: { graphRevision: 4, lastEventSeq: 9 },
+						fromRevision: { graphRevision: 3, transcriptRevision: 3, lastEventSeq: 8 },
+						toRevision: { graphRevision: 4, transcriptRevision: 4, lastEventSeq: 9 },
 						transcriptOperations: [],
 						changedFields: ["transcriptSnapshot"],
 					},

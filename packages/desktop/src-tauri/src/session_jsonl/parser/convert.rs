@@ -236,7 +236,8 @@ fn convert_assistant_message(
 }
 
 /// Parse a session and return a `SessionThreadSnapshot`.
-pub async fn parse_converted_session(
+#[cfg(test)]
+pub(crate) async fn parse_converted_session(
     session_id: &str,
     project_path: &str,
 ) -> Result<SessionThreadSnapshot> {

@@ -117,7 +117,7 @@ type LiveSessionStateGraphConsumer = {
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
-function mapProjectionTurnState(turnState: SessionTurnState):
+function mapTurnStateToHotState(turnState: SessionTurnState):
 	| "idle"
 	| "streaming"
 	| "completed"
@@ -158,19 +158,6 @@ interface CachedPrDetails {
 
 function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string {
 	return typeof agentId === "string" ? agentId : agentId.custom;
-}
-
-function toFrontendTurnState(turnState: SessionTurnState): SessionHotState["turnState"] {
-	switch (turnState) {
-		case "Idle":
-			return "idle";
-		case "Running":
-			return "streaming";
-		case "Completed":
-			return "completed";
-		case "Failed":
-			return "error";
-	}
 }
 
 function toSessionStatusFromGraphLifecycle(
@@ -655,7 +642,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			isConnected: graph.lifecycle.status === "ready",
 			acpSessionId:
 				graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
-			turnState: mapProjectionTurnState(graph.turnState),
+			turnState: mapTurnStateToHotState(graph.turnState),
 			activeTurnFailure,
 			lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 			connectionError: connectionErrorFromGraphState(graph.lifecycle, activeTurnFailure),
@@ -792,7 +779,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
 		this.hotStateStore.initializeHotState(canonicalSessionId);
 		this.hotStateStore.updateHotState(canonicalSessionId, {
-			turnState: toFrontendTurnState(snapshot.turnState),
+			turnState: mapTurnStateToHotState(snapshot.turnState),
 			activeTurnFailure: mapProjectionTurnFailure(snapshot.activeTurnFailure ?? null),
 			lastTerminalTurnId: snapshot.lastTerminalTurnId ?? null,
 			connectionError: null,
@@ -1402,28 +1389,27 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return existing;
 		}
 
-		const refresh = api.getSessionState(sessionId).andThen((envelope) => {
-			if (envelope.payload.kind !== "snapshot") {
-				return errAsync(new SessionNotFoundError(sessionId));
-			}
-
-			this.applySessionStateEnvelope(sessionId, envelope);
-			return okAsync(undefined);
-		});
-
-		this.inflightSessionStateRefreshes.set(sessionId, refresh);
-		void refresh.match(
-			() => {
+		const refresh = api
+			.getSessionState(sessionId)
+			.andThen((envelope) => {
 				this.inflightSessionStateRefreshes.delete(sessionId);
-			},
-			(error) => {
+				if (envelope.payload.kind !== "snapshot") {
+					return errAsync(new SessionNotFoundError(sessionId));
+				}
+
+				this.applySessionStateEnvelope(sessionId, envelope);
+				return okAsync(undefined);
+			})
+			.orElse((error) => {
 				this.inflightSessionStateRefreshes.delete(sessionId);
 				logger.error("Failed to refresh session-state snapshot", {
 					sessionId,
 					error,
 				});
-			}
-		);
+				return errAsync(error);
+			});
+
+		this.inflightSessionStateRefreshes.set(sessionId, refresh);
 		return refresh;
 	}
 

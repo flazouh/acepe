@@ -26,6 +26,7 @@ pub mod non_streaming_batcher;
 pub mod opencode;
 pub mod parsers;
 pub mod partial_json;
+pub(crate) mod pending_prompt_registry;
 pub mod permission_tracker;
 pub mod preconnection_slash;
 pub mod projections;

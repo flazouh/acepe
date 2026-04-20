@@ -12,11 +12,13 @@ use crate::acp::inbound_request_router::{
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::AgentType;
+use crate::acp::pending_prompt_registry::{
+    consume_matching_user_echo, discard_pending_prompt_echo,
+};
 use crate::acp::permission_tracker::{PermissionContext, PermissionTracker, WebSearchDedup};
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::AgentProvider;
 use crate::acp::provider_extensions::InboundResponseAdapter;
-use crate::acp::reconciler::kind_payload::is_web_search_id;
 use crate::acp::session_registry::SessionRegistry;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,
@@ -115,6 +117,24 @@ fn enqueue_session_update(
             "Dropping provider session update during replay"
         );
         return;
+    }
+
+    if consume_matching_user_echo(&update) {
+        tracing::debug!(
+            session_id = update.session_id(),
+            "Dropping provider userMessageChunk that matches a synthetic send-time user turn"
+        );
+        return;
+    }
+
+    match &update {
+        SessionUpdate::TurnComplete { session_id, .. }
+        | SessionUpdate::TurnError { session_id, .. } => {
+            if let Some(session_id) = session_id.as_deref() {
+                discard_pending_prompt_echo(session_id);
+            }
+        }
+        _ => {}
     }
 
     dispatcher.enqueue(AcpUiEvent::session_update(update));
@@ -689,9 +709,18 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             // ~555ms later by a permission request (ID like `web_search_0`). We record
                             // the notification ID here keyed by (session_id, query) so that the permission
                             // path can remap to the canonical notification ID.
-                            if json.pointer("/params/event").and_then(|v| v.as_str()) == Some("toolCall") {
+                            if ctx
+                                .provider
+                                .as_ref()
+                                .is_some_and(|provider| provider.records_web_search_notification_dedup())
+                                && json.pointer("/params/event").and_then(|v| v.as_str()) == Some("toolCall")
+                            {
                                 if let Some(tool_call_id) = json.pointer("/params/data/toolCallId").and_then(|v| v.as_str()) {
-                                    if is_web_search_id(tool_call_id) {
+                                    if ctx
+                                        .provider
+                                        .as_deref()
+                                        .is_some_and(|provider| provider.is_web_search_tool_call_id(tool_call_id))
+                                    {
                                         if let Some(raw_input) = json.pointer("/params/data/rawInput") {
                                             let args = parse_tool_kind_arguments(ToolKind::WebSearch, raw_input);
                                             if let ToolArguments::WebSearch { query: Some(query) } = args {

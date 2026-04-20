@@ -5,6 +5,7 @@
   Desktop derives these values from session store; here they are plain props.
 -->
 <script lang="ts">
+	import { Skull } from "phosphor-svelte";
 	import { Colors } from "../../lib/colors.js";
 
 	interface Props {
@@ -31,6 +32,13 @@
 
 	const hasContextUsage = $derived(percent !== null);
 	const effectiveSegmentCount = $derived(compact ? 8 : segmentCount);
+	const isCritical = $derived((percent ?? 0) >= 80);
+	const barColor = $derived.by(() => {
+		const p = percent ?? 0;
+		if (p >= 80) return Colors.red;
+		if (p >= 60) return Colors.orange;
+		return Colors.green;
+	});
 	const segments = $derived.by(() => {
 		const p = percent ?? 0;
 		return Array.from({ length: effectiveSegmentCount }, (_, i) => {
@@ -53,7 +61,7 @@
 	{/if}
 	{#if hasContextUsage}
 		<div
-			class="context-tally flex items-center gap-[2px]"
+			class="context-tally flex items-center gap-[1px]"
 			class:context-tally-compact={compact}
 			aria-hidden="true"
 		>
@@ -62,10 +70,18 @@
 					class="context-tally-bar"
 					class:context-tally-bar-compact={compact}
 					class:is-filled={isFilled}
-					style={isFilled ? `background-color: ${Colors.purple};` : undefined}
+					style={isFilled ? `background-color: ${barColor};` : undefined}
 				></span>
 			{/each}
 		</div>
+		{#if isCritical}
+			<Skull
+				size={compact ? 10 : 12}
+				color={Colors.red}
+				weight="fill"
+				aria-hidden="true"
+			/>
+		{/if}
 	{/if}
 </div>
 

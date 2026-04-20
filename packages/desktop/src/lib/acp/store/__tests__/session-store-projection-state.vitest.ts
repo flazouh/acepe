@@ -58,6 +58,7 @@ function createSessionStateGraph(
 		sourcePath: overrides.sourcePath ?? null,
 		revision: overrides.revision ?? {
 			graphRevision: 7,
+			transcriptRevision: 7,
 			lastEventSeq: 7,
 		},
 		transcriptSnapshot: overrides.transcriptSnapshot ?? {
@@ -358,6 +359,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				},
 				revision: {
 					graphRevision: 8,
+					transcriptRevision: 7,
 					lastEventSeq: 8,
 				},
 			},
@@ -417,6 +419,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				},
 				revision: {
 					graphRevision: 9,
+					transcriptRevision: 7,
 					lastEventSeq: 9,
 				},
 			},
@@ -475,6 +478,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const refreshedGraph = createSessionStateGraph({
 			revision: {
 				graphRevision: 9,
+				transcriptRevision: 9,
 				lastEventSeq: 9,
 			},
 			transcriptSnapshot: {
@@ -512,10 +516,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				delta: {
 					fromRevision: {
 						graphRevision: 6,
+						transcriptRevision: 6,
 						lastEventSeq: 6,
 					},
 					toRevision: {
 						graphRevision: 8,
+						transcriptRevision: 8,
 						lastEventSeq: 8,
 					},
 					transcriptOperations: [],

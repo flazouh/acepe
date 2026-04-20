@@ -650,7 +650,6 @@ export class SessionConnectionManager {
 			)
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
-				this.eventService.flushPendingEvents(sessionId, eventHandler);
 				const cold = this.stateReader.getSessionCold(sessionId);
 				if (!cold) {
 					return errAsync(new SessionNotFoundError(sessionId));

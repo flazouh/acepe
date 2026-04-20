@@ -9,17 +9,25 @@ use serde_json::Value;
 
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
-use crate::acp::cursor_extensions::is_cursor_extension_pre_tool;
 use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::InteractionKind;
+use crate::acp::provider::AgentProvider;
 use crate::acp::session_update::{
     parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolCallStatus, ToolKind,
     TurnErrorData,
 };
 
 pub fn parse_session_update_notification_with_agent(agent: AgentType, json: &Value) -> ParseResult {
-    parse_session_update_notification_for_agent(agent, json)
+    parse_session_update_notification_for_context(agent, None, json)
+}
+
+pub fn parse_session_update_notification_with_provider(
+    agent: AgentType,
+    provider: Option<&dyn AgentProvider>,
+    json: &Value,
+) -> ParseResult {
+    parse_session_update_notification_for_context(agent, provider, json)
 }
 
 /// Result of parsing a session update notification.
@@ -84,13 +92,18 @@ fn is_session_update_method(method: &str) -> bool {
 
 #[cfg(test)]
 pub fn parse_session_update_notification(json: &Value) -> ParseResult {
-    parse_session_update_notification_for_agent(
+    parse_session_update_notification_for_context(
         current_agent().unwrap_or(AgentType::ClaudeCode),
+        None,
         json,
     )
 }
 
-fn parse_session_update_notification_for_agent(agent: AgentType, json: &Value) -> ParseResult {
+fn parse_session_update_notification_for_context(
+    agent: AgentType,
+    provider: Option<&dyn AgentProvider>,
+    json: &Value,
+) -> ParseResult {
     // Check for method field - notifications have method but no id
     let method = match json.get("method").and_then(|v| v.as_str()) {
         Some(m) => m,
@@ -102,7 +115,7 @@ fn parse_session_update_notification_for_agent(agent: AgentType, json: &Value) -
         return ParseResult::NotSessionUpdate;
     }
 
-    if agent == AgentType::Cursor && is_cursor_extension_pre_tool(json) {
+    if provider.is_some_and(|provider| provider.should_filter_session_update_notification(json)) {
         return ParseResult::NotSessionUpdate;
     }
 

@@ -895,7 +895,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
-	it("flushes pending events after lifecycle-driven connect completes", async () => {
+	it("does not rely on reconnect-time pending event flush after lifecycle-driven connect completes", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 		const flushSpy = vi.spyOn(SessionEventService.prototype, "flushPendingEvents");
 		const eventHandler = createMockEventHandler();
@@ -912,7 +912,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, eventHandler);
 		result._unsafeUnwrap();
 
-		expect(flushSpy).toHaveBeenCalledWith(sessionId, eventHandler);
+		expect(flushSpy).not.toHaveBeenCalled();
 		flushSpy.mockRestore();
 	});
 

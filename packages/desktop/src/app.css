@@ -35,21 +35,21 @@
 
 :root {
 	--radius: 0.625rem;
-	/* Light mode colors - warm palette with high contrast */
-	--background: #FAFAF8;
-	--foreground: #0A0A09;
-	--card: #F2EFE9;
-	--card-foreground: #0A0A09;
-	--popover: #FFFFFF;
-	--popover-foreground: #0A0A09;
-	--primary: var(--token-brand-primary);
-	--primary-foreground: var(--token-brand-primary-foreground);
-	--secondary: #E5E0D5;
-	--secondary-foreground: #1A1A1A;
-	--muted: #E8E3D8;
-	--muted-foreground: #525252;
-	--accent: #DDD8CC;
-	--accent-foreground: #1A1A1A;
+	/* Light mode colors sampled from anthropic.com surfaces and accents. */
+	--background: #FAF9F5;
+	--foreground: #141413;
+	--card: #F0EEE6;
+	--card-foreground: #141413;
+	--popover: #FAF9F5;
+	--popover-foreground: #141413;
+	--primary: #C6613F;
+	--primary-foreground: #FAF9F5;
+	--secondary: #F0EEE6;
+	--secondary-foreground: #141413;
+	--muted: #DDD6C4;
+	--muted-foreground: #87867F;
+	--accent: #E3DACC;
+	--accent-foreground: #141413;
 	--destructive: hsl(0 70% 35.2941%);
 	--destructive-foreground: hsl(0 0% 100%);
 	--success: var(--token-success-light);
@@ -57,22 +57,22 @@
 	--success-foreground: hsl(0 0% 100%);
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);
-	--border: #BDB6A6;
-	--input: #E0DBD0;
-	--ring: var(--token-brand-primary);
-	--chart-1: var(--token-brand-primary);
-	--chart-2: #6B6B6B;
-	--chart-3: var(--token-brand-primary);
-	--chart-4: #6B6B6B;
-	--chart-5: #A78BFA;
-	--sidebar: #DDD8CC;
+	--border: rgba(20, 20, 19, 0.1);
+	--input: #CFC6B0;
+	--ring: #D97757;
+	--chart-1: #C6613F;
+	--chart-2: #87867F;
+	--chart-3: #D97757;
+	--chart-4: #B0AEA5;
+	--chart-5: #E3DACC;
+	--sidebar: #F0EEE6;
 	--sidebar-foreground: #141413;
-	--sidebar-primary: var(--token-brand-primary);
-	--sidebar-primary-foreground: var(--token-brand-primary-foreground);
-	--sidebar-accent: #D0CBC0;
+	--sidebar-primary: #C6613F;
+	--sidebar-primary-foreground: #FAF9F5;
+	--sidebar-accent: #E8E6DC;
 	--sidebar-accent-foreground: #141413;
-	--sidebar-border: #D0CBC0;
-	--sidebar-ring: var(--token-brand-primary);
+	--sidebar-border: rgba(20, 20, 19, 0.1);
+	--sidebar-ring: #D97757;
 
 	/* Font families */
 	--font-sans: Acepe, system-ui, sans-serif;

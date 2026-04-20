@@ -10,7 +10,7 @@ use crate::acp::transcript_projection::{
 
 pub enum SessionStateGraphMutation {
     ReplaceSnapshot {
-        graph: SessionStateGraph,
+        graph: Box<SessionStateGraph>,
     },
     ApplyDelta {
         delta: SessionStateDelta,
@@ -20,7 +20,7 @@ pub enum SessionStateGraphMutation {
         revision: SessionGraphRevision,
     },
     UpdateCapabilities {
-        capabilities: SessionGraphCapabilities,
+        capabilities: Box<SessionGraphCapabilities>,
         revision: SessionGraphRevision,
     },
 }
@@ -33,7 +33,7 @@ impl SessionStateReducer {
             SessionStateGraphMutation::ReplaceSnapshot {
                 graph: replacement_graph,
             } => {
-                *graph = replacement_graph;
+                *graph = *replacement_graph;
             }
             SessionStateGraphMutation::ApplyDelta { delta } => {
                 if !delta.transcript_operations.is_empty() {
@@ -56,7 +56,7 @@ impl SessionStateReducer {
                 capabilities,
                 revision,
             } => {
-                graph.capabilities = capabilities;
+                graph.capabilities = *capabilities;
                 graph.revision = revision;
             }
         }
@@ -130,7 +130,7 @@ mod tests {
             project_path: "/workspace/a".to_string(),
             worktree_path: None,
             source_path: None,
-            revision: SessionGraphRevision::new(1, 1),
+            revision: SessionGraphRevision::new(1, 1, 1),
             transcript_snapshot: TranscriptSnapshot {
                 revision: 1,
                 entries: vec![TranscriptEntry {
@@ -157,8 +157,8 @@ mod tests {
     fn reducer_applies_append_segment_delta_to_existing_entry() {
         let mut graph = base_graph();
         let delta = SessionStateDelta {
-            from_revision: SessionGraphRevision::new(1, 1),
-            to_revision: SessionGraphRevision::new(2, 2),
+            from_revision: SessionGraphRevision::new(1, 1, 1),
+            to_revision: SessionGraphRevision::new(2, 2, 2),
             transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
                 entry_id: "assistant-1".to_string(),
                 role: TranscriptEntryRole::Assistant,
@@ -172,7 +172,7 @@ mod tests {
 
         SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
 
-        assert_eq!(graph.revision, SessionGraphRevision::new(2, 2));
+        assert_eq!(graph.revision, SessionGraphRevision::new(2, 2, 2));
         assert_eq!(graph.transcript_snapshot.revision, 2);
         assert_eq!(graph.transcript_snapshot.entries.len(), 1);
         assert_eq!(graph.transcript_snapshot.entries[0].segments.len(), 2);
@@ -193,8 +193,8 @@ mod tests {
             }],
         };
         let delta = SessionStateDelta {
-            from_revision: SessionGraphRevision::new(1, 1),
-            to_revision: SessionGraphRevision::new(5, 5),
+            from_revision: SessionGraphRevision::new(1, 1, 1),
+            to_revision: SessionGraphRevision::new(5, 5, 5),
             transcript_operations: vec![TranscriptDeltaOperation::ReplaceSnapshot {
                 snapshot: replacement_snapshot.clone(),
             }],
@@ -204,6 +204,6 @@ mod tests {
         SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
 
         assert_eq!(graph.transcript_snapshot, replacement_snapshot);
-        assert_eq!(graph.revision, SessionGraphRevision::new(5, 5));
+        assert_eq!(graph.revision, SessionGraphRevision::new(5, 5, 5));
     }
 }

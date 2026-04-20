@@ -15,9 +15,7 @@ pub(crate) mod state;
 use classify_signals::{
     build_unclassified, classify_argument_shape, classify_kind_hint, classify_title_heuristic,
 };
-use kind_payload::{
-    is_browser_tool_name, is_web_search_id, is_web_search_title, looks_like_web_search_arguments,
-};
+use kind_payload::{is_browser_tool_name, is_web_search_title, looks_like_web_search_arguments};
 
 /// Signals tried during fallback classification (recorded for diagnostics / `Unclassified` payloads).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,6 +97,7 @@ fn normalization_name(name: Option<&str>, title: Option<&str>, kind: ToolKind) -
 /// Core classification engine: takes an optional pre-resolved provider kind, then falls through
 /// shared heuristics. Called by `providers::classify` — not for direct use outside `providers/`.
 pub(crate) fn classify_with_provider_name_kind(
+    agent: AgentType,
     provider_name_kind: Option<ToolKind>,
     raw: &RawClassificationInput<'_>,
 ) -> ClassificationOutput {
@@ -130,7 +129,7 @@ pub(crate) fn classify_with_provider_name_kind(
     };
 
     let final_kind =
-        apply_post_classification_promotions(base_kind.unwrap_or(ToolKind::Other), raw);
+        apply_post_classification_promotions(agent, base_kind.unwrap_or(ToolKind::Other), raw);
 
     let arguments = if final_kind == ToolKind::Other {
         build_unclassified(raw, &signals_tried)
@@ -162,11 +161,12 @@ fn build_arguments(
 }
 
 fn apply_post_classification_promotions(
+    agent: AgentType,
     base_kind: ToolKind,
     raw: &RawClassificationInput<'_>,
 ) -> ToolKind {
     let todo_promoted = apply_todo_sql_promotion(base_kind, raw);
-    let web_search_promoted = apply_web_search_promotion(todo_promoted, raw);
+    let web_search_promoted = apply_web_search_promotion(agent, todo_promoted, raw);
     apply_browser_promotion(web_search_promoted, raw)
 }
 
@@ -197,14 +197,18 @@ fn apply_todo_sql_promotion(base_kind: ToolKind, raw: &RawClassificationInput<'_
     }
 }
 
-fn apply_web_search_promotion(base_kind: ToolKind, raw: &RawClassificationInput<'_>) -> ToolKind {
+fn apply_web_search_promotion(
+    agent: AgentType,
+    base_kind: ToolKind,
+    raw: &RawClassificationInput<'_>,
+) -> ToolKind {
     let argument_implied_web_search = matches!(base_kind, ToolKind::Fetch | ToolKind::Other)
         && looks_like_web_search_arguments(raw.arguments);
 
     if matches!(
         base_kind,
         ToolKind::Fetch | ToolKind::Search | ToolKind::Other
-    ) && (is_web_search_id(raw.id)
+    ) && (providers::is_web_search_tool_call_id(agent, raw.id)
         || raw.title.map(is_web_search_title).unwrap_or(false)
         || argument_implied_web_search)
     {

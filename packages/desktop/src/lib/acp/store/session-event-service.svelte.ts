@@ -37,7 +37,6 @@ import {
 } from "../types/reply-handler.js";
 import { createLogger } from "../utils/logger.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
-import { enrichExistingToolCallFromPermission } from "./services/permission-tool-call-enricher.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
 
@@ -144,15 +143,6 @@ interface LifecycleWaiter {
 	resolve: (data: ConnectionCompleteData) => void;
 	reject: (error: Error) => void;
 	timeoutId: ReturnType<typeof setTimeout>;
-}
-
-function shouldBypassDisconnectedBuffer(update: SessionUpdate): boolean {
-	return (
-		update.type === "permissionRequest" ||
-		update.type === "questionRequest" ||
-		update.type === "connectionComplete" ||
-		update.type === "connectionFailed"
-	);
 }
 
 export class SessionEventService {
@@ -398,22 +388,6 @@ export class SessionEventService {
 		// Check hot state for connection status — cold state never includes
 		// isConnected/status fields, so we always read from the hot state store.
 		const hotState = session ? handler.getHotState(sessionId) : null;
-		const isDisconnectedSession = hotState?.isConnected === false;
-		const isConnectingSession = hotState?.status === "connecting";
-		// Buffer events for known disconnected sessions so they can be replayed
-		// when connectSession() calls flushPendingEvents(). This handles the
-		// startup race where ACP events arrive before session reconnection completes.
-		if (isDisconnectedSession && !isConnectingSession && !shouldBypassDisconnectedBuffer(update)) {
-			this.telemetryDisconnectedDrops++;
-			this.warnWithCooldown("disconnected", "Buffered session update while disconnected", {
-				sessionId,
-				updateType: update.type,
-				agentId: session?.agentId,
-				status: hotState?.status,
-			});
-			this.bufferPendingEvent(sessionId, update, envelopeSeq);
-			return;
-		}
 
 		if (logger.isLevelEnabled("debug")) {
 			logger.debug("Received session update", {
@@ -528,7 +502,6 @@ export class SessionEventService {
 						always: update.permission.always,
 						tool: update.permission.tool,
 					});
-					enrichExistingToolCallFromPermission(handler, permission);
 					this.callbacks.onPermissionRequest?.(permission);
 				}
 				break;
@@ -576,11 +549,6 @@ export class SessionEventService {
 
 			case "plan":
 				this.callbacks.onPlanUpdate?.(sessionId, update.plan);
-				if (
-					this.shouldTreatPlanAsTurnComplete(update.plan, handler.getHotState(sessionId).turnState)
-				) {
-					handler.handleStreamComplete(sessionId, null);
-				}
 				break;
 
 			case "userMessageChunk":
@@ -610,12 +578,6 @@ export class SessionEventService {
 					})),
 				});
 				handler.updateConfigOptions(sessionId, update.update.configOptions);
-
-				// Backward compat: also sync mode if present
-				const modeOption = update.update.configOptions.find((opt) => opt.category === "mode");
-				if (modeOption && typeof modeOption.currentValue === "string") {
-					handler.updateCurrentMode(sessionId, modeOption.currentValue);
-				}
 				break;
 			}
 
@@ -670,25 +632,6 @@ export class SessionEventService {
 			this.clearPendingAssistantFallback(envelope.sessionId);
 		}
 		handler.applySessionStateEnvelope(envelope.sessionId, envelope);
-	}
-
-	private shouldTreatPlanAsTurnComplete(
-		plan: import("../../services/converted-session-types.js").PlanData,
-		turnState: import("./types.js").TurnState
-	): boolean {
-		if (plan.streaming === true) {
-			return false;
-		}
-
-		if (turnState !== "streaming") {
-			return false;
-		}
-
-		return (
-			plan.hasPlan === true ||
-			typeof plan.contentMarkdown === "string" ||
-			typeof plan.content === "string"
-		);
 	}
 
 	private shouldDropProcessedSessionUpdate(

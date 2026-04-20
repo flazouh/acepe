@@ -171,14 +171,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		for (const operation of delta.operations) {
 			if (operation.kind === "replaceSnapshot") {
 				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp);
-				this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
 				continue;
 			}
 
 			if (operation.kind === "appendEntry") {
-				if (operation.entry.role === "tool" || operation.entry.role === "user") {
-					continue;
-				}
 				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
 				const nextEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
 				if (existingIndex === undefined) {
@@ -189,9 +185,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				continue;
 			}
 
-			if (operation.role === "tool" || operation.role === "user") {
-				continue;
-			}
 			const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entryId);
 			if (existingIndex === undefined) {
 				const nextEntry = convertTranscriptEntryToSessionEntry(
@@ -219,6 +212,48 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		}
 
 		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
+	}
+
+	private normalizeRuntimeEntry(entry: SessionEntry): SessionEntry {
+		if (!isToolCallEntry(entry)) {
+			return entry;
+		}
+
+		return {
+			id: entry.id,
+			type: entry.type,
+			message: {
+				id: entry.message.id,
+				name: entry.message.name,
+				arguments: entry.message.arguments,
+				progressiveArguments: entry.message.progressiveArguments,
+				rawInput: entry.message.rawInput,
+				status: entry.message.status,
+				result: entry.message.result,
+				kind: entry.message.kind,
+				title: entry.message.title,
+				locations: entry.message.locations,
+				skillMeta: entry.message.skillMeta,
+				normalizedQuestions: entry.message.normalizedQuestions,
+				normalizedTodos: entry.message.normalizedTodos,
+				parentToolUseId: entry.message.parentToolUseId,
+				taskChildren: entry.message.taskChildren,
+				questionAnswer: entry.message.questionAnswer,
+				awaitingPlanApproval: entry.message.awaitingPlanApproval,
+				planApprovalRequestId: entry.message.planApprovalRequestId,
+				normalizedResult: normalizeToolResult(entry.message),
+			},
+			timestamp: entry.timestamp,
+			isStreaming: entry.isStreaming,
+		};
+	}
+
+	private syncOperationStoreForEntry(sessionId: string, entry: SessionEntry): void {
+		if (!isToolCallEntry(entry)) {
+			return;
+		}
+
+		this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
 	}
 
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
@@ -259,42 +294,29 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			collapsedEntries = normalizedStore.getEntries(sessionId);
 		}
 
-		return collapsedEntries.map((entry) => {
-			if (!isToolCallEntry(entry)) {
-				return entry;
-			}
-
-			return {
-				id: entry.id,
-				type: entry.type,
-				message: {
-					...entry.message,
-					normalizedResult: normalizeToolResult(entry.message),
-				},
-				timestamp: entry.timestamp,
-				isStreaming: entry.isStreaming,
-			};
-		});
+		return collapsedEntries.map((entry) => this.normalizeRuntimeEntry(entry));
 	}
 
 	/**
 	 * Add an entry to a session.
 	 */
 	addEntry(sessionId: string, entry: SessionEntry): void {
+		const normalizedEntry = this.normalizeRuntimeEntry(entry);
 		const entries = this.entriesById.get(sessionId) ?? [];
-		const newEntries = [...entries, entry];
+		const newEntries = [...entries, normalizedEntry];
 		this.entriesById.set(sessionId, newEntries);
 		const newIndex = newEntries.length - 1;
-		this.entryIndex.addEntryId(sessionId, entry.id, newIndex);
-		if (entry.type === "assistant") {
-			this.entryIndex.addMessageId(sessionId, entry.id, newIndex);
-		} else if (isToolCallEntry(entry)) {
-			this.entryIndex.addToolCallId(sessionId, entry.message.id, newIndex);
+		this.entryIndex.addEntryId(sessionId, normalizedEntry.id, newIndex);
+		if (normalizedEntry.type === "assistant") {
+			this.entryIndex.addMessageId(sessionId, normalizedEntry.id, newIndex);
+		} else if (isToolCallEntry(normalizedEntry)) {
+			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
 		}
+		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 		logger.debug("addEntry: appended entry", {
 			sessionId,
-			entryId: entry.id,
-			entryType: entry.type,
+			entryId: normalizedEntry.id,
+			entryType: normalizedEntry.type,
 			entryCount: newEntries.length,
 		});
 	}
@@ -321,36 +343,39 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const entries = this.entriesById.get(sessionId);
 		if (!entries || index < 0 || index >= entries.length) return;
 		const previousEntry = entries[index];
+		const normalizedEntry = this.normalizeRuntimeEntry(updatedEntry);
 		const newEntries = [...entries];
-		newEntries[index] = updatedEntry;
+		newEntries[index] = normalizedEntry;
 		this.entriesById.set(sessionId, newEntries);
 		logger.debug("updateEntry: replaced entry", {
 			sessionId,
 			index,
-			entryId: updatedEntry.id,
-			entryType: updatedEntry.type,
+			entryId: normalizedEntry.id,
+			entryType: normalizedEntry.type,
 			entryCount: newEntries.length,
 		});
 
-		if (previousEntry.id !== updatedEntry.id) {
+		if (previousEntry.id !== normalizedEntry.id) {
 			this.entryIndex.deleteEntryId(sessionId, previousEntry.id);
 		}
-		this.entryIndex.addEntryId(sessionId, updatedEntry.id, index);
+		this.entryIndex.addEntryId(sessionId, normalizedEntry.id, index);
 
 		// Incremental index updates avoid O(n) rebuilds on every streamed/tool-call update.
-		if (previousEntry.type === "assistant" && updatedEntry.type === "assistant") {
-			if (previousEntry.id !== updatedEntry.id) {
+		if (previousEntry.type === "assistant" && normalizedEntry.type === "assistant") {
+			if (previousEntry.id !== normalizedEntry.id) {
 				this.entryIndex.deleteMessageId(sessionId, previousEntry.id);
-				this.entryIndex.addMessageId(sessionId, updatedEntry.id, index);
+				this.entryIndex.addMessageId(sessionId, normalizedEntry.id, index);
 			}
 		} else if (previousEntry.type === "assistant") {
 			this.entryIndex.deleteMessageId(sessionId, previousEntry.id);
-		} else if (updatedEntry.type === "assistant") {
-			this.entryIndex.addMessageId(sessionId, updatedEntry.id, index);
+		} else if (normalizedEntry.type === "assistant") {
+			this.entryIndex.addMessageId(sessionId, normalizedEntry.id, index);
 		}
 
 		const previousToolCallId = isToolCallEntry(previousEntry) ? previousEntry.message.id : null;
-		const updatedToolCallId = isToolCallEntry(updatedEntry) ? updatedEntry.message.id : null;
+		const updatedToolCallId = isToolCallEntry(normalizedEntry)
+			? normalizedEntry.message.id
+			: null;
 		if (previousToolCallId !== null && updatedToolCallId !== null) {
 			if (previousToolCallId !== updatedToolCallId) {
 				// No delete API for tool index; fallback to rebuild when ID changes.
@@ -361,6 +386,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
 			this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 		}
+		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 	}
 
 	/**

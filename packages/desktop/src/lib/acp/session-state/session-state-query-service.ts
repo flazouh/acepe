@@ -1,7 +1,5 @@
 import type {
-	SessionOpenFound,
 	SessionStateDelta,
-	SessionStateSnapshotMaterialization,
 	ToolArguments,
 	ToolCallStatus,
 	TranscriptDelta,
@@ -9,7 +7,6 @@ import type {
 } from "../../services/acp-types.js";
 import type { ToolCallData } from "../../services/converted-session-types.js";
 import type { ToolCall, ToolCallUpdate } from "../types/tool-call.js";
-import { materializeSnapshotFromOpenFound } from "./session-state-protocol.js";
 
 export type SessionStateDeltaResolution =
 	| {
@@ -24,12 +21,6 @@ export type SessionStateDeltaResolution =
 	| {
 			kind: "noop";
 	  };
-
-export function materializeSessionOpenState(
-	found: SessionOpenFound
-): SessionStateSnapshotMaterialization {
-	return materializeSnapshotFromOpenFound(found);
-}
 
 export function transcriptOperationsFromDelta(
 	delta: SessionStateDelta
@@ -57,8 +48,8 @@ export function resolveSessionStateDelta(
 	currentRevision: number | undefined,
 	delta: SessionStateDelta
 ): SessionStateDeltaResolution {
-	const fromRevision = delta.fromRevision.graphRevision;
-	const toRevision = delta.toRevision.graphRevision;
+	const fromRevision = delta.fromRevision.transcriptRevision;
+	const toRevision = delta.toRevision.transcriptRevision;
 
 	if (currentRevision === undefined) {
 		if (fromRevision > 0) {
@@ -88,7 +79,7 @@ export function resolveSessionStateDelta(
 		delta: {
 			eventSeq: delta.toRevision.lastEventSeq,
 			sessionId,
-			snapshotRevision: delta.toRevision.graphRevision,
+			snapshotRevision: delta.toRevision.transcriptRevision,
 			operations,
 		},
 	};

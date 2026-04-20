@@ -53,6 +53,7 @@ pub fn transition_from_classification(
 }
 
 /// Convenience: verify projector-derived kind matches payload (`kind` remains derived metadata).
+#[cfg(test)]
 pub fn projected_tool_kind(arguments: &ToolArguments) -> crate::acp::session_update::ToolKind {
     arguments.tool_kind()
 }

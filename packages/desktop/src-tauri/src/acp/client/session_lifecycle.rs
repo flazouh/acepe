@@ -111,11 +111,7 @@ impl AcpClient {
         );
         provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
 
-        let agent_type = self
-            .provider
-            .as_ref()
-            .map(|p| p.parser_agent_type())
-            .unwrap_or(AgentType::ClaudeCode);
+        let agent_type = provider.parser_agent_type();
         let capabilities =
             crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
         let presentation = crate::acp::model_display::ModelPresentationMetadata {
@@ -229,11 +225,7 @@ impl AcpClient {
             &mut response.modes,
         )?;
 
-        let agent_type = self
-            .provider
-            .as_ref()
-            .map(|p| p.parser_agent_type())
-            .unwrap_or(AgentType::ClaudeCode);
+        let agent_type = provider.parser_agent_type();
         let capabilities =
             crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
         let presentation = crate::acp::model_display::ModelPresentationMetadata {
@@ -295,11 +287,7 @@ impl AcpClient {
         );
         provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
 
-        let agent_type = self
-            .provider
-            .as_ref()
-            .map(|p| p.parser_agent_type())
-            .unwrap_or(AgentType::ClaudeCode);
+        let agent_type = provider.parser_agent_type();
         let capabilities =
             crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
         let presentation = crate::acp::model_display::ModelPresentationMetadata {

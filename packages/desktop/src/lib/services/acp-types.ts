@@ -346,7 +346,7 @@ export type SessionOpenResult =
  */
 ({ outcome: "found" } & SessionOpenFound) | ({ outcome: "missing" } & SessionOpenMissing) | ({ outcome: "error" } & SessionOpenError)
 
-export type SessionGraphRevision = { graphRevision: number; lastEventSeq: number }
+export type SessionGraphRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
 export type SessionGraphLifecycleStatus = "idle" | "connecting" | "ready" | "error"
 

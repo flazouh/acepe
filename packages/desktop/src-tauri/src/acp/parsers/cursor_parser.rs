@@ -279,8 +279,13 @@ impl CursorParser {
             name_kind
         } else {
             let kind_hint = acp_fields::extract_kind_hint(data);
-            kind_utils::infer_kind_from_payload(&id, title.as_deref(), kind_hint)
-                .unwrap_or(name_kind)
+            kind_utils::infer_kind_from_payload_for_agent(
+                AgentType::Cursor,
+                &id,
+                title.as_deref(),
+                kind_hint,
+            )
+            .unwrap_or(name_kind)
         };
 
         let has_locations = data

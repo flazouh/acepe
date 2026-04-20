@@ -4,6 +4,7 @@
 //! into here instead of owning semantic policy in `parsers/kind`.
 
 use crate::acp::session_update::ToolKind;
+use crate::acp::{parsers::AgentType, reconciler::providers};
 
 /// Infer `ToolKind` from an ACP payload's `kind` field value.
 ///
@@ -11,6 +12,15 @@ use crate::acp::session_update::ToolKind;
 /// When the kind is `"search"` and contextual signals indicate a web search,
 /// returns `ToolKind::WebSearch` instead.
 pub fn infer_kind_from_payload(
+    id: &str,
+    title: Option<&str>,
+    kind_value: Option<&str>,
+) -> Option<ToolKind> {
+    infer_kind_from_payload_for_agent(AgentType::ClaudeCode, id, title, kind_value)
+}
+
+pub fn infer_kind_from_payload_for_agent(
+    agent: AgentType,
     id: &str,
     title: Option<&str>,
     kind_value: Option<&str>,
@@ -70,7 +80,8 @@ pub fn infer_kind_from_payload(
 
     let kind = kind_opt?;
 
-    let is_web_search = is_web_search_id(id) || title.map(is_web_search_title).unwrap_or(false);
+    let is_web_search = providers::is_web_search_tool_call_id(agent, id)
+        || title.map(is_web_search_title).unwrap_or(false);
 
     match kind.as_str() {
         "read" => Some(ToolKind::Read),
@@ -176,8 +187,6 @@ pub fn is_browser_tool_name(name: &str) -> bool {
     // Extract the function segment from MCP naming: mcp__server__func → func, server-func → func
     let func_segment = if lower.contains("__") {
         lower.rsplit("__").next().unwrap_or(&lower)
-    } else if lower.contains('-') {
-        &lower
     } else {
         &lower
     };
@@ -185,11 +194,6 @@ pub fn is_browser_tool_name(name: &str) -> bool {
     BROWSER_TOOL_SEGMENTS
         .iter()
         .any(|segment| func_segment == *segment || lower.ends_with(segment))
-}
-
-/// Check whether a tool-call ID looks like a web search.
-pub fn is_web_search_id(id: &str) -> bool {
-    id.starts_with("web_search_") || id.starts_with("ws_")
 }
 
 /// Check whether a title string indicates a web search.
@@ -268,9 +272,17 @@ mod tests {
     }
 
     #[test]
-    fn search_becomes_web_search_with_ws_id() {
+    fn generic_search_id_does_not_imply_web_search() {
         assert_eq!(
             infer_kind_from_payload("ws_123", None, Some("search")),
+            Some(ToolKind::Search)
+        );
+    }
+
+    #[test]
+    fn cursor_search_id_becomes_web_search() {
+        assert_eq!(
+            infer_kind_from_payload_for_agent(AgentType::Cursor, "ws_123", None, Some("search")),
             Some(ToolKind::WebSearch)
         );
     }

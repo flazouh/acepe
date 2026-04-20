@@ -1,5 +1,6 @@
 use super::*;
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
@@ -12,8 +13,8 @@ use crate::commands::observability::{
     unexpected_command_result, CommandResult, SerializableCommandError,
 };
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionThreadSnapshotRepository,
-    SessionTranscriptSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
+    SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
 };
 use crate::opencode_history::commands::fetch_opencode_session;
 use sea_orm::{
@@ -147,16 +148,82 @@ fn build_transcript_snapshot(
     )
 }
 
+fn build_projection_snapshot(
+    replay_context: &SessionReplayContext,
+    revision: i64,
+    snapshot: &SessionThreadSnapshot,
+) -> crate::acp::projections::SessionProjectionSnapshot {
+    let mut projection = ProjectionRegistry::project_thread_snapshot(
+        &replay_context.local_session_id,
+        Some(replay_context.agent_id.clone()),
+        snapshot,
+    );
+    if let Some(session) = projection.session.as_mut() {
+        session.last_event_seq = revision;
+    }
+    projection
+}
+
+fn projection_last_event_seq(
+    snapshot: &crate::acp::projections::SessionProjectionSnapshot,
+) -> Option<i64> {
+    snapshot
+        .session
+        .as_ref()
+        .map(|session| session.last_event_seq)
+}
+
 async fn persist_canonical_materialization(
     db: &DbConn,
     replay_context: &SessionReplayContext,
     snapshot: &SessionThreadSnapshot,
 ) -> Result<(), String> {
     let session_id = replay_context.local_session_id.clone();
+    let replay_context_for_txn = replay_context.clone();
+    let file_path = replay_context
+        .source_path
+        .clone()
+        .unwrap_or_else(|| format!("__session_registry__/{}", replay_context.local_session_id));
+
+    SessionMetadataRepository::upsert(
+        db,
+        replay_context.local_session_id.clone(),
+        snapshot.title.clone(),
+        chrono::Utc::now().timestamp_millis(),
+        replay_context.project_path.clone(),
+        replay_context.agent_id.as_str().to_string(),
+        file_path.clone(),
+        0,
+        0,
+    )
+    .await
+    .map_err(|error| {
+        format!(
+            "Failed to persist canonical session metadata for {}: {error}",
+            replay_context.local_session_id
+        )
+    })?;
+    if let Some(worktree_path) = replay_context.worktree_path.as_deref() {
+        SessionMetadataRepository::set_worktree_path(
+            db,
+            &replay_context.local_session_id,
+            worktree_path,
+            Some(&replay_context.project_path),
+            Some(replay_context.agent_id.as_str()),
+        )
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to persist canonical worktree metadata for {}: {error}",
+                replay_context.local_session_id
+            )
+        })?;
+    }
 
     db.transaction::<_, (), sea_orm::DbErr>(|txn| {
         let session_id = session_id.clone();
         let snapshot = snapshot.clone();
+        let replay_context = replay_context_for_txn.clone();
         Box::pin(async move {
             let now = chrono::Utc::now();
             let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
@@ -245,6 +312,34 @@ async fn persist_canonical_materialization(
                 .await?;
             }
 
+            let projection_snapshot_json = serde_json::to_string(&build_projection_snapshot(
+                &replay_context,
+                revision,
+                &snapshot,
+            ))
+            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
+            if let Some(existing_model) =
+                crate::db::entities::session_projection_snapshot::Entity::find_by_id(&session_id)
+                    .one(txn)
+                    .await?
+            {
+                let mut active: crate::db::entities::session_projection_snapshot::ActiveModel =
+                    existing_model.into();
+                active.snapshot_json = Set(projection_snapshot_json);
+                active.updated_at = Set(now);
+                active.update(txn).await?;
+            } else {
+                crate::db::entities::session_projection_snapshot::Entity::insert(
+                    crate::db::entities::session_projection_snapshot::ActiveModel {
+                        session_id: Set(session_id.clone()),
+                        snapshot_json: Set(projection_snapshot_json),
+                        updated_at: Set(now),
+                    },
+                )
+                .exec(txn)
+                .await?;
+            }
+
             Ok(())
         })
     })
@@ -254,7 +349,9 @@ async fn persist_canonical_materialization(
             "Failed to persist canonical snapshots for {}: {error}",
             replay_context.local_session_id
         )
-    })
+    })?;
+
+    Ok(())
 }
 
 pub async fn ensure_canonical_session_materialized(
@@ -284,19 +381,15 @@ pub async fn ensure_canonical_session_materialized(
                     replay_context.local_session_id
                 )
             })?;
-    let transcript_stale = match cached_transcript.as_ref() {
-        Some(snapshot) => snapshot.revision < journal_max,
-        None => true,
-    };
-    if !transcript_stale {
-        return Ok(None);
-    }
-
-    // Lazy-upgrade tier: if a canonical thread snapshot is already persisted, use it
-    // to rebuild the transcript and projection snapshots without a provider history
-    // reload.  This keeps re-open cheap for sessions that have been materialized at
-    // least once and whose journal has since advanced (e.g. new live events after the
-    // last materialization barrier).
+    let cached_projection =
+        SessionProjectionSnapshotRepository::get(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load projection snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
     let cached_thread = SessionThreadSnapshotRepository::get(
         &db,
         &replay_context.local_session_id,
@@ -309,24 +402,6 @@ pub async fn ensure_canonical_session_materialized(
             replay_context.local_session_id
         )
     })?;
-
-    if let Some(thread_snapshot) = cached_thread {
-        let session_metadata =
-            SessionMetadataRepository::get_by_id(&db, &replay_context.local_session_id)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "Failed to load session metadata for {}: {error}",
-                        replay_context.local_session_id
-                    )
-                })?;
-        let thread_snapshot = apply_derived_current_mode_metadata(thread_snapshot);
-        let thread_snapshot =
-            apply_session_title_metadata(thread_snapshot, session_metadata.as_ref());
-        persist_canonical_materialization(&db, replay_context, &thread_snapshot).await?;
-        return Ok(Some(thread_snapshot));
-    }
-
     let session_metadata =
         SessionMetadataRepository::get_by_id(&db, &replay_context.local_session_id)
             .await
@@ -336,6 +411,39 @@ pub async fn ensure_canonical_session_materialized(
                     replay_context.local_session_id
                 )
             })?;
+    let has_persisted_open_bundle = cached_transcript.is_some() && cached_projection.is_some();
+    if has_persisted_open_bundle && session_metadata.is_none() {
+        return Err(format!(
+            "Canonical materialization for {} is missing metadata",
+            replay_context.local_session_id
+        ));
+    }
+    let transcript_stale = match cached_transcript.as_ref() {
+        Some(snapshot) => snapshot.revision < journal_max,
+        None => true,
+    };
+    let projection_stale = match cached_projection.as_ref() {
+        Some(snapshot) => projection_last_event_seq(snapshot)
+            .map(|last_event_seq| last_event_seq < journal_max)
+            .unwrap_or(true),
+        None => true,
+    };
+    if has_persisted_open_bundle && !transcript_stale && !projection_stale {
+        return Ok(None);
+    }
+
+    // Lazy-upgrade tier: if a canonical thread snapshot is already persisted, use it
+    // to rebuild the transcript and projection snapshots without a provider history
+    // reload.  This keeps re-open cheap for sessions that have been materialized at
+    // least once and whose journal has since advanced (e.g. new live events after the
+    // last materialization barrier).
+    if let Some(thread_snapshot) = cached_thread {
+        let thread_snapshot = apply_derived_current_mode_metadata(thread_snapshot);
+        let thread_snapshot =
+            apply_session_title_metadata(thread_snapshot, session_metadata.as_ref());
+        persist_canonical_materialization(&db, replay_context, &thread_snapshot).await?;
+        return Ok(Some(thread_snapshot));
+    }
 
     let context = crate::history::session_context::SessionContext {
         local_session_id: replay_context.local_session_id.clone(),
@@ -393,6 +501,26 @@ pub async fn get_session_open_result(
                 )
             })?;
     let metadata_exists = session_metadata.is_some();
+    let transcript_exists =
+        SessionTranscriptSnapshotRepository::get(db.inner(), &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load transcript snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?
+            .is_some();
+    let projection_exists =
+        SessionProjectionSnapshotRepository::get(db.inner(), &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load projection snapshot for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?
+            .is_some();
     let journal_cutoff =
         SessionJournalEventRepository::max_event_seq(db.inner(), &replay_context.local_session_id)
             .await
@@ -403,10 +531,21 @@ pub async fn get_session_open_result(
                 )
             })?;
 
-    if !metadata_exists && journal_cutoff.is_none() && !has_thread_content {
+    if !transcript_exists && !projection_exists && !has_thread_content && journal_cutoff.is_none() {
         return Ok(SessionOpenResult::Missing(SessionOpenMissing {
             requested_session_id: session_id,
         }));
+    }
+    if has_thread_content && (!transcript_exists || !projection_exists || !metadata_exists) {
+        return Ok(SessionOpenResult::Error(
+            crate::acp::session_open_snapshot::SessionOpenError {
+                requested_session_id: session_id,
+                message: format!(
+                    "Canonical materialization for {} is incomplete after upgrade",
+                    replay_context.local_session_id
+                ),
+            },
+        ));
     }
 
     Ok(assemble_session_open_result(db.inner(), &hub, &replay_context, &session_id).await)
@@ -426,7 +565,8 @@ mod tests {
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::{
         SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
-        SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
+        SessionTranscriptSnapshotRepository,
     };
     use crate::session_jsonl::types::StoredEntry;
     use sea_orm::{Database, DbConn};
@@ -667,7 +807,20 @@ mod tests {
                 .await
                 .expect("load transcript")
                 .expect("expected transcript");
+        let projection_snapshot =
+            SessionProjectionSnapshotRepository::get(&db, "canonical-tool-session")
+                .await
+                .expect("load projection")
+                .expect("expected projection");
         assert_eq!(transcript_snapshot.revision, 1);
+        assert_eq!(
+            projection_snapshot
+                .session
+                .as_ref()
+                .expect("session projection")
+                .last_event_seq,
+            1
+        );
         let result =
             assemble_session_open_result(&db, &hub, &replay_context, "canonical-tool-session")
                 .await;
@@ -752,11 +905,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn session_with_no_materialized_projection_returns_empty_operations_and_interactions() {
-        // A pre-cutover session that has not yet been materialized through the
-        // canonical path returns an open result with no operations or interactions
-        // rather than an error. This is the invariant that keeps older sessions
-        // openable while the canonical pipeline rolls out.
+    async fn session_with_no_materialized_canonical_snapshots_returns_error() {
+        // Open now requires the canonical persisted bundle. A pre-cutover session
+        // cannot reopen through assemble_session_open_result until the lazy-upgrade
+        // path has materialized transcript + projection + metadata together.
         let db = setup_test_db().await;
         let hub = Arc::new(AcpEventHubState::new());
         SessionMetadataRepository::ensure_exists(
@@ -781,22 +933,18 @@ mod tests {
             compatibility: SessionDescriptorCompatibility::Canonical,
         };
 
-        // Intentionally do NOT call persist_canonical_materialization — simulates a
-        // pre-cutover session that has no canonical projection in the DB yet.
         let result =
             assemble_session_open_result(&db, &hub, &replay_context, "pre-cutover-session").await;
 
-        // Must return a valid Found result (not Error) so the session is still openable
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found for pre-cutover session, got {result:?}");
+        let SessionOpenResult::Error(error) = result else {
+            panic!("expected Error for pre-cutover session, got {result:?}");
         };
         assert!(
-            found.operations.is_empty(),
-            "expected empty operations for pre-cutover session"
-        );
-        assert!(
-            found.interactions.is_empty(),
-            "expected empty interactions for pre-cutover session"
+            error
+                .message
+                .contains("Canonical projection snapshot missing"),
+            "expected canonical projection error, got {}",
+            error.message
         );
     }
 
@@ -918,6 +1066,64 @@ mod tests {
 
         assert_eq!(thread.title, "Version two");
         assert_eq!(thread.entries.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn materialization_persists_projection_snapshot_and_open_metadata() {
+        let db = setup_test_db().await;
+        let replay_context = SessionReplayContext {
+            local_session_id: "materialized-open-metadata".to_string(),
+            history_session_id: "provider-materialized-open-metadata".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: crate::acp::parsers::AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: Some("/repo/.git/worktrees/feature".to_string()),
+            effective_cwd: "/repo/.git/worktrees/feature".to_string(),
+            source_path: Some("/repo/.git/worktrees/feature/.copilot/chat.jsonl".to_string()),
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![make_tool_call_entry(
+                "tool-read-persisted-open",
+                ToolKind::Read,
+                ToolCallStatus::Completed,
+            )],
+            title: "Materialized Open Metadata".to_string(),
+            created_at: "2026-04-19T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+
+        persist_canonical_materialization(&db, &replay_context, &snapshot)
+            .await
+            .expect("persist canonical materialization");
+
+        let projection =
+            SessionProjectionSnapshotRepository::get(&db, "materialized-open-metadata")
+                .await
+                .expect("load projection")
+                .expect("expected projection snapshot");
+        assert_eq!(
+            projection
+                .session
+                .as_ref()
+                .expect("session projection")
+                .last_event_seq,
+            1
+        );
+
+        let metadata = SessionMetadataRepository::get_by_id(&db, "materialized-open-metadata")
+            .await
+            .expect("load metadata")
+            .expect("expected metadata");
+        assert_eq!(metadata.display, "Materialized Open Metadata");
+        assert_eq!(
+            metadata.file_path,
+            "/repo/.git/worktrees/feature/.copilot/chat.jsonl"
+        );
+        assert_eq!(
+            metadata.worktree_path.as_deref(),
+            Some("/repo/.git/worktrees/feature")
+        );
     }
 
     // =========================================================================

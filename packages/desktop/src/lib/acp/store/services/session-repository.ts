@@ -18,11 +18,10 @@ import { AgentError, type AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import {
-	deriveSessionTitleFromUserInput,
 	isFallbackSessionTitle,
 	stripArtifactsFromTitle,
 } from "../session-title-policy.js";
-import type { SessionCold, SessionEntry } from "../types.js";
+import type { SessionCold } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -31,22 +30,6 @@ import type {
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-repository", name: "SessionRepository" });
-
-function deriveTitleFromFirstUserMessage(entries: readonly SessionEntry[]): string | null {
-	const firstUserMessage = entries.find(
-		(entry): entry is SessionEntry & { type: "user" } => entry.type === "user"
-	);
-	if (!firstUserMessage) {
-		return null;
-	}
-
-	const textContent = firstUserMessage.message.chunks
-		.filter((block) => block.type === "text")
-		.map((block) => ("text" in block ? block.text : ""))
-		.join("\n");
-
-	return textContent ? deriveSessionTitleFromUserInput(textContent) : null;
-}
 
 function isReplaceableSessionTitle(title: string | null | undefined): boolean {
 	if (title === null || title === undefined) {
@@ -67,14 +50,9 @@ function isReplaceableSessionTitle(title: string | null | undefined): boolean {
 }
 
 function resolveSessionTitle(
-	derivedTitle: string | null,
 	scannedTitle: string | null,
 	existingTitle: string | null
 ): string | null {
-	if (derivedTitle !== null && derivedTitle !== "") {
-		return derivedTitle;
-	}
-
 	if (
 		existingTitle !== null &&
 		existingTitle !== undefined &&
@@ -249,14 +227,7 @@ export class SessionRepository {
 			const existingSession = existingSessionsMap.get(scannedSession.id);
 
 			if (existingSession) {
-				const derivedTitle = this.entryManager.isPreloaded(scannedSession.id)
-					? deriveTitleFromFirstUserMessage(this.entryManager.getEntries(scannedSession.id))
-					: null;
-				const title = resolveSessionTitle(
-					derivedTitle,
-					scannedSession.title,
-					existingSession.title
-				);
+				const title = resolveSessionTitle(scannedSession.title, existingSession.title);
 
 				// Merge with existing session - update metadata from scan
 				mergedSessions.push({
@@ -428,24 +399,13 @@ export class SessionRepository {
 			return okAsync(existing);
 		}
 
-		let finalTitle = title;
-		const entries = this.entryManager.getEntries(id);
-		const derivedTitle = deriveTitleFromFirstUserMessage(entries);
-		if (derivedTitle) {
-			logger.debug("Derived title from first user message", {
-				id,
-				derivedTitle,
-			});
-			finalTitle = derivedTitle;
-		}
-
 		const now = new Date();
 		const session: SessionCold = {
 			id,
 			projectPath,
 			agentId,
 			worktreePath,
-			title: finalTitle,
+			title,
 			updatedAt: now,
 			createdAt: now,
 			sourcePath,
@@ -455,7 +415,7 @@ export class SessionRepository {
 		};
 
 		this.stateWriter.addSession(session);
-		logger.debug("Historical session loaded", { id, titleUsed: finalTitle });
+		logger.debug("Historical session loaded", { id, titleUsed: title });
 
 		return okAsync(session);
 	}
@@ -482,14 +442,7 @@ export class SessionRepository {
 			const existingSession = existingSessionsMap.get(historySession.id);
 
 			if (existingSession && this.entryManager.isPreloaded(existingSession.id)) {
-				const derivedTitle = deriveTitleFromFirstUserMessage(
-					this.entryManager.getEntries(existingSession.id)
-				);
-				const title = resolveSessionTitle(
-					derivedTitle,
-					historySession.title,
-					existingSession.title
-				);
+				const title = resolveSessionTitle(historySession.title, existingSession.title);
 				mergedSessions.push({
 					...existingSession,
 					// Propagate worktreePath from scan if the loading shell was created without it
@@ -508,7 +461,7 @@ export class SessionRepository {
 				});
 				existingSessionsMap.delete(historySession.id);
 			} else if (existingSession) {
-				const title = resolveSessionTitle(null, historySession.title, existingSession.title);
+				const title = resolveSessionTitle(historySession.title, existingSession.title);
 				// Session exists but not preloaded - use history metadata
 				mergedSessions.push({
 					...historySession,
