@@ -241,7 +241,7 @@ function mergeOperationSnapshot(
 		name: snapshot.name,
 		kind: snapshot.kind,
 		status: snapshot.status,
-		lifecycle: snapshot.lifecycle,
+		lifecycle: snapshot.lifecycle ?? currentOperation?.lifecycle ?? "pending",
 		blockedReason: snapshot.blocked_reason ?? null,
 		title: nextTitle,
 		arguments: nextArguments,
