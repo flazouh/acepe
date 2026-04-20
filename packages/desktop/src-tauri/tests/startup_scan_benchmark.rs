@@ -668,8 +668,8 @@ async fn sqlite_index_scan() {
         let elapsed = ms(t.elapsed());
         durations.push(elapsed);
 
-        if let Ok(entries) = &result {
-            entry_count = entries.len();
+        if let Ok(lookup) = &result {
+            entry_count = lookup.entries.len();
         }
 
         if i == 0 {
@@ -719,8 +719,14 @@ async fn startup_simulation() {
     )
     .await;
     let idx_ms = ms(t_idx.elapsed());
-    let index_count = index_result.as_ref().map(|v| v.len()).unwrap_or(0);
-    let index_populated = index_result.ok().filter(|v| !v.is_empty()).is_some();
+    let index_count = index_result
+        .as_ref()
+        .map(|lookup| lookup.entries.len())
+        .unwrap_or(0);
+    let index_populated = index_result
+        .ok()
+        .filter(|lookup| lookup.db_row_count > 0)
+        .is_some();
 
     println!("\nStep 1: SQLite index query");
     println!(

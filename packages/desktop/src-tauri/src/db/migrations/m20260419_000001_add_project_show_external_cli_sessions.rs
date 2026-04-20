@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Projects::ShowExternalCliSessions)
                             .boolean()
                             .not_null()
-                            .default(true),
+                            .default(false),
                     )
                     .to_owned(),
             )

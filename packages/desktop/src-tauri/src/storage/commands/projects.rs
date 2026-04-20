@@ -585,7 +585,7 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                         color: assigned_color,
                         sort_order: 0,
                         icon_path: None,
-                        show_external_cli_sessions: true,
+                        show_external_cli_sessions: false,
                     }))
                 }
                 None => {

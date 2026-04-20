@@ -50,6 +50,34 @@ pub struct ProjectRow {
 pub struct ProjectRepository;
 
 impl ProjectRepository {
+    fn load_project_config(path: &str) -> acepe_config::AcepeConfig {
+        let project_path = Path::new(path);
+        if !project_path.is_dir() {
+            return acepe_config::AcepeConfig::default();
+        }
+
+        match acepe_config::ensure_exists(project_path) {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    path,
+                    "Failed to ensure project config exists; using defaults"
+                );
+                acepe_config::read_or_default(project_path)
+            }
+        }
+    }
+
+    fn ensure_project_config(path: &str) -> Result<acepe_config::AcepeConfig> {
+        let project_path = Path::new(path);
+        if !project_path.is_dir() {
+            return Ok(acepe_config::AcepeConfig::default());
+        }
+
+        Ok(acepe_config::ensure_exists(project_path)?)
+    }
+
     fn display_name(path: &str, stored_name: &str) -> String {
         std::path::Path::new(path)
             .file_name()
@@ -62,8 +90,9 @@ impl ProjectRepository {
     fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
         let name = Self::display_name(&model.path, &model.name);
         let color = model.color.clone();
-        let show_external_cli_sessions =
-            acepe_config::read_or_default(Path::new(&model.path)).external_cli_sessions.show;
+        let show_external_cli_sessions = Self::load_project_config(&model.path)
+            .external_cli_sessions
+            .show;
 
         ProjectRow {
             id: model.id,
@@ -121,8 +150,9 @@ impl ProjectRepository {
                 path = %path,
                 "Project updated"
             );
-            let show_external_cli_sessions =
-                acepe_config::read_or_default(Path::new(&path)).external_cli_sessions.show;
+            let show_external_cli_sessions = Self::ensure_project_config(&path)?
+                .external_cli_sessions
+                .show;
 
             ProjectRow {
                 id,
@@ -168,6 +198,9 @@ impl ProjectRepository {
                 color = %assigned_color,
                 "Project created"
             );
+            let show_external_cli_sessions = Self::ensure_project_config(&path)?
+                .external_cli_sessions
+                .show;
 
             ProjectRow {
                 id,
@@ -178,7 +211,7 @@ impl ProjectRepository {
                 color: assigned_color,
                 sort_order: 0,
                 icon_path: None,
-                show_external_cli_sessions: true,
+                show_external_cli_sessions,
             }
         };
 

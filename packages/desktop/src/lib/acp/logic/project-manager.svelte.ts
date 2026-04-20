@@ -206,7 +206,7 @@ export class ProjectManager {
 			createdAt: new SvelteDate(),
 			sortOrder: 0,
 			iconPath: null,
-			showExternalCliSessions: true,
+			showExternalCliSessions: false,
 		};
 
 		const shiftedProjects = this.projects.map((existingProject) => ({
