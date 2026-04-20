@@ -1,161 +1,162 @@
 <script lang="ts">
-	import {
-		AgentPanelScene,
-		AgentPanelComposer,
-		AgentPanelComposerFrame,
-		AgentPanelFooter,
-		AgentInputEditor,
-		AgentInputToolbar,
-		AgentInputModeSelector,
-		AgentInputDivider,
-		AgentInputAutonomousToggle,
-		AgentInputModelSelector,
-		AgentInputMetricsChip,
-		AgentInputMicButton,
-		type AgentPanelSceneModel,
-	} from "@acepe/ui";
-	import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
-	import {
-		AppMainLayout,
-		AppSidebarLayout,
-		AppSidebarProjectGroup,
-		AppSidebarFooter,
-		AppTabBarTab,
-		type AppProjectGroup,
-		type AppTab,
-	} from "@acepe/ui/app-layout";
-	import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
+import {
+	AgentPanelScene,
+	AgentPanelComposer,
+	AgentPanelComposerFrame,
+	AgentPanelFooter,
+	AgentInputEditor,
+	AgentInputToolbar,
+	AgentInputModeSelector,
+	AgentInputDivider,
+	AgentInputAutonomousToggle,
+	AgentInputModelSelector,
+	AgentInputMetricsChip,
+	AgentInputMicButton,
+	type AgentPanelSceneModel,
+} from "@acepe/ui";
+import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
+import {
+	AppMainLayout,
+	AppSidebarLayout,
+	AppSidebarProjectGroup,
+	AppSidebarFooter,
+	AppTabBarTab,
+	type AppProjectGroup,
+	type AppTab,
+} from "@acepe/ui/app-layout";
+import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 
-	import LandingDemoFrame from "./landing-demo-frame.svelte";
-	import { websiteThemeStore } from "$lib/theme/theme.js";
+import LandingDemoFrame from "./landing-demo-frame.svelte";
+import { websiteThemeStore } from "$lib/theme/theme.js";
 
-	const theme = $derived($websiteThemeStore);
+const theme = $derived($websiteThemeStore);
 
-	function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
-		if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
-		if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
-		if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
-		return `/svgs/agents/claude/claude-icon-${t}.svg`;
-	}
+function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
+	if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
+	if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
+	if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
+	return `/svgs/agents/claude/claude-icon-${t}.svg`;
+}
 
-	const sidebarGroups = $derived<AppProjectGroup[]>([
-		{ name: "acepe", color: "#9858FF", sessions: [] },
-		{ name: "VC", color: "#E879F9", sessions: [] },
-		{ name: "luminar", color: "#FACC15", sessions: [] },
-		{ name: "fluentai", color: "#8B5CF6", sessions: [] },
-	]);
+const sidebarGroups = $derived<AppProjectGroup[]>([
+	{ name: "acepe", color: "#9858FF", sessions: [] },
+	{ name: "VC", color: "#E879F9", sessions: [] },
+	{ name: "luminar", color: "#FACC15", sessions: [] },
+	{ name: "fluentai", color: "#8B5CF6", sessions: [] },
+]);
 
-	const tabs = $derived<AppTab[]>([
-		{
-			id: "single-tab-1",
-			title: "how to run a w",
-			projectName: "acepe",
-			projectColor: "#9858FF",
-			agentIconSrc: agentIcon("claude", theme),
-			mode: "build",
-			status: "idle",
-			isFocused: false,
-		},
-		{
-			id: "single-tab-2",
-			title: "for our websit",
-			projectName: "acepe",
-			projectColor: "#9858FF",
-			agentIconSrc: agentIcon("claude", theme),
-			mode: "build",
-			status: "idle",
-			isFocused: false,
-		},
-		{
-			id: "single-tab-3",
-			title: "i would like yo",
-			projectName: "VC",
-			projectColor: "#E879F9",
-			agentIconSrc: agentIcon("claude", theme),
-			mode: "build",
-			status: "done",
-			isFocused: true,
-		},
-	]);
+const tabs = $derived<AppTab[]>([
+	{
+		id: "single-tab-1",
+		title: "how to run a w",
+		projectName: "acepe",
+		projectColor: "#9858FF",
+		agentIconSrc: agentIcon("claude", theme),
+		mode: "build",
+		status: "idle",
+		isFocused: false,
+	},
+	{
+		id: "single-tab-2",
+		title: "for our websit",
+		projectName: "acepe",
+		projectColor: "#9858FF",
+		agentIconSrc: agentIcon("claude", theme),
+		mode: "build",
+		status: "idle",
+		isFocused: false,
+	},
+	{
+		id: "single-tab-3",
+		title: "i would like yo",
+		projectName: "VC",
+		projectColor: "#E879F9",
+		agentIconSrc: agentIcon("claude", theme),
+		mode: "build",
+		status: "done",
+		isFocused: true,
+	},
+]);
 
-	const scene = $derived<AgentPanelSceneModel>({
-		panelId: "single-panel-demo",
+const scene = $derived<AgentPanelSceneModel>({
+	panelId: "single-panel-demo",
+	status: "connected",
+	header: {
+		title:
+			"For our website second section where we showcase each view we have, can you take the exact pixel by ...",
+		subtitle: null,
 		status: "connected",
-		header: {
-			title: "For our website second section where we showcase each view we have, can you take the exact pixel by ...",
-			subtitle: null,
-			status: "connected",
-			agentLabel: null,
-			agentIconSrc: agentIcon("claude", theme),
-			projectLabel: "VC",
-			projectColor: "#E879F9",
-			sequenceId: 3,
-			actions: [],
-		},
-		conversation: {
-			entries: [
-				{
-					id: "single-user-1",
-					type: "user",
-					text: "For our website second section where we showcase each view we have, can you take the exact pixel by pixel design from our actual app and implement it instead of having almost similar as it is now",
-				},
-				{
-					id: "single-tool-1",
-					type: "tool_call",
-					kind: "execute",
-					title: "Run",
-					command: "cd /Users/liya/Documents/acepe/packages/website && bun run check 2>&1 | tail -20",
-					status: "done",
-				},
-				{
-					id: "single-read-1",
-					type: "tool_call",
-					kind: "read",
-					title: "Read",
-					filePath: "landing-single-demo.svelte",
-					status: "done",
-				},
-				{
-					id: "single-assistant-1",
-					type: "assistant",
-					markdown:
-						"Done. The **Single** demo now uses the real desktop composition instead of the simplified version:\n\n- selectors are **injected into the composer toolbar**\n- full composer chrome is back: **mode, autonomous, model, agent, project, metrics, mic**\n- branch picker is rendered in the same separate minimal row as the app",
-					isStreaming: false,
-				},
-			],
-			isStreaming: false,
-		},
-	});
+		agentLabel: null,
+		agentIconSrc: agentIcon("claude", theme),
+		projectLabel: "VC",
+		projectColor: "#E879F9",
+		sequenceId: 3,
+		actions: [],
+	},
+	conversation: {
+		entries: [
+			{
+				id: "single-user-1",
+				type: "user",
+				text: "For our website second section where we showcase each view we have, can you take the exact pixel by pixel design from our actual app and implement it instead of having almost similar as it is now",
+			},
+			{
+				id: "single-tool-1",
+				type: "tool_call",
+				kind: "execute",
+				title: "Run",
+				command: "cd /Users/liya/Documents/acepe/packages/website && bun run check 2>&1 | tail -20",
+				status: "done",
+			},
+			{
+				id: "single-read-1",
+				type: "tool_call",
+				kind: "read",
+				title: "Read",
+				filePath: "landing-single-demo.svelte",
+				status: "done",
+			},
+			{
+				id: "single-assistant-1",
+				type: "assistant",
+				markdown:
+					"Done. The **Single** demo now uses the real desktop composition instead of the simplified version:\n\n- selectors are **injected into the composer toolbar**\n- full composer chrome is back: **mode, autonomous, model, agent, project, metrics, mic**\n- branch picker is rendered in the same separate minimal row as the app",
+				isStreaming: false,
+			},
+		],
+		isStreaming: false,
+	},
+});
 
-	const availableModes = [{ id: "plan" }, { id: "build" }] as const;
+const availableModes = [{ id: "plan" }, { id: "build" }] as const;
 
-	const modelGroups = $derived([
-		{
-			label: "Anthropic",
-			items: [
-				{
-					id: "claude-sonnet-4",
-					name: "Claude Sonnet 4",
-					providerSource: "Anthropic",
-					isFavorite: true,
-					isBuildDefault: true,
-					isPlanDefault: false,
-				},
-				{
-					id: "claude-opus-4-6",
-					name: "Claude Opus 4.6",
-					providerSource: "Anthropic",
-					isFavorite: false,
-					isBuildDefault: false,
-					isPlanDefault: true,
-				},
-			],
-		},
-	]);
+const modelGroups = $derived([
+	{
+		label: "Anthropic",
+		items: [
+			{
+				id: "claude-sonnet-4",
+				name: "Claude Sonnet 4",
+				providerSource: "Anthropic",
+				isFavorite: true,
+				isBuildDefault: true,
+				isPlanDefault: false,
+			},
+			{
+				id: "claude-opus-4-6",
+				name: "Claude Opus 4.6",
+				providerSource: "Anthropic",
+				isFavorite: false,
+				isBuildDefault: false,
+				isPlanDefault: true,
+			},
+		],
+	},
+]);
 
-	const favoriteModels = $derived(
-		modelGroups.flatMap((group) => group.items.filter((item) => item.isFavorite))
-	);
+const favoriteModels = $derived(
+	modelGroups.flatMap((group) => group.items.filter((item) => item.isFavorite))
+);
 </script>
 
 <LandingDemoFrame>
