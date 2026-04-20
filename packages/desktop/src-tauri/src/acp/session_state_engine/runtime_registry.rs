@@ -129,10 +129,6 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "This envelope builder is the shared boundary between runtime state, projections, and transcript deltas."
-    )]
     pub async fn build_live_session_state_envelope(
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,

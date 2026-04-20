@@ -20,7 +20,7 @@ pub(crate) enum InboundRoutingDecision {
     Handle(Value),
     AutoRespond {
         result: Value,
-        session_id: Option<String>,
+        _session_id: Option<String>,
         canonical_interaction: Option<SessionUpdate>,
     },
     /// Forward to UI, optionally with enrichments to inject into params.toolCall.

@@ -420,6 +420,14 @@ export class OperationStore {
 			return undefined;
 		}
 
+		if (status === "completed" || status === "failed") {
+			this.blockerKindsByOperationId.delete(operationId);
+			this.deferredBlockerKindsByOperationId.delete(operationId);
+			this.deferredBlockerKindsByToolCallKey.delete(
+				createSessionToolKey(sessionId, operation.toolCallId)
+			);
+		}
+
 		const updatedOperation: Operation = {
 			id: operation.id,
 			sessionId: operation.sessionId,
@@ -676,6 +684,9 @@ export class OperationStore {
 			this.operationIdByToolCallKey.delete(createSessionToolKey(sessionId, operation.toolCallId));
 			this.blockerKindsByOperationId.delete(operationId);
 			this.deferredBlockerKindsByOperationId.delete(operationId);
+			this.deferredBlockerKindsByToolCallKey.delete(
+				createSessionToolKey(sessionId, operation.toolCallId)
+			);
 			if (operation.sourceEntryId != null) {
 				this.operationIdByEntryKey.delete(createSessionToolKey(sessionId, operation.sourceEntryId));
 			}
@@ -692,11 +703,13 @@ export class OperationStore {
 	replaceSessionOperations(sessionId: string, snapshots: ReadonlyArray<OperationSnapshot>): void {
 		const nextSessionOperationIds: Array<string> = [];
 		const nextOperationIdSet = new Set<string>();
+		const nextToolCallKeys = new Set<string>();
 		for (const snapshot of snapshots) {
 			const operation = mergeOperationSnapshot(this.operationsById.get(snapshot.id), snapshot);
 			this.setOperation(sessionId, operation);
 			nextOperationIdSet.add(operation.id);
 			nextSessionOperationIds.push(operation.id);
+			nextToolCallKeys.add(createSessionToolKey(sessionId, operation.toolCallId));
 		}
 
 		const previousOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
@@ -714,6 +727,12 @@ export class OperationStore {
 			this.deferredBlockerKindsByOperationId.delete(operationId);
 			if (operation.sourceEntryId != null) {
 				this.operationIdByEntryKey.delete(createSessionToolKey(sessionId, operation.sourceEntryId));
+			}
+		}
+
+		for (const [key] of this.deferredBlockerKindsByToolCallKey) {
+			if (key.startsWith(`${sessionId}::`) && !nextToolCallKeys.has(key)) {
+				this.deferredBlockerKindsByToolCallKey.delete(key);
 			}
 		}
 
@@ -932,23 +951,8 @@ export class OperationStore {
 			childOperationIds,
 		};
 
-		this.operationsById.set(operationId, nextOperation);
-		this.operationIdByToolCallKey.set(createSessionToolKey(sessionId, toolCall.id), operationId);
-		if (nextSourceEntryId != null) {
-			this.operationIdByEntryKey.set(
-				createSessionToolKey(sessionId, nextSourceEntryId),
-				operationId
-			);
-		}
-
-		const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
-		if (!sessionOperationIds.includes(operationId)) {
-			const nextSessionOperationIds = sessionOperationIds.slice();
-			nextSessionOperationIds.push(operationId);
-			this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
-		}
-
-		return nextOperation;
+		this.setOperation(sessionId, nextOperation);
+		return this.operationsById.get(operationId) ?? nextOperation;
 	}
 }
 

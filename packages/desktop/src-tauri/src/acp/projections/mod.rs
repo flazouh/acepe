@@ -57,20 +57,15 @@ pub struct SessionSnapshot {
     pub last_terminal_turn_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationLifecycle {
+    #[default]
     Pending,
     Blocked,
     Running,
     Completed,
     Failed,
-}
-
-impl Default for OperationLifecycle {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]

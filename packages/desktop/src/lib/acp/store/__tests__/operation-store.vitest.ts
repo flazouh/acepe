@@ -343,4 +343,96 @@ describe("OperationStore", () => {
 			blockedReason: "permission",
 		});
 	});
+
+	it("applies deferred blockers when a tool call materializes later", () => {
+		const operationStore = new OperationStore();
+
+		operationStore.updateOperationBlockingFromInteraction(
+			"session-1",
+			"permission-1",
+			null,
+			"tool-1",
+			"Permission",
+			"Pending"
+		);
+
+		const operation = operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "git status")
+		);
+
+		expect(operation.lifecycle).toBe("blocked");
+		expect(operation.blockedReason).toBe("permission");
+	});
+
+	it("clears stored blockers when an operation completes", () => {
+		const operationStore = new OperationStore();
+
+		operationStore.replaceSessionOperations("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "pending",
+				lifecycle: "blocked",
+				blocked_reason: "permission",
+				title: "Run command",
+				arguments: { kind: "execute", command: "git status" },
+				progressive_arguments: null,
+				result: null,
+				command: "git status",
+				locations: null,
+				skill_meta: null,
+				normalized_todos: null,
+				started_at_ms: 1,
+				completed_at_ms: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
+		operationStore.updateOperationBlockingFromInteraction(
+			"session-1",
+			"permission-1",
+			"op-1",
+			"tool-1",
+			"Permission",
+			"Pending"
+		);
+
+		const operation = operationStore.updateOperationStatus("session-1", "op-1", "completed");
+
+		expect(operation).toMatchObject({
+			status: "completed",
+			lifecycle: "completed",
+			blockedReason: null,
+		});
+	});
+
+	it("drops deferred tool-call blockers when replacing session operations", () => {
+		const operationStore = new OperationStore();
+
+		operationStore.updateOperationBlockingFromInteraction(
+			"session-1",
+			"permission-1",
+			null,
+			"tool-1",
+			"Permission",
+			"Pending"
+		);
+		operationStore.replaceSessionOperations("session-1", []);
+
+		const operation = operationStore.upsertFromToolCall(
+			"session-1",
+			"entry-tool-1",
+			createExecuteToolCall("tool-1", "git status")
+		);
+
+		expect(operation.lifecycle).toBe("pending");
+		expect(operation.blockedReason).toBeNull();
+	});
 });

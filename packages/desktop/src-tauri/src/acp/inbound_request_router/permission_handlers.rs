@@ -153,7 +153,7 @@ async fn handle_session_request_permission_with_state(
     if auto_accept_reason.is_some() {
         return InboundRoutingDecision::AutoRespond {
             result: allow_permission_response(&options),
-            session_id,
+            _session_id: session_id,
             canonical_interaction,
         };
     }
@@ -408,7 +408,7 @@ mod tests {
         match decision {
             InboundRoutingDecision::AutoRespond {
                 result,
-                session_id: Some(session_id),
+                _session_id: Some(session_id),
                 canonical_interaction: Some(SessionUpdate::PermissionRequest { permission, .. }),
                 ..
             } => {
@@ -454,7 +454,7 @@ mod tests {
 
         match decision {
             InboundRoutingDecision::AutoRespond {
-                session_id: Some(session_id),
+                _session_id: Some(session_id),
                 canonical_interaction: Some(SessionUpdate::PermissionRequest { permission, .. }),
                 ..
             } => {

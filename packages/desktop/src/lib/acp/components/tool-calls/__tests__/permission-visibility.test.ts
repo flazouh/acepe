@@ -29,7 +29,10 @@ function createPermission(toolCallId: string, command = "git status"): Permissio
 function createEntriesWithOperations(
 	toolCallId: string,
 	command = "git status",
-	overrides?: { lifecycle?: "pending" | "blocked" | "running" | "completed" | "failed"; blockedReason?: "permission" | "question" | "plan_approval" | "other" | null }
+	overrides?: {
+		lifecycle?: "pending" | "blocked" | "running" | "completed" | "failed";
+		blockedReason?: "permission" | "question" | "plan_approval" | "other" | null;
+	}
 ): { operationStore: OperationStore; entries: ReturnType<SessionEntryStore["getEntries"]> } {
 	const operationStore = new OperationStore();
 	const entryStore = new SessionEntryStore(operationStore);
@@ -63,7 +66,8 @@ function createEntriesWithOperations(
 			kind: "execute",
 			status: "pending",
 			lifecycle: overrides?.lifecycle ?? "blocked",
-			blocked_reason: overrides?.blockedReason ?? "permission",
+			blocked_reason:
+				overrides?.blockedReason === undefined ? "permission" : overrides.blockedReason,
 			title: "Execute",
 			arguments: {
 				kind: "execute",

@@ -61,7 +61,10 @@ const pendingPermission = $derived.by(() => {
 		);
 	}
 
-	return permissionStore.getForToolCall(sessionId, toolCall.id) ?? null;
+	return (
+		permissionStore.getForToolCall(sessionId, toolCall.id) ??
+		findExitPlanPermission(toolCall, permissionStore.getForSession(sessionId))
+	);
 });
 
 const displayPlan = $derived.by(() => {

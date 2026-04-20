@@ -609,6 +609,9 @@ fn enrich_session_domain_event_from_projection(
             let Some(snapshot) = projection_registry.interaction(interaction_id) else {
                 return;
             };
+            if snapshot.session_id != event.session_id {
+                return;
+            }
             *operation_id = snapshot.operation_id.clone();
             *interaction = Some(snapshot);
         }
@@ -1708,6 +1711,65 @@ mod tests {
                 }
                 other => panic!(
                     "Expected enriched InteractionResolved payload, got {:?}",
+                    other
+                ),
+            },
+            other => panic!("Expected session domain event payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn dispatcher_does_not_enrich_interaction_payloads_from_another_session() {
+        let projection_registry = Arc::new(ProjectionRegistry::new());
+        projection_registry.apply_session_update(
+            "session-2",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-1".to_string(),
+                    session_id: "session-2".to_string(),
+                    json_rpc_request_id: Some(7),
+                    reply_handler: Some(
+                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                    ),
+                    permission: "read".to_string(),
+                    patterns: vec![],
+                    metadata: json!({ "filePath": "/tmp/example.txt" }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: None,
+                },
+                session_id: Some("session-2".to_string()),
+            },
+        );
+
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(projection_registry);
+        dispatcher.enqueue_session_domain_event_with_payload(
+            "session-1",
+            SessionDomainEventKind::InteractionUpserted,
+            Some(SessionDomainEventPayload::InteractionUpserted {
+                interaction_id: "permission-1".to_string(),
+                interaction_kind: InteractionKind::Permission,
+                operation_id: None,
+                interaction: None,
+            }),
+        );
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 1);
+
+        match &captured[0].payload {
+            AcpUiEventPayload::SessionDomainEvent(event) => match &event.payload {
+                Some(SessionDomainEventPayload::InteractionUpserted {
+                    operation_id,
+                    interaction,
+                    ..
+                }) => {
+                    assert_eq!(operation_id, &None);
+                    assert!(interaction.is_none());
+                }
+                other => panic!(
+                    "Expected unenriched InteractionUpserted payload, got {:?}",
                     other
                 ),
             },

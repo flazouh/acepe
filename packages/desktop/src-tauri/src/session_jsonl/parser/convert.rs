@@ -1,3 +1,4 @@
+#[cfg(test)]
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -11,6 +12,7 @@ use crate::session_jsonl::types::{
     StoredContentBlock, StoredEntry, StoredUserMessage,
 };
 
+#[cfg(test)]
 use super::full_session::parse_full_session;
 
 pub fn convert_full_session_to_entries(session: &FullSession) -> SessionThreadSnapshot {

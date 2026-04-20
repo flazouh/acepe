@@ -38,6 +38,10 @@ pub enum SessionDomainEventKind {
 /// structured data that downstream reducers and projections need.  Consumers
 /// can switch on `event.kind` for quick discrimination and access the typed
 /// payload via `event.payload` when richer data is required.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Canonical operation and interaction snapshots stay inline so the desktop event payload matches the projection contract directly."
+)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SessionDomainEventPayload {

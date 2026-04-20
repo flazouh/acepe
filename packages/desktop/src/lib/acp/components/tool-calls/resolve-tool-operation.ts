@@ -5,6 +5,7 @@ import type { Operation } from "../../types/operation.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { resolveOperationDisplayTitle } from "../../session-state/session-state-query-service.js";
+import { permissionMatchesToolCall as permissionMatchesPendingToolCall } from "../../store/operation-association.js";
 
 export type ToolRouteKey = ToolKind | "read_lints";
 
@@ -21,7 +22,11 @@ function permissionMatchesToolCall(
 	pendingPermission: PermissionRequest | null | undefined,
 	toolCall: ToolCall
 ): boolean {
-	return pendingPermission?.tool?.callID === toolCall.id;
+	if (pendingPermission == null) {
+		return false;
+	}
+
+	return permissionMatchesPendingToolCall(pendingPermission, toolCall);
 }
 
 export function resolveToolOperation(

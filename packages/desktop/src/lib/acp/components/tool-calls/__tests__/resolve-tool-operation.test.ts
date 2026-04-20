@@ -198,6 +198,25 @@ describe("resolveToolOperation", () => {
 		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
 	});
 
+	it("keeps inline approval visible for execute fallback matches when ids differ", () => {
+		const resolved = resolveToolOperation(
+			createToolCall({
+				id: "tool-1",
+				arguments: { kind: "execute", command: "git status" },
+			}),
+			createPermission({
+				tool: {
+					messageID: "message-1",
+					callID: "permission-anchor",
+				},
+			}),
+			null,
+			createOperationLookup([])
+		);
+
+		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
+	});
+
 	it("prefers canonical operation data over transcript fallback rows", () => {
 		const childOperation = createOperation({
 			id: "op-2",
