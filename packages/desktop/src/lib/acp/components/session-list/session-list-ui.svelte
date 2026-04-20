@@ -1119,13 +1119,13 @@ function openCreateBranchDialog(projectPath: string): void {
 																	event.stopPropagation();
 																	onProjectShowExternalCliSessionsChange(group.projectPath, true);
 																}}
-																aria-label={m.project_external_sessions_hidden_tooltip()}
+																aria-label={"External CLI sessions hidden — click to show"}
 															>
 																<EyeSlash class="h-3 w-3" weight="fill" />
 															</button>
 														</Tooltip.Trigger>
 														<Tooltip.Content>
-															{m.project_external_sessions_hidden_tooltip()}
+															{"External CLI sessions hidden — click to show"}
 														</Tooltip.Content>
 													</Tooltip.Root>
 												{/if}
@@ -1461,7 +1461,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									/>
 									{#if sidebarSessions.length === 0 && !group.showExternalCliSessions}
 										<div class="px-2.5 py-1.5 text-[11px] text-muted-foreground/60 italic">
-											{m.project_external_sessions_hidden_hint()}
+											{"No sessions to show."}
 										</div>
 									{/if}
 								{/if}
