@@ -233,9 +233,9 @@ export const TAURI_COMMAND_CLIENT = {
     save_user_setting: createGeneratedCommand(COMMANDS.storage.save_user_setting),
     update_project_color: createGeneratedCommand(COMMANDS.storage.update_project_color),
     update_project_icon: createGeneratedCommand(COMMANDS.storage.update_project_icon),
-    update_project_show_external_cli_sessions: createGeneratedCommand(
-      COMMANDS.storage.update_project_show_external_cli_sessions
-    ),
+    get_project_acepe_config: createGeneratedCommand(COMMANDS.storage.get_project_acepe_config),
+    save_project_acepe_config: createGeneratedCommand(COMMANDS.storage.save_project_acepe_config),
+    save_project_setting: createGeneratedCommand(COMMANDS.storage.save_project_setting),
     update_project_order: createGeneratedCommand(COMMANDS.storage.update_project_order),
   },
   terminal: {

@@ -248,9 +248,9 @@ export const git = {
 
 	saveWorktreeConfig: (
 		projectPath: string,
-		setupCommands: string[]
+		setupScript: string
 	): ResultAsync<void, AppError> => {
-		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupCommands });
+		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupScript });
 	},
 };
 

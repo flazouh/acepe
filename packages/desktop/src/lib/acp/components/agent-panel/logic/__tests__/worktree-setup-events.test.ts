@@ -15,7 +15,7 @@ function createEvent(overrides: Partial<WorktreeSetupEvent> = {}): WorktreeSetup
 		projectPath: "/repo",
 		worktreePath: "/wt/repo-a",
 		command: null,
-		commandCount: 2,
+		commandCount: 1,
 		commandIndex: null,
 		stream: null,
 		chunk: null,
@@ -47,7 +47,7 @@ describe("reduceWorktreeSetupEvent", () => {
 		const started = reduceWorktreeSetupEvent(creating, createEvent());
 
 		expect(started.status).toBe("running");
-		expect(started.commandCount).toBe(2);
+		expect(started.commandCount).toBe(1);
 		expect(started.activeCommand).toBe(null);
 	});
 
@@ -58,7 +58,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "command-started",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 			})
 		);
 		const withOutput = reduceWorktreeSetupEvent(
@@ -66,7 +66,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "output",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 				stream: "stdout",
 				chunk: "installed 42 packages\n",
 			})
@@ -76,8 +76,7 @@ describe("reduceWorktreeSetupEvent", () => {
 		expect(withOutput?.isVisible).toBe(true);
 		expect(withOutput?.status).toBe("running");
 		expect(withOutput?.activeCommand).toBe("bun install");
-		expect(withOutput?.activeCommandIndex).toBe(1);
-		expect(withOutput?.outputText).toContain("$ bun install");
+		expect(withOutput?.activeCommandIndex).toBe(0);
 		expect(withOutput?.outputText).toContain("installed 42 packages");
 	});
 
@@ -87,7 +86,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "command-started",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 			})
 		);
 
@@ -96,7 +95,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "finished",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 				success: true,
 			})
 		);
@@ -112,7 +111,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "command-started",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 			})
 		);
 
@@ -121,7 +120,7 @@ describe("reduceWorktreeSetupEvent", () => {
 			createEvent({
 				kind: "finished",
 				command: "bun install",
-				commandIndex: 1,
+				commandIndex: 0,
 				success: false,
 				error: "bun install failed",
 			})

@@ -85,6 +85,14 @@ export interface ProjectData {
 	show_external_cli_sessions: boolean;
 }
 
+export type ProjectSettingKey = "color";
+
+export interface ProjectAcepeConfig {
+	setupScript: string;
+	runScript: string;
+	showExternalCliSessions: boolean;
+}
+
 /** Thread list display settings */
 export interface ArchivedSessionRef {
 	sessionId: string;

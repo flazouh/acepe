@@ -1,4 +1,5 @@
 use crate::db::entities::prelude::*;
+use crate::storage::acepe_config;
 use crate::{
     acp::agent_context::with_agent,
     acp::parsers::provider_capabilities::{
@@ -26,6 +27,7 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use uuid::Uuid;
 
 // ============================================================================
@@ -59,6 +61,9 @@ impl ProjectRepository {
 
     fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
         let name = Self::display_name(&model.path, &model.name);
+        let color = model.color.clone();
+        let show_external_cli_sessions =
+            acepe_config::read_or_default(Path::new(&model.path)).external_cli_sessions.show;
 
         ProjectRow {
             id: model.id,
@@ -66,10 +71,10 @@ impl ProjectRepository {
             name,
             last_opened: model.last_opened.to_rfc3339(),
             created_at: model.created_at.to_rfc3339(),
-            color: model.color,
+            color,
             sort_order: model.sort_order,
             icon_path: model.icon_path,
-            show_external_cli_sessions: model.show_external_cli_sessions,
+            show_external_cli_sessions,
         }
     }
 
@@ -105,7 +110,6 @@ impl ProjectRepository {
             let existing_color = active.color.as_ref().clone();
             let sort_order = *active.sort_order.as_ref();
             let icon_path = active.icon_path.as_ref().clone();
-            let show_external_cli_sessions = *active.show_external_cli_sessions.as_ref();
             active.name = Set(name.clone());
             active.last_opened = Set(now);
             // Update color if provided, otherwise keep existing
@@ -117,6 +121,8 @@ impl ProjectRepository {
                 path = %path,
                 "Project updated"
             );
+            let show_external_cli_sessions =
+                acepe_config::read_or_default(Path::new(&path)).external_cli_sessions.show;
 
             ProjectRow {
                 id,
@@ -151,7 +157,6 @@ impl ProjectRepository {
                 color: Set(assigned_color.clone()),
                 sort_order: Set(0),
                 icon_path: Set(None),
-                show_external_cli_sessions: Set(true),
             };
 
             Project::insert(project).exec(&txn).await?;
@@ -203,7 +208,11 @@ impl ProjectRepository {
             ),
         }
 
-        Ok(model.map(Self::row_from_model))
+        if let Some(project_model) = model {
+            return Ok(Some(Self::row_from_model(project_model)));
+        }
+
+        Ok(None)
     }
 
     /// Get all projects, ordered by persisted sidebar order.
@@ -268,27 +277,6 @@ impl ProjectRepository {
         Ok(Self::row_from_model(updated))
     }
 
-    pub async fn update_show_external_cli_sessions(
-        db: &DbConn,
-        path: &str,
-        value: bool,
-    ) -> Result<ProjectRow> {
-        let existing = Project::find()
-            .filter(crate::db::entities::project::Column::Path.eq(path))
-            .one(db)
-            .await?;
-
-        let Some(existing_model) = existing else {
-            anyhow::bail!("Project not found: {}", path);
-        };
-
-        let mut active: crate::db::entities::project::ActiveModel = existing_model.into();
-        active.show_external_cli_sessions = Set(value);
-
-        let updated = active.update(db).await?;
-        Ok(Self::row_from_model(updated))
-    }
-
     pub async fn reorder(db: &DbConn, ordered_paths: &[String]) -> Result<Vec<ProjectRow>> {
         let txn = db.begin().await?;
         let existing = Project::find().all(&txn).await?;
@@ -343,7 +331,7 @@ impl ProjectRepository {
 
         Ok(models
             .into_iter()
-            .filter(|model| !model.show_external_cli_sessions)
+            .filter(|model| !acepe_config::read_or_default(Path::new(&model.path)).external_cli_sessions.show)
             .map(|model| model.path)
             .collect())
     }

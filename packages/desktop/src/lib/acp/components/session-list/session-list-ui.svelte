@@ -1173,13 +1173,8 @@ function openCreateBranchDialog(projectPath: string): void {
 													projectName={group.projectName}
 													currentColor={group.projectColor}
 													currentViewMode={viewMode}
-													currentShowExternalCliSessions={group.showExternalCliSessions}
 													onColorChange={onProjectColorChange
 														? (color) => onProjectColorChange(group.projectPath, color)
-														: undefined}
-													onShowExternalCliSessionsChange={onProjectShowExternalCliSessionsChange
-														? (value) =>
-																onProjectShowExternalCliSessionsChange(group.projectPath, value)
 														: undefined}
 													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
 													projectIconSrc={group.projectIconSrc}
@@ -1363,13 +1358,8 @@ function openCreateBranchDialog(projectPath: string): void {
 											projectName={group.projectName}
 											currentColor={group.projectColor}
 											currentViewMode={viewMode}
-											currentShowExternalCliSessions={group.showExternalCliSessions}
 											onColorChange={onProjectColorChange
 												? (color) => onProjectColorChange(group.projectPath, color)
-												: undefined}
-											onShowExternalCliSessionsChange={onProjectShowExternalCliSessionsChange
-												? (value) =>
-														onProjectShowExternalCliSessionsChange(group.projectPath, value)
 												: undefined}
 											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
 											projectIconSrc={group.projectIconSrc}

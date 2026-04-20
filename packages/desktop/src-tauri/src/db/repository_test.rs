@@ -15,6 +15,7 @@ mod session_metadata_tests {
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
+    use crate::storage::acepe_config;
     use crate::acp::transcript_projection::{
         TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
@@ -22,8 +23,7 @@ mod session_metadata_tests {
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-        SessionTranscriptSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository, SessionTranscriptSnapshotRepository,
     };
     use chrono::Utc;
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Set, Statement};
@@ -138,12 +138,6 @@ mod session_metadata_tests {
         assert!(first.show_external_cli_sessions);
         assert!(second.show_external_cli_sessions);
 
-        let visibility_updated =
-            ProjectRepository::update_show_external_cli_sessions(&db, &second.path, false)
-                .await
-                .expect("update session visibility");
-        assert!(!visibility_updated.show_external_cli_sessions);
-
         let updated_second = ProjectRepository::update_icon_path(
             &db,
             &second.path,
@@ -165,6 +159,41 @@ mod session_metadata_tests {
         assert_eq!(reordered[0].sort_order, 0);
         assert_eq!(reordered[1].path, first.path);
         assert_eq!(reordered[1].sort_order, 1);
+    }
+
+    #[tokio::test]
+    async fn project_repository_reads_show_external_visibility_from_acepe_json() {
+        let db = setup_test_db().await;
+        let project_dir = tempdir().expect("tempdir");
+        acepe_config::write(
+            project_dir.path(),
+            &acepe_config::AcepeConfig {
+                version: 1,
+                scripts: acepe_config::ScriptsSection::default(),
+                external_cli_sessions: acepe_config::ExternalCliSessionsSection {
+                    show: false,
+                    extras: Default::default(),
+                },
+                extras: Default::default(),
+            },
+        )
+        .expect("write config");
+
+        let project = ProjectRepository::create_or_update(
+            &db,
+            project_dir.path().to_string_lossy().to_string(),
+            "Gamma".to_string(),
+            Some("green".to_string()),
+        )
+        .await
+        .expect("create project");
+
+        assert!(!project.show_external_cli_sessions);
+        let loaded = ProjectRepository::get_by_path(&db, &project.path)
+            .await
+            .expect("load project")
+            .expect("project row");
+        assert!(!loaded.show_external_cli_sessions);
     }
 
     #[tokio::test]

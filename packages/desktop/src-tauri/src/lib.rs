@@ -148,12 +148,13 @@ use std::sync::{Arc, Mutex};
 use storage::commands::{
     add_project, backfill_project_icons, browse_project, browse_project_icon, delete_api_key,
     delete_session_review_state, get_api_key, get_custom_keybindings, get_missing_project_paths,
-    get_project_count, get_projects, get_recent_projects, get_session_file_path,
-    get_session_review_state, get_streaming_log_path, get_thread_list_settings, get_user_setting,
-    import_project, list_project_images, open_in_finder, open_streaming_log, remove_project,
-    reset_database, save_api_key, save_custom_keybindings, save_session_review_state,
-    save_thread_list_settings, save_user_setting, update_project_color, update_project_icon,
-    update_project_order, update_project_show_external_cli_sessions,
+    get_project_acepe_config, get_project_count, get_projects, get_recent_projects,
+    get_session_file_path, get_session_review_state, get_streaming_log_path,
+    get_thread_list_settings, get_user_setting, import_project, list_project_images,
+    open_in_finder, open_streaming_log, remove_project, reset_database, save_api_key,
+    save_custom_keybindings, save_project_acepe_config, save_project_setting,
+    save_session_review_state, save_thread_list_settings, save_user_setting, update_project_color,
+    update_project_icon, update_project_order,
 };
 use tauri::Manager;
 use terminal::commands::{

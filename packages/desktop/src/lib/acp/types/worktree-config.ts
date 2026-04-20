@@ -2,7 +2,7 @@
  * Worktree configuration from .acepe.json
  */
 export interface WorktreeConfig {
-	readonly setupCommands: string[];
+	readonly setupScript: string;
 }
 
 /**

@@ -32,7 +32,7 @@ describe("SettingsSidebar", () => {
 		expect(view.queryByRole("button", { name: "Language" })).toBeNull();
 
 		const navButtons = rail?.querySelectorAll("button") ?? [];
-		expect(navButtons).toHaveLength(12);
+		expect(navButtons).toHaveLength(13);
 
 		for (const button of navButtons) {
 			expect(button.className).toContain("gap-2");
@@ -54,5 +54,15 @@ describe("SettingsSidebar", () => {
 		await fireEvent.click(worktreesButton);
 
 		expect(onSectionChange).toHaveBeenCalledWith("worktrees");
+	});
+
+	it("renders the project section when project settings are available", () => {
+		const view = render(SettingsSidebar, {
+			activeSection: "project",
+			onSectionChange: vi.fn(),
+			showProjectSection: true,
+		});
+
+		expect(view.getByRole("button", { name: "Projects" })).toBeTruthy();
 	});
 });

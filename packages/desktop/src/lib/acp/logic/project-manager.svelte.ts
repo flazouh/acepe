@@ -259,11 +259,22 @@ export class ProjectManager {
 	): ResultAsync<void, ProjectError> {
 		return this.client
 			.updateProjectShowExternalCliSessions(path, value)
-			.map((updatedProject) => {
+			.map(() => {
 				const existingIndex = this.projects.findIndex((project) => project.path === path);
 				if (existingIndex >= 0) {
 					this.projects = this.projects.map((project, index) =>
-						index === existingIndex ? updatedProject : project
+						index === existingIndex
+							? {
+									path: project.path,
+									name: project.name,
+									lastOpened: project.lastOpened,
+									createdAt: project.createdAt,
+									color: project.color,
+									sortOrder: project.sortOrder,
+									iconPath: project.iconPath,
+									showExternalCliSessions: value,
+								}
+							: project
 					);
 				}
 			})

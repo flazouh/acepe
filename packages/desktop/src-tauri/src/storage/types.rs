@@ -136,6 +136,35 @@ impl std::fmt::Display for UserSettingKey {
     }
 }
 
+/// Project setting keys for the `project_settings` table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectSettingKey {
+    Color,
+}
+
+impl ProjectSettingKey {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProjectSettingKey::Color => "color",
+        }
+    }
+}
+
+impl std::fmt::Display for ProjectSettingKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectAcepeConfig {
+    pub setup_script: String,
+    pub run_script: String,
+    pub show_external_cli_sessions: bool,
+}
+
 /// Custom keybindings stored as a map of command -> key
 /// Example: { "selector.agent.toggle": "$mod+o" }
 pub type CustomKeybindings = std::collections::HashMap<String, String>;

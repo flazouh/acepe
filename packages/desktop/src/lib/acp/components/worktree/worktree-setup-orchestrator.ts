@@ -45,10 +45,10 @@ export function runWorktreeSetup(
 			return error;
 		})
 		.andThen((config) => {
-			const commands = config?.setupCommands ?? [];
-			console.info(TAG, "config loaded", { commands, projectPath });
-			if (commands.length === 0) {
-				console.info(TAG, "no setup commands, skipping");
+			const setupScript = config ? config.setupScript : "";
+			console.info(TAG, "config loaded", { projectPath, setupScript });
+			if (setupScript.trim().length === 0) {
+				console.info(TAG, "no setup script, skipping");
 				return okAsync({ cwd: worktreeCwd, setupSuccess: true });
 			}
 
@@ -60,17 +60,17 @@ function executeSetup(
 	worktreeCwd: string,
 	projectPath: string
 ): ResultAsync<WorktreeSetupResult, AppError> {
-	console.info(TAG, "executing setup commands", { worktreeCwd, projectPath });
+	console.info(TAG, "executing setup script", { worktreeCwd, projectPath });
 	return tauriClient.git
 		.runWorktreeSetup(worktreeCwd, projectPath)
 		.map((result) => {
 			if (!result.success) {
-				console.error(TAG, "setup commands failed", {
+				console.error(TAG, "setup script failed", {
 					error: result.error,
 					commandsRun: result.commandsRun,
 				});
 			} else {
-				console.info(TAG, "setup commands succeeded", {
+				console.info(TAG, "setup script succeeded", {
 					commandsRun: result.commandsRun,
 				});
 			}

@@ -3,10 +3,8 @@ import { SegmentedToggleGroup } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
 import { ArrowCounterClockwise } from "phosphor-svelte";
-import { CheckSquare } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
-import { Square } from "phosphor-svelte";
 	import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -19,10 +17,8 @@ interface Props {
 	projectName: string;
 	currentColor?: string;
 	currentViewMode?: ProjectViewMode;
-	currentShowExternalCliSessions?: boolean;
 	onColorChange?: (color: string) => void;
 	onViewModeChange?: (mode: ProjectViewMode) => void;
-	onShowExternalCliSessionsChange?: (value: boolean) => void;
 	/** When set, shows "Reset to letter badge" and hides color picker */
 	projectIconSrc?: string | null;
 	onResetProjectIcon?: () => void;
@@ -33,10 +29,8 @@ let {
 	projectName,
 	currentColor,
 	currentViewMode = "sessions",
-	currentShowExternalCliSessions = true,
 	onColorChange,
 	onViewModeChange,
-	onShowExternalCliSessionsChange,
 	projectIconSrc = null,
 	onResetProjectIcon,
 	onRemoveProject,
@@ -65,18 +59,17 @@ const showSettingsSection = $derived(
 	Boolean(
 		showColorPicker ||
 			onViewModeChange ||
-			onShowExternalCliSessionsChange ||
 			onRemoveProject ||
 			hasResetProjectIcon
 	)
 );
 const displaySectionClass = $derived(
-	`px-2 py-1.5${showColorPicker || onShowExternalCliSessionsChange || onRemoveProject || hasResetProjectIcon
+	`px-2 py-1.5${showColorPicker || onRemoveProject || hasResetProjectIcon
 		? " border-b border-border/20"
 		: ""}`
 );
 const colorTriggerClass = $derived(
-	`rounded-none px-2 py-1.5 text-[11px]${onShowExternalCliSessionsChange || onRemoveProject || hasResetProjectIcon
+	`rounded-none px-2 py-1.5 text-[11px]${onRemoveProject || hasResetProjectIcon
 		? " border-b border-border/20"
 		: ""}`
 );
@@ -138,23 +131,6 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 							/>
 						</div>
 					</div>
-				{/if}
-				{#if onShowExternalCliSessionsChange}
-					<DropdownMenu.Item
-						class="rounded-none px-2 py-1.5 text-[11px]"
-						closeOnSelect={false}
-						onclick={(e) => {
-							e.preventDefault();
-							onShowExternalCliSessionsChange(!currentShowExternalCliSessions);
-						}}
-					>
-						{#if currentShowExternalCliSessions}
-							<CheckSquare class="h-3.5 w-3.5 mr-2 text-foreground" weight="fill" />
-						{:else}
-							<Square class="h-3.5 w-3.5 mr-2 text-muted-foreground" weight="bold" />
-						{/if}
-						<span class="flex-1">{m.project_show_external_cli_sessions()}</span>
-					</DropdownMenu.Item>
 				{/if}
 				{#if onColorChange && !hasIcon}
 					<DropdownMenu.Sub>

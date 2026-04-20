@@ -212,12 +212,14 @@ pub async fn reindex_sessions(app: AppHandle) -> CommandResult<()> {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::load_indexed_sessions_for_projects;
-    use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
-    use sea_orm::{Database, DbConn};
-    use sea_orm_migration::MigratorTrait;
+    #[cfg(test)]
+    mod tests {
+        use super::load_indexed_sessions_for_projects;
+        use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
+        use crate::storage::acepe_config;
+        use sea_orm::{Database, DbConn};
+        use sea_orm_migration::MigratorTrait;
+        use tempfile::tempdir;
 
     async fn setup_test_db() -> DbConn {
         let db = Database::connect("sqlite::memory:")
@@ -234,14 +236,25 @@ mod tests {
     #[tokio::test]
     async fn load_indexed_sessions_for_projects_honors_hidden_external_settings() {
         let db = setup_test_db().await;
-        let project = "/Users/example/Documents/acepe".to_string();
+        let project_dir = tempdir().expect("tempdir");
+        acepe_config::write(
+            project_dir.path(),
+            &acepe_config::AcepeConfig {
+                version: 1,
+                scripts: acepe_config::ScriptsSection::default(),
+                external_cli_sessions: acepe_config::ExternalCliSessionsSection {
+                    show: false,
+                    extras: Default::default(),
+                },
+                extras: Default::default(),
+            },
+        )
+        .expect("write config");
+        let project = project_dir.path().to_string_lossy().to_string();
 
         ProjectRepository::create_or_update(&db, project.clone(), "acepe".to_string(), None)
             .await
             .expect("create project");
-        ProjectRepository::update_show_external_cli_sessions(&db, &project, false)
-            .await
-            .expect("hide external sessions");
 
         SessionMetadataRepository::upsert(
             &db,
