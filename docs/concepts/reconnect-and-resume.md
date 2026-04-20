@@ -10,11 +10,40 @@ If Acepe has split authority, reconnect/resume will usually show it through:
 - incorrect current tool badges,
 - prompts that vanish or attach to the wrong thing.
 
+## Restore pipeline
+
+```text
+stored canonical snapshot
+          |
+          v
+restore runtime from projection snapshot
+          |
+          v
+register session locally
+          |
+          v
+apply buffered revisioned envelopes
+          |
+          v
+accept live updates as freshness, not authority
+```
+
 ## Principle
 
 Reconnect and resume should restore from **canonical state first**, then layer live runtime/cache data on top where appropriate.
 
 They must not depend on a component remembering local state or on the live process registry being the only place runtime truth exists.
+
+## Survival table
+
+| State | Should survive reopen/refresh? | Authority |
+|---|---|---|
+| Transcript history | Yes | Canonical session graph |
+| Operation lifecycle | Yes | Canonical operation state |
+| Pending interactions | Yes | Canonical interaction state |
+| Runtime identity needed to continue session | Yes | Projection snapshot + canonical envelopes |
+| Capabilities/config | Yes | Capability envelopes |
+| UI-local open/closed panels | Optional/view-specific | UI layer |
 
 ## What should survive
 
@@ -36,6 +65,16 @@ The intended restore sequence is:
 4. apply buffered canonical envelopes in revision order,
 5. let live transport updates improve freshness without replacing authority.
 
+## What restores where
+
+| Step | Layer | Responsibility |
+|---|---|---|
+| Load snapshot | Backend/desktop boundary | Supply the last canonical known state |
+| Restore runtime | Projection/runtime restore path | Rehydrate runtime facts from stored snapshot |
+| Register session | Session store | Make the target session addressable locally |
+| Apply envelopes | Session event/store layer | Advance revisioned state in order |
+| Render UI | Selectors/components | Reflect canonical state without inventing another source |
+
 ## What should not happen
 
 Reconnect/resume should not require:
@@ -45,6 +84,16 @@ Reconnect/resume should not require:
 - depending on the live registry as the only source of runtime truth,
 - provider-specific policy hidden in presentation metadata,
 - raw transport events finalizing durable state independently.
+
+## ASCII anti-pattern map
+
+```text
+BAD
+raw event ---> component state ---> reconnect patch-up logic
+
+GOOD
+raw event ---> projection ---> canonical graph ---> store ---> selector ---> component
+```
 
 ## Agent-agnostic rule
 
@@ -57,6 +106,15 @@ Provider-specific reconnect behavior is allowed at the adapter edge, but the sha
 - canonical runtime state.
 
 That is how Acepe stays agent-agnostic while still supporting provider-specific transports and policies.
+
+## Bug triage matrix
+
+| Question | Good answer |
+|---|---|
+| What should have survived? | A named canonical state element |
+| Where should it live? | Graph node / projection snapshot / envelope |
+| Why is it missing? | Projection, persistence, hydration, or authority leak |
+| Where should the fix go? | At the owning layer, not just the rendering layer |
 
 ## Practical check
 

@@ -9,6 +9,26 @@ In Acepe, interactions are the durable state behind things like:
 - plan/apply approvals,
 - other explicit action gates tied to runtime work.
 
+## Interaction in one picture
+
+```text
+operation -----------+
+                     |
+                     v
+              +--------------+
+              | interaction  |
+              +--------------+
+              | type         |
+              | state        |
+              | request id   |
+              | session id   |
+              | linkage      |
+              +--------------+
+                     |
+                     v
+             permission / question / approval UI
+```
+
 ## Why interactions matter
 
 Without a canonical interaction model, these flows tend to collapse into transient UI state:
@@ -19,6 +39,16 @@ Without a canonical interaction model, these flows tend to collapse into transie
 - the prompt disappears or reattaches incorrectly.
 
 Interactions prevent that by making the gate itself part of the session graph.
+
+## Ownership table
+
+| Concern | Owned by interaction? | Notes |
+|---|---|---|
+| Pending permission state | Yes | Should survive reconnect |
+| Question/approval identity | Yes | Must not depend on render timing |
+| Link to work being blocked | Yes | Deterministic association beats UI guessing |
+| "Is this popup open?" | No | That is a view concern over canonical state |
+| Button styling/placement | No | Presentation concern only |
 
 ## Interaction vs operation
 
@@ -36,6 +66,14 @@ This matters because the same operation can be:
 - associated with a question,
 - resumed later with the gate still intact.
 
+## Relationship table
+
+| Concept | Purpose |
+|---|---|
+| Operation | The work item being executed |
+| Interaction | The gate or decision tied to that work |
+| Transcript | The visible conversation/history surface |
+
 ## What interactions own
 
 Interactions should own:
@@ -46,6 +84,22 @@ Interactions should own:
 - pending/resolved state,
 - linkage to the relevant operation or tool call,
 - enough metadata to render the right UX after reconnect.
+
+## Association hierarchy
+
+```text
+best match
+   |
+   v
+canonical operation link
+   |
+stable session + tool-call identity
+   |
+provider-projected request identity
+   |
+   x
+visible text / timing / local component guesses
+```
 
 ## What the UI should not do
 
@@ -68,6 +122,15 @@ over:
 - matching by visible text,
 - transcript row timing,
 - component-local guesses.
+
+## Failure modes
+
+| Symptom | Likely cause |
+|---|---|
+| Prompt disappears after reconnect | Interaction was transient, not canonical |
+| Shortcut cannot resolve the pending request | UI re-looked up a narrower identity path than the rendered interaction |
+| Permission attaches to wrong tool | Association used heuristic timing or text instead of canonical linkage |
+| Plan approval is visible in one surface but not another | Multiple render paths are not reading the same interaction state |
 
 ## Reconnect consequence
 

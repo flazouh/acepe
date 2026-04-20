@@ -4,6 +4,29 @@ An **operation** is the canonical record of runtime work inside a session.
 
 Operations exist so Acepe can represent tool execution as durable product state instead of reconstructing it from transcript rows or provider-specific event timing.
 
+## Operation in one picture
+
+```text
+provider tool signals
+        |
+        v
++----------------------+
+| projected operation  |
++----------------------+
+| id                   |
+| tool identity        |
+| lifecycle / status   |
+| blocked reason       |
+| typed metadata       |
+| timing               |
+| parent/child links   |
+| evidence             |
++----------------------+
+        |
+        v
+OperationStore -> selectors -> tool UI
+```
+
 ## Why operations exist
 
 Tool execution has more semantics than transcript history can safely carry.
@@ -19,6 +42,18 @@ A transcript row can tell you that a tool appeared in history. It cannot reliabl
 - reconnect and replay repair.
 
 Operations solve that by giving runtime work its own canonical node.
+
+## Ownership table
+
+| Runtime fact | Owned by operation? | Why |
+|---|---|---|
+| Tool identity | Yes | Different UI surfaces need one shared answer |
+| Lifecycle/status | Yes | Reconnect/resume cannot guess these reliably |
+| Blocked reason | Yes | Blocked state must survive beyond a transient popup |
+| Typed arguments / semantic metadata | Yes | Transcript text is too degraded for stable UI semantics |
+| Timing | Yes | Current and last-tool surfaces need durable execution context |
+| Parent/child links | Yes | Tool relationships are domain state, not display-only hints |
+| Transcript rendering text | No | That belongs to transcript entries |
 
 ## What an operation owns
 
@@ -47,6 +82,16 @@ Typical path:
 4. `OperationStore` materializes and updates operation state,
 5. selectors drive tool-call UI.
 
+## Operation vs transcript
+
+| Question | Transcript row | Operation |
+|---|---|---|
+| "Should this appear in history?" | Yes | Not primary |
+| "What is the current runtime state?" | Weak / degraded | Yes |
+| "What blocked this?" | Not reliable | Yes |
+| "What survives reconnect?" | Not enough by itself | Yes |
+| "What command/title should the current tool UI show?" | Sometimes approximate | Yes |
+
 ## Important boundary
 
 Transcript tool entries are still useful, but their role is narrower:
@@ -57,6 +102,14 @@ Transcript tool entries are still useful, but their role is narrower:
 That boundary matters because transcript replacement can legally degrade tool rows while operation state must stay stable enough to drive live UI.
 
 ## Lifecycle
+
+```text
+pending -> running -> completed
+             |
+             +------> blocked ----+
+             |                    |
+             +------> failed <----+
+```
 
 Operations may pass through phases like:
 
@@ -80,6 +133,15 @@ That means:
 - the system still preserves the blocked relationship,
 - once the operation exists, the blocker attaches to the same canonical record,
 - terminal lifecycle updates clear blocker state instead of leaving the operation semantically stuck.
+
+## Selector contract
+
+| Selector concern | Should read from |
+|---|---|
+| Current operation for a tool call | Canonical operation association |
+| Display title / known command | Operation semantic fields / resolver helpers |
+| Blocked-on-permission state | Operation + linked interaction |
+| Last meaningful tool | Operation lifecycle/timing, not transcript fallback guessing |
 
 ## What shared UI should do
 

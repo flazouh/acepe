@@ -2,6 +2,36 @@
 
 This section is the **architecture reference** for Acepe's core product concepts.
 
+```text
+provider signal
+      |
+      v
++---------------------+
+| backend projection  |
++---------------------+
+      |
+      v
++---------------------+
+| canonical session   |
+| graph               |
++---------------------+
+   |            |
+   v            v
+operations   interactions
+   |            |
+   +------v-----+
+          |
+          v
++---------------------+
+| desktop stores      |
++---------------------+
+          |
+          v
++---------------------+
+| UI selectors/views  |
++---------------------+
+```
+
 Use it when you need to answer questions like:
 
 - What is the canonical session graph?
@@ -22,12 +52,41 @@ When code and concepts disagree:
 
 The goal is to stop the codebase from drifting into multiple hidden authorities.
 
+## Mental model
+
+| Concept | What it is | What it is not |
+|---|---|---|
+| Session graph | The canonical product-state model for a session | A loose cache of whatever the UI last saw |
+| Transcript | Renderable conversation history | The sole authority for runtime tool state |
+| Operation | Durable runtime work record | Just a prettified transcript tool row |
+| Interaction | Durable decision/input gate | A transient popup owned by a component |
+| Reconnect/resume | Rehydration of canonical state | A best-effort replay of raw transport events |
+
 ## Core concepts
 
-- [Session graph](./session-graph.md) — the canonical product-state model
-- [Operations](./operations.md) — durable runtime work state
-- [Interactions](./interactions.md) — permissions, questions, and approvals
-- [Reconnect and resume](./reconnect-and-resume.md) — how state survives reopen, reconnect, and refresh
+| Page | Focus | Read when |
+|---|---|---|
+| [Session graph](./session-graph.md) | Overall ownership model | You need to know what is authoritative |
+| [Operations](./operations.md) | Durable runtime work state | You are touching tool execution or lifecycle |
+| [Interactions](./interactions.md) | Permissions, questions, approvals | You are touching blocked/awaiting-user flows |
+| [Reconnect and resume](./reconnect-and-resume.md) | Restore and survival rules | You are debugging reopen/reconnect drift |
+
+## Canonical ownership at a glance
+
+```text
+transcript history     -> SessionEntryStore
+runtime work           -> OperationStore
+human/policy gates     -> Interaction/Permission/Question stores
+session truth stream   -> revisioned session graph envelopes
+UI rendering           -> selectors over canonical stores
+```
+
+| If you are asking... | Look here first |
+|---|---|
+| "What is the current tool?" | Operation-backed selectors |
+| "Why is this blocked?" | Interaction + operation linkage |
+| "What should survive reopen?" | Session graph + restore model |
+| "Can the UI infer this from transcript?" | Usually no; check ownership docs |
 
 ## Related references
 
