@@ -1115,7 +1115,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persist_dispatch_event_builds_canonical_delta_envelope_from_journal_event_seq() {
+    async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq() {
         let db = setup_test_db().await;
         SessionMetadataRepository::ensure_exists(
             &db,
@@ -1160,12 +1160,12 @@ mod tests {
         assert_eq!(envelope.graph_revision, 1);
         assert_eq!(envelope.last_event_seq, 1);
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
-                assert_eq!(delta.from_revision, SessionGraphRevision::new(0, 0, 0));
-                assert_eq!(delta.to_revision, SessionGraphRevision::new(1, 1, 1));
-                assert_eq!(delta.changed_fields, vec!["transcriptSnapshot".to_string()]);
+            crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(graph.revision, SessionGraphRevision::new(1, 1, 1));
+                assert_eq!(graph.transcript_snapshot.revision, 1);
+                assert_eq!(graph.transcript_snapshot.entries.len(), 1);
             }
-            other => panic!("expected delta payload, got {:?}", other),
+            other => panic!("expected snapshot payload, got {:?}", other),
         }
     }
 
