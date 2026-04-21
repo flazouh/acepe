@@ -348,6 +348,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn provider_capabilities_capture_plan_and_frontend_projection_contracts() {
         let codex = provider_capabilities(AgentType::Codex);
         assert!(

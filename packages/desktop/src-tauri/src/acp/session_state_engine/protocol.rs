@@ -24,10 +24,6 @@ pub struct SessionStateDelta {
     pub changed_fields: Vec<String>,
 }
 
-#[expect(
-    clippy::large_enum_variant,
-    reason = "Keeping the wire payload variants inline preserves the serialized desktop event contract during the session-state rollout."
-)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionStatePayload {

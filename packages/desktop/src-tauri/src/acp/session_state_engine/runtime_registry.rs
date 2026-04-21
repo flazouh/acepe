@@ -155,10 +155,6 @@ impl SessionGraphRuntimeRegistry {
         self.apply_session_update_with_graph_seed(session_id, 0, update)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "This envelope builder is the shared boundary between runtime state, projections, and transcript deltas."
-    )]
     pub async fn build_live_session_state_envelope(
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
