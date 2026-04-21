@@ -408,7 +408,7 @@ const features = [
 					</h1>
 
 					<p class="mb-10 max-w-[560px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
-						{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR — in one window."}
+						{"One native workspace for every coding agent. Run them in parallel, review every change, and ship from plan to PR without leaving the window."}
 					</p>
 
 					<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
@@ -841,6 +841,13 @@ const features = [
 <style>
 	.hero-demo {
 		/* Let the product UI render at its natural width, then scale to fit */
+	}
+	.hero-demo-stage {
+		filter: grayscale(1);
+		transition: filter 0.4s ease;
+	}
+	.hero-demo-stage:hover {
+		filter: grayscale(0);
 	}
 	@media (min-width: 1024px) {
 		.hero-demo-stage {
