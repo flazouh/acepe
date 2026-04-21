@@ -618,9 +618,8 @@ export class SessionConnectionManager {
 			? reconnectHotState.currentMode.id
 			: undefined;
 
-		const lifecycleWaiter = this.eventService.waitForLifecycleEvent(
+		const lifecycleWaiter = this.eventService.waitForConnectionMaterialization(
 			sessionId,
-			attemptId,
 			WATCHDOG_TIMEOUT_MS
 		);
 
@@ -685,8 +684,11 @@ export class SessionConnectionManager {
 	}
 
 	/**
-	 * Handle connectionComplete lifecycle event — populate hot state and capabilities.
-	 * This logic was previously inline in the blocking connectSession chain.
+	 * Handle connection materialization completion.
+	 *
+	 * Canonical envelopes have already applied lifecycle/capability state by the time this runs.
+	 * This method only updates provider preference caches that are still maintained outside the
+	 * canonical session graph.
 	 */
 	private handleConnectionComplete(
 		sessionId: string,
@@ -752,38 +754,7 @@ export class SessionConnectionManager {
 			currentModelId: initialModel?.id ?? null,
 		});
 
-		// Store capabilities separately from cold data
-		this.capabilitiesManager.updateCapabilities(sessionId, {
-			availableModes,
-			availableModels,
-			availableCommands,
-			modelsDisplay,
-			providerMetadata,
-		});
-
 		this.connectionManager.setConnecting(sessionId, false);
-
-		// Update state machine: connecting → success → warming up → capabilities loaded
-		this.connectionManager.sendConnectionSuccess(sessionId);
-		this.connectionManager.sendCapabilitiesLoaded(sessionId);
-
-		// Transition content state to LOADED so the UI shows the conversation.
-		this.connectionManager.sendContentLoad(sessionId);
-		this.connectionManager.sendContentLoaded(sessionId);
-
-		this.hotStateManager.updateHotState(sessionId, {
-			status: "ready",
-			turnState: "idle",
-			isConnected: true,
-			acpSessionId: sessionId,
-			autonomousEnabled: data.autonomousEnabled,
-			autonomousTransition: "idle",
-			currentMode,
-			currentModel: initialModel,
-			availableCommands,
-			configOptions,
-			connectionError: null,
-		});
 	}
 
 	/**

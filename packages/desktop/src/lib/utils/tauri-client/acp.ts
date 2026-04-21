@@ -94,22 +94,6 @@ export const acp = {
 		return acpCommands.cancel.invoke<void>({ sessionId });
 	},
 
-	replyPermission: (
-		sessionId: string,
-		permissionId: string,
-		reply: "once" | "always" | "reject"
-	): ResultAsync<void, AppError> => {
-		return acpCommands.reply_permission.invoke<void>({ sessionId, permissionId, reply });
-	},
-
-	replyQuestion: (
-		sessionId: string,
-		questionId: string,
-		answers: unknown
-	): ResultAsync<void, AppError> => {
-		return acpCommands.reply_question.invoke<void>({ sessionId, questionId, answers });
-	},
-
 	replyInteraction: (request: InteractionReplyRequest): ResultAsync<void, AppError> => {
 		return acpCommands.reply_interaction.invoke<void>({
 			request: {

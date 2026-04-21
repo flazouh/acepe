@@ -19,6 +19,7 @@ import {
 } from "../session-state/session-state-query-service.js";
 import type { Operation } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
+import type { ToolKind } from "../types/tool-kind.js";
 
 const OPERATION_STORE_KEY = Symbol("operation-store");
 
@@ -299,6 +300,10 @@ function blockedReasonFromInteractionKind(
 	}
 }
 
+function isStreamingOperationStatus(status: Operation["status"]): boolean {
+	return status === "pending" || status === "in_progress";
+}
+
 export class OperationStore {
 	/**
 	 * Canonical runtime owner for resolved tool execution state.
@@ -343,6 +348,15 @@ export class OperationStore {
 		}
 
 		return this.operationsById.get(operationId);
+	}
+
+	getToolCallById(sessionId: string, toolCallId: string): ToolCall | null {
+		const operation = this.getByToolCallId(sessionId, toolCallId);
+		if (operation == null) {
+			return null;
+		}
+
+		return this.materializeToolCall(operation.id, new Set<string>());
 	}
 
 	getByEntryId(sessionId: string, entryId: string): Operation | undefined {
@@ -672,6 +686,56 @@ export class OperationStore {
 		});
 	}
 
+	getCurrentStreamingToolCall(sessionId: string): ToolCall | null {
+		const operations = this.getSessionOperations(sessionId);
+		for (let index = operations.length - 1; index >= 0; index -= 1) {
+			const operation = operations[index];
+			if (!isStreamingOperationStatus(operation.status)) {
+				continue;
+			}
+
+			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
+			if (toolCall !== null) {
+				return toolCall;
+			}
+		}
+
+		return null;
+	}
+
+	getLastToolCall(sessionId: string): ToolCall | null {
+		const operations = this.getSessionOperations(sessionId);
+		for (let index = operations.length - 1; index >= 0; index -= 1) {
+			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
+			if (toolCall !== null) {
+				return toolCall;
+			}
+		}
+
+		return null;
+	}
+
+	getLastTodoToolCall(sessionId: string): ToolCall | null {
+		const operations = this.getSessionOperations(sessionId);
+		for (let index = operations.length - 1; index >= 0; index -= 1) {
+			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
+			if (toolCall?.normalizedTodos && toolCall.normalizedTodos.length > 0) {
+				return toolCall;
+			}
+		}
+
+		return null;
+	}
+
+	getCurrentToolKind(sessionId: string): ToolKind | null {
+		const currentToolCall = this.getCurrentStreamingToolCall(sessionId);
+		if (currentToolCall == null) {
+			return null;
+		}
+
+		return currentToolCall.kind ?? "other";
+	}
+
 	clearSession(sessionId: string): void {
 		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
 		for (const operationId of operationIds) {
@@ -902,9 +966,49 @@ export class OperationStore {
 		parentOperationId: string | null,
 		parentToolCallId: string | null
 	): Operation {
-		const operationId = buildOperationId(sessionId, toolCall.id);
+		const existingOperationId =
+			this.operationIdByToolCallKey.get(createSessionToolKey(sessionId, toolCall.id)) ?? null;
+		const operationId = existingOperationId ?? buildOperationId(sessionId, toolCall.id);
 		const existingOperation = this.operationsById.get(operationId);
 		const nextSourceEntryId = sourceEntryId ?? existingOperation?.sourceEntryId ?? null;
+		if (existingOperationId != null && existingOperation != null) {
+			if (existingOperation.sourceEntryId === nextSourceEntryId) {
+				return existingOperation;
+			}
+
+			const nextOperation: Operation = {
+				id: existingOperation.id,
+				sessionId: existingOperation.sessionId,
+				toolCallId: existingOperation.toolCallId,
+				sourceEntryId: nextSourceEntryId,
+				name: existingOperation.name,
+				kind: existingOperation.kind,
+				status: existingOperation.status,
+				lifecycle: existingOperation.lifecycle,
+				blockedReason: existingOperation.blockedReason,
+				title: existingOperation.title,
+				arguments: existingOperation.arguments,
+				progressiveArguments: existingOperation.progressiveArguments,
+				result: existingOperation.result,
+				locations: existingOperation.locations,
+				skillMeta: existingOperation.skillMeta,
+				normalizedQuestions: existingOperation.normalizedQuestions,
+				normalizedTodos: existingOperation.normalizedTodos,
+				questionAnswer: existingOperation.questionAnswer,
+				awaitingPlanApproval: existingOperation.awaitingPlanApproval,
+				planApprovalRequestId: existingOperation.planApprovalRequestId,
+				startedAtMs: existingOperation.startedAtMs,
+				completedAtMs: existingOperation.completedAtMs,
+				command: existingOperation.command,
+				parentToolCallId: existingOperation.parentToolCallId,
+				parentOperationId: existingOperation.parentOperationId,
+				childToolCallIds: existingOperation.childToolCallIds,
+				childOperationIds: existingOperation.childOperationIds,
+			};
+			this.setOperation(sessionId, nextOperation);
+			return nextOperation;
+		}
+
 		const nextParentToolCallId = toolCall.parentToolUseId ?? parentToolCallId ?? null;
 		const childToolCallIds: Array<string> = [];
 		const childOperationIds: Array<string> = [];
@@ -953,6 +1057,48 @@ export class OperationStore {
 
 		this.setOperation(sessionId, nextOperation);
 		return this.operationsById.get(operationId) ?? nextOperation;
+	}
+
+	private materializeToolCall(operationId: string, visited: Set<string>): ToolCall | null {
+		if (visited.has(operationId)) {
+			return null;
+		}
+
+		const operation = this.operationsById.get(operationId);
+		if (operation == null) {
+			return null;
+		}
+
+		visited.add(operationId);
+		const taskChildren: ToolCall[] = [];
+		for (const childOperationId of operation.childOperationIds) {
+			const childToolCall = this.materializeToolCall(childOperationId, visited);
+			if (childToolCall !== null) {
+				taskChildren.push(childToolCall);
+			}
+		}
+
+		return {
+			id: operation.toolCallId,
+			name: operation.name,
+			arguments: operation.arguments,
+			status: operation.status,
+			result: operation.result,
+			kind: operation.kind,
+			title: operation.title ?? null,
+			locations: operation.locations ?? null,
+			skillMeta: operation.skillMeta ?? null,
+			normalizedQuestions: operation.normalizedQuestions ?? null,
+			normalizedTodos: operation.normalizedTodos ?? null,
+			parentToolUseId: operation.parentToolCallId,
+			taskChildren,
+			questionAnswer: operation.questionAnswer ?? null,
+			awaitingPlanApproval: operation.awaitingPlanApproval,
+			planApprovalRequestId: operation.planApprovalRequestId ?? null,
+			progressiveArguments: operation.progressiveArguments,
+			startedAtMs: operation.startedAtMs,
+			completedAtMs: operation.completedAtMs,
+		};
 	}
 }
 

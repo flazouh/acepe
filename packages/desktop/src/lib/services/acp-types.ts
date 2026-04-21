@@ -330,6 +330,10 @@ isAlias: boolean;
  */
 lastEventSeq: number; 
 /**
+ * Current canonical session-state graph revision at open time.
+ */
+graphRevision: number; 
+/**
  * Single-use attach token (UUID string).  All hub events for this session
  * published after this token is armed are buffered in the `event_hub`
  * reservation until the token is claimed (Unit 3) or expires after 30 s
@@ -366,7 +370,7 @@ export type SessionGraphLifecycleStatus = "idle" | "connecting" | "ready" | "err
 
 export type SessionGraphLifecycle = { status: SessionGraphLifecycleStatus; errorMessage?: string | null; canReconnect: boolean }
 
-export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
+export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
 
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities }
 
@@ -374,7 +378,7 @@ export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
 export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations: TranscriptDeltaOperation[]; changedFields?: string[] }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision }
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
@@ -529,4 +533,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-

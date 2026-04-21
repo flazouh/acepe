@@ -23,11 +23,8 @@ impl AcpClient {
             .as_ref()
             .map(|provider| {
                 let provider_kind = provider.parser_agent_type();
-                let uses_load_reconnect = matches!(
-                    provider_kind,
-                    crate::acp::parsers::AgentType::Copilot
-                        | crate::acp::parsers::AgentType::Cursor
-                );
+                let uses_load_reconnect =
+                    matches!(provider_kind, crate::acp::parsers::AgentType::Cursor);
                 let reconnect_mode_id = if provider_kind == crate::acp::parsers::AgentType::Copilot
                 {
                     launch_mode_id

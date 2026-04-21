@@ -108,12 +108,16 @@ export class TabBarStore {
 		const hotState = sessionId ? this.sessionStore.getHotState(sessionId) : null;
 		const runtimeState = sessionId ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 		const entries = sessionId ? this.sessionStore.getEntries(sessionId) : [];
+		const operationStore = this.sessionStore.getOperationStore();
+		const currentStreamingToolCall =
+			sessionId !== null ? operationStore.getCurrentStreamingToolCall(sessionId) : null;
+		const currentToolKind = sessionId !== null ? operationStore.getCurrentToolKind(sessionId) : null;
 
 		const interactionSnapshot =
 			sessionId !== null
 				? buildSessionOperationInteractionSnapshot(
 						sessionId,
-						this.sessionStore.getOperationStore(),
+						operationStore,
 						this.interactions
 					)
 				: null;
@@ -137,6 +141,8 @@ export class TabBarStore {
 			hotState,
 			runtimeState,
 			entries,
+			currentStreamingToolCall,
+			currentToolKind,
 			pendingQuestion,
 			pendingPlanApproval,
 			pendingPermission,

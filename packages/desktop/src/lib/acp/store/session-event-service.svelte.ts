@@ -21,6 +21,8 @@ import type {
 } from "../../services/converted-session-types.js";
 import type {
 	SessionDomainEvent,
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
 	SessionModelState,
 	SessionStateDelta,
 	SessionStateEnvelope,
@@ -132,6 +134,22 @@ export interface ConnectionCompleteData {
 	autonomousEnabled: boolean;
 }
 
+function materializedConnectionData(
+	capabilities: SessionGraphCapabilities
+): ConnectionCompleteData | null {
+	if (!capabilities.models || !capabilities.modes) {
+		return null;
+	}
+
+	return {
+		models: capabilities.models,
+		modes: capabilities.modes,
+		availableCommands: capabilities.availableCommands ?? [],
+		configOptions: capabilities.configOptions ?? [],
+		autonomousEnabled: capabilities.autonomousEnabled ?? false,
+	};
+}
+
 export interface SessionEventServiceCallbacks {
 	onPermissionRequest?: (permission: PermissionRequest) => void;
 	onQuestionRequest?: (question: QuestionRequest) => void;
@@ -142,6 +160,15 @@ export interface SessionEventServiceCallbacks {
 /** Internal entry for a pending lifecycle waiter. */
 interface LifecycleWaiter {
 	attemptId: number;
+	resolve: (data: ConnectionCompleteData) => void;
+	reject: (error: Error) => void;
+	timeoutId: ReturnType<typeof setTimeout>;
+}
+
+interface ConnectionMaterializationWaiter {
+	minGraphRevision: number;
+	capabilities: SessionGraphCapabilities | null;
+	lifecycle: SessionGraphLifecycle | null;
 	resolve: (data: ConnectionCompleteData) => void;
 	reject: (error: Error) => void;
 	timeoutId: ReturnType<typeof setTimeout>;
@@ -185,6 +212,8 @@ export class SessionEventService {
 
 	// Lifecycle waiters — per-session promises awaiting connectionComplete/connectionFailed
 	private lifecycleWaiters = new Map<string, LifecycleWaiter>();
+	private connectionMaterializationWaiters = new Map<string, ConnectionMaterializationWaiter>();
+	private latestSessionStateGraphRevision = new SvelteMap<string, number>();
 	private pendingAssistantFallbacks = new SvelteMap<
 		string,
 		{
@@ -263,6 +292,54 @@ export class SessionEventService {
 		}
 	}
 
+	waitForConnectionMaterialization(
+		sessionId: string,
+		timeoutMs: number
+	): { promise: Promise<ConnectionCompleteData>; cancel: () => void } {
+		this.cancelConnectionMaterializationWaiter(sessionId);
+
+		let waiterResolve!: (data: ConnectionCompleteData) => void;
+		let waiterReject!: (error: Error) => void;
+		const promise = new Promise<ConnectionCompleteData>((resolve, reject) => {
+			waiterResolve = resolve;
+			waiterReject = reject;
+		});
+		const minGraphRevision = this.latestSessionStateGraphRevision.get(sessionId) ?? 0;
+
+		const timeoutId = setTimeout(() => {
+			const waiter = this.takeConnectionMaterializationWaiter(sessionId);
+			if (!waiter) {
+				return;
+			}
+			waiter.reject(
+				new Error(`Watchdog timeout: no response from Rust within ${timeoutMs / 1000}s`)
+			);
+		}, timeoutMs);
+
+		this.connectionMaterializationWaiters.set(sessionId, {
+			minGraphRevision,
+			capabilities: null,
+			lifecycle: null,
+			resolve: waiterResolve,
+			reject: waiterReject,
+			timeoutId,
+		});
+
+		const cancel = () => {
+			this.cancelConnectionMaterializationWaiter(sessionId);
+		};
+
+		return { promise, cancel };
+	}
+
+	cancelConnectionMaterializationWaiter(sessionId: string): void {
+		const waiter = this.connectionMaterializationWaiters.get(sessionId);
+		if (waiter) {
+			clearTimeout(waiter.timeoutId);
+			this.connectionMaterializationWaiters.delete(sessionId);
+		}
+	}
+
 	private takeLifecycleWaiter(
 		sessionId: string,
 		attemptId: number
@@ -281,6 +358,18 @@ export class SessionEventService {
 		}
 		clearTimeout(waiter.timeoutId);
 		this.lifecycleWaiters.delete(sessionId);
+		return waiter;
+	}
+
+	private takeConnectionMaterializationWaiter(
+		sessionId: string
+	): ConnectionMaterializationWaiter | undefined {
+		const waiter = this.connectionMaterializationWaiters.get(sessionId);
+		if (!waiter) {
+			return undefined;
+		}
+		clearTimeout(waiter.timeoutId);
+		this.connectionMaterializationWaiters.delete(sessionId);
 		return waiter;
 	}
 
@@ -372,6 +461,11 @@ export class SessionEventService {
 		}
 		this.pendingAssistantFallbacks.clear();
 		this.processedSessionUpdateSeqs.clear();
+		for (const waiter of this.connectionMaterializationWaiters.values()) {
+			clearTimeout(waiter.timeoutId);
+		}
+		this.connectionMaterializationWaiters.clear();
+		this.latestSessionStateGraphRevision.clear();
 		this.stopTelemetryReporter();
 
 		if (this.eventSubscriber) {
@@ -484,33 +578,25 @@ export class SessionEventService {
 		rawStreamingStore.record(sessionId, update);
 
 		if (update.type === "agentMessageChunk" || update.type === "agentThoughtChunk") {
-			this.scheduleAssistantFallbackUpdate(sessionId, update, handler, hotState?.turnState);
 			return;
 		}
 
 		switch (update.type) {
 			case "toolCall":
-				logger.debug("Creating tool call entry", {
+				logger.debug("toolCall received on raw lane", {
 					sessionId,
 					toolCallId: update.tool_call.id,
 					toolName: update.tool_call.name,
 					toolKind: update.tool_call.kind,
 				});
-				handler.createToolCallEntry(sessionId, update.tool_call);
-				handler.ensureStreamingState(sessionId);
 				break;
 
 			case "toolCallUpdate":
-				// Streaming input deltas are handled by fast path above
-				// Regular tool call update (status, result, etc.)
-				// Apply canonical backend-owned tool updates directly; the frontend no longer
-				// reconstructs child mutations from child-only deltas.
-				logger.debug("Updating tool call entry (may be child)", {
+				logger.debug("toolCallUpdate received on raw lane", {
 					sessionId,
 					toolCallId: update.update.toolCallId,
 					status: update.update.status,
 				});
-				handler.updateToolCallEntry(sessionId, update.update);
 				break;
 
 			case "permissionRequest":
@@ -556,26 +642,26 @@ export class SessionEventService {
 				break;
 
 			case "availableCommandsUpdate":
-				handler.updateAvailableCommands(sessionId, update.update.availableCommands);
+				logger.debug("availableCommandsUpdate received on raw lane", {
+					sessionId,
+					commandCount: update.update.availableCommands.length,
+				});
 				break;
 
 			case "turnComplete":
-				logger.info("Turn complete - calling handleStreamComplete", {
+				logger.info("Turn complete received on raw lane", {
 					sessionId,
 					updateSessionId: update.session_id,
 					turnId: update.turn_id,
 				});
-				handler.handleStreamComplete(sessionId, update.turn_id);
-				this.callbacks.onTurnComplete?.(sessionId);
 				break;
 
 			case "turnError":
-				logger.error("Turn error received", {
+				logger.error("Turn error received on raw lane", {
 					sessionId,
 					error: update.error,
 					turnId: update.turn_id,
 				});
-				handler.handleTurnError(sessionId, update);
 				break;
 
 			case "plan":
@@ -587,13 +673,13 @@ export class SessionEventService {
 				// Clear stale assistant message tracking so a subsequent assistant
 				// chunk starts a new entry instead of appending to the previous turn.
 				handler.clearStreamingAssistantEntry(sessionId);
-				handler
-					.aggregateUserChunk(sessionId, update.chunk)
-					.mapErr((error) => logger.error("Failed to aggregate user chunk", { error }));
 				break;
 
 			case "currentModeUpdate":
-				handler.updateCurrentMode(sessionId, update.update.currentModeId);
+				logger.debug("currentModeUpdate received on raw lane", {
+					sessionId,
+					currentModeId: update.update.currentModeId,
+				});
 				break;
 
 			case "configOptionUpdate": {
@@ -613,38 +699,9 @@ export class SessionEventService {
 			}
 
 			case "usageTelemetryUpdate": {
-				const usageTelemetryData = getUsageTelemetryData(update);
-				if (!usageTelemetryData) {
-					logger.warn("Discarding malformed usage telemetry update", { update });
-					break;
-				}
-
-				const current = handler.getHotState(sessionId);
-				const prev = current.usageTelemetry;
-				const eventId = usageTelemetryData.eventId ?? null;
-				if (eventId !== null && prev?.lastTelemetryEventId === eventId) {
-					break;
-				}
-				const costUsd = usageTelemetryData.costUsd ?? 0;
-				const sessionSpendUsd = (prev?.sessionSpendUsd ?? 0) + costUsd;
-				const t = usageTelemetryData.tokens;
-				const updatedAt = Date.now();
-				const currentModelId =
-					current.currentModel != null && current.currentModel.id.length > 0
-						? current.currentModel.id
-						: null;
-				handler.updateUsageTelemetry(sessionId, {
-					sessionSpendUsd,
-					latestStepCostUsd: usageTelemetryData.costUsd ?? null,
-					latestTokensTotal: t?.total ?? null,
-					latestTokensInput: t?.input ?? null,
-					latestTokensOutput: t?.output ?? null,
-					latestTokensCacheRead: t?.cacheRead ?? null,
-					latestTokensCacheWrite: t?.cacheWrite ?? null,
-					latestTokensReasoning: t?.reasoning ?? null,
-					lastTelemetryEventId: eventId,
-					contextBudget: resolveContextBudget(usageTelemetryData, prev, currentModelId, updatedAt),
-					updatedAt,
+				logger.debug("usageTelemetryUpdate received on raw lane", {
+					sessionId,
+					updateSessionId: getUsageTelemetryData(update)?.sessionId ?? null,
 				});
 				break;
 			}
@@ -656,6 +713,15 @@ export class SessionEventService {
 	}
 
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
+		this.latestSessionStateGraphRevision.set(
+			envelope.sessionId,
+			Math.max(this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0, envelope.graphRevision)
+		);
+		this.advanceConnectionMaterializationWaiter(envelope);
+		if (!this.hasKnownSession(handler, envelope.sessionId)) {
+			this.bufferPendingSessionState(envelope.sessionId, envelope);
+			return;
+		}
 		if (
 			envelope.payload.kind === "delta" &&
 			sessionStateDeltaHasAssistantMutation(envelope.payload.delta)
@@ -803,6 +869,40 @@ export class SessionEventService {
 	 */
 	private hasKnownSession(handler: SessionEventHandler, sessionId: string): boolean {
 		return handler.getSessionCold(sessionId) !== undefined;
+	}
+
+	private advanceConnectionMaterializationWaiter(envelope: SessionStateEnvelope): void {
+		const waiter = this.connectionMaterializationWaiters.get(envelope.sessionId);
+		if (!waiter || envelope.graphRevision <= waiter.minGraphRevision) {
+			return;
+		}
+
+		if (envelope.payload.kind === "snapshot") {
+			waiter.lifecycle = envelope.payload.graph.lifecycle;
+			waiter.capabilities = envelope.payload.graph.capabilities;
+		} else if (envelope.payload.kind === "lifecycle") {
+			waiter.lifecycle = envelope.payload.lifecycle;
+		} else if (envelope.payload.kind === "capabilities") {
+			waiter.capabilities = envelope.payload.capabilities;
+		}
+
+		if (waiter.lifecycle?.status === "error") {
+			this.takeConnectionMaterializationWaiter(envelope.sessionId)?.reject(
+				new Error(waiter.lifecycle.errorMessage ?? "Connection failed")
+			);
+			return;
+		}
+
+		if (waiter.lifecycle?.status !== "ready" || waiter.capabilities === null) {
+			return;
+		}
+
+		const materialized = materializedConnectionData(waiter.capabilities);
+		if (materialized === null) {
+			return;
+		}
+
+		this.takeConnectionMaterializationWaiter(envelope.sessionId)?.resolve(materialized);
 	}
 
 	private scheduleAssistantFallbackUpdate(

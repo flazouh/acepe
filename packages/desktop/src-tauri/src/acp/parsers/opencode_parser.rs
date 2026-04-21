@@ -172,6 +172,7 @@ impl OpenCodeParser {
         Ok(RawToolCallUpdateInput {
             id,
             status: Some(ToolCallStatus::Completed),
+            raw_output: result.clone(),
             result,
             content: None,
             title: None,

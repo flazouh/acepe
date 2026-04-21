@@ -10,6 +10,7 @@ function createFoundResult(
 	const canonicalSessionId = overrides?.canonicalSessionId ?? "canonical-session";
 	const isAlias = overrides?.isAlias ?? false;
 	const lastEventSeq = overrides?.lastEventSeq ?? 3;
+	const graphRevision = overrides?.graphRevision ?? lastEventSeq;
 	const openToken = overrides?.openToken ?? "open-token";
 	const agentId = overrides?.agentId ?? "copilot";
 	const projectPath = overrides?.projectPath ?? "/repo";
@@ -29,6 +30,7 @@ function createFoundResult(
 		canonicalSessionId,
 		isAlias,
 		lastEventSeq,
+		graphRevision,
 		openToken,
 		agentId,
 		projectPath,
@@ -130,7 +132,7 @@ describe("SessionOpenHydrator", () => {
 		const older = await hydrator.hydrateFound(
 			"panel-1",
 			requestToken,
-			createFoundResult({ lastEventSeq: 4 })
+			createFoundResult({ lastEventSeq: 4, graphRevision: 4 })
 		);
 
 		expect(older.isOk()).toBe(true);
@@ -140,6 +142,29 @@ describe("SessionOpenHydrator", () => {
 			applied: false,
 		});
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("applies a newer graph revision even when the delivery watermark matches", async () => {
+		const requestToken = hydrator.beginAttempt("panel-1");
+		await hydrator.hydrateFound(
+			"panel-1",
+			requestToken,
+			createFoundResult({ lastEventSeq: 5, graphRevision: 5 })
+		);
+
+		const newerGraph = await hydrator.hydrateFound(
+			"panel-1",
+			requestToken,
+			createFoundResult({ lastEventSeq: 5, graphRevision: 6 })
+		);
+
+		expect(newerGraph.isOk()).toBe(true);
+		expect(newerGraph._unsafeUnwrap()).toEqual({
+			canonicalSessionId: "canonical-session",
+			openToken: "open-token",
+			applied: true,
+		});
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(2);
 	});
 
 	it("hydrates created sessions without rebinding a panel", async () => {

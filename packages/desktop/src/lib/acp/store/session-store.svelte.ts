@@ -36,8 +36,8 @@ import type {
 	SessionTurnState,
 	TurnFailureSnapshot,
 	TranscriptDelta,
+	UsageTelemetryData,
 } from "../../services/acp-types.js";
-import { captureContractViolation } from "../../analytics.js";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
@@ -54,8 +54,6 @@ import {
 	type SessionUIState,
 } from "../logic/session-ui-state";
 import type { AvailableCommand } from "../types/available-command.js";
-import type { PermissionRequest } from "../types/permission";
-import type { QuestionRequest } from "../types/question";
 import type { SessionUpdate } from "../types/session-update";
 import type { ToolCallUpdate } from "../types/tool-call";
 import type { ActiveTurnFailure, TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
@@ -72,6 +70,7 @@ import {
 } from "./session-event-service.svelte.js";
 import type {
 	SessionCapabilities,
+	SessionContextBudget,
 	SessionCold,
 	SessionEntry,
 	SessionHotState,
@@ -79,6 +78,7 @@ import type {
 	SessionMetadata,
 	Mode,
 	Model,
+	SessionUsageTelemetry,
 } from "./types.js";
 import "../errors/app-error.js";
 import type { PrDetails } from "../../utils/tauri-client/git.js";
@@ -119,6 +119,64 @@ type LiveSessionStateGraphConsumer = {
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
+function resolveContextBudget(
+	usageTelemetryData: UsageTelemetryData,
+	previous: SessionUsageTelemetry | undefined,
+	_currentModelId: string | null,
+	updatedAt: number
+): SessionContextBudget | null {
+	const explicitMaxTokens = usageTelemetryData.contextWindowSize ?? null;
+	if (explicitMaxTokens != null && explicitMaxTokens > 0) {
+		return {
+			maxTokens: explicitMaxTokens,
+			source: "provider-explicit",
+			scope: usageTelemetryData.scope ?? "step",
+			updatedAt,
+		};
+	}
+
+	if (previous?.contextBudget?.source === "provider-explicit") {
+		return previous.contextBudget;
+	}
+
+	return previous?.contextBudget ?? null;
+}
+
+function buildCanonicalUsageTelemetry(
+	usageTelemetryData: UsageTelemetryData,
+	previous: SessionUsageTelemetry | undefined,
+	currentModelId: string | null
+): SessionUsageTelemetry | null {
+	const eventId = usageTelemetryData.eventId ?? null;
+	if (eventId !== null && previous?.lastTelemetryEventId === eventId) {
+		return null;
+	}
+
+	const costUsd = usageTelemetryData.costUsd ?? 0;
+	const sessionSpendUsd = (previous?.sessionSpendUsd ?? 0) + costUsd;
+	const tokens = usageTelemetryData.tokens;
+	const updatedAt = Date.now();
+
+	return {
+		sessionSpendUsd,
+		latestStepCostUsd: usageTelemetryData.costUsd ?? null,
+		latestTokensTotal: tokens?.total ?? null,
+		latestTokensInput: tokens?.input ?? null,
+		latestTokensOutput: tokens?.output ?? null,
+		latestTokensCacheRead: tokens?.cacheRead ?? null,
+		latestTokensCacheWrite: tokens?.cacheWrite ?? null,
+		latestTokensReasoning: tokens?.reasoning ?? null,
+		lastTelemetryEventId: eventId,
+		contextBudget: resolveContextBudget(
+			usageTelemetryData,
+			previous,
+			currentModelId,
+			updatedAt
+		),
+		updatedAt,
+	};
+}
+
 function mapTurnStateToHotState(turnState: SessionTurnState):
 	| "idle"
 	| "streaming"
@@ -133,6 +191,23 @@ function mapTurnStateToHotState(turnState: SessionTurnState):
 			return "completed";
 		case "Failed":
 			return "error";
+	}
+}
+
+function mapHotTurnStateToGraphTurnState(
+	turnState: SessionHotState["turnState"]
+): SessionTurnState {
+	switch (turnState) {
+		case "idle":
+			return "Idle";
+		case "streaming":
+			return "Running";
+		case "completed":
+			return "Completed";
+		case "interrupted":
+			return "Completed";
+		case "error":
+			return "Failed";
 	}
 }
 
@@ -211,6 +286,7 @@ function projectGraphCapabilities(
 	modelsDisplay: ModelsForDisplay | undefined;
 	providerMetadata: ProviderMetadataProjection;
 	configOptions: SessionHotState["configOptions"];
+	autonomousEnabled: boolean;
 } {
 	const availableModels = mapGraphAvailableModels(capabilities);
 	const availableModes = mapGraphAvailableModes(capabilities);
@@ -250,6 +326,7 @@ function projectGraphCapabilities(
 		modelsDisplay,
 		providerMetadata,
 		configOptions: capabilities.configOptions,
+		autonomousEnabled: capabilities.autonomousEnabled ?? false,
 	};
 }
 
@@ -273,8 +350,6 @@ function connectionErrorFromGraphState(
  * These are set during initialization to avoid circular dependencies.
  */
 export interface SessionStoreCallbacks {
-	onPermissionRequest?: (permission: PermissionRequest) => void;
-	onQuestionRequest?: (question: QuestionRequest) => void;
 	onPlanUpdate?: (sessionId: string, planData: PlanData) => void;
 	onTurnComplete?: (sessionId: string) => void;
 	onTurnInterrupted?: (sessionId: string) => void;
@@ -432,8 +507,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	setCallbacks(callbacks: SessionStoreCallbacks): void {
 		this.callbacks = callbacks;
 		const eventCallbacks: SessionEventServiceCallbacks = {
-			onPermissionRequest: callbacks.onPermissionRequest,
-			onQuestionRequest: callbacks.onQuestionRequest,
 			onPlanUpdate: callbacks.onPlanUpdate,
 			onTurnComplete: callbacks.onTurnComplete,
 		};
@@ -629,9 +702,51 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	applySessionStateGraph(graph: SessionStateGraph): void {
+		const previousHotState = this.getHotState(graph.canonicalSessionId);
 		const normalizedAgentId = normalizeCanonicalAgentId(graph.agentId);
 		const projectedCapabilities = projectGraphCapabilities(normalizedAgentId, graph.capabilities);
 		const activeTurnFailure = mapProjectionTurnFailure(graph.activeTurnFailure ?? null);
+		const nextLastTerminalTurnId = graph.lastTerminalTurnId ?? null;
+		const isNewCompletedTurn =
+			graph.turnState === "Completed" &&
+			(previousHotState.turnState !== "completed" ||
+				previousHotState.lastTerminalTurnId !== nextLastTerminalTurnId);
+		const isNewFailedTurn =
+			graph.turnState === "Failed" &&
+			activeTurnFailure !== null &&
+			(previousHotState.turnState !== "error" ||
+				previousHotState.lastTerminalTurnId !== nextLastTerminalTurnId);
+
+		if (isNewCompletedTurn) {
+			this.messagingSvc.handleStreamComplete(
+				graph.canonicalSessionId,
+				graph.lastTerminalTurnId ?? undefined
+			);
+			this.callbacks.onTurnComplete?.(graph.canonicalSessionId);
+		}
+
+		const projectedFailure = graph.activeTurnFailure ?? null;
+		if (isNewFailedTurn && projectedFailure !== null) {
+			const numericCode =
+				projectedFailure.code == null || projectedFailure.code.trim() === ""
+					? undefined
+						: Number.isNaN(Number(projectedFailure.code))
+							? undefined
+						: Number(projectedFailure.code);
+			this.messagingSvc.handleTurnError(graph.canonicalSessionId, {
+				type: "turnError",
+				session_id: graph.canonicalSessionId,
+				turn_id: projectedFailure.turn_id ?? undefined,
+				error: {
+					message: projectedFailure.message,
+					code: numericCode,
+					kind: projectedFailure.kind,
+					source: projectedFailure.source ?? "unknown",
+				},
+			});
+			this.callbacks.onTurnError?.(graph.canonicalSessionId);
+		}
+
 		this.capabilitiesStore.updateCapabilities(graph.canonicalSessionId, {
 			availableModes: projectedCapabilities.availableModes,
 			availableModels: projectedCapabilities.availableModels,
@@ -652,9 +767,103 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			currentModel: projectedCapabilities.currentModel,
 			availableCommands: projectedCapabilities.availableCommands,
 			configOptions: projectedCapabilities.configOptions,
+			autonomousEnabled: projectedCapabilities.autonomousEnabled,
 		};
 
 		this.hotStateStore.updateHotState(graph.canonicalSessionId, updates);
+		this.reconcileConnectionMachineFromCanonicalState(
+			graph.canonicalSessionId,
+			graph.lifecycle,
+			graph.turnState,
+			activeTurnFailure
+		);
+	}
+
+	private reconcileConnectionMachineFromCanonicalState(
+		sessionId: string,
+		lifecycle: SessionGraphLifecycle,
+		turnState: SessionTurnState,
+		activeTurnFailure: ActiveTurnFailure | null
+	): void {
+		let machineState = this.connectionService.getState(sessionId);
+
+		if (lifecycle.status === "idle") {
+			if (machineState !== null && machineState.connection !== "disconnected") {
+				this.connectionService.sendDisconnect(sessionId);
+			}
+			return;
+		}
+
+		if (lifecycle.status === "connecting") {
+			if (machineState === null || machineState.connection === "disconnected") {
+				this.connectionService.sendConnectionConnect(sessionId);
+			}
+			return;
+		}
+
+		if (lifecycle.status === "error") {
+			if (machineState === null || machineState.connection === "disconnected") {
+				this.connectionService.sendConnectionConnect(sessionId);
+			}
+			this.connectionService.sendConnectionError(sessionId);
+			return;
+		}
+
+		if (machineState === null || machineState.connection === "disconnected") {
+			this.connectionService.sendConnectionConnect(sessionId);
+			this.connectionService.sendConnectionSuccess(sessionId);
+			this.connectionService.sendCapabilitiesLoaded(sessionId);
+			machineState = this.connectionService.getState(sessionId);
+		} else if (machineState.connection === "connecting") {
+			this.connectionService.sendConnectionSuccess(sessionId);
+			this.connectionService.sendCapabilitiesLoaded(sessionId);
+			machineState = this.connectionService.getState(sessionId);
+		} else if (machineState.connection === "warmingUp") {
+			this.connectionService.sendCapabilitiesLoaded(sessionId);
+			machineState = this.connectionService.getState(sessionId);
+		} else if (machineState.connection === "error") {
+			this.connectionService.sendDisconnect(sessionId);
+			this.connectionService.sendConnectionConnect(sessionId);
+			this.connectionService.sendConnectionSuccess(sessionId);
+			this.connectionService.sendCapabilitiesLoaded(sessionId);
+			machineState = this.connectionService.getState(sessionId);
+		}
+
+		if (machineState === null) {
+			return;
+		}
+
+		if (turnState === "Running") {
+			if (machineState.connection === "ready") {
+				this.connectionService.sendMessageSent(sessionId);
+				this.connectionService.sendResponseStarted(sessionId);
+				return;
+			}
+
+			if (machineState.connection === "awaitingResponse") {
+				this.connectionService.sendResponseStarted(sessionId);
+			}
+			return;
+		}
+
+		if (turnState === "Failed" && activeTurnFailure !== null) {
+			if (
+				machineState.connection === "awaitingResponse" ||
+				machineState.connection === "streaming" ||
+				machineState.connection === "paused"
+			) {
+				this.connectionService.sendTurnFailed(sessionId, activeTurnFailure);
+			}
+			return;
+		}
+
+		if (
+			machineState.connection === "awaitingResponse" ||
+			machineState.connection === "streaming" ||
+			machineState.connection === "paused"
+		) {
+			this.connectionService.sendResponseComplete(sessionId);
+		}
 	}
 
 	clearSessionProjection(sessionId: string): void {
@@ -687,6 +896,21 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (hotState.status === "loading") {
 			this.hotStateStore.updateHotState(sessionId, { status: "idle" });
 		}
+	}
+
+	/**
+	 * Mark a persisted session as non-openable so the panel renders an explicit
+	 * error/read-only state instead of silently falling back to the ready placeholder.
+	 */
+	setSessionOpenMissing(sessionId: string, message: string): void {
+		this.connectionService.setConnecting(sessionId, false);
+		this.connectionService.sendConnectionError(sessionId);
+		this.hotStateStore.updateHotState(sessionId, {
+			status: "error",
+			isConnected: false,
+			connectionError: message,
+			availableCommands: [],
+		});
 	}
 
 	// ============================================
@@ -776,8 +1000,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.entryStore.replaceTranscriptSnapshot(
 			canonicalSessionId,
 			snapshot.transcriptSnapshot,
-			now,
-			{ syncOperations: false }
+			now
 		);
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
 		this.hotStateStore.initializeHotState(canonicalSessionId);
@@ -1317,14 +1540,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			if (payload.operation != null) {
 				this.operationStore.upsertOperationSnapshot(payload.operation);
 			} else {
-				captureContractViolation("operation_upserted_without_snapshot", {
-					sessionId: event.session_id,
-					operationId: payload.operation_id,
-					toolCallId: payload.tool_call_id,
-					toolName: payload.tool_name,
-					toolKind: payload.tool_kind,
-					status: payload.status,
-				});
 				this.operationStore.upsertFallbackOperation(
 					event.session_id,
 					payload.operation_id,
@@ -1368,17 +1583,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				payload.kind === "interaction_upserted"
 					? (payload.interaction?.kind ?? payload.interaction_kind)
 					: (payload.interaction?.kind ?? null);
-			const interactionState =
-				payload.kind === "interaction_upserted"
-					? (payload.interaction?.state ?? "Pending")
-					: (payload.interaction?.state ?? (payload.kind === "interaction_cancelled" ? "Rejected" : "Approved"));
+
+			if (interactionKind == null) {
+				return;
+			}
+
 			this.operationStore.updateOperationBlockingFromInteraction(
 				event.session_id,
 				payload.interaction_id,
 				operationId,
 				toolCallId,
 				interactionKind,
-				interactionState
+				payload.kind === "interaction_upserted"
+					? (payload.interaction?.state ?? "Pending")
+					: (payload.interaction?.state ?? "Approved")
 			);
 		}
 	}
@@ -1393,9 +1611,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		for (const command of commands) {
 			if (command.kind === "replaceGraph") {
 				const graph = command.graph;
-				this.entryStore.replaceTranscriptSnapshot(sessionId, graph.transcriptSnapshot, new Date(), {
-					syncOperations: false,
-				});
+				this.entryStore.replaceTranscriptSnapshot(sessionId, graph.transcriptSnapshot, new Date());
 				this.operationStore.replaceSessionOperations(sessionId, graph.operations);
 				this.liveSessionStateGraphConsumer?.replaceSessionStateGraph(graph);
 				this.applySessionStateGraph(graph);
@@ -1414,6 +1630,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						hotState.activeTurnFailure ?? null
 					),
 				});
+				this.reconcileConnectionMachineFromCanonicalState(
+					sessionId,
+					command.lifecycle,
+					mapHotTurnStateToGraphTurnState(hotState.turnState),
+					hotState.activeTurnFailure ?? null
+				);
 				continue;
 			}
 
@@ -1438,7 +1660,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					currentModel: projectedCapabilities.currentModel,
 					availableCommands: projectedCapabilities.availableCommands,
 					configOptions: projectedCapabilities.configOptions,
+					autonomousEnabled: projectedCapabilities.autonomousEnabled,
 				});
+				continue;
+			}
+
+			if (command.kind === "applyTelemetry") {
+				const hotState = this.getHotState(sessionId);
+				const nextTelemetry = buildCanonicalUsageTelemetry(
+					command.telemetry,
+					hotState.usageTelemetry,
+					hotState.currentModel != null && hotState.currentModel.id.length > 0
+						? hotState.currentModel.id
+						: null
+				);
+				if (nextTelemetry !== null) {
+					this.updateUsageTelemetry(sessionId, nextTelemetry);
+				}
 				continue;
 			}
 

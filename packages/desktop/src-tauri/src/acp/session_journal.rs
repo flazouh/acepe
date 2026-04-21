@@ -9,6 +9,7 @@ use crate::acp::session_update::{
     ContentChunk, PermissionData, QuestionData, SessionUpdate, ToolCallData, ToolCallUpdateData,
     TurnErrorData,
 };
+use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::db::repository::{
     SerializedSessionJournalEventRow, SessionJournalEventRepository,
     SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
@@ -357,6 +358,32 @@ pub async fn load_projection_from_journal(
     }
 
     Ok(Some(rebuild_session_projection(replay_context, &events)))
+}
+
+pub async fn load_transcript_from_journal(
+    db: &DbConn,
+    replay_context: &SessionReplayContext,
+) -> Result<Option<TranscriptSnapshot>, anyhow::Error> {
+    let rows = SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
+        .await?;
+    let events = decode_serialized_events(replay_context, rows)?;
+    let transcript_registry = TranscriptProjectionRegistry::new();
+    let mut saw_projection_update = false;
+
+    for event in events {
+        let SessionJournalEventPayload::ProjectionUpdate { update } = event.payload else {
+            continue;
+        };
+        saw_projection_update = true;
+        let session_update = update.into_session_update();
+        let _ = transcript_registry.apply_session_update(event.event_seq, &session_update);
+    }
+
+    if !saw_projection_update {
+        return Ok(None);
+    }
+
+    Ok(transcript_registry.snapshot_for_session(&replay_context.local_session_id))
 }
 
 pub async fn load_stored_projection(

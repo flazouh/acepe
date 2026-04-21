@@ -5,14 +5,18 @@ use crate::acp::client_session::default_session_model_state;
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::commands::session_commands::{
-    build_live_session_state_envelopes, persist_session_metadata_for_cwd,
-    resolve_requested_agent_id, session_metadata_context_from_cwd,
+    persist_session_metadata_for_cwd, resolve_requested_agent_id, session_metadata_context_from_cwd,
 };
 use crate::acp::error::{AcpError, AcpResult};
+use crate::acp::projections::ProjectionRegistry;
+use crate::acp::session_state_engine::runtime_registry::{
+    LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
+};
 use crate::acp::session_state_engine::{
     SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
     SessionGraphRevision, SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
 };
+use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
@@ -476,8 +480,25 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
     }
 }
 
-#[test]
-fn connection_complete_builds_graph_native_capabilities_and_lifecycle_envelopes() {
+#[tokio::test]
+async fn connection_complete_builds_graph_native_snapshot_envelope() {
+    let db = setup_test_db().await;
+    SessionMetadataRepository::upsert(
+        &db,
+        "session-1".to_string(),
+        "Session 1".to_string(),
+        0,
+        "/workspace/a".to_string(),
+        CanonicalAgentId::Cursor.as_str().to_string(),
+        "/workspace/a/src/main.ts".to_string(),
+        0,
+        0,
+    )
+    .await
+    .expect("insert metadata");
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
     let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
         session_id: "session-1".to_string(),
         attempt_id: 42,
@@ -515,68 +536,95 @@ fn connection_complete_builds_graph_native_capabilities_and_lifecycle_envelopes(
         autonomous_enabled: false,
     };
 
-    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(7, 5, 7));
+    runtime_registry.apply_session_update_with_graph_seed("session-1", 6, &update);
 
-    assert_eq!(envelopes.len(), 2);
-    match &envelopes[0].payload {
-        SessionStatePayload::Capabilities {
-            capabilities,
-            revision,
-        } => {
-            assert_eq!(revision.graph_revision, 7);
-            assert_eq!(revision.transcript_revision, 5);
+    let envelope = runtime_registry
+        .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+            db: &db,
+            session_id: "session-1",
+            update: &update,
+            previous_revision: SessionGraphRevision::new(6, 5, 6),
+            revision: SessionGraphRevision::new(7, 5, 7),
+            projection_registry: &projection_registry,
+            transcript_projection_registry: &transcript_projection_registry,
+            transcript_delta: None,
+        })
+        .await
+        .expect("snapshot envelope");
+
+    match envelope.payload {
+        SessionStatePayload::Snapshot { graph } => {
+            assert_eq!(graph.revision, SessionGraphRevision::new(7, 5, 7));
+            assert_eq!(graph.lifecycle.status, SessionGraphLifecycleStatus::Ready);
+            assert_eq!(graph.lifecycle.error_message, None);
             assert_eq!(
-                capabilities
+                graph
+                    .capabilities
                     .models
                     .as_ref()
                     .expect("models")
                     .current_model_id,
                 "gpt-5"
             );
-            assert_eq!(capabilities.available_commands.len(), 1);
-            assert_eq!(capabilities.config_options.len(), 1);
+            assert_eq!(graph.capabilities.available_commands.len(), 1);
+            assert_eq!(graph.capabilities.config_options.len(), 1);
         }
-        payload => panic!("expected capabilities payload, got {payload:?}"),
-    }
-    match &envelopes[1].payload {
-        SessionStatePayload::Lifecycle {
-            lifecycle,
-            revision,
-        } => {
-            assert_eq!(revision.last_event_seq, 7);
-            assert_eq!(lifecycle.status, SessionGraphLifecycleStatus::Ready);
-            assert_eq!(lifecycle.error_message, None);
-        }
-        payload => panic!("expected lifecycle payload, got {payload:?}"),
+        payload => panic!("expected snapshot payload, got {payload:?}"),
     }
 }
 
-#[test]
-fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
+#[tokio::test]
+async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
+    let db = setup_test_db().await;
+    SessionMetadataRepository::upsert(
+        &db,
+        "session-1".to_string(),
+        "Session 1".to_string(),
+        0,
+        "/workspace/a".to_string(),
+        CanonicalAgentId::Cursor.as_str().to_string(),
+        "/workspace/a/src/main.ts".to_string(),
+        0,
+        0,
+    )
+    .await
+    .expect("insert metadata");
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
     let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
         session_id: "session-1".to_string(),
         attempt_id: 42,
         error: "connection dropped".to_string(),
     };
 
-    let envelopes = build_live_session_state_envelopes(&update, SessionGraphRevision::new(9, 4, 9));
+    runtime_registry.apply_session_update_with_graph_seed("session-1", 8, &update);
 
-    assert_eq!(envelopes.len(), 1);
-    match &envelopes[0].payload {
-        SessionStatePayload::Lifecycle {
-            lifecycle,
-            revision,
-        } => {
-            assert_eq!(revision.graph_revision, 9);
-            assert_eq!(revision.transcript_revision, 4);
-            assert_eq!(lifecycle.status, SessionGraphLifecycleStatus::Error);
+    let envelope = runtime_registry
+        .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+            db: &db,
+            session_id: "session-1",
+            update: &update,
+            previous_revision: SessionGraphRevision::new(8, 4, 8),
+            revision: SessionGraphRevision::new(9, 4, 9),
+            projection_registry: &projection_registry,
+            transcript_projection_registry: &transcript_projection_registry,
+            transcript_delta: None,
+        })
+        .await
+        .expect("snapshot envelope");
+
+    match envelope.payload {
+        SessionStatePayload::Snapshot { graph } => {
+            assert_eq!(graph.revision, SessionGraphRevision::new(9, 4, 9));
+            assert_eq!(graph.lifecycle.status, SessionGraphLifecycleStatus::Error);
             assert_eq!(
-                lifecycle.error_message.as_deref(),
+                graph.lifecycle.error_message.as_deref(),
                 Some("connection dropped")
             );
-            assert!(lifecycle.can_reconnect);
+            assert!(graph.lifecycle.can_reconnect);
         }
-        payload => panic!("expected lifecycle payload, got {payload:?}"),
+        payload => panic!("expected snapshot payload, got {payload:?}"),
     }
 }
 
@@ -883,11 +931,11 @@ async fn resume_or_create_passes_launch_mode_through_provider_owned_reconnect() 
     .await;
 
     assert!(result.is_ok(), "provider-owned reconnect should succeed");
-    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(existing_state.stop_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(replacement_state.resume_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(existing_state.stop_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(replacement_state.resume_calls.load(Ordering::SeqCst), 1);
     assert_eq!(
-        existing_state
+        replacement_state
             .reconnect_launch_mode_ids
             .lock()
             .expect("reconnect launch mode ids lock")

@@ -10,7 +10,11 @@ const inflightPanelIds = new Set<string>();
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "getSessionCold" | "connectSession"
+	| "setSessionLoading"
+	| "setSessionLoaded"
+	| "setSessionOpenMissing"
+	| "getSessionCold"
+	| "connectSession"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -26,6 +30,14 @@ interface OpenPersistedSessionOptions {
 	readonly getSessionOpenResult?: typeof api.getSessionOpenResult;
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
+}
+
+function missingSessionMessage(session: ReturnType<SessionOpenStore["getSessionCold"]>): string {
+	if (session?.agentId === "cursor" && session.sourcePath?.endsWith("store.db")) {
+		return "This Cursor history session is view-only and can't be reopened because no canonical resumable state was persisted.";
+	}
+
+	return "This session can't be reopened because no canonical session state is available.";
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -75,7 +87,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		.andThen((result) => {
 			if (result.outcome === "missing") {
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionLoaded(sessionId);
+				sessionStore.setSessionOpenMissing(sessionId, missingSessionMessage(session));
 				logger.warn("Session open returned missing", {
 					source,
 					panelId,

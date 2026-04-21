@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { SessionEntry } from "../../application/dto/session-entry.js";
-import type { ToolKind } from "../../types/tool-kind.js";
 import {
-	getCurrentToolKind,
 	type NonAgentPanelToTabInput,
 	nonAgentPanelToTab,
 	type PanelToTabInput,
@@ -63,6 +60,8 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		hotState: makeHotState(),
 		runtimeState: null,
 		entries: [],
+		currentStreamingToolCall: null,
+		currentToolKind: null,
 		pendingQuestion: null,
 		pendingPlanApproval: null,
 		pendingPermission: null,
@@ -389,103 +388,5 @@ describe("nonAgentPanelToTab", () => {
 		expect(tab.isFocused).toBe(true);
 		expect(tab.projectName).toBe("acepe");
 		expect(tab.projectColor).toBe("#16DB95");
-	});
-});
-
-// =============================================================================
-// getCurrentToolKind helpers
-// =============================================================================
-
-function makeToolCallEntry(kind: string | null | undefined, isStreaming: boolean): SessionEntry {
-	return {
-		id: `entry-${Math.random()}`,
-		type: "tool_call",
-		isStreaming,
-		message: {
-			id: "tc-1",
-			name: "some_tool",
-			kind: kind as ToolKind | null | undefined,
-			arguments: { kind: "other" },
-			status: "running",
-		},
-	} as unknown as SessionEntry;
-}
-
-function makeAssistantEntry(): SessionEntry {
-	return {
-		id: `entry-${Math.random()}`,
-		type: "assistant",
-		message: { content: "hello", chunks: [] },
-	} as unknown as SessionEntry;
-}
-
-describe("getCurrentToolKind", () => {
-	it("should return null for empty entries", () => {
-		expect(getCurrentToolKind([])).toBeNull();
-	});
-
-	it("should return null when no tool calls are streaming", () => {
-		const entries: SessionEntry[] = [makeToolCallEntry("edit", false), makeAssistantEntry()];
-		expect(getCurrentToolKind(entries)).toBeNull();
-	});
-
-	it("should return the kind of the last streaming tool call", () => {
-		const entries: SessionEntry[] = [
-			makeToolCallEntry("edit", false),
-			makeToolCallEntry("execute", true),
-		];
-		expect(getCurrentToolKind(entries)).toBe("execute");
-	});
-
-	it("should return the most recent streaming tool call when multiple are streaming", () => {
-		const entries: SessionEntry[] = [
-			makeToolCallEntry("edit", true),
-			makeToolCallEntry("search", true),
-		];
-		expect(getCurrentToolKind(entries)).toBe("search");
-	});
-
-	it("should skip non-tool-call entries when searching", () => {
-		const entries: SessionEntry[] = [
-			makeToolCallEntry("edit", true),
-			makeAssistantEntry(),
-			makeToolCallEntry("execute", false),
-		];
-		// Last streaming is "edit" (execute is not streaming, assistant is skipped)
-		expect(getCurrentToolKind(entries)).toBe("edit");
-	});
-
-	it("should fall back to 'other' when kind is null", () => {
-		const entries: SessionEntry[] = [makeToolCallEntry(null, true)];
-		expect(getCurrentToolKind(entries)).toBe("other");
-	});
-
-	it("should fall back to 'other' when kind is undefined", () => {
-		const entries: SessionEntry[] = [makeToolCallEntry(undefined, true)];
-		expect(getCurrentToolKind(entries)).toBe("other");
-	});
-
-	it("should return all known tool kinds correctly", () => {
-		const kinds: ToolKind[] = [
-			"read",
-			"edit",
-			"execute",
-			"search",
-			"fetch",
-			"think",
-			"todo",
-			"question",
-			"task",
-			"skill",
-			"move",
-			"delete",
-			"enter_plan_mode",
-			"exit_plan_mode",
-			"other",
-		];
-		for (const kind of kinds) {
-			const entries: SessionEntry[] = [makeToolCallEntry(kind, true)];
-			expect(getCurrentToolKind(entries)).toBe(kind);
-		}
 	});
 });

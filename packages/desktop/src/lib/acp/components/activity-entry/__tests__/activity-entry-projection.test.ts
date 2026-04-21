@@ -1,12 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
-import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
-import {
-	projectActivityEntry,
-	projectActivityEntryFromSessionEntries,
-} from "../activity-entry-projection.js";
+import { projectActivityEntry, projectSessionPreviewActivity } from "../activity-entry-projection.js";
 
 function createTaskToolCall(children: ToolCall[]): ToolCall {
 	return {
@@ -66,16 +62,6 @@ function createTodoToolCall(id: string, status: ToolCall["status"]): ToolCall {
 	};
 }
 
-function createToolEntry(toolCall: ToolCall, isStreaming = false): SessionEntry {
-	return {
-		id: `entry-${toolCall.id}`,
-		type: "tool_call",
-		message: toolCall,
-		isStreaming,
-		timestamp: new Date("2026-04-12T03:00:00.000Z"),
-	};
-}
-
 describe("projectActivityEntry", () => {
 	it("prefers nested todo children over trailing reads in task projections", () => {
 		const taskTool = createTaskToolCall([
@@ -121,15 +107,17 @@ describe("projectActivityEntry", () => {
 	});
 });
 
-describe("projectActivityEntryFromSessionEntries", () => {
+describe("projectSessionPreviewActivity", () => {
 	it("suppresses last completed tools while thinking", () => {
 		const readTool = createReadToolCall("finished-read", "completed");
 
-		const projection = projectActivityEntryFromSessionEntries({
-			entries: [createToolEntry(readTool)],
+		const projection = projectSessionPreviewActivity({
 			activityKind: "thinking",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: readTool,
+			lastToolKind: "read",
 			todoProgress: null,
-			includeLastCompletedTool: true,
 		});
 
 		expect(projection.selectedTool).toBeNull();
@@ -139,11 +127,13 @@ describe("projectActivityEntryFromSessionEntries", () => {
 	it("keeps a live task tool visible while thinking", () => {
 		const liveTask = createTaskToolCall([createTodoToolCall("child-todo", "in_progress")]);
 
-		const projection = projectActivityEntryFromSessionEntries({
-			entries: [createToolEntry(liveTask, true)],
+		const projection = projectSessionPreviewActivity({
 			activityKind: "thinking",
+			currentStreamingToolCall: liveTask,
+			currentToolKind: "task",
+			lastToolCall: liveTask,
+			lastToolKind: "task",
 			todoProgress: null,
-			includeLastCompletedTool: true,
 		});
 
 		expect(projection.selectedTool?.toolKind).toBe("task");

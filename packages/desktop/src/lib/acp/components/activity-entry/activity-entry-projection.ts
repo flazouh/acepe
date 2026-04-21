@@ -2,7 +2,6 @@ import type { ActivityEntryTodoProgress } from "@acepe/ui";
 import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
 
-import type { SessionEntry } from "../../application/dto/session-entry.js";
 import { getToolCompactDisplayText, getToolKindFilePath } from "../../registry/tool-kind-ui-registry.js";
 import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { TurnState } from "../../store/types.js";
@@ -66,13 +65,6 @@ export interface ActivityEntryProjection extends ActivityTaskProjection {
 	readonly latestTool: CompactToolDisplay | null;
 }
 
-export interface SessionEntryActivityProjectionInput {
-	readonly entries: readonly SessionEntry[];
-	readonly activityKind: CompactActivityKind;
-	readonly todoProgress: ActivityEntryTodoProgress | null;
-	readonly includeLastCompletedTool: boolean;
-}
-
 export function isActiveCompactActivityKind(activityKind: CompactActivityKind): boolean {
 	return activityKind === "streaming" || activityKind === "thinking";
 }
@@ -94,28 +86,6 @@ export function deriveCompactActivityKind(
 	}
 
 	return "idle";
-}
-
-export function findCurrentStreamingToolCall(entries: readonly SessionEntry[]): ToolCall | null {
-	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		const entry = entries[index];
-		if (entry?.type === "tool_call" && entry.isStreaming) {
-			return entry.message;
-		}
-	}
-
-	return null;
-}
-
-export function findLastToolCall(entries: readonly SessionEntry[]): ToolCall | null {
-	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		const entry = entries[index];
-		if (entry?.type === "tool_call") {
-			return entry.message;
-		}
-	}
-
-	return null;
 }
 
 export function selectActivityTool(
@@ -384,27 +354,6 @@ export function projectSessionPreviewActivity(
 		activityKind: input.activityKind,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		currentToolKind: input.currentToolKind,
-		lastToolCall,
-		lastToolKind,
-		todoProgress: input.todoProgress,
-	});
-}
-
-export function projectActivityEntryFromSessionEntries(
-	input: SessionEntryActivityProjectionInput
-): ActivityEntryProjection {
-	const currentStreamingToolCall = findCurrentStreamingToolCall(input.entries);
-	const currentToolKind = currentStreamingToolCall?.kind ?? null;
-	const lastToolCall =
-		input.includeLastCompletedTool || input.activityKind !== "idle"
-			? findLastToolCall(input.entries)
-			: null;
-	const lastToolKind = lastToolCall?.kind ?? null;
-
-	return projectSessionPreviewActivity({
-		activityKind: input.activityKind,
-		currentStreamingToolCall,
-		currentToolKind,
 		lastToolCall,
 		lastToolKind,
 		todoProgress: input.todoProgress,

@@ -67,6 +67,7 @@ mod tests {
             canonical_session_id: "canonical-1".to_string(),
             is_alias: false,
             last_event_seq: 11,
+            graph_revision: 9,
             open_token: "open-token-1".to_string(),
             agent_id: CanonicalAgentId::Cursor,
             project_path: "/workspace/a".to_string(),
@@ -92,10 +93,11 @@ mod tests {
         );
 
         assert_eq!(envelope.session_id, "canonical-1");
-        assert_eq!(envelope.graph_revision, 11);
+        assert_eq!(envelope.graph_revision, 9);
         match envelope.payload {
             SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.requested_session_id, "requested-1");
+                assert_eq!(graph.revision.graph_revision, 9);
                 assert_eq!(graph.revision.last_event_seq, 11);
             }
             _ => panic!("expected snapshot payload"),

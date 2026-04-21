@@ -47,6 +47,8 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		hotState: makeHotState(),
 		runtimeState: null,
 		entries: [],
+		currentStreamingToolCall: null,
+		currentToolKind: null,
 		pendingQuestion: null,
 		pendingPermission: null,
 		isUnseen: false,
@@ -268,7 +270,13 @@ describe("panelToTab", () => {
 					},
 				} as unknown as SessionEntry,
 			];
-			const tab = panelToTab(makeInput({ entries }));
+			const tab = panelToTab(
+				makeInput({
+					entries,
+					currentStreamingToolCall: entries[0]?.type === "tool_call" ? entries[0].message : null,
+					currentToolKind: "edit",
+				})
+			);
 			expect(tab.currentToolKind).toBe("edit");
 		});
 

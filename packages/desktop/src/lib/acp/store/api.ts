@@ -128,28 +128,6 @@ export function stopStreaming(sessionId: string): ResultAsync<void, AppError> {
 }
 
 /**
- * Reply to a permission request.
- */
-export function replyPermission(
-	sessionId: string,
-	permissionId: string,
-	reply: "once" | "always" | "reject"
-): ResultAsync<void, AppError> {
-	return tauriClient.acp.replyPermission(sessionId, permissionId, reply);
-}
-
-/**
- * Reply to a question request.
- */
-export function replyQuestion(
-	sessionId: string,
-	questionId: string,
-	answers: unknown
-): ResultAsync<void, AppError> {
-	return tauriClient.acp.replyQuestion(sessionId, questionId, answers);
-}
-
-/**
  * Reply to a canonical interaction through one backend-owned command path.
  */
 export function replyInteraction(request: InteractionReplyRequest): ResultAsync<void, AppError> {
@@ -300,8 +278,6 @@ export const api = {
 	closeSession,
 	getSessionState,
 	replyInteraction,
-	replyPermission,
-	replyQuestion,
 	respondInboundRequest,
 
 	// History

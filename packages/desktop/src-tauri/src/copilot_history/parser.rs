@@ -341,6 +341,7 @@ pub(crate) fn convert_events_to_updates(
                         ToolCallStatus::Failed
                     }),
                     result: data.result,
+                    raw_output: None,
                     content: None,
                     title: None,
                     locations: None,
@@ -394,6 +395,7 @@ pub(crate) fn convert_events_to_updates(
                         "agentName": data.agent_name,
                         "agentDisplayName": data.agent_display_name
                     })),
+                    raw_output: None,
                     content: None,
                     title: None,
                     locations: None,

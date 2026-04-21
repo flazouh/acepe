@@ -3364,6 +3364,7 @@ mod tests {
                         tool: None,
                     }),
                 }],
+                runtime: None,
             },
         )
         .await

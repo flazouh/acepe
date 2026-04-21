@@ -11,7 +11,11 @@ let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-se
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"setSessionLoading" | "setSessionLoaded" | "getSessionCold" | "connectSession"
+	| "setSessionLoading"
+	| "setSessionLoaded"
+	| "setSessionOpenMissing"
+	| "getSessionCold"
+	| "connectSession"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -35,6 +39,7 @@ describe("openPersistedSession", () => {
 		sessionStore = {
 			setSessionLoading: mock(() => {}),
 			setSessionLoaded: mock(() => {}),
+			setSessionOpenMissing: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
 			getSessionCold: mock(() => ({
 				id: "session-1",
@@ -80,6 +85,40 @@ describe("openPersistedSession", () => {
 			getSessionOpenResult: getSessionOpenResultMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
+		});
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
+	});
+
+	it("dedupes concurrent calls for the same panel across initialization and session handlers", async () => {
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				ResultAsync.fromSafePromise(
+					new Promise<SessionOpenResult>((resolve) => {
+						setTimeout(() => resolve(createFoundResult("session-1")), 0);
+					})
+				)
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
 		});
 		openPersistedSession({
 			panelId: "panel-1",
@@ -277,7 +316,7 @@ describe("openPersistedSession", () => {
 		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalled();
 	});
 
-	it("marks the session loaded without connecting when the result is missing", async () => {
+	it("surfaces an explicit non-openable error without connecting when the result is missing", async () => {
 		getSessionOpenResultMock.mockImplementation(
 			() =>
 				okAsync({
@@ -298,7 +337,47 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This session can't be reopened because no canonical session state is available."
+		);
+		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("uses Cursor-specific copy for legacy store.db history sessions", async () => {
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Cursor Session",
+			projectPath: "/project",
+			agentId: "cursor",
+			sourcePath: "/tmp/session-1.store.db",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			parentId: null,
+		}));
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				okAsync({
+					outcome: "missing",
+					requestedSessionId: "session-1",
+				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This Cursor history session is view-only and can't be reopened because no canonical resumable state was persisted."
+		);
 	});
 });
 
@@ -317,6 +396,7 @@ function createFoundResult(
 		worktreePath: null,
 		sourcePath: "/tmp/session-1.jsonl",
 		lastEventSeq: 1,
+		graphRevision: 1,
 		transcriptSnapshot: {
 			revision: 1,
 			entries: [],

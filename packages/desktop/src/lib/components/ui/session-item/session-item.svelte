@@ -39,10 +39,8 @@ import {
 } from "$lib/acp/store/live-session-work.js";
 import { formatRichSessionTitle, formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { extractTodoProgress } from "$lib/acp/components/session-list/session-list-logic.js";
+import { extractTodoProgressFromToolCall } from "$lib/acp/components/session-list/session-list-logic.js";
 import {
-	findCurrentStreamingToolCall,
-	findLastToolCall,
 	isActiveCompactActivityKind,
 	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
@@ -225,13 +223,13 @@ function handleRenameKeydown(event: KeyboardEvent) {
 const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
-const entries = $derived(sessionStore.getEntries(session.id));
 const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
 const hotState = $derived(sessionStore.getHotState(session.id));
-const currentStreamingToolCall = $derived(findCurrentStreamingToolCall(entries));
-const lastToolCall = $derived(findLastToolCall(entries));
-const currentToolKind = $derived(currentStreamingToolCall?.kind ?? null);
-const lastToolKind = $derived(lastToolCall?.kind ?? null);
+const currentStreamingToolCall = $derived(operationStore.getCurrentStreamingToolCall(session.id));
+const lastToolCall = $derived(operationStore.getLastToolCall(session.id));
+const lastTodoToolCall = $derived(operationStore.getLastTodoToolCall(session.id));
+const currentToolKind = $derived(operationStore.getCurrentToolKind(session.id));
+const lastToolKind = $derived(lastToolCall ? (lastToolCall.kind ?? "other") : null);
 const activePanel = $derived(panelStore.getPanelBySessionId(session.id));
 const interactionSnapshot = $derived.by(() =>
 	buildSessionOperationInteractionSnapshot(session.id, operationStore, interactionStore)
@@ -384,7 +382,7 @@ const uiCurrentQuestion = $derived<ActivityEntryQuestion | null>(
 		: null
 );
 const todoProgress = $derived.by(() => {
-	const todoProgressInfo = extractTodoProgress(entries);
+	const todoProgressInfo = extractTodoProgressFromToolCall(lastTodoToolCall);
 	return todoProgressInfo
 		? {
 				current: todoProgressInfo.current,

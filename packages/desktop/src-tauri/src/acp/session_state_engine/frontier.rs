@@ -7,6 +7,7 @@ pub enum FrontierFallbackReason {
     MissingFrontier,
     EventSeqRegression,
     RevisionRegression,
+    TranscriptRevisionRegression,
     StaleDeltaWindow,
 }
 
@@ -29,6 +30,7 @@ pub fn decide_frontier_transition(
     frontier: Option<SessionGraphRevision>,
     candidate: SessionGraphRevision,
     retained_event_floor: i64,
+    is_transcript_bearing: bool,
 ) -> SessionFrontierDecision {
     let Some(current_frontier) = frontier else {
         return SessionFrontierDecision::RequireSnapshot {
@@ -62,6 +64,15 @@ pub fn decide_frontier_transition(
         };
     }
 
+    if is_transcript_bearing && candidate.transcript_revision < current_frontier.transcript_revision
+    {
+        return SessionFrontierDecision::RequireSnapshot {
+            reason: FrontierFallbackReason::TranscriptRevisionRegression,
+            frontier: Some(current_frontier),
+            candidate,
+        };
+    }
+
     SessionFrontierDecision::AcceptDelta {
         from_revision: current_frontier,
         to_revision: candidate,
@@ -76,7 +87,7 @@ mod tests {
     #[test]
     fn frontier_requires_snapshot_when_missing() {
         let candidate = SessionGraphRevision::new(7, 5, 9);
-        let decision = decide_frontier_transition(None, candidate, 0);
+        let decision = decide_frontier_transition(None, candidate, 0, true);
 
         assert_eq!(
             decision,
@@ -92,7 +103,7 @@ mod tests {
     fn frontier_requires_snapshot_when_event_seq_regresses() {
         let frontier = SessionGraphRevision::new(8, 6, 12);
         let candidate = SessionGraphRevision::new(9, 6, 11);
-        let decision = decide_frontier_transition(Some(frontier), candidate, 0);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 0, true);
 
         assert_eq!(
             decision,
@@ -108,7 +119,7 @@ mod tests {
     fn frontier_requires_snapshot_when_current_frontier_predates_retained_window() {
         let frontier = SessionGraphRevision::new(8, 3, 4);
         let candidate = SessionGraphRevision::new(13, 9, 12);
-        let decision = decide_frontier_transition(Some(frontier), candidate, 5);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 5, true);
 
         assert_eq!(
             decision,
@@ -124,7 +135,38 @@ mod tests {
     fn frontier_accepts_monotonic_delta() {
         let frontier = SessionGraphRevision::new(8, 8, 12);
         let candidate = SessionGraphRevision::new(9, 9, 13);
-        let decision = decide_frontier_transition(Some(frontier), candidate, 4);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 4, true);
+
+        assert_eq!(
+            decision,
+            SessionFrontierDecision::AcceptDelta {
+                from_revision: frontier,
+                to_revision: candidate,
+            }
+        );
+    }
+
+    #[test]
+    fn frontier_requires_snapshot_when_transcript_revision_regresses_for_transcript_delta() {
+        let frontier = SessionGraphRevision::new(9, 8, 12);
+        let candidate = SessionGraphRevision::new(10, 7, 13);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 4, true);
+
+        assert_eq!(
+            decision,
+            SessionFrontierDecision::RequireSnapshot {
+                reason: FrontierFallbackReason::TranscriptRevisionRegression,
+                frontier: Some(frontier),
+                candidate,
+            }
+        );
+    }
+
+    #[test]
+    fn frontier_accepts_graph_only_delta_without_transcript_progress() {
+        let frontier = SessionGraphRevision::new(9, 8, 12);
+        let candidate = SessionGraphRevision::new(10, 8, 13);
+        let decision = decide_frontier_transition(Some(frontier), candidate, 4, false);
 
         assert_eq!(
             decision,

@@ -39,7 +39,7 @@ export function graphFromSessionOpenFound(
 		worktreePath: found.worktreePath,
 		sourcePath: found.sourcePath,
 		revision: {
-			graphRevision: found.lastEventSeq,
+			graphRevision: found.graphRevision,
 			transcriptRevision: found.transcriptSnapshot.revision,
 			lastEventSeq: found.lastEventSeq,
 		},
@@ -81,6 +81,7 @@ export function defaultSnapshotCapabilities(): SessionGraphCapabilities {
 		modes: null,
 		availableCommands: [],
 		configOptions: [],
+		autonomousEnabled: false,
 	};
 }
 

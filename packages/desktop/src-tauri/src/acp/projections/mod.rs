@@ -177,6 +177,9 @@ pub struct SessionProjectionSnapshot {
     pub session: Option<SessionSnapshot>,
     pub operations: Vec<OperationSnapshot>,
     pub interactions: Vec<InteractionSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime:
+        Option<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot>,
 }
 
 impl SessionSnapshot {
@@ -292,6 +295,13 @@ impl ProjectionRegistry {
         }
         for interaction in projection.interactions {
             self.upsert_interaction(interaction);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_last_event_seq_for_test(&self, session_id: &str, last_event_seq: i64) {
+        if let Some(mut snapshot) = self.snapshots.get_mut(session_id) {
+            snapshot.last_event_seq = last_event_seq;
         }
     }
 
@@ -526,6 +536,7 @@ impl ProjectionRegistry {
             session: self.snapshot_for_session(session_id),
             operations: self.session_operations(session_id),
             interactions: self.session_interactions(session_id),
+            runtime: None,
         }
     }
 
@@ -2293,6 +2304,7 @@ mod tests {
                     tool: None,
                 }),
             }],
+            runtime: None,
         });
 
         assert!(registry.snapshot_for_session("session-1").is_some());

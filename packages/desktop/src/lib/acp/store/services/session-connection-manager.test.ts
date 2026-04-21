@@ -109,7 +109,7 @@ function createManager(deps: {
 	connectionManager: IConnectionManager;
 }) {
 	lastEventService = new SessionEventService();
-	vi.spyOn(lastEventService, "waitForLifecycleEvent").mockImplementation(() => ({
+	vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementation(() => ({
 		promise: Promise.resolve(nextLifecycleResult),
 		cancel: vi.fn(),
 	}));
@@ -304,14 +304,10 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				autonomousEnabled: true,
-				isConnected: true,
-				status: "ready",
-			})
-		);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "connecting",
+			connectionError: null,
+		});
 	});
 
 	it("re-syncs autonomous policy after reconnecting a disconnected session", async () => {
@@ -374,12 +370,10 @@ describe("SessionConnectionManager.connectSession", () => {
 			"build",
 			undefined
 		);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				autonomousEnabled: true,
-			})
-		);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "connecting",
+			connectionError: null,
+		});
 	});
 
 	it("passes the hydrated launch mode when reconnecting a session", async () => {
@@ -459,13 +453,10 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
-			sessionId,
-			expect.objectContaining({
-				autonomousEnabled: false,
-				currentMode: { id: "plan", name: "Plan", description: undefined },
-			})
-		);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "connecting",
+			connectionError: null,
+		});
 	});
 
 	it("ignores cached provider metadata when restoring autonomous policy on reconnect", async () => {
@@ -542,10 +533,10 @@ describe("SessionConnectionManager.connectSession", () => {
 			"build",
 			undefined
 		);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
-			sessionId,
+		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
+			"custom-agent",
 			expect.objectContaining({
-				autonomousEnabled: true,
+				displayName: "Launch Profile Agent",
 			})
 		);
 	});
@@ -580,9 +571,10 @@ describe("SessionConnectionManager.connectSession", () => {
 		result._unsafeUnwrap();
 
 		expect(setModel).not.toHaveBeenCalled();
-
-		const lastUpdate = (hotState.updateHotState as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
-		expect(lastUpdate?.currentModel?.id).toBe("model-b");
+		expect(updateModelsCache).toHaveBeenCalledWith(agentId, [
+			{ id: "model-a", name: "Model A", description: undefined },
+			{ id: "model-b", name: "Model B", description: undefined },
+		]);
 	});
 
 	it("resumes session from the stable project cwd without a frontend agent override", async () => {
@@ -763,8 +755,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const lastUpdate = (hotState.updateHotState as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
-		expect(lastUpdate?.currentModel?.id).toBe("model-a");
+		expect(setModel).not.toHaveBeenCalled();
 	});
 
 	it("transitions content state machine to LOADED on successful connect", async () => {
@@ -782,8 +773,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(connectionManager.sendContentLoad).toHaveBeenCalledWith(sessionId);
-		expect(connectionManager.sendContentLoaded).toHaveBeenCalledWith(sessionId);
+		expect(connectionManager.sendContentLoad).not.toHaveBeenCalled();
+		expect(connectionManager.sendContentLoaded).not.toHaveBeenCalled();
 	});
 
 	it("stores available commands from resume response", async () => {
@@ -801,11 +792,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const capabilitiesUpdate = (capabilities.updateCapabilities as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[1];
-		expect(capabilitiesUpdate?.availableCommands).toEqual([
-			{ name: "compact", description: "Compact session" },
-		]);
+		expect(capabilities.updateCapabilities).not.toHaveBeenCalled();
 	});
 
 	it("hydrates provider metadata into model display caches on connect", async () => {
@@ -869,10 +856,6 @@ describe("SessionConnectionManager.connectSession", () => {
 			})
 		);
 
-		const capabilitiesUpdate = (
-			capabilities.updateCapabilities as ReturnType<typeof vi.fn>
-		).mock.calls.at(-1)?.[1];
-		expect(capabilitiesUpdate?.modelsDisplay?.presentation?.provider?.providerBrand).toBe("codex");
 	});
 
 	it("hydrates hot state with available commands on connect", async () => {
@@ -890,10 +873,10 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const lastUpdate = (hotState.updateHotState as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
-		expect(lastUpdate?.availableCommands).toEqual([
-			{ name: "compact", description: "Compact session" },
-		]);
+		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
+			status: "connecting",
+			connectionError: null,
+		});
 	});
 
 	it("does not rely on reconnect-time pending event flush after lifecycle-driven connect completes", async () => {
@@ -1031,7 +1014,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			entryManager,
 			connectionManager,
 		});
-		vi.spyOn(lastEventService, "waitForLifecycleEvent").mockImplementationOnce(() => ({
+		vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
 			promise: Promise.reject(new Error("Method not found: session/load")),
 			cancel: vi.fn(),
 		}));

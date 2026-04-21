@@ -5,11 +5,12 @@
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
-import { extractTodoProgress } from "../../components/session-list/session-list-logic.js";
+import { extractTodoProgressFromToolCall } from "../../components/session-list/session-list-logic.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
+import type { ToolKind } from "../../types/tool-kind.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { extractProjectName } from "../../utils/path-utils.js";
@@ -20,7 +21,6 @@ import type { SessionOperationInteractionSnapshot } from "../operation-associati
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
 import { deriveSessionWorkProjection, selectLegacySessionStatus } from "../session-work-projection.js";
 import type { SessionHotState } from "../types.js";
-import { getCurrentToolKind } from "../tab-bar-utils.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
@@ -40,6 +40,10 @@ export interface QueueSessionSnapshot {
 	readonly projectPath: string;
 	readonly title: string | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly currentStreamingToolCall: ToolCall | null;
+	readonly currentToolKind: ToolKind | "other" | null;
+	readonly lastToolCall: ToolCall | null;
+	readonly lastTodoToolCall: ToolCall | null;
 	readonly state: ReturnType<typeof deriveSessionState>;
 	readonly isStreaming: boolean;
 	readonly isThinking: boolean;
@@ -57,6 +61,10 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly projectPath: string;
 	readonly title: string | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly currentStreamingToolCall: ToolCall | null;
+	readonly currentToolKind: ToolKind | "other" | null;
+	readonly lastToolCall: ToolCall | null;
+	readonly lastTodoToolCall: ToolCall | null;
 	readonly updatedAt: Date;
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly hotState: Pick<
@@ -68,38 +76,6 @@ export interface BuildQueueSessionSnapshotInput {
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
 	>;
 	readonly hasUnseenCompletion: boolean;
-}
-
-/**
- * Get the most recent streaming tool call message from session entries.
- * Returns null when no tool call is actively streaming.
- */
-function getCurrentStreamingToolCallFromEntries(entries: ReadonlyArray<SessionEntry>): ToolCall | null {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type === "tool_call" && entry.isStreaming) {
-			return entry.message;
-		}
-	}
-	return null;
-}
-
-function getCurrentStreamingToolCall(session: QueueSessionSnapshot): ToolCall | null {
-	return getCurrentStreamingToolCallFromEntries(session.entries);
-}
-
-/**
- * Get the most recent tool call (streaming or completed) from session entries.
- * Returns null when no tool calls exist.
- */
-function getLastToolCall(session: QueueSessionSnapshot): ToolCall | null {
-	for (let i = session.entries.length - 1; i >= 0; i--) {
-		const entry = session.entries[i];
-		if (entry.type === "tool_call") {
-			return entry.message;
-		}
-	}
-	return null;
 }
 
 /**
@@ -158,7 +134,7 @@ export function buildQueueSessionSnapshot(
 	const state = deriveLiveSessionState({
 		runtimeState: input.runtimeState,
 		hotState: input.hotState,
-		currentStreamingToolCall: getCurrentStreamingToolCallFromEntries(input.entries),
+		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
@@ -169,6 +145,10 @@ export function buildQueueSessionSnapshot(
 		projectPath: input.projectPath,
 		title: input.title,
 		entries: input.entries,
+		currentStreamingToolCall: input.currentStreamingToolCall,
+		currentToolKind: input.currentToolKind,
+		lastToolCall: input.lastToolCall,
+		lastTodoToolCall: input.lastTodoToolCall,
 		state,
 		isStreaming: state.activity.kind === "streaming",
 		isThinking: state.activity.kind === "thinking",
@@ -210,10 +190,7 @@ export function buildQueueItem(
 	const projectIconSrc = getProjectIconSrc?.(session.projectPath) ?? null;
 
 	const diffStats = computeSessionDiffStats(session);
-
-	const lastToolCall = getLastToolCall(session);
-	const currentStreamingToolCall = getCurrentStreamingToolCall(session);
-	const todoProgress = extractTodoProgress(session.entries);
+	const todoProgress = extractTodoProgressFromToolCall(session.lastTodoToolCall);
 
 	return {
 		sessionId: session.id,
@@ -228,10 +205,11 @@ export function buildQueueItem(
 		pendingText,
 		todoProgress,
 		lastActivityAt: session.updatedAt.getTime(),
-		currentToolKind: getCurrentToolKind(session.entries),
-		currentStreamingToolCall,
-		lastToolKind: lastToolCall?.kind ?? null,
-		lastToolCall,
+		currentToolKind:
+			session.currentToolKind ?? (session.currentStreamingToolCall !== null ? "other" : null),
+		currentStreamingToolCall: session.currentStreamingToolCall,
+		lastToolKind: session.lastToolCall?.kind ?? null,
+		lastToolCall: session.lastToolCall,
 		currentModeId: session.currentModeId,
 		insertions: diffStats.insertions,
 		deletions: diffStats.deletions,

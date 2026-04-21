@@ -217,6 +217,7 @@ mod session_metadata_tests {
                     },
                 ),
             }],
+            runtime: None,
         };
 
         SessionProjectionSnapshotRepository::set(&db, "session-projection", &snapshot)
@@ -288,6 +289,7 @@ mod session_metadata_tests {
                 child_operation_ids: Vec::new(),
             }],
             interactions: Vec::new(),
+            runtime: None,
         };
         let mut snapshot_json = serde_json::to_value(&snapshot).expect("serialize legacy snapshot");
         snapshot_json["operations"][0]

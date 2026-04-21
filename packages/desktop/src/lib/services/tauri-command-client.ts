@@ -17,8 +17,6 @@ export const TAURI_COMMAND_CLIENT = {
     new_session: createGeneratedCommand(COMMANDS.acp.new_session),
     register_custom_agent: createGeneratedCommand(COMMANDS.acp.register_custom_agent),
     reply_interaction: createGeneratedCommand(COMMANDS.acp.reply_interaction),
-    reply_permission: createGeneratedCommand(COMMANDS.acp.reply_permission),
-    reply_question: createGeneratedCommand(COMMANDS.acp.reply_question),
     respond_inbound_request: createGeneratedCommand(COMMANDS.acp.respond_inbound_request),
     resume_session: createGeneratedCommand(COMMANDS.acp.resume_session),
     send_prompt: createGeneratedCommand(COMMANDS.acp.send_prompt),

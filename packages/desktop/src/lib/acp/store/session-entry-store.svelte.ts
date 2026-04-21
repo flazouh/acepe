@@ -137,22 +137,37 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 */
 	storeEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
-		this.replaceEntriesAndBuildIndex(sessionId, normalizedEntries, { syncOperations: true });
+		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
+
+		this.operationStore.clearSession(sessionId);
+		for (const entry of normalizedEntries) {
+			if (!isToolCallEntry(entry)) {
+				continue;
+			}
+
+			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
+		}
+
 		this.preloadedIds.add(sessionId);
 	}
 
-	replaceTranscriptSnapshot(
-		sessionId: string,
-		snapshot: TranscriptSnapshot,
-		timestamp: Date,
-		options?: { syncOperations?: boolean }
-	): void {
-		const entries = convertTranscriptSnapshotToSessionEntries(snapshot, timestamp);
-		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
-		this.replaceEntriesAndBuildIndex(sessionId, normalizedEntries, {
-			syncOperations: options?.syncOperations ?? true,
-		});
+	private setEntriesAndBuildIndices(sessionId: string, entries: SessionEntry[]): void {
+		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
+		this.entriesById.set(sessionId, entries);
+
+		// Build indices for O(1) lookups
+		this.entryIndex.rebuildEntryIdIndex(sessionId, entries);
+		this.entryIndex.rebuildMessageIdIndex(sessionId, entries);
+		this.entryIndex.rebuildToolCallIdIndex(sessionId, entries);
 		this.preloadedIds.add(sessionId);
+	}
+
+	replaceTranscriptSnapshot(sessionId: string, snapshot: TranscriptSnapshot, timestamp: Date): void {
+		const entries = this.mergeTranscriptSnapshotEntries(
+			sessionId,
+			convertTranscriptSnapshotToSessionEntries(snapshot, timestamp)
+		);
+		this.setEntriesAndBuildIndices(sessionId, entries);
 		this.transcriptRevisionBySession.set(sessionId, snapshot.revision);
 	}
 
@@ -164,19 +179,23 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 		for (const operation of delta.operations) {
 			if (operation.kind === "replaceSnapshot") {
-				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp, {
-					syncOperations: false,
-				});
+				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp);
 				continue;
 			}
 
 			if (operation.kind === "appendEntry") {
 				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
-				const nextEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
-				if (existingIndex === undefined) {
+				const convertedEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
+				const reconciledIndex =
+					existingIndex ?? this.findMirroredOptimisticUserEntryIndex(sessionId, convertedEntry);
+				const nextEntry = this.preserveTranscriptEntry(
+					this.getEntries(sessionId)[reconciledIndex ?? -1],
+					convertedEntry
+				);
+				if (reconciledIndex === undefined) {
 					this.addEntry(sessionId, nextEntry);
 				} else {
-					this.updateEntry(sessionId, existingIndex, nextEntry);
+					this.updateEntry(sessionId, reconciledIndex, nextEntry);
 				}
 				continue;
 			}
@@ -244,31 +263,12 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		};
 	}
 
-	private replaceEntriesAndBuildIndex(
-		sessionId: string,
-		entries: SessionEntry[],
-		options: { syncOperations: boolean }
-	): void {
-		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
-		this.entriesById.set(sessionId, entries);
-
-		// Build indices for O(1) lookups
-		this.entryIndex.rebuildEntryIdIndex(sessionId, entries);
-		this.entryIndex.rebuildMessageIdIndex(sessionId, entries);
-		this.entryIndex.rebuildToolCallIdIndex(sessionId, entries);
-
-		if (!options.syncOperations) {
+	private syncOperationStoreForEntry(sessionId: string, entry: SessionEntry): void {
+		if (!isToolCallEntry(entry)) {
 			return;
 		}
 
-		this.operationStore.clearSession(sessionId);
-		for (const entry of entries) {
-			if (!isToolCallEntry(entry)) {
-				continue;
-			}
-
-			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
-		}
+		this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
 	}
 
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
@@ -327,6 +327,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (isToolCallEntry(normalizedEntry)) {
 			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
 		}
+		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 		logger.debug("addEntry: appended entry", {
 			sessionId,
 			entryId: normalizedEntry.id,
@@ -400,6 +401,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
 			this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 		}
+		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 	}
 
 	/**
@@ -421,6 +423,118 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	getOperationStore(): OperationStore {
 		return this.operationStore;
+	}
+
+	private mergeTranscriptSnapshotEntries(
+		sessionId: string,
+		entries: SessionEntry[]
+	): SessionEntry[] {
+		const existingEntries = this.getEntries(sessionId);
+		const existingEntryById = new Map(existingEntries.map((entry) => [entry.id, entry] as const));
+		return entries.map((entry) =>
+			this.preserveStructuredTranscriptEntry(existingEntryById.get(entry.id), entry)
+		);
+	}
+
+	private preserveStructuredTranscriptEntry(
+		existingEntry: SessionEntry | undefined,
+		nextEntry: SessionEntry
+	): SessionEntry {
+		if (
+			existingEntry === undefined ||
+			existingEntry.type !== "tool_call" ||
+			nextEntry.type !== "tool_call"
+		) {
+			return nextEntry;
+		}
+
+		const nextTitle = nextEntry.message.title ?? null;
+		const nextName = nextEntry.message.name;
+		return {
+			id: nextEntry.id,
+			type: "tool_call",
+			message: {
+				id: existingEntry.message.id,
+				name: nextName.length > 0 ? nextName : existingEntry.message.name,
+				arguments: existingEntry.message.arguments,
+				progressiveArguments: existingEntry.message.progressiveArguments,
+				rawInput: existingEntry.message.rawInput,
+				status: existingEntry.message.status,
+				result: existingEntry.message.result,
+				kind: existingEntry.message.kind,
+				title: nextTitle !== null && nextTitle.length > 0 ? nextTitle : existingEntry.message.title,
+				locations: existingEntry.message.locations,
+				skillMeta: existingEntry.message.skillMeta,
+				normalizedQuestions: existingEntry.message.normalizedQuestions,
+				normalizedTodos: existingEntry.message.normalizedTodos,
+				parentToolUseId: existingEntry.message.parentToolUseId,
+				taskChildren: existingEntry.message.taskChildren,
+				questionAnswer: existingEntry.message.questionAnswer,
+				awaitingPlanApproval: existingEntry.message.awaitingPlanApproval,
+				planApprovalRequestId: existingEntry.message.planApprovalRequestId,
+				normalizedResult: existingEntry.message.normalizedResult,
+			},
+			timestamp: existingEntry.timestamp,
+			isStreaming: existingEntry.isStreaming,
+		};
+	}
+
+	private preserveTranscriptEntry(
+		existingEntry: SessionEntry | undefined,
+		nextEntry: SessionEntry
+	): SessionEntry {
+		const structuredEntry = this.preserveStructuredTranscriptEntry(existingEntry, nextEntry);
+		if (
+			existingEntry === undefined ||
+			existingEntry.type !== "user" ||
+			nextEntry.type !== "user" ||
+			existingEntry.message.sentAt === undefined
+		) {
+			return structuredEntry;
+		}
+
+		return {
+			id: nextEntry.id,
+			type: "user",
+			message: {
+				id: nextEntry.message.id,
+				content: nextEntry.message.content,
+				chunks: nextEntry.message.chunks,
+				sentAt: existingEntry.message.sentAt,
+				checkpoint: existingEntry.message.checkpoint,
+			},
+			timestamp: existingEntry.timestamp,
+		};
+	}
+
+	private findMirroredOptimisticUserEntryIndex(
+		sessionId: string,
+		nextEntry: SessionEntry
+	): number | undefined {
+		if (nextEntry.type !== "user" || nextEntry.message.content.type !== "text") {
+			return undefined;
+		}
+
+		const entries = this.getEntries(sessionId);
+		const optimisticIndex = entries.length - 1;
+		if (optimisticIndex < 0) {
+			return undefined;
+		}
+
+		const optimisticEntry = entries[optimisticIndex];
+		if (
+			optimisticEntry?.type !== "user" ||
+			optimisticEntry.message.sentAt === undefined ||
+			optimisticEntry.message.content.type !== "text"
+		) {
+			return undefined;
+		}
+
+		if (optimisticEntry.message.content.text !== nextEntry.message.content.text) {
+			return undefined;
+		}
+
+		return optimisticIndex;
 	}
 
 	// ============================================

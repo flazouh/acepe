@@ -1,5 +1,8 @@
 use crate::acp::client_session::SessionModes;
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
+use crate::acp::session_state_engine::frontier::{
+    decide_frontier_transition, SessionFrontierDecision,
+};
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
 };
@@ -12,10 +15,12 @@ use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
 use dashmap::DashMap;
 use sea_orm::DbConn;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SessionGraphRuntimeSnapshot {
+    pub graph_revision: i64,
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
 }
@@ -23,6 +28,7 @@ pub struct SessionGraphRuntimeSnapshot {
 impl Default for SessionGraphRuntimeSnapshot {
     fn default() -> Self {
         Self {
+            graph_revision: 0,
             lifecycle: SessionGraphLifecycle::idle(),
             capabilities: SessionGraphCapabilities::empty(),
         }
@@ -38,6 +44,7 @@ pub struct LiveSessionStateEnvelopeRequest<'a> {
     pub db: &'a DbConn,
     pub session_id: &'a str,
     pub update: &'a SessionUpdate,
+    pub previous_revision: SessionGraphRevision,
     pub revision: SessionGraphRevision,
     pub projection_registry: &'a ProjectionRegistry,
     pub transcript_projection_registry: &'a TranscriptProjectionRegistry,
@@ -63,12 +70,14 @@ impl SessionGraphRuntimeRegistry {
     pub fn restore_session_state(
         &self,
         session_id: String,
+        graph_revision: i64,
         lifecycle: SessionGraphLifecycle,
         capabilities: SessionGraphCapabilities,
     ) {
         self.sessions.insert(
             session_id,
             SessionGraphRuntimeSnapshot {
+                graph_revision,
                 lifecycle,
                 capabilities,
             },
@@ -79,8 +88,17 @@ impl SessionGraphRuntimeRegistry {
         self.sessions.remove(session_id);
     }
 
-    pub fn apply_session_update(&self, session_id: &str, update: &SessionUpdate) {
+    pub fn apply_session_update_with_graph_seed(
+        &self,
+        session_id: &str,
+        graph_revision_seed: i64,
+        update: &SessionUpdate,
+    ) -> i64 {
         let mut state = self.sessions.entry(session_id.to_string()).or_default();
+        state.graph_revision = state
+            .graph_revision
+            .max(graph_revision_seed)
+            .saturating_add(1);
 
         match update {
             SessionUpdate::ConnectionComplete {
@@ -88,6 +106,7 @@ impl SessionGraphRuntimeRegistry {
                 modes,
                 available_commands,
                 config_options,
+                autonomous_enabled,
                 ..
             } => {
                 state.lifecycle = SessionGraphLifecycle {
@@ -100,6 +119,7 @@ impl SessionGraphRuntimeRegistry {
                     modes: Some(modes.clone()),
                     available_commands: available_commands.clone(),
                     config_options: config_options.clone(),
+                    autonomous_enabled: *autonomous_enabled,
                 };
             }
             SessionUpdate::ConnectionFailed { error, .. } => {
@@ -127,8 +147,18 @@ impl SessionGraphRuntimeRegistry {
             }
             _ => {}
         }
+
+        state.graph_revision
     }
 
+    pub fn apply_session_update(&self, session_id: &str, update: &SessionUpdate) -> i64 {
+        self.apply_session_update_with_graph_seed(session_id, 0, update)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "This envelope builder is the shared boundary between runtime state, projections, and transcript deltas."
+    )]
     pub async fn build_live_session_state_envelope(
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
@@ -145,9 +175,51 @@ impl SessionGraphRuntimeRegistry {
                 .await;
         }
 
-        request
-            .transcript_delta
-            .map(|delta| build_live_session_state_delta_envelope(delta, request.revision))
+        if let SessionUpdate::UsageTelemetryUpdate { data } = request.update {
+            return Some(build_live_session_state_telemetry_envelope(
+                &data.session_id,
+                data.clone(),
+                request.revision,
+            ));
+        }
+
+        let delta = request.transcript_delta?;
+        let is_transcript_bearing = !delta.operations.is_empty();
+        let current_frontier = if request.previous_revision.graph_revision == 0
+            && request.previous_revision.transcript_revision == 0
+            && request.previous_revision.last_event_seq == 0
+        {
+            None
+        } else {
+            Some(request.previous_revision)
+        };
+
+        match decide_frontier_transition(
+            current_frontier,
+            request.revision,
+            0,
+            is_transcript_bearing,
+        ) {
+            SessionFrontierDecision::RequireSnapshot { .. } => {
+                self.build_snapshot_envelope(
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                )
+                .await
+            }
+            SessionFrontierDecision::AcceptDelta {
+                from_revision,
+                to_revision,
+            } if is_transcript_bearing => Some(build_live_session_state_delta_envelope(
+                delta,
+                from_revision,
+                to_revision,
+            )),
+            SessionFrontierDecision::AcceptDelta { .. } => None,
+        }
     }
 
     async fn build_snapshot_envelope(
@@ -210,20 +282,32 @@ impl SessionGraphRuntimeRegistry {
 
 fn build_live_session_state_delta_envelope(
     delta: &TranscriptDelta,
-    revision: SessionGraphRevision,
+    from_revision: SessionGraphRevision,
+    to_revision: SessionGraphRevision,
 ) -> SessionStateEnvelope {
-    let from_revision = SessionGraphRevision::new(
-        revision.graph_revision.saturating_sub(1),
-        delta.snapshot_revision.saturating_sub(1),
-        delta.event_seq.saturating_sub(1),
-    );
     build_delta_envelope(
         &delta.session_id,
         from_revision,
-        revision,
+        to_revision,
         delta.operations.clone(),
         vec!["transcriptSnapshot".to_string()],
     )
+}
+
+fn build_live_session_state_telemetry_envelope(
+    session_id: &str,
+    telemetry: crate::acp::session_update::UsageTelemetryData,
+    revision: SessionGraphRevision,
+) -> SessionStateEnvelope {
+    SessionStateEnvelope {
+        session_id: session_id.to_string(),
+        graph_revision: revision.graph_revision,
+        last_event_seq: revision.last_event_seq,
+        payload: SessionStatePayload::Telemetry {
+            telemetry,
+            revision,
+        },
+    }
 }
 
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
@@ -245,11 +329,20 @@ fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::SessionGraphRuntimeRegistry;
+    use super::{
+        build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
+        SessionGraphRuntimeRegistry,
+    };
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::session_state_engine::selectors::SessionGraphLifecycleStatus;
+    use crate::acp::session_state_engine::SessionGraphRevision;
+    use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_update::{
         AvailableCommandsData, ConfigOptionData, CurrentModeData, SessionUpdate,
+        UsageTelemetryData, UsageTelemetryTokens,
+    };
+    use crate::acp::transcript_projection::{
+        TranscriptDelta, TranscriptDeltaOperation, TranscriptSnapshot,
     };
 
     #[test]
@@ -310,6 +403,7 @@ mod tests {
         );
 
         let snapshot = registry.snapshot_for_session(session_id);
+        assert_eq!(snapshot.graph_revision, 4);
         assert_eq!(
             snapshot.lifecycle.status,
             SessionGraphLifecycleStatus::Ready
@@ -325,5 +419,88 @@ mod tests {
         );
         assert_eq!(snapshot.capabilities.available_commands.len(), 1);
         assert_eq!(snapshot.capabilities.config_options.len(), 1);
+        assert!(!snapshot.capabilities.autonomous_enabled);
+    }
+
+    #[test]
+    fn registry_honors_seeded_graph_revision_for_runtime_only_mutations() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "session-1";
+
+        let graph_revision = registry.apply_session_update_with_graph_seed(
+            session_id,
+            12,
+            &SessionUpdate::ConnectionFailed {
+                session_id: session_id.to_string(),
+                attempt_id: 1,
+                error: "disconnected".to_string(),
+            },
+        );
+
+        assert_eq!(graph_revision, 13);
+        assert_eq!(registry.snapshot_for_session(session_id).graph_revision, 13);
+    }
+
+    #[test]
+    fn delta_envelope_preserves_frontier_decision_from_revision() {
+        let delta = TranscriptDelta {
+            event_seq: 21,
+            session_id: "session-1".to_string(),
+            snapshot_revision: 8,
+            operations: vec![TranscriptDeltaOperation::ReplaceSnapshot {
+                snapshot: TranscriptSnapshot {
+                    revision: 8,
+                    entries: Vec::new(),
+                },
+            }],
+        };
+        let from_revision = SessionGraphRevision::new(13, 7, 20);
+        let to_revision = SessionGraphRevision::new(14, 8, 21);
+
+        let envelope = build_live_session_state_delta_envelope(&delta, from_revision, to_revision);
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.from_revision, from_revision);
+                assert_eq!(delta.to_revision, to_revision);
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn telemetry_envelope_carries_canonical_usage_payload() {
+        let revision = SessionGraphRevision::new(15, 8, 22);
+        let envelope = build_live_session_state_telemetry_envelope(
+            "session-1",
+            UsageTelemetryData {
+                session_id: "session-1".to_string(),
+                event_id: Some("telemetry-1".to_string()),
+                scope: "turn".to_string(),
+                cost_usd: Some(0.42),
+                tokens: UsageTelemetryTokens {
+                    total: Some(1200),
+                    input: Some(800),
+                    output: Some(400),
+                    cache_read: None,
+                    cache_write: None,
+                    reasoning: None,
+                },
+                source_model_id: None,
+                timestamp_ms: Some(1_234),
+                context_window_size: Some(200_000),
+            },
+            revision,
+        );
+
+        match envelope.payload {
+            SessionStatePayload::Telemetry { telemetry, revision } => {
+                assert_eq!(telemetry.session_id, "session-1");
+                assert_eq!(telemetry.event_id.as_deref(), Some("telemetry-1"));
+                assert_eq!(telemetry.context_window_size, Some(200_000));
+                assert_eq!(revision, SessionGraphRevision::new(15, 8, 22));
+            }
+            other => panic!("expected telemetry payload, got {:?}", other),
+        }
     }
 }

@@ -276,6 +276,10 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			projectPath: sessionProjectPath,
 			title: metadata ? metadata.title : panel.sessionTitle,
 			entries: sessionStore.getEntries(sessionId),
+			currentStreamingToolCall: operationStore.getCurrentStreamingToolCall(sessionId),
+			currentToolKind: operationStore.getCurrentToolKind(sessionId),
+			lastToolCall: operationStore.getLastToolCall(sessionId),
+			lastTodoToolCall: operationStore.getLastTodoToolCall(sessionId),
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
 			runtimeState,
 			hotState,
@@ -440,7 +444,7 @@ function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
 		visiblePermissionsForSessionBar(
 			permissionStore.getForSession(item.sessionId),
-			sessionStore.getEntries(item.sessionId)
+			sessionStore.getOperationStore()
 		)[0] ?? null;
 	if (visiblePermission) {
 		return visiblePermission;

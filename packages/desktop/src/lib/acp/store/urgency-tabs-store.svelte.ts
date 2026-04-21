@@ -13,9 +13,11 @@ import { SvelteMap } from "svelte/reactivity";
 import { TAG_COLORS } from "../utils/colors.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
+import { deriveLiveSessionWorkProjection } from "./live-session-work.js";
 import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
+import { selectSessionWorkBucket } from "./session-work-projection.js";
 import type { Panel } from "./types.js";
 import {
 	compareUrgency,
@@ -197,6 +199,7 @@ export class UrgencyTabsStore {
 			? this.sessionStore.getHotState(sessionId)
 			: {
 					status: "idle" as const,
+					currentMode: null,
 					statusChangedAt: Date.now(),
 					connectionError: null,
 					activeTurnFailure: null,
@@ -213,15 +216,47 @@ export class UrgencyTabsStore {
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
+		const currentStreamingToolCall =
+			sessionId !== null
+				? this.sessionStore.getOperationStore().getCurrentStreamingToolCall(sessionId)
+				: null;
+		const runtimeState =
+			sessionId !== null ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 
 		// Derive project path from session or panel
 		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
 		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
 		const title = sessionMetadata?.title ?? null;
+		const workProjection = deriveLiveSessionWorkProjection({
+			runtimeState,
+			hotState,
+			currentStreamingToolCall,
+			interactionSnapshot: {
+				pendingQuestion,
+				pendingPlanApproval,
+				pendingPermission: interactionSnapshot?.pendingPermission ?? null,
+			},
+			hasUnseenCompletion: false,
+		});
+		const workBucket = selectSessionWorkBucket(workProjection);
+		const urgencyStatus = (() => {
+			switch (workBucket) {
+				case "answer_needed":
+					return "ready";
+				case "error":
+					return "error";
+				case "planning":
+				case "working":
+					return "streaming";
+				case "needs_review":
+				case "idle":
+					return "idle";
+			}
+		})();
 
 		// Derive urgency
 		const urgency = deriveUrgency({
-			status: hotState.status,
+			status: urgencyStatus,
 			hasPendingQuestion: pendingQuestion !== null || pendingPlanApproval !== null,
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
 			statusChangedAt: hotState.statusChangedAt,
@@ -239,10 +274,10 @@ export class UrgencyTabsStore {
 			isFocused: panel.id === focusedPanelId,
 			hasPendingQuestion: pendingQuestion !== null || pendingPlanApproval !== null,
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
-			isStreaming: hotState.status === "streaming",
-			hasError: hotState.status === "error",
-			isConnecting: hotState.status === "connecting" || hotState.status === "loading",
-			isIdle: hotState.status === "idle" || hotState.status === "ready",
+			isStreaming: workBucket === "planning" || workBucket === "working",
+			hasError: workBucket === "error",
+			isConnecting: runtimeState?.connectionPhase === "connecting" || hotState.status === "loading",
+			isIdle: workBucket === "idle" || workBucket === "needs_review",
 		};
 	}
 }

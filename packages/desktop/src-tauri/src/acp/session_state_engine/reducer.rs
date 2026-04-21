@@ -8,6 +8,10 @@ use crate::acp::transcript_projection::{
     TranscriptDeltaOperation, TranscriptEntry, TranscriptSnapshot,
 };
 
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Reducer mutations mirror the wire/state graph shapes directly until a broader reducer compaction pass happens."
+)]
 pub enum SessionStateGraphMutation {
     ReplaceSnapshot {
         graph: Box<SessionStateGraph>,
@@ -40,7 +44,7 @@ impl SessionStateReducer {
                     apply_transcript_delta(
                         &mut graph.transcript_snapshot,
                         delta.transcript_operations.as_slice(),
-                        delta.to_revision.graph_revision,
+                        delta.to_revision.transcript_revision,
                     );
                 }
                 graph.revision = delta.to_revision;
@@ -205,5 +209,29 @@ mod tests {
 
         assert_eq!(graph.transcript_snapshot, replacement_snapshot);
         assert_eq!(graph.revision, SessionGraphRevision::new(5, 5, 5));
+    }
+
+    #[test]
+    fn reducer_uses_transcript_revision_for_transcript_snapshot_updates() {
+        let mut graph = base_graph();
+        let delta = SessionStateDelta {
+            from_revision: SessionGraphRevision::new(1, 1, 1),
+            to_revision: SessionGraphRevision::new(10, 4, 10),
+            transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
+                entry_id: "assistant-1".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segment: TranscriptSegment::Text {
+                    segment_id: "assistant-1:segment:2".to_string(),
+                    text: " world".to_string(),
+                },
+            }],
+            changed_fields: vec!["transcriptSnapshot".to_string()],
+        };
+
+        SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
+
+        assert_eq!(graph.revision, SessionGraphRevision::new(10, 4, 10));
+        assert_eq!(graph.transcript_snapshot.revision, 4);
+        assert_eq!(graph.transcript_snapshot.entries[0].segments.len(), 2);
     }
 }

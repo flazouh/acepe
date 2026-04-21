@@ -4,6 +4,7 @@ import type {
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TranscriptDelta,
+	UsageTelemetryData,
 } from "../../services/acp-types.js";
 import { resolveSessionStateDelta, type SessionStateDeltaResolution } from "./session-state-query-service.js";
 
@@ -19,6 +20,10 @@ export type SessionStateCommand =
 	| {
 			kind: "applyCapabilities";
 			capabilities: SessionGraphCapabilities;
+	  }
+	| {
+			kind: "applyTelemetry";
+			telemetry: UsageTelemetryData;
 	  }
 	| {
 			kind: "refreshSnapshot";
@@ -77,6 +82,13 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyCapabilities",
 					capabilities: envelope.payload.capabilities,
+				},
+			];
+		case "telemetry":
+			return [
+				{
+					kind: "applyTelemetry",
+					telemetry: envelope.payload.telemetry,
 				},
 			];
 		case "delta":

@@ -43,6 +43,7 @@ describe("session-state protocol graph contract", () => {
 				canonicalSessionId: "canonical-1",
 				isAlias: false,
 				lastEventSeq: 11,
+				graphRevision: 9,
 				openToken: "open-token-1",
 				agentId: "cursor" satisfies CanonicalAgentId,
 				projectPath: "/repo",
@@ -66,7 +67,7 @@ describe("session-state protocol graph contract", () => {
 
 		expect(envelope).toEqual({
 			sessionId: "canonical-1",
-			graphRevision: 11,
+			graphRevision: 9,
 			lastEventSeq: 11,
 			payload: {
 				kind: "snapshot",
@@ -81,6 +82,7 @@ describe("session-state protocol graph contract", () => {
 			canonicalSessionId: "canonical-1",
 			isAlias: false,
 			lastEventSeq: 11,
+			graphRevision: 9,
 			openToken: "open-token-1",
 			agentId: "cursor" satisfies CanonicalAgentId,
 			projectPath: "/repo",
@@ -95,9 +97,9 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle" satisfies SessionTurnState,
 			messageCount: 0,
-	});
+		});
 
-	expect(materialization.graph).toEqual({
+		expect(materialization.graph).toEqual({
 			requestedSessionId: "requested-1",
 			canonicalSessionId: "canonical-1",
 			isAlias: false,
@@ -106,7 +108,7 @@ describe("session-state protocol graph contract", () => {
 			worktreePath: null,
 			sourcePath: null,
 			revision: {
-				graphRevision: 11,
+				graphRevision: 9,
 				transcriptRevision: 3,
 				lastEventSeq: 11,
 			},
@@ -130,6 +132,7 @@ describe("session-state protocol graph contract", () => {
 				modes: null,
 				availableCommands: [],
 				configOptions: [],
+				autonomousEnabled: false,
 			},
 		} satisfies SessionStateGraph);
 	});

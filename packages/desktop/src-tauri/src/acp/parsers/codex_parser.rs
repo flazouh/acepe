@@ -585,6 +585,7 @@ impl CodexParser {
         Ok(RawToolCallUpdateInput {
             id,
             status: Some(status),
+            raw_output: result.clone(),
             result,
             content: None,
             title,

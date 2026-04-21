@@ -1,3 +1,4 @@
+export { DEFAULT_BROWSER_HOME_URL } from "./browser-defaults.js";
 export { LOGGER_IDS, type LoggerId } from "./logger-ids.js";
 export { ACP_METHODS, type AcpMethod } from "./methods.js";
 export { ACP_PROTOCOL_VERSION, JSON_RPC_VERSION } from "./protocol.js";

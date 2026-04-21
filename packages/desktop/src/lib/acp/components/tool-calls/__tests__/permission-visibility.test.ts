@@ -33,7 +33,7 @@ function createEntriesWithOperations(
 		lifecycle?: "pending" | "blocked" | "running" | "completed" | "failed";
 		blockedReason?: "permission" | "question" | "plan_approval" | "other" | null;
 	}
-): { operationStore: OperationStore; entries: ReturnType<SessionEntryStore["getEntries"]> } {
+): { operationStore: OperationStore } {
 	const operationStore = new OperationStore();
 	const entryStore = new SessionEntryStore(operationStore);
 	entryStore.createToolCallEntry("session-1", {
@@ -89,58 +89,51 @@ function createEntriesWithOperations(
 	]);
 	return {
 		operationStore,
-		entries: entryStore.getEntries("session-1"),
 	};
 }
 
 describe("permission visibility", () => {
 	it("treats a permission with a matching tool-call entry as represented", () => {
 		const permission = createPermission("tool-1");
-		const { operationStore, entries } = createEntriesWithOperations("tool-1");
+		const { operationStore } = createEntriesWithOperations("tool-1");
 
-		expect(
-			isPermissionRepresentedByToolCall(permission, "session-1", operationStore, entries)
-		).toBe(true);
+		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(true);
 	});
 
 	it("keeps orphan permissions visible when no matching tool-call entry exists", () => {
 		const permission = createPermission("tool-2", "git diff");
-		const { operationStore, entries } = createEntriesWithOperations("tool-1");
+		const { operationStore } = createEntriesWithOperations("tool-1");
 
-		expect(
-			isPermissionRepresentedByToolCall(permission, "session-1", operationStore, entries)
-		).toBe(false);
-		expect(visiblePermissionsForSessionBar([permission], entries)).toEqual([permission]);
+		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(false);
+		expect(visiblePermissionsForSessionBar([permission], operationStore)).toEqual([permission]);
 	});
 
 	it("treats execute permissions with matching commands as represented even when the anchor id differs", () => {
 		const permission = createPermission("shell-permission");
-		const { operationStore, entries } = createEntriesWithOperations("tool-1");
+		const { operationStore } = createEntriesWithOperations("tool-1");
 
-		expect(
-			isPermissionRepresentedByToolCall(permission, "session-1", operationStore, entries)
-		).toBe(true);
+		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(true);
 	});
 
 	it("keeps anchored permissions visible in the session-level permission bar", () => {
 		const anchoredPermission = createPermission("tool-1");
 		const orphanPermission = createPermission("tool-2");
-		const { entries } = createEntriesWithOperations("tool-1");
+		const { operationStore } = createEntriesWithOperations("tool-1");
 
 		expect(
-			visiblePermissionsForSessionBar([anchoredPermission, orphanPermission], entries)
+			visiblePermissionsForSessionBar([anchoredPermission, orphanPermission], operationStore)
 		).toEqual([anchoredPermission, orphanPermission]);
 	});
 
 	it("keeps a matched permission anchored even before the blocked lifecycle patch lands", () => {
 		const permission = createPermission("tool-1");
-		const { operationStore, entries } = createEntriesWithOperations("tool-1", "git status", {
+		const { operationStore } = createEntriesWithOperations("tool-1", "git status", {
 			lifecycle: "running",
 			blockedReason: null,
 		});
 
-		expect(
-			isPermissionRepresentedByToolCall(permission, "session-1", operationStore, entries)
-		).toBe(true);
+		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(
+			true
+		);
 	});
 });

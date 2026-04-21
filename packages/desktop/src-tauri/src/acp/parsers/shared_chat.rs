@@ -209,6 +209,7 @@ pub(crate) fn parse_tool_call_update(
     Ok(RawToolCallUpdateInput {
         id,
         status,
+        raw_output: result.clone(),
         result,
         content,
         title,

@@ -214,8 +214,6 @@ macro_rules! acp_command_entries {
             send_prompt: acp_send_prompt,
             cancel: acp_cancel,
             reply_interaction: acp_reply_interaction,
-            reply_permission: acp_reply_permission,
-            reply_question: acp_reply_question,
             respond_inbound_request: acp_respond_inbound_request,
             get_event_bridge_info: acp_get_event_bridge_info,
             get_session_state: acp_get_session_state,

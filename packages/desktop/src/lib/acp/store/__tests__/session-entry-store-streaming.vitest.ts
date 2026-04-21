@@ -317,6 +317,187 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		]);
 	});
 
+	it("preserves structured tool data when a transcript snapshot rehydrates the same tool id", () => {
+		const timestamp = new Date("2026-04-16T00:00:00.000Z");
+		store.createToolCallEntry("session-1", {
+			id: "tool-1",
+			name: "Edit File",
+			arguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+					},
+				],
+			},
+			rawInput: {
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+					},
+				],
+			},
+			status: "completed",
+			result: null,
+			kind: "edit",
+			title: "Edit File",
+			locations: null,
+			skillMeta: null,
+			normalizedQuestions: null,
+			normalizedTodos: null,
+			parentToolUseId: null,
+			taskChildren: null,
+			questionAnswer: null,
+			awaitingPlanApproval: false,
+			planApprovalRequestId: null,
+		});
+
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 6,
+				entries: [
+					{
+						entryId: "tool-1",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-1:tool",
+								text: "Edit File",
+							},
+						],
+					},
+				],
+			},
+			timestamp
+		);
+
+		const [entry] = store.getEntries("session-1");
+		expect(entry?.type).toBe("tool_call");
+		if (entry?.type !== "tool_call") {
+			throw new Error("expected tool call entry");
+		}
+		expect(entry.message).toMatchObject({
+			id: "tool-1",
+			name: "Edit File",
+			kind: "edit",
+			title: "Edit File",
+			arguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+					},
+				],
+			},
+		});
+		expect(entry.message.arguments).toEqual({
+			kind: "edit",
+			edits: [
+				{
+					filePath: "/tmp/example.ts",
+					oldString: "before",
+					newString: "after",
+				},
+			],
+		});
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
+			toolCallId: "tool-1",
+			kind: "edit",
+		});
+		expect(store.getOperationStore().getLastToolCall("session-1")).toMatchObject({
+			id: "tool-1",
+			kind: "edit",
+		});
+	});
+
+	it("does not clear canonical tool operations when a delta replaces the transcript snapshot", () => {
+		const timestamp = new Date("2026-04-16T00:00:00.000Z");
+		store.createToolCallEntry("session-1", {
+			id: "tool-1",
+			name: "Edit File",
+			arguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+					},
+				],
+			},
+			rawInput: {
+				edits: [
+					{
+						filePath: "/tmp/example.ts",
+						oldString: "before",
+						newString: "after",
+					},
+				],
+			},
+			status: "completed",
+			result: null,
+			kind: "edit",
+			title: "Edit File",
+			locations: null,
+			skillMeta: null,
+			normalizedQuestions: null,
+			normalizedTodos: null,
+			parentToolUseId: null,
+			taskChildren: null,
+			questionAnswer: null,
+			awaitingPlanApproval: false,
+			planApprovalRequestId: null,
+		});
+
+		store.applyTranscriptDelta(
+			"session-1",
+			{
+				eventSeq: 6,
+				sessionId: "session-1",
+				snapshotRevision: 6,
+				operations: [
+					{
+						kind: "replaceSnapshot",
+						snapshot: {
+							revision: 6,
+							entries: [
+								{
+									entryId: "tool-1",
+									role: "tool",
+									segments: [
+										{
+											kind: "text",
+											segmentId: "tool-1:tool",
+											text: "Edit File",
+										},
+									],
+								},
+							],
+						},
+					},
+				],
+			},
+			timestamp
+		);
+
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
+			toolCallId: "tool-1",
+			kind: "edit",
+		});
+		expect(store.getOperationStore().getLastToolCall("session-1")).toMatchObject({
+			id: "tool-1",
+			kind: "edit",
+		});
+	});
+
 	it("appends assistant transcript segments without rebuilding the whole session", () => {
 		store.replaceTranscriptSnapshot(
 			"session-1",
@@ -461,7 +642,57 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			},
 		]);
 
-		expect(operationStore.getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(operationStore.getByToolCallId("session-1", "tool-1")).toMatchObject({
+			toolCallId: "tool-1",
+			sourceEntryId: "tool-1",
+			title: "Read file\nstdout ready",
+		});
+	});
+
+	it("reconciles a canonical user append entry onto the optimistic user row", () => {
+		store.addEntry("session-1", {
+			id: "optimistic-user-local",
+			type: "user",
+			message: {
+				id: "optimistic-user-local",
+				content: { type: "text", text: "hello" },
+				chunks: [{ type: "text", text: "hello" }],
+				sentAt: new Date("2026-04-16T00:00:01.000Z"),
+			},
+			timestamp: new Date("2026-04-16T00:00:01.000Z"),
+		});
+
+		const delta: TranscriptDelta = {
+			eventSeq: 7,
+			sessionId: "session-1",
+			snapshotRevision: 7,
+			operations: [
+				{
+					kind: "appendEntry",
+					entry: {
+						entryId: "user-event-7",
+						role: "user",
+						segments: [{ kind: "text", segmentId: "user-event-7:block:0", text: "hello" }],
+					},
+				},
+			],
+		};
+
+		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
+
+		expect(store.getEntries("session-1")).toEqual([
+			{
+				id: "user-event-7",
+				type: "user",
+				message: {
+					id: "user-event-7",
+					content: { type: "text", text: "hello" },
+					chunks: [{ type: "text", text: "hello" }],
+					sentAt: new Date("2026-04-16T00:00:01.000Z"),
+				},
+				timestamp: new Date("2026-04-16T00:00:01.000Z"),
+			},
+		]);
 	});
 });
 

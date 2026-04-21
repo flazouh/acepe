@@ -43,6 +43,28 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 	const isStreaming = overrides.isStreaming ?? false;
 	const isThinking = overrides.isThinking ?? false;
 	const currentModeId = overrides.currentModeId ?? "code";
+	const currentStreamingToolCall =
+		overrides.currentStreamingToolCall ??
+		overrides.entries?.findLast(
+			(entry): entry is SessionEntry & { type: "tool_call"; isStreaming: true } =>
+				entry.type === "tool_call" && entry.isStreaming === true
+		)?.message ??
+		null;
+	const lastToolCall =
+		overrides.lastToolCall ??
+		overrides.entries?.findLast(
+			(entry): entry is SessionEntry & { type: "tool_call" } => entry.type === "tool_call"
+		)?.message ??
+		null;
+	const lastTodoToolCall =
+		overrides.lastTodoToolCall ??
+		overrides.entries?.findLast(
+			(entry): entry is SessionEntry & { type: "tool_call" } =>
+				entry.type === "tool_call" &&
+				entry.message.normalizedTodos != null &&
+				entry.message.normalizedTodos.length > 0
+		)?.message ??
+		null;
 	const state =
 		overrides.state ??
 		deriveSessionState({
@@ -73,6 +95,12 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		projectPath: "/repo",
 		title: "Queue item",
 		entries: [],
+		currentStreamingToolCall,
+		currentToolKind:
+			overrides.currentToolKind ??
+			(currentStreamingToolCall ? (currentStreamingToolCall.kind ?? "other") : null),
+		lastToolCall,
+		lastTodoToolCall,
 		state,
 		isStreaming,
 		isThinking,
@@ -128,6 +156,49 @@ describe("buildQueueItem", () => {
 
 		expect(item.state.activity.kind).toBe("thinking");
 		expect(item.lastToolCall?.id).toBe("tool-1");
+	});
+
+	it("derives todo progress from canonical lastTodoToolCall without transcript entries", () => {
+		const item = buildQueueItem(
+			createSession({
+				entries: [],
+				lastTodoToolCall: {
+					id: "todo-tool-1",
+					name: "TodoWrite",
+					kind: "other",
+					arguments: { kind: "other", raw: {} },
+					status: "in_progress",
+					normalizedTodos: [
+						{
+							content: "Audit remaining consumers",
+							activeForm: "Auditing remaining consumers",
+							status: "completed",
+						},
+						{
+							content: "Migrate queue summaries",
+							activeForm: "Migrating queue summaries",
+							status: "in_progress",
+						},
+					],
+					awaitingPlanApproval: false,
+				},
+			}),
+			null,
+			DEFAULT_URGENCY,
+			false,
+			false,
+			false,
+			null,
+			null,
+			null,
+			null
+		);
+
+		expect(item.todoProgress).toEqual({
+			current: 2,
+			total: 2,
+			label: "Migrating queue summaries",
+		});
 	});
 
 	it("preserves connectionError-backed error classification from the snapshot", () => {
@@ -208,6 +279,10 @@ describe("buildQueueSessionSnapshot", () => {
 			projectPath: "/repo",
 			title: "Queue item",
 			entries: [],
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			runtimeState: {
 				connectionPhase: "connected",
@@ -245,6 +320,10 @@ describe("buildQueueSessionSnapshot", () => {
 			projectPath: "/repo",
 			title: "Queue item",
 			entries: [],
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			runtimeState: {
 				connectionPhase: "connected",
@@ -284,6 +363,10 @@ describe("buildQueueSessionSnapshot", () => {
 			projectPath: "/repo",
 			title: "Queue item",
 			entries: [],
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			runtimeState: {
 				connectionPhase: "connected",

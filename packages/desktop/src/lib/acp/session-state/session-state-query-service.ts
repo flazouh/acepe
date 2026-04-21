@@ -172,10 +172,12 @@ export function resolveSessionStateDelta(
 	currentRevision: number | undefined,
 	delta: SessionStateDelta
 ): SessionStateDeltaResolution {
+	const operations = transcriptOperationsFromDelta(delta);
+	const isTranscriptBearing = operations.length > 0;
 	const fromRevision = delta.fromRevision.transcriptRevision;
 	const toRevision = delta.toRevision.transcriptRevision;
 
-	if (currentRevision === undefined) {
+	if (isTranscriptBearing && currentRevision === undefined) {
 		if (fromRevision > 0) {
 			return {
 				kind: "refreshSnapshot",
@@ -183,15 +185,13 @@ export function resolveSessionStateDelta(
 				toRevision,
 			};
 		}
-	} else if (fromRevision !== currentRevision) {
+	} else if (isTranscriptBearing && fromRevision !== currentRevision) {
 		return {
 			kind: "refreshSnapshot",
 			fromRevision,
 			toRevision,
 		};
 	}
-
-	const operations = transcriptOperationsFromDelta(delta);
 	if (operations.length === 0) {
 		return {
 			kind: "noop",

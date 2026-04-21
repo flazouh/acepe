@@ -32,6 +32,7 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		canonicalSessionId: overrides.canonicalSessionId ?? "session-1",
 		isAlias: overrides.isAlias ?? false,
 		lastEventSeq: overrides.lastEventSeq ?? 0,
+		graphRevision: overrides.graphRevision ?? overrides.lastEventSeq ?? 0,
 		openToken: overrides.openToken ?? "open-token",
 		agentId: overrides.agentId ?? "copilot",
 		projectPath: overrides.projectPath ?? "/repo",

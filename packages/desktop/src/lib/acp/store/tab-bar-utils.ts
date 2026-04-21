@@ -47,6 +47,8 @@ export interface PanelToTabInput {
 	readonly hotState: SessionHotState | null;
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly currentStreamingToolCall: ToolCall | null;
+	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
@@ -104,33 +106,6 @@ export interface TabBarTab {
 	 * Use this for state-dependent UI instead of individual boolean flags.
 	 */
 	readonly state: SessionState;
-}
-
-/**
- * Get the ToolKind of the most recent streaming tool call.
- *
- * Iterates entries from the end since streaming tool calls are always near the tail.
- * Returns null when no tool call is actively streaming.
- * Falls back to "other" when the tool call has no kind set.
- */
-export function getCurrentToolKind(entries: ReadonlyArray<SessionEntry>): ToolKind | null {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type === "tool_call" && entry.isStreaming) {
-			return entry.message.kind ?? "other";
-		}
-	}
-	return null;
-}
-
-function getCurrentStreamingToolCall(entries: ReadonlyArray<SessionEntry>): ToolCall | null {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type === "tool_call" && entry.isStreaming) {
-			return entry.message;
-		}
-	}
-	return null;
 }
 
 /**
@@ -247,6 +222,8 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		hotState,
 		runtimeState,
 		entries,
+		currentStreamingToolCall: providedCurrentStreamingToolCall,
+		currentToolKind: providedCurrentToolKind,
 		pendingQuestion,
 		pendingPlanApproval,
 		pendingPermission,
@@ -256,8 +233,8 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectIconSrc,
 		projectPath,
 	} = input;
-	const currentToolKind = getCurrentToolKind(entries);
-	const currentStreamingToolCall = getCurrentStreamingToolCall(entries);
+	const currentStreamingToolCall = providedCurrentStreamingToolCall;
+	const currentToolKind = providedCurrentToolKind;
 	const liveSessionInput: LiveSessionWorkInput = {
 		runtimeState,
 		hotState:

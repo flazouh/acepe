@@ -37,21 +37,20 @@ let {
 	projectPath = null,
 	showCommandWhenRepresented = false,
 	showCompactEditPreview = false,
-	entries: entriesProp,
+	entries: _entriesProp = undefined,
 	turnState: turnStateProp,
 }: Props = $props();
 
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
-
-const effectiveEntries = $derived(entriesProp ?? sessionStore.getEntries(sessionId));
+const operationStore = sessionStore.getOperationStore();
 
 const pendingPermissions = $derived.by(() => {
 	if (permission) {
 		return [permission];
 	}
 
-	return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), effectiveEntries);
+	return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), operationStore);
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
 const isRepresentedByToolCall = $derived.by(() => {
@@ -62,8 +61,7 @@ const isRepresentedByToolCall = $derived.by(() => {
 	return isPermissionRepresentedByToolCall(
 		currentPermission,
 		sessionId,
-		sessionStore.getOperationStore(),
-		effectiveEntries
+		operationStore
 	);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
@@ -74,14 +72,7 @@ const currentToolCall = $derived.by((): ToolCall | null => {
 		return null;
 	}
 
-	for (let index = effectiveEntries.length - 1; index >= 0; index -= 1) {
-		const entry = effectiveEntries[index];
-		if (entry.type === "tool_call" && entry.message.id === toolCallId) {
-			return entry.message;
-		}
-	}
-
-	return null;
+	return operationStore.getToolCallById(sessionId, toolCallId);
 });
 const showEditPreview = $derived(
 	showCompactEditPreview && currentToolCall !== null && currentToolCall.kind === "edit"

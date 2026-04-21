@@ -7,6 +7,7 @@ import { SessionList } from "$lib/acp/components/index.js";
 import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
+import { DEFAULT_BROWSER_HOME_URL } from "$lib/acp/constants/browser-defaults.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import {
@@ -156,7 +157,7 @@ function handleOpenTerminal(projectPath: string) {
 }
 
 function handleOpenBrowser(projectPath: string) {
-	panelStore.openBrowserPanel(projectPath, "about:blank", "New tab");
+	panelStore.openBrowserPanel(projectPath, DEFAULT_BROWSER_HOME_URL, "acepe.dev");
 }
 
 function handleOpenGitPanel(projectPath: string) {

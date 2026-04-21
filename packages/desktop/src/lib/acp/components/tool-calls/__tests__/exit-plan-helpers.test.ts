@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import { OperationStore } from "../../../store/operation-store.svelte.js";
+import { SessionEntryStore } from "../../../store/session-entry-store.svelte.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import {
@@ -58,12 +59,28 @@ function createExitPlanPermission(
 	};
 }
 
-function createToolEntry(toolCall: ToolCall): SessionEntry {
-	return {
-		id: `entry-${toolCall.id}`,
-		type: "tool_call",
-		message: toolCall,
-	};
+function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
+	const operationStore = new OperationStore();
+	const entryStore = new SessionEntryStore(operationStore);
+	entryStore.createToolCallEntry("session-1", {
+		id: toolCall.id,
+		name: toolCall.name,
+		arguments: toolCall.arguments,
+		status: toolCall.status,
+		kind: toolCall.kind,
+		title: null,
+		locations: null,
+		skillMeta: null,
+		result: null,
+		normalizedQuestions: null,
+		normalizedTodos: null,
+		parentToolUseId: null,
+		taskChildren: null,
+		questionAnswer: null,
+		awaitingPlanApproval: toolCall.awaitingPlanApproval,
+		planApprovalRequestId: null,
+	});
+	return operationStore;
 }
 
 describe("exit-plan-helpers", () => {
@@ -113,7 +130,10 @@ describe("exit-plan-helpers", () => {
 			42
 		);
 
-		const shouldHide = shouldHidePermissionBarForExitPlan(permission, [createToolEntry(toolCall)]);
+		const shouldHide = shouldHidePermissionBarForExitPlan(
+			permission,
+			createOperationStoreWithToolCall(toolCall)
+		);
 
 		expect(shouldHide).toBe(true);
 	});

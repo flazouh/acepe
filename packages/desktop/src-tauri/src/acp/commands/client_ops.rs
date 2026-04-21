@@ -148,35 +148,44 @@ where
         Output = Result<Box<dyn AgentClient + Send + Sync + 'static>, SerializableAcpError>,
     >,
 {
-    if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
-        let existing_resume_result = {
-            let mut existing_client = lock_session_client(
-                &existing_client_mutex,
-                "acp_resume_session: existing client lock",
-            )
-            .await?;
-            reconnect_client_session(
-                existing_client.as_mut(),
-                &session_id,
-                &cwd,
-                launch_mode_id.clone(),
-                "resume existing session client",
-            )
-            .await
-        };
+    let force_new_client = launch_mode_id.is_some();
 
-        if let Ok(response) = existing_resume_result {
-            tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
-            return Ok(response);
-        }
+    if !force_new_client {
+        if let Ok(existing_client_mutex) = session_registry.get(&session_id) {
+            let existing_resume_result = {
+                let mut existing_client = lock_session_client(
+                    &existing_client_mutex,
+                    "acp_resume_session: existing client lock",
+                )
+                .await?;
+                reconnect_client_session(
+                    existing_client.as_mut(),
+                    &session_id,
+                    &cwd,
+                    launch_mode_id.clone(),
+                    "resume existing session client",
+                )
+                .await
+            };
 
-        if let Err(error) = existing_resume_result {
-            tracing::warn!(
-                session_id = %session_id,
-                error = %error,
-                "Existing session client resume failed, creating replacement client"
-            );
+            if let Ok(response) = existing_resume_result {
+                tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
+                return Ok(response);
+            }
+
+            if let Err(error) = existing_resume_result {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Existing session client resume failed, creating replacement client"
+                );
+            }
         }
+    } else if session_registry.get(&session_id).is_ok() {
+        tracing::info!(
+            session_id = %session_id,
+            "Session resume requested with launch mode: creating fresh client"
+        );
     }
 
     let mut client = create_client_fn().await?;

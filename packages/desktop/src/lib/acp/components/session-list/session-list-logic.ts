@@ -134,40 +134,46 @@ export function extractTodoProgress(entries: readonly SessionEntry[]): TodoProgr
 		const entry = entries[i];
 		if (entry.type !== "tool_call") continue;
 
-		const toolCall = entry.message;
-		const todos = toolCall.normalizedTodos;
-		if (!todos || todos.length === 0) continue;
-
-		// Find current in-progress task
-		const inProgressIndex = todos.findIndex((t) => t.status === "in_progress");
-		const completedCount = todos.filter((t) => t.status === "completed").length;
-
-		// Determine current step and label
-		let current: number;
-		let label: string;
-
-		if (inProgressIndex >= 0) {
-			const inProgressTodo = todos[inProgressIndex];
-			current = inProgressIndex + 1;
-			label = inProgressTodo.activeForm || inProgressTodo.content;
-		} else if (completedCount === todos.length) {
-			// All tasks completed - show "X/X Done"
-			current = completedCount;
-			label = "Done";
-		} else {
-			// Some completed, some pending, none in-progress - show waiting state
-			current = completedCount;
-			label = "Waiting";
+		const todoProgress = extractTodoProgressFromToolCall(entry.message);
+		if (todoProgress !== null) {
+			return todoProgress;
 		}
-
-		return {
-			current,
-			total: todos.length,
-			label: truncateText(label, 25),
-		};
 	}
 
 	return null;
+}
+
+export function extractTodoProgressFromToolCall(
+	toolCall: Pick<ToolCall, "normalizedTodos"> | null
+): TodoProgressInfo | null {
+	const todos = toolCall?.normalizedTodos;
+	if (!todos || todos.length === 0) {
+		return null;
+	}
+
+	const inProgressIndex = todos.findIndex((todo) => todo.status === "in_progress");
+	const completedCount = todos.filter((todo) => todo.status === "completed").length;
+
+	let current: number;
+	let label: string;
+
+	if (inProgressIndex >= 0) {
+		const inProgressTodo = todos[inProgressIndex];
+		current = inProgressIndex + 1;
+		label = inProgressTodo.activeForm || inProgressTodo.content;
+	} else if (completedCount === todos.length) {
+		current = completedCount;
+		label = "Done";
+	} else {
+		current = completedCount;
+		label = "Waiting";
+	}
+
+	return {
+		current,
+		total: todos.length,
+		label: truncateText(label, 25),
+	};
 }
 
 /**

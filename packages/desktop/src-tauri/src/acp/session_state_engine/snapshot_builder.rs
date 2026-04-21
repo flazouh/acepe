@@ -19,7 +19,7 @@ pub fn build_graph_from_open_found(
         worktree_path: found.worktree_path.clone(),
         source_path: found.source_path.clone(),
         revision: SessionGraphRevision::new(
-            found.last_event_seq,
+            found.graph_revision,
             found.transcript_snapshot.revision,
             found.last_event_seq,
         ),
@@ -54,6 +54,7 @@ mod tests {
             canonical_session_id: "canonical-1".to_string(),
             is_alias: true,
             last_event_seq: 11,
+            graph_revision: 9,
             open_token: "open-token-1".to_string(),
             agent_id: CanonicalAgentId::Cursor,
             project_path: "/workspace/a".to_string(),
@@ -80,7 +81,7 @@ mod tests {
 
         assert_eq!(graph.canonical_session_id, "canonical-1");
         assert!(graph.is_alias);
-        assert_eq!(graph.revision.graph_revision, 11);
+        assert_eq!(graph.revision.graph_revision, 9);
         assert_eq!(graph.revision.transcript_revision, 3);
         assert_eq!(graph.revision.last_event_seq, 11);
     }

@@ -41,6 +41,8 @@ pub struct SessionGraphCapabilities {
     pub available_commands: Vec<AvailableCommand>,
     #[serde(default)]
     pub config_options: Vec<ConfigOptionData>,
+    #[serde(default)]
+    pub autonomous_enabled: bool,
 }
 
 impl SessionGraphCapabilities {
@@ -50,6 +52,7 @@ impl SessionGraphCapabilities {
             modes: None,
             available_commands: Vec::new(),
             config_options: Vec::new(),
+            autonomous_enabled: false,
         }
     }
 }

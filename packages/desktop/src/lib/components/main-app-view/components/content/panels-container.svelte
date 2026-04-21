@@ -1,30 +1,44 @@
 <script lang="ts">
-import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
-import { onMount } from "svelte";
-import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
-import { FilePanel } from "$lib/acp/components/file-panel/index.js";
-import FilePanelTabs from "$lib/acp/components/file-panel/file-panel-tabs.svelte";
-import { AgentPanel } from "$lib/acp/components/index.js";
-import { ReviewPanel } from "$lib/acp/components/review-panel/index.js";
-import { TerminalPanel, TerminalTabs } from "$lib/acp/components/terminal-panel/index.js";
-import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import { getViewModeState } from "$lib/acp/logic/view-mode-state.js";
-import {
-	getAgentPreferencesStore,
+	import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
+	import { onMount } from "svelte";
+	import { toast } from "svelte-sonner";
+	import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
+	import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+	import { buildAgentErrorIssueDraft } from "$lib/acp/components/agent-panel/logic/issue-report-draft.js";
+	import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
+	import { FilePanel } from "$lib/acp/components/file-panel/index.js";
+	import FilePanelTabs from "$lib/acp/components/file-panel/file-panel-tabs.svelte";
+	import { AgentPanel } from "$lib/acp/components/index.js";
+	import { ReviewPanel } from "$lib/acp/components/review-panel/index.js";
+	import { TerminalPanel, TerminalTabs } from "$lib/acp/components/terminal-panel/index.js";
+	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+	import { getViewModeState } from "$lib/acp/logic/view-mode-state.js";
+	import {
+		getAgentPreferencesStore,
 	getAgentStore,
 	getPanelStore,
 	getSessionStore,
 } from "$lib/acp/store/index.js";
-import { createLogger } from "$lib/acp/utils/logger.js";
-import { useTheme } from "$lib/components/theme/context.svelte.js";
-import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
-import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
+	import { createLogger } from "$lib/acp/utils/logger.js";
+	import { useTheme } from "$lib/components/theme/context.svelte.js";
+	import { ensureErrorReference } from "$lib/errors/error-reference.js";
+	import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
+	import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+	import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
 
 import { groupAllPanelsByProject, sortProjectGroupsForMultiLayout } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
 import MultiProjectGroupLabel from "./multi-project-group-label.svelte";
 
 const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContainerPerf" });
+
+type ErrorLike = {
+	message?: unknown;
+	stack?: unknown;
+	name?: unknown;
+	backendCorrelationId?: unknown;
+	backendEventId?: unknown;
+};
 
 interface Props {
 	projectManager: ProjectManager;
@@ -47,6 +61,97 @@ onMount(() => {
 	});
 });
 const themeState = useTheme();
+
+function normalizeBoundaryError(error: unknown): Error {
+	if (error instanceof Error) {
+		return error;
+	}
+
+	let message = "Unknown agent panel error";
+	const normalized = new Error(message);
+
+	if (typeof error === "string" && error.length > 0) {
+		return new Error(error);
+	}
+
+	if (error !== null && typeof error === "object") {
+		const errorLike = error as ErrorLike;
+		if (typeof errorLike.message === "string" && errorLike.message.length > 0) {
+			message = errorLike.message;
+		}
+
+		const nextError = new Error(message);
+		if (typeof errorLike.name === "string" && errorLike.name.length > 0) {
+			nextError.name = errorLike.name;
+		}
+		if (typeof errorLike.stack === "string" && errorLike.stack.length > 0) {
+			nextError.stack = errorLike.stack;
+		}
+		if (typeof errorLike.backendCorrelationId === "string") {
+			(nextError as Error & { backendCorrelationId?: string }).backendCorrelationId =
+				errorLike.backendCorrelationId;
+		}
+		if (typeof errorLike.backendEventId === "string") {
+			(nextError as Error & { backendEventId?: string }).backendEventId =
+				errorLike.backendEventId;
+		}
+		return nextError;
+	}
+
+	return normalized;
+}
+
+function formatBoundaryError(error: Error): string {
+	const lines: string[] = [];
+	if (error.name && error.name !== "Error") {
+		lines.push(`${error.name}: ${error.message}`);
+	} else {
+		lines.push(error.message);
+	}
+
+	if (error.stack) {
+		const stackLines = error.stack.split("\n");
+		const firstLine = stackLines[0]?.trim() ?? "";
+		const isMessageLine =
+			firstLine === `${error.name}: ${error.message}` || firstLine === error.message;
+		const relevantLines = isMessageLine ? stackLines.slice(1) : stackLines;
+
+		if (relevantLines.length > 0) {
+			lines.push("");
+			lines.push("Stack trace:");
+			lines.push(...relevantLines.slice(0, 30));
+		}
+	}
+
+	return lines.join("\n");
+}
+
+function logAgentPanelBoundaryError(panelId: string, error: unknown): void {
+	const normalized = normalizeBoundaryError(error);
+	const reference = ensureErrorReference(normalized);
+	console.error("[boundary:agent-panel]", panelId, {
+		name: normalized.name,
+		message: normalized.message,
+		stack: normalized.stack ?? null,
+		referenceId: reference.referenceId,
+		referenceSearchable: reference.searchable,
+	});
+}
+
+function handleCopyBoundaryReference(referenceId: string | null): void {
+	if (referenceId === null) {
+		return;
+	}
+
+	void copyTextToClipboard(referenceId).match(
+		() => {
+			toast.success("Reference ID copied");
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
 
 // Panel state with hot state - session data is resolved in AgentPanel
 // This avoids creating new object references for all panels when any session changes
@@ -284,7 +389,9 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						: null
 					: null}
 				<div class="relative h-full min-h-0 min-w-0 flex-1">
-					<svelte:boundary onerror={(e) => console.error('[boundary:agent-panel]', fullscreenPanelSnapshot.panelId, e)}>
+					<svelte:boundary
+						onerror={(error) => logAgentPanelBoundaryError(fullscreenPanelSnapshot.panelId, error)}
+					>
 						<AgentPanel
 							panelId={fullscreenPanelSnapshot.panelId}
 							sessionId={fullscreenPanelSnapshot.sessionId}
@@ -344,10 +451,38 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								panelStore.resizeFilePanel(panelId, delta)}
 						/>
 						{#snippet failed(error, reset)}
-							<div class="flex flex-1 items-center justify-center p-4">
-								<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-									<span>{"This panel encountered an error."}</span>
-									<button class="text-xs underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
+							{@const boundaryError = normalizeBoundaryError(error)}
+							{@const boundaryReference = ensureErrorReference(boundaryError)}
+							{@const boundaryIssueDraft = buildAgentErrorIssueDraft({
+								agentId: selectedAgentId ?? "unknown",
+								sessionId: fullscreenPanelSnapshot.sessionId,
+								projectPath,
+								worktreePath: null,
+								errorSummary:
+									boundaryError.message.length > 0
+										? boundaryError.message
+										: "Agent panel crashed while rendering.",
+								errorDetails: formatBoundaryError(boundaryError),
+								referenceId: boundaryReference.referenceId,
+								referenceSearchable: boundaryReference.searchable,
+								diagnosticsSummary: boundaryError.message,
+								sessionTitle: null,
+								panelConnectionState: null,
+							})}
+							<div class="flex h-full flex-1 items-center justify-center p-4">
+								<div class="w-full max-w-3xl">
+									<AgentErrorCard
+										title="Agent panel crashed"
+										summary={boundaryError.message || "Unexpected render error"}
+										details={formatBoundaryError(boundaryError)}
+										referenceId={boundaryReference.referenceId}
+										referenceSearchable={boundaryReference.searchable}
+										onRetry={reset}
+										onCopyReferenceId={() =>
+											handleCopyBoundaryReference(boundaryReference.referenceId)}
+										issueActionLabel={resolveIssueActionLabel(boundaryIssueDraft)}
+										onIssueAction={() => state.openUserReportsWithDraft(boundaryIssueDraft)}
+									/>
 								</div>
 							</div>
 						{/snippet}
@@ -486,7 +621,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 									? panel.selectedAgentId
 									: null
 								: null}
-							<svelte:boundary onerror={(e) => console.error('[boundary:agent-panel]', panel.id, e)}>
+							<svelte:boundary onerror={(error) => logAgentPanelBoundaryError(panel.id, error)}>
 								<AgentPanel
 									panelId={panel.id}
 									sessionId={panel.sessionId}
@@ -532,10 +667,38 @@ const terminalTabsPanelStore = $derived.by(() => ({
 										panelStore.resizeFilePanel(panelId, delta)}
 								/>
 								{#snippet failed(error, reset)}
-									<div class="flex flex-1 items-center justify-center p-4">
-										<div class="flex flex-col items-center gap-2 text-muted-foreground text-sm">
-											<span>{"This panel encountered an error."}</span>
-											<button class="text-xs underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
+									{@const boundaryError = normalizeBoundaryError(error)}
+									{@const boundaryReference = ensureErrorReference(boundaryError)}
+									{@const boundaryIssueDraft = buildAgentErrorIssueDraft({
+										agentId: selectedAgentId ?? panel.sessionAgentId ?? "unknown",
+										sessionId: panel.sessionId,
+										projectPath,
+										worktreePath: null,
+										errorSummary:
+											boundaryError.message.length > 0
+												? boundaryError.message
+												: "Agent panel crashed while rendering.",
+										errorDetails: formatBoundaryError(boundaryError),
+										referenceId: boundaryReference.referenceId,
+										referenceSearchable: boundaryReference.searchable,
+										diagnosticsSummary: boundaryError.message,
+										sessionTitle: panel.sessionTitle,
+										panelConnectionState: null,
+									})}
+									<div class="flex h-full flex-1 items-center justify-center p-4">
+										<div class="w-full max-w-3xl">
+											<AgentErrorCard
+												title="Agent panel crashed"
+												summary={boundaryError.message || "Unexpected render error"}
+												details={formatBoundaryError(boundaryError)}
+												referenceId={boundaryReference.referenceId}
+												referenceSearchable={boundaryReference.searchable}
+												onRetry={reset}
+												onCopyReferenceId={() =>
+													handleCopyBoundaryReference(boundaryReference.referenceId)}
+												issueActionLabel={resolveIssueActionLabel(boundaryIssueDraft)}
+												onIssueAction={() => state.openUserReportsWithDraft(boundaryIssueDraft)}
+											/>
 										</div>
 									</div>
 								{/snippet}

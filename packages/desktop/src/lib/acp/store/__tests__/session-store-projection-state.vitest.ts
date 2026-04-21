@@ -2,7 +2,7 @@ import { mock } from "bun:test";
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getSessionStateMock = vi.fn();
+var getSessionStateMock = vi.fn();
 
 mock.module("$lib/analytics.js", () => ({
 	captureException: vi.fn(),
@@ -31,7 +31,8 @@ mock.module("posthog-js", () => ({
 
 vi.mock("../api.js", () => ({
 	api: {
-		getSessionState: getSessionStateMock,
+		getSessionState: (...args: Parameters<typeof getSessionStateMock>) =>
+			getSessionStateMock(...args),
 	},
 }));
 
@@ -296,6 +297,42 @@ describe("SessionStore.applySessionStateGraph", () => {
 					description: "Run a command",
 				},
 			],
+		});
+	});
+
+	it("reconciles the connection machine from canonical lifecycle and turn state", () => {
+		const store = new SessionStore();
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				turnState: "Running",
+				lifecycle: {
+					status: "ready",
+					errorMessage: null,
+					canReconnect: true,
+				},
+			})
+		);
+
+		expect(store.getSessionState("session-1")).toMatchObject({
+			connection: "streaming",
+		});
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				turnState: "Completed",
+				activeTurnFailure: null,
+				lastTerminalTurnId: "turn-1",
+				lifecycle: {
+					status: "ready",
+					errorMessage: null,
+					canReconnect: true,
+				},
+			})
+		);
+
+		expect(store.getSessionState("session-1")).toMatchObject({
+			connection: "ready",
 		});
 	});
 });
@@ -867,6 +904,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			isConnected: false,
 			connectionError: "Connection dropped",
 		});
+		expect(store.getSessionState("session-1")).toMatchObject({
+			connection: "error",
+		});
 	});
 
 	it("hydrates capabilities envelopes into capability and hot-state selectors", () => {
@@ -913,6 +953,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							currentValue: "workspace-write",
 						},
 					],
+					autonomousEnabled: true,
 				},
 				revision: {
 					graphRevision: 9,
@@ -966,6 +1007,83 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					currentValue: "workspace-write",
 				},
 			],
+			autonomousEnabled: true,
+		});
+	});
+
+	it("hydrates telemetry envelopes into usage telemetry state", () => {
+		const store = new SessionStore();
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 10,
+			lastEventSeq: 10,
+			payload: {
+				kind: "telemetry",
+				telemetry: {
+					sessionId: "session-1",
+					eventId: "telemetry-1",
+					scope: "turn",
+					contextWindowSize: 200000,
+					tokens: {
+						total: 50000,
+						input: 30000,
+						output: 20000,
+					},
+					costUsd: 0.42,
+				},
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: 7,
+					lastEventSeq: 10,
+				},
+			},
+		});
+
+		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+			sessionSpendUsd: 0.42,
+			latestStepCostUsd: 0.42,
+			latestTokensTotal: 50000,
+			latestTokensInput: 30000,
+			latestTokensOutput: 20000,
+			lastTelemetryEventId: "telemetry-1",
+			contextBudget: {
+				maxTokens: 200000,
+				source: "provider-explicit",
+				scope: "turn",
+			},
+		});
+	});
+
+	it("does not guess a context budget when telemetry envelopes omit context size", () => {
+		const store = new SessionStore();
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 11,
+			lastEventSeq: 11,
+			payload: {
+				kind: "telemetry",
+				telemetry: {
+					sessionId: "session-1",
+					eventId: "telemetry-2",
+					scope: "step",
+					tokens: {
+						total: 1200,
+					},
+				},
+				revision: {
+					graphRevision: 11,
+					transcriptRevision: 7,
+					lastEventSeq: 11,
+				},
+			},
+		});
+
+		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+			contextBudget: null,
+			latestTokensTotal: 1200,
+			lastTelemetryEventId: "telemetry-2",
 		});
 	});
 
@@ -1021,7 +1139,22 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						transcriptRevision: 8,
 						lastEventSeq: 8,
 					},
-					transcriptOperations: [],
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-stale-8",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-stale-8:block:0",
+										text: "stale delta",
+									},
+								],
+							},
+						},
+					],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -1036,9 +1169,243 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			id: "assistant-9",
 			type: "assistant",
 		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 10,
+			lastEventSeq: 10,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 9,
+						transcriptRevision: 9,
+						lastEventSeq: 9,
+					},
+					toRevision: {
+						graphRevision: 10,
+						transcriptRevision: 10,
+						lastEventSeq: 10,
+					},
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-10",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-10:block:0",
+										text: "live canonical delta",
+									},
+								],
+							},
+						},
+					],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		});
+
+		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual([
+			"assistant-9",
+			"assistant-10",
+		]);
 		expect(store.getHotState("session-1")).toMatchObject({
 			status: "ready",
 			isConnected: true,
+		});
+	});
+
+	it("preserves reopened transcript history across a new user turn and canonical assistant reply", async () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					transcriptSnapshot: {
+						revision: 7,
+						entries: [
+							{
+								entryId: "assistant-history-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-history-1:block:0",
+										text: "existing answer",
+									},
+								],
+							},
+						],
+					},
+					lifecycle: {
+						status: "ready",
+						errorMessage: null,
+						canReconnect: true,
+					},
+				})
+			)
+		);
+
+		await store.aggregateUserChunk("session-1", {
+			content: {
+				type: "text",
+				text: "follow-up question",
+			},
+		});
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 8,
+					},
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-live-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-live-1:block:0",
+										text: "new live answer",
+									},
+								],
+							},
+						},
+					],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		});
+
+		expect(store.getEntries("session-1").map((entry) => entry.type)).toEqual([
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(store.getEntries("session-1")[0]).toMatchObject({
+			id: "assistant-history-1",
+			message: {
+				chunks: [
+					{
+						block: {
+							text: "existing answer",
+						},
+					},
+				],
+			},
+		});
+		expect(store.getEntries("session-1")[1]).toMatchObject({
+			type: "user",
+			message: {
+				content: {
+					text: "follow-up question",
+				},
+			},
+		});
+		expect(store.getEntries("session-1")[2]).toMatchObject({
+			id: "assistant-live-1",
+			message: {
+				chunks: [
+					{
+						block: {
+							text: "new live answer",
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it("keeps transcript entries intact when lifecycle transitions to error", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					transcriptSnapshot: {
+						revision: 7,
+						entries: [
+							{
+								entryId: "assistant-history-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-history-1:block:0",
+										text: "existing answer",
+									},
+								],
+							},
+						],
+					},
+					lifecycle: {
+						status: "ready",
+						errorMessage: null,
+						canReconnect: true,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: {
+					status: "error",
+					errorMessage: "Provider disconnected",
+					canReconnect: true,
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getEntries("session-1")).toHaveLength(1);
+		expect(store.getEntries("session-1")[0]).toMatchObject({
+			id: "assistant-history-1",
+			message: {
+				chunks: [
+					{
+						block: {
+							text: "existing answer",
+						},
+					},
+				],
+			},
+		});
+		expect(store.getHotState("session-1")).toMatchObject({
+			status: "error",
+			connectionError: "Provider disconnected",
+			isConnected: false,
 		});
 	});
 });

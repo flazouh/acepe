@@ -20,6 +20,7 @@ use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_journal::{load_stored_projection, load_transcript_from_journal};
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{
@@ -84,6 +85,12 @@ pub struct SessionOpenFound {
     pub is_alias: bool,
     /// Proven journal cutoff.  `0` only when no journal events exist yet.
     pub last_event_seq: i64,
+    /// Canonical graph frontier at the proven cutoff.
+    ///
+    /// During the compatibility window this may still be seeded from persisted
+    /// state that mirrors `last_event_seq`, but open/materialization paths must
+    /// carry it explicitly instead of re-deriving graph lineage from delivery.
+    pub graph_revision: i64,
     /// Single-use attach token (UUID string).  All hub events for this session
     /// published after this token is armed are buffered in the `event_hub`
     /// reservation until the token is claimed (Unit 3) or expires after 30 s
@@ -175,17 +182,37 @@ pub async fn assemble_session_open_result(
     );
 
     // --- 3. Load canonical projection at the proven cutoff ---
-    let projection = match SessionProjectionSnapshotRepository::get(db, canonical_session_id).await
+    let persisted_projection =
+        match SessionProjectionSnapshotRepository::get(db, canonical_session_id).await {
+            Ok(proj) => proj,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                        "Failed to load projection for session {canonical_session_id}: {err}"
+                    ),
+                });
+            }
+        };
+    let projection = if persisted_projection
+        .as_ref()
+        .and_then(|snapshot| snapshot.session.as_ref())
+        .is_some_and(|session| session.last_event_seq >= last_event_seq)
     {
-        Ok(proj) => proj,
-        Err(err) => {
-            hub.supersede_reservation(open_token);
-            return SessionOpenResult::Error(SessionOpenError {
-                requested_session_id: requested_session_id.to_string(),
-                message: format!(
-                    "Failed to load projection for session {canonical_session_id}: {err}"
-                ),
-            });
+        persisted_projection
+    } else {
+        match load_stored_projection(db, replay_context).await {
+            Ok(snapshot) => snapshot.or(persisted_projection),
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                        "Failed to rebuild projection for session {canonical_session_id}: {err}"
+                    ),
+                });
+            }
         }
     };
     let Some(projection) = projection else {
@@ -201,6 +228,9 @@ pub async fn assemble_session_open_result(
     let session_snap = projection.session.as_ref();
     let operations = projection.operations;
     let interactions = projection.interactions;
+    let graph_revision = session_snap
+        .map(|s| s.last_event_seq)
+        .unwrap_or(last_event_seq);
     let turn_state = session_snap
         .map(|s| s.turn_state.clone())
         .unwrap_or(SessionTurnState::Idle);
@@ -209,7 +239,7 @@ pub async fn assemble_session_open_result(
     let last_terminal_turn_id = session_snap.and_then(|s| s.last_terminal_turn_id.clone());
 
     // --- 4. Resolve thread content ---
-    let transcript_snapshot =
+    let persisted_transcript =
         match SessionTranscriptSnapshotRepository::get(db, canonical_session_id).await {
             Ok(snapshot) => snapshot,
             Err(err) => {
@@ -235,15 +265,27 @@ pub async fn assemble_session_open_result(
                 });
             }
         };
-    let Some(transcript_snapshot) = transcript_snapshot else {
-        hub.supersede_reservation(open_token);
-        return SessionOpenResult::Error(SessionOpenError {
-            requested_session_id: requested_session_id.to_string(),
-            message: format!(
-                "Canonical transcript snapshot missing for session {canonical_session_id}"
-            ),
-        });
+    let transcript_snapshot = if persisted_transcript
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.revision >= last_event_seq)
+    {
+        persisted_transcript
+    } else {
+        match load_transcript_from_journal(db, replay_context).await {
+            Ok(snapshot) => snapshot.or(persisted_transcript),
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                        "Failed to rebuild transcript snapshot for session {canonical_session_id}: {err}"
+                    ),
+                });
+            }
+        }
     };
+    let transcript_snapshot = transcript_snapshot
+        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
     let Some(session_metadata) = session_metadata else {
         hub.supersede_reservation(open_token);
         return SessionOpenResult::Error(SessionOpenError {
@@ -261,6 +303,7 @@ pub async fn assemble_session_open_result(
         canonical_session_id: canonical_session_id.clone(),
         is_alias,
         last_event_seq,
+        graph_revision,
         open_token: open_token.to_string(),
         agent_id: replay_context.agent_id.clone(),
         project_path: replay_context.project_path.clone(),
@@ -312,6 +355,7 @@ pub async fn session_open_result_for_new_session(
         canonical_session_id: session_id.to_string(),
         is_alias: false,
         last_event_seq,
+        graph_revision: last_event_seq,
         open_token: open_token.to_string(),
         agent_id,
         project_path,
@@ -484,6 +528,7 @@ mod tests {
                 }),
                 operations: Vec::new(),
                 interactions: Vec::new(),
+                runtime: None,
             },
         )
         .await
@@ -580,6 +625,76 @@ mod tests {
         assert_eq!(found.last_event_seq, 2);
         assert_eq!(found.transcript_snapshot.revision, 2);
         assert!(Uuid::parse_str(&found.open_token).is_ok());
+    }
+
+    #[tokio::test]
+    async fn existing_session_rebuilds_stale_snapshots_from_journal_frontier() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "stale-open-session";
+        seed_session_metadata(&db, session_id, "copilot").await;
+        append_tool_call_event(&db, session_id).await;
+        append_tool_call_event(&db, session_id).await;
+        SessionTranscriptSnapshotRepository::set(
+            &db,
+            session_id,
+            &TranscriptSnapshot::from_stored_entries(0, &[]),
+        )
+        .await
+        .expect("seed stale transcript snapshot");
+        SessionProjectionSnapshotRepository::set(
+            &db,
+            session_id,
+            &crate::acp::projections::SessionProjectionSnapshot {
+                session: Some(crate::acp::projections::SessionSnapshot {
+                    session_id: session_id.to_string(),
+                    agent_id: Some(CanonicalAgentId::Copilot),
+                    last_event_seq: 0,
+                    turn_state: SessionTurnState::Idle,
+                    message_count: 999,
+                    last_agent_message_id: None,
+                    active_tool_call_ids: Vec::new(),
+                    completed_tool_call_ids: Vec::new(),
+                    active_turn_failure: None,
+                    last_terminal_turn_id: None,
+                }),
+                operations: Vec::new(),
+                interactions: Vec::new(),
+                runtime: None,
+            },
+        )
+        .await
+        .expect("seed stale projection snapshot");
+
+        let replay_context = make_copilot_replay_context(session_id);
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.last_event_seq, 2);
+        assert_eq!(found.transcript_snapshot.revision, 2);
+        assert_eq!(found.message_count, 0);
+        assert!(Uuid::parse_str(&found.open_token).is_ok());
+    }
+
+    #[tokio::test]
+    async fn existing_session_without_transcript_snapshot_falls_back_to_empty_transcript() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "snapshotless-open-session";
+        seed_session_metadata(&db, session_id, "copilot").await;
+        seed_projection_snapshot(&db, session_id, 0).await;
+
+        let replay_context = make_copilot_replay_context(session_id);
+        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.last_event_seq, 0);
+        assert_eq!(found.transcript_snapshot.revision, 0);
+        assert!(found.transcript_snapshot.entries.is_empty());
     }
 
     // -----------------------------------------------------------------------

@@ -31,7 +31,7 @@ describe("resolveSessionStateDelta", () => {
 		});
 	});
 
-	it("refreshes when the transcript frontier diverges", () => {
+	it("does not refresh graph-only deltas when transcript revisions diverge", () => {
 		const delta: SessionStateDelta = {
 			fromRevision: {
 				graphRevision: 6,
@@ -44,6 +44,42 @@ describe("resolveSessionStateDelta", () => {
 				lastEventSeq: 8,
 			},
 			transcriptOperations: [],
+			changedFields: ["transcriptSnapshot"],
+		};
+
+		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
+			kind: "noop",
+		});
+	});
+
+	it("refreshes when a transcript-bearing delta frontier diverges", () => {
+		const delta: SessionStateDelta = {
+			fromRevision: {
+				graphRevision: 6,
+				transcriptRevision: 5,
+				lastEventSeq: 6,
+			},
+			toRevision: {
+				graphRevision: 8,
+				transcriptRevision: 7,
+				lastEventSeq: 8,
+			},
+			transcriptOperations: [
+				{
+					kind: "appendEntry",
+					entry: {
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:block:0",
+								text: "hello",
+							},
+						],
+					},
+				},
+			],
 			changedFields: ["transcriptSnapshot"],
 		};
 

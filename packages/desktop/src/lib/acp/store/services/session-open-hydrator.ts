@@ -21,7 +21,7 @@ interface SessionStateConsumer {
 
 interface AppliedSnapshotRevision {
 	readonly canonicalSessionId: string;
-	readonly lastEventSeq: number;
+	readonly graphRevision: number;
 }
 
 export interface SessionOpenHydrationResult {
@@ -119,7 +119,7 @@ export class SessionOpenHydrator {
 		if (
 			appliedRevision &&
 			appliedRevision.canonicalSessionId === found.canonicalSessionId &&
-			found.lastEventSeq <= appliedRevision.lastEventSeq
+			found.graphRevision <= appliedRevision.graphRevision
 		) {
 			return {
 				canonicalSessionId: found.canonicalSessionId,
@@ -132,7 +132,7 @@ export class SessionOpenHydrator {
 		this.panelStore.updatePanelSession(panelId, found.canonicalSessionId);
 		this.appliedSnapshotRevisions.set(panelId, {
 			canonicalSessionId: found.canonicalSessionId,
-			lastEventSeq: found.lastEventSeq,
+			graphRevision: found.graphRevision,
 		});
 
 		return {

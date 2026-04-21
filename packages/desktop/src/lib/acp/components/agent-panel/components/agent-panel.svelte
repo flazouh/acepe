@@ -58,6 +58,7 @@ import {
 } from "../logic";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
+import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getAgentIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
@@ -338,7 +339,6 @@ const showBrowserSidebar = $derived(panelId ? panelStore.isBrowserSidebarExpande
 const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
-
 // Canonical runtime state from session machine.
 const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
 const entriesCount = $derived(sessionEntries.length);
@@ -2070,7 +2070,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					>
 						<BrowserPanelComponent
 							panelId="embedded-browser-{panelId}"
-							url={browserSidebarUrl ?? "https://www.google.com"}
+							url={browserSidebarUrl ?? DEFAULT_BROWSER_HOME_URL}
 							title="Browser"
 							width={BROWSER_SIDEBAR_COLUMN_WIDTH}
 							isFillContainer={true}
