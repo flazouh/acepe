@@ -1,7 +1,6 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ResultAsync } from "neverthrow";
 import { tauriClient } from "../../utils/tauri-client.js";
-import type { ProjectAcepeConfig } from "../../utils/tauri-client/types.js";
 import { resolveProjectColor } from "../utils/colors.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
@@ -45,7 +44,6 @@ export class ProjectClient {
 		color: string;
 		sort_order: number;
 		icon_path?: string | null;
-		show_external_cli_sessions: boolean;
 	}): Project {
 		return {
 			path: project.path,
@@ -55,7 +53,6 @@ export class ProjectClient {
 			color: resolveProjectColor(project.color),
 			sortOrder: project.sort_order,
 			iconPath: convertIconPath(project.icon_path ?? null),
-			showExternalCliSessions: project.show_external_cli_sessions,
 		};
 	}
 
@@ -164,46 +161,6 @@ export class ProjectClient {
 				)
 			)
 			.map((project) => this.mapProject(project));
-	}
-
-	getProjectAcepeConfig(path: string): ResultAsync<ProjectAcepeConfig, ProjectError> {
-		return tauriClient.projects
-			.getProjectAcepeConfig(path)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to load project config: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
-			);
-	}
-
-	saveProjectAcepeConfig(
-		path: string,
-		config: ProjectAcepeConfig
-	): ResultAsync<ProjectAcepeConfig, ProjectError> {
-		return tauriClient.projects
-			.saveProjectAcepeConfig(path, config)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to save project config: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
-			);
-	}
-
-	updateProjectShowExternalCliSessions(
-		path: string,
-		value: boolean
-	): ResultAsync<ProjectAcepeConfig, ProjectError> {
-		return this.getProjectAcepeConfig(path).andThen((config) =>
-			this.saveProjectAcepeConfig(path, {
-				setupScript: config.setupScript,
-				runScript: config.runScript,
-				showExternalCliSessions: value,
-			})
-		);
 	}
 
 	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {

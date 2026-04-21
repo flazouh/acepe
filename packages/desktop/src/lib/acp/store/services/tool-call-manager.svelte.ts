@@ -25,6 +25,7 @@ import {
 	resolveCanonicalToolCallCreate,
 	resolveCanonicalToolCallUpdate,
 } from "../../session-state/session-state-query-service.js";
+import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
@@ -133,7 +134,8 @@ export class ToolCallManager implements IToolCallManager {
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
-		private readonly entryIndex: IEntryIndex
+		private readonly entryIndex: IEntryIndex,
+		private readonly operationStore: OperationStore = new OperationStore()
 	) {}
 
 	private rememberToolCallSession(
@@ -244,6 +246,7 @@ export class ToolCallManager implements IToolCallManager {
 			};
 
 			this.updateToolCallEntryRef(sessionId, existingRef, updatedEntry);
+			this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 			// Re-index children in case taskChildren was added/updated
 			this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -294,6 +297,7 @@ export class ToolCallManager implements IToolCallManager {
 		};
 
 		this.entryStore.addEntry(sessionId, newEntry);
+		this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
 
 		// Index children for O(1) lookup during child updates
 		this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -388,6 +392,7 @@ export class ToolCallManager implements IToolCallManager {
 		};
 
 		this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
+		this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 		// Clean up streaming arguments when tool reaches a terminal status.
 		// At this point the entry has authoritative data and streaming args are redundant.

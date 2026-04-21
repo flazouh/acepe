@@ -50,7 +50,7 @@ const planApprovalId = $derived.by(() => {
 });
 const planApprovalEntry = $derived.by(() => {
 	if (planApprovalId) {
-		const legacyEntry = interactionStore.getPlanApproval(planApprovalId);
+		const legacyEntry = interactionStore.planApprovalsPending.get(planApprovalId);
 		if (legacyEntry !== undefined) {
 			return legacyEntry;
 		}
@@ -61,7 +61,19 @@ const planApprovalEntry = $derived.by(() => {
 		return null;
 	}
 
-	return interactionStore.getPlanApprovalForToolCall(sessionId, toolCall.id);
+	for (const approval of interactionStore.planApprovalsPending.values()) {
+		if (approval.sessionId !== sessionId) {
+			continue;
+		}
+
+		if (approval.tool.callID !== toolCall.id) {
+			continue;
+		}
+
+		return approval;
+	}
+
+	return null;
 });
 const pendingPlanApproval = $derived(
 	planApprovalEntry?.status === "pending" ? planApprovalEntry : null

@@ -8,7 +8,6 @@ import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type {
 	ProjectInfo,
 	ProjectSessionCounts,
-	ScanProjectSessionsResponse,
 	SessionLoadTiming,
 } from "./types.js";
 
@@ -59,12 +58,8 @@ export const history = {
 		});
 	},
 
-	scanProjectSessions: (
-		projectPaths: string[]
-	): ResultAsync<ScanProjectSessionsResponse, AppError> => {
-		return historyCommands.scan_project_sessions.invoke<ScanProjectSessionsResponse>({
-			projectPaths,
-		});
+	scanProjectSessions: (projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> => {
+		return historyCommands.scan_project_sessions.invoke<HistoryEntry[]>({ projectPaths });
 	},
 
 	discoverAllProjectsWithSessions: (): ResultAsync<HistoryEntry[], AppError> => {

@@ -4,7 +4,6 @@
 //! to eliminate spawn storms and redundant subprocess invocations.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, Mutex};
 
@@ -14,18 +13,12 @@ const DEFAULT_MAX_ENTRIES: usize = 64;
 struct CacheEntry<T> {
     payload: T,
     fetched_at: Instant,
-    generation: u64,
 }
-
-type InFlightKey = (String, u64);
-type ScanResult<T> = Result<T, String>;
-type InFlightSender<T> = broadcast::Sender<ScanResult<T>>;
 
 /// Cache with single-flight deduplication, TTL semantics, and bounded size.
 pub struct ScanCache<T> {
     entries: Mutex<HashMap<String, CacheEntry<T>>>,
-    in_flight: Mutex<HashMap<InFlightKey, InFlightSender<T>>>,
-    generation: AtomicU64,
+    in_flight: Mutex<HashMap<String, broadcast::Sender<Result<T, String>>>>,
     ttl: Duration,
     max_entries: usize,
 }
@@ -43,7 +36,6 @@ where
         Self {
             entries: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
-            generation: AtomicU64::new(0),
             ttl,
             max_entries,
         }
@@ -56,30 +48,25 @@ where
         Fut: std::future::Future<Output = Result<T, String>> + Send + 'static,
     {
         let now = Instant::now();
-        let generation = self.generation.load(Ordering::SeqCst);
 
         // Check cache first
         {
             let entries = self.entries.lock().await;
             if let Some(entry) = entries.get(&key) {
-                if entry.generation == generation
-                    && now.duration_since(entry.fetched_at) <= self.ttl
-                {
+                if now.duration_since(entry.fetched_at) <= self.ttl {
                     return Ok(entry.payload.clone());
                 }
             }
         }
 
-        let in_flight_key = (key.clone(), generation);
-
         // Check if fetch already in progress, or register as fetcher
         let subscribe = {
             let mut in_flight = self.in_flight.lock().await;
-            if let Some(tx) = in_flight.get(&in_flight_key) {
+            if let Some(tx) = in_flight.get(&key) {
                 Some(tx.subscribe())
             } else {
                 let (tx, _rx) = broadcast::channel(1);
-                in_flight.insert(in_flight_key.clone(), tx);
+                in_flight.insert(key.clone(), tx);
                 None
             }
         };
@@ -102,7 +89,7 @@ where
                         let err_msg = format!("Scan fetch panicked: {join_err}");
                         let tx = {
                             let mut in_flight = self.in_flight.lock().await;
-                            in_flight.remove(&in_flight_key)
+                            in_flight.remove(&key)
                         };
                         if let Some(tx) = tx {
                             let _ = tx.send(Err(err_msg.clone()));
@@ -112,46 +99,38 @@ where
                 };
 
                 // Store in cache if success, notify waiters (remove from in_flight first so we own tx)
+                let key_clone = key.clone();
                 let tx = {
                     let mut in_flight = self.in_flight.lock().await;
-                    in_flight.remove(&in_flight_key)
+                    in_flight.remove(&key_clone)
                 };
                 if let Some(tx) = tx {
                     let _ = tx.send(result.clone());
                 }
                 if let Ok(ref payload) = &result {
                     let mut entries = self.entries.lock().await;
-                    if self.generation.load(Ordering::SeqCst) == generation {
-                        // Evict oldest entry if at capacity
-                        if entries.len() >= self.max_entries {
-                            let oldest_key = entries
-                                .iter()
-                                .min_by_key(|(_, e)| e.fetched_at)
-                                .map(|(k, _)| k.clone());
-                            if let Some(k) = oldest_key {
-                                entries.remove(&k);
-                            }
+                    // Evict oldest entry if at capacity
+                    if entries.len() >= self.max_entries {
+                        let oldest_key = entries
+                            .iter()
+                            .min_by_key(|(_, e)| e.fetched_at)
+                            .map(|(k, _)| k.clone());
+                        if let Some(k) = oldest_key {
+                            entries.remove(&k);
                         }
-                        entries.insert(
-                            key,
-                            CacheEntry {
-                                payload: payload.clone(),
-                                fetched_at: Instant::now(),
-                                generation,
-                            },
-                        );
                     }
+                    entries.insert(
+                        key_clone,
+                        CacheEntry {
+                            payload: payload.clone(),
+                            fetched_at: Instant::now(),
+                        },
+                    );
                 }
 
                 result
             }
         }
-    }
-
-    /// Invalidate cached entries for future lookups without breaking current waiters.
-    pub async fn clear(&self) {
-        self.generation.fetch_add(1, Ordering::SeqCst);
-        self.entries.lock().await.clear();
     }
 }
 
@@ -325,58 +304,6 @@ mod tests {
         let fetcher_result = fetcher_result.unwrap().unwrap();
         assert!(fetcher_result.is_err());
         assert!(fetcher_result.unwrap_err().contains("panicked"));
-    }
-
-    #[tokio::test]
-    async fn clear_keeps_existing_waiters_and_blocks_stale_repopulation() {
-        let cache = Arc::new(ScanCache::<String>::new(Duration::from_secs(60)));
-
-        let (first_fetch_ready_tx, first_fetch_ready_rx) = tokio::sync::oneshot::channel();
-        let (allow_first_fetch_tx, allow_first_fetch_rx) = tokio::sync::oneshot::channel();
-
-        let fetcher_cache = cache.clone();
-        let fetcher_handle = tokio::spawn(async move {
-            fetcher_cache
-                .get_or_fetch("key".to_string(), move || async move {
-                    let _ = first_fetch_ready_tx.send(());
-                    let _ = allow_first_fetch_rx.await;
-                    Ok("stale".to_string())
-                })
-                .await
-        });
-
-        first_fetch_ready_rx.await.unwrap();
-
-        let waiter_cache = cache.clone();
-        let waiter_handle = tokio::spawn(async move {
-            waiter_cache
-                .get_or_fetch("key".to_string(), || async {
-                    panic!("waiter should subscribe to in-flight fetch");
-                })
-                .await
-        });
-
-        tokio::time::sleep(Duration::from_millis(5)).await;
-        cache.clear().await;
-
-        let refreshed = cache
-            .get_or_fetch("key".to_string(), || async { Ok("fresh".to_string()) })
-            .await
-            .unwrap();
-        assert_eq!(refreshed, "fresh");
-
-        allow_first_fetch_tx.send(()).unwrap();
-
-        let fetcher_result = fetcher_handle.await.unwrap().unwrap();
-        let waiter_result = waiter_handle.await.unwrap().unwrap();
-        assert_eq!(fetcher_result, "stale");
-        assert_eq!(waiter_result, "stale");
-
-        let final_result = cache
-            .get_or_fetch("key".to_string(), || async { Ok("unexpected".to_string()) })
-            .await
-            .unwrap();
-        assert_eq!(final_result, "fresh");
     }
 
     #[tokio::test]

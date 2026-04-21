@@ -1,5 +1,4 @@
 export type SettingsSectionId =
-	| "project"
 	| "general"
 	| "appearance"
 	| "chat"
@@ -20,7 +19,6 @@ export type SettingsSectionId =
  */
 export function migrateSettingsSectionId(id: string): SettingsSectionId {
 	switch (id) {
-		case "project":
 		case "general":
 		case "appearance":
 		case "chat":
@@ -40,6 +38,8 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 			return "agents";
 		case "personalization":
 			return "voice";
+		case "project":
+			return "agents";
 		default:
 			return "general";
 	}

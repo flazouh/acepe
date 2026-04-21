@@ -48,31 +48,6 @@ export function permissionMatchesOperation(
 	return permissionCommand === operation.command;
 }
 
-export function permissionMatchesToolCall(
-	permission: PermissionRequest,
-	toolCall: ToolCall
-): boolean {
-	if (permission.tool?.callID === toolCall.id) {
-		return true;
-	}
-
-	if (toolCall.kind !== "execute") {
-		return false;
-	}
-
-	if (extractPermissionToolKind(permission) !== "execute") {
-		return false;
-	}
-
-	const permissionCommand = normalizeCommand(extractPermissionCommand(permission));
-	const toolCommand = normalizeCommand(extractToolOperationCommand(toolCall));
-	if (permissionCommand == null || toolCommand == null) {
-		return false;
-	}
-
-	return permissionCommand === toolCommand;
-}
-
 export function questionMatchesOperation(question: QuestionRequest, operation: Operation): boolean {
 	if (question.tool?.callID === operation.toolCallId) {
 		return true;
@@ -86,6 +61,36 @@ export function planApprovalMatchesOperation(
 	operation: Operation
 ): boolean {
 	return approval.tool.callID === operation.toolCallId;
+}
+
+export function createCompatibilityOperation(toolCall: ToolCall): Operation {
+	return {
+		id: toolCall.id,
+		sessionId: "",
+		toolCallId: toolCall.id,
+		sourceEntryId: null,
+		name: toolCall.name,
+		kind: toolCall.kind,
+		status: toolCall.status,
+		title: toolCall.title,
+		arguments: toolCall.arguments,
+		progressiveArguments: toolCall.progressiveArguments,
+		result: toolCall.result,
+		locations: toolCall.locations,
+		skillMeta: toolCall.skillMeta,
+		normalizedQuestions: toolCall.normalizedQuestions,
+		normalizedTodos: toolCall.normalizedTodos,
+		questionAnswer: toolCall.questionAnswer,
+		awaitingPlanApproval: toolCall.awaitingPlanApproval,
+		planApprovalRequestId: toolCall.planApprovalRequestId,
+		startedAtMs: toolCall.startedAtMs,
+		completedAtMs: toolCall.completedAtMs,
+		command: extractToolOperationCommand(toolCall),
+		parentToolCallId: toolCall.parentToolUseId ?? null,
+		parentOperationId: null,
+		childToolCallIds: (toolCall.taskChildren ?? []).map((child) => child.id),
+		childOperationIds: [],
+	};
 }
 
 function findUniqueExecuteCommandMatch(

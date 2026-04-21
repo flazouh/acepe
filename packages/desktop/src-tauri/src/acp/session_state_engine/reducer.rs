@@ -8,6 +8,10 @@ use crate::acp::transcript_projection::{
     TranscriptDeltaOperation, TranscriptEntry, TranscriptSnapshot,
 };
 
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Reducer mutations mirror the wire/state graph shapes directly until a broader reducer compaction pass happens."
+)]
 pub enum SessionStateGraphMutation {
     ReplaceSnapshot {
         graph: Box<SessionStateGraph>,

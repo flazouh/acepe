@@ -1,4 +1,6 @@
-use super::super::provider::{AgentProvider, SpawnConfig};
+use super::super::provider::{
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+};
 use super::copilot_settings::apply_copilot_session_defaults;
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
@@ -200,6 +202,27 @@ impl AgentProvider for CopilotProvider {
                     Ok(None)
                 }
             }
+        })
+    }
+
+    fn list_project_paths<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<ProjectPathListing, String>> + Send + 'a>> {
+        Box::pin(async move {
+            let paths = crate::copilot_history::list_workspace_project_paths().await?;
+            Ok(ProjectPathListing {
+                paths,
+                completeness: ProjectDiscoveryCompleteness::Complete,
+            })
+        })
+    }
+
+    fn count_sessions_for_project<'a>(
+        &'a self,
+        project_path: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<u32, String>> + Send + 'a>> {
+        Box::pin(async move {
+            crate::copilot_history::count_workspace_sessions_for_project(project_path).await
         })
     }
 }

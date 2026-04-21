@@ -422,12 +422,8 @@ pub(crate) async fn scan_copilot_sessions_at_root(
     session_state_root: &Path,
     project_paths: &[String],
 ) -> Result<Vec<CopilotListedSession>, String> {
-    if project_paths.is_empty() {
-        return Ok(Vec::new());
-    }
-
     let workspace_projects = canonical_workspace_projects(project_paths);
-    if workspace_projects.is_empty() {
+    if !project_paths.is_empty() && workspace_projects.is_empty() {
         return Ok(Vec::new());
     }
 
@@ -466,7 +462,7 @@ pub(crate) async fn scan_copilot_sessions_at_root(
             continue;
         };
         let (project_path, worktree_path) = session_metadata_context_from_cwd(Path::new(&cwd));
-        if !workspace_projects.contains(&project_path) {
+        if !workspace_projects.is_empty() && !workspace_projects.contains(&project_path) {
             continue;
         }
         let updated_at_ms = metadata
@@ -1085,6 +1081,38 @@ mod tests {
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].title, "Demo session title");
+    }
+
+    #[tokio::test]
+    async fn scan_copilot_sessions_without_filters_returns_all_projects() {
+        let root = tempdir().expect("tempdir");
+        let project = tempdir().expect("project");
+        git2::Repository::init(project.path()).expect("init repo");
+        let session_dir = root.path().join("session-1");
+        std::fs::create_dir_all(&session_dir).expect("create session dir");
+        std::fs::write(
+            session_dir.join("workspace.yaml"),
+            format!(
+                "id: session-1\ncwd: {}\nsummary: Demo session\nupdated_at: 2026-04-10T00:00:02Z\n",
+                project.path().display()
+            ),
+        )
+        .expect("write workspace");
+
+        let sessions = scan_copilot_sessions_at_root(root.path(), &[])
+            .await
+            .expect("scan should succeed");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session_id, "session-1");
+        assert_eq!(
+            sessions[0].project_path,
+            project
+                .path()
+                .canonicalize()
+                .expect("canonical project")
+                .to_string_lossy()
+        );
     }
 
     #[test]

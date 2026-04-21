@@ -49,7 +49,6 @@ function createMockHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
-		applySessionDomainEvent: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
 }
@@ -681,8 +680,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("treats permissionRequest updates on the raw lane as observational only", () => {
-		const onPermissionRequest = vi.fn();
-		service.setCallbacks({ onPermissionRequest });
 		const update: SessionUpdate = {
 			type: "permissionRequest",
 			permission: {
@@ -709,8 +706,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not mutate transcript state from raw permissionRequest updates", () => {
-		const onPermissionRequest = vi.fn();
-		service.setCallbacks({ onPermissionRequest });
 		(handler.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
 			{
 				id: "tool-edit-1",
@@ -778,11 +773,6 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.createToolCallEntry).not.toHaveBeenCalled();
 		expect(handler.updateToolCallEntry).not.toHaveBeenCalled();
 		expect(handler.handleStreamEntry).not.toHaveBeenCalled();
-		expect(onPermissionRequest).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "perm-edit-1",
-			})
-		);
 	});
 
 	it("treats questionRequest updates on the raw lane as observational only", () => {
@@ -848,7 +838,6 @@ describe("SessionEventService streaming delta handling", () => {
 			updateCurrentMode: vi.fn(),
 			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
-			applySessionDomainEvent: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};
 
@@ -1507,6 +1496,7 @@ describe("SessionEventService streaming delta handling", () => {
 			},
 		});
 	});
+
 	it("does not infer current mode from configOptionUpdate", () => {
 		const update: SessionUpdate = {
 			type: "configOptionUpdate",
@@ -1555,10 +1545,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateConfigOptions).toHaveBeenCalledWith(
-			"session-123",
-			update.update.configOptions
-		);
+		expect(handler.updateConfigOptions).not.toHaveBeenCalled();
 		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
 	});
 
@@ -1581,10 +1568,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateConfigOptions).toHaveBeenCalledWith(
-			"session-123",
-			update.update.configOptions
-		);
+		expect(handler.updateConfigOptions).not.toHaveBeenCalled();
 		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
 	});
 
@@ -1801,7 +1785,6 @@ describe("SessionEventService streaming delta handling", () => {
 			updateCurrentMode: vi.fn(),
 			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
-			applySessionDomainEvent: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};
 

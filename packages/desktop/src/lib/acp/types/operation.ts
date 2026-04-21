@@ -1,14 +1,8 @@
 import type { ToolArguments } from "../../services/converted-session-types.js";
-import type {
-	OperationBlockedReason as OperationBlockedReasonSnapshot,
-	OperationLifecycle as OperationLifecycleSnapshot,
-} from "../../services/acp-types.js";
 import type { ToolCall } from "./tool-call.js";
 
 export type OperationKind = ToolCall["kind"];
 export type OperationStatus = ToolCall["status"];
-export type OperationLifecycle = OperationLifecycleSnapshot;
-export type OperationBlockedReason = OperationBlockedReasonSnapshot;
 
 export interface Operation {
 	readonly id: string;
@@ -18,8 +12,6 @@ export interface Operation {
 	readonly name: string;
 	readonly kind: OperationKind;
 	readonly status: OperationStatus;
-	readonly lifecycle: OperationLifecycle;
-	readonly blockedReason: OperationBlockedReason | null;
 	readonly title: string | null | undefined;
 	readonly arguments: ToolArguments;
 	readonly progressiveArguments?: ToolArguments;

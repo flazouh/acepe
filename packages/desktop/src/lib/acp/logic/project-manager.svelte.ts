@@ -16,7 +16,6 @@ export interface Project {
 	color: string;
 	sortOrder?: number;
 	iconPath?: string | null;
-	showExternalCliSessions?: boolean;
 }
 
 /**
@@ -144,7 +143,6 @@ export class ProjectManager {
 						color: existingProject.color,
 						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 						iconPath: existingProject.iconPath ?? null,
-						showExternalCliSessions: existingProject.showExternalCliSessions,
 					}));
 					this.projects = [importedProject, ...shiftedProjects];
 					// Update count only for new projects
@@ -206,7 +204,6 @@ export class ProjectManager {
 			createdAt: new SvelteDate(),
 			sortOrder: 0,
 			iconPath: null,
-			showExternalCliSessions: true,
 		};
 
 		const shiftedProjects = this.projects.map((existingProject) => ({
@@ -217,7 +214,6 @@ export class ProjectManager {
 			color: existingProject.color,
 			sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 			iconPath: existingProject.iconPath ?? null,
-			showExternalCliSessions: existingProject.showExternalCliSessions,
 		}));
 		this.projects = [optimisticProject, ...shiftedProjects];
 
@@ -251,47 +247,6 @@ export class ProjectManager {
 				);
 			}
 		});
-	}
-
-	updateProjectShowExternalCliSessions(
-		path: string,
-		value: boolean
-	): ResultAsync<void, ProjectError> {
-		return this.client
-			.updateProjectShowExternalCliSessions(path, value)
-			.map(() => {
-				const existingIndex = this.projects.findIndex((project) => project.path === path);
-				if (existingIndex >= 0) {
-					this.projects = this.projects.map((project, index) =>
-						index === existingIndex
-							? {
-									path: project.path,
-									name: project.name,
-									lastOpened: project.lastOpened,
-									createdAt: project.createdAt,
-									color: project.color,
-									sortOrder: project.sortOrder,
-									iconPath: project.iconPath,
-									showExternalCliSessions: value,
-								}
-							: project
-					);
-				}
-			})
-			.andThen(() => {
-				if (this.sessionStore === null) {
-					return okAsync(undefined);
-				}
-
-				return this.sessionStore.scanSessions([path]).mapErr(
-					(error) =>
-						new ProjectError(
-							`Failed to refresh project sessions: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				);
-			});
 	}
 
 	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {

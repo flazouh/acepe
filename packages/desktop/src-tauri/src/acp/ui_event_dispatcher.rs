@@ -1160,12 +1160,12 @@ mod tests {
         assert_eq!(envelope.graph_revision, 1);
         assert_eq!(envelope.last_event_seq, 1);
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
-                assert_eq!(graph.revision, SessionGraphRevision::new(1, 1, 1));
-                assert_eq!(graph.transcript_snapshot.revision, 1);
-                assert_eq!(graph.transcript_snapshot.entries.len(), 1);
+            crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.from_revision, SessionGraphRevision::new(0, 0, 0));
+                assert_eq!(delta.to_revision, SessionGraphRevision::new(1, 1, 1));
+                assert_eq!(delta.changed_fields, vec!["transcriptSnapshot".to_string()]);
             }
-            other => panic!("expected snapshot payload, got {:?}", other),
+            other => panic!("expected delta payload, got {:?}", other),
         }
     }
 

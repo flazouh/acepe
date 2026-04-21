@@ -85,6 +85,5 @@ export interface SessionGroup {
 	projectName: string;
 	projectColor: string | undefined;
 	projectIconSrc: string | null;
-	showExternalCliSessions: boolean;
 	sessions: SessionListItem[];
 }

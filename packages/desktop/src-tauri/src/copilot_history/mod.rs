@@ -15,7 +15,7 @@ use crate::session_jsonl::types::{
     StoredErrorMessage, StoredUserMessage,
 };
 use chrono::{TimeZone, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +33,25 @@ pub async fn list_workspace_sessions(
 ) -> Result<Vec<CopilotListedSession>, String> {
     let session_state_root = parser::resolve_copilot_session_state_root()?;
     parser::scan_copilot_sessions_at_root(&session_state_root, project_paths).await
+}
+
+pub async fn list_workspace_project_paths() -> Result<Vec<String>, String> {
+    let sessions = list_workspace_sessions(&[]).await?;
+    let mut seen_paths = HashSet::new();
+    let mut project_paths = Vec::new();
+
+    for session in sessions {
+        if seen_paths.insert(session.project_path.clone()) {
+            project_paths.push(session.project_path);
+        }
+    }
+
+    Ok(project_paths)
+}
+
+pub async fn count_workspace_sessions_for_project(project_path: &str) -> Result<u32, String> {
+    let sessions = list_workspace_sessions(&[project_path.to_string()]).await?;
+    u32::try_from(sessions.len()).map_err(|error| format!("Failed to convert Copilot session count: {error}"))
 }
 
 pub async fn load_thread_snapshot(

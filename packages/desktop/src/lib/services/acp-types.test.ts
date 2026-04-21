@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type {
 	CanonicalAgentId,
-	InteractionSnapshot,
-	OperationSnapshot,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionProjectionSnapshot,
@@ -135,78 +133,5 @@ describe("session-state protocol graph contract", () => {
 				autonomousEnabled: false,
 			},
 		} satisfies SessionStateGraph);
-	});
-
-	it("preserves canonical operation lifecycle and interaction association in generated graph types", () => {
-		const projection = {
-			session: null,
-			operations: [
-				{
-					id: "session-1:tool-1",
-					session_id: "session-1",
-					tool_call_id: "tool-1",
-					name: "bash",
-					kind: "execute",
-					status: "pending",
-					lifecycle: "blocked",
-					blocked_reason: "permission",
-					title: "Run command",
-					arguments: { kind: "execute", command: null },
-					progressive_arguments: null,
-					result: null,
-					command: "bun test",
-					locations: [{ path: "/repo/package.json" }],
-					skill_meta: { description: "Execute command", filePath: null },
-					normalized_todos: [
-						{
-							content: "Run tests",
-							activeForm: "Run tests",
-							status: "pending",
-							startedAt: null,
-							completedAt: null,
-							duration: null,
-						},
-					],
-					started_at_ms: null,
-					completed_at_ms: null,
-					parent_tool_call_id: null,
-					parent_operation_id: null,
-					child_tool_call_ids: [],
-					child_operation_ids: [],
-				} satisfies OperationSnapshot,
-			],
-			interactions: [
-				{
-					id: "permission-1",
-					session_id: "session-1",
-					operation_id: "session-1:tool-1",
-					kind: "Permission",
-					state: "Pending",
-					json_rpc_request_id: 7,
-					reply_handler: { kind: "json_rpc", requestId: "7" },
-					tool_reference: { messageId: "", callId: "tool-1" },
-					responded_at_event_seq: null,
-					response: null,
-					payload: {
-						Permission: {
-							id: "permission-1",
-							sessionId: "session-1",
-							jsonRpcRequestId: 7,
-							replyHandler: { kind: "json_rpc", requestId: "7" },
-							permission: "Execute",
-							patterns: [],
-							metadata: { command: "bun test" },
-							always: [],
-							autoAccepted: false,
-							tool: { messageId: "", callId: "tool-1" },
-						},
-					},
-				} satisfies InteractionSnapshot,
-			],
-		} satisfies SessionProjectionSnapshot;
-
-		expect(projection.operations[0]?.lifecycle).toBe("blocked");
-		expect(projection.operations[0]?.blocked_reason).toBe("permission");
-		expect(projection.interactions[0]?.operation_id).toBe("session-1:tool-1");
 	});
 });

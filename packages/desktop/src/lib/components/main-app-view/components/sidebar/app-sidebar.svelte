@@ -116,17 +116,6 @@ function handleResetProjectIcon(projectPath: string) {
 	});
 }
 
-function handleProjectShowExternalCliSessionsChange(projectPath: string, value: boolean) {
-	projectManager.updateProjectShowExternalCliSessions(projectPath, value).mapErr((error) => {
-		toast.error(`Failed to update project session visibility: ${error.message}`);
-		logger.error("[ProjectExternalVisibility] Failed to update", {
-			projectPath,
-			value,
-			error,
-		});
-	});
-}
-
 function handleRemoveProject(projectPath: string) {
 	// Close all panels associated with this project before removing it
 	for (const session of sessionStore.getSessionsForProject(projectPath)) {
@@ -475,7 +464,6 @@ const visibleSessions = $derived.by(() => {
 			onProjectColorChange={handleProjectColorChange}
 			onChangeProjectIcon={handleChangeProjectIcon}
 			onResetProjectIcon={handleResetProjectIcon}
-			onProjectShowExternalCliSessionsChange={handleProjectShowExternalCliSessionsChange}
 			onRemoveProject={handleRemoveProject}
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}

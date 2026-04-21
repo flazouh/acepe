@@ -27,7 +27,6 @@ import type {
 	ToolCallData,
 } from "../../services/converted-session-types.js";
 import type {
-	SessionDomainEvent,
 	SessionOpenFound,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -1528,77 +1527,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	handleSessionUpdate(update: SessionUpdate): void {
 		this.eventService.handleSessionUpdate(update, this);
-	}
-
-	applySessionDomainEvent(event: SessionDomainEvent): void {
-		const payload = event.payload;
-		if (payload == null) {
-			return;
-		}
-
-		if (payload.kind === "operation_upserted") {
-			if (payload.operation != null) {
-				this.operationStore.upsertOperationSnapshot(payload.operation);
-			} else {
-				this.operationStore.upsertFallbackOperation(
-					event.session_id,
-					payload.operation_id,
-					payload.tool_call_id,
-					payload.tool_name,
-					payload.tool_kind,
-					payload.status,
-					payload.parent_operation_id,
-					event.occurred_at_ms
-				);
-			}
-			return;
-		}
-
-		if (payload.kind === "operation_child_linked") {
-			this.operationStore.linkOperationChild(
-				event.session_id,
-				payload.parent_operation_id,
-				payload.child_operation_id
-			);
-			return;
-		}
-
-		if (payload.kind === "operation_completed") {
-			this.operationStore.updateOperationStatus(
-				event.session_id,
-				payload.operation_id,
-				payload.status
-			);
-			return;
-		}
-
-		if (
-			payload.kind === "interaction_upserted" ||
-			payload.kind === "interaction_resolved" ||
-			payload.kind === "interaction_cancelled"
-		) {
-			const operationId = payload.operation_id ?? payload.interaction?.operation_id ?? null;
-			const toolCallId = payload.interaction?.tool_reference?.callId ?? null;
-			const interactionKind =
-				payload.kind === "interaction_upserted"
-					? (payload.interaction?.kind ?? payload.interaction_kind)
-					: (payload.interaction?.kind ?? null);
-
-			if (interactionKind == null) {
-				return;
-			}
-
-			this.operationStore.updateOperationBlockingFromInteraction(
-				event.session_id,
-				payload.interaction_id,
-				operationId,
-				toolCallId,
-				interactionKind,
-				payload.kind === "interaction_upserted"
-					? (payload.interaction?.state ?? "Pending")
-					: (payload.interaction?.state ?? "Approved")
-			);
-		}
 	}
 
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {

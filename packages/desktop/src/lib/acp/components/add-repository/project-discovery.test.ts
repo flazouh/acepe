@@ -36,6 +36,16 @@ describe("shouldShowDiscoveredProject", () => {
 		).toBe(false);
 	});
 
+	it("hides projects nested inside hidden directories", () => {
+		expect(
+			shouldShowDiscoveredProject({
+				path: "/Users/alex/.codecs/acepe-scratch",
+				agent_id: "codex",
+				is_worktree: false,
+			})
+		).toBe(false);
+	});
+
 	it("keeps main project roots discoverable", () => {
 		expect(
 			shouldShowDiscoveredProject({

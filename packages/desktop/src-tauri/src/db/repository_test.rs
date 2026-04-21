@@ -25,9 +25,7 @@ mod session_metadata_tests {
         SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
         SessionTranscriptSnapshotRepository,
     };
-    use crate::storage::acepe_config;
-    use chrono::Utc;
-    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Set, Statement};
+    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
     use tempfile::tempdir;
@@ -136,9 +134,6 @@ mod session_metadata_tests {
         .await
         .expect("create second project");
 
-        assert!(first.show_external_cli_sessions);
-        assert!(second.show_external_cli_sessions);
-
         let updated_second = ProjectRepository::update_icon_path(
             &db,
             &second.path,
@@ -160,59 +155,6 @@ mod session_metadata_tests {
         assert_eq!(reordered[0].sort_order, 0);
         assert_eq!(reordered[1].path, first.path);
         assert_eq!(reordered[1].sort_order, 1);
-    }
-
-    #[tokio::test]
-    async fn project_repository_reads_show_external_visibility_from_acepe_json() {
-        let db = setup_test_db().await;
-        let project_dir = tempdir().expect("tempdir");
-        acepe_config::write(
-            project_dir.path(),
-            &acepe_config::AcepeConfig {
-                version: 1,
-                scripts: acepe_config::ScriptsSection::default(),
-                external_cli_sessions: acepe_config::ExternalCliSessionsSection {
-                    show: false,
-                    extras: Default::default(),
-                },
-                extras: Default::default(),
-            },
-        )
-        .expect("write config");
-
-        let project = ProjectRepository::create_or_update(
-            &db,
-            project_dir.path().to_string_lossy().to_string(),
-            "Gamma".to_string(),
-            Some("green".to_string()),
-        )
-        .await
-        .expect("create project");
-
-        assert!(!project.show_external_cli_sessions);
-        let loaded = ProjectRepository::get_by_path(&db, &project.path)
-            .await
-            .expect("load project")
-            .expect("project row");
-        assert!(!loaded.show_external_cli_sessions);
-    }
-
-    #[tokio::test]
-    async fn project_repository_creates_acepe_json_for_project_directories() {
-        let db = setup_test_db().await;
-        let project_dir = tempdir().expect("tempdir");
-
-        let project = ProjectRepository::create_or_update(
-            &db,
-            project_dir.path().to_string_lossy().to_string(),
-            "Delta".to_string(),
-            Some("orange".to_string()),
-        )
-        .await
-        .expect("create project");
-
-        assert_eq!(project.path, project_dir.path().to_string_lossy());
-        assert!(project_dir.path().join(".acepe.json").exists());
     }
 
     #[tokio::test]
@@ -249,7 +191,6 @@ mod session_metadata_tests {
             interactions: vec![InteractionSnapshot {
                 id: "interaction-1".to_string(),
                 session_id: "session-projection".to_string(),
-                operation_id: None,
                 kind: crate::acp::projections::InteractionKind::Question,
                 state: crate::acp::projections::InteractionState::Answered,
                 json_rpc_request_id: Some(7),
@@ -288,93 +229,6 @@ mod session_metadata_tests {
         assert_eq!(loaded.session.expect("session").last_event_seq, 3);
         assert_eq!(loaded.interactions.len(), 1);
         assert_eq!(loaded.interactions[0].id, "interaction-1");
-    }
-
-    #[tokio::test]
-    async fn test_session_projection_snapshot_defaults_missing_operation_lifecycle() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-legacy".to_string(),
-            "Legacy projection session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "codex".to_string(),
-            "-Users-test-project/session-legacy.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .expect("persist session metadata");
-        let snapshot = SessionProjectionSnapshot {
-            session: Some(SessionSnapshot {
-                session_id: "session-legacy".to_string(),
-                agent_id: Some(CanonicalAgentId::Codex),
-                last_event_seq: 1,
-                turn_state: SessionTurnState::Idle,
-                message_count: 0,
-                last_agent_message_id: None,
-                active_tool_call_ids: vec!["tool-legacy".to_string()],
-                completed_tool_call_ids: Vec::new(),
-                active_turn_failure: None,
-                last_terminal_turn_id: None,
-            }),
-            operations: vec![crate::acp::projections::OperationSnapshot {
-                id: "op-legacy".to_string(),
-                session_id: "session-legacy".to_string(),
-                tool_call_id: "tool-legacy".to_string(),
-                name: "bash".to_string(),
-                kind: Some(crate::acp::session_update::ToolKind::Execute),
-                status: crate::acp::session_update::ToolCallStatus::Pending,
-                lifecycle: crate::acp::projections::OperationLifecycle::Pending,
-                blocked_reason: None,
-                title: Some("Run command".to_string()),
-                arguments: crate::acp::session_update::ToolArguments::Execute {
-                    command: Some("pwd".to_string()),
-                },
-                progressive_arguments: None,
-                result: None,
-                command: Some("pwd".to_string()),
-                locations: None,
-                skill_meta: None,
-                normalized_todos: None,
-                started_at_ms: Some(1),
-                completed_at_ms: None,
-                parent_tool_call_id: None,
-                parent_operation_id: None,
-                child_tool_call_ids: Vec::new(),
-                child_operation_ids: Vec::new(),
-            }],
-            interactions: Vec::new(),
-            runtime: None,
-        };
-        let mut snapshot_json = serde_json::to_value(&snapshot).expect("serialize legacy snapshot");
-        snapshot_json["operations"][0]
-            .as_object_mut()
-            .expect("operation should be an object")
-            .remove("lifecycle");
-
-        crate::db::entities::session_projection_snapshot::Entity::insert(
-            crate::db::entities::session_projection_snapshot::ActiveModel {
-                session_id: Set("session-legacy".to_string()),
-                snapshot_json: Set(snapshot_json.to_string()),
-                updated_at: Set(Utc::now()),
-            },
-        )
-        .exec(&db)
-        .await
-        .expect("insert legacy projection snapshot");
-
-        let loaded = SessionProjectionSnapshotRepository::get(&db, "session-legacy")
-            .await
-            .expect("load legacy snapshot")
-            .expect("legacy snapshot should exist");
-
-        assert_eq!(loaded.operations.len(), 1);
-        assert_eq!(
-            loaded.operations[0].lifecycle,
-            crate::acp::projections::OperationLifecycle::Pending
-        );
     }
 
     #[tokio::test]
@@ -1063,22 +917,14 @@ mod session_metadata_tests {
         }
 
         // Query for project-a only
-        let result = SessionMetadataRepository::get_for_projects(
-            &db,
-            &["/project-a".to_string()],
-            &std::collections::HashSet::new(),
-        )
-        .await;
+        let result =
+            SessionMetadataRepository::get_for_projects(&db, &["/project-a".to_string()]).await;
 
         assert!(result.is_ok());
-        let lookup = result.unwrap();
-        assert_eq!(
-            lookup.entries.len(),
-            2,
-            "Should return 2 sessions for project-a"
-        );
+        let sessions = result.unwrap();
+        assert_eq!(sessions.len(), 2, "Should return 2 sessions for project-a");
 
-        for session in &lookup.entries {
+        for session in &sessions {
             assert_eq!(session.project_path, "/project-a");
         }
     }
@@ -1101,17 +947,11 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        let result = SessionMetadataRepository::get_for_projects(
-            &db,
-            &["/nonexistent".to_string()],
-            &std::collections::HashSet::new(),
-        )
-        .await;
+        let result =
+            SessionMetadataRepository::get_for_projects(&db, &["/nonexistent".to_string()]).await;
 
         assert!(result.is_ok());
-        let lookup = result.unwrap();
-        assert_eq!(lookup.db_row_count, 0);
-        assert!(lookup.entries.is_empty());
+        assert!(result.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -1215,134 +1055,15 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        let sessions = SessionMetadataRepository::get_for_projects(
-            &db,
-            &[base_project.to_string()],
-            &std::collections::HashSet::new(),
-        )
-        .await
-        .unwrap()
-        .entries;
+        let sessions =
+            SessionMetadataRepository::get_for_projects(&db, &[base_project.to_string()])
+                .await
+                .unwrap();
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "session-1");
         assert_eq!(sessions[0].project_path, base_project);
         assert_eq!(sessions[0].worktree_path.as_deref(), Some(worktree));
-    }
-
-    #[tokio::test]
-    async fn test_get_for_projects_hides_external_when_project_in_external_hidden_set() {
-        use std::collections::HashSet;
-
-        let db = setup_test_db().await;
-        let project = "/Users/example/Documents/acepe";
-
-        // External (CLI-discovered) session: file_path NOT under sentinel dirs → is_acepe_managed = 0
-        SessionMetadataRepository::upsert(
-            &db,
-            "external-1".to_string(),
-            "External thread".to_string(),
-            1704067200000,
-            project.to_string(),
-            "claude-code".to_string(),
-            format!("{}/external-1.jsonl", project),
-            1704067200,
-            100,
-        )
-        .await
-        .unwrap();
-
-        // Acepe-managed session: file_path under __session_registry__/ sentinel
-        SessionMetadataRepository::upsert(
-            &db,
-            "acepe-1".to_string(),
-            "Acepe thread".to_string(),
-            1704067300000,
-            project.to_string(),
-            "claude-code".to_string(),
-            "__session_registry__/acepe-1.jsonl".to_string(),
-            1704067300,
-            100,
-        )
-        .await
-        .unwrap();
-
-        // Baseline: empty hidden set returns both sessions.
-        let baseline = SessionMetadataRepository::get_for_projects(
-            &db,
-            &[project.to_string()],
-            &HashSet::new(),
-        )
-        .await
-        .unwrap()
-        .entries;
-        assert_eq!(baseline.len(), 2, "baseline should return both sessions");
-
-        // With project in external-hidden set: only the acepe-managed session remains.
-        let mut hidden = HashSet::new();
-        hidden.insert(project.to_string());
-        let lookup =
-            SessionMetadataRepository::get_for_projects(&db, &[project.to_string()], &hidden)
-                .await
-                .unwrap();
-        assert_eq!(lookup.db_row_count, 2, "DB still has both rows");
-        assert_eq!(lookup.entries.len(), 1, "external session should be hidden");
-        assert_eq!(lookup.entries[0].id, "acepe-1");
-    }
-
-    #[tokio::test]
-    async fn test_get_for_projects_external_hidden_set_is_per_project() {
-        use std::collections::HashSet;
-
-        let db = setup_test_db().await;
-        let project_a = "/project-a";
-        let project_b = "/project-b";
-
-        SessionMetadataRepository::upsert(
-            &db,
-            "ext-a".to_string(),
-            "ext-a".to_string(),
-            1,
-            project_a.to_string(),
-            "claude-code".to_string(),
-            format!("{}/ext-a.jsonl", project_a),
-            1,
-            10,
-        )
-        .await
-        .unwrap();
-        SessionMetadataRepository::upsert(
-            &db,
-            "ext-b".to_string(),
-            "ext-b".to_string(),
-            2,
-            project_b.to_string(),
-            "claude-code".to_string(),
-            format!("{}/ext-b.jsonl", project_b),
-            2,
-            10,
-        )
-        .await
-        .unwrap();
-
-        let mut hidden = HashSet::new();
-        hidden.insert(project_a.to_string());
-
-        let result = SessionMetadataRepository::get_for_projects(
-            &db,
-            &[project_a.to_string(), project_b.to_string()],
-            &hidden,
-        )
-        .await
-        .unwrap()
-        .entries;
-
-        assert_eq!(
-            result.len(),
-            1,
-            "only project-b external session should remain"
-        );
-        assert_eq!(result[0].id, "ext-b");
     }
 
     #[tokio::test]

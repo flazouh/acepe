@@ -73,7 +73,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
-		this.toolCallManager = new ToolCallManager(this, this.entryIndex);
+		this.toolCallManager = new ToolCallManager(this, this.entryIndex, this.operationStore);
 	}
 
 	// ============================================

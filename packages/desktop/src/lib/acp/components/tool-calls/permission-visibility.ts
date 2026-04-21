@@ -9,16 +9,14 @@ export function isPermissionRepresentedByToolCall(
 	sessionId: string,
 	operationStore: OperationStore
 ): boolean {
-	if (permission.sessionId !== sessionId) {
-		return false;
-	}
-
 	if (shouldHidePermissionBarForExitPlan(permission, operationStore)) {
 		return true;
 	}
 
-	const operation = findOperationForPermission(operationStore, permission);
-	return operation !== null;
+	return (
+		findOperationForPermission(operationStore, permission) !== null &&
+		permission.sessionId === sessionId
+	);
 }
 
 export function visiblePermissionsForSessionBar(

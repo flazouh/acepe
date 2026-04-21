@@ -154,7 +154,7 @@ export class SessionRepository {
 
 		return api
 			.scanSessions(projectPaths)
-			.map(({ entries }) => {
+			.map((entries) => {
 				const mergedSessions = this.mergeHistoryWithExisting(entries, existingSessions);
 				this.stateWriter.setSessions(mergedSessions);
 				this.stateWriter.setLoading(false);
@@ -189,15 +189,12 @@ export class SessionRepository {
 
 		return tauriClient.history
 			.scanProjectSessions(projectPaths)
-			.map(({ entries, failedAgents }) => {
+			.map((entries) => {
 				// Read fresh sessions to avoid stale snapshot overwrites from concurrent scans
 				const freshSessions = this.stateReader.getAllSessions();
-				this.refreshSessionsFromScan(freshSessions, entries, projectPaths, failedAgents);
+				this.refreshSessionsFromScan(freshSessions, entries);
 				this.stateWriter.removeScanningProjects(projectPaths);
-				logger.debug("Scan complete", {
-					total: entries.length,
-					failedAgents,
-				});
+				logger.debug("Scan complete", { total: entries.length });
 			})
 			.mapErr((error) => {
 				this.stateWriter.removeScanningProjects(projectPaths);
@@ -209,25 +206,12 @@ export class SessionRepository {
 	/**
 	 * Refresh sessions from a batch scan result.
 	 */
-	refreshSessionsFromScan(
-		existingSessions: SessionCold[],
-		entries: HistoryEntry[],
-		scannedProjectPaths?: readonly string[],
-		failedAgentIds?: readonly string[]
-	): void {
-		const rescannedProjects = new Set(
-			scannedProjectPaths ?? entries.map((entry) => entry.project)
-		);
-		const failedAgents = new Set(failedAgentIds ?? []);
-		if (entries.length === 0 && rescannedProjects.size === 0) {
+	refreshSessionsFromScan(existingSessions: SessionCold[], entries: HistoryEntry[]): void {
+		if (entries.length === 0) {
 			return;
 		}
 
-		logger.debug("Refreshing sessions from scan", {
-			count: entries.length,
-			rescannedProjects: Array.from(rescannedProjects),
-			failedAgents: Array.from(failedAgents),
-		});
+		logger.debug("Refreshing sessions from scan", { count: entries.length });
 
 		// Deduplicate entries by sessionId (keep the one with latest updatedAt)
 		const deduplicatedEntries = this.deduplicateEntries(entries);
@@ -269,29 +253,9 @@ export class SessionRepository {
 			}
 		}
 
-		// Keep any existing sessions that weren't in the scan results.
-		// Pruning only applies to sessions whose project was rescanned AND whose
-		// agent's scanner succeeded. Backend scans can return partial results when
-		// an individual agent scanner fails: in that case the failed scanner
-		// contributes zero entries and we'd otherwise drop every persisted session
-		// belonging to that agent. We additionally preserve transient sessions and
-		// any session the user has actively preloaded — dropping a loaded session
-		// out from under the user would be worse than leaving a stale entry around
-		// until the next successful scan.
+		// Keep any existing sessions that weren't in the scan results
 		for (const existingSession of existingSessionsMap.values()) {
-			const rescannedProject = rescannedProjects.has(existingSession.projectPath);
-			const scannerFailed = failedAgents.has(existingSession.agentId);
-			const preserveTransientSession =
-				existingSession.sessionLifecycleState === "created";
-			const preservePreloadedSession = this.entryManager.isPreloaded(existingSession.id);
-			if (
-				!rescannedProject ||
-				scannerFailed ||
-				preserveTransientSession ||
-				preservePreloadedSession
-			) {
-				mergedSessions.push(existingSession);
-			}
+			mergedSessions.push(existingSession);
 		}
 
 		// Sort by updatedAt DESC
