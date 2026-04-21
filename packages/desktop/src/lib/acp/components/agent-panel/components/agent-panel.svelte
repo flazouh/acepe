@@ -1883,8 +1883,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{worktreeSetupState}
 			{agentInstallState}
 			{sessionId}
-			effectiveProjectPath={effectiveProjectPath}
-			{sessionProjectPath}
+			effectiveProjectPath={effectiveProjectPath ?? null}
+			sessionProjectPath={sessionProjectPath ?? null}
 			sessionEntries={sessionEntries}
 			sessionTurnState={sessionHotState?.turnState ?? "idle"}
 			{effectivePathForGit}
