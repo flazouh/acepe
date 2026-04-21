@@ -399,43 +399,40 @@ const features = [
 		<div class="relative isolate overflow-hidden">
 			<HeroShaderStage heightClass="h-full" />
 
-			<!-- Hero Section — split left/right -->
-			<section class="relative z-10 px-4 pt-36 pb-24 md:px-6 md:pt-44 md:pb-28">
-				<div class="mx-auto grid w-full max-w-[86rem] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
-					<!-- Left: headline + CTA -->
-					<div class="flex flex-col items-start text-left">
-						<h1 class="mb-6 text-balance text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-foreground md:text-[72px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
-							{"The Agentic Developer"}
-							<br class="hidden md:block" />
-							<span class="italic font-normal text-foreground/90">{"Environment"}</span>
-						</h1>
+			<!-- Hero Section — centered headline + CTA, demo below -->
+			<section class="relative z-10 px-4 pt-36 pb-16 md:px-6 md:pt-44 md:pb-20">
+				<div class="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
+					<h1 class="mb-6 text-balance text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-foreground md:text-[76px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
+						{"The Agentic Developer"}
+						<br class="hidden md:block" />
+						<span class="italic font-normal text-foreground/90">{"Environment"}</span>
+					</h1>
 
-						<p class="mb-10 max-w-[560px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
-							{"One native workspace for every coding agent. Run them in parallel, review every change, and ship from plan to PR without leaving the window."}
-						</p>
+					<p class="mb-10 max-w-[620px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
+						{"One native workspace for every coding agent. Run them in parallel, review every change, and ship from plan to PR without leaving the window."}
+					</p>
 
-						<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-							<PillButton
-								href="/download"
-								variant="invert"
-								size="default"
-								class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
-							>
-								{"Download for macOS"}
-								{#snippet trailingIcon()}
-									<ArrowRightIcon size="lg" />
-								{/snippet}
-							</PillButton>
-						</div>
+					<div class="flex flex-col items-center gap-3 sm:flex-row">
+						<PillButton
+							href="/download"
+							variant="invert"
+							size="default"
+							class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
+						>
+							{"Download for macOS"}
+							{#snippet trailingIcon()}
+								<ArrowRightIcon size="lg" />
+							{/snippet}
+						</PillButton>
 					</div>
+				</div>
 
-					<!-- Right: demo — natural width, compact scale so UI stays crisp.
-					     Hidden below lg: at phone widths the multi-panel UI is unreadable
-					     and the hero works better as a focused headline + CTA. -->
-					<div class="hero-demo relative hidden w-full lg:block">
-						<div class="hero-demo-stage">
-							<FeatureShowcase />
-						</div>
+				<!-- Demo — below the hero, centered. Hidden below lg: on phone widths
+				     the multi-panel UI is unreadable and the hero works better as a
+				     focused headline + CTA. -->
+				<div class="hero-demo relative mx-auto mt-20 hidden w-full max-w-[1200px] lg:block">
+					<div class="hero-demo-stage mx-auto">
+						<FeatureShowcase />
 					</div>
 				</div>
 			</section>
@@ -855,21 +852,21 @@ const features = [
 	}
 	@media (min-width: 1024px) {
 		.hero-demo-stage {
-			width: 900px;
-			transform-origin: left top;
-			transform: scale(0.7);
+			width: 1100px;
+			transform-origin: top center;
+			transform: scale(0.72);
 			/* reclaim the empty space left behind by the scale so layout stays tight */
-			margin-bottom: calc(-1 * (900px * 0.3) * (500 / 900));
+			margin-bottom: calc(-1 * (1100px * 0.28) * (500 / 1100));
 		}
 	}
 	@media (min-width: 1280px) {
 		.hero-demo-stage {
-			transform: scale(0.78);
+			transform: scale(0.82);
 		}
 	}
 	@media (min-width: 1440px) {
 		.hero-demo-stage {
-			transform: scale(0.88);
+			transform: scale(0.9);
 		}
 	}
 
