@@ -1,5 +1,4 @@
 <script lang="ts">
-import { BrandShaderBackground } from "@acepe/ui";
 import { Kanban, Columns, Square, SquaresFour } from "phosphor-svelte";
 import AgentPanelDemo from "./agent-panel-demo.svelte";
 import LandingByProjectDemo from "./landing-by-project-demo.svelte";
@@ -42,18 +41,19 @@ let activeFeature = $state("agent");
 	</div>
 
 	<!-- Feature content -->
-	<div class="relative overflow-hidden rounded-md bg-card/10">
-		<BrandShaderBackground class="rounded-xl" fallback="gradient" />
-		<div class="relative p-3 md:p-4">
-			{#if activeFeature === "agent"}
-				<AgentPanelDemo />
-			{:else if activeFeature === "by-project"}
-				<LandingByProjectDemo />
-			{:else if activeFeature === "single"}
-				<LandingSingleDemo />
-			{:else if activeFeature === "kanban"}
-				<LandingKanbanDemo />
-			{/if}
-		</div>
+	<div class="relative">
+		{#if activeFeature === "agent"}
+			<AgentPanelDemo />
+		{:else if activeFeature === "by-project"}
+			<LandingByProjectDemo />
+		{:else if activeFeature === "single"}
+			<LandingSingleDemo />
+		{:else if activeFeature === "kanban"}
+			<LandingKanbanDemo />
+		{/if}
 	</div>
 </div>
+
+<style>
+	/* container intentionally empty — demo stands alone on the page */
+</style>

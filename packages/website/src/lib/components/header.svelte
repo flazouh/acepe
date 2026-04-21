@@ -1,17 +1,9 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import { browser } from "$app/environment";
 import { page } from "$app/stores";
-import { Download, Menu, Moon, Sun } from "@lucide/svelte";
+import { Download, Menu } from "@lucide/svelte";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
 import { DiscordLogo, GithubLogo, Star } from "phosphor-svelte";
-import {
-	THEME_STORAGE_KEY,
-	applyThemeToDocument,
-	getToggledTheme,
-	websiteThemeStore,
-	type WebsiteTheme,
-} from "$lib/theme/theme";
 
 interface Props {
 	showLogin?: boolean;
@@ -30,21 +22,6 @@ function formatStars(count: number): string {
 	}
 	return count.toString();
 }
-const theme = $derived($websiteThemeStore);
-
-const toggleThemeLabel = $derived(
-	theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
-);
-
-function handleThemeToggle() {
-	const nextTheme = getToggledTheme(theme);
-
-	if (browser) {
-		websiteThemeStore.set(nextTheme);
-		applyThemeToDocument(nextTheme, document.documentElement);
-		window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-	}
-}
 
 const desktopNavLinkClass =
 	"rounded-full px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/70 hover:text-foreground";
@@ -54,7 +31,7 @@ const mobileNavLinkClass =
 
 <header class="fixed top-4 left-1/2 z-50 w-[calc(100%-3rem)] max-w-4xl -translate-x-1/2">
 	<div
-		class="flex items-center justify-between rounded-full bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
+		class="flex items-center justify-between rounded-2xl bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
 	>
 		<div class="flex shrink-0 items-center">
 			<a
@@ -126,19 +103,6 @@ const mobileNavLinkClass =
 					/>
 				</svg>
 			</a>
-			<button
-				type="button"
-				class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
-				aria-label={toggleThemeLabel}
-				title={toggleThemeLabel}
-				onclick={handleThemeToggle}
-			>
-				{#if theme === 'dark'}
-					<Sun class="h-4 w-4" />
-				{:else}
-					<Moon class="h-4 w-4" />
-				{/if}
-			</button>
 			{#if showDownload}
 				<a
 					href="/download"
@@ -227,19 +191,6 @@ const mobileNavLinkClass =
 									/>
 								</svg>
 							</a>
-								<button
-									type="button"
-									class="inline-flex h-11 min-h-11 w-11 min-w-11 cursor-pointer items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
-									aria-label={toggleThemeLabel}
-									title={toggleThemeLabel}
-									onclick={handleThemeToggle}
-								>
-									{#if theme === 'dark'}
-										<Sun class="h-4 w-4" />
-									{:else}
-										<Moon class="h-4 w-4" />
-									{/if}
-								</button>
 							</div>
 						</div>
 						<nav class="flex flex-col gap-1">

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ArrowRightIcon, BrandLockup, BrandShaderBackground, PillButton } from "@acepe/ui";
+import { ArrowRightIcon, BrandLockup, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
@@ -20,7 +20,7 @@ import type {
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
-import { websiteThemeStore } from "$lib/theme/theme.js";
+import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
 import {
 	Stack,
 	ArrowsOutSimple,
@@ -39,7 +39,7 @@ let { data } = $props();
 
 // === Mock data for real component showcases ===
 
-const theme = $derived($websiteThemeStore);
+const theme = "dark" as const;
 
 const mockGridAgents: AgentGridItem[] = $derived([
 	{
@@ -393,38 +393,62 @@ const features = [
 		showDownload={data.featureFlags.downloadEnabled}
 	/>
 
-	<main class="pt-20">
-		<!-- Hero Section -->
-		<section class="flex justify-center px-4 pt-16 pb-12 md:px-6 md:pt-24 md:pb-16">
-			<div class="text-center">
-				<AgentIconsRow size={24} class="mb-6" />
+	<main>
+		<!-- Hero Section — split left/right -->
+		<section class="relative isolate overflow-hidden px-4 pt-36 pb-24 md:px-6 md:pt-44 md:pb-28">
+			<HeroShaderStage heightClass="h-full" />
 
-				<h1 class="mb-6 text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[56px]">
-					{"The Agentic Developer Environment"}
-				</h1>
-				<p class="mx-auto mb-10 max-w-[760px] text-lg leading-[1.5] font-normal tracking-[-0.01em] text-muted-foreground md:text-[22px]">
-					{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."}
-				</p>
+			<div class="relative z-10 mx-auto grid w-full max-w-[86rem] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
+				<!-- Left: headline + CTA -->
+				<div class="flex flex-col items-start text-left">
+					<h1 class="mb-6 text-balance text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-foreground md:text-[72px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
+						{"The Agentic Developer"}
+						<br class="hidden md:block" />
+						<span class="italic font-normal text-foreground/90">{"Environment"}</span>
+					</h1>
 
-				<div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-					<PillButton
-						href="/download"
-						variant="invert"
-						size="default"
-						class="h-11 py-1.5 pr-1.5 pl-5"
-					>
-						{"Get started"}
-						{#snippet trailingIcon()}
-							<ArrowRightIcon size="lg" />
-						{/snippet}
-					</PillButton>
+					<p class="mb-10 max-w-[560px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
+						{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR — in one window."}
+					</p>
+
+					<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+						<PillButton
+							href="/download"
+							variant="invert"
+							size="default"
+							class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
+						>
+							{"Download for macOS"}
+							{#snippet trailingIcon()}
+								<ArrowRightIcon size="lg" />
+							{/snippet}
+						</PillButton>
+					</div>
+				</div>
+
+				<!-- Right: demo — natural width, compact scale so UI stays crisp.
+				     Hidden below lg: at phone widths the multi-panel UI is unreadable
+				     and the hero works better as a focused headline + CTA. -->
+				<div class="hero-demo relative hidden w-full lg:block">
+					<div class="hero-demo-stage">
+						<FeatureShowcase />
+					</div>
 				</div>
 			</div>
 		</section>
 
-		<!-- Feature Showcase Section -->
-		<section class="mx-auto max-w-[86rem] px-4 pb-24 md:px-6 md:pb-32">
-			<FeatureShowcase />
+		<!-- Supported agents band -->
+		<section class="relative px-4 pb-24 md:px-6 md:pb-28">
+			<div class="mx-auto flex max-w-4xl flex-col items-center">
+				<div class="mb-5 flex items-center gap-3">
+					<span class="h-px w-10 bg-border/60"></span>
+					<span class="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
+						{"Works with"}
+					</span>
+					<span class="h-px w-10 bg-border/60"></span>
+				</div>
+				<AgentIconsRow size={30} />
+			</div>
 		</section>
 
 		<!-- What is an ADE? -->
@@ -676,31 +700,40 @@ const features = [
 		</section>
 
 		<!-- Bottom CTA -->
-		<section class="border-t border-border/50 px-4 py-24 md:px-6">
-			<div class="mx-auto flex max-w-2xl flex-col items-center text-center">
-				<h2 class="mb-4 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[36px]">
+		<section class="relative overflow-hidden border-t border-border/50 px-4 py-32 md:px-6 md:py-40">
+			<div class="absolute inset-0 -z-10">
+				<HeroShaderStage heightClass="h-full" accentRing={false} />
+			</div>
+			<div class="relative mx-auto flex max-w-2xl flex-col items-center text-center">
+				<span class="mb-5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+					{"// ship from plan to PR"}
+				</span>
+				<h2 class="mb-4 text-balance text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[52px]">
 					{"Your ADE is ready"}
 				</h2>
-				<p class="mb-8 max-w-[500px] whitespace-pre-line text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
-					{"Acepe is free while in beta.\nOne download, every agent, full control."}
+				<p class="mb-10 max-w-[540px] text-pretty text-[15px] leading-[1.65] text-muted-foreground md:text-[18px]">
+					{"Acepe is free while in beta. One download, every agent, full control."}
 				</p>
-				<PillButton
-					href="/download"
-					variant="invert"
-					size="default"
-					class="h-11 py-1.5 pr-1.5 pl-5"
-				>
-					{"Get started"}
-					{#snippet trailingIcon()}
-						<ArrowRightIcon size="lg" />
-					{/snippet}
-				</PillButton>
-				<a
-					href="/compare/cursor"
-					class="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-				>
-					{"See how Acepe compares →"}
-				</a>
+				<div class="flex flex-col items-center gap-3 sm:flex-row">
+					<PillButton
+						href="/download"
+						variant="invert"
+						size="default"
+						class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
+					>
+						{"Download for macOS"}
+						{#snippet trailingIcon()}
+							<ArrowRightIcon size="lg" />
+						{/snippet}
+					</PillButton>
+					<a
+						href="/compare/cursor"
+						class="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 bg-background/40 px-5 text-sm text-muted-foreground backdrop-blur-xl transition-colors hover:border-white/20 hover:text-foreground"
+					>
+						{"See how Acepe compares"}
+						<ArrowRightIcon size="sm" />
+					</a>
+				</div>
 			</div>
 		</section>
 	</main>
@@ -806,6 +839,29 @@ const features = [
 </div>
 
 <style>
+	.hero-demo {
+		/* Let the product UI render at its natural width, then scale to fit */
+	}
+	@media (min-width: 1024px) {
+		.hero-demo-stage {
+			width: 900px;
+			transform-origin: left top;
+			transform: scale(0.7);
+			/* reclaim the empty space left behind by the scale so layout stays tight */
+			margin-bottom: calc(-1 * (900px * 0.3) * (500 / 900));
+		}
+	}
+	@media (min-width: 1280px) {
+		.hero-demo-stage {
+			transform: scale(0.78);
+		}
+	}
+	@media (min-width: 1440px) {
+		.hero-demo-stage {
+			transform: scale(0.88);
+		}
+	}
+
 	.feature-card {
 		backdrop-filter: blur(12px);
 	}

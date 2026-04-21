@@ -39,11 +39,12 @@
 		<link rel="manifest" href="/site.webmanifest" />
 		<meta name="theme-color" content="#F77E2C" />
 		<script>
-			const themeStorageKey = 'acepe-theme';
-			const storedTheme = window.localStorage.getItem(themeStorageKey);
-			const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'dark';
-			document.documentElement.dataset.theme = theme;
-			document.documentElement.style.colorScheme = theme;
+			// Dark theme only — light theme disabled across the site.
+			document.documentElement.dataset.theme = 'dark';
+			document.documentElement.style.colorScheme = 'dark';
+			try {
+				window.localStorage.setItem('acepe-theme', 'dark');
+			} catch {}
 		</script>
 
 		%sveltekit.head%
