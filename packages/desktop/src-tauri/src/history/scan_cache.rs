@@ -17,10 +17,14 @@ struct CacheEntry<T> {
     generation: u64,
 }
 
+type InFlightKey = (String, u64);
+type ScanResult<T> = Result<T, String>;
+type InFlightSender<T> = broadcast::Sender<ScanResult<T>>;
+
 /// Cache with single-flight deduplication, TTL semantics, and bounded size.
 pub struct ScanCache<T> {
     entries: Mutex<HashMap<String, CacheEntry<T>>>,
-    in_flight: Mutex<HashMap<(String, u64), broadcast::Sender<Result<T, String>>>>,
+    in_flight: Mutex<HashMap<InFlightKey, InFlightSender<T>>>,
     generation: AtomicU64,
     ttl: Duration,
     max_entries: usize,

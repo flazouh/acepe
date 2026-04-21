@@ -65,7 +65,7 @@ impl Default for AcepeConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ScriptsSection {
     #[serde(default)]
     pub setup: String,
@@ -73,16 +73,6 @@ pub struct ScriptsSection {
     pub run: String,
     #[serde(flatten)]
     pub extras: BTreeMap<String, Value>,
-}
-
-impl Default for ScriptsSection {
-    fn default() -> Self {
-        Self {
-            setup: String::new(),
-            run: String::new(),
-            extras: BTreeMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

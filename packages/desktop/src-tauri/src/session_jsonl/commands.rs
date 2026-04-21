@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::db::repository::{ProjectRepository, SessionMetadataRepository};
@@ -7,7 +8,7 @@ use crate::history::indexer::{IndexStatus, IndexerHandle};
 use crate::history::visibility::load_external_hidden_paths_or_empty;
 use crate::session_jsonl::cache;
 use crate::session_jsonl::parser;
-use crate::session_jsonl::types::{ConvertedSession, FullSession, HistoryEntry, SessionMessage};
+use crate::session_jsonl::types::{FullSession, HistoryEntry, SessionMessage};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -392,7 +393,7 @@ pub async fn get_full_session(
 pub async fn get_converted_session(
     session_id: String,
     project_path: String,
-) -> CommandResult<ConvertedSession> {
+) -> CommandResult<SessionThreadSnapshot> {
     unexpected_command_result(
         "get_converted_session",
         "Failed to get converted session",
@@ -418,13 +419,11 @@ pub async fn get_converted_session(
                     e.to_string()
                 })?;
 
-            let result =
-                crate::session_converter::convert_claude_full_session_to_entries(&full_session);
+            let result = parser::convert_full_session_to_entries(&full_session);
 
             tracing::info!(
                 logger_id = %logger_id,
                 entries_count = result.entries.len(),
-                total_messages = result.stats.total_messages,
                 "Parsed and converted session"
             );
 

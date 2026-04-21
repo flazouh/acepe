@@ -574,7 +574,7 @@ function handleAddProjectOpen(path: string, name: string) {
 		name,
 		createdAt: new Date(),
 		color: "cyan",
-		showExternalCliSessions: false,
+		showExternalCliSessions: true,
 	};
 	projectManager.addProject(project).match(
 		() => {

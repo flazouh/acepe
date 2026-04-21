@@ -31,7 +31,7 @@ describe("ProjectHandler", () => {
 				name: "Test Project",
 				createdAt: new Date(),
 				color: "blue",
-				showExternalCliSessions: false,
+				showExternalCliSessions: true,
 			};
 			mockProjectManager.importProject = mock(() => okAsync(project));
 
