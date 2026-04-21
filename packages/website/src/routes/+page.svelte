@@ -288,7 +288,8 @@ const features = [
 		icon: Stack,
 		label: "Multi-Agent Support",
 		tag: "core",
-		description: "Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
+		description:
+			"Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
 		usecases: [
 			"Use different agents for different tasks without context switching",
 			"Run multiple agents in parallel for faster development",
@@ -300,7 +301,8 @@ const features = [
 		icon: ArrowsOutSimple,
 		label: "Parallel Sessions & Focus",
 		tag: "workflow",
-		description: "Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
+		description:
+			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
 		usecases: [
 			"Run agents on separate tasks and see all of them making progress at once",
 			"Work across multiple repos at the same time without losing track",
@@ -312,7 +314,8 @@ const features = [
 		icon: Lightning,
 		label: "Plan Mode",
 		tag: "planning",
-		description: "Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
+		description:
+			"Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
 		usecases: [
 			"Built-in review and deepen skills refine plans before execution",
 			"Plans render as clean markdown you can copy or download",
@@ -324,7 +327,8 @@ const features = [
 		icon: GitBranch,
 		label: "Checkpoints",
 		tag: "safety",
-		description: "Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
+		description:
+			"Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
 		usecases: [
 			"Auto-checkpoints capture state after each tool run",
 			"Revert entire project or individual files to any checkpoint",
@@ -336,7 +340,8 @@ const features = [
 		icon: ClockCounterClockwise,
 		label: "Session Management",
 		tag: "history",
-		description: "The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
+		description:
+			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
 		usecases: [
 			"Search and filter across all your agent interactions",
 			"Recover context from previous sessions instantly",
@@ -348,7 +353,8 @@ const features = [
 		icon: Command,
 		label: "Keyboard-First",
 		tag: "input",
-		description: "⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
+		description:
+			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
 		usecases: [
 			"Navigate entirely with keyboard shortcuts for flow state",
 			"Customize shortcuts to match your muscle memory",
@@ -360,7 +366,8 @@ const features = [
 		icon: HardDrives,
 		label: "SQL Studio",
 		tag: "data",
-		description: "Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
+		description:
+			"Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
 		usecases: [
 			"Connect to local or remote databases with saved connections",
 			"Browse schemas and tables, run queries, inspect results",
@@ -372,7 +379,8 @@ const features = [
 		icon: Queue,
 		label: "Attention Queue",
 		tag: "triage",
-		description: "Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
+		description:
+			"Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
 		usecases: [
 			"Answer-needed sessions stay at the top until you respond",
 			"See errors and active work before idle sessions",
