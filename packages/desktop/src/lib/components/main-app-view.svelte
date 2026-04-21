@@ -100,7 +100,6 @@ import {
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
 import {
-	downloadAndInstallUpdate,
 	installDownloadedUpdate,
 	predownloadUpdate,
 } from "./main-app-view/logic/updater-workflow.js";
@@ -764,8 +763,10 @@ const commandPalette = useAdvancedCommandPalette({
 	},
 });
 
-async function checkForAppUpdate(trigger: UpdateCheckTrigger): Promise<void> {
-	blockAppForUpdate = trigger === "startup";
+async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
+	// Never block the app on update checks: check in the background, download
+	// in the background, and surface an "Update" button top-left when ready.
+	blockAppForUpdate = false;
 	updaterState = createCheckingUpdaterState();
 	const result = await ResultAsync.fromPromise(check(), (e) => e as Error).match(
 		(update) => update,
@@ -781,22 +782,13 @@ async function checkForAppUpdate(trigger: UpdateCheckTrigger): Promise<void> {
 		if (updaterState.kind !== "error") {
 			updaterState = createIdleUpdaterState();
 		}
-		if (trigger !== "startup") {
-			blockAppForUpdate = false;
-		}
-		if (updaterState.kind === "idle") {
-			blockAppForUpdate = false;
-		}
 		attemptStartupMaximize();
 		return;
 	}
 
 	availableUpdate = result;
 	logger.info("Update available", { version: result.version });
-	if (trigger === "startup") {
-		await downloadAndInstallAvailableUpdate();
-		return;
-	}
+	attemptStartupMaximize();
 	void predownloadAvailableUpdate();
 }
 
@@ -818,36 +810,6 @@ async function predownloadAvailableUpdate(): Promise<void> {
 			availableUpdate = null;
 			updaterState = createErrorUpdaterState(error.message);
 			logger.error("Update download failed", { error: error.message });
-		}
-	);
-}
-
-async function downloadAndInstallAvailableUpdate(): Promise<void> {
-	if (!availableUpdate) {
-		return;
-	}
-
-	const update = availableUpdate;
-	updaterState = createDownloadingUpdaterState(update.version);
-	await downloadAndInstallUpdate(
-		update,
-		(event: DownloadEvent) => {
-			if (event.event === "Finished") {
-				updaterState = createInstallingUpdaterState(update.version);
-				return;
-			}
-
-			updaterState = applyUpdaterDownloadEvent(updaterState, event);
-		},
-		relaunch
-	).match(
-		(version) => {
-			logger.info("Startup update installed", { version });
-		},
-		(error) => {
-			availableUpdate = null;
-			updaterState = createErrorUpdaterState(error.message);
-			logger.error("Startup update install failed", { error: error.message });
 		}
 	);
 }
