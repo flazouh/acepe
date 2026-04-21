@@ -324,8 +324,8 @@ export function resolveCanonicalToolCallCreate(
 		(data.normalizedQuestions?.length ?? 0) > 0
 			? data.kind
 			: (currentToolCall.kind === undefined || currentToolCall.kind === "other") &&
-				  data.kind !== undefined &&
-				  data.kind !== "other"
+					data.kind !== undefined &&
+					data.kind !== "other"
 				? data.kind
 				: (currentToolCall.kind ?? data.kind);
 	const nextAwaitingPlanApproval = data.awaitingPlanApproval;
@@ -399,8 +399,7 @@ export function resolveCanonicalToolCallUpdate(
 		nextResult,
 		startedAtMs: currentToolCall.startedAtMs ?? startedAtMsHint,
 		completedAtMs:
-			currentToolCall.completedAtMs ??
-			(isTerminalToolCallStatus(nextStatus) ? nowMs : undefined),
+			currentToolCall.completedAtMs ?? (isTerminalToolCallStatus(nextStatus) ? nowMs : undefined),
 		shouldRefreshNormalizedResult:
 			(!shouldPreserveStructuredResult && extractedResult !== null) ||
 			currentToolCall.normalizedResult === undefined ||

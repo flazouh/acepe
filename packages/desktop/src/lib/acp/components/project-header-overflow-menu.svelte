@@ -5,7 +5,7 @@ import { mergeProps } from "bits-ui";
 import { ArrowCounterClockwise } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
-	import { Trash } from "phosphor-svelte";
+import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { COLOR_NAMES, Colors } from "../utils/colors.js";
@@ -59,14 +59,14 @@ const showSettingsSection = $derived(
 	Boolean(showColorPicker || onViewModeChange || onRemoveProject || hasResetProjectIcon)
 );
 const displaySectionClass = $derived(
-	`px-2 py-1.5${showColorPicker || onRemoveProject || hasResetProjectIcon
-		? " border-b border-border/20"
-		: ""}`
+	`px-2 py-1.5${
+		showColorPicker || onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
+	}`
 );
 const colorTriggerClass = $derived(
-	`rounded-none px-2 py-1.5 text-[11px]${onRemoveProject || hasResetProjectIcon
-		? " border-b border-border/20"
-		: ""}`
+	`rounded-none px-2 py-1.5 text-[11px]${
+		onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
+	}`
 );
 
 function handleRemoveClick() {

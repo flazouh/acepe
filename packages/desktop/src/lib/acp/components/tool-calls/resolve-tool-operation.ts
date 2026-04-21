@@ -1,7 +1,7 @@
-import { normalizeToolResult } from "../../store/services/tool-result-normalizer.js";
 import type { OperationStore } from "../../store/operation-store.svelte.js";
-import type { PermissionRequest } from "../../types/permission.js";
+import { normalizeToolResult } from "../../store/services/tool-result-normalizer.js";
 import type { Operation } from "../../types/operation.js";
+import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 

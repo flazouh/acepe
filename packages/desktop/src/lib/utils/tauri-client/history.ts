@@ -1,15 +1,11 @@
 import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
+import type { SessionOpenResult } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type { SessionPlanResponse } from "../../services/converted-session-types.js";
-import type { SessionOpenResult } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-import type {
-	ProjectInfo,
-	ProjectSessionCounts,
-	SessionLoadTiming,
-} from "./types.js";
+import type { ProjectInfo, ProjectSessionCounts, SessionLoadTiming } from "./types.js";
 
 const historyCommands = TAURI_COMMAND_CLIENT.history;
 

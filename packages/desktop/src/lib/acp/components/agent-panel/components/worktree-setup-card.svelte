@@ -35,9 +35,7 @@ const titleText = $derived.by(() => {
 });
 const detailsText = $derived(
 	setupState.outputText ||
-		(setupState.status === "creating-worktree"
-			? "Creating worktree..."
-			: "Running setup...")
+		(setupState.status === "creating-worktree" ? "Creating worktree..." : "Running setup...")
 );
 </script>
 

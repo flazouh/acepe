@@ -340,7 +340,9 @@ function ensureSessionListOverflow(projectPath: string, totalSessions: number): 
 		return;
 	}
 
-	if (!isSessionListNearBottom(container.scrollTop, container.clientHeight, container.scrollHeight)) {
+	if (
+		!isSessionListNearBottom(container.scrollTop, container.clientHeight, container.scrollHeight)
+	) {
 		return;
 	}
 
@@ -381,7 +383,10 @@ function registerSessionListContainer(
 function sessionListContainer(
 	node: HTMLDivElement,
 	params: { projectPath: string; totalSessions: number }
-): { update: (nextParams: { projectPath: string; totalSessions: number }) => void; destroy: () => void } {
+): {
+	update: (nextParams: { projectPath: string; totalSessions: number }) => void;
+	destroy: () => void;
+} {
 	registerSessionListContainer(params.projectPath, params.totalSessions, node);
 
 	return {

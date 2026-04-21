@@ -7,7 +7,12 @@ describe("getOnboardingSelectableAgents", () => {
 		expect(
 			getOnboardingSelectableAgents([
 				{ id: "claude-code", name: "Claude Code", icon: "claude", supportsProjectDiscovery: true },
-				{ id: "custom-agent", name: "Custom Agent", icon: "terminal", supportsProjectDiscovery: false },
+				{
+					id: "custom-agent",
+					name: "Custom Agent",
+					icon: "terminal",
+					supportsProjectDiscovery: false,
+				},
 				{ id: "copilot", name: "GitHub Copilot", icon: "copilot", supportsProjectDiscovery: true },
 			]).map((agent) => agent.id)
 		).toEqual(["claude-code", "copilot"]);

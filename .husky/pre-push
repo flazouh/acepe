@@ -84,6 +84,16 @@ if [ -n "$CHANGED" ]; then
 	WEBSITE_CHANGED="$(printf "%s\n" "$CHANGED" | grep -E '^packages/website/' | sed 's#^packages/website/##' || true)"
 fi
 
+existing_paths() {
+	base_dir="$1"
+	while IFS= read -r relative_path; do
+		[ -z "$relative_path" ] && continue
+		if [ -e "$base_dir/$relative_path" ]; then
+			printf "%s\n" "$relative_path"
+		fi
+	done
+}
+
 if [ "$RUN_DESKTOP_FRONTEND" = "1" ]; then
 	(
 		cd packages/desktop &&
@@ -91,7 +101,9 @@ if [ "$RUN_DESKTOP_FRONTEND" = "1" ]; then
 			bun run check &&
 			bun run check:svelte &&
 			if [ -n "$DESKTOP_FRONTEND_CHANGED" ]; then
-				printf "%s\n" "$DESKTOP_FRONTEND_CHANGED" | xargs bunx biome check --diagnostic-level=error
+				printf "%s\n" "$DESKTOP_FRONTEND_CHANGED" |
+					existing_paths "$(pwd)" |
+					xargs bunx biome check --diagnostic-level=error
 			fi &&
 			bun test
 	) &
@@ -104,7 +116,9 @@ if [ "$RUN_WEBSITE" = "1" ]; then
 			export PATH="$HOME/.bun/bin:$PATH" &&
 			bun run check &&
 			if [ -n "$WEBSITE_CHANGED" ]; then
-				printf "%s\n" "$WEBSITE_CHANGED" | xargs bunx biome check --diagnostic-level=error
+				printf "%s\n" "$WEBSITE_CHANGED" |
+					existing_paths "$(pwd)" |
+					xargs bunx biome check --diagnostic-level=error
 			fi &&
 			bun run test
 	) &

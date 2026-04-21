@@ -153,12 +153,7 @@ const displayItems = $derived(
 
 const filteredItems = $derived(logic.filterItems(displayItems, state.searchQuery));
 const sessionGroupsFromData = $derived(
-	logic.createSessionGroups(
-		filteredItems,
-		projectCreatedAtMap,
-		projectSortOrderMap,
-		recentProjects
-	)
+	logic.createSessionGroups(filteredItems, projectCreatedAtMap, projectSortOrderMap, recentProjects)
 );
 const loadingSessionGroups = $derived(logic.createLoadingSessionGroups(recentProjects));
 // Only show skeletons on initial load (no sessions yet).

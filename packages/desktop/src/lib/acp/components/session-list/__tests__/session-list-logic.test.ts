@@ -12,9 +12,9 @@ import {
 	extractCurrentToolInfo,
 	extractLastToolInfo,
 	extractTodoProgress,
-	getSidebarSessions,
 	getNextSessionListVisibleCount,
 	getSessionListVisibleCount,
+	getSidebarSessions,
 	isSessionListNearBottom,
 } from "../session-list-logic.js";
 import type { SessionListItem } from "../session-list-types.js";

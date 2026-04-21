@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { OperationStore } from "../../../store/operation-store.svelte.js";
-import type { PermissionRequest } from "../../../types/permission.js";
 import type { Operation } from "../../../types/operation.js";
+import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import { createRenderableToolCall, resolveToolOperation } from "../resolve-tool-operation.js";
 
@@ -90,7 +90,9 @@ function createOperation(overrides?: Partial<Operation>): Operation {
 	};
 }
 
-function createOperationLookup(operations: Operation[]): Pick<OperationStore, "getById" | "getByToolCallId"> {
+function createOperationLookup(
+	operations: Operation[]
+): Pick<OperationStore, "getById" | "getByToolCallId"> {
 	const operationsById = new Map(operations.map((operation) => [operation.id, operation]));
 	const operationsByToolCallId = new Map(
 		operations.map((operation) => [`${operation.sessionId}:${operation.toolCallId}`, operation])
