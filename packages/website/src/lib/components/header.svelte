@@ -31,7 +31,7 @@ const mobileNavLinkClass =
 
 <header class="fixed top-4 left-1/2 z-50 w-[calc(100%-3rem)] max-w-4xl -translate-x-1/2">
 	<div
-		class="flex items-center justify-between rounded-2xl bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
+		class="flex items-center justify-between rounded-full bg-card/45 px-4 py-2.5 backdrop-blur-[30px]"
 	>
 		<div class="flex shrink-0 items-center">
 			<a
