@@ -259,7 +259,7 @@ export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
 
 export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 
@@ -285,7 +285,7 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
-export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; runtime?: SessionGraphRuntimeSnapshot | null }
+export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[] }
 
 /**
  * Payload for the `error` outcome — persisted state was found but could not
@@ -523,4 +523,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-
