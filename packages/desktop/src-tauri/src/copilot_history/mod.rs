@@ -51,7 +51,8 @@ pub async fn list_workspace_project_paths() -> Result<Vec<String>, String> {
 
 pub async fn count_workspace_sessions_for_project(project_path: &str) -> Result<u32, String> {
     let sessions = list_workspace_sessions(&[project_path.to_string()]).await?;
-    u32::try_from(sessions.len()).map_err(|error| format!("Failed to convert Copilot session count: {error}"))
+    u32::try_from(sessions.len())
+        .map_err(|error| format!("Failed to convert Copilot session count: {error}"))
 }
 
 pub async fn load_thread_snapshot(

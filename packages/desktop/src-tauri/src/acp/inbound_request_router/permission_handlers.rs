@@ -74,16 +74,14 @@ async fn handle_session_request_permission_with_state(
     let tool_call = match tool_call {
         Some(tool_call) => tool_call,
         None => {
-            let canonical_interaction = session_id
-                .as_deref()
-                .and_then(|session_id| {
-                    build_fallback_canonical_interaction(
-                        session_id,
-                        request_id,
-                        &options,
-                        meta.as_ref(),
-                    )
-                });
+            let canonical_interaction = session_id.as_deref().and_then(|session_id| {
+                build_fallback_canonical_interaction(
+                    session_id,
+                    request_id,
+                    &options,
+                    meta.as_ref(),
+                )
+            });
             return InboundRoutingDecision::ForwardToUi {
                 parsed_arguments: None,
                 synthetic_tool_call: None,
@@ -500,7 +498,10 @@ mod tests {
             } => {
                 assert!(!forward_legacy_event);
                 assert_eq!(permission.id, "session-1\u{0}permission-request-7\u{0}7");
-                assert_eq!(permission.tool.as_ref().map(|tool| tool.call_id.as_str()), Some("permission-request-7"));
+                assert_eq!(
+                    permission.tool.as_ref().map(|tool| tool.call_id.as_str()),
+                    Some("permission-request-7")
+                );
                 assert_eq!(permission.permission, "Execute tool");
             }
             other => panic!("expected canonicalized permission request, got {:?}", other),

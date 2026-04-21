@@ -1,234 +1,233 @@
 <script lang="ts">
-	import {
-		AgentPanelScene,
-		AgentPanelComposer,
-		AgentPanelComposerFrame,
-		AgentPanelFooter,
-		AgentInputEditor,
-		AgentInputToolbar,
-		AgentInputModeSelector,
-		AgentInputDivider,
-		AgentInputAutonomousToggle,
-		AgentInputModelSelector,
-		AgentInputMetricsChip,
-		AgentInputMicButton,
-		ProjectLetterBadge,
-		TextShimmer,
-		SegmentedProgress,
-	} from "@acepe/ui";
-	import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
-	import {
-		AppMainLayout,
-		AppSidebarLayout,
-		AppSidebarProjectGroup,
-		AppSidebarFooter,
-	} from "@acepe/ui/app-layout";
-	import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
-	import type {
-		AppProjectGroup,
-	} from "@acepe/ui/app-layout";
-	import { ProjectCard } from "@acepe/ui/project-card";
-	import type {
-		AgentPanelSceneModel,
-	} from "@acepe/ui";
+import {
+	AgentPanelScene,
+	AgentPanelComposer,
+	AgentPanelComposerFrame,
+	AgentPanelFooter,
+	AgentInputEditor,
+	AgentInputToolbar,
+	AgentInputModeSelector,
+	AgentInputDivider,
+	AgentInputAutonomousToggle,
+	AgentInputModelSelector,
+	AgentInputMetricsChip,
+	AgentInputMicButton,
+	ProjectLetterBadge,
+	TextShimmer,
+	SegmentedProgress,
+} from "@acepe/ui";
+import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
+import {
+	AppMainLayout,
+	AppSidebarLayout,
+	AppSidebarProjectGroup,
+	AppSidebarFooter,
+} from "@acepe/ui/app-layout";
+import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
+import type { AppProjectGroup } from "@acepe/ui/app-layout";
+import { ProjectCard } from "@acepe/ui/project-card";
+import type { AgentPanelSceneModel } from "@acepe/ui";
 
-	import LandingDemoFrame from "./landing-demo-frame.svelte";
-	import { websiteThemeStore } from "$lib/theme/theme.js";
+import LandingDemoFrame from "./landing-demo-frame.svelte";
+import { websiteThemeStore } from "$lib/theme/theme.js";
 
-	const theme = $derived($websiteThemeStore);
+const theme = $derived($websiteThemeStore);
 
-	function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
-		if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
-		if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
-		if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
-		return `/svgs/agents/claude/claude-icon-${t}.svg`;
-	}
+function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
+	if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
+	if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
+	if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
+	return `/svgs/agents/claude/claude-icon-${t}.svg`;
+}
 
-	// Queue items for the attention queue
-	interface DemoQueueItem {
-		id: string;
-		title: string;
-		agentIconSrc: string;
-		projectName: string;
-		projectColor: string;
-		statusText: string;
-		isStreaming: boolean;
-		todoProgress: { current: number; total: number } | null;
-	}
+// Queue items for the attention queue
+interface DemoQueueItem {
+	id: string;
+	title: string;
+	agentIconSrc: string;
+	projectName: string;
+	projectColor: string;
+	statusText: string;
+	isStreaming: boolean;
+	todoProgress: { current: number; total: number } | null;
+}
 
-	const queueItems = $derived<DemoQueueItem[]>([
-		{
-			id: "q1",
-			title: "Unblock review queue",
-			agentIconSrc: agentIcon("claude", theme),
-			projectName: "acepe.dev",
-			projectColor: "#9858FF",
-			statusText: "Editing agent-panel-shell.svelte",
-			isStreaming: true,
-			todoProgress: { current: 2, total: 4 },
-		},
-		{
-			id: "q2",
-			title: "Audit panel regressions",
-			agentIconSrc: agentIcon("codex", theme),
-			projectName: "desktop",
-			projectColor: "#4AD0FF",
-			statusText: "Searching panel parity surfaces",
-			isStreaming: true,
-			todoProgress: { current: 1, total: 3 },
-		},
-	]);
+const queueItems = $derived<DemoQueueItem[]>([
+	{
+		id: "q1",
+		title: "Unblock review queue",
+		agentIconSrc: agentIcon("claude", theme),
+		projectName: "acepe.dev",
+		projectColor: "#9858FF",
+		statusText: "Editing agent-panel-shell.svelte",
+		isStreaming: true,
+		todoProgress: { current: 2, total: 4 },
+	},
+	{
+		id: "q2",
+		title: "Audit panel regressions",
+		agentIconSrc: agentIcon("codex", theme),
+		projectName: "desktop",
+		projectColor: "#4AD0FF",
+		statusText: "Searching panel parity surfaces",
+		isStreaming: true,
+		todoProgress: { current: 1, total: 3 },
+	},
+]);
 
-	const sidebarGroups = $derived<AppProjectGroup[]>([
-		{
-			name: "acepe.dev",
-			color: "#9858FF",
-			sessions: [
-				{
-					id: "s1",
-					title: "Unblock review queue",
-					agentIconSrc: agentIcon("claude", theme),
-					status: "running",
-					isActive: true,
-				},
-				{
-					id: "s2",
-					title: "Polish release notes",
-					agentIconSrc: agentIcon("cursor", theme),
-					status: "done",
-					isActive: false,
-				},
-				{
-					id: "s3",
-					title: "Fix hero spacing",
-					agentIconSrc: agentIcon("claude", theme),
-					status: "done",
-					isActive: false,
-				},
-			],
-		},
-		{
-			name: "desktop",
-			color: "#4AD0FF",
-			sessions: [
-				{
-					id: "s4",
-					title: "Audit panel regressions",
-					agentIconSrc: agentIcon("codex", theme),
-					status: "running",
-					isActive: false,
-				},
-				{
-					id: "s5",
-					title: "Worktree isolation bug",
-					agentIconSrc: agentIcon("claude", theme),
-					status: "error",
-					isActive: false,
-				},
-			],
-		},
-		{
-			name: "api",
-			color: "#FF8D20",
-			sessions: [
-				{
-					id: "s6",
-					title: "Fix auth middleware",
-					agentIconSrc: agentIcon("opencode", theme),
-					status: "idle",
-					isActive: false,
-				},
-				{
-					id: "s7",
-					title: "Rate limiter config",
-					agentIconSrc: agentIcon("codex", theme),
-					status: "done",
-					isActive: false,
-				},
-			],
-		},
-	]);
+const sidebarGroups = $derived<AppProjectGroup[]>([
+	{
+		name: "acepe.dev",
+		color: "#9858FF",
+		sessions: [
+			{
+				id: "s1",
+				title: "Unblock review queue",
+				agentIconSrc: agentIcon("claude", theme),
+				status: "running",
+				isActive: true,
+			},
+			{
+				id: "s2",
+				title: "Polish release notes",
+				agentIconSrc: agentIcon("cursor", theme),
+				status: "done",
+				isActive: false,
+			},
+			{
+				id: "s3",
+				title: "Fix hero spacing",
+				agentIconSrc: agentIcon("claude", theme),
+				status: "done",
+				isActive: false,
+			},
+		],
+	},
+	{
+		name: "desktop",
+		color: "#4AD0FF",
+		sessions: [
+			{
+				id: "s4",
+				title: "Audit panel regressions",
+				agentIconSrc: agentIcon("codex", theme),
+				status: "running",
+				isActive: false,
+			},
+			{
+				id: "s5",
+				title: "Worktree isolation bug",
+				agentIconSrc: agentIcon("claude", theme),
+				status: "error",
+				isActive: false,
+			},
+		],
+	},
+	{
+		name: "api",
+		color: "#FF8D20",
+		sessions: [
+			{
+				id: "s6",
+				title: "Fix auth middleware",
+				agentIconSrc: agentIcon("opencode", theme),
+				status: "idle",
+				isActive: false,
+			},
+			{
+				id: "s7",
+				title: "Rate limiter config",
+				agentIconSrc: agentIcon("codex", theme),
+				status: "done",
+				isActive: false,
+			},
+		],
+	},
+]);
 
-	const focusedScene = $derived<AgentPanelSceneModel>({
-		panelId: "by-project-panel",
+const focusedScene = $derived<AgentPanelSceneModel>({
+	panelId: "by-project-panel",
+	status: "connected",
+	header: {
+		title: "Unblock review queue",
+		subtitle: null,
 		status: "connected",
-		header: {
-			title: "Unblock review queue",
-			subtitle: null,
-			status: "connected",
-			agentLabel: "Claude Code",
-			agentIconSrc: agentIcon("claude", theme),
-			projectLabel: "acepe.dev",
-			projectColor: "#9858FF",
-			sequenceId: 12,
-			actions: [],
-		},
-		conversation: {
-			entries: [
-				{ id: "bp-u1", type: "user", text: "Tighten the review queue so the shared agent panel stops drifting between desktop and website." },
-				{
-					id: "bp-tool-1",
-					type: "tool_call",
-					kind: "search",
-					title: "Search",
-					subtitle: "shared panel surfaces",
-					query: "AgentPanelDeck AgentPanelFooter",
-					searchPath: "packages",
-					searchFiles: [
-						"packages/ui/src/components/agent-panel/agent-panel-deck.svelte",
-						"packages/ui/src/components/agent-panel/agent-panel-footer.svelte",
-					],
-					searchResultCount: 2,
-					status: "done",
-				},
-				{
-					id: "bp-tool-2",
-					type: "tool_call",
-					kind: "edit",
-					title: "Edit",
-					filePath: "packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
-					status: "done",
-				},
-				{
-					id: "bp-a1",
-					type: "assistant",
-					markdown: "Pulled the shared panel rail and composer frame into `@acepe/ui`, then removed the website-only footer drift.\n\nChecking the remaining spacing deltas now.",
-					isStreaming: true,
-				},
-			],
-			isStreaming: true,
-		},
-	});
+		agentLabel: "Claude Code",
+		agentIconSrc: agentIcon("claude", theme),
+		projectLabel: "acepe.dev",
+		projectColor: "#9858FF",
+		sequenceId: 12,
+		actions: [],
+	},
+	conversation: {
+		entries: [
+			{
+				id: "bp-u1",
+				type: "user",
+				text: "Tighten the review queue so the shared agent panel stops drifting between desktop and website.",
+			},
+			{
+				id: "bp-tool-1",
+				type: "tool_call",
+				kind: "search",
+				title: "Search",
+				subtitle: "shared panel surfaces",
+				query: "AgentPanelDeck AgentPanelFooter",
+				searchPath: "packages",
+				searchFiles: [
+					"packages/ui/src/components/agent-panel/agent-panel-deck.svelte",
+					"packages/ui/src/components/agent-panel/agent-panel-footer.svelte",
+				],
+				searchResultCount: 2,
+				status: "done",
+			},
+			{
+				id: "bp-tool-2",
+				type: "tool_call",
+				kind: "edit",
+				title: "Edit",
+				filePath: "packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
+				status: "done",
+			},
+			{
+				id: "bp-a1",
+				type: "assistant",
+				markdown:
+					"Pulled the shared panel rail and composer frame into `@acepe/ui`, then removed the website-only footer drift.\n\nChecking the remaining spacing deltas now.",
+				isStreaming: true,
+			},
+		],
+		isStreaming: true,
+	},
+});
 
-	const availableModes = [{ id: "plan" }, { id: "build" }] as const;
+const availableModes = [{ id: "plan" }, { id: "build" }] as const;
 
-	const modelGroups = $derived([
-		{
-			label: "Anthropic",
-			items: [
-				{
-					id: "claude-sonnet-4",
-					name: "Claude Sonnet 4",
-					providerSource: "Anthropic",
-					isFavorite: true,
-					isBuildDefault: true,
-					isPlanDefault: false,
-				},
-				{
-					id: "claude-opus-4-6",
-					name: "Claude Opus 4.6",
-					providerSource: "Anthropic",
-					isFavorite: false,
-					isBuildDefault: false,
-					isPlanDefault: true,
-				},
-			],
-		},
-	]);
+const modelGroups = $derived([
+	{
+		label: "Anthropic",
+		items: [
+			{
+				id: "claude-sonnet-4",
+				name: "Claude Sonnet 4",
+				providerSource: "Anthropic",
+				isFavorite: true,
+				isBuildDefault: true,
+				isPlanDefault: false,
+			},
+			{
+				id: "claude-opus-4-6",
+				name: "Claude Opus 4.6",
+				providerSource: "Anthropic",
+				isFavorite: false,
+				isBuildDefault: false,
+				isPlanDefault: true,
+			},
+		],
+	},
+]);
 
-	const favoriteModels = $derived(
-		modelGroups.flatMap((g) => g.items.filter((i) => i.isFavorite))
-	);
+const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) => i.isFavorite)));
 </script>
 
 <LandingDemoFrame>

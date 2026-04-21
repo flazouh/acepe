@@ -494,7 +494,10 @@ mod tests {
         );
 
         match envelope.payload {
-            SessionStatePayload::Telemetry { telemetry, revision } => {
+            SessionStatePayload::Telemetry {
+                telemetry,
+                revision,
+            } => {
                 assert_eq!(telemetry.session_id, "session-1");
                 assert_eq!(telemetry.event_id.as_deref(), Some("telemetry-1"));
                 assert_eq!(telemetry.context_window_size, Some(200_000));
