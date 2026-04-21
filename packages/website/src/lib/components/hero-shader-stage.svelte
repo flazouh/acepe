@@ -52,8 +52,8 @@ function paletteFor(kind: PaletteKind) {
 	return {
 		background: "#0F0F10",
 		colors: ["#F77E2C", "#C85A12", "#5B2404", "#18120E"] as const,
-		softness: 0.55,
-		intensity: 0.85,
+		softness: 0.6,
+		intensity: 0.92,
 		noise: 0.18,
 	};
 }
@@ -105,12 +105,12 @@ async function init(version: number) {
 			u_shape: GrainGradientShapes.corners,
 			u_noiseTexture: noiseTexture,
 			u_fit: ShaderFitOptions.cover,
-			u_scale: 1.4,
+			u_scale: 1.25,
 			u_rotation: 0,
 			u_originX: 0.5,
-			u_originY: 0.95,
+			u_originY: 0.5,
 			u_offsetX: 0,
-			u_offsetY: 0.25,
+			u_offsetY: 0,
 			u_worldWidth: primaryContainer.offsetWidth,
 			u_worldHeight: primaryContainer.offsetHeight,
 		} satisfies Partial<GrainGradientUniforms>,
@@ -216,17 +216,11 @@ async function init(version: number) {
 	.vignette {
 		background:
 			radial-gradient(
-				90% 60% at 50% 42%,
-				color-mix(in srgb, var(--background) 70%, transparent) 0%,
-				color-mix(in srgb, var(--background) 35%, transparent) 35%,
-				transparent 70%
-			),
-			radial-gradient(
-				140% 100% at 50% 50%,
+				120% 80% at 50% 50%,
 				transparent 0%,
 				transparent 55%,
-				color-mix(in srgb, var(--background) 55%, transparent) 82%,
-				var(--background) 100%
+				color-mix(in srgb, var(--background) 35%, transparent) 82%,
+				color-mix(in srgb, var(--background) 75%, transparent) 100%
 			);
 	}
 
@@ -242,7 +236,8 @@ async function init(version: number) {
 		background: linear-gradient(
 			to bottom,
 			transparent 0%,
-			color-mix(in srgb, var(--background) 65%, transparent) 45%,
+			color-mix(in srgb, var(--background) 35%, transparent) 55%,
+			color-mix(in srgb, var(--background) 85%, transparent) 85%,
 			var(--background) 100%
 		);
 	}
