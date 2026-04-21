@@ -229,6 +229,7 @@ export interface AgentInfo {
 	autonomous_supported_mode_ids?: ReadonlyArray<string>;
 	default_selection_rank?: number;
 	provider_metadata?: ProviderMetadataProjection;
+	supports_project_discovery?: boolean;
 }
 
 /**

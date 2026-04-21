@@ -330,6 +330,10 @@ impl AgentProvider for CursorProvider {
     ) -> Pin<Box<dyn Future<Output = Result<u32, String>> + Send + 'a>> {
         Box::pin(async move { count_cursor_sessions_for_project(project_path).await })
     }
+
+    fn supports_project_discovery(&self) -> bool {
+        true
+    }
 }
 
 /// Environment allowlist for downloaded agent subprocesses.

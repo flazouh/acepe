@@ -225,6 +225,10 @@ impl AgentProvider for CopilotProvider {
             crate::copilot_history::count_workspace_sessions_for_project(project_path).await
         })
     }
+
+    fn supports_project_discovery(&self) -> bool {
+        true
+    }
 }
 
 fn filtered_env_strategy() -> SpawnEnvStrategy {

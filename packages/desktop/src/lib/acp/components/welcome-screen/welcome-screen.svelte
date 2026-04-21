@@ -25,6 +25,7 @@ import {
 	sortProjectsBySessionCount,
 } from "../add-repository/project-discovery.js";
 import ProjectTable from "../add-repository/project-table.svelte";
+import { getOnboardingSelectableAgents } from "./onboarding-agent-discovery.js";
 import type { WelcomeScreenProps } from "./welcome-screen-props.js";
 
 const SPLASH_AGENTS: { id: string; alt: string }[] = [
@@ -59,6 +60,7 @@ let onboardingImportProjectName = $state<string | null>(null);
 
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
+const onboardingAvailableAgents = $derived(getOnboardingSelectableAgents(agentStore.agents));
 const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
@@ -406,7 +408,7 @@ async function finishOnboarding(): Promise<void> {
 					</div>
 
 					<div class="grid w-fit grid-cols-3 grid-rows-2 gap-4 mx-auto">
-						{#each agentStore.agents as agent (agent.id)}
+						{#each onboardingAvailableAgents as agent (agent.id)}
 							<Button
 								variant="headerAction"
 								size="headerAction"

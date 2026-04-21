@@ -450,6 +450,8 @@ export interface Agent {
 	readonly default_selection_rank?: number;
 	/** Canonical provider metadata projection for shared frontend surfaces. */
 	readonly providerMetadata?: ProviderMetadataProjection;
+	/** Whether the agent can discover persisted projects from existing session history. */
+	readonly supportsProjectDiscovery?: boolean;
 }
 
 // ============================================

@@ -411,6 +411,11 @@ pub trait AgentProvider: Send + Sync {
         Box::pin(async { Ok(0) })
     }
 
+    /// Whether this provider can discover existing projects from persisted session history.
+    fn supports_project_discovery(&self) -> bool {
+        false
+    }
+
     /// Presentation-only provider metadata for shared frontend surfaces.
     fn frontend_projection(&self) -> FrontendProviderProjection {
         builtin_capabilities_for_provider_id(self.id())
