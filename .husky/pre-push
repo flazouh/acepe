@@ -1,24 +1,109 @@
 #!/bin/sh
 
-# Frontend typecheck + svelte-check + lint + tests
-(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bunx biome check . --diagnostic-level=error && bun test) &
-FRONTEND_PID=$!
+# Scope pre-push checks to the packages actually touched by the push range.
+# Website-only CSS changes should not trigger a full cargo build.
 
-# Website typecheck + lint + tests
-(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bunx biome check . --diagnostic-level=error && bun run test) &
-WEBSITE_PID=$!
+ranges=""
+# Read the pre-push stdin protocol: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+	[ -z "$local_sha" ] && continue
+	zero="0000000000000000000000000000000000000000"
+	if [ "$local_sha" = "$zero" ]; then
+		continue
+	fi
+	if [ "$remote_sha" = "$zero" ] || [ -z "$remote_sha" ]; then
+		base="$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")"
+		[ -n "$base" ] && ranges="$ranges $base..$local_sha"
+	else
+		ranges="$ranges $remote_sha..$local_sha"
+	fi
+done
 
-# Backend check + tests
-(cd packages/desktop/src-tauri && . ~/.cargo/env && cargo check && cargo test -- --skip claude_history::export_types) &
-BACKEND_PID=$!
+if [ -z "$ranges" ]; then
+	base="$(git merge-base HEAD origin/main 2>/dev/null || echo "")"
+	[ -n "$base" ] && ranges="$base..HEAD"
+fi
 
-wait $FRONTEND_PID
-FRONTEND_STATUS=$?
+if [ -n "$ranges" ]; then
+	# shellcheck disable=SC2086
+	CHANGED="$(git diff --name-only $ranges 2>/dev/null | sort -u)"
+else
+	CHANGED=""
+fi
 
-wait $WEBSITE_PID
-WEBSITE_STATUS=$?
+if [ -z "$CHANGED" ]; then
+	# Couldn't determine scope; run everything rather than silently skip.
+	echo "pre-push: could not determine changed files; running all checks"
+	RUN_DESKTOP=1
+	RUN_WEBSITE=1
+	RUN_BACKEND=1
+else
+	RUN_DESKTOP=0
+	RUN_WEBSITE=0
+	RUN_BACKEND=0
 
-wait $BACKEND_PID
-BACKEND_STATUS=$?
+	# Desktop frontend: anything under packages/desktop EXCEPT src-tauri.
+	if printf "%s\n" "$CHANGED" | grep -E '^packages/desktop/' | grep -vq '^packages/desktop/src-tauri/'; then
+		RUN_DESKTOP=1
+	fi
+	# Shared UI affects desktop + website.
+	if printf "%s\n" "$CHANGED" | grep -q '^packages/ui/'; then
+		RUN_DESKTOP=1
+		RUN_WEBSITE=1
+	fi
+	# Website.
+	if printf "%s\n" "$CHANGED" | grep -q '^packages/website/'; then
+		RUN_WEBSITE=1
+	fi
+	# Backend: Rust under src-tauri or root Cargo files.
+	if printf "%s\n" "$CHANGED" | grep -qE '^(packages/desktop/src-tauri/|Cargo\.(toml|lock)$)'; then
+		RUN_BACKEND=1
+	fi
+	# Root-level config that can affect everything.
+	if printf "%s\n" "$CHANGED" | grep -qE '^(package\.json$|bun\.lock$|tsconfig.*\.json$|biome\.json$|\.husky/)'; then
+		RUN_DESKTOP=1
+		RUN_WEBSITE=1
+	fi
+fi
+
+echo "pre-push: desktop=$RUN_DESKTOP website=$RUN_WEBSITE backend=$RUN_BACKEND"
+
+FRONTEND_PID=""
+WEBSITE_PID=""
+BACKEND_PID=""
+
+if [ "$RUN_DESKTOP" = "1" ]; then
+	(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bunx biome check . --diagnostic-level=error && bun test) &
+	FRONTEND_PID=$!
+fi
+
+if [ "$RUN_WEBSITE" = "1" ]; then
+	(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bunx biome check . --diagnostic-level=error && bun run test) &
+	WEBSITE_PID=$!
+fi
+
+if [ "$RUN_BACKEND" = "1" ]; then
+	(cd packages/desktop/src-tauri && . ~/.cargo/env && cargo check && cargo test -- --skip claude_history::export_types) &
+	BACKEND_PID=$!
+fi
+
+FRONTEND_STATUS=0
+WEBSITE_STATUS=0
+BACKEND_STATUS=0
+
+if [ -n "$FRONTEND_PID" ]; then
+	wait $FRONTEND_PID
+	FRONTEND_STATUS=$?
+fi
+
+if [ -n "$WEBSITE_PID" ]; then
+	wait $WEBSITE_PID
+	WEBSITE_STATUS=$?
+fi
+
+if [ -n "$BACKEND_PID" ]; then
+	wait $BACKEND_PID
+	BACKEND_STATUS=$?
+fi
 
 [ $FRONTEND_STATUS -eq 0 ] && [ $WEBSITE_STATUS -eq 0 ] && [ $BACKEND_STATUS -eq 0 ]
