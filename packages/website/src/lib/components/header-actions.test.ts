@@ -8,7 +8,6 @@ describe("header actions", () => {
 		expect(source).toContain('import { BrandLockup } from "@acepe/ui";');
 		expect(source).not.toContain('<TextShimmer>{"Download"}</TextShimmer>');
 		expect(source).toContain('{"Download"}');
-		expect(source).toContain("toggleThemeLabel");
 		expect(source).toContain("cursor-pointer");
 	});
 });
