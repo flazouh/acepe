@@ -76,13 +76,38 @@ FRONTEND_PID=""
 WEBSITE_PID=""
 BACKEND_PID=""
 
+DESKTOP_FRONTEND_CHANGED=""
+WEBSITE_CHANGED=""
+
+if [ -n "$CHANGED" ]; then
+	DESKTOP_FRONTEND_CHANGED="$(printf "%s\n" "$CHANGED" | grep -E '^packages/desktop/' | grep -vE '^packages/desktop/src-tauri/' | sed 's#^packages/desktop/##' || true)"
+	WEBSITE_CHANGED="$(printf "%s\n" "$CHANGED" | grep -E '^packages/website/' | sed 's#^packages/website/##' || true)"
+fi
+
 if [ "$RUN_DESKTOP_FRONTEND" = "1" ]; then
-	(cd packages/desktop && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bun run check:svelte && bunx biome check . --diagnostic-level=error && bun test) &
+	(
+		cd packages/desktop &&
+			export PATH="$HOME/.bun/bin:$PATH" &&
+			bun run check &&
+			bun run check:svelte &&
+			if [ -n "$DESKTOP_FRONTEND_CHANGED" ]; then
+				printf "%s\n" "$DESKTOP_FRONTEND_CHANGED" | xargs bunx biome check --diagnostic-level=error
+			fi &&
+			bun test
+	) &
 	FRONTEND_PID=$!
 fi
 
 if [ "$RUN_WEBSITE" = "1" ]; then
-	(cd packages/website && export PATH="$HOME/.bun/bin:$PATH" && bun run check && bunx biome check . --diagnostic-level=error && bun run test) &
+	(
+		cd packages/website &&
+			export PATH="$HOME/.bun/bin:$PATH" &&
+			bun run check &&
+			if [ -n "$WEBSITE_CHANGED" ]; then
+				printf "%s\n" "$WEBSITE_CHANGED" | xargs bunx biome check --diagnostic-level=error
+			fi &&
+			bun run test
+	) &
 	WEBSITE_PID=$!
 fi
 
