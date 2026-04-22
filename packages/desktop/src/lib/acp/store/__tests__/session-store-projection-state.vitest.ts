@@ -341,6 +341,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							progressive_arguments: null,
 							result: null,
 							command: "pwd",
+							normalized_todos: null,
 							parent_tool_call_id: null,
 							parent_operation_id: null,
 							child_tool_call_ids: [],
@@ -458,8 +459,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					],
 					autonomousEnabled: true,
 				},
-				pendingMutationId: null,
-				previewState: "canonical",
+				pending_mutation_id: null,
+				preview_state: "canonical",
 				revision: {
 					graphRevision: 9,
 					transcriptRevision: 7,

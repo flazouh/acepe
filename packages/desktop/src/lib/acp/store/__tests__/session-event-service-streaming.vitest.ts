@@ -1462,8 +1462,8 @@ describe("SessionEventService streaming delta handling", () => {
 						transcriptRevision: 3,
 						lastEventSeq: 8,
 					},
-					pendingMutationId: null,
-					previewState: "canonical",
+					pending_mutation_id: null,
+					preview_state: "canonical",
 				},
 			},
 			connectedHandler

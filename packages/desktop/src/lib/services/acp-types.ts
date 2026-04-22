@@ -285,6 +285,18 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
+
+export type LifecycleStatus = "reserved" | "activating" | "reconnecting" | "ready" | "detached" | "failed" | "archived"
+
+export type DetachedReason = "userRequested" | "transportClosed" | "providerEnded" | "projectContextLost" | "reconnectRequired" | "legacyAmbiguousRestore"
+
+export type FailureReason = "startupFailed" | "activationFailed" | "rpcError" | "providerMisconfigured" | "explicitErrorHandlingRequired"
+
+export type LifecycleState = { status: LifecycleStatus; active_session_id?: string | null; last_provider_session_id?: string | null; detached_reason?: DetachedReason | null; failure_reason?: FailureReason | null; error_message?: string | null; last_connected_at_ms?: number | null; last_ready_at_ms?: number | null; last_disconnected_at_ms?: number | null }
+
+export type LifecycleCheckpoint = { schema_version: number; graph_revision: number; lifecycle: LifecycleState; capabilities: SessionGraphCapabilities }
+
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; runtime?: LifecycleCheckpoint | null }
 
 /**
@@ -523,4 +535,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-

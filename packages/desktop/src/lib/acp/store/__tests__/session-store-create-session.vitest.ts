@@ -150,6 +150,7 @@ describe("SessionStore.createSession", () => {
 					progressive_arguments: null,
 					result: null,
 					command: null,
+					normalized_todos: null,
 					parent_tool_call_id: null,
 					parent_operation_id: null,
 					child_tool_call_ids: [],

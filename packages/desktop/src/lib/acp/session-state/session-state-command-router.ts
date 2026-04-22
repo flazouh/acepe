@@ -88,8 +88,8 @@ export function routeSessionStateEnvelope(
 					kind: "applyCapabilities",
 					capabilities: envelope.payload.capabilities,
 					revision: envelope.payload.revision,
-					pendingMutationId: envelope.payload.pendingMutationId ?? null,
-					previewState: envelope.payload.previewState,
+					pendingMutationId: envelope.payload.pending_mutation_id ?? null,
+					previewState: envelope.payload.preview_state,
 				},
 			];
 		case "telemetry":

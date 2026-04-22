@@ -80,8 +80,8 @@ function createCapabilitiesEnvelope(
 			kind: "capabilities",
 			capabilities,
 			revision,
-			pendingMutationId: options?.pendingMutationId ?? null,
-			previewState: options?.previewState ?? "canonical",
+			pending_mutation_id: options?.pendingMutationId ?? null,
+			preview_state: options?.previewState ?? "canonical",
 		},
 	};
 }
