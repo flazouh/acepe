@@ -1,14 +1,20 @@
+# CI: pull request only to main (not on push to main). Path-aware frontend vs backend; see
+# "filter" job and path groups below. When changing workspace layout, update filters here
+# in the same PR. New package under packages/* → add the path to the appropriate group (js/rust/shared).
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    # Re-runs full matrix (all jobs); use when validating without opening a PR
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_INCREMENTAL: 0
@@ -17,10 +23,94 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
+  # ── Which stacks to run: js (desktop/website/ui/changelog/contract/scripts), rust (src-tauri), shared (lock + root + workflows) ──
+  # dorny/paths-filter@v3.0.2
+  filter:
+    name: Path filter
+    runs-on: ubuntu-latest
+    outputs:
+      run_frontend: ${{ steps.combine.outputs.run_frontend }}
+      run_backend: ${{ steps.combine.outputs.run_backend }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        if: github.event_name == 'pull_request'
+        id: paths
+        # yamllint disable-line rule:line-length
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            js:
+              - 'packages/desktop/**'
+              - '!packages/desktop/src-tauri/**'
+              - 'packages/website/**'
+              - 'packages/ui/**'
+              - 'packages/agent-panel-contract/**'
+              - 'packages/changelog/**'
+              - 'scripts/**'
+            rust:
+              - 'packages/desktop/src-tauri/**'
+            shared:
+              - 'bun.lock'
+              - 'package.json'
+              - '.github/workflows/**'
+
+      - name: Set stack flags from filter (or full matrix on workflow_dispatch)
+        id: combine
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+            echo "run_backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+            echo "run_backend=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          js='${{ steps.paths.outputs.js }}'
+          rust='${{ steps.paths.outputs.rust }}'
+          shared='${{ steps.paths.outputs.shared }}'
+          if [ "$js" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$rust" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Inexpensive; runs on every PR / dispatch so we never skip repo-wide structural test policy when frontend is path-skipped
+  structural_forbid:
+    name: Structural test guard
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+          cache: true
+          cache-dependency-path: bun.lock
+
+      - name: Forbid structural tests
+        run: |
+          bun install --frozen-lockfile
+          bun scripts/forbid-structural-tests.ts packages
+
   # ── JS/TS: format+lint+typecheck + all package tests (parallel) ────
-  # Matches root `bun run test` coverage, plus svelte-check on desktop and full Biome check.
   frontend:
     name: Frontend
+    needs: filter
+    if: needs.filter.outputs.run_frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,11 +124,7 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      # Website svelte-check needs env vars declared in .env for $env/static/public types
       - run: cp packages/website/.env.example packages/website/.env
-
-      - name: Forbid structural tests (repo-wide)
-        run: bun scripts/forbid-structural-tests.ts packages
 
       - name: Biome + typecheck + tests
         run: |
@@ -71,9 +157,11 @@ jobs:
           done
           exit $FAIL
 
-  # ── Rust: check + clippy + test ─────────────────────────────────────
+  # ── Rust: clippy + test ──────────────────────────────────────────
   backend:
     name: Backend
+    needs: filter
+    if: needs.filter.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -102,3 +190,32 @@ jobs:
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
           cargo test --no-default-features -- --skip claude_history::export_types
+
+  # Fails on failure/cancel; skipped path-filtered jobs are OK. Require this (or the workflow) in branch protection.
+  ci-ok:
+    name: CI complete
+    needs:
+      - filter
+      - structural_forbid
+      - frontend
+      - backend
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no failed required jobs
+        env:
+          F_FILTER: ${{ needs.filter.result }}
+          F_FORBID: ${{ needs.structural_forbid.result }}
+          F_FE: ${{ needs.frontend.result }}
+          F_BE: ${{ needs.backend.result }}
+        run: |
+          set -euo pipefail
+          for label_val in "filter:$F_FILTER" "structural_forbid:$F_FORBID" "frontend:$F_FE" "backend:$F_BE"; do
+            name="${label_val%%:*}"
+            r="${label_val#*:}"
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "Job $name ended with: $r"
+              exit 1
+            fi
+          done
+          echo "CI checks passed (skipped jobs are normal when a path does not match that stack)."
